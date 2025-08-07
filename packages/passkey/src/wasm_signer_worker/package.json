@@ -1,0 +1,15 @@
+{
+  "name": "wasm_signer_worker",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "wasm_signer_worker_bg.wasm",
+    "wasm_signer_worker.js",
+    "wasm_signer_worker.d.ts"
+  ],
+  "main": "wasm_signer_worker.js",
+  "types": "wasm_signer_worker.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

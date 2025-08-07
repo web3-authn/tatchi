@@ -1,0 +1,52 @@
+[package]
+name = "wasm_signer_worker"
+version = "0.1.0"
+edition = "2021"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+# Empty workspace to make this package independent
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bs58 = "0.5"
+base64ct = { version = "1.6", features = ["alloc"] }
+borsh = { version = "1.3", features = ["derive"] }
+chacha20poly1305 = "0.10"
+ciborium = "0.2" # CBOR parsing for WebAuthn COSE keys
+console_error_panic_hook = { version = "0.1.7", optional = true }
+# For NEAR key generation and transaction signing
+ed25519-dalek = { version = "2.1", default-features = false, features = ["rand_core"] }
+getrandom = { version = "0.2.15", features = ["js"] }
+hkdf = "0.12"
+sha2 = "0.10"
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+serde_json = "1.0"
+serde_bytes = "0.11"
+wasm-bindgen = { version = "0.2", features = ["serde-serialize"] }
+# Logging dependencies
+log = "0.4"
+wasm-logger = "0.2"
+
+# WASM HTTP dependencies
+web-sys = { version = "0.3", features = [
+  "console",
+  "Request",
+  "RequestInit",
+  "RequestMode",
+  "Response",
+  "Headers"
+] }
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+
+[dev-dependencies]
+near-crypto = "0.30"
+
+[features]
+default = ["console_error_panic_hook"]
