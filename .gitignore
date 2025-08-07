@@ -1,0 +1,45 @@
+# Node modules
+node_modules
+frontend/node_modules
+relay-server/node_modules
+
+# All environment files
+.env
+**/.env
+**/.env.*
+
+# Frontend test certs
+frontend/certs
+
+# Playwright report
+packages/passkey/playwright-report
+test-results
+frontend/public
+
+# WASM worker outputs
+packages/passkey/dist
+
+packages/passkey/src/wasm_signer_worker/pkg
+packages/passkey/src/wasm_signer_worker/target
+packages/passkey/src/wasm_signer_worker/wasm_signer_worker_bg.wasm
+packages/passkey/src/wasm_signer_worker/wasm_signer_worker_bg.wasm.d.ts
+packages/passkey/src/wasm_signer_worker/wasm_signer_worker.js
+packages/passkey/src/wasm_signer_worker/wasm_signer_worker.d.ts
+
+packages/passkey/src/wasm_vrf_worker/pkg
+packages/passkey/src/wasm_vrf_worker/target
+packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm
+packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm.d.ts
+packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.js
+packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.d.ts
+
+frontend/public/workers
+
+# Build output
+frontend/dist
+relay-server/dist
+
+# editor configs
+.vscode/*
+!.vscode/extensions.json
+.DS_Store

@@ -1,0 +1,103 @@
+{
+  "name": "@web3authn/passkey",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web3 Authn passkeys built on NEAR protocol",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/src/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/esm/server/index.js",
+      "require": "./dist/cjs/server/index.js",
+      "types": "./dist/types/src/server/index.d.ts"
+    },
+    "./react": {
+      "import": "./dist/esm/react/index.js",
+      "require": "./dist/cjs/react/index.js",
+      "types": "./dist/types/src/react/index.d.ts"
+    },
+    "./react/styles": "./dist/esm/react/styles/styles.css",
+    "./worker": "./dist/web3authn-signer.worker.js",
+    "./wasm": "./dist/wasm_signer_worker_bg.wasm",
+    "./wasm-js": "./dist/wasm_signer_worker.js"
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "./scripts/build.sh",
+    "build:rolldown": "rolldown -c rolldown.config.ts",
+    "dev": "rolldown -c rolldown.config.ts -w",
+    "test": "npm run build:check:fresh || (npm run build && mkdir -p ../../frontend/public/sdk && cp -r dist/* ../../frontend/public/sdk/ && echo 'SDK built and copied to frontend for testing') && playwright test",
+    "build:check:fresh": "./scripts/check-build-freshness.sh",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "NEAR",
+    "passkey",
+    "webauthn",
+    "authentication",
+    "blockchain",
+    "react",
+    "typescript",
+    "sdk"
+  ],
+  "author": "web3authn.org",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web3-authn/passkey.git"
+  },
+  "bugs": {
+    "url": "https://github.com/web3-authn/passkey/issues"
+  },
+  "homepage": "https://github.com/web3-authn",
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@near-js/transactions": "^2.0.1",
+    "@near-js/types": "^2.0.1",
+    "@types/qrcode": "^1.5.5",
+    "jsqr": "^1.4.0",
+    "qrcode": "^1.5.4",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@near-js/accounts": "^2.0.1",
+    "@near-js/client": "^2.0.1",
+    "@near-js/crypto": "^2.0.1",
+    "@near-js/keystores": "^2.0.1",
+    "@near-js/signers": "^2.0.1",
+    "@near-js/providers": "^2.0.1",
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.19.9",
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7",
+    "borsh": "^2.0.0",
+    "bs58": "^6.0.0",
+    "idb": "^8.0.3",
+    "js-sha256": "^0.11.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "rolldown": "^1.0.0-beta.27",
+    "rollup-plugin-css-only": "^4.5.2",
+    "typescript": "^5.8.3"
+  }
+}

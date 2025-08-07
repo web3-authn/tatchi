@@ -1,0 +1,525 @@
+/* Web3authUserProfile Component Styles */
+/* All CSS classes used by the Web3authUserProfile component and its sub-components */
+
+/* Container Animation Keyframes */
+@keyframes web3authn-profile-container-open {
+  from {
+    width: var(--start-width);
+    height: var(--start-height);
+  }
+  to {
+    width: var(--end-width);
+    height: var(--end-height);
+  }
+}
+
+@keyframes web3authn-profile-container-close {
+  from {
+    width: var(--start-width);
+    height: var(--start-height);
+  }
+  to {
+    width: var(--end-width);
+    height: var(--end-height);
+  }
+}
+
+/* Dropdown Animation Keyframes */
+@keyframes web3authn-profile-dropdown-show {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+    visibility: visible;
+  }
+}
+
+@keyframes web3authn-profile-dropdown-hide {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+/* Menu Item Animation Keyframes */
+@keyframes web3authn-profile-menu-item-enter {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes web3authn-profile-menu-item-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.8);
+  }
+}
+
+/* Animation Classes */
+.web3authn-profile-container-opening {
+  animation: web3authn-profile-container-open var(--container-duration, 100ms) var(--container-easing, ease) forwards;
+}
+
+.web3authn-profile-container-closing {
+  animation: web3authn-profile-container-close var(--container-duration, 100ms) var(--container-easing, ease) forwards;
+}
+
+.web3authn-profile-dropdown-showing {
+  animation: web3authn-profile-dropdown-show var(--dropdown-duration, 100ms) ease forwards;
+}
+
+.web3authn-profile-dropdown-hiding {
+  animation: web3authn-profile-dropdown-hide var(--dropdown-duration, 100ms) ease forwards;
+}
+
+.web3authn-profile-menu-item-entering {
+  animation: web3authn-profile-menu-item-enter var(--menu-duration, 150ms) var(--menu-easing, ease) var(--menu-delay, 0ms) forwards;
+}
+
+.web3authn-profile-menu-item-exiting {
+  animation: web3authn-profile-menu-item-exit var(--menu-duration, 150ms) var(--menu-easing, ease) var(--menu-delay, 0ms) forwards;
+}
+
+/* ProfileButton Component Styles */
+.web3authn-profile-button-container {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: inline-block;
+}
+
+.web3authn-profile-button-morphable {
+  position: relative;
+  background-color: white;
+  border: 1px solid var(--light-grey);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #111827;
+  cursor: pointer;
+  outline: none;
+  overflow: hidden;
+  width: fit-content;
+}
+
+.web3authn-profile-button-morphable:hover {
+  border-color: #d1d5db;
+}
+
+.web3authn-profile-button-trigger-wrapper {
+  width: fit-content;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.web3authn-profile-button-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.web3authn-profile-button-trigger:hover {
+  color: #111827;
+  transition: color 0.1s ease;
+}
+
+.web3authn-profile-button-trigger:hover .web3authn-profile-button-icon,
+.web3authn-profile-button-trigger:hover .web3authn-profile-button-username {
+  color: inherit;
+}
+
+.web3authn-profile-button-trigger:hover svg {
+  color: inherit;
+}
+
+/* Profile Button Trigger States */
+.web3authn-profile-button-trigger.closed .web3authn-profile-dropdown-user-content {
+  gap: 4px;
+}
+
+.web3authn-profile-button-trigger.open .web3authn-profile-dropdown-user-content {
+  gap: 12px;
+}
+
+/* Avatar States and CSS animations */
+.web3authn-profile-dropdown-avatar.shrunk {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #f8fafc);
+  border: 1px solid var(--outline-color);
+}
+
+.web3authn-profile-dropdown-avatar.expanded {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, #f8fafc);
+  border: 1px solid var(--outline-color);
+}
+
+.web3authn-profile-dropdown-avatar.shrunk svg {
+  width: 16px;
+  height: 16px;
+}
+
+.web3authn-profile-dropdown-avatar.expanded svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Gear icon animation for AvatarIcon */
+.web3authn-profile-dropdown-gear-icon {
+  transition: transform 400ms ease;
+}
+
+.web3authn-profile-dropdown-gear-icon.open {
+  animation: web3authn-gearRotateIn 0.6s ease-out;
+  animation-fill-mode: forwards;
+}
+
+.web3authn-profile-dropdown-gear-icon.closed {
+  animation: web3authn-gearRotateOut 0.4s ease-out;
+}
+
+@keyframes web3authn-gearRotateIn {
+  from {
+    transform: rotate(0deg) scale(1);
+  }
+  to {
+    transform: rotate(360deg) scale(1.8);
+  }
+}
+
+@keyframes web3authn-gearRotateOut {
+  from {
+    transform: rotate(360deg) scale(1.3);
+  }
+  to {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+.web3authn-profile-dropdown-gear-icon:hover {
+  transform: rotate(180deg) scale(1.2);
+}
+
+/* User Details States */
+.web3authn-profile-dropdown-user-details .web3authn-profile-dropdown-account-id.hidden {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.8) translateY(-50%);
+  max-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  transition: opacity 0.1s ease, transform 0.1s ease, max-height 0.1s ease;
+}
+
+.web3authn-profile-dropdown-user-details .web3authn-profile-dropdown-account-id.visible {
+  position: absolute;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  max-height: 2rem;
+  margin: 0;
+  padding: 0;
+  transition: opacity 0.2s ease 0.1s, transform 0.2s ease 0.1s, max-height 0.2s ease 0.1s;
+}
+
+/* Username is always visible */
+.web3authn-profile-dropdown-user-details .web3authn-profile-dropdown-username {
+  display: block;
+  transition: margin-top 0.2s ease;
+}
+
+/* Username margin animation based on open/closed state */
+.web3authn-profile-button-trigger.closed .web3authn-profile-dropdown-username {
+  margin-top: 0rem;
+}
+
+.web3authn-profile-button-trigger.open .web3authn-profile-dropdown-username {
+  margin-top: -1.25rem;
+}
+
+/* User details container is always visible to show username */
+.web3authn-profile-dropdown-user-details {
+  display: block;
+}
+
+.web3authn-profile-button-icon {
+  flex-shrink: 0;
+}
+
+.web3authn-profile-button-icon svg {
+  overflow: visible;
+}
+
+.web3authn-profile-button-username {
+  white-space: nowrap;
+  overflow: hidden;
+  display: inline-block;
+}
+
+.web3authn-profile-button-icon {
+  color: #374151;
+}
+
+.web3authn-profile-button-username {
+  display: block;
+  color: #374151;
+}
+
+.web3authn-profile-button-username.hidden {
+  display: none;
+}
+
+.web3authn-profile-dropdown {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 0px;
+  min-width: 240px;
+  max-width: 320px;
+  width: max-content;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  border: 1px solid var(--light-grey);
+  padding: 4px 0;
+  z-index: 50;
+}
+
+.web3authn-profile-dropdown-morphed {
+  width: 100%;
+  max-width: 300px;
+  background-color: transparent;
+  border: none;
+  border-top: 1px solid var(--light-grey);
+  box-shadow: none;
+  padding: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.web3authn-profile-dropdown-morphed.visible {
+  display: block;
+}
+
+.web3authn-profile-dropdown-morphed.hidden {
+  display: none;
+}
+
+.web3authn-profile-dropdown-hidden {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  min-width: 240px;
+  max-width: 320px;
+  width: max-content;
+  background-color: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}
+
+.web3authn-profile-dropdown-user-info {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f3f4f6;
+  margin-top: 8px;
+}
+
+.web3authn-profile-dropdown-user-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: gap 0.1s ease;
+}
+
+.web3authn-profile-dropdown-avatar {
+  width: 40px;
+  height: 40px;
+  margin-right: 4px;
+  background: linear-gradient(135deg, #f8fafc);
+  border: 1px solid var(--light-grey);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.web3authn-profile-dropdown-user-details {
+  flex: 1;
+}
+
+.web3authn-profile-dropdown-username {
+  font-weight: 500;
+  color: #111827;
+  font-size: 14px;
+  margin: 0;
+  margin-top: 0; /* Allow margin-top to be overridden by state-specific rules */
+}
+
+.web3authn-profile-dropdown-account-id {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+  text-decoration: none;
+  transition: color 0.1s ease, opacity 0.1s ease, transform 0.1s ease;
+  cursor: pointer;
+}
+
+.web3authn-profile-dropdown-account-id:hover {
+  color: #374151;
+  text-decoration: underline;
+}
+
+.web3authn-profile-dropdown-menu {
+  padding: 4px 0;
+}
+
+.web3authn-profile-dropdown-menu > * {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.web3authn-profile-dropdown-menu-item {
+  width: 100%;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+  opacity: 1;
+}
+
+.web3authn-profile-dropdown-menu-item:hover {
+  background-color: #f9fafb;
+}
+
+.web3authn-profile-dropdown-menu-item:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.web3authn-profile-dropdown-menu-item:disabled:hover {
+  background-color: transparent;
+}
+
+.web3authn-profile-dropdown-menu-item-icon {
+  flex-shrink: 0;
+}
+
+.web3authn-profile-dropdown-menu-item-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.web3authn-profile-dropdown-menu-item-label {
+  font-weight: 500;
+  color: #111827;
+  font-size: 14px;
+  margin: 0;
+}
+
+.web3authn-profile-dropdown-menu-item.disabled .web3authn-profile-dropdown-menu-item-label {
+  color: #9ca3af;
+}
+
+.web3authn-profile-dropdown-menu-item-description {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.web3authn-profile-dropdown-menu-item.disabled .web3authn-profile-dropdown-menu-item-description {
+  color: #9ca3af;
+}
+
+.web3authn-profile-dropdown-toggle-section {
+  padding: 10px 16px;
+}
+
+.web3authn-profile-dropdown-toggle-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.web3authn-profile-dropdown-toggle-text {
+  flex: 1;
+}
+
+.web3authn-profile-dropdown-toggle-title {
+  font-weight: 500;
+  color: #111827;
+  font-size: 14px;
+  margin: 0;
+}
+
+.web3authn-profile-dropdown-toggle-description {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0;
+}
+
+.web3authn-profile-dropdown-logout-section {
+  border-top: 1px solid #f3f4f6;
+  padding: 4px 0;
+}
+
+.web3authn-profile-dropdown-logout-button {
+  width: 100%;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.web3authn-profile-dropdown-logout-button:hover {
+  background-color: #f9fafb;
+}
+
+.web3authn-profile-dropdown-logout-icon {
+  color: #6b7280;
+}
+
+.web3authn-profile-dropdown-logout-text {
+  font-weight: 500;
+  color: #111827;
+  font-size: 14px;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "reveries-passkey-monorepo",
+  "private": true,
+  "scripts": {
+    "install-all": "pnpm install && (cd relay-server && pnpm install) && (cd frontend && pnpm install) && (cd packages/passkey && pnpm install)",
+    "build:sdk": "(cd packages/passkey && pnpm build && cd ../../ && sh ./npm_link_sdk.sh)",
+    "dev": "(cd frontend && pnpm dev)",
+    "server": "(cd relay-server && pnpm dev)"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0",
+    "concurrently": "^9.1.2",
+    "dotenv": "^16.5.0"
+  }
+}
