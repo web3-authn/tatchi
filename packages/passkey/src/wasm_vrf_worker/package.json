@@ -1,0 +1,15 @@
+{
+  "name": "wasm_vrf_worker",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "wasm_vrf_worker_bg.wasm",
+    "wasm_vrf_worker.js",
+    "wasm_vrf_worker.d.ts"
+  ],
+  "main": "wasm_vrf_worker.js",
+  "types": "wasm_vrf_worker.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
