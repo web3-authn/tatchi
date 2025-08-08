@@ -10,7 +10,9 @@ import type {
   EncryptedVRFKeypair,
   VRFInputData,
   VRFWorkerMessage,
-  VRFWorkerResponse
+  VRFWorkerResponse,
+  ServerEncryptedVrfKeypair,
+  VRFKeypairData
 } from '../types/vrf-worker';
 import { VRFChallenge } from '../types/vrf-worker';
 import { TouchIdPrompt } from './touchIdPrompt';
@@ -241,6 +243,67 @@ export class VrfWorkerManager {
     return response;
   }
 
+  // Not used at the moment.
+  // We currently shamir3pass encrypt the VRF keypair in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
+  // This handler is somewhat redundant, but may be useful for future use cases
+  async shamir3PassEncryptCurrentVrfKeypair({
+    nearAccountId,
+    relayServerUrl,
+    applyServerLockRoute,
+  }: {
+    nearAccountId: AccountId;
+    relayServerUrl: string;
+    applyServerLockRoute?: string;
+  }): Promise<VRFWorkerResponse> {
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage = {
+      type: 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR',
+      id: this.generateMessageId(),
+      data: {
+        nearAccountId,
+        relayServerUrl,
+        applyServerLockRoute
+      },
+    };
+    return this.sendMessage(message);
+  }
+
+  /**
+   * This securely decrypts the shamir3Pass encrypted VRF keypair and loads it into memory
+   * It performs Shamir-3-Pass commutative decryption within WASM worker with the relay-server
+   */
+  async shamir3PassDecryptVrfKeypair({
+    nearAccountId,
+    relayServerUrl,
+    kek_s_b64u,
+    ciphertext_vrf_b64u,
+    removeServerLockRoute,
+  }: {
+    nearAccountId: AccountId;
+    relayServerUrl: string;
+    kek_s_b64u: string;
+    ciphertext_vrf_b64u: string;
+    removeServerLockRoute?: string;
+  }): Promise<VRFWorkerResponse> {
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage = {
+      type: 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR',
+      id: this.generateMessageId(),
+      data: {
+        nearAccountId,
+        relayServerUrl,
+        kek_s_b64u,
+        ciphertext_vrf_b64u,
+        removeServerLockRoute
+      },
+    };
+    const response = await this.sendMessage(message);
+    if (response.success) {
+      this.currentVrfAccountId = nearAccountId;
+    }
+    return response;
+  }
+
   /**
    * Generate VRF challenge using in-memory VRF keypair
    * This is called during authentication to create WebAuthn challenges
@@ -256,8 +319,7 @@ export class VrfWorkerManager {
         user_id: inputData.userId,
         rp_id: inputData.rpId,
         block_height: inputData.blockHeight,
-        // Convert base58 blockHash to byte array to be
-        // consistent with Rust Vec<u8>
+        // Convert base58 blockHash to byte array to be consistent with Rust Vec<u8>
         block_hash: Array.from(base58Decode(inputData.blockHash)),
         timestamp: Date.now()
       }
@@ -470,41 +532,53 @@ export class VrfWorkerManager {
    * @param prfOutput - Base64url-encoded PRF output from WebAuthn credential (PRF Output 1)
    * @param nearAccountId - NEAR account ID for key derivation salt
    * @param vrfInputParams - Optional VRF input parameters for challenge generation
+   * @param relayServerUrl - Optional relay server URL for Shamir3Pass VRF key lock
+   * @param applyServerLockRoute - Optional route for applying Shamir3Pass VRF key lock
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
   async deriveVrfKeypairFromSeed({
     prfOutput,
     nearAccountId,
-    vrfInputData
+    vrfInputData,
+    relayServerUrl,
+    applyServerLockRoute,
   }: {
     prfOutput: string;
     nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
+    vrfInputData?: VRFInputData; // optional, for challenge generation
+    relayServerUrl?: string;
+    applyServerLockRoute?: string;
   }): Promise<{
     vrfPublicKey: string;
-    vrfChallenge?: VRFChallenge;
-    encryptedVrfKeypair?: EncryptedVRFKeypair;
+    vrfChallenge: VRFChallenge | null;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   }> {
     console.debug('VRF Manager: Deriving deterministic VRF keypair from PRF output');
     try {
       await this.ensureWorkerReady();
 
-      // Pass base64url string directly - VRF worker handles conversion internally
-      const messageData: any = {
-        prfOutput: prfOutput, // Base64url string → VRF worker handles conversion
-        nearAccountId: nearAccountId
-      };
+      // optional VRF Input data, only needed if generating VRF challenge simultaneously
+      const hasVrfInputData = vrfInputData?.blockHash
+        && vrfInputData?.blockHeight
+        && vrfInputData?.userId
+        && vrfInputData?.rpId;
 
-      // Add VRF input parameters if provided for challenge generation
-      if (vrfInputData) {
-        messageData.vrfInputParams = {
-          user_id: vrfInputData.userId,
-          rp_id: vrfInputData.rpId,
-          block_height: vrfInputData.blockHeight,
-          block_hash: Array.from(base58Decode(vrfInputData.blockHash)),
+      // Pass base64url string directly - VRF worker handles conversion internally
+      const messageData = {
+        prfOutput: prfOutput, // Base64url string → VRF worker handles conversion
+        nearAccountId: nearAccountId,
+        vrfInputParams: hasVrfInputData ? {
+          user_id: vrfInputData?.userId,
+          rp_id: vrfInputData?.rpId,
+          block_height: vrfInputData?.blockHeight,
+          block_hash: Array.from(base58Decode(vrfInputData?.blockHash || '')),
           timestamp: Date.now()
-        };
-      }
+        } : null,
+        relayServerUrl,
+        applyServerLockRoute,
+      };
+      // Add VRF input parameters if provided for challenge generation
 
       const message: VRFWorkerMessage = {
         type: 'DERIVE_VRF_KEYPAIR_FROM_PRF',
@@ -517,35 +591,39 @@ export class VrfWorkerManager {
       if (!response.success || !response.data) {
         throw new Error(`VRF keypair derivation failed: ${response.error}`);
       }
-
+      if (!response.data.vrf_public_key) {
+        throw new Error('VRF public key not found in response');
+      }
       console.debug('VRF Manager: Deterministic VRF keypair derivation successful');
+
+      // VRF challenge data is optional - only generated if vrfInputData was provided
+      const vrfChallenge = response.data.vrf_challenge_data
+        ? new VRFChallenge({
+            vrfInput: response.data.vrf_challenge_data.vrfInput,
+            vrfOutput: response.data.vrf_challenge_data.vrfOutput,
+            vrfProof: response.data.vrf_challenge_data.vrfProof,
+            vrfPublicKey: response.data.vrf_challenge_data.vrfPublicKey,
+            userId: response.data.vrf_challenge_data.userId,
+            rpId: response.data.vrf_challenge_data.rpId,
+            blockHeight: response.data.vrf_challenge_data.blockHeight,
+            blockHash: response.data.vrf_challenge_data.blockHash,
+          })
+        : null;
+
+
+      console.log(">>>> response.data.server_encrypted_vrf_keypair", response.data.server_encrypted_vrf_keypair);
 
       const result: {
         vrfPublicKey: string;
-        vrfChallenge?: VRFChallenge;
-        encryptedVrfKeypair?: EncryptedVRFKeypair;
+        vrfChallenge: VRFChallenge | null;
+        encryptedVrfKeypair: EncryptedVRFKeypair;
+        serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
       } = {
-        vrfPublicKey: response.data.vrf_public_key
+        vrfPublicKey: response.data.vrf_public_key,
+        vrfChallenge,
+        encryptedVrfKeypair: response.data.encrypted_vrf_keypair,
+        serverEncryptedVrfKeypair: response.data.server_encrypted_vrf_keypair,
       };
-
-      // Add VRF challenge if it was generated
-      if (response.data.vrf_challenge_data) {
-        result.vrfChallenge = new VRFChallenge({
-          vrfInput: response.data.vrf_challenge_data.vrfInput,
-          vrfOutput: response.data.vrf_challenge_data.vrfOutput,
-          vrfProof: response.data.vrf_challenge_data.vrfProof,
-          vrfPublicKey: response.data.vrf_challenge_data.vrfPublicKey,
-          userId: response.data.vrf_challenge_data.userId,
-          rpId: response.data.vrf_challenge_data.rpId,
-          blockHeight: response.data.vrf_challenge_data.blockHeight,
-          blockHash: response.data.vrf_challenge_data.blockHash,
-        });
-      }
-
-      // Add encrypted VRF keypair if it was generated
-      if (response.data.encrypted_vrf_keypair) {
-        result.encryptedVrfKeypair = response.data.encrypted_vrf_keypair;
-      }
 
       return result;
 

@@ -3,6 +3,8 @@ import {
   AuthService,
   type CreateAccountAndRegisterRequest,
   type CreateAccountAndRegisterResult,
+  handleApplyServerLock,
+  handleRemoveServerLock,
 } from '@web3authn/passkey/server';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -24,6 +26,10 @@ const authService = new AuthService({
   networkId: 'testnet',
   accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
   createAccountAndRegisterGas: '45000000000000', // 45 TGas (tested)
+  // Shamir 3-pass params (base64url bigints)
+  shamir_p_b64u: process.env.SHAMIR_P_B64U!,
+  shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
+  shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
 });
 
 const app: Express = express();
@@ -96,6 +102,55 @@ app.post(
     }
   }
 );
+
+// Removed legacy SRA routes
+
+// Shamir 3-pass endpoints
+app.post('/vrf/apply-server-lock', async (req: Request, res: Response) => {
+  try {
+    console.log("apply-server-lock request.body", req.body);
+    const serverResponse = await handleApplyServerLock({
+      method: req.method,
+      url: req.url,
+      headers: req.headers as any,
+      body: JSON.stringify(req.body),
+    }, authService);
+
+    res.status(serverResponse.status);
+
+    Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
+
+    res.send(JSON.parse(serverResponse.body));
+  } catch (e: any) {
+    res.status(500).json({
+      error: 'internal',
+      details: e?.message
+    });
+  }
+});
+
+app.post('/vrf/remove-server-lock', async (req: Request, res: Response) => {
+  try {
+    console.log("remove-server-lock request.body", req.body);
+    const serverResponse = await handleRemoveServerLock({
+      method: req.method,
+      url: req.url,
+      headers: req.headers as any,
+      body: JSON.stringify(req.body),
+    }, authService);
+
+    res.status(serverResponse.status);
+
+    Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
+
+    res.send(JSON.parse(serverResponse.body));
+  } catch (e: any) {
+    res.status(500).json({
+      error: 'internal',
+      details: e?.message
+    });
+  }
+});
 
 app.listen(config.port, () => {
   console.log(`Server listening on http://localhost:${config.port}`);
