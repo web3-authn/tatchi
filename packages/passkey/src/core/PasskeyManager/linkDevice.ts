@@ -630,6 +630,8 @@ export class LinkDeviceFlow {
           rawId: base64UrlEncode(new Uint8Array(credential.rawId))
         },
         encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
+        // TODO: update link device to use SRC encryption
+        serverEncryptedVrfKeypair: undefined, // Device linking doesn't use SRA encryption
       });
 
       // Store authenticator with deviceNumber

@@ -103,7 +103,11 @@ export interface VRFWorkerMessage {
       | 'ENCRYPT_VRF_KEYPAIR_WITH_PRF'
       | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
       | 'CHECK_VRF_STATUS'
-      | 'LOGOUT';
+      | 'LOGOUT'
+      | 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR' // client only
+      | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
+      | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
+      | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
   id?: string;
   data?: any;
 }
@@ -124,3 +128,57 @@ export interface EncryptedVRFKeypairResponse {
   vrfPublicKey: string;
   encryptedVrfKeypair: EncryptedVRFKeypair;
 }
+
+/**
+ * Server-encrypted VRF keypair for commutative encryption scheme
+ * This allows server-assisted VRF key recovery without the server seeing the plaintext
+ */
+export interface ServerEncryptedVrfKeypair {
+  /** Base64url-encoded VRF ciphertext (AEAD over VRF keypair bytes) */
+  ciphertext_vrf_b64u: string;
+  /** Base64url-encoded KEK with server lock applied (KEK_s) */
+  kek_s_b64u: string;
+}
+
+/**
+ * Plaintext VRF keypair data structure
+ * Used for loading decrypted VRF keypairs directly into memory
+ */
+export interface VRFKeypairData {
+  /** Bincode-serialized ECVRFKeyPair bytes (includes both private and public key) */
+  keypairBytes: number[];
+  /** Base64url-encoded public key for convenience and verification */
+  publicKeyBase64: string;
+}
+
+/**
+ * Input data for SRA commutative decryption within WASM worker
+ */
+export interface SRACommutativeDecryptInput {
+  /** NEAR account ID for context */
+  nearAccountId: AccountId;
+  /** Server-encrypted VRF keypair data */
+  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair;
+  /** Relay server URL for decryption endpoint */
+  relayServerUrl: string;
+}
+
+/**
+ * Response data for SRA commutative decryption
+ */
+export interface SRACommutativeDecryptResponse {
+  /** Whether the decryption and loading was successful */
+  success: boolean;
+  /** NEAR account ID that was processed */
+  nearAccountId: AccountId;
+  /** Error message if unsuccessful */
+  error?: string;
+}
+
+// Shamir 3-pass registration wrap result
+export interface Shamir3PassRegisterWrapResult {
+  ciphertext_vrf_b64u: string;
+  enc_s_k_b64u: string;
+  vrf_public_key: string;
+}
+

@@ -1,13 +1,12 @@
-import type { BaseHooksOptions, ActionResult, OperationHooks, EventCallback, ActionSSEEvent, AccountRecoveryEventStep5, AccountRecoverySSEEvent } from '../types/passkeyManager';
+import type { OperationHooks, EventCallback, AccountRecoverySSEEvent } from '../types/passkeyManager';
 import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId, StoredAuthenticator, VRFChallenge } from '../types';
-import type { EncryptedVRFKeypair } from '../types/vrf-worker';
+import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { validateNearAccountId } from '../../utils/validation';
 import { toAccountId } from '../types/accountIds';
 import { generateBootstrapVrfChallenge } from './registration';
-import { base58Decode, base64UrlEncode } from '../../utils/encoders';
-import { NearClient } from '../NearClient';
+import { base64UrlEncode } from '../../utils/encoders';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
@@ -274,7 +273,7 @@ export async function recoverAccount(
   reuseCredential?: PublicKeyCredential
 ): Promise<RecoveryResult> {
   const { onEvent, onError, hooks } = options || {};
-  const { webAuthnManager, nearClient } = context;
+  const { webAuthnManager, nearClient, configs } = context;
 
   await hooks?.beforeCall?.();
 
@@ -315,6 +314,10 @@ export async function recoverAccount(
     if (!hasAccess) {
       return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, hooks);
     }
+
+    // TODO: implement shamir3pass encryption of the VRF key
+    // SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR vrf worker
+
     const vrfInputData: VRFInputData = {
       userId: accountId,
       rpId: window.location.hostname,
@@ -325,7 +328,7 @@ export async function recoverAccount(
       webAuthnManager,
       credential,
       accountId,
-      vrfInputData
+      vrfInputData,
     );
 
     const recoveryResult = await performAccountRecovery({
@@ -404,12 +407,12 @@ async function deriveVrfKeypair(
   webAuthnManager: WebAuthnManager,
   credential: PublicKeyCredential,
   accountId: AccountId,
-  vrfInputData: VRFInputData
+  vrfInputData: VRFInputData,
 ) {
   const deterministicVrfResult = await webAuthnManager.deriveVrfKeypairFromPrf({
     credential,
     nearAccountId: accountId,
-    vrfInputData
+    vrfInputData,
   });
 
   if (
@@ -424,7 +427,8 @@ async function deriveVrfKeypair(
   return {
     encryptedVrfResult: {
       vrfPublicKey: deterministicVrfResult.vrfPublicKey,
-      encryptedVrfKeypair: deterministicVrfResult.encryptedVrfKeypair
+      encryptedVrfKeypair: deterministicVrfResult.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: deterministicVrfResult.serverEncryptedVrfKeypair || undefined
     },
     vrfChallenge: deterministicVrfResult.vrfChallenge
   };
@@ -467,6 +471,7 @@ async function performAccountRecovery({
   vrfChallenge,
   credential,
   encryptedVrfResult,
+  serverSRAPublicKey,
   onEvent,
 }: {
   context: PasskeyManagerContext,
@@ -478,7 +483,12 @@ async function performAccountRecovery({
   },
   vrfChallenge: VRFChallenge,
   credential: PublicKeyCredential,
-  encryptedVrfResult: { encryptedVrfKeypair: EncryptedVRFKeypair; vrfPublicKey: string },
+  encryptedVrfResult: {
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    vrfPublicKey: string
+    serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair
+  },
+  serverSRAPublicKey?: string,
   onEvent?: EventCallback<AccountRecoverySSEEvent>,
 }): Promise<RecoveryResult> {
 
@@ -510,12 +520,16 @@ async function performAccountRecovery({
     }
 
     // 3. Restore user data to IndexedDB with correct device number
+    // Use the server-encrypted VRF keypair directly from the VRF worker result
+    const serverEncryptedVrfKeypairObj = encryptedVrfResult.serverEncryptedVrfKeypair;
+
     await restoreUserData({
       webAuthnManager,
       accountId,
       deviceNumber,
       publicKey,
       encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: serverEncryptedVrfKeypairObj,
       encryptedNearKeypair: encryptedKeypair,
       credential
     });
@@ -581,6 +595,7 @@ async function restoreUserData({
   deviceNumber,
   publicKey,
   encryptedVrfKeypair,
+  serverEncryptedVrfKeypair,
   encryptedNearKeypair,
   credential
 }: {
@@ -589,6 +604,7 @@ async function restoreUserData({
   deviceNumber: number,
   publicKey: string,
   encryptedVrfKeypair: EncryptedVRFKeypair,
+  serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair,
   encryptedNearKeypair: {
     encryptedPrivateKey: string;
     iv: string
@@ -617,6 +633,7 @@ async function restoreUserData({
         rawId: base64UrlEncode(new Uint8Array(credential.rawId))
       },
       encryptedVrfKeypair,
+      serverEncryptedVrfKeypair,
     });
   } else {
     await webAuthnManager.storeUserData({
@@ -625,6 +642,7 @@ async function restoreUserData({
       lastUpdated: Date.now(),
       passkeyCredential: existingUser.passkeyCredential,
       encryptedVrfKeypair,
+      serverEncryptedVrfKeypair,
       deviceNumber
     });
   }
@@ -682,4 +700,3 @@ async function getRecoveryLoginState(webAuthnManager: WebAuthnManager, accountId
     vrfSessionDuration: loginState.sessionDuration
   };
 }
-

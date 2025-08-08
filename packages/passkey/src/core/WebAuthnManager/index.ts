@@ -17,7 +17,7 @@ import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
 import { type ActionParams } from '../types/signer-worker';
 import { extractPrfFromCredential } from './credentialsHelpers';
-import { EncryptedVRFKeypair, VRFInputData } from '../types/vrf-worker';
+import { EncryptedVRFKeypair, ServerEncryptedVrfKeypair, VRFInputData, VRFKeypairData } from '../types/vrf-worker';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
 import { VRFChallenge } from '../types/vrf-worker';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
@@ -92,21 +92,25 @@ export class WebAuthnManager {
    * @param credential - WebAuthn credential containing PRF outputs
    * @param nearAccountId - NEAR account ID for key derivation salt
    * @param vrfInputParams - Optional VRF input parameters for challenge generation
+   * @param applyServerLockRoute - Optional route for applying Shamir3Pass VRF key lock
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
   async deriveVrfKeypairFromPrf({
     credential,
     nearAccountId,
-    vrfInputData
+    vrfInputData,
+    applyServerLockRoute = '/vrf/apply-server-lock',
   }: {
     credential: PublicKeyCredential;
     nearAccountId: AccountId;
-    vrfInputData?: VRFInputData;
+    vrfInputData?: VRFInputData; // optional, for challenge generation
+    applyServerLockRoute?: string;
   }): Promise<{
     success: boolean;
     vrfPublicKey: string;
-    vrfChallenge?: VRFChallenge;
-    encryptedVrfKeypair?: EncryptedVRFKeypair;
+    vrfChallenge: VRFChallenge | null;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   }> {
     try {
       console.debug('WebAuthnManager: Deriving deterministic VRF keypair from PRF output');
@@ -119,15 +123,20 @@ export class WebAuthnManager {
 
       // Use the first PRF output for VRF keypair derivation (AES PRF output)
       // This ensures deterministic derivation: same PRF + same account = same VRF keypair
+      const relayerUrl = this.configs.relayer?.url;
       const vrfResult = await this.vrfWorkerManager.deriveVrfKeypairFromSeed({
         prfOutput: chacha20PrfOutput,
         nearAccountId,
-        vrfInputData
+        vrfInputData,
+        relayServerUrl: relayerUrl,
+        applyServerLockRoute: applyServerLockRoute,
       });
 
       console.debug(`Derived VRF public key: ${vrfResult.vrfPublicKey}`);
       if (vrfResult.vrfChallenge) {
         console.debug(`Generated VRF challenge with output: ${vrfResult.vrfChallenge.vrfOutput.substring(0, 20)}...`);
+      } else {
+        console.debug('No VRF challenge generated (vrfInputData not provided)');
       }
       if (vrfResult.encryptedVrfKeypair) {
         console.debug(`Generated encrypted VRF keypair for storage`);
@@ -137,20 +146,16 @@ export class WebAuthnManager {
       const result: {
         success: boolean;
         vrfPublicKey: string;
-        vrfChallenge?: VRFChallenge;
-        encryptedVrfKeypair?: EncryptedVRFKeypair;
+        vrfChallenge: VRFChallenge | null;
+        encryptedVrfKeypair: EncryptedVRFKeypair;
+        serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
       } = {
         success: true,
-        vrfPublicKey: vrfResult.vrfPublicKey
+        vrfPublicKey: vrfResult.vrfPublicKey,
+        vrfChallenge: vrfResult.vrfChallenge,
+        encryptedVrfKeypair: vrfResult.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: vrfResult.serverEncryptedVrfKeypair,
       };
-
-      if (vrfResult.vrfChallenge) {
-        result.vrfChallenge = vrfResult.vrfChallenge;
-      }
-
-      if (vrfResult.encryptedVrfKeypair) {
-        result.encryptedVrfKeypair = vrfResult.encryptedVrfKeypair;
-      }
 
       return result;
 
@@ -222,6 +227,39 @@ export class WebAuthnManager {
       console.error('WebAuthnManager: VRF keypair unlock failed:', error.message);
       return { success: false, error: error.message };
     }
+  }
+
+  /**
+   * Perform Shamir 3-pass commutative decryption within WASM worker
+   * This securely decrypts a server-encrypted KEK (key encryption key)
+   * which the wasm worker uses to unlock a key to decrypt the VRF keypair and loads it into memory
+   * The server never knows the real value of the KEK, nor the VRF keypair
+   */
+  async shamir3PassDecryptVrfKeypair({
+    nearAccountId,
+    relayServerUrl,
+    kek_s_b64u,
+    ciphertext_vrf_b64u,
+    removeServerLockRoute,
+  }: {
+    nearAccountId: AccountId;
+    relayServerUrl: string;
+    kek_s_b64u: string;
+    ciphertext_vrf_b64u: string;
+    removeServerLockRoute?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
+      nearAccountId,
+      relayServerUrl,
+      kek_s_b64u,
+      ciphertext_vrf_b64u,
+      removeServerLockRoute,
+    });
+
+    return {
+      success: result.success,
+      error: result.error
+    };
   }
 
   async clearVrfSession(): Promise<void> {
@@ -612,6 +650,7 @@ export class WebAuthnManager {
     publicKey,
     encryptedVrfKeypair,
     vrfPublicKey,
+    serverEncryptedVrfKeypair,
     onEvent
   }: {
     nearAccountId: AccountId;
@@ -619,6 +658,7 @@ export class WebAuthnManager {
     publicKey: string;
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
     onEvent?: (event: any) => void;
   }): Promise<void> {
 
@@ -651,6 +691,7 @@ export class WebAuthnManager {
           rawId: credentialId
         },
         encryptedVrfKeypair: encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair || undefined,
       });
 
       console.debug('✅ registration data stored atomically');

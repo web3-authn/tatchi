@@ -75,7 +75,7 @@ export async function registerPasskey(
     });
 
     // Step 1: Generate bootstrap VRF keypair + challenge for registration
-    console.log('Registration Step 1: Generating VRF keypair + challenge for registration');
+    console.log('Registration Step 1: Generating bootstrap VRF keypair + challenge for registration');
     const { vrfChallenge } = await Promise.all([
       validateRegistrationInputs(context, nearAccountId, onEvent, onError),
       generateBootstrapVrfChallenge(context, nearAccountId),
@@ -105,6 +105,8 @@ export async function registerPasskey(
       message: 'WebAuthn ceremony successful, PRF output obtained'
     });
 
+    // SRA removed
+
     // Steps 3-4: Encrypt VRF keypair, derive NEAR keypair, and check registration in parallel
     console.log('Registration Steps 3-4: Encrypt VRF keypair, derive NEAR keypair, and check registration');
     const {
@@ -113,6 +115,9 @@ export async function registerPasskey(
       nearKeyResult,
       canRegisterUserResult,
     } = await Promise.all([
+      // TODO: could we remove this? this is just encrypting the bootstrap VRF keypair with the PRF output
+      // just for registration
+      // We save the deterministic VRF keypair instead
       webAuthnManager.encryptVrfKeypairWithCredentials({
         credential,
         vrfPublicKey: vrfChallenge.vrfPublicKey
@@ -120,7 +125,7 @@ export async function registerPasskey(
       // Generate deterministic VRF keypair from PRF output for recovery
       webAuthnManager.deriveVrfKeypairFromPrf({
         credential,
-        nearAccountId
+        nearAccountId,
       }),
       webAuthnManager.deriveNearKeypairAndEncrypt({
         credential,
@@ -250,8 +255,9 @@ export async function registerPasskey(
       nearAccountId,
       credential,
       publicKey: nearKeyResult.publicKey,
-      encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
-      vrfPublicKey: encryptedVrfResult.vrfPublicKey,
+      encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
+      vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
+      serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
       onEvent
     });
 

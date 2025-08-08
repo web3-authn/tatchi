@@ -93,8 +93,8 @@ async function handleMessage(event: MessageEvent): Promise<void> {
   try {
     console.debug(`[vrf-worker] Processing message: ${data.type}`);
 
-    // Call WASM handle_message with JavaScript object - Rust function handles JSON stringification
-    const response: VRFWorkerResponse = handle_message(data);
+    // Call WASM handle_message with JavaScript object (async)
+    const response = await handle_message(data) as VRFWorkerResponse;
 
     console.debug(`[vrf-worker] WASM response: success=${response.success}`);
 
