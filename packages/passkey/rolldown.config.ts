@@ -136,5 +136,34 @@ export default defineConfig([
       assetFileNames: 'styles.css'
     },
     plugins: []
+  },
+  // WASM VRF Worker build for server usage - includes WASM binary
+  {
+    input: 'src/wasm_vrf_worker/wasm_vrf_worker.js',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker`,
+      format: 'esm',
+      assetFileNames: '[name][extname]'
+    },
+    plugins: [
+      // Custom plugin to copy WASM files
+      {
+        name: 'copy-wasm',
+        generateBundle() {
+          // Copy WASM file alongside the JS bundle
+          const fs = require('fs');
+          const path = require('path');
+          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm');
+          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/wasm_vrf_worker_bg.wasm`);
+
+          try {
+            fs.copyFileSync(wasmSource, wasmDest);
+            console.log('✅ WASM file copied to dist/esm/wasm_vrf_worker/');
+          } catch (error) {
+            console.warn('⚠️ Could not copy WASM file:', error.message);
+          }
+        }
+      }
+    ]
   }
 ]);
