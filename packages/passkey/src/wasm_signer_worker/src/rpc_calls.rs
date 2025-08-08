@@ -198,8 +198,6 @@ pub async fn verify_authentication_response_rpc_call(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    info!("RUST: Contract verification result: verified={}, user_exists={}", verified, user_exists);
-
     // Since this is a view function, we don't get actual registration_info
     // Return minimal info if verification succeeds to maintain API compatibility
     let _registration_info = if verified {

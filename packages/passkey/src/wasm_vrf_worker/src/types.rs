@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // === TYPE DEFINITIONS ===
 
@@ -99,4 +100,102 @@ pub struct DeterministicVrfKeypairResponse {
     pub encrypted_vrf_keypair: Option<serde_json::Value>,
     pub server_encrypted_vrf_keypair: Option<serde_json::Value>,
     pub success: bool,
+}
+
+// === Shamir 3-pass HTTP types (exported to TS via wasm-bindgen) ===
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ApplyServerLockRequest {
+    kek_c_b64u: String,
+}
+
+#[wasm_bindgen]
+impl ApplyServerLockRequest {
+    #[wasm_bindgen(constructor)]
+    pub fn new(kek_c_b64u: String) -> ApplyServerLockRequest {
+        ApplyServerLockRequest { kek_c_b64u }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn kek_c_b64u(&self) -> String {
+        self.kek_c_b64u.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_kek_c_b64u(&mut self, kek_c_b64u: String) {
+        self.kek_c_b64u = kek_c_b64u;
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct ApplyServerLockResponse {
+    kek_cs_b64u: String,
+}
+
+#[wasm_bindgen]
+impl ApplyServerLockResponse {
+    #[wasm_bindgen(constructor)]
+    pub fn new(kek_cs_b64u: String) -> ApplyServerLockResponse {
+        ApplyServerLockResponse { kek_cs_b64u }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn kek_cs_b64u(&self) -> String {
+        self.kek_cs_b64u.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_kek_cs_b64u(&mut self, kek_cs_b64u: String) {
+        self.kek_cs_b64u = kek_cs_b64u;
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RemoveServerLockRequest {
+    kek_cs_b64u: String,
+}
+
+#[wasm_bindgen]
+impl RemoveServerLockRequest {
+    #[wasm_bindgen(constructor)]
+    pub fn new(kek_cs_b64u: String) -> RemoveServerLockRequest {
+        RemoveServerLockRequest { kek_cs_b64u }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn kek_cs_b64u(&self) -> String {
+        self.kek_cs_b64u.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_kek_cs_b64u(&mut self, kek_cs_b64u: String) {
+        self.kek_cs_b64u = kek_cs_b64u;
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Clone)]
+pub struct RemoveServerLockResponse {
+    kek_c_b64u: String,
+}
+
+#[wasm_bindgen]
+impl RemoveServerLockResponse {
+    #[wasm_bindgen(constructor)]
+    pub fn new(kek_c_b64u: String) -> RemoveServerLockResponse {
+        RemoveServerLockResponse { kek_c_b64u }
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn kek_c_b64u(&self) -> String {
+        self.kek_c_b64u.clone()
+    }
+
+    #[wasm_bindgen(setter)]
+    pub fn set_kek_c_b64u(&mut self, kek_c_b64u: String) {
+        self.kek_c_b64u = kek_c_b64u;
+    }
 }

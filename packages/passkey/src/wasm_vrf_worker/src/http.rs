@@ -4,8 +4,14 @@ use wasm_bindgen_futures::JsFuture;
 use web_sys::{Headers, Request, RequestInit, Response};
 use js_sys::{Function, Promise, Reflect};
 use log::debug;
+use crate::types::{
+    ApplyServerLockRequest,
+    ApplyServerLockResponse,
+    RemoveServerLockRequest,
+    RemoveServerLockResponse
+};
 
-fn fetch_with_request_any_global(request: &Request) -> Result<JsFuture, String> {
+fn fetch_global(request: &Request) -> Result<JsFuture, String> {
     if let Some(window) = web_sys::window() {
         return Ok(JsFuture::from(window.fetch_with_request(request)));
     }
@@ -58,7 +64,7 @@ pub(crate) async fn perform_http_request(
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
     // Get global fetch function (Window or WorkerGlobalScope)
-    let resp_value = fetch_with_request_any_global(&request)
+    let resp_value = fetch_global(&request)
         .map_err(|e| format!("{}", e))?
         .await
         .map_err(|e| format!("Fetch failed: {:?}", e))?;
@@ -107,7 +113,7 @@ pub(crate) async fn post_apply_server_lock(
     endpoint_url: &str,
     kek_c_b64u: &str,
 ) -> Result<String, String> {
-    debug!("Shamir3Pass apply-server-exponent: {}", endpoint_url);
+    debug!("Shamir3Pass apply-server-log: {}", endpoint_url);
 
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
     headers
@@ -118,9 +124,8 @@ pub(crate) async fn post_apply_server_lock(
     opts.set_method("POST");
     opts.set_headers(&headers);
 
-    let request_body = serde_json::json!({
-        "kek_c_b64u": kek_c_b64u,
-    });
+    // Use strongly typed request structure
+    let request_body = ApplyServerLockRequest::new(kek_c_b64u.to_string());
     let body_str = serde_json::to_string(&request_body)
         .map_err(|e| format!("Failed to serialize request body: {}", e))?;
     opts.set_body(&JsValue::from_str(&body_str));
@@ -128,7 +133,7 @@ pub(crate) async fn post_apply_server_lock(
     let request = Request::new_with_str_and_init(endpoint_url, &opts)
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
-    let resp_value = fetch_with_request_any_global(&request)
+    let resp_value = fetch_global(&request)
         .map_err(|e| format!("{}", e))?
         .await
         .map_err(|e| format!("Fetch failed: {:?}", e))?;
@@ -151,13 +156,11 @@ pub(crate) async fn post_apply_server_lock(
         .as_string()
         .ok_or("Response text is not a string")?;
 
-    let response_json: serde_json::Value = serde_json::from_str(&response_text)
+    // Use strongly typed response structure
+    let response: ApplyServerLockResponse = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
 
-    let out = response_json["kek_cs_b64u"]
-        .as_str()
-        .ok_or("Missing kek_cs_b64u in response")?;
-    Ok(out.to_string())
+    Ok(response.kek_cs_b64u())
 }
 
 /// POST Shamir 3-pass remove-server-exponent
@@ -167,7 +170,7 @@ pub(crate) async fn post_remove_server_lock(
     endpoint_url: &str,
     kek_cs_b64u: &str,
 ) -> Result<String, String> {
-    debug!("Shamir3Pass remove-server-loc: {}", endpoint_url);
+    debug!("Shamir3Pass remove-server-lock: {}", endpoint_url);
 
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
     headers
@@ -178,9 +181,8 @@ pub(crate) async fn post_remove_server_lock(
     opts.set_method("POST");
     opts.set_headers(&headers);
 
-    let request_body = serde_json::json!({
-        "kek_cs_b64u": kek_cs_b64u,
-    });
+    // Use strongly typed request structure
+    let request_body = RemoveServerLockRequest::new(kek_cs_b64u.to_string());
     let body_str = serde_json::to_string(&request_body)
         .map_err(|e| format!("Failed to serialize request body: {}", e))?;
     opts.set_body(&JsValue::from_str(&body_str));
@@ -188,7 +190,7 @@ pub(crate) async fn post_remove_server_lock(
     let request = Request::new_with_str_and_init(endpoint_url, &opts)
         .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
-    let resp_value = fetch_with_request_any_global(&request)
+    let resp_value = fetch_global(&request)
         .map_err(|e| format!("{}", e))?
         .await
         .map_err(|e| format!("Fetch failed: {:?}", e))?;
@@ -211,13 +213,11 @@ pub(crate) async fn post_remove_server_lock(
         .as_string()
         .ok_or("Response text is not a string")?;
 
-    let response_json: serde_json::Value = serde_json::from_str(&response_text)
+    // Use strongly typed response structure
+    let response: RemoveServerLockResponse = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response JSON: {}", e))?;
 
-    let out = response_json["kek_c_b64u"]
-        .as_str()
-        .ok_or("Missing kek_c_b64u in response")?;
-    Ok(out.to_string())
+    Ok(response.kek_c_b64u())
 }
 
 

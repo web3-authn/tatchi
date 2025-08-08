@@ -2,7 +2,8 @@ use crate::config::*;
 use crate::errors::{VrfWorkerError, VrfResult, HkdfError, SerializationError};
 use crate::types::*;
 use crate::utils::{base64_url_encode, base64_url_decode};
-use log::{info, debug, error};
+use crate::shamir3pass::Shamir3Pass;
+use log::{info, debug};
 use js_sys::Date;
 
 // VRF and crypto imports
@@ -16,7 +17,6 @@ use sha2::{Sha256, Digest};
 use hkdf::Hkdf;
 use getrandom::getrandom;
 use rand_core::SeedableRng;
-use crate::shamir3pass::{encrypt_with_random_KEK_key, encode_biguint_b64u};
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -42,16 +42,51 @@ pub struct VRFKeyManager {
     pub vrf_keypair: Option<SecureVRFKeyPair>,
     pub session_active: bool,
     pub session_start_time: f64,
+    // Shamir 3-pass configs
+    pub shamir3pass: Shamir3Pass,
+    pub relay_server_url: Option<String>,
+    pub apply_lock_route: Option<String>,
+    pub remove_lock_route: Option<String>,
 }
 
 impl VRFKeyManager {
-    pub fn new() -> Self {
+    pub fn new(
+        shamir_p_b64u: Option<&str>,
+        relay_server_url: Option<String>,
+        apply_lock_route: Option<String>,
+        remove_lock_route: Option<String>
+    ) -> Self {
+        let shamir3pass = match shamir_p_b64u {
+            Some(p) => match Shamir3Pass::new(p) {
+                Ok(sp) => sp,
+                Err(e) => {
+                    info!("Failed to create Shamir3Pass with provided p: {:?}, using default", e);
+                    Shamir3Pass::new_default()
+                }
+            },
+            None => Shamir3Pass::new_default(),
+        };
+
         info!("VRFKeyManager ready (no user session active)");
         Self {
             vrf_keypair: None,
             session_active: false,
             session_start_time: 0.0,
+            shamir3pass,
+            relay_server_url,
+            apply_lock_route,
+            remove_lock_route,
         }
+    }
+
+    /// Get a reference to the Shamir3Pass instance
+    pub fn shamir3pass(&self) -> &Shamir3Pass {
+        &self.shamir3pass
+    }
+
+    /// Get a mutable reference to the Shamir3Pass instance
+    pub fn shamir3pass_mut(&mut self) -> &mut Shamir3Pass {
+        &mut self.shamir3pass
     }
 
     pub fn generate_vrf_keypair_bootstrap(

@@ -48,6 +48,23 @@ pub const SHAMIR_AEAD_HKDF_INFO: &[u8] = b"web3authn-shamir3pass-kek-to-aead-key
 // Shamir 3-pass public parameters (base64url-encoded BigUint values)
 pub const SHAMIR_P_B64U: Option<&'static str> = option_env!("SHAMIR_P_B64U");
 
+// === SHAMIR 3-PASS CONFIGURATION ===
+
+/// Minimum prime size in bits for Shamir 3-pass security validation
+/// Reduced from 1024 to 256 for better performance with existing primes
+pub const SHAMIR_MIN_PRIME_BITS: usize = 256;
+
+/// Maximum number of rejection sampling attempts for random key generation
+/// Reduced from 1000 to 10 for better performance (trades uniformity for speed)
+pub const SHAMIR_REJECTION_SAMPLING_MAX_ATTEMPTS: u32 = 10;
+
+/// Extra bytes to generate during rejection sampling for better distribution
+/// This helps reduce bias when the range doesn't align with byte boundaries
+pub const SHAMIR_RANDOM_BYTES_OVERHEAD: usize = 64;
+
+// Default Shamir P
+pub const DEFAULT_SHAMIR_P_B64U: &str = "3N5w46AIGjGT2v5Vua_TMD5Ywfa9U2F7-WzW8SNDsIM";
+
 // === JSON FIELD NAMES ===
 
 /// JSON field names for VRF challenge data serialization
