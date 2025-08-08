@@ -52,6 +52,25 @@ pub struct VRFWorkerResponse {
     pub data: Option<serde_json::Value>,
     pub error: Option<String>,
 }
+impl VRFWorkerResponse {
+    pub fn new(
+        id: Option<String>,
+        success: bool,
+        data: Option<serde_json::Value>,
+        error: Option<String>
+    ) -> Self {
+        Self { id, success, data, error }
+    }
+    pub fn success(id: Option<String>, data: Option<serde_json::Value>) -> Self {
+        Self::new(id, true, data, None)
+    }
+    pub fn fail(id: Option<String>, message: impl Into<String>) -> Self {
+        Self::new(id, false, None, Some(message.into()))
+    }
+    pub fn error(id: Option<String>, error: String) -> Self {
+        Self::new(id, false, None, Some(error))
+    }
+}
 
 // === RESPONSE TYPES ===
 
@@ -78,5 +97,6 @@ pub struct DeterministicVrfKeypairResponse {
     pub vrf_public_key: String,
     pub vrf_challenge_data: Option<VRFChallengeData>,
     pub encrypted_vrf_keypair: Option<serde_json::Value>,
+    pub server_encrypted_vrf_keypair: Option<serde_json::Value>,
     pub success: bool,
 }

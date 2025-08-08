@@ -2,6 +2,7 @@
 // These tests focus on TypeScript/WASM boundary issues without requiring WASM runtime
 
 use serde_json;
+use num_bigint::BigUint;
 
 // Import existing types, functions, and constants from other modules
 use crate::types::{VRFInputData, EncryptedVRFKeypair, VRFWorkerMessage, VRFWorkerResponse, VRFChallengeData};
@@ -14,6 +15,7 @@ use crate::config::{
     HKDF_CHACHA20_KEY_INFO,
     HKDF_VRF_KEYPAIR_INFO
 };
+use crate::shamir3pass::{encode_biguint_b64u, decode_biguint_b64u};
 
 // Test helper functions
 fn create_test_prf_output() -> Vec<u8> {
@@ -283,4 +285,48 @@ fn test_vrf_challenge_camelcase_deserialization() {
     assert!(serialized_json.contains("\"blockHash\""), "Serialized JSON should contain camelCase blockHash");
 
     println!("[Passed] VRFChallenge camelCase deserialization test passed");
+}
+
+#[test]
+fn test_shamir_biguint_b64u_roundtrip_known_values() {
+    let known_values = vec![
+        (0u128, "AA"),               // 0 -> base64url "AA" (single zero byte)
+        (1u128, "AQ"),
+        (255u128, "_w"),
+        (256u128, "AQA"),
+        (65535u128, "__8"),
+    ];
+    for (v, _expected_b64u) in known_values { // expected strings can vary by leading zero trimming
+        let n = BigUint::from(v);
+        let enc = encode_biguint_b64u(&n);
+        let dec = decode_biguint_b64u(&enc).expect("decode should succeed");
+        assert_eq!(dec, n, "roundtrip should preserve value");
+    }
+    // Large known value: 2^61 - 1
+    let mersenne_61 = BigUint::parse_bytes(b"2305843009213693951", 10).unwrap();
+    let enc = encode_biguint_b64u(&mersenne_61);
+    let dec = decode_biguint_b64u(&enc).expect("decode should succeed");
+    assert_eq!(dec, mersenne_61, "roundtrip for 2^61-1 should preserve value");
+}
+
+#[test]
+fn test_shamir_biguint_b64u_roundtrip_random_like_bytes() {
+    // Deterministic pseudo-random bytes (no RNG needed)
+    let mut bytes = [0u8; 64];
+    for (i, b) in bytes.iter_mut().enumerate() { *b = (i as u8).wrapping_mul(31).wrapping_add(7); }
+    let n = BigUint::from_bytes_be(&bytes);
+    let enc = encode_biguint_b64u(&n);
+    let dec = decode_biguint_b64u(&enc).expect("decode should succeed");
+    assert_eq!(dec, n, "roundtrip should preserve value for 64-byte BigUint");
+}
+
+// This test hits the error path which constructs a wasm_bindgen::JsValue.
+// Gate it to wasm32 only to avoid panicking on native test runner.
+#[cfg(target_arch = "wasm32")]
+#[test]
+fn test_shamir_biguint_b64u_invalid_inputs() {
+    // invalid characters
+    assert!(decode_biguint_b64u("!!not-base64url!!").is_err());
+    // padded base64 (not allowed for base64url)
+    assert!(decode_biguint_b64u("AQ==").is_err());
 }

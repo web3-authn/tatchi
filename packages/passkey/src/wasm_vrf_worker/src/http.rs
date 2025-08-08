@@ -167,7 +167,7 @@ pub(crate) async fn post_remove_server_lock(
     endpoint_url: &str,
     kek_cs_b64u: &str,
 ) -> Result<String, String> {
-    debug!("Shamir3Pass remove-server-exponent: {}", endpoint_url);
+    debug!("Shamir3Pass remove-server-loc: {}", endpoint_url);
 
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
     headers

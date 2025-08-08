@@ -41,6 +41,13 @@ pub const CHACHA20_NONCE_SIZE: usize = 12;
 /// VRF seed size in bytes for deterministic generation (256 bits)
 pub const VRF_SEED_SIZE: usize = 32;
 
+/// HKDF info string for deriving AEAD key from Shamir3Pass KEK (K)
+/// Longer, namespaced context string to avoid collisions across schemes/usages
+pub const SHAMIR_AEAD_HKDF_INFO: &[u8] = b"web3authn-shamir3pass-kek-to-aead-key-v1";
+
+// Shamir 3-pass public parameters (base64url-encoded BigUint values)
+pub const SHAMIR_P_B64U: Option<&'static str> = option_env!("SHAMIR_P_B64U");
+
 // === JSON FIELD NAMES ===
 
 /// JSON field names for VRF challenge data serialization

@@ -16,6 +16,7 @@ use sha2::{Sha256, Digest};
 use hkdf::Hkdf;
 use getrandom::getrandom;
 use rand_core::SeedableRng;
+use crate::shamir3pass::{encrypt_with_random_KEK_key, encode_biguint_b64u};
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -170,6 +171,25 @@ impl VRFKeyManager {
         Ok(())
     }
 
+    /// Load a plaintext VRF keypair from VRFKeypairData (used after Shamir 3‑pass unlock)
+    pub fn load_plaintext_vrf_keypair(
+        &mut self,
+        near_account_id: String,
+        keypair_data: VRFKeypairData,
+    ) -> Result<(), String> {
+        info!("Loading plaintext VRF keypair for {}", near_account_id);
+        // Clear any existing keypair
+        self.vrf_keypair.take();
+        // Reconstruct ECVRFKeyPair from stored bytes
+        let keypair: ECVRFKeyPair = bincode::deserialize(&keypair_data.keypair_bytes)
+            .map_err(|e| format!("Failed to deserialize VRF keypair: {}", e))?;
+        self.vrf_keypair = Some(SecureVRFKeyPair::new(keypair));
+        self.session_active = true;
+        self.session_start_time = Date::now();
+        info!("Plaintext VRF keypair loaded into memory");
+        Ok(())
+    }
+
     pub fn generate_vrf_challenge(&self, input_data: VRFInputData) -> Result<VRFChallengeData, String> {
         if !self.session_active || self.vrf_keypair.is_none() {
             return Err(VrfWorkerError::VrfNotUnlocked.to_string());
@@ -282,7 +302,7 @@ impl VRFKeyManager {
             &vrf_public_key_b64[..DISPLAY_TRUNCATE_LENGTH.min(vrf_public_key_b64.len())]
         );
 
-        // Encrypt the VRF keypair with the same PRF output used for derivation
+        // Encrypt the VRF keypair with the same PRF output used for derivation (for local storage)
         debug!("Encrypting deterministic VRF keypair with PRF output");
         let (_public_key, encrypted_vrf_keypair) = self.encrypt_vrf_keypair_data(&vrf_keypair, &prf_output)
             .map_err(|e| VrfWorkerError::InvalidMessageFormat(e))?;
@@ -306,6 +326,8 @@ impl VRFKeyManager {
             vrf_challenge_data,
             encrypted_vrf_keypair: Some(encrypted_vrf_keypair),
             success: true,
+            server_encrypted_vrf_keypair: None,
+            // added next in handler.rs: perform_shamir3pass_client_encrypt_current_vrf_keypair
         })
     }
 
