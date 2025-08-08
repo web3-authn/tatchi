@@ -6,5 +6,16 @@ export {
 } from './core/AuthService';
 export {
   handleVerifyAuthenticationResponse,
-  verifyAuthenticationMiddleware
+  verifyAuthenticationMiddleware,
+  handleApplyServerLock,
+  handleRemoveServerLock,
 } from './core/verifyAuthenticationHandler';
+export {
+  Shamir3PassUtils,
+  getShamirPB64uFromWasm,
+  SHAMIR_P_B64U,
+  type ApplyServerLockRequest,
+  type ApplyServerLockResponse,
+  type RemoveServerLockRequest,
+  type RemoveServerLockResponse,
+} from './core/shamir3passUtils';

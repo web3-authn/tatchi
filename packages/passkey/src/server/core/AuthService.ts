@@ -6,8 +6,12 @@ import { JsonRpcProvider, type Provider } from '@near-js/providers';
 import type { Signer } from '@near-js/signers';
 import { actionCreators } from '@near-js/transactions';
 import type { FinalExecutionOutcome } from '@near-js/types';
-
 import { validateConfigs } from './config';
+import {
+  Shamir3PassUtils,
+  ApplyServerLockRequest,
+  RemoveServerLockRequest
+} from './shamir3passUtils';
 import type {
   AuthServiceConfig,
   AccountCreationRequest,
@@ -36,6 +40,9 @@ export class AuthService {
   private transactionQueue: Promise<any> = Promise.resolve();
   private queueStats = { pending: 0, completed: 0, failed: 0 };
 
+  // Shamir 3-pass key management
+  private shamir3pass: Shamir3PassUtils | null = null;
+
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
     this.config = {
@@ -51,6 +58,9 @@ export class AuthService {
         || '50000000000000000000000', // 0.05 NEAR
       createAccountAndRegisterGas: config.createAccountAndRegisterGas
         || '120000000000000', // 120 TGas
+      shamir_p_b64u: config.shamir_p_b64u,
+      shamir_e_s_b64u: config.shamir_e_s_b64u,
+      shamir_d_s_b64u: config.shamir_d_s_b64u,
     };
     this.keyStore = new InMemoryKeyStore();
     this.rpcProvider = new JsonRpcProvider({ url: config.nearRpcUrl }) as Provider;
@@ -65,6 +75,16 @@ export class AuthService {
     if (this.isInitialized) {
       return;
     }
+
+    // Initialize Shamir3Pass WASM module (loads same worker wasm)
+    if (!this.shamir3pass) {
+      this.shamir3pass = new Shamir3PassUtils({
+        p_b64u: this.config.shamir_p_b64u,
+        e_s_b64u: this.config.shamir_e_s_b64u,
+        d_s_b64u: this.config.shamir_d_s_b64u,
+      });
+    }
+
     const privateKeyString = this.config.relayerPrivateKey.substring(8);
     const keyPair = new KeyPairEd25519(privateKeyString);
     await this.keyStore.setKey(this.config.networkId, this.config.relayerAccountId, keyPair);
@@ -80,7 +100,27 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${this.formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${this.formatGasToTGas(this.config.createAccountAndRegisterGas)})
+    • shamir_p_b64u: ${this.config.shamir_p_b64u.slice(0, 10)}...
+    • shamir_e_s_b64u: ${this.config.shamir_e_s_b64u.slice(0, 10)}...
+    • shamir_d_s_b64u: ${this.config.shamir_d_s_b64u.slice(0, 10)}...
     `);
+  }
+  /**
+   * Shamir 3-pass: apply server exponent (registration step)
+   * @param kek_c_b64u - base64url-encoded KEK_c (client locked key encryption key)
+   * @returns base64url-encoded KEK_cs (server locked key encryption key)
+   */
+  async applyServerLock(kek_c_b64u: string): Promise<{ kek_cs_b64u: string }> {
+    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
+    return await this.shamir3pass.applyServerLock({ kek_c_b64u } as ApplyServerLockRequest);
+  }
+
+  /**
+   * Shamir 3-pass: remove server exponent (login step)
+   */
+  async removeServerLock(kek_cs_b64u: string): Promise<{ kek_c_b64u: string }> {
+    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
+    return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as RemoveServerLockRequest);
   }
 
   // Format NEAR gas (string) to TGas for display

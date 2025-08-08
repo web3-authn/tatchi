@@ -28,6 +28,10 @@ export interface AuthServiceConfig {
   networkId: string;
   accountInitialBalance: string;
   createAccountAndRegisterGas: string;
+  // Shamir 3-pass configuration (base64url BigInts)
+  shamir_p_b64u: string;
+  shamir_e_s_b64u: string;
+  shamir_d_s_b64u: string;
 }
 
 // Account creation and registration types (imported from relay-server types)
