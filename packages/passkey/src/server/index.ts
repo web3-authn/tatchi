@@ -7,8 +7,6 @@ export {
 export {
   handleVerifyAuthenticationResponse,
   verifyAuthenticationMiddleware,
-  handleApplyServerLock,
-  handleRemoveServerLock,
 } from './core/verifyAuthenticationHandler';
 export {
   Shamir3PassUtils,
@@ -18,4 +16,4 @@ export {
   type ApplyServerLockResponse,
   type RemoveServerLockRequest,
   type RemoveServerLockResponse,
-} from './core/shamir3passUtils';
+} from './core/shamirWorker';

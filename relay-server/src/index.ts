@@ -3,8 +3,10 @@ import {
   AuthService,
   type CreateAccountAndRegisterRequest,
   type CreateAccountAndRegisterResult,
-  handleApplyServerLock,
-  handleRemoveServerLock,
+  type ApplyServerLockRequest,
+  type ApplyServerLockResponse,
+  type RemoveServerLockRequest,
+  type RemoveServerLockResponse,
 } from '@web3authn/passkey/server';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -106,21 +108,17 @@ app.post(
 // Removed legacy SRA routes
 
 // Shamir 3-pass endpoints
-app.post('/vrf/apply-server-lock', async (req: Request, res: Response) => {
+app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ApplyServerLockRequest>, res: Response<ApplyServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("apply-server-lock request.body", req.body);
-    const serverResponse = await handleApplyServerLock({
-      method: req.method,
-      url: req.url,
-      headers: req.headers as any,
-      body: JSON.stringify(req.body),
-    }, authService);
-
-    res.status(serverResponse.status);
+    const serverResponse = await authService.handleApplyServerLock({
+      body: req.body
+    });
 
     Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
-
+    res.status(serverResponse.status);
     res.send(JSON.parse(serverResponse.body));
+
   } catch (e: any) {
     res.status(500).json({
       error: 'internal',
@@ -129,21 +127,17 @@ app.post('/vrf/apply-server-lock', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/vrf/remove-server-lock', async (req: Request, res: Response) => {
+app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, RemoveServerLockRequest>, res: Response<RemoveServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("remove-server-lock request.body", req.body);
-    const serverResponse = await handleRemoveServerLock({
-      method: req.method,
-      url: req.url,
-      headers: req.headers as any,
-      body: JSON.stringify(req.body),
-    }, authService);
-
-    res.status(serverResponse.status);
+    const serverResponse = await authService.handleRemoveServerLock({
+      body: req.body
+    });
 
     Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
-
+    res.status(serverResponse.status);
     res.send(JSON.parse(serverResponse.body));
+
   } catch (e: any) {
     res.status(500).json({
       error: 'internal',

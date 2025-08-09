@@ -173,3 +173,21 @@ export interface VerifyAuthenticationResponse {
   error?: string;
   contractResponse?: any;
 }
+
+// === Shamir 3-pass HTTP types (wrappers around WASM-generated types) ===
+
+export interface ApplyServerLockRequest {
+  kek_c_b64u: string;
+}
+
+export interface ApplyServerLockResponse {
+  kek_cs_b64u: string;
+}
+
+export interface RemoveServerLockRequest {
+  kek_cs_b64u: string;
+}
+
+export interface RemoveServerLockResponse {
+  kek_c_b64u: string;
+}

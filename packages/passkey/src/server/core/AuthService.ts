@@ -11,7 +11,7 @@ import {
   Shamir3PassUtils,
   ApplyServerLockRequest,
   RemoveServerLockRequest
-} from './shamir3passUtils';
+} from './shamirWorker';
 import type {
   AuthServiceConfig,
   AccountCreationRequest,
@@ -22,6 +22,8 @@ import type {
   NearReceiptOutcomeWithId,
   VerifyAuthenticationRequest,
   VerifyAuthenticationResponse,
+  ApplyServerLockResponse,
+  RemoveServerLockResponse,
 } from './types';
 
 /**
@@ -110,7 +112,7 @@ export class AuthService {
    * @param kek_c_b64u - base64url-encoded KEK_c (client locked key encryption key)
    * @returns base64url-encoded KEK_cs (server locked key encryption key)
    */
-  async applyServerLock(kek_c_b64u: string): Promise<{ kek_cs_b64u: string }> {
+  async applyServerLock(kek_c_b64u: string): Promise<ApplyServerLockResponse> {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
     return await this.shamir3pass.applyServerLock({ kek_c_b64u } as ApplyServerLockRequest);
   }
@@ -118,7 +120,7 @@ export class AuthService {
   /**
    * Shamir 3-pass: remove server exponent (login step)
    */
-  async removeServerLock(kek_cs_b64u: string): Promise<{ kek_c_b64u: string }> {
+  async removeServerLock(kek_cs_b64u: string): Promise<RemoveServerLockResponse> {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
     return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as RemoveServerLockRequest);
   }
@@ -451,6 +453,110 @@ export class AuthService {
     }
     const validPattern = /^[a-z0-9_.-]+$/;
     return validPattern.test(accountId);
+  }
+
+  /**
+   * Framework-agnostic: handle verify-authentication request
+   * Converts a generic ServerRequest to ServerResponse using this service
+   */
+  async handleVerifyAuthenticationResponse(request: VerifyAuthenticationRequest): Promise<VerifyAuthenticationResponse> {
+    return this.verifyAuthenticationResponse(request);
+  }
+
+  /**
+   * Express-style middleware factory for verify-authentication
+   */
+  verifyAuthenticationMiddleware() {
+    return async (req: any, res: any) => {
+      try {
+        if (!req?.body) {
+          res.status(400).json({ error: 'Request body is required' });
+          return;
+        }
+        const body: VerifyAuthenticationRequest = req.body;
+        if (!body.vrf_data || !body.webauthn_authentication) {
+          res.status(400).json({ error: 'vrf_data and webauthn_authentication are required' });
+          return;
+        }
+        const result = await this.verifyAuthenticationResponse(body);
+        res.status(result.success ? 200 : 400).json(result);
+      } catch (error: any) {
+        console.error('Error in verify authentication middleware:', error);
+        res.status(500).json({ success: false, error: 'Internal server error', details: error?.message });
+      }
+    };
+  }
+
+  /**
+   * Framework-agnostic Shamir 3-pass: apply server lock
+   */
+  async handleApplyServerLock(request: {
+    body: { kek_c_b64u: string }
+  }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      if (!request.body) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Missing body' })
+        };
+      }
+      if (typeof request.body.kek_c_b64u !== 'string' || !request.body.kek_c_b64u) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'kek_c_b64u required and must be a non-empty string' })
+        };
+      }
+      const out = await this.applyServerLock(request.body.kek_c_b64u);
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(out)
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
+  /**
+   * Framework-agnostic Shamir 3-pass: remove server lock
+   */
+  async handleRemoveServerLock(request: {
+    body: { kek_cs_b64u: string }
+  }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      if (!request.body) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'Missing body' })
+        };
+      }
+      if (typeof request.body.kek_cs_b64u !== 'string' || !request.body.kek_cs_b64u) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'kek_cs_b64u required and must be a non-empty string' })
+        };
+      }
+      const out = await this.removeServerLock(request.body.kek_cs_b64u);
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(out)
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
   }
 
   async checkAccountExists(accountId: string): Promise<boolean> {

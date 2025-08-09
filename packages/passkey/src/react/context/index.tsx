@@ -51,6 +51,15 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
     url: 'http://localhost:3000',
     initialUseRelayer: true,
   },
+  vrfWorkerConfigs: {
+    shamir3pass: {
+      // default Shamir's P in vrf-wasm-worker, needs to match relay server's Shamir P
+      p: '3N5w46AIGjGT2v5Vua_TMD5Ywfa9U2F7-WzW8SNDsIM',
+      relayServerUrl: 'http://localhost:3000',
+      applyServerLockRoute: '/vrf/apply-server-lock',
+      removeServerLockRoute: '/vrf/remove-server-lock',
+    }
+  }
 }
 
 export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({

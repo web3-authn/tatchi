@@ -256,6 +256,7 @@ export class PasskeyClientDBManager {
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: storeUserData.serverEncryptedVrfKeypair,
     };
 
     await this.storeUser(userData);
@@ -265,16 +266,11 @@ export class PasskeyClientDBManager {
   async updateUser(nearAccountId: AccountId, updates: Partial<ClientUserData>): Promise<void> {
     const user = await this.getUser(nearAccountId);
     if (user) {
-      // CHANGE: Debug device number issue in updateUser
-      console.log("DEBUG updateUser: existing user deviceNumber =", user.deviceNumber);
-      console.log("DEBUG updateUser: updates =", updates);
-
       const updatedUser = {
         ...user,
         ...updates,
         lastUpdated: Date.now()
       };
-
       console.log("DEBUG updateUser: final updatedUser deviceNumber =", updatedUser.deviceNumber);
       await this.storeUser(updatedUser); // This will update the app state lastUserAccountId
     }
@@ -317,7 +313,6 @@ export class PasskeyClientDBManager {
       deviceNumber: userData.deviceNumber,
     };
 
-    console.log("DEBUG storeUser: setting lastUserAccountId to deviceNumber =", userData.deviceNumber);
     await this.setAppState('lastUserAccountId', lastUserState);
   }
 

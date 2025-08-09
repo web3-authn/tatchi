@@ -7,6 +7,7 @@ import { dirname, join } from 'path';
 // @ts-ignore - WASM imports
 import initWasm, {
   handle_message as wasmHandleMessage,
+  configure_shamir_p,
   get_shamir_p_b64u,
   SHAMIR_P_B64U,
 } from '../../wasm_vrf_worker/wasm_vrf_worker.js';
@@ -18,7 +19,9 @@ let wasmInitialized = false;
 let wasmModule: any;
 
 async function ensureWasmInitialized(): Promise<void> {
-  if (wasmInitialized) return;
+  if (wasmInitialized) {
+    return;
+  }
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const candidates = [
@@ -60,14 +63,25 @@ export class Shamir3PassUtils {
   private e_s_b64u: string;
   private d_s_b64u: string;
 
-  constructor(opts: {
+  constructor({ p_b64u, e_s_b64u, d_s_b64u }: {
     p_b64u?: string;
     e_s_b64u?: string;
     d_s_b64u?: string
   }) {
-    this.p_b64u = opts.p_b64u ?? '';
-    this.e_s_b64u = opts.e_s_b64u ?? '';
-    this.d_s_b64u = opts.d_s_b64u ?? '';
+    this.p_b64u = p_b64u ?? '';
+    this.e_s_b64u = e_s_b64u ?? '';
+    this.d_s_b64u = d_s_b64u ?? '';
+  }
+
+  async initialize(): Promise<{ p_b64u: string }> {
+    await ensureWasmInitialized();
+    if (!this.p_b64u) {
+      console.log('No p_b64u provided, using default');
+      let default_p_b64u = await getShamirPB64uFromWasm();
+      this.p_b64u = default_p_b64u;
+    }
+    await configure_shamir_p(this.p_b64u);
+    return { p_b64u: this.p_b64u };
   }
 
   async generateServerKeypair(): Promise<{ e_s_b64u: string; d_s_b64u: string }> {
@@ -75,7 +89,7 @@ export class Shamir3PassUtils {
     const msg = {
       type: 'SHAMIR3PASS_GENERATE_SERVER_KEYPAIR',
       id: `srv_${Date.now()}`,
-      data: { p_b64u: this.p_b64u },
+      data: {},
     };
     const res = await wasmHandleMessage(msg);
     if (!res?.success) throw new Error(res?.error || 'generateServerKeypair failed');
@@ -91,7 +105,6 @@ export class Shamir3PassUtils {
       type: 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK',
       id: `srv_${Date.now()}`,
       data: {
-        p_b64u: this.p_b64u,
         e_s_b64u: this.e_s_b64u,
         kek_c_b64u: req.kek_c_b64u
       },
@@ -114,7 +127,6 @@ export class Shamir3PassUtils {
       type: 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK',
       id: `srv_${Date.now()}`,
       data: {
-        p_b64u: this.p_b64u,
         d_s_b64u: this.d_s_b64u,
         kek_cs_b64u: req.kek_cs_b64u
       },

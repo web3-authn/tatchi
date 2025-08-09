@@ -74,6 +74,11 @@ export interface VrfWorkerManagerConfig {
   vrfWorkerUrl?: string;
   workerTimeout?: number;
   debug?: boolean;
+  // Optional Shamir 3-pass configuration passed to the VRF WASM worker at init
+  shamirPB64u?: string; // base64url prime p
+  relayServerUrl?: string;
+  applyServerLockRoute?: string;
+  removeServerLockRoute?: string;
 }
 
 // Define interfaces that are missing
@@ -108,6 +113,8 @@ export interface VRFWorkerMessage {
       | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
       | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
       | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
+      | 'CONFIGURE_SHAMIR_P'
+      | 'CONFIGURE_SHAMIR_SERVER_URLS'
   id?: string;
   data?: any;
 }

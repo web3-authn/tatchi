@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 import dotenv from 'dotenv';
 dotenv.config();
-import { Shamir3PassUtils, getShamirPB64uFromWasm } from '@web3authn/passkey/server';
+import { Shamir3PassUtils } from '@web3authn/passkey/server';
 
 async function main() {
 
-  const p_b64u = await getShamirPB64uFromWasm();
-  console.log(`p_b64u=${p_b64u}`);
-  const utils = new Shamir3PassUtils({ p_b64u });
-  const {
-    e_s_b64u,
-    d_s_b64u
-  } = await utils.generateServerKeypair();
+  const utils = new Shamir3PassUtils({});
+  // leave args empty: initialise with the default p_b64u from wasm-vrf-worker
+  const { p_b64u } = await utils.initialize();
+  const { e_s_b64u, d_s_b64u } = await utils.generateServerKeypair();
 
   console.log('\n*****************************************');
   console.log('Generated Shamir 3-pass server keypair.');

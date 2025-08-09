@@ -557,6 +557,15 @@ export interface PasskeyManagerConfigs {
   }
   // authenticator options for registrations
   authenticatorOptions?: AuthenticatorOptions;
+  // Shamir 3-pass configuration (optional, used for auto-unlocking VRF keypairs)
+  vrfWorkerConfigs?: {
+    shamir3pass?: {
+      p: string; // Shamir's P prime number
+      relayServerUrl: string; // Relay server URL
+      applyServerLockRoute: string; // Apply server lock route
+      removeServerLockRoute: string; // Remove server lock route
+    }
+  }
 }
 
 // === TRANSACTION TYPES ===
