@@ -166,10 +166,8 @@ async function handleLoginUnlockVRF(
 
         unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
           nearAccountId,
-          relayServerUrl: relayerUrl!,
           kek_s_b64u: shamir.kek_s_b64u,
           ciphertext_vrf_b64u: shamir.ciphertext_vrf_b64u,
-          removeServerLockRoute: '/vrf/remove-server-lock',
         });
         console.log("unlockResult", unlockResult);
 

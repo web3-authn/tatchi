@@ -16,9 +16,10 @@ import type {
 } from '../types/vrf-worker';
 import { VRFChallenge } from '../types/vrf-worker';
 import { TouchIdPrompt } from './touchIdPrompt';
-import { base64UrlEncode, base58Decode } from '../../utils';
+import { base58Decode } from '../../utils';
 import { BUILD_PATHS } from '../../../build-paths.js';
 import { AccountId, toAccountId } from '../types/accountIds';
+import { extractPrfFromCredential } from './credentialsHelpers';
 
 /**
  * VRF Worker Manager
@@ -135,6 +136,34 @@ export class VrfWorkerManager {
       // Test communication with the Web Worker
       await this.testWebWorkerCommunication();
 
+      // Configure Shamir P if provided
+      if (this.config.shamirPB64u) {
+        const resp = await this.sendMessage({
+          type: 'CONFIGURE_SHAMIR_P',
+          id: this.generateMessageId(),
+          data: { p_b64u: this.config.shamirPB64u }
+        });
+        if (!resp.success) {
+          throw new Error(`Failed to configure Shamir P: ${resp.error}`);
+        }
+      }
+
+      // Configure relay server URLs if provided
+      if (this.config.relayServerUrl && this.config.applyServerLockRoute && this.config.removeServerLockRoute) {
+        const resp2 = await this.sendMessage({
+          type: 'CONFIGURE_SHAMIR_SERVER_URLS',
+          id: this.generateMessageId(),
+          data: {
+            relay_server_url: this.config.relayServerUrl,
+            apply_lock_route: this.config.applyServerLockRoute,
+            remove_lock_route: this.config.removeServerLockRoute,
+          }
+        });
+        if (!resp2.success) {
+          throw new Error(`Failed to configure Shamir server URLs: ${resp2.error}`);
+        }
+      }
+
     } catch (error: any) {
       throw new Error(`VRF Web Worker initialization failed: ${error.message}`);
     }
@@ -181,43 +210,39 @@ export class VrfWorkerManager {
    * This is called during login to decrypt and load the VRF keypair in-memory
    */
   async unlockVrfKeypair({
+    credential,
     touchIdPrompt,
     nearAccountId,
     encryptedVrfKeypair,
     authenticators,
-    prfOutput,
     onEvent,
   }: {
+    credential: PublicKeyCredential,
     touchIdPrompt: TouchIdPrompt,
     nearAccountId: AccountId,
     encryptedVrfKeypair: EncryptedVRFKeypair,
     authenticators: ClientAuthenticatorData[],
-    prfOutput?: ArrayBuffer,
     onEvent?: (event: { type: string, data: { step: string, message: string } }) => void,
   }): Promise<VRFWorkerResponse> {
-
     await this.ensureWorkerReady(true);
 
-    if (!prfOutput) {
-      let challenge = crypto.getRandomValues(new Uint8Array(32));
-      let credential = await touchIdPrompt.getCredentials({
-        nearAccountId,
-        challenge,
-        authenticators,
-      });
-      prfOutput = credential.getClientExtensionResults()?.prf?.results?.first as ArrayBuffer;
-      if (!prfOutput) {
-        throw new Error('PRF output not found in WebAuthn credentials');
-      }
+    const { chacha20PrfOutput } = extractPrfFromCredential({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: false,
+    });
 
-      onEvent?.({
-        type: 'loginProgress',
-        data: {
-          step: 'verifying-server',
-          message: 'TouchId success! Unlocking VRF keypair in secure memory...'
-        }
-      });
+    if (!chacha20PrfOutput) {
+      throw new Error('ChaCha20 PRF output not found in WebAuthn credentials');
     }
+
+    onEvent?.({
+      type: 'loginProgress',
+      data: {
+        step: 'verifying-server',
+        message: 'TouchId success! Unlocking VRF keypair...'
+      }
+    });
 
     const message: VRFWorkerMessage = {
       type: 'UNLOCK_VRF_KEYPAIR',
@@ -225,7 +250,7 @@ export class VrfWorkerManager {
       data: {
         nearAccountId,
         encryptedVrfKeypair,
-        prfKey: base64UrlEncode(prfOutput) // ArrayBuffer → base64url string
+        prfKey: chacha20PrfOutput // already a base64url string
       }
     };
 
@@ -274,16 +299,12 @@ export class VrfWorkerManager {
    */
   async shamir3PassDecryptVrfKeypair({
     nearAccountId,
-    relayServerUrl,
     kek_s_b64u,
     ciphertext_vrf_b64u,
-    removeServerLockRoute,
   }: {
     nearAccountId: AccountId;
-    relayServerUrl: string;
     kek_s_b64u: string;
     ciphertext_vrf_b64u: string;
-    removeServerLockRoute?: string;
   }): Promise<VRFWorkerResponse> {
     await this.ensureWorkerReady(true);
     const message: VRFWorkerMessage = {
@@ -291,10 +312,8 @@ export class VrfWorkerManager {
       id: this.generateMessageId(),
       data: {
         nearAccountId,
-        relayServerUrl,
         kek_s_b64u,
         ciphertext_vrf_b64u,
-        removeServerLockRoute
       },
     };
     const response = await this.sendMessage(message);
@@ -408,7 +427,7 @@ export class VrfWorkerManager {
    * @param vrfInputParams - Optional parameters to generate VRF challenge/proof in same call
    * @returns VRF public key and optionally VRF challenge data
    */
-  async generateVrfKeypair(
+  async generateVrfKeypairBootstrap(
     vrfInputData: VRFInputData,
     saveInMemory: boolean,
   ): Promise<{
@@ -474,57 +493,6 @@ export class VrfWorkerManager {
   }
 
   /**
-   * Encrypt VRF keypair with PRF output - looks up in-memory keypair and encrypts it
-   * This is called after WebAuthn ceremony to encrypt the same VRF keypair with real PRF
-   *
-   * @param expectedPublicKey - Expected VRF public key to verify we're encrypting the right keypair
-   * @param credential - WebAuthn credentials for encryption
-   * @returns Encrypted VRF keypair data ready for storage
-   */
-  async encryptVrfKeypairWithCredentials(
-    expectedPublicKey: string,
-    credential: PublicKeyCredential
-  ): Promise<{
-    vrfPublicKey: string;
-    encryptedVrfKeypair: EncryptedVRFKeypair;
-  }> {
-    await this.ensureWorkerReady();
-
-    const prfOutput = credential.getClientExtensionResults()?.prf?.results?.first as ArrayBuffer;
-    if (!prfOutput) {
-      throw new Error('PRF output not found in WebAuthn credentials');
-    }
-
-    try {
-      const message: VRFWorkerMessage = {
-        type: 'ENCRYPT_VRF_KEYPAIR_WITH_PRF',
-        id: this.generateMessageId(),
-        data: {
-          expectedPublicKey: expectedPublicKey,
-          prfKey: base64UrlEncode(prfOutput)
-        }
-      };
-
-      const response = await this.sendMessage(message);
-
-      if (!response.success || !response.data) {
-        throw new Error(`VRF keypair encryption failed: ${response.error}`);
-      }
-
-      const result = {
-        vrfPublicKey: response.data.vrf_public_key,
-        encryptedVrfKeypair: response.data.encrypted_vrf_keypair
-      };
-
-      console.debug('VRF Manager: VRF keypair encryption successful');
-      return result;
-    } catch (error: any) {
-      console.error('VRF Manager: VRF keypair encryption failed:', error);
-      throw new Error(`Failed to encrypt VRF keypair: ${error.message}`);
-    }
-  }
-
-  /**
    * Derive deterministic VRF keypair from PRF output for account recovery
    * Optionally generates VRF challenge if input parameters are provided
    * This enables deterministic VRF key derivation without needing stored VRF keypairs
@@ -532,22 +500,18 @@ export class VrfWorkerManager {
    * @param prfOutput - Base64url-encoded PRF output from WebAuthn credential (PRF Output 1)
    * @param nearAccountId - NEAR account ID for key derivation salt
    * @param vrfInputParams - Optional VRF input parameters for challenge generation
-   * @param relayServerUrl - Optional relay server URL for Shamir3Pass VRF key lock
-   * @param applyServerLockRoute - Optional route for applying Shamir3Pass VRF key lock
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
   async deriveVrfKeypairFromSeed({
-    prfOutput,
+    credential,
     nearAccountId,
     vrfInputData,
-    relayServerUrl,
-    applyServerLockRoute,
+    saveInMemory = true,
   }: {
-    prfOutput: string;
+    credential: PublicKeyCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
-    relayServerUrl?: string;
-    applyServerLockRoute?: string;
+    saveInMemory?: boolean; // optional, whether to save in worker memory
   }): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge | null;
@@ -558,6 +522,14 @@ export class VrfWorkerManager {
     try {
       await this.ensureWorkerReady();
 
+      // Extract ChaCha20 PRF output from credential
+      // This ensures deterministic derivation: same PRF + same account = same VRF keypair
+      const { chacha20PrfOutput } = extractPrfFromCredential({
+        credential,
+        firstPrfOutput: true,
+        secondPrfOutput: false,
+      });
+
       // optional VRF Input data, only needed if generating VRF challenge simultaneously
       const hasVrfInputData = vrfInputData?.blockHash
         && vrfInputData?.blockHeight
@@ -566,8 +538,9 @@ export class VrfWorkerManager {
 
       // Pass base64url string directly - VRF worker handles conversion internally
       const messageData = {
-        prfOutput: prfOutput, // Base64url string → VRF worker handles conversion
+        prfOutput: chacha20PrfOutput, // Base64url string → VRF worker handles conversion
         nearAccountId: nearAccountId,
+        saveInMemory: saveInMemory, // Whether to save VRF keypair in worker memory
         vrfInputParams: hasVrfInputData ? {
           user_id: vrfInputData?.userId,
           rp_id: vrfInputData?.rpId,
@@ -575,8 +548,6 @@ export class VrfWorkerManager {
           block_hash: Array.from(base58Decode(vrfInputData?.blockHash || '')),
           timestamp: Date.now()
         } : null,
-        relayServerUrl,
-        applyServerLockRoute,
       };
       // Add VRF input parameters if provided for challenge generation
 
@@ -609,9 +580,6 @@ export class VrfWorkerManager {
             blockHash: response.data.vrf_challenge_data.blockHash,
           })
         : null;
-
-
-      console.log(">>>> response.data.server_encrypted_vrf_keypair", response.data.server_encrypted_vrf_keypair);
 
       const result: {
         vrfPublicKey: string;

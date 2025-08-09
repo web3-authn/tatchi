@@ -41,7 +41,13 @@ export class WebAuthnManager {
   readonly touchIdPrompt: TouchIdPrompt;
 
   constructor(configs: PasskeyManagerConfigs) {
-    this.vrfWorkerManager = new VrfWorkerManager();
+    // Group VRF worker configuration into a single object
+    this.vrfWorkerManager = new VrfWorkerManager({
+      shamirPB64u: configs.vrfWorkerConfigs?.shamir3pass?.p,
+      relayServerUrl: configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl,
+      applyServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+      removeServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+    });
     this.signerWorkerManager = new SignerWorkerManager();
     this.touchIdPrompt = new TouchIdPrompt();
     this.configs = configs;
@@ -67,14 +73,14 @@ export class WebAuthnManager {
    * @param vrfInputParams - Optional parameters to generate VRF challenge/proof in same call
    * @returns VRF public key and optionally VRF challenge data
    */
-  async generateVrfKeypair(
+  async generateVrfKeypairBootstrap(
     saveInMemory: boolean,
     vrfInputData: VRFInputData
   ): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
-    const result = await this.vrfWorkerManager.generateVrfKeypair(vrfInputData, saveInMemory);
+    const result = await this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
     if (!result.vrfChallenge) {
       throw new Error('VRF challenge generation failed');
     }
@@ -91,45 +97,34 @@ export class WebAuthnManager {
    *
    * @param credential - WebAuthn credential containing PRF outputs
    * @param nearAccountId - NEAR account ID for key derivation salt
-   * @param vrfInputParams - Optional VRF input parameters for challenge generation
-   * @param applyServerLockRoute - Optional route for applying Shamir3Pass VRF key lock
+   * @param vrfInputParams - Optional VRF inputs, if provided will generate a challenge
+   * @param saveInMemory - Whether to save the derived VRF keypair in worker memory for immediate use
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
   async deriveVrfKeypairFromPrf({
     credential,
     nearAccountId,
     vrfInputData,
-    applyServerLockRoute = '/vrf/apply-server-lock',
+    saveInMemory = true,
   }: {
     credential: PublicKeyCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
-    applyServerLockRoute?: string;
+    saveInMemory?: boolean; // optional, whether to save in worker memory
   }): Promise<{
     success: boolean;
     vrfPublicKey: string;
-    vrfChallenge: VRFChallenge | null;
     encryptedVrfKeypair: EncryptedVRFKeypair;
+    vrfChallenge: VRFChallenge | null;
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   }> {
     try {
       console.debug('WebAuthnManager: Deriving deterministic VRF keypair from PRF output');
-      // Extract ChaCha20 PRF output from credential
-      const { chacha20PrfOutput } = extractPrfFromCredential({
-        credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-
-      // Use the first PRF output for VRF keypair derivation (AES PRF output)
-      // This ensures deterministic derivation: same PRF + same account = same VRF keypair
-      const relayerUrl = this.configs.relayer?.url;
       const vrfResult = await this.vrfWorkerManager.deriveVrfKeypairFromSeed({
-        prfOutput: chacha20PrfOutput,
+        credential,
         nearAccountId,
         vrfInputData,
-        relayServerUrl: relayerUrl,
-        applyServerLockRoute: applyServerLockRoute,
+        saveInMemory,
       });
 
       console.debug(`Derived VRF public key: ${vrfResult.vrfPublicKey}`);
@@ -146,44 +141,23 @@ export class WebAuthnManager {
       const result: {
         success: boolean;
         vrfPublicKey: string;
-        vrfChallenge: VRFChallenge | null;
         encryptedVrfKeypair: EncryptedVRFKeypair;
+        vrfChallenge: VRFChallenge | null;
         serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
       } = {
         success: true,
         vrfPublicKey: vrfResult.vrfPublicKey,
-        vrfChallenge: vrfResult.vrfChallenge,
         encryptedVrfKeypair: vrfResult.encryptedVrfKeypair,
+        vrfChallenge: vrfResult.vrfChallenge,
         serverEncryptedVrfKeypair: vrfResult.serverEncryptedVrfKeypair,
       };
 
       return result;
 
     } catch (error: any) {
-      console.error('WebAuthnManager: VRF keypair derivation from PRF error:', error);
-      throw new Error(`VRF keypair derivation from PRF failed ${error.message}`);
+      console.error('WebAuthnManager: VRF keypair derivation error:', error);
+      throw new Error(`VRF keypair derivation failed ${error.message}`);
     }
-  }
-
-  /**
-   * Encrypt VRF keypair with PRF output - looks up in-memory keypair and encrypts it
-   * This is called after WebAuthn ceremony to encrypt the same VRF keypair with real PRF
-   *
-   * @param expectedPublicKey - Expected VRF public key to verify we're encrypting the right keypair
-   * @param prfOutput - PRF output from WebAuthn ceremony for encryption
-   * @returns Encrypted VRF keypair data ready for storage
-   */
-  async encryptVrfKeypairWithCredentials({
-    credential,
-    vrfPublicKey,
-  }: {
-    credential: PublicKeyCredential,
-    vrfPublicKey: string,
-  }): Promise<{
-    vrfPublicKey: string;
-    encryptedVrfKeypair: EncryptedVRFKeypair;
-  }> {
-    return await this.vrfWorkerManager.encryptVrfKeypairWithCredentials(vrfPublicKey, credential);
   }
 
   /**
@@ -202,17 +176,12 @@ export class WebAuthnManager {
     try {
       console.debug('WebAuthnManager: Unlocking VRF keypair');
 
-      const prfOutput = credential.getClientExtensionResults()?.prf?.results?.first as ArrayBuffer;
-      if (!prfOutput) {
-        throw new Error('PRF output not found in WebAuthn credentials');
-      }
-
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
+        credential,
         touchIdPrompt: this.touchIdPrompt,
         nearAccountId,
         encryptedVrfKeypair,
         authenticators: [], // Empty array since we already have the credential
-        prfOutput: prfOutput
       });
 
       if (!unlockResult.success) {
@@ -237,23 +206,17 @@ export class WebAuthnManager {
    */
   async shamir3PassDecryptVrfKeypair({
     nearAccountId,
-    relayServerUrl,
     kek_s_b64u,
     ciphertext_vrf_b64u,
-    removeServerLockRoute,
   }: {
     nearAccountId: AccountId;
-    relayServerUrl: string;
     kek_s_b64u: string;
     ciphertext_vrf_b64u: string;
-    removeServerLockRoute?: string;
   }): Promise<{ success: boolean; error?: string }> {
     const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
       nearAccountId,
-      relayServerUrl,
       kek_s_b64u,
       ciphertext_vrf_b64u,
-      removeServerLockRoute,
     });
 
     return {
