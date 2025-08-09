@@ -276,9 +276,16 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
         None => return VRFWorkerResponse::fail(message_id, "Missing data"),
     };
 
+    let relay_url = match manager.borrow().relay_server_url.clone() {
+        Some(url) => url,
+        None => return VRFWorkerResponse::fail(message_id, "VRFManager.relayServerUrl is empty")
+    };
+    let remove_route = match manager.borrow().remove_lock_route.clone() {
+        Some(route) => route,
+        None => return VRFWorkerResponse::fail(message_id, "VRFManager.removeServerLockRoute is empty")
+    };
+
     let near_account_id = data["nearAccountId"].as_str().unwrap_or("");
-    let relay_url = data["relayServerUrl"].as_str().unwrap_or("");
-    let remove_route = data["removeServerLockRoute"].as_str().unwrap_or("/vrf/remove-server-lock");
     let kek_s_b64u = data["kek_s_b64u"].as_str().unwrap_or("");
     let ciphertext_vrf_b64u = data["ciphertext_vrf_b64u"].as_str().unwrap_or("");
 
@@ -599,6 +606,11 @@ pub async fn handle_derive_vrf_keypair_from_prf(
                 .unwrap_or("")
                 .to_string();
 
+            // Parse saveInMemory parameter (default to true)
+            let save_in_memory = data.get("saveInMemory")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true);
+
             // Parse optional VRF input parameters for challenge generation
             let vrf_input_params = data.get("vrfInputParams")
                 .and_then(|params| {
@@ -622,18 +634,27 @@ pub async fn handle_derive_vrf_keypair_from_prf(
                 VRFWorkerResponse::fail(message_id, "Missing NEAR account ID")
             } else {
                 info!("Deriving VRF keypair from PRF for account: {}", near_account_id);
-                let manager_ref = manager.borrow();
-                let mut derivation_result = match manager_ref.derive_vrf_keypair_from_prf(
-                    prf_output,
-                    near_account_id.clone(),
-                    vrf_input_params,
-                ) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        error!("VRF keypair derivation failed: {}", e);
-                        return VRFWorkerResponse::fail(message_id, e.to_string());
+                let (mut derivation_result, vrf_keypair) = {
+                    let manager_ref = manager.borrow();
+                    match manager_ref.derive_vrf_keypair_from_prf(
+                        prf_output,
+                        near_account_id.clone(),
+                        vrf_input_params.clone(),
+                        save_in_memory,
+                    ) {
+                        Ok((result, keypair)) => (result, keypair),
+                        Err(e) => {
+                            error!("VRF keypair derivation failed: {}", e);
+                            return VRFWorkerResponse::fail(message_id, e.to_string());
+                        }
                     }
                 };
+
+                // If saveInMemory was requested, store the derived keypair in memory
+                if save_in_memory {
+                    let mut manager_mut = manager.borrow_mut();
+                    manager_mut.store_vrf_keypair_in_memory(vrf_keypair, near_account_id.clone());
+                }
 
                 let relay_url = manager.borrow().relay_server_url.clone();
                 let apply_server_lock_route = manager.borrow().apply_lock_route.clone();

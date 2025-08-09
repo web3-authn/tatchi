@@ -310,7 +310,8 @@ impl VRFKeyManager {
         prf_output: Vec<u8>,
         near_account_id: String,
         vrf_input_params: Option<VRFInputData>,
-    ) -> VrfResult<DeterministicVrfKeypairResponse> {
+        save_in_memory: bool,
+    ) -> VrfResult<(DeterministicVrfKeypairResponse, ECVRFKeyPair)> {
         info!(
             "Deriving deterministic VRF keypair from PRF for account: {} (with challenge: {})",
             near_account_id,
@@ -356,14 +357,27 @@ impl VRFKeyManager {
 
         info!("Deterministic VRF keypair derivation completed successfully");
 
-        Ok(DeterministicVrfKeypairResponse {
+        let response = DeterministicVrfKeypairResponse {
             vrf_public_key: vrf_public_key_b64,
             vrf_challenge_data,
             encrypted_vrf_keypair: Some(encrypted_vrf_keypair),
             success: true,
             server_encrypted_vrf_keypair: None,
             // added next in handler.rs: perform_shamir3pass_client_encrypt_current_vrf_keypair
-        })
+        };
+
+        Ok((response, vrf_keypair))
+    }
+
+    /// Store VRF keypair in memory (separate method to avoid borrowing conflicts)
+    pub fn store_vrf_keypair_in_memory(&mut self, vrf_keypair: ECVRFKeyPair, near_account_id: String) {
+        debug!("Storing VRF keypair in worker memory for account: {}", near_account_id);
+        // Clear any existing keypair and save the new one
+        self.vrf_keypair.take();
+        self.vrf_keypair = Some(SecureVRFKeyPair::new(vrf_keypair));
+        self.session_active = true;
+        self.session_start_time = js_sys::Date::now();
+        info!("VRF keypair stored in memory for future operations");
     }
 
     // === PRIVATE HELPER METHODS ===

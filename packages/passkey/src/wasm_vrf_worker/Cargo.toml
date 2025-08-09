@@ -2,6 +2,9 @@
 name = "wasm_vrf_worker"
 version = "0.1.0"
 edition = "2021"
+description = "Web3Authn VRF (Verifiable Random Function) worker with Shamir 3-pass protocol support"
+repository = "https://github.com/web3-authn/web3-authn-sdk"
+license = "Apache-2.0"
 
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = false
