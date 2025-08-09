@@ -28,6 +28,9 @@ const TEST_CONFIG = {
   VRF_WORKER_URL: BUILD_PATHS.TEST_WORKERS.VRF
 };
 
+// Note: Mock credential creation functions are defined inside test evaluations
+// to ensure they're available in the browser context
+
 test.describe('VRF Worker Manager Integration Test', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -144,7 +147,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Generate bootstrap VRF keypair (used during registration)
         console.log('Generating bootstrap VRF keypair...');
-        const bootstrapResult = await vrfWorkerManager.generateVrfKeypair(
+        const bootstrapResult = await vrfWorkerManager.generateVrfKeypairBootstrap(
           {
             ...testConfig.VRF_INPUT_PARAMS,
             rpId: configs.rpId
@@ -161,7 +164,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Test that VRF challenge is deterministic for same input
         console.log('Testing deterministic VRF challenge generation...');
-        const bootstrapResult2 = await vrfWorkerManager.generateVrfKeypair(
+        const bootstrapResult2 = await vrfWorkerManager.generateVrfKeypairBootstrap(
           {
             ...testConfig.VRF_INPUT_PARAMS,
             rpId: configs.rpId
@@ -231,10 +234,34 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Get centralized configuration
         const { configs } = (window as any).testUtils;
 
+        // Helper: obtain a mock PublicKeyCredential with PRF via setup WebAuthn mocks
+        const getCredentialForAccount = async (accountId: string): Promise<PublicKeyCredential> => {
+          const challenge = crypto.getRandomValues(new Uint8Array(32));
+          const cred = await (navigator as any).credentials.get({
+            publicKey: {
+              challenge,
+              timeout: 60000,
+              userVerification: 'preferred',
+              // Provide PRF extension so setup mocks attach PRF results
+              extensions: {
+                prf: {
+                  eval: {
+                    // Pass account id through PRF salt to keep PRF deterministic per account
+                    first: new TextEncoder().encode(`chacha20-salt:${accountId}`)
+                  }
+                }
+              },
+              // allowCredentials not required for our mock path using PRF salt
+            }
+          });
+          return cred as PublicKeyCredential;
+        };
+
         // Derive deterministic VRF keypair from PRF output (used during recovery)
         console.log('Deriving VRF keypair from PRF output...');
+        const cred1 = await getCredentialForAccount(testConfig.ACCOUNT_ID);
         const derivedResult1 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
-          prfOutput: testConfig.MOCK_PRF_OUTPUT,
+          credential: cred1,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: {
             ...testConfig.VRF_INPUT_PARAMS,
@@ -244,8 +271,9 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Derive again with same PRF output to test deterministic behavior
         console.log('Deriving VRF keypair again with same PRF...');
+        const cred2 = await getCredentialForAccount(testConfig.ACCOUNT_ID);
         const derivedResult2 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
-          prfOutput: testConfig.MOCK_PRF_OUTPUT,
+          credential: cred2,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: {
             ...testConfig.VRF_INPUT_PARAMS,
@@ -253,27 +281,20 @@ test.describe('VRF Worker Manager Integration Test', () => {
           }
         });
 
+        // Test with different PRF output by using different account hint
+        console.log('Testing with different PRF output...');
+        const differentAccount = `${testConfig.ACCOUNT_ID}-alt`;
+        const cred3 = await getCredentialForAccount(differentAccount);
+        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
+          credential: cred3,
+          nearAccountId: testConfig.ACCOUNT_ID as AccountId,
+          vrfInputData: testConfig.VRF_INPUT_PARAMS
+        });
+
         // Verify deterministic behavior
         const samePublicKey = derivedResult1.vrfPublicKey === derivedResult2.vrfPublicKey;
         const sameVrfOutput = derivedResult1.vrfChallenge?.vrfOutput === derivedResult2.vrfChallenge?.vrfOutput;
         const sameVrfProof = derivedResult1.vrfChallenge?.vrfProof === derivedResult2.vrfChallenge?.vrfProof;
-
-        // Test with different PRF output - ensure it's exactly 32 bytes when decoded
-        console.log('Testing with different PRF output...');
-        const differentPrfBytes = new TextEncoder().encode('different-prf-output-32-bytes!!');
-        const differentPrfOutput = btoa(String.fromCharCode(...differentPrfBytes))
-          .replace(/\+/g, '-')
-          .replace(/\//g, '_')
-          .replace(/=/g, '');
-
-        console.log(`Original PRF: ${testConfig.MOCK_PRF_OUTPUT}`);
-        console.log(`Different PRF: ${differentPrfOutput}`);
-
-        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
-          prfOutput: differentPrfOutput,
-          nearAccountId: testConfig.ACCOUNT_ID as AccountId,
-          vrfInputData: testConfig.VRF_INPUT_PARAMS
-        });
 
         const differentPublicKey = derivedResult1.vrfPublicKey !== derivedResult3.vrfPublicKey;
         const differentVrfOutput = derivedResult1.vrfChallenge?.vrfOutput !== derivedResult3.vrfChallenge?.vrfOutput;
@@ -363,7 +384,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Generate a VRF keypair to activate session
         console.log('Activating VRF session with keypair generation...');
-        await vrfWorkerManager.generateVrfKeypair(testConfig.VRF_INPUT_PARAMS, true);
+        await vrfWorkerManager.generateVrfKeypairBootstrap(testConfig.VRF_INPUT_PARAMS, true);
 
         // Check status after activation
         console.log('Checking VRF status after activation...');
@@ -436,7 +457,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // First, activate session by generating a VRF keypair
         console.log('Activating VRF session...');
-        await vrfWorkerManager.generateVrfKeypair({
+        await vrfWorkerManager.generateVrfKeypairBootstrap({
           ...testConfig.VRF_INPUT_PARAMS,
           rpId: configs.rpId
         }, true);
@@ -559,11 +580,30 @@ test.describe('VRF Worker Manager Integration Test', () => {
           testResults.challengeWithoutSession = error.message.includes('VRF challenge generation failed');
         }
 
-        // Test 2: Try to derive VRF keypair with invalid PRF output
+        const buildCredential = async (salt: ArrayBuffer | null): Promise<PublicKeyCredential> => {
+          const challenge = crypto.getRandomValues(new Uint8Array(32));
+          const extensions: any = salt === null
+            ? { prf: { eval: { first: null } } }
+            : { prf: { eval: { first: salt } } };
+          const cred = await (navigator as any).credentials.get({
+            publicKey: {
+              challenge,
+              timeout: 60000,
+              userVerification: 'preferred',
+              extensions
+            }
+          });
+          return cred as PublicKeyCredential;
+        };
+
+        // Test 2: Try to derive VRF keypair with invalid PRF output (non-base64url / malformed ArrayBuffer)
         console.log('Testing VRF derivation with invalid PRF...');
         try {
+          // Provide a tiny/invalid salt to force PRF handling issues downstream
+          const invalidSalt = new TextEncoder().encode('%%%INVALID%%%').buffer;
+          const invalidCred = await buildCredential(invalidSalt);
           await vrfWorkerManager.deriveVrfKeypairFromSeed({
-            prfOutput: 'this-is-not-valid-base64url!@#$%',
+            credential: invalidCred,
             nearAccountId: testConfig.ACCOUNT_ID as AccountId
           });
           console.log('ERROR: Invalid PRF derivation should have failed but succeeded!');
@@ -574,11 +614,12 @@ test.describe('VRF Worker Manager Integration Test', () => {
           testResults.invalidPrfDerivation = error.message.includes('VRF keypair derivation failed');
         }
 
-        // Test 3: Try to derive VRF keypair with empty PRF output
+        // Test 3: Try to derive VRF keypair with empty PRF output (null salt to break mock)
         console.log('Testing VRF derivation with empty PRF...');
         try {
+          const emptyCred = await buildCredential(null);
           await vrfWorkerManager.deriveVrfKeypairFromSeed({
-            prfOutput: '',
+            credential: emptyCred,
             nearAccountId: testConfig.ACCOUNT_ID as AccountId
           });
           console.log('ERROR: Empty PRF derivation should have failed but succeeded!');
@@ -642,8 +683,8 @@ test.describe('VRF Worker Manager Integration Test', () => {
         console.log('Status response keys:', Object.keys(statusResponse));
 
         // Test 2: Generate VRF keypair (complex response)
-        console.log('Testing generateVrfKeypair response...');
-        const keypairResult = await vrfWorkerManager.generateVrfKeypair(testConfig.VRF_INPUT_PARAMS, true);
+        console.log('Testing generateVrfKeypairBootstrap response...');
+        const keypairResult = await vrfWorkerManager.generateVrfKeypairBootstrap(testConfig.VRF_INPUT_PARAMS, true);
         console.log('Keypair result type:', typeof keypairResult);
         console.log('Keypair result keys:', Object.keys(keypairResult));
         console.log('vrfPublicKey type:', typeof keypairResult.vrfPublicKey);
