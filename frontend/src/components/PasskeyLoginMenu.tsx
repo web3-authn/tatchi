@@ -141,9 +141,7 @@ export function PasskeyLoginMenu() {
   };
 
   const onLogin = async () => {
-    if (!targetAccountId) {
-      return;
-    }
+    if (!targetAccountId) return;
 
     console.log('Logging in with account:', targetAccountId);
     await loginPasskey(targetAccountId, {

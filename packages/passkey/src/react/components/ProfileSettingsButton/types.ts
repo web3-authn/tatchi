@@ -20,9 +20,9 @@ export interface ProfileMenuItem {
 }
 
 export interface ProfileButtonProps {
-  username: string;
+  username: string | null;
   nearAccountId?: string;
-  onLogout: () => void;
+  onLogout?: () => void;
   toggleColors?: ToggleColorProps;
 }
 

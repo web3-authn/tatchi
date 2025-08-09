@@ -25,6 +25,7 @@ import { VRFChallenge } from '../types/vrf-worker';
 import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 import { DeviceLinkingPhase, DeviceLinkingStatus, LoginPhase } from '../types/passkeyManager';
+import type { ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 
 
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -529,6 +530,7 @@ export class LinkDeviceFlow {
   private async attemptAutoLogin(
     deterministicKeysResult?: {
       encryptedVrfKeypair: EncryptedVRFKeypair;
+      serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
       vrfPublicKey: string;
       nearPublicKey: string;
       credential: PublicKeyCredential;
@@ -557,7 +559,38 @@ export class LinkDeviceFlow {
         throw new Error(`Missing required data for auto-login: ${missing.join(', ')}`);
       }
 
-      // Unlock VRF keypair for immediate login
+      // Try Shamir 3-pass unlock first if available
+      if (
+        deterministicKeysResult.serverEncryptedVrfKeypair &&
+        this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
+      ) {
+        try {
+          console.log('LinkDeviceFlow: Attempting Shamir 3-pass unlock for auto-login');
+          const unlockResult = await this.context.webAuthnManager.shamir3PassDecryptVrfKeypair({
+            nearAccountId: this.session.accountId,
+            kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
+            ciphertext_vrf_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertext_vrf_b64u,
+          });
+
+          if (unlockResult.success) {
+            console.log('LinkDeviceFlow: Shamir 3-pass unlock successful for auto-login');
+            this.options?.onEvent?.({
+              step: 8,
+              phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
+              status: DeviceLinkingStatus.SUCCESS,
+              message: `Welcome ${this.session.accountId}`
+            });
+            return; // Success, no need to try TouchID
+          } else {
+            console.log('LinkDeviceFlow: Shamir 3-pass unlock failed, falling back to TouchID');
+          }
+        } catch (error) {
+          console.log('LinkDeviceFlow: Shamir 3-pass unlock error, falling back to TouchID:', error);
+        }
+      }
+
+      // Fall back to TouchID unlock
+      console.log('LinkDeviceFlow: Using TouchID unlock for auto-login');
       const vrfUnlockResult = await this.context.webAuthnManager.unlockVRFKeypair({
         nearAccountId: this.session.accountId,
         encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
@@ -592,6 +625,7 @@ export class LinkDeviceFlow {
    */
   private async storeDeviceAuthenticator(deterministicKeysResult: {
     encryptedVrfKeypair: EncryptedVRFKeypair;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
     vrfPublicKey: string;
     nearPublicKey: string;
     credential: PublicKeyCredential;
@@ -630,8 +664,7 @@ export class LinkDeviceFlow {
           rawId: base64UrlEncode(new Uint8Array(credential.rawId))
         },
         encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
-        // TODO: update link device to use SRC encryption
-        serverEncryptedVrfKeypair: undefined, // Device linking doesn't use SRA encryption
+        serverEncryptedVrfKeypair: deterministicKeysResult.serverEncryptedVrfKeypair || undefined, // Device linking now uses Shamir 3-pass encryption
       });
 
       // Store authenticator with deviceNumber
@@ -666,6 +699,7 @@ export class LinkDeviceFlow {
    */
   private async deriveDeterministicKeysAndRegisterAccount(): Promise<{
     encryptedVrfKeypair: EncryptedVRFKeypair;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
     vrfPublicKey: string;
     nearPublicKey: string;
     credential: PublicKeyCredential;
@@ -798,6 +832,7 @@ export class LinkDeviceFlow {
         // Return all derived values - no more session state confusion!
         const result = {
           encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
+          serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair,
           vrfPublicKey: vrfDerivationResult.vrfPublicKey,
           nearPublicKey: nearKeyResultStep1.publicKey,
           credential: credential,
@@ -841,6 +876,7 @@ export class LinkDeviceFlow {
 
         const result = {
           encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
+          serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair,
           vrfPublicKey: vrfDerivationResult.vrfPublicKey,
           nearPublicKey: this.session.nearPublicKey, // For Option E, use existing NEAR public key
           credential: credential, // Use regenerated credential with device number

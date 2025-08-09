@@ -3,9 +3,9 @@ import type { RefObject } from 'react';
 
 export interface UsePostfixPositionOptions {
   /** The input element reference */
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
   /** The postfix element reference */
-  postfixRef: RefObject<HTMLSpanElement>;
+  postfixRef: RefObject<HTMLSpanElement | null>;
   /** The current input text value */
   inputValue: string;
 }
