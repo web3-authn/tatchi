@@ -28,6 +28,10 @@ export interface AuthServiceConfig {
   networkId: string;
   accountInitialBalance: string;
   createAccountAndRegisterGas: string;
+  // Shamir 3-pass configuration (base64url BigInts)
+  shamir_p_b64u: string;
+  shamir_e_s_b64u: string;
+  shamir_d_s_b64u: string;
 }
 
 // Account creation and registration types (imported from relay-server types)
@@ -168,4 +172,22 @@ export interface VerifyAuthenticationResponse {
   sessionCredential?: any;
   error?: string;
   contractResponse?: any;
+}
+
+// === Shamir 3-pass HTTP types (wrappers around WASM-generated types) ===
+
+export interface ApplyServerLockRequest {
+  kek_c_b64u: string;
+}
+
+export interface ApplyServerLockResponse {
+  kek_cs_b64u: string;
+}
+
+export interface RemoveServerLockRequest {
+  kek_cs_b64u: string;
+}
+
+export interface RemoveServerLockResponse {
+  kek_c_b64u: string;
 }

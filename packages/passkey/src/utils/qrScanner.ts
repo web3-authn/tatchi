@@ -277,8 +277,9 @@ export class ScanQRCodeFlow {
         }
       }
     } catch (error: any) {
-      // Continue scanning on frame errors, but log them
-      console.warn('QR scan frame error:', error);
+      // Fail the scan on validation or frame errors
+      this.handleError(error instanceof Error ? error : new Error(String(error)));
+      return;
     }
 
     // Schedule next frame

@@ -27,12 +27,23 @@ export interface ClientUserData {
     chacha20_nonce_b64u: string;
   };
 
+  // Server-assisted auto-login (VRF key session): Shamir 3-pass fields
+  // Stores relayer-blinded KEK and the VRF ciphertext; server never sees plaintext VRF or KEK
+  serverEncryptedVrfKeypair?: {
+    ciphertext_vrf_b64u: string;
+    kek_s_b64u: string;
+  };
+
   // User preferences
   preferences?: UserPreferences;
 }
 
+// TODO: fix typings
 export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogin' | 'registeredAt'>
-  & { deviceNumber?: number | undefined; };
+  & {
+    deviceNumber?: number;
+    serverEncryptedVrfKeypair?: ClientUserData['serverEncryptedVrfKeypair'];
+  };
 
 export interface UserPreferences {
   useRelayer: boolean;
@@ -75,7 +86,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 8, // Increment version for removing redundant nearAccountIdDevice index
+  dbVersion: 9, // Increment version for adding serverEncryptedVrfKeypair field
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators'
@@ -245,6 +256,7 @@ export class PasskeyClientDBManager {
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: storeUserData.serverEncryptedVrfKeypair,
     };
 
     await this.storeUser(userData);
@@ -254,16 +266,11 @@ export class PasskeyClientDBManager {
   async updateUser(nearAccountId: AccountId, updates: Partial<ClientUserData>): Promise<void> {
     const user = await this.getUser(nearAccountId);
     if (user) {
-      // CHANGE: Debug device number issue in updateUser
-      console.log("DEBUG updateUser: existing user deviceNumber =", user.deviceNumber);
-      console.log("DEBUG updateUser: updates =", updates);
-
       const updatedUser = {
         ...user,
         ...updates,
         lastUpdated: Date.now()
       };
-
       console.log("DEBUG updateUser: final updatedUser deviceNumber =", updatedUser.deviceNumber);
       await this.storeUser(updatedUser); // This will update the app state lastUserAccountId
     }
@@ -306,7 +313,6 @@ export class PasskeyClientDBManager {
       deviceNumber: userData.deviceNumber,
     };
 
-    console.log("DEBUG storeUser: setting lastUserAccountId to deviceNumber =", userData.deviceNumber);
     await this.setAppState('lastUserAccountId', lastUserState);
   }
 
@@ -327,10 +333,12 @@ export class PasskeyClientDBManager {
       encrypted_vrf_data_b64u: string;
       chacha20_nonce_b64u: string;
     };
+    serverEncryptedVrfKeypair?: {
+      ciphertext_vrf_b64u: string;
+      kek_s_b64u: string;
+    };
   }): Promise<void> {
 
-    // CHANGE: Debug device number issue - log what device number is being stored
-    console.log("DEBUG storeWebAuthnUserData: received deviceNumber =", userData.deviceNumber);
     if (userData.deviceNumber === undefined) {
       console.warn("WARNING: deviceNumber is undefined in storeWebAuthnUserData, will default to 1");
     }
@@ -343,7 +351,7 @@ export class PasskeyClientDBManager {
     let existingUser = await this.getUser(userData.nearAccountId);
     if (!existingUser) {
       const deviceNumberToUse = userData.deviceNumber || 1;
-      console.log("DEBUG: Creating new user with deviceNumber =", deviceNumberToUse,
+      console.log("Creating new user with deviceNumber =", deviceNumberToUse,
                   "(original =", userData.deviceNumber, ")");
       existingUser = await this.registerUser({
         nearAccountId: userData.nearAccountId,
@@ -351,6 +359,7 @@ export class PasskeyClientDBManager {
         clientNearPublicKey: userData.clientNearPublicKey,
         passkeyCredential: userData.passkeyCredential,
         encryptedVrfKeypair: userData.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
       });
     }
 
@@ -362,6 +371,7 @@ export class PasskeyClientDBManager {
     await this.updateUser(userData.nearAccountId, {
       clientNearPublicKey: userData.clientNearPublicKey,
       encryptedVrfKeypair: userData.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
       deviceNumber: finalDeviceNumber, // Use provided device number or keep existing
       lastUpdated: userData.lastUpdated || Date.now()
     });

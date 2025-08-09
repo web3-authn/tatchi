@@ -33,7 +33,9 @@ export function LinkDeviceScanQR() {
 
   const handleError = (error: Error) => {
     console.error('Device linking error:', error);
-    toast.error(`Device linking failed: ${error.message}`);
+    // Ensure any in-progress loading toast is cleared/replaced
+    toast.dismiss('device-linking');
+    toast.error(`Device linking failed: ${error.message}`, { id: 'device-linking' });
     setDeviceLinkingState({ mode: 'idle', isProcessing: false, showScanner: false });
   };
 
@@ -94,7 +96,20 @@ export function LinkDeviceScanQR() {
               break;
             case DeviceLinkingPhase.REGISTRATION_ERROR:
               if (event.status === DeviceLinkingStatus.ERROR) {
+                toast.dismiss('device-linking');
                 toast.error(event.message || 'Registration failed', { id: 'device-linking' });
+              }
+              break;
+            case DeviceLinkingPhase.LOGIN_ERROR:
+              if (event.status === DeviceLinkingStatus.ERROR) {
+                toast.dismiss('device-linking');
+                toast.error(event.message || 'Login failed', { id: 'device-linking' });
+              }
+              break;
+            case DeviceLinkingPhase.DEVICE_LINKING_ERROR:
+              if (event.status === DeviceLinkingStatus.ERROR) {
+                toast.dismiss('device-linking');
+                toast.error(event.message || 'Device linking failed', { id: 'device-linking' });
               }
               break;
             case DeviceLinkingPhase.STEP_7_LINKING_COMPLETE:
@@ -105,6 +120,9 @@ export function LinkDeviceScanQR() {
             default:
               if (event.status === DeviceLinkingStatus.PROGRESS) {
                 toast.loading(event.message || 'Processing...', { id: 'device-linking' });
+              } else if (event.status === DeviceLinkingStatus.ERROR) {
+                toast.dismiss('device-linking');
+                toast.error(event.message || 'Operation failed', { id: 'device-linking' });
               }
           }
         }}

@@ -146,3 +146,10 @@ export async function createAccountAndRegisterWithRelayServer(
     };
   }
 }
+
+/**
+ * Fetch the server's SRA public key for commutative encryption
+ * @param relayServerUrl - URL of the relay server
+ * @returns Server SRA public key or null if failed
+ */
+// SRA removed: fetchServerSRAPublicKey deprecated

@@ -9,7 +9,7 @@ import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
-import { VRFChallenge } from '../types/vrf-worker';
+import { ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
 
 /**
  * Core login function that handles passkey authentication without React dependencies
@@ -138,27 +138,79 @@ async function handleLoginUnlockVRF(
       return { userData, authenticators };
     });
 
-    // Step 2: Perform initial WebAuthn authentication to get PRF output for VRF decryption
+    // Step 2: Try Shamir 3-pass commutative unlock first (no TouchID required), fallback to TouchID
     onEvent?.({
       step: 2,
       phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
       status: LoginStatus.PROGRESS,
-      message: 'Authenticating to unlock VRF keypair...'
+      message: 'Attempting to unlock VRF keypair...'
     });
 
-    // Get credential for VRF unlock
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const credential = await webAuthnManager.touchIdPrompt.getCredentials({
-      nearAccountId,
-      challenge,
-      authenticators,
-    });
+    let unlockResult: { success: boolean; error?: string } = { success: false };
 
-    const unlockResult = await webAuthnManager.unlockVRFKeypair({
-      nearAccountId: nearAccountId,
-      encryptedVrfKeypair: userData.encryptedVrfKeypair!, // non-null assertion; validated above
-      credential: credential,
-    });
+    const hasServerEncrypted = !!userData.serverEncryptedVrfKeypair;
+    const relayerUrl = context.configs.relayer?.url;
+    const useShamir3PassVRFKeyUnlock = hasServerEncrypted && !!relayerUrl;
+    console.log("hasServerEncrypted", hasServerEncrypted);
+    console.log("relayerUrl", relayerUrl);
+    console.log("useShamir3PassVRFKeyUnlock", useShamir3PassVRFKeyUnlock);
+
+    if (useShamir3PassVRFKeyUnlock) {
+      try {
+        const shamir = userData.serverEncryptedVrfKeypair as ServerEncryptedVrfKeypair;
+        if (!shamir.ciphertext_vrf_b64u || !shamir.kek_s_b64u) {
+          throw new Error('Missing Shamir3Pass fields (ciphertext_vrf_b64u/kek_s_b64u)');
+        }
+        console.log("shamir3pass unlock: using kek_s_b64u", shamir.kek_s_b64u);
+        console.log("shamir3pass unlock: using ciphertext_vrf_b64u", shamir.ciphertext_vrf_b64u);
+
+        unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
+          nearAccountId,
+          kek_s_b64u: shamir.kek_s_b64u,
+          ciphertext_vrf_b64u: shamir.ciphertext_vrf_b64u,
+        });
+        console.log("unlockResult", unlockResult);
+
+        if (unlockResult.success) {
+          const vrfStatus = await webAuthnManager.checkVrfStatus();
+          const active = vrfStatus.active && vrfStatus.nearAccountId === nearAccountId;
+          if (!active) {
+            unlockResult = { success: false, error: 'VRF session inactive after Shamir3Pass' };
+          }
+        } else {
+          console.error('Shamir3Pass unlock failed:', unlockResult.error);
+          throw new Error(`Shamir3Pass unlock failed: ${unlockResult.error}`);
+        }
+      } catch (error: any) {
+        console.log('Shamir3Pass unlock error, falling back to TouchID:', error.message);
+        unlockResult = { success: false, error: error.message };
+      }
+    }
+
+    // Fallback to TouchID if Shamir3Pass decryption failed
+    if (!unlockResult.success) {
+      console.debug('Falling back to TouchID authentication for VRF unlock');
+      onEvent?.({
+        step: 2,
+        phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
+        status: LoginStatus.PROGRESS,
+        message: 'Authenticating with TouchID to unlock VRF keypair...'
+      });
+
+      // Get credential for VRF unlock
+      const challenge = crypto.getRandomValues(new Uint8Array(32));
+      const credential = await webAuthnManager.touchIdPrompt.getCredentials({
+        nearAccountId,
+        challenge,
+        authenticators,
+      });
+
+      unlockResult = await webAuthnManager.unlockVRFKeypair({
+        nearAccountId: nearAccountId,
+        encryptedVrfKeypair: userData.encryptedVrfKeypair!, // non-null assertion; validated above
+        credential: credential,
+      });
+    }
 
     if (!unlockResult.success) {
       throw new Error(`Failed to unlock VRF keypair: ${unlockResult.error}`);
@@ -203,7 +255,7 @@ async function handleLoginUnlockVRF(
       phase: LoginPhase.LOGIN_ERROR,
       status: LoginStatus.ERROR,
       message: errorMessage,
-      error: error
+      error: errorMessage
     });
 
     const result = { success: false, error: errorMessage };

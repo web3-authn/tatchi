@@ -74,8 +74,8 @@ export async function registerPasskey(
       message: 'Account available - generating VRF credentials...'
     });
 
-    // Step 1: Generate bootstrap VRF keypair + challenge for registration
-    console.log('Registration Step 1: Generating VRF keypair + challenge for registration');
+    // Step 1: Generate bootstrap VRF challenge for WebAuthn ceremony
+    // (temporary, replaced later with determinisitic VRF keypair)
     const { vrfChallenge } = await Promise.all([
       validateRegistrationInputs(context, nearAccountId, onEvent, onError),
       generateBootstrapVrfChallenge(context, nearAccountId),
@@ -84,8 +84,6 @@ export async function registerPasskey(
     const vrfChallengeBytes = vrfChallenge.outputAs32Bytes();
 
     // Step 2: WebAuthn registration ceremony with PRF (TouchID)
-    console.log('Registration Step 2: WebAuthn registration ceremony with VRF challenge');
-
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
@@ -106,21 +104,16 @@ export async function registerPasskey(
     });
 
     // Steps 3-4: Encrypt VRF keypair, derive NEAR keypair, and check registration in parallel
-    console.log('Registration Steps 3-4: Encrypt VRF keypair, derive NEAR keypair, and check registration');
     const {
-      encryptedVrfResult,
       deterministicVrfKeyResult,
       nearKeyResult,
       canRegisterUserResult,
     } = await Promise.all([
-      webAuthnManager.encryptVrfKeypairWithCredentials({
-        credential,
-        vrfPublicKey: vrfChallenge.vrfPublicKey
-      }),
       // Generate deterministic VRF keypair from PRF output for recovery
       webAuthnManager.deriveVrfKeypairFromPrf({
         credential,
-        nearAccountId
+        nearAccountId,
+        saveInMemory: true, // Save in worker memory so it can be used for challenge generation
       }),
       webAuthnManager.deriveNearKeypairAndEncrypt({
         credential,
@@ -140,10 +133,7 @@ export async function registerPasskey(
           });
         },
       }),
-    ]).then(([encryptedVrfResult, deterministicVrfKeyResult, nearKeyResult, canRegisterUserResult]) => {
-      if (!encryptedVrfResult.encryptedVrfKeypair || !encryptedVrfResult.vrfPublicKey) {
-        throw new Error('Failed to encrypt VRF keypair');
-      }
+    ]).then(([deterministicVrfKeyResult, nearKeyResult, canRegisterUserResult]) => {
       if (!deterministicVrfKeyResult.success || !deterministicVrfKeyResult.vrfPublicKey) {
         throw new Error('Failed to derive deterministic VRF keypair from PRF');
       }
@@ -156,20 +146,13 @@ export async function registerPasskey(
         throw new Error(`Web3Authn contract registration check failed: ${errorMessage}`);
       }
       return {
-        encryptedVrfResult,
         deterministicVrfKeyResult,
         nearKeyResult,
         canRegisterUserResult
       };
     });
 
-    console.debug('Dual VRF registration strategy:');
-    console.debug(`  Bootstrap VRF key: ${vrfChallenge.vrfPublicKey.substring(0, 20)}... (WebAuthn-bound)`);
-    console.debug(`  Deterministic VRF key: ${deterministicVrfKeyResult.vrfPublicKey.substring(0, 20)}... (recovery-compatible)`);
-    console.debug('Both keys will be stored on the contract for comprehensive VRF support');
-
     // Step 5: Create account and register with contract using appropriate flow
-    console.log('Registration Step 5: Account creation and contract registration');
     onEvent?.({
       step: 2,
       phase: RegistrationPhase.STEP_2_KEY_GENERATION,
@@ -238,7 +221,6 @@ export async function registerPasskey(
     }
 
     // Step 6: Store user data with VRF credentials atomically
-    console.log('Registration Step 6: Storing VRF registration data');
     onEvent?.({
       step: 5,
       phase: RegistrationPhase.STEP_5_DATABASE_STORAGE,
@@ -250,8 +232,9 @@ export async function registerPasskey(
       nearAccountId,
       credential,
       publicKey: nearKeyResult.publicKey,
-      encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
-      vrfPublicKey: encryptedVrfResult.vrfPublicKey,
+      encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
+      vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
+      serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
       onEvent
     });
 
@@ -266,11 +249,10 @@ export async function registerPasskey(
     });
 
     // Step 7: Unlock VRF keypair in memory for login
-    console.log('Registration Step 7: Unlocking VRF keypair for login');
-
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
       nearAccountId: nearAccountId,
-      encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
+      // encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
+      encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       credential: credential,
     }).catch((unlockError: any) => {
       console.warn('VRF keypair unlock failed:', unlockError);
@@ -297,7 +279,8 @@ export async function registerPasskey(
       vrfRegistration: {
         success: true,
         vrfPublicKey: vrfChallenge.vrfPublicKey,
-        encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
+        // encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
+        encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
         contractVerified: accountAndRegistrationResult.success,
       }
     };
@@ -367,7 +350,7 @@ export async function generateBootstrapVrfChallenge(
 
   console.log('Generating VRF keypair for registration');
   // Generate VRF keypair and persist in worker memory
-  const vrfResult = await webAuthnManager.generateVrfKeypair(
+  const vrfResult = await webAuthnManager.generateVrfKeypairBootstrap(
     true, // saveInMemory: true - this VRF keypair is persisted in worker memory until PRF encryption
     {
       userId: nearAccountId,
@@ -380,7 +363,7 @@ export async function generateBootstrapVrfChallenge(
   if (!vrfResult.vrfChallenge) {
     throw new Error('Registration VRF keypair generation failed');
   }
-  console.log('VRF keypair generated and persisted in worker memory');
+  console.log('bootstrap VRF keypair generated and persisted in worker memory');
   return vrfResult.vrfChallenge;
 }
 
@@ -440,7 +423,7 @@ const validateRegistrationInputs = async (
   } catch (viewError: any) {
     // If viewAccount throws any error, assume the account doesn't exist
     // This is more reliable than parsing specific error formats that vary between RPC servers
-    console.log(`✅ Account ${nearAccountId} is available for registration (viewAccount failed: ${viewError.message})`);
+    console.log(`Account ${nearAccountId} is available for registration (viewAccount failed: ${viewError.message})`);
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,

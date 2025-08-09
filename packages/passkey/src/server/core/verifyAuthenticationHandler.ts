@@ -2,17 +2,24 @@ import type {
   ServerRequest,
   ServerResponse,
   VerifyAuthenticationRequest,
-  VerifyAuthenticationResponse
+  VerifyAuthenticationResponse,
+  ApplyServerLockRequest,
+  ApplyServerLockResponse,
+  RemoveServerLockRequest,
+  RemoveServerLockResponse
 } from './types';
 import { AuthService } from './AuthService';
+import type {
+  ServerRequest as SR,
+  ServerResponse as SP
+} from './types';
 
 /**
  * Handle verify authentication response requests
- * This is a framework-agnostic handler that can be used with Express, Fastify, etc.
  */
 export async function handleVerifyAuthenticationResponse(
   request: ServerRequest,
-  accountService: AuthService
+  authService: AuthService
 ): Promise<ServerResponse> {
   try {
     // Parse request body
@@ -36,7 +43,7 @@ export async function handleVerifyAuthenticationResponse(
     }
 
     // Call the account service to verify authentication
-    const result: VerifyAuthenticationResponse = await accountService.verifyAuthenticationResponse(body);
+    const result: VerifyAuthenticationResponse = await authService.verifyAuthenticationResponse(body);
 
     // Return the response
     return {
@@ -62,9 +69,9 @@ export async function handleVerifyAuthenticationResponse(
 
 /**
  * Express.js middleware for verify authentication response
- * Usage: app.post('/verify-authentication-response', verifyAuthenticationMiddleware(accountService))
+ * Usage: app.post('/verify-authentication-response', verifyAuthenticationMiddleware(authService))
  */
-export function verifyAuthenticationMiddleware(accountService: AuthService) {
+export function verifyAuthenticationMiddleware(authService: AuthService) {
   return async (req: any, res: any) => {
     const serverRequest: ServerRequest = {
       method: req.method,
@@ -73,14 +80,7 @@ export function verifyAuthenticationMiddleware(accountService: AuthService) {
       body: JSON.stringify(req.body),
     };
 
-    const response = await handleVerifyAuthenticationResponse(serverRequest, accountService);
-
-    // Set headers
-    Object.entries(response.headers).forEach(([key, value]) => {
-      res.set(key, value);
-    });
-
-    // Send response
-    res.status(response.status).send(JSON.parse(response.body));
+    const result = await authService.handleVerifyAuthenticationResponse(JSON.parse(serverRequest.body!));
+    res.status(result.success ? 200 : 400).json(result);
   };
 }

@@ -5,6 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
+    "gen:shamir": "bun run ./src/generateShamirKeys.ts",
     "start": "node dist/index.js",
     "dev": "nodemon --exec bun run src/index.ts"
   },

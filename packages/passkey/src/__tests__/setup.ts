@@ -819,17 +819,12 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
           getClientExtensionResults: () => {
             const results: any = {};
             if (prfRequested) {
-              console.log('[AUTH PRF DEBUG] Generating PRF outputs for account:', accountId);
-              const firstPRF = createMockPRFOutput('chacha20-test-seed', accountId, 32);
-              const secondPRF = createMockPRFOutput('ed25519-test-seed', accountId, 32);
-              console.log('[AUTH PRF DEBUG] First PRF (AES):', Array.from(new Uint8Array(firstPRF)).slice(0, 8), '...');
-              console.log('[AUTH PRF DEBUG] Second PRF (Ed25519):', Array.from(new Uint8Array(secondPRF)).slice(0, 8), '...');
 
               results.prf = {
                 enabled: true,
                 results: {
-                  first: firstPRF,
-                  second: secondPRF
+                  first: createMockPRFOutput('chacha20-test-seed', accountId, 32),
+                  second: createMockPRFOutput('ed25519-test-seed', accountId, 32),
                 }
               };
             }
