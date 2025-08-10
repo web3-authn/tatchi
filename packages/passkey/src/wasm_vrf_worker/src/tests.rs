@@ -3,9 +3,7 @@
 
 use serde_json;
 use num_bigint::BigUint;
-
-// Import existing types, functions, and constants from other modules
-use crate::types::{VRFInputData, EncryptedVRFKeypair, VRFWorkerMessage, VRFWorkerResponse, VRFChallengeData};
+use crate::types::{VRFInputData, EncryptedVRFKeypair, VrfWorkerMessage, VrfWorkerResponse, VRFChallengeData};
 use crate::utils::{base64_url_encode, base64_url_decode};
 use crate::config::{
     CHACHA20_KEY_SIZE,
@@ -78,28 +76,28 @@ fn test_vrf_data_structures_serialization() {
 #[test]
 fn test_worker_message_format_consistency() {
     // Test VRFWorkerMessage structure
-    let test_message = VRFWorkerMessage {
+    let test_message = VrfWorkerMessage {
         msg_type: "PING".to_string(),
         id: Some("test-123".to_string()),
-        data: Some(serde_json::json!({"test": "data"})),
+        msg: Some(serde_json::json!({"test": "data"})),
     };
 
-    let json_str = serde_json::to_string(&test_message).expect("Should serialize VRFWorkerMessage");
-    let deserialized: VRFWorkerMessage = serde_json::from_str(&json_str).expect("Should deserialize VRFWorkerMessage");
+    let json_str = serde_json::to_string(&test_message).expect("Should serialize VrfWorkerMessage");
+    let deserialized: VrfWorkerMessage = serde_json::from_str(&json_str).expect("Should deserialize VrfWorkerMessage");
 
     assert_eq!(test_message.msg_type, deserialized.msg_type);
     assert_eq!(test_message.id, deserialized.id);
 
-    // Test VRFWorkerResponse structure
-    let test_response = VRFWorkerResponse {
+    // Test VrfWorkerResponse structure
+    let test_response = VrfWorkerResponse {
         id: Some("test-123".to_string()),
         success: true,
         data: Some(serde_json::json!({"result": "success"})),
         error: None,
     };
 
-    let json_str = serde_json::to_string(&test_response).expect("Should serialize VRFWorkerResponse");
-    let deserialized: VRFWorkerResponse = serde_json::from_str(&json_str).expect("Should deserialize VRFWorkerResponse");
+    let json_str = serde_json::to_string(&test_response).expect("Should serialize VrfWorkerResponse");
+    let deserialized: VrfWorkerResponse = serde_json::from_str(&json_str).expect("Should deserialize VrfWorkerResponse");
 
     assert_eq!(test_response.id, deserialized.id);
     assert_eq!(test_response.success, deserialized.success);

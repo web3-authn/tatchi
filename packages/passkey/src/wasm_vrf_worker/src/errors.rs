@@ -1,5 +1,8 @@
 use std::fmt;
 use serde::{Deserialize, Serialize};
+use hkdf::InvalidLength as HkdfInvalidLength;
+use bincode::Error as BincodeError;
+use wasm_bindgen::JsValue;
 
 /// VRF Worker Error Types
 ///
@@ -233,10 +236,28 @@ impl From<serde_json::Error> for VrfWorkerError {
     }
 }
 
+impl From<HkdfInvalidLength> for VrfWorkerError {
+    fn from(_: HkdfInvalidLength) -> Self {
+        VrfWorkerError::HkdfDerivationFailed(HkdfError::KeyDerivationFailed)
+    }
+}
+
+impl From<BincodeError> for VrfWorkerError {
+    fn from(err: BincodeError) -> Self {
+        VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(format!("{:?}", err)))
+    }
+}
+
 // Add From<String> implementation to handle string errors
 impl From<String> for VrfWorkerError {
     fn from(err: String) -> Self {
         VrfWorkerError::InvalidMessageFormat(err)
+    }
+}
+
+impl From<VrfWorkerError> for JsValue {
+    fn from(err: VrfWorkerError) -> Self {
+        JsValue::from_str(&format!("{}", err))
     }
 }
 
