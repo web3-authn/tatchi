@@ -3,10 +3,10 @@ import {
   AuthService,
   type CreateAccountAndRegisterRequest,
   type CreateAccountAndRegisterResult,
-  type ApplyServerLockRequest,
-  type ApplyServerLockResponse,
-  type RemoveServerLockRequest,
-  type RemoveServerLockResponse,
+  type ShamirApplyServerLockRequest,
+  type ShamirApplyServerLockResponse,
+  type ShamirRemoveServerLockRequest,
+  type ShamirRemoveServerLockResponse,
 } from '@web3authn/passkey/server';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -108,7 +108,7 @@ app.post(
 // Removed legacy SRA routes
 
 // Shamir 3-pass endpoints
-app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ApplyServerLockRequest>, res: Response<ApplyServerLockResponse | { error: string; details?: string }>) => {
+app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ShamirApplyServerLockRequest>, res: Response<ShamirApplyServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("apply-server-lock request.body", req.body);
     const serverResponse = await authService.handleApplyServerLock({
@@ -127,7 +127,7 @@ app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ApplyServerLockRe
   }
 });
 
-app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, RemoveServerLockRequest>, res: Response<RemoveServerLockResponse | { error: string; details?: string }>) => {
+app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, ShamirRemoveServerLockRequest>, res: Response<ShamirRemoveServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("remove-server-lock request.body", req.body);
     const serverResponse = await authService.handleRemoveServerLock({
