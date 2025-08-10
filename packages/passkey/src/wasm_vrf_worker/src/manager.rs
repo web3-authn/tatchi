@@ -1,3 +1,17 @@
+use log::{info, debug};
+use js_sys::Date;
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+use chacha20poly1305::aead::{Aead, KeyInit};
+use hkdf::Hkdf;
+use getrandom::getrandom;
+use rand_core::SeedableRng;
+use sha2::{Sha256, Digest};
+// VRF and crypto imports
+use vrf_wasm::ecvrf::ECVRFKeyPair;
+use vrf_wasm::vrf::{VRFKeyPair, VRFProof};
+use vrf_wasm::traits::WasmRngFromSeed;
+use zeroize::ZeroizeOnDrop;
+
 use crate::config::*;
 use crate::errors::{VrfWorkerError, VrfResult, HkdfError, SerializationError, AesError};
 use crate::types::*;
@@ -6,22 +20,12 @@ use crate::types::{
     EncryptedVrfKeypairResponse,
 };
 use crate::handlers::DeterministicVrfKeypairResponse;
-use crate::utils::{base64_url_encode, base64_url_decode};
 use crate::shamir3pass::Shamir3Pass;
-use log::{info, debug};
-use js_sys::Date;
-
-// VRF and crypto imports
-use vrf_wasm::ecvrf::ECVRFKeyPair;
-use vrf_wasm::vrf::{VRFKeyPair, VRFProof};
-use vrf_wasm::traits::WasmRngFromSeed;
-use zeroize::ZeroizeOnDrop;
-use chacha20poly1305::{ChaCha20Poly1305, Nonce};
-use chacha20poly1305::aead::{Aead, KeyInit};
-use sha2::{Sha256, Digest};
-use hkdf::Hkdf;
-use getrandom::getrandom;
-use rand_core::SeedableRng;
+use crate::utils::{
+    base64_url_encode,
+    base64_url_decode,
+    parse_block_height
+};
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -240,7 +244,13 @@ impl VRFKeyManager {
         let domain_separator = VRF_DOMAIN_SEPARATOR;
         let user_id_bytes = input_data.user_id.as_bytes();
         let rp_id_bytes = input_data.rp_id.as_bytes();
-        let block_height_bytes = input_data.block_height.to_le_bytes();
+        let block_height_num = parse_block_height(&input_data.block_height)?;
+        let block_height_bytes = block_height_num.to_le_bytes();
+
+        // Decode block_hash from base58 string to bytes
+        let block_hash_bytes = bs58::decode(&input_data.block_hash)
+            .into_vec()
+            .map_err(|e| VrfWorkerError::invalid_format(&format!("invalid blockHash: {}", e)))?;
 
         // Concatenate all input components following the test pattern
         let mut vrf_input_data = Vec::new();
@@ -248,7 +258,7 @@ impl VRFKeyManager {
         vrf_input_data.extend_from_slice(user_id_bytes);
         vrf_input_data.extend_from_slice(rp_id_bytes);
         vrf_input_data.extend_from_slice(&block_height_bytes);
-        vrf_input_data.extend_from_slice(&input_data.block_hash);
+        vrf_input_data.extend_from_slice(&block_hash_bytes);
 
         // Hash the input data (VRF input should be hashed)
         let vrf_input = Sha256::digest(&vrf_input_data).to_vec();
@@ -266,8 +276,8 @@ impl VRFKeyManager {
             vrf_public_key: base64_url_encode(&pk_bytes),
             user_id: input_data.user_id,
             rp_id: input_data.rp_id,
-            block_height: input_data.block_height,
-            block_hash: base64_url_encode(&input_data.block_hash),
+            block_height: block_height_num,
+            block_hash: base64_url_encode(&block_hash_bytes),
         };
 
         info!("VRF challenge generated successfully using provided keypair");

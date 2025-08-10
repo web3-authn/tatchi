@@ -46,8 +46,8 @@ fn test_vrf_data_structures_serialization() {
     let vrf_input = VRFInputData {
         user_id: create_test_account_id(),
         rp_id: "example.com".to_string(),
-        block_height: 12345,
-        block_hash: vec![0u8; 32],
+        block_height: "12345".to_string(),
+        block_hash: String::from_utf8(vec![0u8; 32]).unwrap(),
     };
 
     let json_str = serde_json::to_string(&vrf_input).expect("Should serialize VRFInputData");
@@ -79,7 +79,7 @@ fn test_worker_message_format_consistency() {
     let test_message = VrfWorkerMessage {
         msg_type: "PING".to_string(),
         id: Some("test-123".to_string()),
-        msg: Some(serde_json::json!({"test": "data"})),
+        payload: Some(serde_json::json!({"test": "data"})),
     };
 
     let json_str = serde_json::to_string(&test_message).expect("Should serialize VrfWorkerMessage");

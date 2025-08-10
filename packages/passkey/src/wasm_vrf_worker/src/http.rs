@@ -5,10 +5,10 @@ use web_sys::{Headers, Request, RequestInit, Response};
 use js_sys::{Function, Promise, Reflect};
 use log::debug;
 use crate::types::http::{
-    ShamirApplyServerLockRequest,
-    ShamirApplyServerLockResponse,
-    ShamirRemoveServerLockRequest,
-    ShamirRemoveServerLockResponse
+    ShamirApplyServerLockHTTPRequest,
+    ShamirApplyServerLockHTTPResponse,
+    ShamirRemoveServerLockHTTPRequest,
+    ShamirRemoveServerLockHTTPResponse
 };
 
 fn fetch_global(request: &Request) -> Result<JsFuture, String> {
@@ -34,7 +34,7 @@ fn fetch_global(request: &Request) -> Result<JsFuture, String> {
 pub(crate) async fn post_apply_server_lock(
     endpoint_url: &str,
     kek_c_b64u: &str,
-) -> Result<ShamirApplyServerLockResponse, String> {
+) -> Result<ShamirApplyServerLockHTTPResponse, String> {
     debug!("POST endpoint: {}", endpoint_url);
 
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
@@ -48,7 +48,7 @@ pub(crate) async fn post_apply_server_lock(
 
     // Use strongly typed request structure
     opts.set_body(
-        &ShamirApplyServerLockRequest {
+        &ShamirApplyServerLockHTTPRequest {
             kek_c_b64u: kek_c_b64u.to_string(),
         }.to_js_value()
     );
@@ -79,7 +79,7 @@ pub(crate) async fn post_apply_server_lock(
         .as_string()
         .ok_or("Response text is not a string")?;
 
-    ShamirApplyServerLockResponse::from_str(&response_text)
+    ShamirApplyServerLockHTTPResponse::from_str(&response_text)
 }
 
 /// POST Shamir 3-pass remove-server-exponent
@@ -88,7 +88,7 @@ pub(crate) async fn post_apply_server_lock(
 pub(crate) async fn post_remove_server_lock(
     endpoint_url: &str,
     kek_cs_b64u: &str,
-) -> Result<ShamirRemoveServerLockResponse, String> {
+) -> Result<ShamirRemoveServerLockHTTPResponse, String> {
     debug!("Shamir3Pass remove-server-lock: {}", endpoint_url);
 
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
@@ -102,7 +102,7 @@ pub(crate) async fn post_remove_server_lock(
 
     // Use strongly typed request structure
     opts.set_body(
-        &ShamirRemoveServerLockRequest {
+        &ShamirRemoveServerLockHTTPRequest {
             kek_cs_b64u: kek_cs_b64u.to_string(),
         }.to_js_value()
     );
@@ -133,7 +133,7 @@ pub(crate) async fn post_remove_server_lock(
         .as_string()
         .ok_or("Response text is not a string")?;
 
-    ShamirRemoveServerLockResponse::from_str(&response_text)
+    ShamirRemoveServerLockHTTPResponse::from_str(&response_text)
 }
 
 
