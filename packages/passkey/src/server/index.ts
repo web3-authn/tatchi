@@ -12,8 +12,10 @@ export {
   Shamir3PassUtils,
   getShamirPB64uFromWasm,
   SHAMIR_P_B64U,
-  type ApplyServerLockRequest,
-  type ApplyServerLockResponse,
-  type RemoveServerLockRequest,
-  type RemoveServerLockResponse,
 } from './core/shamirWorker';
+export {
+  type ShamirApplyServerLockRequest,
+  type ShamirApplyServerLockResponse,
+  type ShamirRemoveServerLockRequest,
+  type ShamirRemoveServerLockResponse,
+} from './core/types';

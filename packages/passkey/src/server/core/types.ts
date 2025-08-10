@@ -4,6 +4,35 @@ import {
   UserVerificationPolicy,
   OriginPolicyInput
 } from '../../core/types/authenticatorOptions';
+import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+
+/**
+ * WASM Bindgen generates a `free` method on all structs.
+ * This type removes the `free` method from the struct.
+ */
+export type StripFree<T> = T extends object
+  ? { [K in keyof T as K extends 'free' ? never : K]: StripFree<T[K]> }
+  : T;
+
+export type ShamirApplyServerLockRequest = StripFree<wasmModule.Shamir3PassApplyServerLockRequest>;
+export type ShamirApplyServerLockResponse = StripFree<wasmModule.ShamirApplyServerLockHTTPResponse>;
+export type ShamirRemoveServerLockRequest = StripFree<wasmModule.Shamir3PassRemoveServerLockRequest>;
+export type ShamirRemoveServerLockResponse = StripFree<wasmModule.ShamirRemoveServerLockHTTPResponse>;
+export type Shamir3PassGenerateServerKeypairRequest = StripFree<wasmModule.Shamir3PassGenerateServerKeypairRequest>;
+
+export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
+  type: 'PING'
+      | 'SHAMIR3PASS_GENERATE_SERVER_KEYPAIR' // server only
+      | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
+      | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
+  id?: string;
+  payload?: T;
+}
+
+export type WasmVrfWorkerRequestType = Shamir3PassGenerateServerKeypairRequest
+  | ShamirRemoveServerLockRequest
+  | ShamirApplyServerLockRequest;
+
 
 // Standard request/response interfaces that work across all platforms
 export interface ServerRequest {
@@ -172,22 +201,4 @@ export interface VerifyAuthenticationResponse {
   sessionCredential?: any;
   error?: string;
   contractResponse?: any;
-}
-
-// === Shamir 3-pass HTTP types (wrappers around WASM-generated types) ===
-
-export interface ApplyServerLockRequest {
-  kek_c_b64u: string;
-}
-
-export interface ApplyServerLockResponse {
-  kek_cs_b64u: string;
-}
-
-export interface RemoveServerLockRequest {
-  kek_cs_b64u: string;
-}
-
-export interface RemoveServerLockResponse {
-  kek_c_b64u: string;
 }

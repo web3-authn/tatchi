@@ -9,8 +9,6 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import { validateConfigs } from './config';
 import {
   Shamir3PassUtils,
-  ApplyServerLockRequest,
-  RemoveServerLockRequest
 } from './shamirWorker';
 import type {
   AuthServiceConfig,
@@ -22,8 +20,10 @@ import type {
   NearReceiptOutcomeWithId,
   VerifyAuthenticationRequest,
   VerifyAuthenticationResponse,
-  ApplyServerLockResponse,
-  RemoveServerLockResponse,
+  ShamirApplyServerLockRequest,
+  ShamirRemoveServerLockRequest,
+  ShamirApplyServerLockResponse,
+  ShamirRemoveServerLockResponse,
 } from './types';
 
 /**
@@ -112,17 +112,17 @@ export class AuthService {
    * @param kek_c_b64u - base64url-encoded KEK_c (client locked key encryption key)
    * @returns base64url-encoded KEK_cs (server locked key encryption key)
    */
-  async applyServerLock(kek_c_b64u: string): Promise<ApplyServerLockResponse> {
+  async applyServerLock(kek_c_b64u: string): Promise<ShamirApplyServerLockResponse> {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-    return await this.shamir3pass.applyServerLock({ kek_c_b64u } as ApplyServerLockRequest);
+    return await this.shamir3pass.applyServerLock({ kek_c_b64u } as ShamirApplyServerLockRequest);
   }
 
   /**
    * Shamir 3-pass: remove server exponent (login step)
    */
-  async removeServerLock(kek_cs_b64u: string): Promise<RemoveServerLockResponse> {
+  async removeServerLock(kek_cs_b64u: string): Promise<ShamirRemoveServerLockResponse> {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-    return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as RemoveServerLockRequest);
+    return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as ShamirRemoveServerLockRequest);
   }
 
   // Format NEAR gas (string) to TGas for display

@@ -3,16 +3,8 @@ import type {
   ServerResponse,
   VerifyAuthenticationRequest,
   VerifyAuthenticationResponse,
-  ApplyServerLockRequest,
-  ApplyServerLockResponse,
-  RemoveServerLockRequest,
-  RemoveServerLockResponse
 } from './types';
 import { AuthService } from './AuthService';
-import type {
-  ServerRequest as SR,
-  ServerResponse as SP
-} from './types';
 
 /**
  * Handle verify authentication response requests
