@@ -30,8 +30,8 @@ pub struct LinkDeviceRegistrationTransaction {
     #[serde(rename = "contractId")]
     pub contract_id: String,
     pub nonce: String,
-    #[serde(rename = "blockHashBytes")]
-    pub block_hash_bytes: Vec<u8>,
+    #[serde(rename = "blockHash")]
+    pub block_hash: String,
     #[serde(rename = "deterministicVrfPublicKey")]
     pub deterministic_vrf_public_key: String,
 }
@@ -292,8 +292,8 @@ pub struct SignVerifyAndRegisterUserPayload {
     #[serde(rename = "nearAccountId")]
     pub near_account_id: String,
     pub nonce: String,
-    #[serde(rename = "blockHashBytes")]
-    pub block_hash_bytes: Vec<u8>,
+    #[serde(rename = "blockHash")]
+    pub block_hash: String,
     #[serde(rename = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
     #[serde(rename = "encryptedPrivateKeyIv")]
@@ -362,7 +362,7 @@ pub struct RegistrationTxData {
     pub signer_account_id: String,
     pub nonce: u64,
     #[wasm_bindgen(getter_with_clone)]
-    pub block_hash_bytes: Vec<u8>,
+    pub block_hash: String,
     pub device_number: u8,
 }
 
@@ -372,13 +372,13 @@ impl RegistrationTxData {
     pub fn new(
         signer_account_id: String,
         nonce: u64,
-        block_hash_bytes: Vec<u8>,
+        block_hash: String,
         device_number: u8,
     ) -> RegistrationTxData {
         RegistrationTxData {
             signer_account_id,
             nonce,
-            block_hash_bytes,
+            block_hash,
             device_number,
         }
     }
@@ -562,8 +562,8 @@ pub struct TransactionPayload {
     pub receiver_id: String,
     pub actions: String, // JSON string
     pub nonce: String,
-    #[serde(rename = "blockHashBytes")]
-    pub block_hash_bytes: Vec<u8>,
+    #[serde(rename = "blockHash")]
+    pub block_hash: String,
 }
 
 #[wasm_bindgen]
@@ -575,7 +575,7 @@ pub struct TxData {
     pub receiver_account_id: String,
     pub nonce: u64,
     #[wasm_bindgen(getter_with_clone)]
-    pub block_hash_bytes: Vec<u8>,
+    pub block_hash: String,
     #[wasm_bindgen(getter_with_clone)]
     pub actions_json: String,
 }
@@ -587,14 +587,14 @@ impl TxData {
         signer_account_id: String,
         receiver_account_id: String,
         nonce: u64,
-        block_hash_bytes: Vec<u8>,
+        block_hash: String,
         actions_json: String,
     ) -> TxData {
         TxData {
             signer_account_id,
             receiver_account_id,
             nonce,
-            block_hash_bytes,
+            block_hash,
             actions_json,
         }
     }
@@ -715,8 +715,8 @@ pub struct SignTransactionWithKeyPairPayload {
     #[serde(rename = "receiverId")]
     pub receiver_id: String,
     pub nonce: String,
-    #[serde(rename = "blockHashBytes")]
-    pub block_hash_bytes: Vec<u8>,
+    #[serde(rename = "blockHash")]
+    pub block_hash: String,
     pub actions: String, // JSON string of ActionParams[]
 }
 

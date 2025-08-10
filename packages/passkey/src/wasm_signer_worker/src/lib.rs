@@ -175,63 +175,63 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
 
     // Debug logging to understand what's happening
     log(&format!("WASM Worker: Received message type: {} ({})",
-        worker_request_type_name(request_type), msg.msg_type));
+    worker_request_type_name(request_type), msg.msg_type));
     log(&format!("WASM Worker: Parsed request type: {:?}", request_type));
 
     // Route message to appropriate handler
     let response_payload = match request_type {
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
             let request = msg.parse_payload::<DeriveKeypairPayload>(request_type)?;
-            let result = handlers::handle_derive_near_keypair_encrypt_and_sign_msg(request).await?;
+            let result = handlers::handle_derive_near_keypair_encrypt_and_sign(request).await?;
             result.to_json()
         },
         WorkerRequestType::RecoverKeypairFromPasskey => {
             let request = msg.parse_payload::<RecoverKeypairPayload>(request_type)?;
-            let result = handlers::handle_recover_keypair_from_passkey_msg(request).await?;
+            let result = handlers::handle_recover_keypair_from_passkey(request).await?;
             result.to_json()
         },
         WorkerRequestType::CheckCanRegisterUser => {
             let request = msg.parse_payload::<CheckCanRegisterUserPayload>(request_type)?;
-            let result = handlers::handle_check_can_register_user_msg(request).await?;
+            let result = handlers::handle_check_can_register_user(request).await?;
             result.to_json()
         },
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
             let request = msg.parse_payload::<DecryptKeyPayload>(request_type)?;
-            let result = handlers::handle_decrypt_private_key_with_prf_msg(request).await?;
+            let result = handlers::handle_decrypt_private_key_with_prf(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignTransactionsWithActions => {
             let request = msg.parse_payload::<SignTransactionsWithActionsPayload>(request_type)?;
-            let result = handlers::handle_sign_transactions_with_actions_msg(request).await?;
+            let result = handlers::handle_sign_transactions_with_actions(request).await?;
             result.to_json()
         },
         WorkerRequestType::ExtractCosePublicKey => {
             let request = msg.parse_payload::<ExtractCosePayload>(request_type)?;
-            let result = handlers::handle_extract_cose_public_key_msg(request).await?;
+            let result = handlers::handle_extract_cose_public_key(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignTransactionWithKeyPair => {
             let request = msg.parse_payload::<SignTransactionWithKeyPairPayload>(request_type)?;
-            let result = handlers::handle_sign_transaction_with_keypair_msg(request).await?;
+            let result = handlers::handle_sign_transaction_with_keypair(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignNep413Message => {
             let request = msg.parse_payload::<SignNep413Payload>(request_type)?;
-            let result = handlers::handle_sign_nep413_message_msg(request).await?;
+            let result = handlers::handle_sign_nep413_message(request).await?;
             result.to_json()
         },
         // DEPRECATED: only used for testnet registration
         WorkerRequestType::SignVerifyAndRegisterUser => {
             let request = msg.parse_payload::<SignVerifyAndRegisterUserPayload>(request_type)?;
             // DEPRECATED: only used for testnet registration
-            let result = handlers::handle_sign_verify_and_register_user_msg(request).await?;
+            let result = handlers::handle_sign_verify_and_register_user(request).await?;
             result.to_json()
         },
     };
 
     // Handle the result and determine response type
-    let (response_type, payload) = match response_payload {
-        Ok(payload) => {
+    let (response_type, response_payload) = match response_payload {
+        Ok(message) => {
             // Success case - map request type to success response type
             let success_response_type = match request_type {
                 WorkerRequestType::DeriveNearKeypairAndEncrypt => WorkerResponseType::DeriveNearKeypairAndEncryptSuccess,
@@ -244,9 +244,9 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
                 WorkerRequestType::SignVerifyAndRegisterUser => WorkerResponseType::SignVerifyAndRegisterUserSuccess,
             };
-            (success_response_type, payload)
+            (success_response_type, message)
         },
-        Err(error_msg) => {
+        Err(error) => {
             // Failure case - map request type to failure response type
             let failure_response_type = match request_type {
                 WorkerRequestType::DeriveNearKeypairAndEncrypt => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
@@ -260,7 +260,7 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::SignVerifyAndRegisterUser => WorkerResponseType::SignVerifyAndRegisterUserFailure,
             };
             let error_payload = serde_json::json!({
-                "error": error_msg,
+                "error": error,
                 "context": { "type": msg.msg_type }
             });
             (failure_response_type, error_payload)
@@ -269,12 +269,12 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
 
     // Debug logging for response type
     log(&format!("WASM Worker: Determined response type: {} ({}) - {:?}",
-        worker_response_type_name(response_type), u32::from(response_type), response_type));
+    worker_response_type_name(response_type), u32::from(response_type), response_type));
 
     // Create the final response
     let response = SignerWorkerResponse {
         response_type: u32::from(response_type),
-        payload,
+        payload: response_payload,
     };
 
     // Return JSON string

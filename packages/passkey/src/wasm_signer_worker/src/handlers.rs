@@ -48,7 +48,7 @@ use crate::types::wasm_to_json::{
 ///
 /// # Returns
 /// * `EncryptionResult` - Contains derived public key, encrypted private key data, and optional signed transaction
-pub async fn handle_derive_near_keypair_encrypt_and_sign_msg(request: DeriveKeypairPayload) -> Result<EncryptionResult, String> {
+pub async fn handle_derive_near_keypair_encrypt_and_sign(request: DeriveKeypairPayload) -> Result<EncryptionResult, String> {
 
     info!("RUST: WASM binding - starting structured dual PRF keypair derivation with optional transaction signing");
 
@@ -113,7 +113,7 @@ pub async fn handle_derive_near_keypair_encrypt_and_sign_msg(request: DeriveKeyp
             &request.near_account_id,
             &near_private_key, // Use the properly derived NEAR private key
             parsed_nonce,
-            &registration_tx.block_hash_bytes,
+            &bs58::decode(&registration_tx.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
             request.authenticator_options, // Pass authenticator options
         ).await {
             Ok(registration_result) => {
@@ -171,7 +171,7 @@ pub async fn handle_derive_near_keypair_encrypt_and_sign_msg(request: DeriveKeyp
 ///
 /// # Returns
 /// * `RecoverKeypairResult` - Contains recovered public key, re-encrypted private key data, and account hint
-pub async fn handle_recover_keypair_from_passkey_msg(request: RecoverKeypairPayload) -> Result<RecoverKeypairResult, String> {
+pub async fn handle_recover_keypair_from_passkey(request: RecoverKeypairPayload) -> Result<RecoverKeypairResult, String> {
 
     // Extract PRF outputs
     let chacha20_prf_output = request.credential.client_extension_results.prf.results.first
@@ -225,7 +225,7 @@ pub async fn handle_recover_keypair_from_passkey_msg(request: RecoverKeypairPayl
 ///
 /// # Returns
 /// * `RegistrationCheckResult` - Contains verification status, registration info, and optional pre-signed transaction
-pub async fn handle_check_can_register_user_msg(request: CheckCanRegisterUserPayload) -> Result<RegistrationCheckResult, String> {
+pub async fn handle_check_can_register_user(request: CheckCanRegisterUserPayload) -> Result<RegistrationCheckResult, String> {
 
     // Use VrfChallenge directly instead of converting
     let vrf_challenge = &request.vrf_challenge;
@@ -313,7 +313,7 @@ pub async fn handle_check_can_register_user_msg(request: CheckCanRegisterUserPay
 /// # Returns
 /// * `RegistrationResult` - Contains final verification status, signed transactions, and registration metadata
 /// @deprecated Testnet only, use createAccountAndRegisterWithRelayServer instead for prod
-pub async fn handle_sign_verify_and_register_user_msg(parsed_payload: SignVerifyAndRegisterUserPayload) -> Result<RegistrationResult, String> {
+pub async fn handle_sign_verify_and_register_user(parsed_payload: SignVerifyAndRegisterUserPayload) -> Result<RegistrationResult, String> {
 
     let vrf_challenge = &parsed_payload.vrf_challenge;
 
@@ -342,7 +342,7 @@ pub async fn handle_sign_verify_and_register_user_msg(parsed_payload: SignVerify
     let transaction = RegistrationTxData::new(
         parsed_payload.near_account_id,
         parsed_payload.nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
-        parsed_payload.block_hash_bytes,
+        parsed_payload.block_hash,
         parsed_payload.device_number.unwrap_or(1), // Default to device number 1 if not provided
     );
 
@@ -372,7 +372,7 @@ pub async fn handle_sign_verify_and_register_user_msg(parsed_payload: SignVerify
     let encrypted_private_key_iv = &registration_request.decryption.encrypted_private_key_iv;
     let chacha20_prf_output = &registration_request.decryption.chacha20_prf_output;
     let nonce = registration_request.transaction.nonce;
-    let block_hash_bytes = &registration_request.transaction.block_hash_bytes;
+    let block_hash_bytes = &bs58::decode(&registration_request.transaction.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?;
     let device_number = registration_request.transaction.device_number;
 
     // Send contract verification progress
@@ -394,7 +394,7 @@ pub async fn handle_sign_verify_and_register_user_msg(parsed_payload: SignVerify
         encrypted_private_key_iv,
         chacha20_prf_output,
         nonce,
-        block_hash_bytes,
+        &block_hash_bytes,
         Some(device_number), // Pass device number for multi-device support
         parsed_payload.authenticator_options, // Pass authenticator options
     )
@@ -494,7 +494,7 @@ pub async fn handle_sign_verify_and_register_user_msg(parsed_payload: SignVerify
 ///
 /// # Returns
 /// * `DecryptPrivateKeyResult` - Contains decrypted private key in NEAR format and account ID
-pub async fn handle_decrypt_private_key_with_prf_msg(request: DecryptKeyPayload) -> Result<DecryptPrivateKeyResult, String> {
+pub async fn handle_decrypt_private_key_with_prf(request: DecryptKeyPayload) -> Result<DecryptPrivateKeyResult, String> {
 
     // Use the core function to decrypt and get SigningKey
     let signing_key = crate::crypto::decrypt_private_key_with_prf(
@@ -542,7 +542,7 @@ pub async fn handle_decrypt_private_key_with_prf_msg(request: DecryptKeyPayload)
 ///
 /// # Returns
 /// * `TransactionSignResult` - Contains success status, transaction hashes, signed transactions, and detailed logs
-pub async fn handle_sign_transactions_with_actions_msg(tx_batch_request: SignTransactionsWithActionsPayload) -> Result<TransactionSignResult, String> {
+pub async fn handle_sign_transactions_with_actions(tx_batch_request: SignTransactionsWithActionsPayload) -> Result<TransactionSignResult, String> {
 
     // Validate input
     if tx_batch_request.tx_signing_requests.is_empty() {
@@ -772,7 +772,7 @@ async fn sign_near_transactions_with_actions_impl(
             &tx_data.near_account_id,
             &tx_data.receiver_id,
             tx_data.nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
-            &tx_data.block_hash_bytes,
+            &bs58::decode(&tx_data.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
             &signing_key,
             actions,
         ) {
@@ -845,7 +845,7 @@ async fn sign_near_transactions_with_actions_impl(
 ///
 /// # Returns
 /// * `CoseExtractionResult` - Contains extracted COSE public key bytes
-pub async fn handle_extract_cose_public_key_msg(request: ExtractCosePayload) -> Result<CoseExtractionResult, String> {
+pub async fn handle_extract_cose_public_key(request: ExtractCosePayload) -> Result<CoseExtractionResult, String> {
 
     info!("RUST: WASM binding - extracting COSE public key from attestation object");
 
@@ -880,7 +880,7 @@ pub async fn handle_extract_cose_public_key_msg(request: ExtractCosePayload) -> 
 ///
 /// # Returns
 /// * `TransactionSignResult` - Contains signed transaction, transaction hash, and operation logs
-pub async fn handle_sign_transaction_with_keypair_msg(request: SignTransactionWithKeyPairPayload) -> Result<TransactionSignResult, String> {
+pub async fn handle_sign_transaction_with_keypair(request: SignTransactionWithKeyPairPayload) -> Result<TransactionSignResult, String> {
 
     let mut logs: Vec<String> = Vec::new();
     info!("RUST: WASM binding - starting transaction signing with provided private key");
@@ -924,7 +924,7 @@ pub async fn handle_sign_transaction_with_keypair_msg(request: SignTransactionWi
         &request.signer_account_id,
         &request.receiver_id,
         request.nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
-        &request.block_hash_bytes,
+        &bs58::decode(&request.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
         &signing_key,
         actions,
     ).map_err(|e| format!("Failed to build transaction: {}", e))?;
@@ -970,7 +970,7 @@ pub async fn handle_sign_transaction_with_keypair_msg(request: SignTransactionWi
 ///
 /// # Returns
 /// * `SignNep413Result` - Contains signed message with account ID, public key, signature, and optional state
-pub async fn handle_sign_nep413_message_msg(request: SignNep413Payload) -> Result<SignNep413Result, String> {
+pub async fn handle_sign_nep413_message(request: SignNep413Payload) -> Result<SignNep413Result, String> {
     info!("RUST: Starting NEP-413 message signing");
 
     // Validate nonce is exactly 32 bytes
