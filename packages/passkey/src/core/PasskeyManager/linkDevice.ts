@@ -569,7 +569,7 @@ export class LinkDeviceFlow {
           const unlockResult = await this.context.webAuthnManager.shamir3PassDecryptVrfKeypair({
             nearAccountId: this.session.accountId,
             kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
-            ciphertext_vrf_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertext_vrf_b64u,
+            ciphertextVrfB64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertextVrfB64u,
           });
 
           if (unlockResult.success) {
@@ -663,7 +663,10 @@ export class LinkDeviceFlow {
           id: credential.id,
           rawId: base64UrlEncode(new Uint8Array(credential.rawId))
         },
-        encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
+        encryptedVrfKeypair: {
+          encrypted_vrf_data_b64u: deterministicKeysResult.encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20_nonce_b64u: deterministicKeysResult.encryptedVrfKeypair.chacha20NonceB64u,
+        },
         serverEncryptedVrfKeypair: deterministicKeysResult.serverEncryptedVrfKeypair || undefined, // Device linking now uses Shamir 3-pass encryption
       });
 

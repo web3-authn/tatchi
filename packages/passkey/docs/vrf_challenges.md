@@ -422,7 +422,6 @@ pub fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
     // Routes messages to appropriate VRF_MANAGER methods:
     // - PING: Health check
     // - GENERATE_VRF_KEYPAIR_BOOTSTRAP: Generate VRF keypair and store in memory
-    // - ENCRYPT_VRF_KEYPAIR_WITH_PRF: Encrypt in-memory VRF keypair with PRF
     // - UNLOCK_VRF_KEYPAIR: Load keypair into memory (login)
     // - GENERATE_VRF_CHALLENGE: Create VRF challenge
     // - CHECK_VRF_STATUS: Get session status

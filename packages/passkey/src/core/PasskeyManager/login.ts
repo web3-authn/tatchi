@@ -158,16 +158,16 @@ async function handleLoginUnlockVRF(
     if (useShamir3PassVRFKeyUnlock) {
       try {
         const shamir = userData.serverEncryptedVrfKeypair as ServerEncryptedVrfKeypair;
-        if (!shamir.ciphertext_vrf_b64u || !shamir.kek_s_b64u) {
-          throw new Error('Missing Shamir3Pass fields (ciphertext_vrf_b64u/kek_s_b64u)');
+        if (!shamir.ciphertextVrfB64u || !shamir.kek_s_b64u) {
+          throw new Error('Missing Shamir3Pass fields (ciphertextVrfB64u/kek_s_b64u)');
         }
         console.log("shamir3pass unlock: using kek_s_b64u", shamir.kek_s_b64u);
-        console.log("shamir3pass unlock: using ciphertext_vrf_b64u", shamir.ciphertext_vrf_b64u);
+        console.log("shamir3pass unlock: using ciphertextVrfB64u", shamir.ciphertextVrfB64u);
 
         unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
           nearAccountId,
           kek_s_b64u: shamir.kek_s_b64u,
-          ciphertext_vrf_b64u: shamir.ciphertext_vrf_b64u,
+          ciphertextVrfB64u: shamir.ciphertextVrfB64u,
         });
         console.log("unlockResult", unlockResult);
 
@@ -207,7 +207,10 @@ async function handleLoginUnlockVRF(
 
       unlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,
-        encryptedVrfKeypair: userData.encryptedVrfKeypair!, // non-null assertion; validated above
+        encryptedVrfKeypair: {
+          encryptedVrfDataB64u: userData.encryptedVrfKeypair.encrypted_vrf_data_b64u,
+          chacha20NonceB64u: userData.encryptedVrfKeypair.chacha20_nonce_b64u,
+        },
         credential: credential,
       });
     }

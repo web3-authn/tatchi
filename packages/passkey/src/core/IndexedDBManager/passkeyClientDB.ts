@@ -30,7 +30,7 @@ export interface ClientUserData {
   // Server-assisted auto-login (VRF key session): Shamir 3-pass fields
   // Stores relayer-blinded KEK and the VRF ciphertext; server never sees plaintext VRF or KEK
   serverEncryptedVrfKeypair?: {
-    ciphertext_vrf_b64u: string;
+    ciphertextVrfB64u: string;
     kek_s_b64u: string;
   };
 
@@ -334,7 +334,7 @@ export class PasskeyClientDBManager {
       chacha20_nonce_b64u: string;
     };
     serverEncryptedVrfKeypair?: {
-      ciphertext_vrf_b64u: string;
+      ciphertextVrfB64u: string;
       kek_s_b64u: string;
     };
   }): Promise<void> {
