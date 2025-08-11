@@ -80,14 +80,7 @@ export class WebAuthnManager {
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
-    const result = await this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
-    if (!result.vrfChallenge) {
-      throw new Error('VRF challenge generation failed');
-    }
-    return {
-      vrfPublicKey: result.vrfPublicKey,
-      vrfChallenge: result.vrfChallenge
-    };
+    return this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
   }
 
   /**
@@ -178,10 +171,8 @@ export class WebAuthnManager {
 
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
         credential,
-        touchIdPrompt: this.touchIdPrompt,
         nearAccountId,
         encryptedVrfKeypair,
-        authenticators: [], // Empty array since we already have the credential
       });
 
       if (!unlockResult.success) {
@@ -207,16 +198,16 @@ export class WebAuthnManager {
   async shamir3PassDecryptVrfKeypair({
     nearAccountId,
     kek_s_b64u,
-    ciphertext_vrf_b64u,
+    ciphertextVrfB64u,
   }: {
     nearAccountId: AccountId;
     kek_s_b64u: string;
-    ciphertext_vrf_b64u: string;
+    ciphertextVrfB64u: string;
   }): Promise<{ success: boolean; error?: string }> {
     const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
       nearAccountId,
       kek_s_b64u,
-      ciphertext_vrf_b64u,
+      ciphertextVrfB64u,
     });
 
     return {
@@ -653,11 +644,17 @@ export class WebAuthnManager {
           id: credential.id,
           rawId: credentialId
         },
-        encryptedVrfKeypair: encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair || undefined,
+        encryptedVrfKeypair: {
+          encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
+        },
+        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
+          ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
+          kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
+        } : undefined,
       });
 
-      console.debug('✅ registration data stored atomically');
+      console.debug('Registration data stored atomically');
       return true;
     });
 
