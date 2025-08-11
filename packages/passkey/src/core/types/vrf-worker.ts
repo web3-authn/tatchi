@@ -2,6 +2,26 @@
  * VRF Types for Web Worker Communication
  */
 
+import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import { StripFree } from ".";
+
+export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
+export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
+export type WasmUnlockVrfKeypairRequest = StripFree<wasmModule.UnlockVrfKeypairRequest>;
+export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>;
+
+export type WasmShamir3PassConfigPRequest = StripFree<wasmModule.Shamir3PassConfigPRequest>;
+export type WasmShamir3PassConfigServerUrlsRequest = StripFree<wasmModule.Shamir3PassConfigServerUrlsRequest>;
+export type WasmShamir3PassClientDecryptVrfKeypairRequest = StripFree<wasmModule.Shamir3PassClientDecryptVrfKeypairRequest>;
+
+export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
+  | WasmGenerateVrfChallengeRequest
+  | WasmUnlockVrfKeypairRequest
+  | WasmDeriveVrfKeypairFromPrfRequest
+  | WasmShamir3PassConfigPRequest
+  | WasmShamir3PassConfigServerUrlsRequest
+  | WasmShamir3PassClientDecryptVrfKeypairRequest;
+
 import { AccountId } from "./accountIds";
 import { base64UrlDecode } from "../../utils/encoders";
 
@@ -89,8 +109,8 @@ export interface VRFWorkerStatus {
 }
 
 export interface EncryptedVRFKeypair {
-  encrypted_vrf_data_b64u: string;
-  chacha20_nonce_b64u: string;
+  encryptedVrfDataB64u: string;
+  chacha20NonceB64u: string;
 }
 
 export interface VRFInputData {
@@ -100,12 +120,11 @@ export interface VRFInputData {
   blockHash: string;
 }
 
-export interface VRFWorkerMessage {
+export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
   type: 'PING'
       | 'UNLOCK_VRF_KEYPAIR'
       | 'GENERATE_VRF_CHALLENGE'
       | 'GENERATE_VRF_KEYPAIR_BOOTSTRAP'
-      | 'ENCRYPT_VRF_KEYPAIR_WITH_PRF'
       | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
       | 'CHECK_VRF_STATUS'
       | 'LOGOUT'
@@ -113,10 +132,10 @@ export interface VRFWorkerMessage {
       | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
       | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
       | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
-      | 'CONFIGURE_SHAMIR_P'
-      | 'CONFIGURE_SHAMIR_SERVER_URLS'
+      | 'SHAMIR3PASS_CONFIG_P'
+      | 'SHAMIR3PASS_CONFIG_SERVER_URLS'
   id?: string;
-  data?: any;
+  payload?: T;
 }
 
 export interface VRFWorkerResponse {
@@ -142,7 +161,7 @@ export interface EncryptedVRFKeypairResponse {
  */
 export interface ServerEncryptedVrfKeypair {
   /** Base64url-encoded VRF ciphertext (AEAD over VRF keypair bytes) */
-  ciphertext_vrf_b64u: string;
+  ciphertextVrfB64u: string;
   /** Base64url-encoded KEK with server lock applied (KEK_s) */
   kek_s_b64u: string;
 }
@@ -158,34 +177,10 @@ export interface VRFKeypairData {
   publicKeyBase64: string;
 }
 
-/**
- * Input data for SRA commutative decryption within WASM worker
- */
-export interface SRACommutativeDecryptInput {
-  /** NEAR account ID for context */
-  nearAccountId: AccountId;
-  /** Server-encrypted VRF keypair data */
-  serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair;
-  /** Relay server URL for decryption endpoint */
-  relayServerUrl: string;
-}
-
-/**
- * Response data for SRA commutative decryption
- */
-export interface SRACommutativeDecryptResponse {
-  /** Whether the decryption and loading was successful */
-  success: boolean;
-  /** NEAR account ID that was processed */
-  nearAccountId: AccountId;
-  /** Error message if unsuccessful */
-  error?: string;
-}
-
 // Shamir 3-pass registration wrap result
 export interface Shamir3PassRegisterWrapResult {
-  ciphertext_vrf_b64u: string;
+  ciphertextVrfB64u: string;
   enc_s_k_b64u: string;
-  vrf_public_key: string;
+  vrfPublicKey: string;
 }
 
