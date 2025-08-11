@@ -5,13 +5,6 @@ import { base58Decode } from '../../utils/encoders';
 import {
   WorkerRequestType,
   WorkerResponseType,
-  EncryptionResult,
-  RecoverKeypairResult,
-  RegistrationCheckResult,
-  RegistrationResult,
-  TransactionSignResult,
-  DecryptPrivateKeyResult,
-  WasmSignedTransaction,
 } from '../../wasm_signer_worker/wasm_signer_worker.js';
 import {
   type ActionParams,
@@ -273,7 +266,7 @@ export class SignerWorkerManager {
               vrfChallenge: options.vrfChallenge,
               contractId: options.contractId,
               nonce: options.nonce,
-              blockHashBytes: Array.from(base58Decode(options.blockHash)),
+              blockHash: options.blockHash,
               // Pass VRF public key to WASM worker (device number determined by contract)
               deterministicVrfPublicKey: options.deterministicVrfPublicKey,
             } : undefined,
@@ -551,7 +544,7 @@ export class SignerWorkerManager {
             signerAccountId,
             nearAccountId,
             nonce: nextNonce,
-            blockHashBytes: Array.from(base58Decode(txBlockHash)),
+            blockHash: txBlockHash,
             // Pass encrypted key data from IndexedDB
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
             encryptedPrivateKeyIv: encryptedKeyData.iv,
@@ -685,7 +678,7 @@ export class SignerWorkerManager {
         receiverId: tx.receiverId,
         actions: JSON.stringify(tx.actions),
         nonce: tx.nonce,
-        blockHashBytes: Array.from(base58Decode(blockHash))
+        blockHash: blockHash
       }));
 
       // Send batch signing request to WASM worker
@@ -893,7 +886,7 @@ export class SignerWorkerManager {
             signerAccountId,
             receiverId,
             nonce,
-            blockHashBytes: Array.from(base58Decode(blockHash)),
+            blockHash: blockHash,
             actions: JSON.stringify(actions)
           }
         }
@@ -1004,7 +997,6 @@ export class SignerWorkerManager {
       }
 
       const wasmResult = response.payload as wasmModule.SignNep413Result;
-      console.debug('SignerWorkerManager: NEP-413 message signed successfully');
 
       return {
         success: true,

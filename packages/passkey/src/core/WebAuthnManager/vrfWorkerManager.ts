@@ -21,7 +21,6 @@ import type {
   WasmDeriveVrfKeypairFromPrfRequest,
 } from '../types/vrf-worker';
 import { VRFChallenge } from '../types/vrf-worker';
-import { base58Decode } from '../../utils';
 import { BUILD_PATHS } from '../../../build-paths.js';
 import { AccountId, toAccountId } from '../types/accountIds';
 import { extractPrfFromCredential } from './credentialsHelpers';
