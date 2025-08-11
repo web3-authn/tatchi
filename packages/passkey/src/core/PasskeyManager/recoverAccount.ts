@@ -596,8 +596,8 @@ async function restoreUserData({
         rawId: base64UrlEncode(new Uint8Array(credential.rawId))
       },
       encryptedVrfKeypair: {
-        encrypted_vrf_data_b64u: encryptedVrfKeypair.encryptedVrfDataB64u,
-        chacha20_nonce_b64u: encryptedVrfKeypair.chacha20NonceB64u,
+        encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+        chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
       },
       serverEncryptedVrfKeypair,
     });
@@ -608,8 +608,8 @@ async function restoreUserData({
       lastUpdated: Date.now(),
       passkeyCredential: existingUser.passkeyCredential,
       encryptedVrfKeypair: {
-        encrypted_vrf_data_b64u: encryptedVrfKeypair.encryptedVrfDataB64u,
-        chacha20_nonce_b64u: encryptedVrfKeypair.chacha20NonceB64u,
+        encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+        chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
       },
       serverEncryptedVrfKeypair,
       deviceNumber

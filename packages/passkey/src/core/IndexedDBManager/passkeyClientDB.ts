@@ -23,8 +23,8 @@ export interface ClientUserData {
 
   // VRF credentials for stateless authentication
   encryptedVrfKeypair: {
-    encrypted_vrf_data_b64u: string;
-    chacha20_nonce_b64u: string;
+    encryptedVrfDataB64u: string;
+    chacha20NonceB64u: string;
   };
 
   // Server-assisted auto-login (VRF key session): Shamir 3-pass fields
@@ -330,8 +330,8 @@ export class PasskeyClientDBManager {
       rawId: string;
     };
     encryptedVrfKeypair: {
-      encrypted_vrf_data_b64u: string;
-      chacha20_nonce_b64u: string;
+      encryptedVrfDataB64u: string;
+      chacha20NonceB64u: string;
     };
     serverEncryptedVrfKeypair?: {
       ciphertextVrfB64u: string;

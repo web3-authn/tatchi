@@ -127,8 +127,8 @@ async function handleLoginUnlockVRF(
         throw new Error(`No NEAR public key found for ${nearAccountId}. Please register an account.`);
       }
       if (
-        !userData.encryptedVrfKeypair?.encrypted_vrf_data_b64u ||
-        !userData.encryptedVrfKeypair?.chacha20_nonce_b64u
+        !userData.encryptedVrfKeypair?.encryptedVrfDataB64u ||
+        !userData.encryptedVrfKeypair?.chacha20NonceB64u
       ) {
         throw new Error('No VRF credentials found. Please register an account.');
       }
@@ -208,8 +208,8 @@ async function handleLoginUnlockVRF(
       unlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,
         encryptedVrfKeypair: {
-          encryptedVrfDataB64u: userData.encryptedVrfKeypair.encrypted_vrf_data_b64u,
-          chacha20NonceB64u: userData.encryptedVrfKeypair.chacha20_nonce_b64u,
+          encryptedVrfDataB64u: userData.encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: userData.encryptedVrfKeypair.chacha20NonceB64u,
         },
         credential: credential,
       });
