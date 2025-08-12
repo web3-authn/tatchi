@@ -22,7 +22,7 @@ const authService = new AuthService({
   // you can make it the same account as the webauthn contract id.
   relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
   relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
-  webAuthnContractId: 'web3-authn-v4.testnet',
+  webAuthnContractId: 'web3-authn-v5.testnet',
   nearRpcUrl: 'https://rpc.testnet.near.org',
   // nearRpcUrl: 'https://test.rpc.fastnear.com'
   networkId: 'testnet',

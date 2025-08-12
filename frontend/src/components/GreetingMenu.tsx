@@ -28,7 +28,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
   const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
 
   // NEAR transfer state
-  const [transferRecipient, setTransferRecipient] = useState('web3-authn-v4.testnet');
+  const [transferRecipient, setTransferRecipient] = useState('web3-authn-v5.testnet');
   const [transferAmount, setTransferAmount] = useState('');
 
   const {
@@ -60,7 +60,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
     onTransactionUpdate(null); // Clear previous transaction details
 
-    await passkeyManager.executeAction(nearAccountId, actionToExecute, {
+    await passkeyManager.executeAction(nearAccountId!, actionToExecute, {
       onEvent: (event) => {
         switch (event.phase) {
           case ActionPhase.STEP_1_PREPARATION:
@@ -153,7 +153,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
     onTransactionUpdate(null); // Clear previous transaction details
 
-    await passkeyManager.executeAction(nearAccountId, transferAction, {
+    await passkeyManager.executeAction(nearAccountId!, transferAction, {
       onEvent: (event) => {
         switch (event.phase) {
           case ActionPhase.STEP_1_PREPARATION:
@@ -181,7 +181,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
         afterCall: (success: boolean, result?: any) => {
           if (success) {
             // Reset transfer inputs on successful transaction
-            setTransferRecipient("web3-authn-v4.testnet");
+            setTransferRecipient("web3-authn-v5.testnet");
             setTransferAmount("");
           }
 

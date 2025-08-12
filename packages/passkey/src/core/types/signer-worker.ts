@@ -4,6 +4,8 @@
 
 // Import as instance types from the WASM module classes
 import * as wasmModule from '../../wasm_signer_worker/wasm_signer_worker.js';
+
+// WASM Worker Response Types
 export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
 export type WasmRegistrationResult = InstanceType<typeof wasmModule.RegistrationResult>;
 export type WasmRegistrationCheckResult = InstanceType<typeof wasmModule.RegistrationCheckResult>;
@@ -11,7 +13,7 @@ export type WasmRegistrationInfo = InstanceType<typeof wasmModule.RegistrationIn
 export type WasmSignedTransaction = InstanceType<typeof wasmModule.WasmSignedTransaction>;
 export type WasmTransactionSignResult = InstanceType<typeof wasmModule.TransactionSignResult>;
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
-export type WasmEncryptionResult = InstanceType<typeof wasmModule.EncryptionResult>;
+export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 
 // === WASM ENUMS ===
 import {
@@ -21,34 +23,8 @@ import {
 // Export the WASM enums directly
 export { WorkerRequestType, WorkerResponseType };
 
-import { AccountId } from "./accountIds";
 import { ActionType } from "./actions";
 import type { onProgressEvents } from "./passkeyManager";
-
-// === WORKER MESSAGE TYPE ENUMS ===
-
-/**
- * Worker error details for better debugging
- */
-export interface WorkerErrorDetails {
-  code: WorkerErrorCode;
-  message: string;
-  operation: WorkerRequestType;
-  timestamp: number;
-  context?: Record<string, any>;
-  stack?: string;
-}
-
-export enum WorkerErrorCode {
-  WASM_INIT_FAILED = 'WASM_INIT_FAILED',
-  INVALID_REQUEST = 'INVALID_REQUEST',
-  TIMEOUT = 'TIMEOUT',
-  ENCRYPTION_FAILED = 'ENCRYPTION_FAILED',
-  DECRYPTION_FAILED = 'DECRYPTION_FAILED',
-  SIGNING_FAILED = 'SIGNING_FAILED',
-  STORAGE_FAILED = 'STORAGE_FAILED',
-  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
-}
 
 // === REQUEST MESSAGE INTERFACES ===
 
@@ -61,9 +37,14 @@ export interface BaseWorkerRequest {
 
 // === GENERIC REQUEST TYPE ===
 // Generic message interface that uses WASM types
-export interface WorkerMessage<T extends WorkerRequestType> {
+// export interface SignerWorkerMessage<T extends WasmSignerWorkerRequestType> {
+//   type: WorkerRequestType;
+//   payload: T; // properly typed based on the specific request interface above
+// }
+
+export interface SignerWorkerMessage<T extends WorkerRequestType> {
   type: T;
-  payload: any; // properly typed based on the specific request interface above
+  payload: any;
 }
 
 /**
@@ -142,7 +123,7 @@ export interface BaseWorkerResponse {
 
 // Map request types to their expected success response payloads (WASM types)
 export interface RequestResponseMap {
-  [WorkerRequestType.DeriveNearKeypairAndEncrypt]: WasmEncryptionResult;
+  [WorkerRequestType.DeriveNearKeypairAndEncrypt]: WasmDeriveNearKeypairAndEncryptResult;
   [WorkerRequestType.RecoverKeypairFromPasskey]: WasmRecoverKeypairResult;
   [WorkerRequestType.CheckCanRegisterUser]: WasmRegistrationCheckResult;
   [WorkerRequestType.SignVerifyAndRegisterUser]: WasmRegistrationResult;
@@ -167,6 +148,17 @@ export interface WorkerErrorResponse extends BaseWorkerResponse {
     errorCode?: WorkerErrorCode;
     context?: Record<string, any>;
   };
+}
+
+export enum WorkerErrorCode {
+  WASM_INIT_FAILED = 'WASM_INIT_FAILED',
+  INVALID_REQUEST = 'INVALID_REQUEST',
+  TIMEOUT = 'TIMEOUT',
+  ENCRYPTION_FAILED = 'ENCRYPTION_FAILED',
+  DECRYPTION_FAILED = 'DECRYPTION_FAILED',
+  SIGNING_FAILED = 'SIGNING_FAILED',
+  STORAGE_FAILED = 'STORAGE_FAILED',
+  UNKNOWN_ERROR = 'UNKNOWN_ERROR',
 }
 
 export interface WorkerProgressResponse extends BaseWorkerResponse {

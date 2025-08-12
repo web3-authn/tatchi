@@ -163,7 +163,6 @@ export async function createAccountAndRegisterWithTestnetFaucet(
       credential: credential,
       vrfChallenge: vrfChallenge,
       deterministicVrfPublicKey: deterministicVrfPublicKey,
-      signerAccountId: nearAccountId,
       nearAccountId: nearAccountId,
       nearPublicKeyStr: publicKey,
       nearClient: nearClient,

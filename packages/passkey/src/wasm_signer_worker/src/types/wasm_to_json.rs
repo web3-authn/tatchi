@@ -1,4 +1,4 @@
-use serde::{Serialize};
+use serde::{Serialize, Deserialize};
 use wasm_bindgen::prelude::*;
 
 // === WASM-FRIENDLY WRAPPER TYPES ===
@@ -15,7 +15,7 @@ impl<T: Serialize> ToJson for T {
 }
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WasmPublicKey {
     #[wasm_bindgen(getter_with_clone, js_name = "keyType")]
@@ -45,7 +45,7 @@ impl From<&crate::types::PublicKey> for WasmPublicKey {
 }
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WasmSignature {
     #[wasm_bindgen(getter_with_clone, js_name = "keyType")]
@@ -75,7 +75,7 @@ impl From<&crate::types::Signature> for WasmSignature {
 }
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WasmTransaction {
     #[wasm_bindgen(getter_with_clone, js_name = "signerId")]
@@ -130,7 +130,7 @@ impl From<&crate::types::Transaction> for WasmTransaction {
 }
 
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WasmSignedTransaction {
     #[wasm_bindgen(getter_with_clone)]

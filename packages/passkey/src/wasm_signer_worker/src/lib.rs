@@ -14,9 +14,7 @@ mod types;
 use wasm_bindgen::prelude::*;
 use serde_json;
 
-// Import from modules
 use crate::types::*;
-use crate::error::*;
 use crate::types::worker_messages::{
     WorkerRequestType,
     WorkerResponseType,
@@ -28,31 +26,40 @@ use crate::types::worker_messages::{
 /// === RE-EXPORTED TYPES ===
 /////////////////////////////
 
-pub use types::handlers::{
-    // Registration
-    RegistrationTxData,
-    RegistrationRequest,
-    // Execute Actions
-    SignTransactionsWithActionsPayload,
-    VerificationPayload,
-    DecryptionPayload,
-    TransactionPayload,
-    Decryption,
-    TxData,
-    Verification,
-    // Registration Check
-    RegistrationCheckRequest,
-    // Encryption
-    EncryptionResult,
-    RecoverKeypairResult,
+pub use handlers::handle_derive_near_keypair_and_encrypt::{
+    handle_derive_near_keypair_and_encrypt,
+    DeriveNearKeypairAndEncryptRequest,
+    DeriveNearKeypairAndEncryptResult,
+};
+pub use handlers::handle_decrypt_private_key_with_prf::{
+    handle_decrypt_private_key_with_prf,
     DecryptPrivateKeyRequest,
     DecryptPrivateKeyResult,
-    TransactionSignResult,
-    KeyActionResult,
+};
+
+pub use handlers::{
+    // Registration Check
+    RegistrationCheckRequest,
+    CheckCanRegisterUserRequest,
+    // Registration
     RegistrationInfoStruct,
     RegistrationCheckResult,
     RegistrationResult,
+    SignVerifyAndRegisterUserRequest, // Deprecated
+    // Execute Actions
+    SignTransactionsWithActionsRequest,
+    TransactionPayload,
+    // Sign Transaction With Key Pair
+    SignTransactionWithKeyPairRequest,
+    // Recover Account
+    RecoverKeypairRequest,
+    RecoverKeypairResult,
+    KeyActionResult,
+    // Extract Cose Public Key
+    ExtractCoseRequest,
     CoseExtractionResult,
+    // Sign Nep413 Message
+    SignNep413Request,
     SignNep413Result,
 };
 
@@ -181,48 +188,48 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
     // Route message to appropriate handler
     let response_payload = match request_type {
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
-            let request = msg.parse_payload::<DeriveKeypairPayload>(request_type)?;
-            let result = handlers::handle_derive_near_keypair_encrypt_and_sign(request).await?;
+            let request = msg.parse_payload::<DeriveNearKeypairAndEncryptRequest>(request_type)?;
+            let result = handlers::handle_derive_near_keypair_and_encrypt(request).await?;
             result.to_json()
         },
         WorkerRequestType::RecoverKeypairFromPasskey => {
-            let request = msg.parse_payload::<RecoverKeypairPayload>(request_type)?;
+            let request = msg.parse_payload::<RecoverKeypairRequest>(request_type)?;
             let result = handlers::handle_recover_keypair_from_passkey(request).await?;
             result.to_json()
         },
         WorkerRequestType::CheckCanRegisterUser => {
-            let request = msg.parse_payload::<CheckCanRegisterUserPayload>(request_type)?;
+            let request = msg.parse_payload::<CheckCanRegisterUserRequest>(request_type)?;
             let result = handlers::handle_check_can_register_user(request).await?;
             result.to_json()
         },
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
-            let request = msg.parse_payload::<DecryptKeyPayload>(request_type)?;
+            let request = msg.parse_payload::<DecryptPrivateKeyRequest>(request_type)?;
             let result = handlers::handle_decrypt_private_key_with_prf(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignTransactionsWithActions => {
-            let request = msg.parse_payload::<SignTransactionsWithActionsPayload>(request_type)?;
+            let request = msg.parse_payload::<SignTransactionsWithActionsRequest>(request_type)?;
             let result = handlers::handle_sign_transactions_with_actions(request).await?;
             result.to_json()
         },
         WorkerRequestType::ExtractCosePublicKey => {
-            let request = msg.parse_payload::<ExtractCosePayload>(request_type)?;
+            let request = msg.parse_payload::<ExtractCoseRequest>(request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignTransactionWithKeyPair => {
-            let request = msg.parse_payload::<SignTransactionWithKeyPairPayload>(request_type)?;
+            let request = msg.parse_payload::<SignTransactionWithKeyPairRequest>(request_type)?;
             let result = handlers::handle_sign_transaction_with_keypair(request).await?;
             result.to_json()
         },
         WorkerRequestType::SignNep413Message => {
-            let request = msg.parse_payload::<SignNep413Payload>(request_type)?;
+            let request = msg.parse_payload::<SignNep413Request>(request_type)?;
             let result = handlers::handle_sign_nep413_message(request).await?;
             result.to_json()
         },
         // DEPRECATED: only used for testnet registration
         WorkerRequestType::SignVerifyAndRegisterUser => {
-            let request = msg.parse_payload::<SignVerifyAndRegisterUserPayload>(request_type)?;
+            let request = msg.parse_payload::<SignVerifyAndRegisterUserRequest>(request_type)?;
             // DEPRECATED: only used for testnet registration
             let result = handlers::handle_sign_verify_and_register_user(request).await?;
             result.to_json()

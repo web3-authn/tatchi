@@ -238,7 +238,7 @@ export class TouchIdPrompt {
  * Generate device-specific user ID to prevent Chrome sync conflicts
  * Creates technical identifiers with full account context
  *
- * @param nearAccountId - The NEAR account ID (e.g., "serp120.web3-authn-v4.testnet")
+ * @param nearAccountId - The NEAR account ID (e.g., "serp120.web3-authn-v5.testnet")
  * @param deviceNumber - The device number (optional, undefined for device 1, 2 for device 2, etc.)
  * @returns Technical identifier:
  *   - Device 1: "serp120.web3-authn.testnet"
@@ -258,7 +258,7 @@ export function generateDeviceSpecificUserId(nearAccountId: string, deviceNumber
  * Generate user-friendly display name for passkey manager UI
  * Creates clean, intuitive names that users will see
  *
- * @param nearAccountId - The NEAR account ID (e.g., "serp120.web3-authn-v4.testnet")
+ * @param nearAccountId - The NEAR account ID (e.g., "serp120.web3-authn-v5.testnet")
  * @param deviceNumber - The device number (optional, undefined for device 1, 2 for device 2, etc.)
  * @returns User-friendly display name:
  *   - Device 1: "serp120"

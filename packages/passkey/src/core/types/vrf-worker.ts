@@ -121,13 +121,14 @@ export interface VRFInputData {
 }
 
 export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
+  // type: wasmModule.WorkerRequestType
   type: 'PING'
-      | 'UNLOCK_VRF_KEYPAIR'
       | 'GENERATE_VRF_CHALLENGE'
       | 'GENERATE_VRF_KEYPAIR_BOOTSTRAP'
-      | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
+      | 'UNLOCK_VRF_KEYPAIR'
       | 'CHECK_VRF_STATUS'
       | 'LOGOUT'
+      | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
       | 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR' // client only
       | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
       | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only

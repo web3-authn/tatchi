@@ -205,8 +205,8 @@ export interface PasskeyContextType {
  * config: {
  *   nearRpcUrl: 'https://rpc.testnet.near.org',
  *   nearNetwork: 'testnet',
- *   contractId: 'web3-authn-v4.testnet',
- *   relayerAccount: 'web3-authn-v4.testnet',
+ *   contractId: 'web3-authn-v5.testnet',
+ *   relayerAccount: 'web3-authn-v5.testnet',
  *   relayServerUrl: 'https://faucet.testnet.near.org',
  *   initialUseRelayer: true,
  *   nearExplorerBaseUrl: 'https://testnet.nearblocks.io',

@@ -34,7 +34,7 @@
  */
 
 import {
-  WorkerMessage,
+  SignerWorkerMessage,
   WorkerRequestType,
   WorkerResponseType,
   ProgressStep,
@@ -155,7 +155,7 @@ async function initializeWasm(): Promise<void> {
   }
 }
 
-self.onmessage = async (event: MessageEvent<WorkerMessage<WorkerRequestType>>): Promise<void> => {
+self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType>>): Promise<void> => {
   if (messageProcessed) {
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure, // Use any failure type as fallback

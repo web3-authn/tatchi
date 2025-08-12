@@ -396,7 +396,6 @@ async function deriveNearKeypairFromCredential(
   accountId: string
 ) {
   return await webAuthnManager.recoverKeypairFromPasskey(
-    crypto.getRandomValues(new Uint8Array(32)),
     credential,
     accountId
   );

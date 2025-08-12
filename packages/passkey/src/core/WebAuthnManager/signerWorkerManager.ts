@@ -23,6 +23,7 @@ import {
   WorkerProgressResponse,
   WorkerErrorResponse,
   WasmTransactionSignResult,
+  SignerWorkerMessage,
 } from '../types/signer-worker';
 import {
   type WebAuthnAuthenticationCredential,
@@ -94,12 +95,13 @@ export class SignerWorkerManager {
    * - Strong WASM-generated types for all responses
    * - Generic typing based on request type for better type safety
    */
-  private async executeWorkerOperation<T extends WorkerRequestType>({
+
+  private async sendMessage<T extends WorkerRequestType>({
     message,
     onEvent,
     timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT // 10s
   }: {
-    message: { type: T } & Record<string, any>,
+    message: SignerWorkerMessage<T>,
     onEvent?: (update: onProgressEvents) => void,
     timeoutMs?: number
   }): Promise<WorkerResponseForRequest<T>> {
@@ -124,7 +126,6 @@ export class SignerWorkerManager {
           console.log('Worker response received:', {
             type: response?.type,
             hasPayload: !!response?.payload,
-            payloadKeys: response?.payload ? Object.keys(response.payload) : [],
             fullResponse: response
           });
 
@@ -253,8 +254,8 @@ export class SignerWorkerManager {
         ed25519PrfOutput: serializedCredential.clientExtensionResults?.prf?.results?.second!,
       };
 
-      // Use generic executeWorkerOperation with specific request type for better type safety
-      const response = await this.executeWorkerOperation<typeof WorkerRequestType.DeriveNearKeypairAndEncrypt>({
+      // Use generic sendMessage with specific request type for better type safety
+      const response = await this.sendMessage<typeof WorkerRequestType.DeriveNearKeypairAndEncrypt>({
         message: {
           type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
           payload: {
@@ -270,7 +271,7 @@ export class SignerWorkerManager {
               // Pass VRF public key to WASM worker (device number determined by contract)
               deterministicVrfPublicKey: options.deterministicVrfPublicKey,
             } : undefined,
-            authenticatorOptions: options?.authenticatorOptions, // Pass authenticator options
+            authenticatorOptions: options?.authenticatorOptions,
           }
         }
       });
@@ -349,9 +350,7 @@ export class SignerWorkerManager {
   ): Promise<{ decryptedPrivateKey: string; nearAccountId: AccountId }> {
     try {
       console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
-
       // Retrieve encrypted key data from IndexedDB in main thread
-      console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
       const encryptedKeyData = await this.nearKeysDB.getEncryptedKey(nearAccountId);
       if (!encryptedKeyData) {
         throw new Error(`No encrypted key found for account: ${nearAccountId}`);
@@ -376,12 +375,12 @@ export class SignerWorkerManager {
       });
       console.debug('WebAuthnManager: Extracted ChaCha20 PRF output for decryption');
 
-      const response = await this.executeWorkerOperation({
+      const response = await this.sendMessage<typeof WorkerRequestType.DecryptPrivateKeyWithPrf>({
         message: {
           type: WorkerRequestType.DecryptPrivateKeyWithPrf,
           payload: {
             nearAccountId: nearAccountId,
-            prfOutput: dualPrfOutputs.chacha20PrfOutput, // Use ChaCha20 PRF output for decryption
+            chacha20PrfOutput: dualPrfOutputs.chacha20PrfOutput, // Use ChaCha20 PRF output for decryption
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
             encryptedPrivateKeyIv: encryptedKeyData.iv
           }
@@ -393,7 +392,7 @@ export class SignerWorkerManager {
         throw new Error('Private key decryption failed');
       }
       console.info('WebAuthnManager: Dual PRF private key decryption successful');
-      const wasmResult = response.payload as wasmModule.DecryptPrivateKeyResult;
+      const wasmResult = response.payload;
       return {
         decryptedPrivateKey: wasmResult.privateKey,
         nearAccountId: toAccountId(wasmResult.nearAccountId)
@@ -429,7 +428,7 @@ export class SignerWorkerManager {
     try {
       console.info('WebAuthnManager: Checking if user can be registered on-chain');
 
-      const response = await this.executeWorkerOperation<typeof WorkerRequestType.CheckCanRegisterUser>({
+      const response = await this.sendMessage<typeof WorkerRequestType.CheckCanRegisterUser>({
         message: {
           type: WorkerRequestType.CheckCanRegisterUser,
           payload: {
@@ -477,7 +476,6 @@ export class SignerWorkerManager {
     credential,
     contractId,
     deterministicVrfPublicKey,
-    signerAccountId,
     nearAccountId,
     nearPublicKeyStr,
     nearClient,
@@ -490,7 +488,6 @@ export class SignerWorkerManager {
     credential: PublicKeyCredential,
     contractId: string;
     deterministicVrfPublicKey: string; // Required deterministic VRF key for dual registration
-    signerAccountId: string;
     nearAccountId: AccountId;
     nearPublicKeyStr: string;
     nearClient: NearClient; // NEAR RPC client for getting transaction metadata
@@ -534,26 +531,29 @@ export class SignerWorkerManager {
       } = await getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId });
 
       // Step 2: Execute registration transaction via WASM
-      const response = await this.executeWorkerOperation({
+      const response = await this.sendMessage({
         message: {
           type: WorkerRequestType.SignVerifyAndRegisterUser,
           payload: {
-            vrfChallenge,
-            credential: serializeCredentialWithPRF({ credential }),
-            contractId,
-            signerAccountId,
-            nearAccountId,
-            nonce: nextNonce,
-            blockHash: txBlockHash,
-            // Pass encrypted key data from IndexedDB
-            encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-            encryptedPrivateKeyIv: encryptedKeyData.iv,
-            prfOutput: dualPrfOutputs.chacha20PrfOutput,
-            // Add missing nearRpcUrl field
-            nearRpcUrl,
-            deterministicVrfPublicKey,
-            deviceNumber, // Pass device number for multi-device support
-            authenticatorOptions, // Pass authenticator options
+            verification: {
+              contractId: contractId,
+              nearRpcUrl: nearRpcUrl,
+              vrfChallenge: vrfChallenge,
+              registrationCredential: serializeCredentialWithPRF({ credential }),
+            },
+            decryption: {
+              chacha20PrfOutput: dualPrfOutputs.chacha20PrfOutput,
+              encryptedPrivateKeyData: encryptedKeyData.encryptedData,
+              encryptedPrivateKeyIv: encryptedKeyData.iv
+            },
+            registration: {
+              nearAccountId,
+              nonce: nextNonce,
+              blockHash: txBlockHash,
+              deterministicVrfPublicKey,
+              deviceNumber, // Pass device number for multi-device support
+              authenticatorOptions,
+            },
           }
         },
         onEvent,
@@ -681,16 +681,12 @@ export class SignerWorkerManager {
         blockHash: blockHash
       }));
 
-      // Send batch signing request to WASM worker
-      const response = await this.executeWorkerOperation({
-        message: {
-          type: WorkerRequestType.SignTransactionsWithActions,
-          payload: {
+      let payload = {
             verification: {
               contractId: contractId,
               nearRpcUrl: nearRpcUrl,
               vrfChallenge: vrfChallenge,
-              credential: serializeCredentialWithPRF({ credential }),
+              authenticationCredential: serializeCredentialWithPRF({ credential }),
             },
             decryption: {
               chacha20PrfOutput: dualPrfOutputs.chacha20PrfOutput,
@@ -698,7 +694,15 @@ export class SignerWorkerManager {
               encryptedPrivateKeyIv: encryptedKeyData.iv
             },
             txSigningRequests: txSigningRequests
-          }
+      }
+
+      console.log('>>>>>> payload', payload);
+
+      // Send batch signing request to WASM worker
+      const response = await this.sendMessage({
+        message: {
+          type: WorkerRequestType.SignTransactionsWithActions,
+          payload: payload
         },
         onEvent
       });
@@ -760,7 +764,6 @@ export class SignerWorkerManager {
    */
   async recoverKeypairFromPasskey(
     credential: PublicKeyCredential,
-    challenge: string,
     accountIdHint?: string
   ): Promise<{
     publicKey: string;
@@ -783,8 +786,8 @@ export class SignerWorkerManager {
         throw new Error('Dual PRF outputs required for account recovery - both ChaCha20 and Ed25519 PRF outputs must be available');
       }
 
-      // Use generic executeWorkerOperation with specific request type for better type safety
-      const response = await this.executeWorkerOperation<typeof WorkerRequestType.RecoverKeypairFromPasskey>({
+      // Use generic sendMessage with specific request type for better type safety
+      const response = await this.sendMessage<typeof WorkerRequestType.RecoverKeypairFromPasskey>({
         message: {
           type: WorkerRequestType.RecoverKeypairFromPasskey,
           payload: {
@@ -822,7 +825,7 @@ export class SignerWorkerManager {
     try {
       console.info('SignerWorkerManager: Starting COSE public key extraction');
 
-      const response = await this.executeWorkerOperation({
+      const response = await this.sendMessage({
         message: {
           type: WorkerRequestType.ExtractCosePublicKey,
           payload: {
@@ -878,7 +881,7 @@ export class SignerWorkerManager {
         }
       });
 
-      const response = await this.executeWorkerOperation({
+      const response = await this.sendMessage({
         message: {
           type: WorkerRequestType.SignTransactionWithKeyPair,
           payload: {
@@ -975,7 +978,7 @@ export class SignerWorkerManager {
         secondPrfOutput: false,
       });
 
-      const response = await this.executeWorkerOperation<typeof WorkerRequestType.SignNep413Message>({
+      const response = await this.sendMessage<typeof WorkerRequestType.SignNep413Message>({
         message: {
           type: WorkerRequestType.SignNep413Message,
           payload: {

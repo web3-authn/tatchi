@@ -277,7 +277,7 @@ fn near_key_salt_for_account(account_id: &str) -> String {
 
 **Real Account (both Options):**
 ```rust
-// Salt: "near-key-derivation:serp117.web3-authn-v4.testnet"
+// Salt: "near-key-derivation:serp117.web3-authn-v5.testnet"
 // Used for actual authentication and account recovery
 ```
 

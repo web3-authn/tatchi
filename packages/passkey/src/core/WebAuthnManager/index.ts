@@ -527,7 +527,6 @@ export class WebAuthnManager {
     credential,
     vrfChallenge,
     deterministicVrfPublicKey,
-    signerAccountId,
     nearAccountId,
     nearPublicKeyStr,
     nearClient,
@@ -539,7 +538,6 @@ export class WebAuthnManager {
     credential: PublicKeyCredential,
     vrfChallenge: VRFChallenge,
     deterministicVrfPublicKey: string, // deterministic VRF key for key recovery
-    signerAccountId: string;
     nearAccountId: AccountId;
     nearPublicKeyStr: string;
     nearClient: NearClient;
@@ -561,7 +559,6 @@ export class WebAuthnManager {
         credential,
         contractId,
         deterministicVrfPublicKey, // Pass through the deterministic VRF key
-        signerAccountId,
         nearAccountId,
         nearPublicKeyStr,
         nearClient,
@@ -673,13 +670,11 @@ export class WebAuthnManager {
   /**
    * Recover keypair from authentication credential for account recovery
    * Uses dual PRF outputs to re-derive the same NEAR keypair and re-encrypt it
-   * @param challenge - Random challenge for WebAuthn authentication ceremony
    * @param authenticationCredential - The authentication credential with dual PRF outputs
    * @param accountIdHint - Optional account ID hint for recovery
    * @returns Public key and encrypted private key for secure storage
    */
   async recoverKeypairFromPasskey(
-    challenge: Uint8Array<ArrayBuffer>,
     authenticationCredential: PublicKeyCredential,
     accountIdHint?: string,
   ): Promise<{
@@ -709,7 +704,6 @@ export class WebAuthnManager {
       // Call the WASM worker to derive and encrypt the keypair using dual PRF
       const result = await this.signerWorkerManager.recoverKeypairFromPasskey(
         authenticationCredential,
-        base64UrlEncode(challenge),
         accountIdHint
       );
 

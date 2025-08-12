@@ -546,7 +546,7 @@ export interface VerifyAndSignTransactionResult {
 export interface PasskeyManagerConfigs {
   nearRpcUrl: string;
   nearNetwork: 'testnet' | 'mainnet';
-  contractId: 'web3-authn-v4.testnet' | 'web3-authn.near' | string;
+  contractId: 'web3-authn-v5.testnet' | 'web3-authn.near' | string;
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
   // Relay Server is used to create new NEAR accounts
   relayer: {

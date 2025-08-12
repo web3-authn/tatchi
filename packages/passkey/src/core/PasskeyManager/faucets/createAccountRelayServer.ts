@@ -83,7 +83,9 @@ export async function createAccountAndRegisterWithRelayServer(
       },
       webauthn_registration: serializedCredential,
       deterministic_vrf_public_key: Array.from(base64UrlDecode(deterministicVrfPublicKey)),
-      authenticator_options: authenticatorOptions || context.configs.authenticatorOptions,
+      authenticator_options: authenticatorOptions
+        || context.configs.authenticatorOptions
+        || { user_verification: null, origin_policy: null },
       // Use config-based authenticator options
     };
 

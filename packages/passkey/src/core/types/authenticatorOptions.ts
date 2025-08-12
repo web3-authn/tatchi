@@ -20,12 +20,14 @@ export enum UserVerificationPolicy {
 }
 
 /**
- * Origin policy input for WebAuthn registration (user-provided)
+ * Origin policy input for WebAuthn registration (matches contract OriginPolicy struct)
+ * Note: choose only one of the fields: single, allSubdomains, multiple
  */
-export type OriginPolicyInput =
-  | 'single'
-  | { multiple: string[] }
-  | 'allSubdomains';
+export interface OriginPolicyInput {
+  single?: string | null;
+  allSubdomains?: boolean | null;
+  multiple?: string[] | null;
+}
 
 /**
  * Options for configuring WebAuthn authenticator behavior during registration
@@ -35,13 +37,13 @@ export type OriginPolicyInput =
  * // Require user verification with multiple allowed origins
  * {
  *   user_verification: UserVerificationPolicy.Required,
- *   origin_policy: OriginPolicyInput.multiple(['app.example.com', 'admin.example.com'])
+ *   origin_policy: { multiple: ['app.example.com', 'admin.example.com'] }
  * }
  *
  * // Preferred user verification with all subdomains allowed
  * {
  *   user_verification: UserVerificationPolicy.Preferred,
- *   origin_policy: "allSubdomains"
+ *   origin_policy: { allSubdomains: true }
  * }
  *
  * // Default options (both fields null)
@@ -61,5 +63,5 @@ export interface AuthenticatorOptions {
  */
 export const DEFAULT_AUTHENTICATOR_OPTIONS: AuthenticatorOptions = {
   user_verification: UserVerificationPolicy.Preferred,
-  origin_policy: 'allSubdomains'
+  origin_policy: { allSubdomains: true }
 };
