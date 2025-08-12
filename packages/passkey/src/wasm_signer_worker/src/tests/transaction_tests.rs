@@ -230,7 +230,7 @@ fn test_function_call_action_handler() {
     match action {
         Action::FunctionCall(call) => {
             assert_eq!(call.method_name, "test_method");
-            assert_eq!(call.gas, 10000000000000u64);
+            assert_eq!(call.gas, 30000000000000u64);
             assert_eq!(call.deposit, 0u128);
         }
         _ => panic!("Expected FunctionCall action"),

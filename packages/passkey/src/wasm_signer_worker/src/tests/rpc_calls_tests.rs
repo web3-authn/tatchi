@@ -170,6 +170,7 @@ fn test_parse_check_can_register_response_success() {
             "logs": ["VRF verification successful", "WebAuthn validation passed"]
         }
     });
+}
 
 #[test]
 fn test_vrf_challenge_camelcase_deserialization() {
