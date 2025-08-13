@@ -292,7 +292,7 @@ pub struct VrfChallenge {
     #[wasm_bindgen(getter_with_clone, js_name = "rpId")]
     pub rp_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHeight")]
-    pub block_height: u64,
+    pub block_height: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     pub block_hash: String,
 }

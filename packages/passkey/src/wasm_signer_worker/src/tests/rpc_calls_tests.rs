@@ -185,7 +185,7 @@ fn test_vrf_challenge_camelcase_deserialization() {
         "vrfPublicKey": "UiY6KfPKeLP5XDAri5eyepbmQuxMHERaIZp6vR_eHxc",
         "userId": "serp147.web3-authn-v2.testnet",
         "rpId": "example.localhost",
-        "blockHeight": 207498332,
+        "blockHeight": "207498332",
         "blockHash": "dGVzdF9ibG9ja19oYXNoX2RhdGE"
     }"#;
 
@@ -200,7 +200,7 @@ fn test_vrf_challenge_camelcase_deserialization() {
     assert_eq!(vrf_challenge.vrf_public_key, "UiY6KfPKeLP5XDAri5eyepbmQuxMHERaIZp6vR_eHxc");
     assert_eq!(vrf_challenge.user_id, "serp147.web3-authn-v2.testnet");
     assert_eq!(vrf_challenge.rp_id, "example.localhost");
-    assert_eq!(vrf_challenge.block_height, 207498332);
+    assert_eq!(vrf_challenge.block_height, "207498332");
     assert_eq!(vrf_challenge.block_hash, "dGVzdF9ibG9ja19oYXNoX2RhdGE");
 
     // Test round-trip serialization/deserialization

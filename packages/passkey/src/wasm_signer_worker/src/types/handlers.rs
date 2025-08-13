@@ -142,29 +142,3 @@ pub struct RegistrationPayload {
     #[wasm_bindgen(getter_with_clone, js_name = "authenticatorOptions")]
     pub authenticator_options: Option<AuthenticatorOptions>,
 }
-
-// ******************************************************************************
-// *                                                                            *
-// *                      CUSTOM TO_JSON IMPLEMENTATIONS                        *
-// *                                                                            *
-// ******************************************************************************
-
-// impl crate::types::ToJson for DeriveNearKeypairAndEncryptResult {
-//     fn to_json(&self) -> Result<serde_json::Value, String> {
-//         let mut json = serde_json::Map::new();
-//         json.insert("nearAccountId".to_string(), serde_json::Value::String(self.near_account_id.clone()));
-//         json.insert("publicKey".to_string(), serde_json::Value::String(self.public_key.clone()));
-//         json.insert("encryptedData".to_string(), serde_json::Value::String(self.encrypted_data.clone()));
-//         json.insert("iv".to_string(), serde_json::Value::String(self.iv.clone()));
-//         json.insert("stored".to_string(), serde_json::Value::Bool(self.stored));
-
-//         if let Some(signed_tx) = &self.signed_transaction {
-//             let borsh_bytes = signed_tx.to_borsh_bytes()?;
-//             let tx_json = signed_tx.to_json_with_borsh(Some(borsh_bytes))?;
-//             json.insert("signedTransaction".to_string(), tx_json);
-//         }
-
-//         Ok(serde_json::Value::Object(json))
-//     }
-// }
-
