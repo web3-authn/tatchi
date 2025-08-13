@@ -4,7 +4,6 @@ This document demonstrates how to use the NEP-413 message signing functionality 
 
 ## Basic Usage
 
-### Simple Message Signing
 
 ```typescript
 import { PasskeyManager } from '@web3authn/passkey';

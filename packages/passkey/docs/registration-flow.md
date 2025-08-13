@@ -93,7 +93,7 @@ Start Registration
    [3] Access Key Addition (Critical)
        ↓
    ┌─ [4] Database Storage ─┐
-   │                       │ (Concurrent)
+   │                        │ (Concurrent)
    └─ [5] Contract Registration ─┘
        ↓
    [6] Registration Complete
@@ -142,16 +142,3 @@ function handleRegistrationEvent(event: RegistrationSSEEvent) {
 }
 ```
 
-## Error Handling Strategy
-
-- **Fatal Errors**: Steps 0, 1, 3 - Abort registration
-- **Non-Fatal Errors**: Steps 4, 5 - Log warnings, continue
-- **Early Access**: Enable login after Step 2, regardless of later failures
-
-## Key Implementation Notes
-
-1. **Enable login after Step 2** - Don't wait for full completion
-2. **Handle Step 3 failures gracefully** - This is the critical blockchain operation
-3. **Steps 4-5 failures are recoverable** - Registration is still successful
-4. **Use step numbers for progress indicators** - `(step/6) * 100`% complete
-5. **Implement timeouts** - 30s for full registration flow
