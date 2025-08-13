@@ -1,10 +1,10 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 // Enums and message structures for worker communication
 
+use wasm_bindgen::prelude::*;
 use serde::{Serialize, Deserialize};
 use serde::de::DeserializeOwned;
 use crate::error::ParsePayloadError;
-use wasm_bindgen::prelude::*;
 
 // === CLEAN RUST ENUMS WITH NUMERIC CONVERSION ===
 // These export to TypeScript as numeric enums and we convert directly from numbers

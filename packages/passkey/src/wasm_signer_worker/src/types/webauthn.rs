@@ -136,7 +136,7 @@ impl From<&WebAuthnRegistrationCredentialStruct> for WebAuthnRegistrationCredent
 }
 
 /// WebAuthn authentication data for contract verification
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct WebAuthnAuthenticationCredential {
     pub id: String,
     #[serde(rename = "rawId")]
@@ -148,7 +148,7 @@ pub struct WebAuthnAuthenticationCredential {
     pub auth_type: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnAuthenticationResponse {
     #[serde(rename = "clientDataJSON")]
     pub client_data_json: String,
@@ -160,7 +160,7 @@ pub struct WebAuthnAuthenticationResponse {
 }
 
 /// WebAuthn registration data for contract verification
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnRegistrationCredential {
     pub id: String,
     #[serde(rename = "rawId")]
@@ -172,7 +172,7 @@ pub struct WebAuthnRegistrationCredential {
     pub reg_type: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnRegistrationResponse {
     #[serde(rename = "clientDataJSON")]
     pub client_data_json: String,
@@ -183,79 +183,116 @@ pub struct WebAuthnRegistrationResponse {
 
 // === SHARED CREDENTIAL TYPES ===
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SerializedCredential {
+    #[wasm_bindgen(getter_with_clone, js_name = "id")]
     pub id: String,
-    #[serde(rename = "rawId")]
+    #[wasm_bindgen(getter_with_clone, js_name = "rawId")]
     pub raw_id: String,
-    #[serde(rename = "type")]
+    #[wasm_bindgen(getter_with_clone, js_name = "type")]
+    #[serde(alias = "type")]
     pub credential_type: String,
-    #[serde(rename = "authenticatorAttachment")]
+    #[wasm_bindgen(getter_with_clone, js_name = "authenticatorAttachment")]
     pub authenticator_attachment: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "response")]
     pub response: AuthenticationResponse,
-    #[serde(rename = "clientExtensionResults")]
+    #[wasm_bindgen(getter_with_clone, js_name = "clientExtensionResults")]
     pub client_extension_results: ClientExtensionResults,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct SerializedRegistrationCredential {
+    #[wasm_bindgen(getter_with_clone, js_name = "id")]
     pub id: String,
-    #[serde(rename = "rawId")]
+    #[wasm_bindgen(getter_with_clone, js_name = "rawId")]
     pub raw_id: String,
-    #[serde(rename = "type")]
+    #[wasm_bindgen(getter_with_clone, js_name = "type")]
+    #[serde(alias = "type")]
     pub credential_type: String,
-    #[serde(rename = "authenticatorAttachment")]
+    #[wasm_bindgen(getter_with_clone, js_name = "authenticatorAttachment")]
     pub authenticator_attachment: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "response")]
     pub response: RegistrationResponse,
-    #[serde(rename = "clientExtensionResults")]
+    #[wasm_bindgen(getter_with_clone, js_name = "clientExtensionResults")]
     pub client_extension_results: ClientExtensionResults,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct AuthenticationResponse {
-    #[serde(rename = "clientDataJSON")]
+    #[wasm_bindgen(getter_with_clone, js_name = "clientDataJSON")]
+    #[serde(alias = "clientDataJSON")]
     pub client_data_json: String,
-    #[serde(rename = "authenticatorData")]
+    #[wasm_bindgen(getter_with_clone, js_name = "authenticatorData")]
+    #[serde(alias = "authenticatorData")]
     pub authenticator_data: String,
+    #[wasm_bindgen(getter_with_clone)]
     pub signature: String,
-    #[serde(rename = "userHandle")]
+    #[wasm_bindgen(getter_with_clone, js_name = "userHandle")]
+    #[serde(alias = "userHandle")]
     pub user_handle: Option<String>,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct RegistrationResponse {
-    #[serde(rename = "clientDataJSON")]
+    #[wasm_bindgen(getter_with_clone, js_name = "clientDataJSON")]
+    #[serde(alias = "clientDataJSON")]
     pub client_data_json: String,
-    #[serde(rename = "attestationObject")]
+    #[wasm_bindgen(getter_with_clone, js_name = "attestationObject")]
+    #[serde(alias = "attestationObject")]
     pub attestation_object: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "transports")]
     pub transports: Vec<String>,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClientExtensionResults {
+    #[wasm_bindgen(getter_with_clone, js_name = "prf")]
     pub prf: PrfResults,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PrfResults {
+    #[wasm_bindgen(getter_with_clone, js_name = "results")]
     pub results: PrfOutputs,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PrfOutputs {
+    #[wasm_bindgen(getter_with_clone, js_name = "first")]
     pub first: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "second")]
     pub second: Option<String>,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VrfChallenge {
+    #[wasm_bindgen(getter_with_clone, js_name = "vrfInput")]
     pub vrf_input: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "vrfOutput")]
     pub vrf_output: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "vrfProof")]
     pub vrf_proof: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "vrfPublicKey")]
     pub vrf_public_key: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "userId")]
     pub user_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "rpId")]
     pub rp_id: String,
-    pub block_height: u64,
+    #[wasm_bindgen(getter_with_clone, js_name = "blockHeight")]
+    pub block_height: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     pub block_hash: String,
 }

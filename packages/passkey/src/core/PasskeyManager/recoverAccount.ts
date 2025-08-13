@@ -304,7 +304,7 @@ export async function recoverAccount(
     ]).then(([hasAccess, blockInfo]) => {
       return {
         hasAccess,
-        blockHeight: blockInfo.header.height,
+        blockHeight: String(blockInfo.header.height),
         blockHash: blockInfo.header.hash,
       };
     });
@@ -396,7 +396,6 @@ async function deriveNearKeypairFromCredential(
   accountId: string
 ) {
   return await webAuthnManager.recoverKeypairFromPasskey(
-    crypto.getRandomValues(new Uint8Array(32)),
     credential,
     accountId
   );
@@ -595,7 +594,10 @@ async function restoreUserData({
         id: credential.id,
         rawId: base64UrlEncode(new Uint8Array(credential.rawId))
       },
-      encryptedVrfKeypair,
+      encryptedVrfKeypair: {
+        encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+        chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
+      },
       serverEncryptedVrfKeypair,
     });
   } else {
@@ -604,7 +606,10 @@ async function restoreUserData({
       clientNearPublicKey: publicKey,
       lastUpdated: Date.now(),
       passkeyCredential: existingUser.passkeyCredential,
-      encryptedVrfKeypair,
+      encryptedVrfKeypair: {
+        encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+        chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
+      },
       serverEncryptedVrfKeypair,
       deviceNumber
     });

@@ -18,15 +18,15 @@ export interface WebAuthnAuthenticationCredential {
   id: string;
   rawId: string; // base64-encoded
   type: string;
-  authenticatorAttachment: string | null;
+  authenticatorAttachment: string | undefined;
   response: {
     clientDataJSON: string; // base64url-encoded
     authenticatorData: string; // base64url-encoded
     signature: string; // base64url-encoded
-    userHandle: string | null; // base64url-encoded or null
+    userHandle: string | undefined; // base64url-encoded or undefined
   };
   // Dual PRF outputs extracted in main thread just before transferring to worker
-  clientExtensionResults: AuthenticationExtensionsClientOutputs | null;
+  clientExtensionResults: AuthenticationExtensionsClientOutputs;
   // clientExtensionResults: {
   //   prf: {
   //     results: {
@@ -44,14 +44,14 @@ export interface WebAuthnRegistrationCredential {
   id: string;
   rawId: string; // base64-encoded
   type: string;
-  authenticatorAttachment: string | null;
+  authenticatorAttachment: string | undefined;
   response: {
     clientDataJSON: string,
     attestationObject: string,
     transports: string[],
   };
   // Dual PRF outputs extracted in main thread just before transferring to worker
-  clientExtensionResults: AuthenticationExtensionsClientOutputs | null;
+  clientExtensionResults: AuthenticationExtensionsClientOutputs;
   // clientExtensionResults: {
   //   prf: {
   //     results: {
@@ -68,7 +68,7 @@ export interface WebAuthnRegistrationCredential {
 
 /**
  * WebAuthn Client Extension Outputs
- * Equivalent to AuthenticationExtensionsClientOutputs in Rust
+ * Equivalent to ClientExtensionResults in Rust
  */
 export interface AuthenticationExtensionsClientOutputs {
   /** Application Identifier Extension output */
@@ -81,31 +81,28 @@ export interface AuthenticationExtensionsClientOutputs {
   hmacCreateSecret?: boolean;
 
   /** PRF (Pseudo-Random Function) Extension output */
-  prf?: AuthenticationExtensionsPRFOutputs;
+  prf: AuthenticationExtensionsPRFOutputs;
 }
 
 /**
  * PRF Extension Outputs
- * Equivalent to AuthenticationExtensionsPRFOutputs in Rust
+ * Equivalent to PrfResults in Rust
  */
 export interface AuthenticationExtensionsPRFOutputs {
-  /** Whether PRF extension was enabled/supported */
-  enabled?: boolean;
-
   /** PRF evaluation results (the actual PRF outputs) */
-  results?: AuthenticationExtensionsPRFValues;
+  results: AuthenticationExtensionsPRFValues;
 }
 
 /**
  * PRF Extension Values
- * Equivalent to AuthenticationExtensionsPRFValues in Rust
+ * Equivalent to PrfOutputs in Rust
  */
 export interface AuthenticationExtensionsPRFValues {
   /** First PRF output (Base64URL encoded) */
-  first: string | null;
+  first: string | undefined;
 
-  /** Optional second PRF output (Base64URL encoded) */
-  second?: string | null;
+  /** Second PRF output (Base64URL encoded) */
+  second: string | undefined;
 }
 
 /**

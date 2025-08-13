@@ -355,7 +355,7 @@ export async function generateBootstrapVrfChallenge(
     {
       userId: nearAccountId,
       rpId: window.location.hostname,
-      blockHeight: blockInfo.header.height,
+      blockHeight: String(blockInfo.header.height),
       blockHash: blockInfo.header.hash,
     }
   );

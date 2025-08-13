@@ -1,6 +1,6 @@
 # Session-Scoped WebAuthn Authorization with VRF Challenges
 
-## Purpose
+## Overview
 
 Enable a single WebAuthn biometric attestation (e.g., TouchID) to unlock a **bounded session** for executing multiple smart contract actions without re-prompting the user for each one.
 
@@ -8,6 +8,18 @@ Session scope is securely derived from a VRF-based challenge and verified WebAut
 - A seamless UX
 - Biometric device binding
 - Cryptographic session proof
+
+### Current Problem
+- Each contract call requires separate PRF authentication (TouchID)
+- Poor UX for multi-step operations (DeFi, batch transactions)
+- No session management for authenticated operations
+
+### Solution
+A session-based architecture where:
+1. **Single TouchID** creates a PRF session
+2. **Multiple contract calls** reuse the same PRF output
+3. **Configurable policies** control session behavior
+4. **Security boundaries** prevent misuse
 
 ---
 
@@ -50,39 +62,6 @@ Session scope is securely derived from a VRF-based challenge and verified WebAut
 - If client tampers with WASM, they can forge session start (but only for themselves)
 - On-chain state needed to track session expiration, limits
 
----
-
-## Implementation Plan
-
-### Contract State
-
-```rust
-struct Session {
-    vrf_pubkey: Vec<u8>,
-    challenge: Vec<u8>, // VRF output
-    expires_at: u64,    // Block timestamp or height
-    remaining_calls: u8,
-    allowed_methods: Vec<String>,
-}
-
-# PRF Session Manager Architecture
-
-## Overview
-
-The PRF Session Manager is a generalized system that allows **one PRF attestation (TouchID) to be reused for N subsequent contract calls**. This dramatically improves user experience by reducing biometric authentication prompts while maintaining security through configurable policies.
-
-### Current Problem
-- Each contract call requires separate PRF authentication (TouchID)
-- Login flow requires 2-3 TouchID prompts
-- Poor UX for multi-step operations (DeFi, batch transactions)
-- No session management for authenticated operations
-
-### Solution
-A session-based architecture where:
-1. **Single TouchID** creates a PRF session
-2. **Multiple contract calls** reuse the same PRF output
-3. **Configurable policies** control session behavior
-4. **Security boundaries** prevent misuse
 
 ## Architecture
 
@@ -121,17 +100,10 @@ class PasskeyManager {
 
   createPRFSession(username, config): Promise<PRFSession>;
   executeBatchWithPRF(username, calls[]): Promise<Results[]>;
-  performOptimizedServerlessLogin(username): Promise<LoginResult>;
 }
 ```
 
 ### Predefined Session Types
-
-#### LOGIN_FLOW
-- **Duration**: 1 minutes
-- **Max Usage**: 2 calls
-- **Allowed Methods**: `generate_authentication_options`, `verify_authentication_response`
-- **Use Case**: Complete login/registration flows
 
 #### TRANSACTION_BATCH
 - **Duration**: 1 minutes
@@ -145,5 +117,3 @@ class PasskeyManager {
 - **Allowed Methods**: All methods
 - **Sensitive Methods**: Require re-authentication
 - **Use Case**: Administrative operations
-
-TODO: CONTINUE ARCHITECTURAL PLANNING

@@ -1,31 +1,27 @@
 import { KeyPair } from '@near-js/crypto';
 
 import type { PasskeyManagerContext } from './index';
-import { ActionType } from '../types/actions';
+import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { generateBootstrapVrfChallenge } from './registration';
 import { getNonceBlockHashAndHeight } from './actions';
 import { base64UrlEncode } from '../../utils';
-import type { AccountId } from '../types/accountIds';
-import { toAccountId } from '../types/accountIds';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
+import { ActionType, type ActionParams } from '../types/actions';
+import { toAccountId, type AccountId } from '../types/accountIds';
+import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import { DEFAULT_WAIT_STATUS } from "../types/rpc";
+
+import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
+import QRCode from 'qrcode'; // jsQR will be dynamically imported when needed
 import type {
   DeviceLinkingQRData,
   DeviceLinkingSession,
   StartDeviceLinkingOptionsDevice2
 } from '../types/linkDevice';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
-import QRCode from 'qrcode';
-// jsQR will be dynamically imported when needed
-import type { ActionParams } from '../types/signer-worker';
-import { IndexedDBManager } from '../IndexedDBManager';
-import type { EncryptedVRFKeypair } from '../types/vrf-worker';
-import { VRFChallenge } from '../types/vrf-worker';
-import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
-import { DEFAULT_WAIT_STATUS } from "../types/rpc";
-import { DeviceLinkingPhase, DeviceLinkingStatus, LoginPhase } from '../types/passkeyManager';
-import type { ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
 
 
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -569,7 +565,7 @@ export class LinkDeviceFlow {
           const unlockResult = await this.context.webAuthnManager.shamir3PassDecryptVrfKeypair({
             nearAccountId: this.session.accountId,
             kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
-            ciphertext_vrf_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertext_vrf_b64u,
+            ciphertextVrfB64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertextVrfB64u,
           });
 
           if (unlockResult.success) {
@@ -663,7 +659,10 @@ export class LinkDeviceFlow {
           id: credential.id,
           rawId: base64UrlEncode(new Uint8Array(credential.rawId))
         },
-        encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
+        encryptedVrfKeypair: {
+          encryptedVrfDataB64u: deterministicKeysResult.encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: deterministicKeysResult.encryptedVrfKeypair.chacha20NonceB64u,
+        },
         serverEncryptedVrfKeypair: deterministicKeysResult.serverEncryptedVrfKeypair || undefined, // Device linking now uses Shamir 3-pass encryption
       });
 

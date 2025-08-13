@@ -4,15 +4,6 @@
 
 The device linking flow enables users to add a companion device (Device2) to their existing NEAR account by scanning a QR code with their original device (Device1). This creates a **1:N mapping** where multiple devices can authenticate for the same account.
 
-## Key Features
-
-- ✅ **Hybrid Flow Support**: Account ID provided (fast) or discovered (seamless UX)
-- ✅ **Deterministic VRF**: Proper account-specific key derivation for recovery
-- ✅ **On-Chain Backup**: Device2 authenticator stored on-chain for account recovery
-- ✅ **Atomic Operations**: Key replacement happens in single transaction
-- ✅ **Clean Database**: Failed attempts automatically cleaned up
-- ✅ **Security**: TouchID authentication with cryptographic verification
-
 ## Flow Types
 
 ### **Option E: Account ID Provided (Faster)**
@@ -277,90 +268,7 @@ fn near_key_salt_for_account(account_id: &str) -> String {
 
 **Real Account (both Options):**
 ```rust
-// Salt: "near-key-derivation:serp117.web3-authn-v4.testnet"
+// Salt: "near-key-derivation:serp117.web3-authn-v5.testnet"
 // Used for actual authentication and account recovery
 ```
 
-## Error Handling & Cleanup
-
-### Failed Attempt Cleanup
-
-```typescript
-async cleanupFailedLinkingAttempt(): Promise<void> {
-  // Remove any authenticator data for the real account
-  await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(accountId);
-
-  // Remove any user data for the real account
-  await IndexedDBManager.clientDB.deleteUser(accountId);
-
-  // Remove VRF credentials for both temp and real accounts
-  await IndexedDBManager.nearKeysDB.deleteEncryptedKey(accountId);
-  await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
-}
-```
-
-### Session Management
-
-```typescript
-interface DeviceLinkingSession {
-  accountId: string | null; // Null until discovered (Option F) or provided (Option E)
-  nearPublicKey: string;
-  credential: PublicKeyCredential | null; // Null for Option F until real account discovered
-  vrfChallenge: VRFChallenge | null; // Null for Option F until real account discovered
-  status: DeviceLinkingStatus;
-  createdAt: number;
-  expiresAt: number;
-  tempPrivateKey?: string; // For Option F flow - temporary private key before replacement
-}
-```
-
-### TouchID Requirements
-
-- **Device1**: TouchID required for authorization transaction
-- **Device2 Option E**: TouchID required for proper credential generation
-- **Device2 Option F**: TouchID only when account is discovered (better UX)
-
-### Key Management
-
-- **Temporary keys**: Only used for QR generation and initial AddKey
-- **Proper keys**: Account-specific derivation for authentication and recovery
-- **Atomic replacement**: Old temp key deleted in same transaction as new key addition
-
-### Account Recovery
-
-- **Both devices** have authenticators stored on-chain in 1:N mapping
-- **Deterministic derivation** ensures consistent recovery across devices
-- **VRF credentials** properly scoped to real account for recovery
-
-## Benefits
-
-1. **Seamless UX**: No need to input account ID (Option F)
-2. **Fast Alternative**: Account ID input for immediate setup (Option E)
-3. **Secure**: TouchID + cryptographic verification at every step
-4. **Recoverable**: Both devices backed up on-chain for account recovery
-5. **Clean**: Failed attempts automatically cleaned up
-6. **Atomic**: Key operations happen in single transactions
-7. **Scalable**: Supports unlimited device linking per account
-
-## Troubleshooting
-
-### Common Issues
-
-**QR Code Not Detected:**
-- Ensure good lighting and camera focus
-- Try uploading QR image instead of camera scanning
-
-**Polling Timeout:**
-- Check network connectivity
-- Verify Device1 completed authorization transaction
-- Increase polling timeout if needed
-
-**Key Replacement Failed:**
-- Check account has sufficient gas balance
-- Verify temporary private key is valid
-- Ensure new public key derivation succeeded
-
-**Account Recovery Issues:**
-- Verify authenticator was registered on-chain
-- Check VRF credentials are using real account salt
-- Confirm 1:N mapping exists in contract state

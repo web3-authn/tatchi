@@ -55,7 +55,7 @@ Complete registration process documentation including step-by-step flow, TypeScr
 
 ## Registration System
 
-The registration system uses numbered steps (1-6) with Server-Sent Events (SSE) for real-time progress updates:
+The registration system uses numbered steps (1-6) with SDK-Sent Events (SSE) for real-time progress updates:
 
 | Step | Phase | Description | Duration | Critical |
 |------|-------|-------------|----------|----------|
@@ -67,14 +67,10 @@ The registration system uses numbered steps (1-6) with Server-Sent Events (SSE) 
 | **6** | `registration-complete` | Final confirmation | Instant | No |
 | **0** | `registration-error` | Fatal error occurred | Instant | Fatal |
 
-### Key Features
-- **Concurrent Operations**: Steps 4-5 run simultaneously for performance
-- **Error Resilience**: Non-fatal errors in steps 4-5 don't prevent usage
-- **Real-time Progress**: Numbered steps enable precise progress tracking
 
 ## Transaction Signing System
 
-All NEAR transaction signing happens inside WASM workers for enhanced security and performance.
+All transaction signing happens inside WASM workers for enhanced security and performance.
 
 ### Architecture Benefits
 
@@ -167,46 +163,6 @@ function handleRegistrationEvent(event: RegistrationSSEEvent) {
 }
 ```
 
-### Progress Calculation
-```typescript
-const progressPercentage = {
-  1: 20,   // WebAuthn verification
-  2: 30,   // User ready
-  3: 50,   // Account creation
-  4: 75,   // Database storage
-  5: 90,   // Contract registration
-  6: 100   // Complete
-}[event.step] || 0;
-```
-
-### Transaction Error Handling
-```typescript
-try {
-  const result = await passkeyManager.executeAction(actionArgs);
-  showSuccess('Transaction completed!');
-} catch (error) {
-  if (error.message.includes('User cancelled')) {
-    showInfo('Transaction cancelled by user');
-  } else if (error.message.includes('Insufficient funds')) {
-    showError('Insufficient balance for transaction');
-  } else {
-    showError(`Transaction failed: ${error.message}`);
-  }
-}
-```
-
-### Timeout Detection
-```typescript
-const REGISTRATION_TIMEOUT = 30000; // 30 seconds
-
-const timeoutId = setTimeout(() => {
-  showTimeoutError('Registration timed out');
-}, REGISTRATION_TIMEOUT);
-
-if (event.step === 6) {
-  clearTimeout(timeoutId);
-}
-```
 
 ## Key Security Features
 
@@ -236,13 +192,3 @@ if (event.step === 6) {
 4. **Test** error handling for both registration and transactions
 5. **Monitor** performance and user experience metrics
 
-## Support
-
-When reporting issues, include:
-- **Registration**: Step number, error message, session ID
-- **Transactions**: Transaction hash, error details, account ID
-- **General**: Browser/platform information, console logs
-
----
-
-**Next Steps**: Read the [Registration Flow documentation](./registration-flow.md) for detailed implementation guidance.

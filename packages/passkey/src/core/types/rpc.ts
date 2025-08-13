@@ -42,7 +42,7 @@ export interface TransactionContext {
   nearPublicKeyStr: string;
   accessKeyInfo: AccessKeyView;
   nextNonce: string;
-  txBlockHeight: number;
+  txBlockHeight: string;
   txBlockHash: string;
 }
 

@@ -20,11 +20,11 @@ This design eliminates contract dependencies while maintaining security guarante
 - **Session-Based**: VRF keypair persists in worker memory during browser session
 
 **Web Worker Benefits vs Service Workers:**
-- ✅ **Simpler Setup**: No scope configuration or registration complexity
-- ✅ **Immediate Start**: No waiting for Service Worker activation
-- ✅ **Direct Communication**: Standard Worker messaging without MessageChannel complexity
-- ✅ **Build Tool Friendly**: Standard file copying without MIME type issues
-- ⚠️ **Session-only**: VRF session ends when browser/tab closes (simpler than Service Worker persistence)
+- **Simpler Setup**: No scope configuration or registration complexity
+- **Immediate Start**: No waiting for Service Worker activation
+- **Direct Communication**: Standard Worker messaging without MessageChannel complexity
+- **Build Tool Friendly**: Standard file copying without MIME type issues
+- ️ **Session-only**: VRF session ends when browser/tab closes (simpler than Service Worker persistence)
 
 ### 2. **Encrypted VRF Keypair Management**
 - **Registration Flow**: Generate VRF keypair → Encrypt with WebAuthn PRF → Store in IndexedDB
@@ -122,7 +122,6 @@ sequenceDiagram
 2. **PRF Encryption**: `encryptVrfKeypairWithPrf(expectedPublicKey, prfOutput)` - encrypts the same in-memory VRF keypair with real PRF output
 
 
-
 ### **Flow 2: VRF Login** (Session initialization - Single TouchID)
 
 ```mermaid
@@ -177,11 +176,11 @@ sequenceDiagram
 - **Authentication**: Single TouchID per operation (VRF challenge generated automatically)
 
 **Security Guarantees**:
-- ✅ **No challenges can be generated without initial user consent** (login required)
-- ✅ **Each authentication is gated by a TouchID prompt** (WebAuthn ceremony)
-- ✅ **Challenge is verifiably random and client-bound** (VRF proof)
-- ✅ **VRF keypair encrypted at rest** (AES-GCM with PRF-derived key)
-- ✅ **WASM memory isolation** (VRF private keys secured in WASM linear memory)
+- **No challenges can be generated without initial user consent** (login required)
+- **Each authentication is gated by a TouchID prompt** (WebAuthn ceremony)
+- **Challenge is verifiably random and client-bound** (VRF proof)
+- **VRF keypair encrypted at rest** (AES-GCM with PRF-derived key)
+- **WASM memory isolation** (VRF private keys secured in WASM linear memory)
 
 ## **Implementation Architecture**
 
@@ -245,190 +244,6 @@ The VRF implementation uses a multi-stage build process:
    ./scripts/copy-wasm-assets.sh
    ```
 
-### **VRF Manager** (`packages/passkey/src/core/WebAuthnManager/vrf-manager.ts`)
-Client-side interface for communicating with the VRF Service Worker:
-
-```typescript
-export class VRFManager {
-  private serviceWorker: ServiceWorker | null = null;
-  private initializationPromise: Promise<void> | null = null;
-
-  // Initialize and register Service Worker
-  async initialize(): Promise<void>
-
-  // Check if Service Worker is ready
-  async isReady(): Promise<boolean>
-
-  // Unlock VRF keypair in Service Worker memory (login)
-  async unlockVRFKeypair(
-    nearAccountId: string,
-    encryptedVrfKeypair: EncryptedVRFData,
-    prfOutput: ArrayBuffer
-  ): Promise<ServiceWorkerResponse>
-
-  // Generate VRF challenge (authentication)
-  async generateVRFChallenge(
-    inputData: VRFInputData
-  ): Promise<VRFChallengeData>
-
-  // Get current VRF session status
-  async getVRFStatus(): Promise<{
-    active: boolean;
-    nearAccountId?: string;
-    sessionDuration?: number;
-  }>
-
-  // Clear VRF session (logout)
-  async logout(): Promise<void>
-
-  // High-level VRF operations
-  async generateVrfKeypairWithPrf(
-    prfOutput: ArrayBuffer
-  ): Promise<{ vrfPublicKey: string; encryptedVrfKeypair: any }>
-
-  async generateVrfChallengeWithPrf(
-    prfOutput: ArrayBuffer,
-    encryptedVrfKeypair: string,
-    encryptedVrfNonce: string,
-    userId: string,
-    rpId: string,
-    sessionId: string,
-    blockHeight: number,
-    blockHashBytes: number[],
-    timestamp: number
-  ): Promise<{
-    vrfInput: string;
-    vrfOutput: string;
-    vrfProof: string;
-    vrfPublicKey: string;
-    rpId: string;
-  }>
-}
-```
-
-### **VRF Web Worker Manager** (`packages/passkey/src/core/WebAuthnManager/vrf-manager.ts`)
-TypeScript manager that communicates with client-hosted VRF Web Workers:
-
-```typescript
-/**
- * VRF Manager Configuration
- */
-export interface VRFManagerConfig {
-  vrfWorkerUrl?: string;     // URL to VRF Web Worker (defaults to /workers/vrf-service-worker.js)
-  workerTimeout?: number;    // Initialization timeout
-  debug?: boolean;           // Enable debug logging
-}
-
-/**
- * Initialize Web Worker with client-hosted VRF worker
- */
-private async initializeWebWorker(): Promise<void> {
-  // Default URL: /workers/vrf-service-worker.js (user must host this file)
-  this.vrfWorker = new Worker(this.config.vrfWorkerUrl!, { type: 'module' });
-
-  // Set up error handling
-  this.vrfWorker.onerror = (error) => {
-    console.error('❌ VRF Manager: Web Worker error:', error);
-  };
-
-  // Test communication
-  await this.testWebWorkerCommunication();
-}
-
-/**
- * Send message to Web Worker with direct communication (no MessageChannel needed)
- */
-private async sendMessage(message: ServiceWorkerMessage): Promise<ServiceWorkerResponse> {
-  return new Promise((resolve, reject) => {
-    const handleMessage = (event: MessageEvent) => {
-      const response = event.data as ServiceWorkerResponse;
-      if (response.id === message.id) {
-        this.vrfWorker!.removeEventListener('message', handleMessage);
-        resolve(response);
-      }
-    };
-
-    this.vrfWorker.addEventListener('message', handleMessage);
-    this.vrfWorker.postMessage(message);
-  });
-}
-```
-
-### **WASM VRF Implementation** (`packages/passkey/src/wasm-vrf-worker/src/lib.rs`)
-Rust implementation using `vrf-wasm` library with global state management:
-
-```rust
-// VRF and crypto imports
-use vrf_wasm::ecvrf::ECVRFKeyPair;
-use vrf_wasm::vrf::{VRFKeyPair, VRFProof};
-use vrf_wasm::traits::WasmRngFromSeed;
-use aes_gcm::{Aes256Gcm, Nonce, aead::{Aead, KeyInit}};
-use sha2::{Digest, Sha256};
-use hkdf::Hkdf;
-
-// Global state management
-thread_local! {
-    static VRF_MANAGER: Rc<RefCell<VRFKeyManager>> = Rc::new(RefCell::new(VRFKeyManager::new()));
-}
-
-pub struct VRFKeyManager {
-    vrf_keypair: Option<SecureVRFKeyPair>,
-    session_active: bool,
-    session_start_time: f64,
-}
-
-impl VRFKeyManager {
-    // Generate VRF keypair for bootstrapping (stores in memory temporarily)
-    pub fn generate_vrf_keypair_bootstrap(
-        &mut self,
-        vrf_input_params: Option<VRFInputData>,
-    ) -> Result<VrfKeypairBootstrapResponse, String>
-
-    // Encrypt VRF keypair with PRF output (looks up in-memory keypair)
-    pub fn encrypt_vrf_keypair_with_prf(
-        &mut self,
-        expected_public_key: String,
-        prf_key: Vec<u8>,
-    ) -> Result<EncryptedVrfKeypairResponse, String>
-
-    // Unlock VRF keypair using PRF-derived AES key with HKDF
-    pub fn unlock_vrf_keypair(
-        &mut self,
-        near_account_id: String,
-        encrypted_vrf_data: EncryptedVRFData,
-        prf_key: Vec<u8>,
-    ) -> Result<(), String>
-
-    // Generate VRF challenge using in-memory keypair with proper domain separation
-    pub fn generate_vrf_challenge(
-        &self,
-        input_data: VRFInputData
-    ) -> Result<VRFChallengeData, String>
-
-    // Get session status with timing
-    pub fn get_vrf_status(&self) -> serde_json::Value
-
-    // Clear session and sensitive data
-    pub fn logout(&mut self) -> Result<(), String>
-
-    // Internal methods for encryption/decryption
-    fn decrypt_vrf_keypair(&self, encrypted_vrf_data: EncryptedVRFData, prf_key: Vec<u8>) -> Result<ECVRFKeyPair, String>
-    fn encrypt_vrf_keypair_data(&self, vrf_keypair: &ECVRFKeyPair, prf_key: &[u8]) -> Result<(String, serde_json::Value), String>
-}
-
-// WASM exports with message routing
-#[wasm_bindgen]
-pub fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
-    // Routes messages to appropriate VRF_MANAGER methods:
-    // - PING: Health check
-    // - GENERATE_VRF_KEYPAIR_BOOTSTRAP: Generate VRF keypair and store in memory
-    // - ENCRYPT_VRF_KEYPAIR_WITH_PRF: Encrypt in-memory VRF keypair with PRF
-    // - UNLOCK_VRF_KEYPAIR: Load keypair into memory (login)
-    // - GENERATE_VRF_CHALLENGE: Create VRF challenge
-    // - CHECK_VRF_STATUS: Get session status
-    // - LOGOUT: Clear session
-}
-```
 
 ## **Security Model**
 
@@ -444,12 +259,6 @@ pub fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
 3. **No JavaScript Access**: VRF private keys never exposed to JavaScript context
 4. **Deterministic Execution**: WASM provides predictable, auditable execution
 
-### **Service Worker Security**
-1. **Cross-Tab Persistence**: VRF session available across browser tabs
-2. **Background Processing**: VRF operations continue even when tabs are closed
-3. **Separate Context**: Service Worker runs in isolated context from main thread
-4. **Controlled Access**: Message-based API prevents unauthorized VRF access
-
 ### **NEAR-Specific Protections**
 1. **Block Height Freshness**: Challenges expire with old blocks
 2. **Block Hash Binding**: Prevents reuse across forks/reorgs
@@ -462,7 +271,7 @@ pub fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
 3. **User Presence**: WebAuthn UV/UP flags verified
 4. **Signature Verification**: ECDSA/EdDSA signatures validated
 
-## 🏗️ **Contract Interface**
+## **Contract Interface**
 
 ### **VRF Registration**
 ```rust
@@ -518,112 +327,3 @@ pub struct VRFAuthenticationData {
 }
 ```
 
-
-## **WASM Worker SDK Integration Guide**
-
-VRF functionality requires hosting the Web Worker files:
-
-#### **Option 1: Manual File Copying** (Development)
-```bash
-# Copy VRF Web Worker files to your public directory
-cp node_modules/@web3authn/passkey/dist/vrf-service-worker.js public/workers/
-cp node_modules/@web3authn/passkey/dist/vrf_service_worker.js public/workers/
-cp node_modules/@web3authn/passkey/dist/vrf_service_worker_bg.wasm public/workers/
-```
-
-#### **Option 2: Build Tool Integration** (Production)
-```bash
-# Use the provided copy script
-./node_modules/@web3authn/passkey/scripts/copy-wasm-assets.sh
-
-# Or integrate into your build process
-npm run build && cp node_modules/@web3authn/passkey/dist/vrf-* public/workers/
-```
-
-#### **Option 3: Custom Build Integration**
-```javascript
-// vite.config.js / next.config.js / webpack.config.js
-// Copy worker files as part of your build process
-import { copyFile } from 'fs/promises';
-
-const copyWorkers = async () => {
-  await copyFile('node_modules/@web3authn/passkey/dist/vrf-service-worker.js', 'public/workers/vrf-service-worker.js');
-  // Copy other worker files...
-};
-```
-
-### **Quick Start**
-
-1. **Initialize VRF Service Worker** (during app startup):
-   ```typescript
-   import { PasskeyManager } from '@web3authn/passkey';
-
-   const passkeyManager = new PasskeyManager(config, nearRpcProvider);
-   await passkeyManager.initializeVRFServiceWorker();
-   ```
-
-2. **VRF Registration** (first-time user):
-   ```typescript
-   const result = await passkeyManager.registerPasskey('alice.testnet', {
-     optimisticAuth: true,
-     onEvent: (event) => console.log('Registration event:', event)
-   });
-
-   if (result.success && result.vrfRegistration?.success) {
-     console.log('✅ VRF registration complete');
-     console.log('VRF Public Key:', result.vrfRegistration.vrfPublicKey);
-   }
-   ```
-
-3. **VRF Login** (session initialization):
-   ```typescript
-   const loginResult = await passkeyManager.loginPasskey('alice.testnet');
-
-   if (loginResult.success) {
-     console.log('✅ VRF session active');
-     // VRF keypair now unlocked in Service Worker memory
-   }
-   ```
-
-4. **VRF Authentication** (ongoing operations):
-   ```typescript
-   const authResult = await passkeyManager.authenticateWithVRF(
-     'alice.testnet',
-     crypto.randomUUID(), // sessionId
-     { verifyWithContract: true }
-   );
-
-   if (authResult.success && authResult.contractVerification?.verified) {
-     console.log('✅ VRF authentication verified on-chain');
-   }
-   ```
-
-
-### **Contract Method Details**
-
-The contract integration calls the `verify_authentication_response` method with properly formatted data:
-
-```rust
-// Contract method signature
-pub fn verify_authentication_response(
-    &mut self,
-    vrf_data: VRFAuthenticationData,
-    webauthn_data: WebAuthnAuthenticationData,
-) -> VerifiedAuthenticationResponse
-```
-
-**VRF Data Format:**
-- `vrf_input_data`: SHA256 hash of VRF input components (Vec<u8>)
-- `vrf_output`: VRF output used as WebAuthn challenge (Vec<u8>)
-- `vrf_proof`: Bincode-serialized VRF proof (Vec<u8>)
-- `public_key`: Bincode-serialized VRF public key (Vec<u8>)
-- `user_id`: Account ID (String)
-- `rp_id`: Relying Party ID (String)
-- `block_height`: NEAR block height for freshness (u64)
-- `block_hash`: NEAR block hash for entropy (Vec<u8>)
-
-**WebAuthn Data Format:**
-- `id`: Credential ID (String)
-- `raw_id`: Raw credential ID (Vec<u8>)
-- `response`: WebAuthn assertion response
-- Standard WebAuthn fields for contract verification

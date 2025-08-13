@@ -39,6 +39,8 @@ num-traits = "0.2"
 num-integer = "0.1"
 rand = "0.8"
 wasm-bindgen-futures = "0.4" # Async HTTP support
+# Base58 encoding/decoding
+bs58 = "0.5"
 
 [dependencies.web-sys]
 version = "0.3"

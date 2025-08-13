@@ -1,5 +1,8 @@
 use std::fmt;
 use serde::{Deserialize, Serialize};
+use hkdf::InvalidLength as HkdfInvalidLength;
+use bincode::Error as BincodeError;
+use wasm_bindgen::JsValue;
 
 /// VRF Worker Error Types
 ///
@@ -29,9 +32,6 @@ pub enum VrfWorkerError {
     /// Serialization/deserialization errors
     SerializationError(SerializationError),
 
-    /// VRF cryptographic operation errors
-    VrfCryptoError(VrfCryptoError),
-
     /// Public key mismatch during verification
     PublicKeyMismatch { expected: String, actual: String },
 
@@ -43,6 +43,9 @@ pub enum VrfWorkerError {
 
     /// Invalid worker message format
     InvalidMessageFormat(String),
+
+    /// Block Height parsing error
+    BlockHeightParsingError(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,8 +58,6 @@ pub enum HkdfError {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AesError {
-    /// Failed to create AES cipher
-    CipherCreationFailed(String),
     /// AES encryption failed
     EncryptionFailed(String),
     /// AES decryption failed
@@ -82,22 +83,7 @@ pub enum SerializationError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum VrfCryptoError {
-    /// VRF proof generation failed
-    ProofGenerationFailed(String),
-    /// VRF verification failed
-    VerificationFailed(String),
-    /// Invalid VRF input data
-    InvalidInput(String),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MessageError {
-    /// Failed to stringify JSON message
-    StringifyFailed,
-    /// Message is not a valid string
-    NotString,
-    /// Failed to parse JSON message
     JsonParsingFailed(String),
 }
 
@@ -126,9 +112,6 @@ impl fmt::Display for VrfWorkerError {
             VrfWorkerError::SerializationError(err) => {
                 write!(f, "Serialization error: {}", err)
             }
-            VrfWorkerError::VrfCryptoError(err) => {
-                write!(f, "VRF cryptographic error: {}", err)
-            }
             VrfWorkerError::PublicKeyMismatch { expected, actual } => {
                 write!(f, "VRF public key mismatch - expected: {}..., actual: {}...",
                     &expected[..20.min(expected.len())],
@@ -142,6 +125,9 @@ impl fmt::Display for VrfWorkerError {
             }
             VrfWorkerError::InvalidMessageFormat(msg) => {
                 write!(f, "Invalid message format: {}", msg)
+            }
+            VrfWorkerError::BlockHeightParsingError(msg) => {
+                write!(f, "Block height parsing error: {}", msg)
             }
         }
     }
@@ -159,7 +145,7 @@ impl fmt::Display for HkdfError {
 impl fmt::Display for AesError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            AesError::CipherCreationFailed(msg) => write!(f, "Failed to create cipher: {}", msg),
+            // AesError::CipherCreationFailed(msg) => write!(f, "Failed to create cipher: {}", msg),
             AesError::EncryptionFailed(msg) => write!(f, "Encryption failed: {}", msg),
             AesError::DecryptionFailed(msg) => write!(f, "Failed to decrypt VRF keypair: {}", msg),
             AesError::IvGenerationFailed(msg) => write!(f, "Failed to generate secure IV: {}", msg),
@@ -192,27 +178,11 @@ impl fmt::Display for SerializationError {
     }
 }
 
-impl fmt::Display for VrfCryptoError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            VrfCryptoError::ProofGenerationFailed(msg) => {
-                write!(f, "VRF proof generation failed: {}", msg)
-            }
-            VrfCryptoError::VerificationFailed(msg) => {
-                write!(f, "VRF verification failed: {}", msg)
-            }
-            VrfCryptoError::InvalidInput(msg) => {
-                write!(f, "Invalid VRF input: {}", msg)
-            }
-        }
-    }
-}
-
 impl fmt::Display for MessageError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MessageError::StringifyFailed => write!(f, "Failed to stringify message"),
-            MessageError::NotString => write!(f, "Message is not a string"),
+            // MessageError::StringifyFailed => write!(f, "Failed to stringify message"),
+            // MessageError::NotString => write!(f, "Message is not a string"),
             MessageError::JsonParsingFailed(msg) => write!(f, "Failed to parse message: {}", msg),
         }
     }
@@ -223,7 +193,7 @@ impl std::error::Error for VrfWorkerError {}
 impl std::error::Error for HkdfError {}
 impl std::error::Error for AesError {}
 impl std::error::Error for SerializationError {}
-impl std::error::Error for VrfCryptoError {}
+// impl std::error::Error for VrfCryptoError {}
 impl std::error::Error for MessageError {}
 
 // Conversion helpers for common error types
@@ -233,10 +203,28 @@ impl From<serde_json::Error> for VrfWorkerError {
     }
 }
 
+impl From<HkdfInvalidLength> for VrfWorkerError {
+    fn from(_: HkdfInvalidLength) -> Self {
+        VrfWorkerError::HkdfDerivationFailed(HkdfError::KeyDerivationFailed)
+    }
+}
+
+impl From<BincodeError> for VrfWorkerError {
+    fn from(err: BincodeError) -> Self {
+        VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(format!("{:?}", err)))
+    }
+}
+
 // Add From<String> implementation to handle string errors
 impl From<String> for VrfWorkerError {
     fn from(err: String) -> Self {
         VrfWorkerError::InvalidMessageFormat(err)
+    }
+}
+
+impl From<VrfWorkerError> for JsValue {
+    fn from(err: VrfWorkerError) -> Self {
+        JsValue::from_str(&format!("{}", err))
     }
 }
 

@@ -86,7 +86,7 @@ RELAYER_ACCOUNT_ID=your-relayer.testnet
 RELAYER_PRIVATE_KEY=ed25519:relayer-private-key
 NEAR_RPC_URL=https://rpc.testnet.near.org
 NETWORK_ID=testnet
-WEBAUTHN_CONTRACT_ID=web3-authn-v4.testnet
+WEBAUTHN_CONTRACT_ID=web3-authn-v5.testnet
 DEFAULT_INITIAL_BALANCE=50000000000000000000000
 ```
 

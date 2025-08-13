@@ -17,11 +17,33 @@ mod utils;
 // Re-export important types and functions
 pub use config::*;
 pub use errors::*;
-pub use handlers::*;
 pub use manager::*;
 pub use shamir3pass::*;
-pub use types::*;
 pub use utils::*;
+
+// Import specific types to avoid ambiguity
+pub use types::{
+    VrfWorkerMessage, VrfWorkerResponse, WorkerRequestType,
+};
+
+// Import request types from their respective handler files
+pub use handlers::handle_generate_vrf_challenge::GenerateVrfChallengeRequest;
+pub use handlers::handle_generate_vrf_keypair_bootstrap::GenerateVrfKeypairBootstrapRequest;
+pub use handlers::handle_unlock_vrf_keypair::UnlockVrfKeypairRequest;
+pub use handlers::handle_derive_vrf_keypair_from_prf::DeriveVrfKeypairFromPrfRequest;
+pub use handlers::handle_shamir3pass_client::{
+    Shamir3PassClientEncryptCurrentVrfKeypairRequest,
+    Shamir3PassClientDecryptVrfKeypairRequest,
+};
+pub use handlers::handle_shamir3pass_server::{
+    Shamir3PassGenerateServerKeypairRequest,
+    Shamir3PassApplyServerLockRequest,
+    Shamir3PassRemoveServerLockRequest,
+};
+pub use handlers::handle_shamir3pass_config::{
+    Shamir3PassConfigPRequest,
+    Shamir3PassConfigServerUrlsRequest,
+};
 
 // Import JSON functions for message serialization
 #[wasm_bindgen]
@@ -36,10 +58,8 @@ extern "C" {
 #[wasm_bindgen(start)]
 pub fn main() {
     console_error_panic_hook::set_once();
-
     // Initialize logger with the configured log level
     wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
-
     info!("VRF WASM Worker starting up...");
     debug!("Logging system initialized with level: {:?}", config::CURRENT_LOG_LEVEL);
 }
@@ -85,37 +105,115 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
     let message_str = stringify(&message).as_string()
         .ok_or_else(|| JsValue::from_str("Failed to stringify message"))?;
 
-    let message: VRFWorkerMessage = serde_json::from_str(&message_str)
+    let message: VrfWorkerMessage = serde_json::from_str(&message_str)
         .map_err(|e| JsValue::from_str(&format!("Failed to parse message: {}", e)))?;
 
+    // Identify the message type using WorkerRequestType
     debug!("Received message: {}", message.msg_type);
+    let request_type = WorkerRequestType::from(message.msg_type.as_str());
 
     let manager_rc = VRF_MANAGER.with(|m| m.clone());
 
-    let response = match message.msg_type.as_str() {
+    let response = match request_type {
         // Test VRF worker health
-        "PING" => handle_ping(message.id),
+        WorkerRequestType::Ping => {
+            handlers::handle_ping(message.id)
+        }
         // Bootstrap VRF keypair + challenge generation (only for registration)
-        "GENERATE_VRF_CHALLENGE" => handle_generate_vrf_challenge(manager_rc.clone(), message.id, message.data),
-        "GENERATE_VRF_KEYPAIR_BOOTSTRAP" => handle_generate_vrf_keypair_bootstrap(manager_rc.clone(), message.id, message.data),
-        "UNLOCK_VRF_KEYPAIR" => handle_unlock_vrf_keypair(manager_rc.clone(), message.id, message.data),
-        "ENCRYPT_VRF_KEYPAIR_WITH_PRF" => handle_encrypt_vrf_keypair_with_prf(manager_rc.clone(), message.id, message.data),
-        "CHECK_VRF_STATUS" => handle_check_vrf_status(manager_rc.clone(), message.id),
-        "LOGOUT" => handle_logout(manager_rc.clone(), message.id),
-        "DERIVE_VRF_KEYPAIR_FROM_PRF" => handle_derive_vrf_keypair_from_prf(manager_rc.clone(), message.id, message.data).await,
+        WorkerRequestType::GenerateVrfKeypairBootstrap => {
+            handlers::handle_generate_vrf_keypair_bootstrap(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::UnlockVrfKeypair => {
+            handlers::handle_unlock_vrf_keypair(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::CheckVrfStatus => {
+            handlers::handle_check_vrf_status(
+                manager_rc.clone(),
+                message.id.clone()
+            )
+        },
+        WorkerRequestType::Logout => {
+            handlers::handle_logout(
+                manager_rc.clone(),
+                message.id.clone()
+            )
+        },
+        WorkerRequestType::GenerateVrfChallenge => {
+            handlers::handle_generate_vrf_challenge(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::DeriveVrfKeypairFromPrf => {
+            handlers::handle_derive_vrf_keypair_from_prf(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            ).await
+        },
         // Shamir 3‑pass registration
         // Initial VRF encryption is performed in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
         // So this handler is somewhat redundant, but may be useful for future use cases
-        "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR" => handle_shamir3pass_client_encrypt_current_vrf_keypair(manager_rc.clone(), message.id, message.data).await,
-        "SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR" => handle_shamir3pass_client_decrypt_vrf_keypair(manager_rc.clone(), message.id, message.data).await,
+        WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => {
+            handlers::handle_shamir3pass_client_encrypt_current_vrf_keypair(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            ).await
+        },
+        WorkerRequestType::Shamir3PassClientDecryptVrfKeypair => {
+            handlers::handle_shamir3pass_client_decrypt_vrf_keypair(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            ).await
+        },
         // Server-side helpers used by Node relay-server, they lock and unlock the KEK (key encryption key)
-        "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR" => handle_shamir3pass_generate_server_keypair(manager_rc.clone(), message.id, message.data),
-        "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => handle_shamir3pass_apply_server_lock_kek(manager_rc.clone(), message.id, message.data),
-        "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => handle_shamir3pass_remove_server_lock_kek(manager_rc.clone(), message.id, message.data),
+        WorkerRequestType::Shamir3PassGenerateServerKeypair => {
+            handlers::handle_shamir3pass_generate_server_keypair(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::Shamir3PassApplyServerLock => {
+            handlers::handle_shamir3pass_apply_server_lock_kek(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::Shamir3PassRemoveServerLock => {
+            handlers::handle_shamir3pass_remove_server_lock_kek(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
         // Configure Shamir p (global) and server URLs
-        "CONFIGURE_SHAMIR_P" => handle_configure_shamir_p(manager_rc.clone(), message.id, message.data),
-        "CONFIGURE_SHAMIR_SERVER_URLS" => handle_configure_shamir_server_urls(manager_rc.clone(), message.id, message.data),
-        _ => handle_unknown_message(message.msg_type, message.id),
+        WorkerRequestType::Shamir3PassConfigP => {
+            handlers::handle_shamir3pass_config_p(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
+        WorkerRequestType::Shamir3PassConfigServerUrls => {
+            handlers::handle_shamir3pass_config_server_urls(
+                manager_rc.clone(),
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?
+            )
+        },
     };
 
     // Convert response to JsValue

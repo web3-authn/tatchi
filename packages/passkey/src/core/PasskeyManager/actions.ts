@@ -7,9 +7,8 @@ import type { ActionHooksOptions, ActionResult } from '../types/passkeyManager';
 import type { TransactionContext, BlockInfo } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
 import type { NearClient } from '../NearClient';
-import type { VRFInputData } from '../types/vrf-worker';
 import type { AccountId } from '../types/accountIds';
-import { ActionSSEEvent, ActionPhase, ActionStatus } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 
 /**
  * Core action execution function without React dependencies
@@ -109,7 +108,7 @@ export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr,
     throw new Error(`Access key not found or invalid for account ${nearAccountId} with public key ${nearPublicKeyStr}. Response: ${JSON.stringify(accessKeyInfo)}`);
   }
   const nextNonce = (BigInt(accessKeyInfo.nonce) + BigInt(1)).toString();
-  const txBlockHeight = txBlockInfo.header.height;
+  const txBlockHeight = String(txBlockInfo.header.height);
   const txBlockHash = txBlockInfo.header.hash; // Keep original base58 string
 
   return {

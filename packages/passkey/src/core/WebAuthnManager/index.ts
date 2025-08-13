@@ -1,25 +1,24 @@
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
-import { ActionType } from '../types/actions';
-import { toAccountId } from '../types/accountIds';
 import {
   IndexedDBManager,
   type ClientUserData,
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
-import {
-  type NearClient,
-  SignedTransaction
-} from '../NearClient';
+import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './signerWorkerManager';
 import { VrfWorkerManager } from './vrfWorkerManager';
 import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
-import { type ActionParams } from '../types/signer-worker';
-import { extractPrfFromCredential } from './credentialsHelpers';
-import { EncryptedVRFKeypair, ServerEncryptedVrfKeypair, VRFInputData, VRFKeypairData } from '../types/vrf-worker';
+import { toAccountId } from '../types/accountIds';
+
+import {
+  EncryptedVRFKeypair,
+  ServerEncryptedVrfKeypair,
+  VRFInputData,
+  VRFChallenge
+} from '../types/vrf-worker';
+import type { ActionParams } from '../types/actions';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
-import { VRFChallenge } from '../types/vrf-worker';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -80,14 +79,7 @@ export class WebAuthnManager {
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
-    const result = await this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
-    if (!result.vrfChallenge) {
-      throw new Error('VRF challenge generation failed');
-    }
-    return {
-      vrfPublicKey: result.vrfPublicKey,
-      vrfChallenge: result.vrfChallenge
-    };
+    return this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
   }
 
   /**
@@ -178,10 +170,8 @@ export class WebAuthnManager {
 
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
         credential,
-        touchIdPrompt: this.touchIdPrompt,
         nearAccountId,
         encryptedVrfKeypair,
-        authenticators: [], // Empty array since we already have the credential
       });
 
       if (!unlockResult.success) {
@@ -207,16 +197,16 @@ export class WebAuthnManager {
   async shamir3PassDecryptVrfKeypair({
     nearAccountId,
     kek_s_b64u,
-    ciphertext_vrf_b64u,
+    ciphertextVrfB64u,
   }: {
     nearAccountId: AccountId;
     kek_s_b64u: string;
-    ciphertext_vrf_b64u: string;
+    ciphertextVrfB64u: string;
   }): Promise<{ success: boolean; error?: string }> {
     const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
       nearAccountId,
       kek_s_b64u,
-      ciphertext_vrf_b64u,
+      ciphertextVrfB64u,
     });
 
     return {
@@ -536,7 +526,6 @@ export class WebAuthnManager {
     credential,
     vrfChallenge,
     deterministicVrfPublicKey,
-    signerAccountId,
     nearAccountId,
     nearPublicKeyStr,
     nearClient,
@@ -548,7 +537,6 @@ export class WebAuthnManager {
     credential: PublicKeyCredential,
     vrfChallenge: VRFChallenge,
     deterministicVrfPublicKey: string, // deterministic VRF key for key recovery
-    signerAccountId: string;
     nearAccountId: AccountId;
     nearPublicKeyStr: string;
     nearClient: NearClient;
@@ -561,7 +549,7 @@ export class WebAuthnManager {
     registrationInfo?: any;
     logs?: string[];
     signedTransaction: SignedTransaction;
-    preSignedDeleteTransaction: SignedTransaction;
+    preSignedDeleteTransaction: SignedTransaction | null;
     error?: string;
   }> {
     try {
@@ -570,7 +558,6 @@ export class WebAuthnManager {
         credential,
         contractId,
         deterministicVrfPublicKey, // Pass through the deterministic VRF key
-        signerAccountId,
         nearAccountId,
         nearPublicKeyStr,
         nearClient,
@@ -653,11 +640,17 @@ export class WebAuthnManager {
           id: credential.id,
           rawId: credentialId
         },
-        encryptedVrfKeypair: encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair || undefined,
+        encryptedVrfKeypair: {
+          encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
+        },
+        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
+          ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
+          kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
+        } : undefined,
       });
 
-      console.debug('✅ registration data stored atomically');
+      console.debug('Registration data stored atomically');
       return true;
     });
 
@@ -682,7 +675,6 @@ export class WebAuthnManager {
    * @returns Public key and encrypted private key for secure storage
    */
   async recoverKeypairFromPasskey(
-    challenge: Uint8Array<ArrayBuffer>,
     authenticationCredential: PublicKeyCredential,
     accountIdHint?: string,
   ): Promise<{
@@ -712,7 +704,6 @@ export class WebAuthnManager {
       // Call the WASM worker to derive and encrypt the keypair using dual PRF
       const result = await this.signerWorkerManager.recoverKeypairFromPasskey(
         authenticationCredential,
-        base64UrlEncode(challenge),
         accountIdHint
       );
 

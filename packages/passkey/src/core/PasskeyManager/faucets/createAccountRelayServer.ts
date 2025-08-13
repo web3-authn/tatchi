@@ -2,12 +2,12 @@ import { VRFChallenge } from '../../../core/types/vrf-worker';
 import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/passkeyManager';
 import { PasskeyManagerContext } from '..';
 import { base64UrlDecode } from '../../../utils/encoders';
-import { removePrfOutputGuard, serializeCredential } from '../../WebAuthnManager/credentialsHelpers';
+import { removePrfOutputGuard, serializeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
 import { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 
 /**
- * Request data interface for the relay server's atomic account creation endpoint
+ * HTTP Request body for the relay server's /create_account_and_register_user endpoint
  */
 export interface CreateAccountAndRegisterUserRequest {
   new_account_id: string;
@@ -25,7 +25,6 @@ export interface CreateAccountAndRegisterUserRequest {
   };
   webauthn_registration: WebAuthnRegistrationCredential;
   deterministic_vrf_public_key: number[];
-  // authenticator options
   authenticator_options?: AuthenticatorOptions;
 }
 
@@ -64,7 +63,7 @@ export async function createAccountAndRegisterWithRelayServer(
     });
 
     // Serialize the WebAuthn credential properly for the contract
-    const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serializeCredential(credential));
+    const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serializeRegistrationCredential(credential));
 
     // Prepare data for atomic endpoint
     const requestData: CreateAccountAndRegisterUserRequest = {
@@ -78,13 +77,12 @@ export async function createAccountAndRegisterWithRelayServer(
         public_key: Array.from(base64UrlDecode(vrfChallenge.vrfPublicKey)),
         user_id: vrfChallenge.userId,
         rp_id: vrfChallenge.rpId,
-        block_height: vrfChallenge.blockHeight,
+        block_height: Number(vrfChallenge.blockHeight),
         block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
       },
       webauthn_registration: serializedCredential,
       deterministic_vrf_public_key: Array.from(base64UrlDecode(deterministicVrfPublicKey)),
       authenticator_options: authenticatorOptions || context.configs.authenticatorOptions,
-      // Use config-based authenticator options
     };
 
     onEvent?.({
@@ -146,10 +144,3 @@ export async function createAccountAndRegisterWithRelayServer(
     };
   }
 }
-
-/**
- * Fetch the server's SRA public key for commutative encryption
- * @param relayServerUrl - URL of the relay server
- * @returns Server SRA public key or null if failed
- */
-// SRA removed: fetchServerSRAPublicKey deprecated

@@ -99,7 +99,8 @@ impl TryFrom<&VrfChallenge> for VrfData {
                 .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("Failed to decode VRF public key: {}", e)))?,
             user_id: vrf_challenge.user_id.clone(),
             rp_id: vrf_challenge.rp_id.clone(),
-            block_height: vrf_challenge.block_height,
+            block_height: vrf_challenge.block_height.parse::<u64>()
+                .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("Failed to parse block height: {}", e)))?,
             block_hash: base64_url_decode(&vrf_challenge.block_hash)
                 .map_err(|e| wasm_bindgen::JsValue::from_str(&format!("Failed to decode block hash: {}", e)))?,
         })

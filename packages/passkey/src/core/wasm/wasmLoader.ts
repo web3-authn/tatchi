@@ -5,22 +5,16 @@
 export interface WasmLoaderOptions {
   /** Worker name for logging (e.g., 'signer-worker', 'vrf-worker') */
   workerName: string;
-
   /** WASM URL for network fallback */
   wasmUrl: URL;
-
   /** WASM module init function (from wasm-bindgen) */
   initFunction: (wasmModule?: any) => Promise<void>;
-
   /** Optional validation function to run after WASM initialization */
   validateFunction?: () => void | Promise<void>;
-
   /** Optional timeout in milliseconds (default: 20000) */
   timeoutMs?: number;
-
   /** Optional fallback factory for creating error-handling modules */
   createFallbackModule?: (errorMessage: string) => any;
-
   /** Optional initialization test function */
   testFunction?: () => void | Promise<void>;
 }
@@ -124,7 +118,7 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
         await testFunction();
       }
 
-      console.debug(`[${workerName}]: ✅ WASM initialized successfully`);
+      console.debug(`[${workerName}]: WASM initialized successfully`);
       return true; // Success indicator
     } catch (bundledError: any) {
       console.warn(`[${workerName}]: Bundled WASM unavailable, attempting network fallback:`, bundledError.message);
@@ -157,7 +151,7 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
         await testFunction();
       }
 
-      console.debug(`[${workerName}]: ✅ WASM initialized via network fallback`);
+      console.debug(`[${workerName}]: WASM initialized via network fallback`);
       return true; // Success indicator
 
     } catch (networkError: any) {

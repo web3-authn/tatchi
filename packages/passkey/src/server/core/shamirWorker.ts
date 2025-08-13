@@ -11,6 +11,15 @@ import initWasm, {
   get_shamir_p_b64u,
   SHAMIR_P_B64U,
 } from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import {
+  VRFWorkerMessage,
+  WasmVrfWorkerRequestType,
+  ShamirApplyServerLockRequest,
+  ShamirApplyServerLockResponse,
+  ShamirRemoveServerLockRequest,
+  ShamirRemoveServerLockResponse,
+  Shamir3PassGenerateServerKeypairRequest,
+} from './types';
 
 export { SHAMIR_P_B64U, get_shamir_p_b64u };
 
@@ -42,35 +51,19 @@ async function ensureWasmInitialized(): Promise<void> {
   wasmInitialized = true;
 }
 
-export interface ApplyServerLockRequest {
-  kek_c_b64u: string;
-}
-
-export interface ApplyServerLockResponse {
-  kek_cs_b64u: string;
-}
-
-export interface RemoveServerLockRequest {
-  kek_cs_b64u: string;
-}
-
-export interface RemoveServerLockResponse {
-  kek_c_b64u: string;
-}
-
 export class Shamir3PassUtils {
   private p_b64u: string;
   private e_s_b64u: string;
   private d_s_b64u: string;
 
-  constructor({ p_b64u, e_s_b64u, d_s_b64u }: {
+  constructor(opts: {
     p_b64u?: string;
     e_s_b64u?: string;
     d_s_b64u?: string
   }) {
-    this.p_b64u = p_b64u ?? '';
-    this.e_s_b64u = e_s_b64u ?? '';
-    this.d_s_b64u = d_s_b64u ?? '';
+    this.p_b64u = opts.p_b64u ?? '';
+    this.e_s_b64u = opts.e_s_b64u ?? '';
+    this.d_s_b64u = opts.d_s_b64u ?? '';
   }
 
   async initialize(): Promise<{ p_b64u: string }> {
@@ -81,30 +74,35 @@ export class Shamir3PassUtils {
       this.p_b64u = default_p_b64u;
     }
     await configure_shamir_p(this.p_b64u);
-    return { p_b64u: this.p_b64u };
+    return {
+      p_b64u: this.p_b64u
+    };
   }
 
   async generateServerKeypair(): Promise<{ e_s_b64u: string; d_s_b64u: string }> {
     await ensureWasmInitialized();
-    const msg = {
+    const msg: VRFWorkerMessage<Shamir3PassGenerateServerKeypairRequest> = {
       type: 'SHAMIR3PASS_GENERATE_SERVER_KEYPAIR',
       id: `srv_${Date.now()}`,
-      data: {},
+      payload: {},
     };
     const res = await wasmHandleMessage(msg);
     if (!res?.success) throw new Error(res?.error || 'generateServerKeypair failed');
-    return { e_s_b64u: res.data.e_s_b64u, d_s_b64u: res.data.d_s_b64u };
+    return {
+      e_s_b64u: res.data.e_s_b64u,
+      d_s_b64u: res.data.d_s_b64u
+    };
   }
 
-  async applyServerLock(req: ApplyServerLockRequest): Promise<ApplyServerLockResponse> {
+  async applyServerLock(req: ShamirApplyServerLockRequest): Promise<ShamirApplyServerLockResponse> {
     await ensureWasmInitialized();
     if (!this.e_s_b64u) {
       throw new Error('Server exponent e_s_b64u not configured');
     }
-    const msg = {
+    const msg: VRFWorkerMessage<ShamirApplyServerLockRequest> = {
       type: 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK',
       id: `srv_${Date.now()}`,
-      data: {
+      payload: {
         e_s_b64u: this.e_s_b64u,
         kek_c_b64u: req.kek_c_b64u
       },
@@ -118,15 +116,15 @@ export class Shamir3PassUtils {
     };
   }
 
-  async removeServerLock(req: RemoveServerLockRequest): Promise<RemoveServerLockResponse> {
+  async removeServerLock(req: ShamirRemoveServerLockRequest): Promise<ShamirRemoveServerLockResponse> {
     await ensureWasmInitialized();
     if (!this.d_s_b64u) {
       throw new Error('Server exponent d_s_b64u not configured');
     }
-    const msg = {
+    const msg: VRFWorkerMessage<ShamirRemoveServerLockRequest> = {
       type: 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK',
       id: `srv_${Date.now()}`,
-      data: {
+      payload: {
         d_s_b64u: this.d_s_b64u,
         kek_cs_b64u: req.kek_cs_b64u
       },
@@ -135,7 +133,9 @@ export class Shamir3PassUtils {
     if (!res?.success) {
       throw new Error(res?.error || 'removeServerLock failed');
     }
-    return { kek_c_b64u: res.data.kek_c_b64u };
+    return {
+      kek_c_b64u: res.data.kek_c_b64u,
+    };
   }
 }
 

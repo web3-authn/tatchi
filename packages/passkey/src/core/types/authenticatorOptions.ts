@@ -1,3 +1,5 @@
+import * as wasmModule from '@/wasm_signer_worker/wasm_signer_worker';
+
 /**
  * User verification policy for WebAuthn authenticators
  *
@@ -20,46 +22,41 @@ export enum UserVerificationPolicy {
 }
 
 /**
- * Origin policy input for WebAuthn registration (user-provided)
+ * Origin policy input for WebAuthn registration (matches WASM OriginPolicyInput struct)
+ * Note: choose only one of the fields: single, all_subdomains, multiple
  */
-export type OriginPolicyInput =
-  | 'single'
-  | { multiple: string[] }
-  | 'allSubdomains';
+export interface OriginPolicyInput {
+  single: boolean | undefined;
+  all_subdomains: boolean | undefined;
+  multiple: string[] | undefined;
+}
 
-/**
- * Options for configuring WebAuthn authenticator behavior during registration
- *
- * @example
- * ```typescript
- * // Require user verification with multiple allowed origins
- * {
- *   user_verification: UserVerificationPolicy.Required,
- *   origin_policy: OriginPolicyInput.multiple(['app.example.com', 'admin.example.com'])
- * }
- *
- * // Preferred user verification with all subdomains allowed
- * {
- *   user_verification: UserVerificationPolicy.Preferred,
- *   origin_policy: "allSubdomains"
- * }
- *
- * // Default options (both fields null)
- * {
- *   user_verification: null,
- *   origin_policy: null
- * }
- * ```
- */
+export const toEnumUserVerificationPolicy = (userVerification: UserVerificationPolicy | undefined): wasmModule.UserVerificationPolicy => {
+  switch (userVerification) {
+    case UserVerificationPolicy.Required:
+      return wasmModule.UserVerificationPolicy.Required;
+    case UserVerificationPolicy.Preferred:
+      return wasmModule.UserVerificationPolicy.Preferred;
+    case UserVerificationPolicy.Discouraged:
+      return wasmModule.UserVerificationPolicy.Discouraged;
+    default:
+      return wasmModule.UserVerificationPolicy.Preferred;
+  }
+};
+
 export interface AuthenticatorOptions {
-  user_verification?: UserVerificationPolicy | null;
-  origin_policy?: OriginPolicyInput | null;
+  userVerification: UserVerificationPolicy;
+  originPolicy: OriginPolicyInput;
 }
 
 /**
  * Default authenticator options (matches contract defaults)
  */
 export const DEFAULT_AUTHENTICATOR_OPTIONS: AuthenticatorOptions = {
-  user_verification: UserVerificationPolicy.Preferred,
-  origin_policy: 'allSubdomains'
+  userVerification: UserVerificationPolicy.Preferred,
+  originPolicy: {
+    single: undefined,
+    all_subdomains: true,
+    multiple: undefined
+  }
 };

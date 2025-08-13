@@ -5,7 +5,11 @@
 
 import init, * as vrfWasmModule from '../wasm_vrf_worker/wasm_vrf_worker';
 import { resolveWasmUrl } from './wasm/wasmLoader';
-import type { VRFWorkerMessage, VRFWorkerResponse } from './types/vrf-worker';
+import type {
+  VRFWorkerMessage,
+  WasmVrfWorkerRequestType,
+  VRFWorkerResponse
+} from './types/vrf-worker';
 
 /**
  * WASM Asset Path Resolution for VRF Worker
@@ -81,7 +85,7 @@ async function processQueuedMessages(): Promise<void> {
 
 // Main message handler
 async function handleMessage(event: MessageEvent): Promise<void> {
-  const data: VRFWorkerMessage = event.data;
+  const data: VRFWorkerMessage<WasmVrfWorkerRequestType> = event.data;
 
   // If WASM is not ready, queue the message
   if (!wasmReady) {

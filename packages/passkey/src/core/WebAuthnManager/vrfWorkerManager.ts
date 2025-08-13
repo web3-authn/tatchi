@@ -3,7 +3,6 @@
  * Uses Web Workers for VRF keypair management with client-hosted worker files.
  */
 
-import { ClientAuthenticatorData } from '../IndexedDBManager/passkeyClientDB';
 import type {
   VRFWorkerStatus,
   VrfWorkerManagerConfig,
@@ -12,11 +11,16 @@ import type {
   VRFWorkerMessage,
   VRFWorkerResponse,
   ServerEncryptedVrfKeypair,
-  VRFKeypairData
+  WasmVrfWorkerRequestType,
+  WasmGenerateVrfChallengeRequest,
+  WasmGenerateVrfKeypairBootstrapRequest,
+  WasmShamir3PassConfigPRequest,
+  WasmShamir3PassConfigServerUrlsRequest,
+  WasmShamir3PassClientDecryptVrfKeypairRequest,
+  WasmUnlockVrfKeypairRequest,
+  WasmDeriveVrfKeypairFromPrfRequest,
 } from '../types/vrf-worker';
 import { VRFChallenge } from '../types/vrf-worker';
-import { TouchIdPrompt } from './touchIdPrompt';
-import { base58Decode } from '../../utils';
 import { BUILD_PATHS } from '../../../build-paths.js';
 import { AccountId, toAccountId } from '../types/accountIds';
 import { extractPrfFromCredential } from './credentialsHelpers';
@@ -57,31 +61,28 @@ export class VrfWorkerManager {
    * @param requireHealthCheck - Whether to perform health check after initialization
    */
   private async ensureWorkerReady(requireHealthCheck = false): Promise<void> {
-    // Initialize if needed
     if (this.initializationPromise) {
       await this.initializationPromise;
     } else if (!this.vrfWorker) {
       await this.initialize();
     }
-
     if (!this.vrfWorker) {
       throw new Error('VRF Worker failed to initialize');
     }
-
     // Optional health check for critical operations
     if (requireHealthCheck) {
       try {
         const healthResponse = await this.sendMessage({
           type: 'PING',
           id: this.generateMessageId(),
-          data: {}
+          payload: {} as WasmVrfWorkerRequestType
         }, 3000);
 
         if (!healthResponse.success) {
           throw new Error('VRF Worker failed health check');
         }
       } catch (error) {
-        console.error('🛡️ VRF Manager: Health check failed:', error);
+        console.error('VRF Manager: Health check failed:', error);
         throw new Error('VRF Worker failed health check');
       }
     }
@@ -94,7 +95,6 @@ export class VrfWorkerManager {
     if (this.initializationPromise) {
       return this.initializationPromise;
     }
-
     // =============================================================
     // This improved error handling ensures that:
     // 1. Initialization failures are properly logged with full details
@@ -138,10 +138,10 @@ export class VrfWorkerManager {
 
       // Configure Shamir P if provided
       if (this.config.shamirPB64u) {
-        const resp = await this.sendMessage({
-          type: 'CONFIGURE_SHAMIR_P',
+        const resp = await this.sendMessage<WasmShamir3PassConfigPRequest>({
+          type: 'SHAMIR3PASS_CONFIG_P',
           id: this.generateMessageId(),
-          data: { p_b64u: this.config.shamirPB64u }
+          payload: { p_b64u: this.config.shamirPB64u }
         });
         if (!resp.success) {
           throw new Error(`Failed to configure Shamir P: ${resp.error}`);
@@ -150,13 +150,13 @@ export class VrfWorkerManager {
 
       // Configure relay server URLs if provided
       if (this.config.relayServerUrl && this.config.applyServerLockRoute && this.config.removeServerLockRoute) {
-        const resp2 = await this.sendMessage({
-          type: 'CONFIGURE_SHAMIR_SERVER_URLS',
+        const resp2 = await this.sendMessage<WasmShamir3PassConfigServerUrlsRequest>({
+          type: 'SHAMIR3PASS_CONFIG_SERVER_URLS',
           id: this.generateMessageId(),
-          data: {
-            relay_server_url: this.config.relayServerUrl,
-            apply_lock_route: this.config.applyServerLockRoute,
-            remove_lock_route: this.config.removeServerLockRoute,
+          payload: {
+            relayServerUrl: this.config.relayServerUrl,
+            applyLockRoute: this.config.applyServerLockRoute,
+            removeLockRoute: this.config.removeServerLockRoute,
           }
         });
         if (!resp2.success) {
@@ -172,7 +172,10 @@ export class VrfWorkerManager {
   /**
    * Send message to Web Worker and wait for response
    */
-  private async sendMessage(message: VRFWorkerMessage, customTimeout?: number): Promise<VRFWorkerResponse> {
+  private async sendMessage<T extends WasmVrfWorkerRequestType>(
+    message: VRFWorkerMessage<T>,
+    customTimeout?: number
+  ): Promise<VRFWorkerResponse> {
     return new Promise((resolve, reject) => {
       if (!this.vrfWorker) {
         reject(new Error('VRF Web Worker not available'));
@@ -211,17 +214,13 @@ export class VrfWorkerManager {
    */
   async unlockVrfKeypair({
     credential,
-    touchIdPrompt,
     nearAccountId,
     encryptedVrfKeypair,
-    authenticators,
     onEvent,
   }: {
     credential: PublicKeyCredential,
-    touchIdPrompt: TouchIdPrompt,
     nearAccountId: AccountId,
     encryptedVrfKeypair: EncryptedVRFKeypair,
-    authenticators: ClientAuthenticatorData[],
     onEvent?: (event: { type: string, data: { step: string, message: string } }) => void,
   }): Promise<VRFWorkerResponse> {
     await this.ensureWorkerReady(true);
@@ -244,12 +243,12 @@ export class VrfWorkerManager {
       }
     });
 
-    const message: VRFWorkerMessage = {
+    const message: VRFWorkerMessage<WasmUnlockVrfKeypairRequest> = {
       type: 'UNLOCK_VRF_KEYPAIR',
       id: this.generateMessageId(),
-      data: {
+      payload: {
         nearAccountId,
-        encryptedVrfKeypair,
+        encryptedVrfKeypair: encryptedVrfKeypair,
         prfKey: chacha20PrfOutput // already a base64url string
       }
     };
@@ -268,61 +267,6 @@ export class VrfWorkerManager {
     return response;
   }
 
-  // Not used at the moment.
-  // We currently shamir3pass encrypt the VRF keypair in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
-  // This handler is somewhat redundant, but may be useful for future use cases
-  async shamir3PassEncryptCurrentVrfKeypair({
-    nearAccountId,
-    relayServerUrl,
-    applyServerLockRoute,
-  }: {
-    nearAccountId: AccountId;
-    relayServerUrl: string;
-    applyServerLockRoute?: string;
-  }): Promise<VRFWorkerResponse> {
-    await this.ensureWorkerReady(true);
-    const message: VRFWorkerMessage = {
-      type: 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR',
-      id: this.generateMessageId(),
-      data: {
-        nearAccountId,
-        relayServerUrl,
-        applyServerLockRoute
-      },
-    };
-    return this.sendMessage(message);
-  }
-
-  /**
-   * This securely decrypts the shamir3Pass encrypted VRF keypair and loads it into memory
-   * It performs Shamir-3-Pass commutative decryption within WASM worker with the relay-server
-   */
-  async shamir3PassDecryptVrfKeypair({
-    nearAccountId,
-    kek_s_b64u,
-    ciphertext_vrf_b64u,
-  }: {
-    nearAccountId: AccountId;
-    kek_s_b64u: string;
-    ciphertext_vrf_b64u: string;
-  }): Promise<VRFWorkerResponse> {
-    await this.ensureWorkerReady(true);
-    const message: VRFWorkerMessage = {
-      type: 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR',
-      id: this.generateMessageId(),
-      data: {
-        nearAccountId,
-        kek_s_b64u,
-        ciphertext_vrf_b64u,
-      },
-    };
-    const response = await this.sendMessage(message);
-    if (response.success) {
-      this.currentVrfAccountId = nearAccountId;
-    }
-    return response;
-  }
-
   /**
    * Generate VRF challenge using in-memory VRF keypair
    * This is called during authentication to create WebAuthn challenges
@@ -331,16 +275,16 @@ export class VrfWorkerManager {
     console.debug('VRF Manager: Generating VRF challenge...');
     await this.ensureWorkerReady(true);
 
-    const message: VRFWorkerMessage = {
+    const message: VRFWorkerMessage<WasmGenerateVrfChallengeRequest> = {
       type: 'GENERATE_VRF_CHALLENGE',
       id: this.generateMessageId(),
-      data: {
-        user_id: inputData.userId,
-        rp_id: inputData.rpId,
-        block_height: inputData.blockHeight,
-        // Convert base58 blockHash to byte array to be consistent with Rust Vec<u8>
-        block_hash: Array.from(base58Decode(inputData.blockHash)),
-        timestamp: Date.now()
+      payload: {
+        vrfInputData: {
+          userId: inputData.userId,
+          rpId: inputData.rpId,
+          blockHeight: String(inputData.blockHeight),
+          blockHash: inputData.blockHash,
+        }
       }
     };
 
@@ -366,10 +310,10 @@ export class VrfWorkerManager {
     }
 
     try {
-      const message: VRFWorkerMessage = {
+      const message: VRFWorkerMessage<WasmVrfWorkerRequestType> = {
         type: 'CHECK_VRF_STATUS',
         id: this.generateMessageId(),
-        data: {}
+        payload: {} as WasmVrfWorkerRequestType
       };
 
       const response = await this.sendMessage(message);
@@ -398,10 +342,10 @@ export class VrfWorkerManager {
     await this.ensureWorkerReady();
 
     try {
-      const message: VRFWorkerMessage = {
+      const message: VRFWorkerMessage<WasmVrfWorkerRequestType> = {
         type: 'LOGOUT',
         id: this.generateMessageId(),
-        data: {}
+        payload: {} as WasmVrfWorkerRequestType
       };
 
       const response = await this.sendMessage(message);
@@ -438,21 +382,19 @@ export class VrfWorkerManager {
       saveInMemory,
       withChallenge: !!vrfInputData
     });
-
     await this.ensureWorkerReady();
 
     try {
-      const message: VRFWorkerMessage = {
+      const message: VRFWorkerMessage<WasmGenerateVrfKeypairBootstrapRequest> = {
         type: 'GENERATE_VRF_KEYPAIR_BOOTSTRAP',
         id: this.generateMessageId(),
-        data: {
-          // Include VRF input parameters if provided for challenge generation
-          vrfInputParams: vrfInputData ? {
-            user_id: vrfInputData.userId,
-            rp_id: vrfInputData.rpId,
-            block_height: vrfInputData.blockHeight,
-            block_hash: Array.from(base58Decode(vrfInputData.blockHash)),
-            timestamp: Date.now()
+        payload: {
+          // Include VRF input data if provided for challenge generation
+          vrfInputData: vrfInputData ? {
+            userId: vrfInputData.userId,
+            rpId: vrfInputData.rpId,
+            blockHeight: String(vrfInputData.blockHeight),
+            blockHash: vrfInputData.blockHash,
           } : undefined
         }
       };
@@ -473,7 +415,7 @@ export class VrfWorkerManager {
 
       // TODO: strong types generated by Rust wasm-bindgen
       return {
-        vrfPublicKey: response.data.vrf_public_key,
+        vrfPublicKey: response.data.vrfPublicKey,
         vrfChallenge: new VRFChallenge({
           vrfInput: response.data.vrf_challenge_data.vrfInput,
           vrfOutput: response.data.vrf_challenge_data.vrfOutput,
@@ -536,25 +478,22 @@ export class VrfWorkerManager {
         && vrfInputData?.userId
         && vrfInputData?.rpId;
 
-      // Pass base64url string directly - VRF worker handles conversion internally
-      const messageData = {
-        prfOutput: chacha20PrfOutput, // Base64url string → VRF worker handles conversion
-        nearAccountId: nearAccountId,
-        saveInMemory: saveInMemory, // Whether to save VRF keypair in worker memory
-        vrfInputParams: hasVrfInputData ? {
-          user_id: vrfInputData?.userId,
-          rp_id: vrfInputData?.rpId,
-          block_height: vrfInputData?.blockHeight,
-          block_hash: Array.from(base58Decode(vrfInputData?.blockHash || '')),
-          timestamp: Date.now()
-        } : null,
-      };
-      // Add VRF input parameters if provided for challenge generation
 
-      const message: VRFWorkerMessage = {
+      const message: VRFWorkerMessage<WasmDeriveVrfKeypairFromPrfRequest> = {
         type: 'DERIVE_VRF_KEYPAIR_FROM_PRF',
         id: this.generateMessageId(),
-        data: messageData
+        payload: {
+          prfOutput: chacha20PrfOutput,
+          nearAccountId: nearAccountId,
+          saveInMemory: saveInMemory,
+          // Add VRF input parameters if provided for challenge generation
+          vrfInputData: hasVrfInputData ? {
+            userId: vrfInputData.userId,
+            rpId: vrfInputData.rpId,
+            blockHeight: String(vrfInputData.blockHeight),
+            blockHash: vrfInputData.blockHash,
+          } : undefined,
+        }
       };
 
       const response = await this.sendMessage(message);
@@ -562,22 +501,25 @@ export class VrfWorkerManager {
       if (!response.success || !response.data) {
         throw new Error(`VRF keypair derivation failed: ${response.error}`);
       }
-      if (!response.data.vrf_public_key) {
+      if (!response.data.vrfPublicKey) {
         throw new Error('VRF public key not found in response');
+      }
+      if (!response.data.encryptedVrfKeypair) {
+        throw new Error('Encrypted VRF keypair not found in response - this is required for registration');
       }
       console.debug('VRF Manager: Deterministic VRF keypair derivation successful');
 
       // VRF challenge data is optional - only generated if vrfInputData was provided
-      const vrfChallenge = response.data.vrf_challenge_data
+      const vrfChallenge = response.data.vrfChallengeData
         ? new VRFChallenge({
-            vrfInput: response.data.vrf_challenge_data.vrfInput,
-            vrfOutput: response.data.vrf_challenge_data.vrfOutput,
-            vrfProof: response.data.vrf_challenge_data.vrfProof,
-            vrfPublicKey: response.data.vrf_challenge_data.vrfPublicKey,
-            userId: response.data.vrf_challenge_data.userId,
-            rpId: response.data.vrf_challenge_data.rpId,
-            blockHeight: response.data.vrf_challenge_data.blockHeight,
-            blockHash: response.data.vrf_challenge_data.blockHash,
+            vrfInput: response.data.vrfChallengeData.vrfInput,
+            vrfOutput: response.data.vrfChallengeData.vrfOutput,
+            vrfProof: response.data.vrfChallengeData.vrfProof,
+            vrfPublicKey: response.data.vrfChallengeData.vrfPublicKey,
+            userId: response.data.vrfChallengeData.userId,
+            rpId: response.data.vrfChallengeData.rpId,
+            blockHeight: response.data.vrfChallengeData.blockHeight,
+            blockHash: response.data.vrfChallengeData.blockHash,
           })
         : null;
 
@@ -587,10 +529,10 @@ export class VrfWorkerManager {
         encryptedVrfKeypair: EncryptedVRFKeypair;
         serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
       } = {
-        vrfPublicKey: response.data.vrf_public_key,
+        vrfPublicKey: response.data.vrfPublicKey,
         vrfChallenge,
-        encryptedVrfKeypair: response.data.encrypted_vrf_keypair,
-        serverEncryptedVrfKeypair: response.data.server_encrypted_vrf_keypair,
+        encryptedVrfKeypair: response.data.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: response.data.serverEncryptedVrfKeypair,
       };
 
       return result;
@@ -602,40 +544,53 @@ export class VrfWorkerManager {
   }
 
   /**
-   * Test Web Worker communication with progressive retry
+   * This securely decrypts the shamir3Pass encrypted VRF keypair and loads it into memory
+   * It performs Shamir-3-Pass commutative decryption within WASM worker with the relay-server
+   */
+  async shamir3PassDecryptVrfKeypair({
+    nearAccountId,
+    kek_s_b64u,
+    ciphertextVrfB64u,
+  }: {
+    nearAccountId: AccountId;
+    kek_s_b64u: string;
+    ciphertextVrfB64u: string;
+  }): Promise<VRFWorkerResponse> {
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage<WasmShamir3PassClientDecryptVrfKeypairRequest> = {
+      type: 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR',
+      id: this.generateMessageId(),
+      payload: {
+        nearAccountId,
+        kek_s_b64u,
+        ciphertextVrfB64u,
+      },
+    };
+    const response = await this.sendMessage(message);
+    if (response.success) {
+      this.currentVrfAccountId = nearAccountId;
+    }
+    return response;
+  }
+
+  /**
+   * Test Web Worker communication
    */
   private async testWebWorkerCommunication(): Promise<void> {
-    const maxAttempts = 3;
-    const baseDelay = 1000;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        console.debug(`VRF Manager: Communication test attempt ${attempt}/${maxAttempts}`);
-        const timeoutMs = attempt === 1 ? 8000 : 5000;
-
-        const pingResponse = await this.sendMessage({
-          type: 'PING',
-          id: this.generateMessageId(),
-          data: {}
-        }, timeoutMs);
-
-        if (!pingResponse.success) {
-          throw new Error(`VRF Web Worker PING failed: ${pingResponse.error}`);
-        }
-
-        console.debug('VRF Manager: Web Worker communication verified');
-        return;
-      } catch (error: any) {
-        console.warn(`️ VRF Manager: Communication test attempt ${attempt} failed:`, error.message);
-
-        if (attempt === maxAttempts) {
-          throw new Error(`Communication test failed after ${maxAttempts} attempts: ${error.message}`);
-        }
-
-        const delay = baseDelay * attempt;
-        console.debug(`   Waiting ${delay}ms before retry...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+    try {
+      const timeoutMs = 2000;
+      const pingResponse = await this.sendMessage({
+        type: 'PING',
+        id: this.generateMessageId(),
+        payload: {} as WasmVrfWorkerRequestType
+      }, timeoutMs);
+      if (!pingResponse.success) {
+        throw new Error(`VRF Web Worker PING failed: ${pingResponse.error}`);
       }
+      console.debug('VRF Manager: Web Worker communication verified');
+      return;
+    } catch (error: any) {
+      console.warn(`️VRF Manager: testWebWorkerCommunication failed:`, error.message);
     }
   }
 }

@@ -4,7 +4,6 @@ This document demonstrates how to use the NEP-413 message signing functionality 
 
 ## Basic Usage
 
-### Simple Message Signing
 
 ```typescript
 import { PasskeyManager } from '@web3authn/passkey';
@@ -12,7 +11,7 @@ import { PasskeyManager } from '@web3authn/passkey';
 const passkeyManager = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v4.testnet',
+  contractId: 'web3-authn-v5.testnet',
   relayerAccount: 'relayer.testnet'
 });
 
