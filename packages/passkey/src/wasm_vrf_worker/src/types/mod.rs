@@ -69,7 +69,7 @@ pub struct VRFChallengeData {
     pub rp_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHeight")]
     #[serde(rename = "blockHeight")]
-    pub block_height: u64,
+    pub block_height: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
     #[serde(rename = "blockHash")]
     pub block_hash: String,

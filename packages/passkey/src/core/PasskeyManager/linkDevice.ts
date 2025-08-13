@@ -1,31 +1,27 @@
 import { KeyPair } from '@near-js/crypto';
 
 import type { PasskeyManagerContext } from './index';
-import { ActionType } from '../types/actions';
+import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { generateBootstrapVrfChallenge } from './registration';
 import { getNonceBlockHashAndHeight } from './actions';
 import { base64UrlEncode } from '../../utils';
-import type { AccountId } from '../types/accountIds';
-import { toAccountId } from '../types/accountIds';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
+import { ActionType, type ActionParams } from '../types/actions';
+import { toAccountId, type AccountId } from '../types/accountIds';
+import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import { DEFAULT_WAIT_STATUS } from "../types/rpc";
+
+import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
+import QRCode from 'qrcode'; // jsQR will be dynamically imported when needed
 import type {
   DeviceLinkingQRData,
   DeviceLinkingSession,
   StartDeviceLinkingOptionsDevice2
 } from '../types/linkDevice';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
-import QRCode from 'qrcode';
-// jsQR will be dynamically imported when needed
-import type { ActionParams } from '../types/signer-worker';
-import { IndexedDBManager } from '../IndexedDBManager';
-import type { EncryptedVRFKeypair } from '../types/vrf-worker';
-import { VRFChallenge } from '../types/vrf-worker';
-import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
-import { DEFAULT_WAIT_STATUS } from "../types/rpc";
-import { DeviceLinkingPhase, DeviceLinkingStatus, LoginPhase } from '../types/passkeyManager';
-import type { ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
 
 
 async function generateQRCodeDataURL(data: string): Promise<string> {

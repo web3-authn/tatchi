@@ -61,44 +61,57 @@ type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistr
  * @returns SerializableCredential - The serialized credential
  * - DOES NOT return PRF outputs
  */
-export function serializeCredential<C extends SerializableCredential>(
+export function serializeRegistrationCredential(
   credential: PublicKeyCredential,
-): C {
-  // Check if this is a registration credential by looking for attestationObject
-  const response = credential.response;
-  const isRegistration = 'attestationObject' in response;
+): WebAuthnRegistrationCredential {
+  const response = credential.response as AuthenticatorAttestationResponse;
 
-  const credentialBase = {
+  return {
     id: credential.id,
     rawId: base64UrlEncode(credential.rawId),
     type: credential.type,
-    authenticatorAttachment: credential.authenticatorAttachment,
-    response: {},
-    clientExtensionResults: null
-  }
-
-  if (isRegistration) {
-    const attestationResponse = response as AuthenticatorAttestationResponse;
-    return {
-      ...credentialBase,
+    authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
     response: {
-      clientDataJSON: base64UrlEncode(attestationResponse.clientDataJSON),
-      attestationObject: base64UrlEncode(attestationResponse.attestationObject),
-      transports: attestationResponse.getTransports() || [],
+      clientDataJSON: base64UrlEncode(response.clientDataJSON),
+      attestationObject: base64UrlEncode(response.attestationObject),
+      transports: response.getTransports() || [],
     },
-    } as C;
-  } else {
-    const assertionResponse = response as AuthenticatorAssertionResponse;
-    return {
-      ...credentialBase,
-      response: {
-        clientDataJSON: base64UrlEncode(assertionResponse.clientDataJSON),
-        authenticatorData: base64UrlEncode(assertionResponse.authenticatorData),
-        signature: base64UrlEncode(assertionResponse.signature),
-        userHandle: assertionResponse.userHandle ? base64UrlEncode(assertionResponse.userHandle as ArrayBuffer) : null,
-      },
-    } as C;
-  }
+    clientExtensionResults: {
+      prf: {
+        results: {
+          first: undefined,
+          second: undefined
+        }
+      }
+    },
+  };
+}
+
+export function serializeAuthenticationCredential(
+  credential: PublicKeyCredential,
+): WebAuthnAuthenticationCredential {
+  const response = credential.response as AuthenticatorAssertionResponse;
+
+  return {
+    id: credential.id,
+    rawId: base64UrlEncode(credential.rawId),
+    type: credential.type,
+    authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
+    response: {
+      clientDataJSON: base64UrlEncode(response.clientDataJSON),
+      authenticatorData: base64UrlEncode(response.authenticatorData),
+      signature: base64UrlEncode(response.signature),
+      userHandle: response.userHandle ? base64UrlEncode(response.userHandle as ArrayBuffer) : undefined,
+    },
+    clientExtensionResults: {
+      prf: {
+        results: {
+          first: undefined,
+          second: undefined
+        }
+      }
+    },
+  };
 }
 
 /**
@@ -106,7 +119,35 @@ export function serializeCredential<C extends SerializableCredential>(
  * @returns SerializableCredential - The serialized credential
  * - INCLUDES PRF outputs
  */
-export function serializeCredentialWithPRF<C extends SerializableCredential>({
+export function serializeRegistrationCredentialWithPRF({
+  credential,
+  firstPrfOutput = true,
+  secondPrfOutput = true,
+}: {
+  credential: PublicKeyCredential,
+  firstPrfOutput?: boolean,
+  secondPrfOutput?: boolean,
+}): WebAuthnRegistrationCredential {
+  const base = serializeRegistrationCredential(credential);
+  const { chacha20PrfOutput, ed25519PrfOutput } = extractPrfFromCredential({
+    credential,
+    firstPrfOutput,
+    secondPrfOutput,
+  });
+  return {
+    ...base,
+    clientExtensionResults: {
+      prf: {
+        results: {
+          first: chacha20PrfOutput,
+          second: ed25519PrfOutput,
+        },
+      },
+    },
+  };
+}
+
+export function serializeAuthenticationCredentialWithPRF({
   credential,
   firstPrfOutput = true,
   secondPrfOutput = false,
@@ -114,28 +155,24 @@ export function serializeCredentialWithPRF<C extends SerializableCredential>({
   credential: PublicKeyCredential,
   firstPrfOutput?: boolean,
   secondPrfOutput?: boolean,
-}): C {
-
-  const {
-    chacha20PrfOutput,
-    ed25519PrfOutput
-  } = extractPrfFromCredential({
+}): WebAuthnAuthenticationCredential {
+  const base = serializeAuthenticationCredential(credential);
+  const { chacha20PrfOutput, ed25519PrfOutput } = extractPrfFromCredential({
     credential,
     firstPrfOutput,
-    secondPrfOutput
+    secondPrfOutput,
   });
-
   return {
-    ...serializeCredential(credential),
+    ...base,
     clientExtensionResults: {
       prf: {
         results: {
           first: chacha20PrfOutput,
-          second: ed25519PrfOutput
-        }
-      }
-    }
-  } as C;
+          second: ed25519PrfOutput,
+        },
+      },
+    },
+  };
 }
 
 /**

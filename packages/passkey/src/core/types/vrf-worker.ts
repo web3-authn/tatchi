@@ -32,7 +32,7 @@ export class VRFChallenge {
   vrfPublicKey: string;
   userId: string;
   rpId: string;
-  blockHeight: number;
+  blockHeight: string;
   blockHash: string;
 
   constructor(vrfChallengeData: {
@@ -42,7 +42,7 @@ export class VRFChallenge {
     vrfPublicKey: string;
     userId: string;
     rpId: string;
-    blockHeight: number;
+    blockHeight: string;
     blockHash: string;
   }) {
     if (!vrfChallengeData.vrfInput || typeof vrfChallengeData.vrfInput !== 'string') {
@@ -63,8 +63,8 @@ export class VRFChallenge {
     if (!vrfChallengeData.rpId || typeof vrfChallengeData.rpId !== 'string') {
       throw new Error('rpId must be a non-empty string');
     }
-    if (typeof vrfChallengeData.blockHeight !== 'number' || vrfChallengeData.blockHeight < 0) {
-      throw new Error('blockHeight must be a non-negative number');
+    if (!vrfChallengeData.blockHeight || typeof vrfChallengeData.blockHeight !== 'string') {
+      throw new Error('blockHeight must be a non-empty string');
     }
     if (!vrfChallengeData.blockHash || typeof vrfChallengeData.blockHash !== 'string') {
       throw new Error('blockHash must be a non-empty string');
@@ -116,7 +116,7 @@ export interface EncryptedVRFKeypair {
 export interface VRFInputData {
   userId: string;
   rpId: string;
-  blockHeight: number;
+  blockHeight: string;
   blockHash: string;
 }
 

@@ -39,6 +39,7 @@ import {
   WorkerResponseType,
   ProgressStep,
   ProgressStepMap,
+  WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
 import init, * as wasmModule from '../wasm_signer_worker/wasm_signer_worker.js';
@@ -155,7 +156,7 @@ async function initializeWasm(): Promise<void> {
   }
 }
 
-self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType>>): Promise<void> => {
+self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
   if (messageProcessed) {
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure, // Use any failure type as fallback

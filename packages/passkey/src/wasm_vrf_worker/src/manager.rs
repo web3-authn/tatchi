@@ -276,7 +276,7 @@ impl VRFKeyManager {
             vrf_public_key: base64_url_encode(&pk_bytes),
             user_id: input_data.user_id,
             rp_id: input_data.rp_id,
-            block_height: block_height_num,
+            block_height: input_data.block_height,
             block_hash: base64_url_encode(&block_hash_bytes),
         };
 

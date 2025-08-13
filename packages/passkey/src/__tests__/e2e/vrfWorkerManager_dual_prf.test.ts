@@ -21,7 +21,7 @@ const TEST_CONFIG = {
   VRF_INPUT_PARAMS: {
     userId: 'vrf-test-account.testnet',
     rpId: 'localhost',
-    blockHeight: 12345,
+    blockHeight: '12345',
     blockHash: '11111111111111111111111111111111111111111111', // Simple valid base58 string (all 1s, decodes to zeros)
   },
   MOCK_PRF_OUTPUT: 'dGVzdC1wcmYtb3V0cHV0LTMyLWJ5dGVzLWZvci10ZXN0aW5n', // base64url: 'test-prf-output-32-bytes-for-testing'
@@ -126,7 +126,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
       sessionDuration: 0
     });
 
-    console.log('✅ VRF Worker Manager initialization test passed');
+    console.log('VRF Worker Manager initialization test passed');
   });
 
   ////////////////////////////////////
@@ -213,7 +213,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     expect(result.publicKeysAreDifferent).toBe(true); // Bootstrap keypairs are random
     expect(result.challengesAreDifferent).toBe(true); // Different keypairs → different challenges
 
-    console.log('✅ VRF bootstrap keypair generation test passed');
+    console.log('VRF bootstrap keypair generation test passed');
     console.log(`   Generated VRF public keys: ${result.vrfPublicKey1} vs ${result.vrfPublicKey2}`);
     console.log(`   Generated VRF outputs: ${result.vrfOutput1} vs ${result.vrfOutput2}`);
   });
@@ -357,7 +357,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     expect(result.hasEncryptedKeypair1).toBe(true);
     expect(result.hasEncryptedKeypair2).toBe(true);
 
-    console.log('✅ VRF deterministic derivation test passed');
+    console.log('VRF deterministic derivation test passed');
     console.log(`   Same PRF public key: ${result.vrfPublicKey1}`);
     console.log(`   Different PRF public key: ${result.vrfPublicKey3}`);
     console.log(`   Deterministic behavior verified: ${result.samePublicKey && result.sameVrfOutput}`);
@@ -431,7 +431,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     expect(result?.clearedStatus?.active).toBe(false);
     expect(result?.clearedStatus?.nearAccountId).toBe(null);
 
-    console.log('✅ VRF session management test passed');
+    console.log('VRF session management test passed');
     console.log(`   Session lifecycle: inactive → active → inactive`);
   });
 
@@ -467,7 +467,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         const vrfInputData = {
           userId: testConfig.ACCOUNT_ID,
           rpId: configs.rpId,
-          blockHeight: 67890,
+          blockHeight: "67890",
           blockHash: testConfig.VRF_INPUT_PARAMS.blockHash,
         };
 
@@ -481,7 +481,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         console.log('Generating VRF challenge with different input...');
         const differentInputData = {
           ...vrfInputData,
-          blockHeight: 99999,
+          blockHeight: "99999",
         };
         const vrfChallenge3 = await vrfWorkerManager.generateVrfChallenge(differentInputData);
 
@@ -534,7 +534,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     expect(result.differentVrfOutput).toBe(true);
     expect(result.differentVrfProof).toBe(true);
 
-    console.log('✅ VRF challenge generation test passed');
+    console.log('VRF challenge generation test passed');
     console.log(`   Same input VRF output: ${result.vrfOutput1}`);
     console.log(`   Different input VRF output: ${result.vrfOutput3}`);
     console.log(`   Deterministic behavior verified: ${result.sameVrfOutput && result.sameVrfProof}`);
@@ -570,7 +570,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
           await vrfWorkerManager.generateVrfChallenge({
             userId: testConfig.ACCOUNT_ID,
             rpId: 'localhost',
-            blockHeight: 12345,
+            blockHeight: "12345",
             blockHash: 'dGVzdC1ibG9jay1oYXNo', // base64url: 'test-block-hash'
           });
           console.log('ERROR: Challenge without session should have failed but succeeded!');
@@ -658,7 +658,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     expect(result.testResults?.invalidPrfDerivation).toBe(true);
     expect(result.testResults?.emptyPrfDerivation).toBe(true);
 
-    console.log('✅ VRF error handling test passed');
+    console.log('VRF error handling test passed');
     console.log(`   All error cases handled correctly`);
   });
 

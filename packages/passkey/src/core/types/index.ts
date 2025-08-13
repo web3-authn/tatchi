@@ -16,6 +16,7 @@ export type StripFree<T> = T extends object
   : T;
 
 // Export all types
+export * from './actions'
 export * from './rpc'
 export * from './signer-worker'
 export * from './vrf-worker'

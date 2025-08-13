@@ -1,25 +1,24 @@
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
-import { ActionType } from '../types/actions';
-import { toAccountId } from '../types/accountIds';
 import {
   IndexedDBManager,
   type ClientUserData,
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
-import {
-  type NearClient,
-  SignedTransaction
-} from '../NearClient';
+import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './signerWorkerManager';
 import { VrfWorkerManager } from './vrfWorkerManager';
 import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
-import { type ActionParams } from '../types/signer-worker';
-import { extractPrfFromCredential } from './credentialsHelpers';
-import { EncryptedVRFKeypair, ServerEncryptedVrfKeypair, VRFInputData, VRFKeypairData } from '../types/vrf-worker';
+import { toAccountId } from '../types/accountIds';
+
+import {
+  EncryptedVRFKeypair,
+  ServerEncryptedVrfKeypair,
+  VRFInputData,
+  VRFChallenge
+} from '../types/vrf-worker';
+import type { ActionParams } from '../types/actions';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
-import { VRFChallenge } from '../types/vrf-worker';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -550,7 +549,7 @@ export class WebAuthnManager {
     registrationInfo?: any;
     logs?: string[];
     signedTransaction: SignedTransaction;
-    preSignedDeleteTransaction: SignedTransaction;
+    preSignedDeleteTransaction: SignedTransaction | null;
     error?: string;
   }> {
     try {
@@ -670,6 +669,7 @@ export class WebAuthnManager {
   /**
    * Recover keypair from authentication credential for account recovery
    * Uses dual PRF outputs to re-derive the same NEAR keypair and re-encrypt it
+   * @param challenge - Random challenge for WebAuthn authentication ceremony
    * @param authenticationCredential - The authentication credential with dual PRF outputs
    * @param accountIdHint - Optional account ID hint for recovery
    * @returns Public key and encrypted private key for secure storage

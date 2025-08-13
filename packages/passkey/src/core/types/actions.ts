@@ -142,3 +142,93 @@ export type ActionArgs =
   | AddKeyAction
   | DeleteKeyAction
   | DeleteAccountAction;
+
+// === ACTION TYPES ===
+
+// ActionParams matches the Rust enum structure exactly
+export type ActionParams =
+  | { actionType: ActionType.CreateAccount }
+  | { actionType: ActionType.DeployContract; code: number[] }
+  | {
+      actionType: ActionType.FunctionCall;
+      method_name: string;
+      args: string; // JSON string, not object
+      gas: string;
+      deposit: string;
+    }
+  | { actionType: ActionType.Transfer; deposit: string }
+  | { actionType: ActionType.Stake; stake: string; public_key: string }
+  | { actionType: ActionType.AddKey; public_key: string; access_key: string }
+  | { actionType: ActionType.DeleteKey; public_key: string }
+  | { actionType: ActionType.DeleteAccount; beneficiary_id: string }
+
+// === ACTION TYPE VALIDATION ===
+
+/**
+ * Validate action parameters before sending to worker
+ */
+export function validateActionParams(actionParams: ActionParams): void {
+  switch (actionParams.actionType) {
+    case ActionType.FunctionCall:
+      if (!actionParams.method_name) {
+        throw new Error('method_name required for FunctionCall');
+      }
+      if (!actionParams.args) {
+        throw new Error('args required for FunctionCall');
+      }
+      if (!actionParams.gas) {
+        throw new Error('gas required for FunctionCall');
+      }
+      if (!actionParams.deposit) {
+        throw new Error('deposit required for FunctionCall');
+      }
+      // Validate args is valid JSON string
+      try {
+        JSON.parse(actionParams.args);
+      } catch {
+        throw new Error('FunctionCall action args must be valid JSON string');
+      }
+      break;
+    case ActionType.Transfer:
+      if (!actionParams.deposit) {
+        throw new Error('deposit required for Transfer');
+      }
+      break;
+    case ActionType.CreateAccount:
+      // No additional validation needed
+      break;
+    case ActionType.DeployContract:
+      if (!actionParams.code || actionParams.code.length === 0) {
+        throw new Error('code required for DeployContract');
+      }
+      break;
+    case ActionType.Stake:
+      if (!actionParams.stake) {
+        throw new Error('stake amount required for Stake');
+      }
+      if (!actionParams.public_key) {
+        throw new Error('public_key required for Stake');
+      }
+      break;
+    case ActionType.AddKey:
+      if (!actionParams.public_key) {
+        throw new Error('public_key required for AddKey');
+      }
+      if (!actionParams.access_key) {
+        throw new Error('access_key required for AddKey');
+      }
+      break;
+    case ActionType.DeleteKey:
+      if (!actionParams.public_key) {
+        throw new Error('public_key required for DeleteKey');
+      }
+      break;
+    case ActionType.DeleteAccount:
+      if (!actionParams.beneficiary_id) {
+        throw new Error('beneficiary_id required for DeleteAccount');
+      }
+      break;
+    default:
+      throw new Error(`Unsupported action type: ${(actionParams as any).actionType}`);
+  }
+}

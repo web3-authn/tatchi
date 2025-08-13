@@ -304,7 +304,7 @@ export async function recoverAccount(
     ]).then(([hasAccess, blockInfo]) => {
       return {
         hasAccess,
-        blockHeight: blockInfo.header.height,
+        blockHeight: String(blockInfo.header.height),
         blockHash: blockInfo.header.hash,
       };
     });

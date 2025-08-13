@@ -1,9 +1,89 @@
 
 // === IMPORT AUTO-GENERATED WASM TYPES ===
 // These are the source of truth generated from Rust structs via wasm-bindgen
-
 // Import as instance types from the WASM module classes
 import * as wasmModule from '../../wasm_signer_worker/wasm_signer_worker.js';
+import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
+export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums directly
+
+import { StripFree } from ".";
+import type { onProgressEvents } from "./passkeyManager";
+
+// === WORKER REQUEST TYPE MAPPING ===
+// Define the complete type mapping for each worker request
+export interface WorkerRequestTypeMap {
+  [WorkerRequestType.DeriveNearKeypairAndEncrypt]: {
+    type: WorkerRequestType.DeriveNearKeypairAndEncrypt;
+    request: WasmDeriveNearKeypairAndEncryptRequest;
+    result: WasmDeriveNearKeypairAndEncryptResult;
+  };
+  [WorkerRequestType.RecoverKeypairFromPasskey]: {
+    type: WorkerRequestType.RecoverKeypairFromPasskey;
+    request: WasmRecoverKeypairRequest;
+    result: WasmRecoverKeypairResult;
+  };
+  [WorkerRequestType.CheckCanRegisterUser]: {
+    type: WorkerRequestType.CheckCanRegisterUser;
+    request: WasmCheckCanRegisterUserRequest;
+    result: WasmRegistrationCheckResult;
+  };
+  [WorkerRequestType.SignVerifyAndRegisterUser]: {
+    type: WorkerRequestType.SignVerifyAndRegisterUser;
+    request: WasmSignVerifyAndRegisterUserRequest;
+    result: WasmRegistrationResult;
+  };
+  [WorkerRequestType.SignTransactionsWithActions]: {
+    type: WorkerRequestType.SignTransactionsWithActions;
+    request: WasmSignTransactionsWithActionsRequest;
+    result: WasmTransactionSignResult;
+  };
+  [WorkerRequestType.DecryptPrivateKeyWithPrf]: {
+    type: WorkerRequestType.DecryptPrivateKeyWithPrf;
+    request: WasmDecryptPrivateKeyRequest;
+    result: WasmDecryptPrivateKeyResult;
+  };
+  [WorkerRequestType.ExtractCosePublicKey]: {
+    type: WorkerRequestType.ExtractCosePublicKey;
+    request: WasmExtractCosePublicKeyRequest;
+    result: wasmModule.CoseExtractionResult;
+  };
+  [WorkerRequestType.SignTransactionWithKeyPair]: {
+    type: WorkerRequestType.SignTransactionWithKeyPair;
+    request: WasmSignTransactionWithKeyPairRequest;
+    result: WasmTransactionSignResult;
+  };
+  [WorkerRequestType.SignNep413Message]: {
+    type: WorkerRequestType.SignNep413Message;
+    request: WasmSignNep413MessageRequest;
+    result: wasmModule.SignNep413Result;
+  };
+}
+
+export type WasmSignerWorkerRequest = {
+  type: WorkerRequestType;
+  request: WasmRequestPayload;
+  result: WasmRequestResult;
+}
+
+export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
+export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
+export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
+export type WasmSignVerifyAndRegisterUserRequest = StripFree<wasmModule.SignVerifyAndRegisterUserRequest>;
+export type WasmSignTransactionsWithActionsRequest = StripFree<wasmModule.SignTransactionsWithActionsRequest>;
+export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
+export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
+export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
+export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
+
+export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
+  | WasmRecoverKeypairRequest
+  | WasmCheckCanRegisterUserRequest
+  | WasmSignVerifyAndRegisterUserRequest
+  | WasmSignTransactionsWithActionsRequest
+  | WasmDecryptPrivateKeyRequest
+  | WasmExtractCosePublicKeyRequest
+  | WasmSignNep413MessageRequest
+  | WasmSignTransactionWithKeyPairRequest;
 
 // WASM Worker Response Types
 export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
@@ -15,40 +95,22 @@ export type WasmTransactionSignResult = InstanceType<typeof wasmModule.Transacti
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
 export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 
-// === WASM ENUMS ===
-import {
-  WorkerRequestType,
-  WorkerResponseType,
-} from '../../wasm_signer_worker/wasm_signer_worker.js';
-// Export the WASM enums directly
-export { WorkerRequestType, WorkerResponseType };
+export type WasmRequestResult = WasmRecoverKeypairResult
+  | WasmRegistrationResult
+  | WasmRegistrationCheckResult
+  | WasmRegistrationInfo
+  | WasmSignedTransaction
+  | WasmTransactionSignResult
+  | WasmDecryptPrivateKeyResult
 
-import { ActionType } from "./actions";
-import type { onProgressEvents } from "./passkeyManager";
-
-// === REQUEST MESSAGE INTERFACES ===
-
-// Base interface for all worker requests
-export interface BaseWorkerRequest {
-  type: WorkerRequestType;
-  operationId?: string;
-  timestamp?: number;
-}
-
-// === GENERIC REQUEST TYPE ===
-// Generic message interface that uses WASM types
-// export interface SignerWorkerMessage<T extends WasmSignerWorkerRequestType> {
-//   type: WorkerRequestType;
-//   payload: T; // properly typed based on the specific request interface above
-// }
-
-export interface SignerWorkerMessage<T extends WorkerRequestType> {
+export interface SignerWorkerMessage<T extends WorkerRequestType, R extends WasmRequestPayload> {
   type: T;
-  payload: any;
+  payload: R;
 }
 
 /**
- * Worker Communication Documentation
+ * =============================
+ * Worker Progress Message Types
  * =============================
  *
  * 1. PROGRESS MESSAGES (During Operation):
@@ -119,8 +181,6 @@ export interface BaseWorkerResponse {
   payload: Record<string, any>;
 }
 
-// === GENERIC WORKER RESPONSE TYPES ===
-
 // Map request types to their expected success response payloads (WASM types)
 export interface RequestResponseMap {
   [WorkerRequestType.DeriveNearKeypairAndEncrypt]: WasmDeriveNearKeypairAndEncryptResult;
@@ -167,7 +227,7 @@ export interface WorkerProgressResponse extends BaseWorkerResponse {
 }
 
 // === MAIN RESPONSE TYPE ===
-// This is the only response type you need - it's generic and uses WASM types
+
 export type WorkerResponseForRequest<T extends WorkerRequestType> =
   | WorkerSuccessResponse<T>
   | WorkerErrorResponse
@@ -247,6 +307,10 @@ export function isSignVerifyAndRegisterUserSuccess(response: RegistrationRespons
   return response.type === WorkerResponseType.SignVerifyAndRegisterUserSuccess;
 }
 
+export function isSignTransactionWithKeyPairSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionWithKeyPair> {
+  return response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess;
+}
+
 export function isSignTransactionsWithActionsSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions> {
   return response.type === WorkerResponseType.SignTransactionsWithActionsSuccess;
 }
@@ -261,94 +325,4 @@ export function isExtractCosePublicKeySuccess(response: CoseExtractionResponse):
 
 export function isSignNep413MessageSuccess(response: Nep413SigningResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message> {
   return response.type === WorkerResponseType.SignNep413MessageSuccess;
-}
-
-// === ACTION TYPES ===
-
-// ActionParams matches the Rust enum structure exactly
-export type ActionParams =
-  | { actionType: ActionType.CreateAccount }
-  | { actionType: ActionType.DeployContract; code: number[] }
-  | {
-      actionType: ActionType.FunctionCall;
-      method_name: string;
-      args: string; // JSON string, not object
-      gas: string;
-      deposit: string;
-    }
-  | { actionType: ActionType.Transfer; deposit: string }
-  | { actionType: ActionType.Stake; stake: string; public_key: string }
-  | { actionType: ActionType.AddKey; public_key: string; access_key: string }
-  | { actionType: ActionType.DeleteKey; public_key: string }
-  | { actionType: ActionType.DeleteAccount; beneficiary_id: string }
-
-// === ACTION TYPE VALIDATION ===
-
-/**
- * Validate action parameters before sending to worker
- */
-export function validateActionParams(actionParams: ActionParams): void {
-  switch (actionParams.actionType) {
-    case ActionType.FunctionCall:
-      if (!actionParams.method_name) {
-        throw new Error('method_name required for FunctionCall');
-      }
-      if (!actionParams.args) {
-        throw new Error('args required for FunctionCall');
-      }
-      if (!actionParams.gas) {
-        throw new Error('gas required for FunctionCall');
-      }
-      if (!actionParams.deposit) {
-        throw new Error('deposit required for FunctionCall');
-      }
-      // Validate args is valid JSON string
-      try {
-        JSON.parse(actionParams.args);
-      } catch {
-        throw new Error('FunctionCall action args must be valid JSON string');
-      }
-      break;
-    case ActionType.Transfer:
-      if (!actionParams.deposit) {
-        throw new Error('deposit required for Transfer');
-      }
-      break;
-    case ActionType.CreateAccount:
-      // No additional validation needed
-      break;
-    case ActionType.DeployContract:
-      if (!actionParams.code || actionParams.code.length === 0) {
-        throw new Error('code required for DeployContract');
-      }
-      break;
-    case ActionType.Stake:
-      if (!actionParams.stake) {
-        throw new Error('stake amount required for Stake');
-      }
-      if (!actionParams.public_key) {
-        throw new Error('public_key required for Stake');
-      }
-      break;
-    case ActionType.AddKey:
-      if (!actionParams.public_key) {
-        throw new Error('public_key required for AddKey');
-      }
-      if (!actionParams.access_key) {
-        throw new Error('access_key required for AddKey');
-      }
-      break;
-    case ActionType.DeleteKey:
-      if (!actionParams.public_key) {
-        throw new Error('public_key required for DeleteKey');
-      }
-      break;
-    case ActionType.DeleteAccount:
-      if (!actionParams.beneficiary_id) {
-        throw new Error('beneficiary_id required for DeleteAccount');
-      }
-      break;
-    default:
-      throw new Error(`Unsupported action type: ${(actionParams as any).actionType}`);
-  }
 }
