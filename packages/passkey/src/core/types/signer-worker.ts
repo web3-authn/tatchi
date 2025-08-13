@@ -307,10 +307,6 @@ export function isSignVerifyAndRegisterUserSuccess(response: RegistrationRespons
   return response.type === WorkerResponseType.SignVerifyAndRegisterUserSuccess;
 }
 
-export function isSignTransactionWithKeyPairSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionWithKeyPair> {
-  return response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess;
-}
-
 export function isSignTransactionsWithActionsSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions> {
   return response.type === WorkerResponseType.SignTransactionsWithActionsSuccess;
 }
