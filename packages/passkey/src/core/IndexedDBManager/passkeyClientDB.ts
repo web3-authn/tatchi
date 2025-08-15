@@ -48,9 +48,16 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
-  // Confirmation settings
+  // Legacy confirmation settings (for backward compatibility)
   usePreConfirmFlow?: boolean;
   confirmBehavior?: 'requireClick' | 'autoProceed';
+  // Unified confirmation configuration
+  confirmationConfig?: {
+    showPreConfirm: boolean;
+    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  };
   // User preferences can be extended here as needed
 }
 

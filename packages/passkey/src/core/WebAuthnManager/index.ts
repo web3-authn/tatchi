@@ -244,7 +244,7 @@ export class WebAuthnManager {
    * Set pre-confirmation flow setting for the current user
    */
   setPreConfirmFlow(enabled: boolean): void {
-    this.signerWorkerManager.setPreConfirmFlow(enabled);
+    this.signerWorkerManager.setShowPreConfirm(enabled);
   }
 
   /**
@@ -252,6 +252,30 @@ export class WebAuthnManager {
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
     this.signerWorkerManager.setConfirmBehavior(behavior);
+  }
+
+  /**
+   * Set the unified confirmation configuration
+   */
+  setConfirmationConfig(config: {
+    showPreConfirm?: boolean;
+    uiMode?: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior?: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  }): void {
+    this.signerWorkerManager.setConfirmationConfig(config);
+  }
+
+  /**
+   * Get the current confirmation configuration
+   */
+  getConfirmationConfig(): {
+    showPreConfirm: boolean;
+    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  } {
+    return this.signerWorkerManager.getConfirmationConfig();
   }
 
   async getAllUserData(): Promise<ClientUserData[]> {

@@ -160,6 +160,30 @@ export class PasskeyManager {
     this.webAuthnManager.setConfirmBehavior(behavior);
   }
 
+  /**
+   * Set the unified confirmation configuration
+   */
+  setConfirmationConfig(config: {
+    showPreConfirm?: boolean;
+    uiMode?: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior?: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  }): void {
+    this.webAuthnManager.setConfirmationConfig(config);
+  }
+
+  /**
+   * Get the current confirmation configuration
+   */
+  getConfirmationConfig(): {
+    showPreConfirm: boolean;
+    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  } {
+    return this.webAuthnManager.getConfirmationConfig();
+  }
+
   async getRecentLogins(): Promise<{
     accountIds: string[],
     lastUsedAccountId: {

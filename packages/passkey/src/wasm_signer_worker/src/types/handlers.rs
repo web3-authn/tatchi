@@ -73,9 +73,7 @@ impl Default for AuthenticatorOptions {
 // === VERIFICATION TYPE (consolidated) ===
 
 /// Consolidated verification type for all flows.
-///
-/// - For transaction signing, set `vrf_challenge` and `authentication_credential`.
-/// - For registration, set `vrf_challenge` and `registration_credential`.
+/// Credentials are collected during the confirmation flow via the main thread.
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -86,21 +84,83 @@ pub struct VerificationPayload {
     pub near_rpc_url: String,
     #[wasm_bindgen(getter_with_clone, js_name = "vrfChallenge")]
     pub vrf_challenge: Option<VrfChallenge>,
-    #[wasm_bindgen(getter_with_clone, js_name = "authenticationCredential")]
-    pub authentication_credential: Option<SerializedCredential>,
-    #[wasm_bindgen(getter_with_clone, js_name = "registrationCredential")]
-    pub registration_credential: Option<SerializedRegistrationCredential>,
+}
+
+// === DECRYPTION TYPES ===
+
+// ******************************************************************************
+// *                                                                            *
+// *                    CONFIRMATION CONFIGURATION TYPES                        *
+// *                                                                            *
+// ******************************************************************************
+
+/// UI mode for confirmation display
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum ConfirmationUIMode {
+    #[serde(rename = "native")]
+    Native,
+    #[serde(rename = "shadow")]
+    Shadow,
+    #[serde(rename = "embedded")]
+    Embedded,
+    #[serde(rename = "popup")]
+    Popup,
+}
+
+/// Behavior mode for confirmation flow
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+pub enum ConfirmationBehavior {
+    #[serde(rename = "requireClick")]
+    RequireClick,
+    #[serde(rename = "autoProceed")]
+    AutoProceed,
+    #[serde(rename = "autoProceedWithDelay")]
+    AutoProceedWithDelay,
+}
+
+/// Unified confirmation configuration passed from main thread to WASM worker
+#[wasm_bindgen]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfirmationConfig {
+    /// Whether to show confirmation UI before TouchID prompt
+    #[wasm_bindgen(getter_with_clone, js_name = "showPreConfirm")]
+    pub show_pre_confirm: bool,
+    
+    /// Type of UI to display for confirmation
+    #[wasm_bindgen(getter_with_clone, js_name = "uiMode")]
+    pub ui_mode: ConfirmationUIMode,
+    
+    /// How the confirmation UI behaves
+    #[wasm_bindgen(getter_with_clone)]
+    pub behavior: ConfirmationBehavior,
+    
+    /// Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay)
+    #[wasm_bindgen(getter_with_clone, js_name = "autoProceedDelay")]
+    pub auto_proceed_delay: Option<u32>,
+}
+
+impl Default for ConfirmationConfig {
+    fn default() -> Self {
+        Self {
+            show_pre_confirm: true,
+            ui_mode: ConfirmationUIMode::Shadow,
+            behavior: ConfirmationBehavior::RequireClick,
+            auto_proceed_delay: Some(2000),
+        }
+    }
 }
 
 // === DECRYPTION TYPES ===
 
 /// Decryption payload (consolidated for deserialization and WASM binding)
+/// Note: chacha20_prf_output is collected during user confirmation flow
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecryptionPayload {
-    #[wasm_bindgen(getter_with_clone, js_name = "chacha20PrfOutput")]
-    pub chacha20_prf_output: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
@@ -111,12 +171,10 @@ pub struct DecryptionPayload {
 impl DecryptionPayload {
     #[wasm_bindgen(constructor)]
     pub fn new(
-        chacha20_prf_output: String,
         encrypted_private_key_data: String,
         encrypted_private_key_iv: String,
     ) -> DecryptionPayload {
         DecryptionPayload {
-            chacha20_prf_output,
             encrypted_private_key_data,
             encrypted_private_key_iv,
         }
