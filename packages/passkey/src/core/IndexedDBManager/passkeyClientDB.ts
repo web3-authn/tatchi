@@ -48,11 +48,8 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
-  // Legacy confirmation settings (for backward compatibility)
-  usePreConfirmFlow?: boolean;
-  confirmBehavior?: 'requireClick' | 'autoProceed';
   // Unified confirmation configuration
-  confirmationConfig?: {
+  confirmationConfig: {
     showPreConfirm: boolean;
     uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
     behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
@@ -263,6 +260,12 @@ export class PasskeyClientDBManager {
       preferences: {
         useRelayer: false,
         useNetwork: 'testnet',
+        confirmationConfig: {
+          showPreConfirm: true,
+          uiMode: 'shadow',
+          behavior: 'requireClick',
+          autoProceedDelay: 2000,
+        },
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,

@@ -193,22 +193,12 @@ export class SignerWorkerManager {
 
     try {
       const user = await this.clientDB.getUser(toAccountId(this.currentUserAccountId));
-      if (user?.preferences) {
-        // Load legacy settings and convert to new format
-        if (user.preferences.usePreConfirmFlow !== undefined) {
-          this.confirmationConfig.showPreConfirm = user.preferences.usePreConfirmFlow;
-          console.debug('[SignerWorkerManager]: Loaded showPreConfirm setting:', this.confirmationConfig.showPreConfirm);
-        }
-        if (user.preferences.confirmBehavior) {
-          // Convert legacy behavior to new format
-          this.confirmationConfig.behavior = user.preferences.confirmBehavior === 'autoProceed' ? 'autoProceedWithDelay' : 'requireClick';
-          console.debug('[SignerWorkerManager]: Loaded confirmBehavior setting:', this.confirmationConfig.behavior);
-        }
-        // Load new unified confirmationConfig if available
-        if (user.preferences.confirmationConfig) {
-          this.confirmationConfig = { ...this.confirmationConfig, ...user.preferences.confirmationConfig };
-          console.debug('[SignerWorkerManager]: Loaded unified confirmationConfig:', this.confirmationConfig);
-        }
+      if (user?.preferences?.confirmationConfig) {
+        this.confirmationConfig = {
+          ...this.confirmationConfig,
+          ...user.preferences.confirmationConfig
+        };
+        console.debug('[SignerWorkerManager]: Loaded confirmationConfig:', this.confirmationConfig);
       }
     } catch (error) {
       console.warn('[SignerWorkerManager]: Failed to load user settings:', error);
@@ -225,11 +215,7 @@ export class SignerWorkerManager {
     }
 
     try {
-      // Save both legacy format (for backward compatibility) and new format
       await this.clientDB.updatePreferences(toAccountId(this.currentUserAccountId), {
-        usePreConfirmFlow: this.confirmationConfig.showPreConfirm,
-        confirmBehavior: this.confirmationConfig.behavior === 'autoProceedWithDelay' ? 'autoProceed' : this.confirmationConfig.behavior,
-        // Save unified confirmationConfig
         confirmationConfig: this.confirmationConfig,
       });
       console.debug('[SignerWorkerManager]: Saved user settings:', {

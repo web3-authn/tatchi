@@ -208,10 +208,10 @@ pub async fn handle_sign_transactions_with_actions(
 
     // Step 1: Conditionally request user confirmation and credential collection
     let mut confirmation_result_opt: Option<super::confirm_tx_details::ConfirmationResult> = None;
-    
+
     // Determine if we should request confirmation based on configuration
     let should_request_confirmation = tx_batch_request.pre_confirm.unwrap_or(false);
-    
+
     if should_request_confirmation {
         logs.push("Requesting user confirmation and credentials...".to_string());
         send_progress_message(
@@ -220,11 +220,11 @@ pub async fn handle_sign_transactions_with_actions(
             "Requesting user confirmation...",
             Some(&serde_json::json!({"step": 1, "total": 4, "transaction_count": tx_batch_request.tx_signing_requests.len()}).to_string())
         );
-        
+
         // Use the confirmation configuration if provided, otherwise use default
         let confirmation_config = tx_batch_request.confirmation_config.as_ref();
         logs.push(format!("Using confirmation config: {:?}", confirmation_config));
-        
+
         let c = request_user_confirmation(&tx_batch_request, &mut logs).await
             .map_err(|e| format!("Confirmation request failed: {}", e))?;
         if !c.confirmed {

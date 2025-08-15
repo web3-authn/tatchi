@@ -128,15 +128,15 @@ pub struct ConfirmationConfig {
     /// Whether to show confirmation UI before TouchID prompt
     #[wasm_bindgen(getter_with_clone, js_name = "showPreConfirm")]
     pub show_pre_confirm: bool,
-    
+
     /// Type of UI to display for confirmation
     #[wasm_bindgen(getter_with_clone, js_name = "uiMode")]
     pub ui_mode: ConfirmationUIMode,
-    
+
     /// How the confirmation UI behaves
     #[wasm_bindgen(getter_with_clone)]
     pub behavior: ConfirmationBehavior,
-    
+
     /// Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay)
     #[wasm_bindgen(getter_with_clone, js_name = "autoProceedDelay")]
     pub auto_proceed_delay: Option<u32>,
