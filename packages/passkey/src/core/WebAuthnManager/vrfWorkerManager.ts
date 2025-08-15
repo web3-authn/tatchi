@@ -444,7 +444,7 @@ export class VrfWorkerManager {
    * @param vrfInputParams - Optional VRF input parameters for challenge generation
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
-  async deriveVrfKeypairFromSeed({
+  async deriveVrfKeypairFromPrf({
     credential,
     nearAccountId,
     vrfInputData,

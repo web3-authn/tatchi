@@ -5,6 +5,7 @@ pub mod handle_generate_vrf_keypair_bootstrap;
 pub mod handle_shamir3pass_client;
 pub mod handle_shamir3pass_server;
 pub mod handle_unlock_vrf_keypair;
+pub mod handle_compute_tx_actions_digest;
 
 pub use handle_shamir3pass_config::*;
 pub use handle_derive_vrf_keypair_from_prf::*;
@@ -13,6 +14,7 @@ pub use handle_generate_vrf_keypair_bootstrap::*;
 pub use handle_shamir3pass_server::*;
 pub use handle_shamir3pass_client::*;
 pub use handle_unlock_vrf_keypair::*;
+pub use handle_compute_tx_actions_digest::*;
 
 use std::rc::Rc;
 use std::cell::RefCell;

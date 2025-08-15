@@ -160,6 +160,12 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
                 message.parse_payload(request_type).map_err(JsValue::from)?
             ).await
         },
+        WorkerRequestType::ComputeTxActionsDigest => {
+            handlers::handle_compute_tx_actions_digest(
+                message.id.clone(),
+                message.parse_payload(request_type).map_err(JsValue::from)?,
+            )
+        },
         // Shamir 3‑pass registration
         // Initial VRF encryption is performed in the DERIVE_VRF_KEYPAIR_FROM_PRF handler during registration
         // So this handler is somewhat redundant, but may be useful for future use cases

@@ -193,29 +193,7 @@ export class SignerWorkerManager {
 - **Better Documentation**: Smaller modules are easier to document
 - **Code Reuse**: Services can be reused across different contexts
 
-### 5. Migration Strategy
 
-#### Phase 1: Extract Services (Week 1-2)
-1. Create service interfaces and base classes
-2. Extract `UserSettingsService` (lowest risk)
-3. Extract `WorkerService` (foundational)
-4. Extract `MessageService` (communication layer)
-
-#### Phase 2: Core Services (Week 3-4)
-1. Extract `ConfirmationService` (UI layer)
-2. Extract `PrfService` (cryptographic operations)
-3. Extract `TransactionService` (business logic)
-
-#### Phase 3: Specialized Services (Week 5-6)
-1. Extract `RegistrationService`
-2. Extract `RecoveryService`
-3. Update main `SignerWorkerManager` to use services
-
-#### Phase 4: Cleanup and Optimization (Week 7-8)
-1. Remove old code from main class
-2. Add comprehensive tests for each service
-3. Optimize service interactions
-4. Update documentation
 
 ### 6. Testing Strategy
 
@@ -287,4 +265,4 @@ export interface ServiceConfig {
 
 This refactoring will transform the monolithic `SignerWorkerManager` into a well-structured, maintainable, and extensible system. The service-based architecture provides clear separation of concerns, better testability, and improved developer experience while maintaining the same public API for existing consumers.
 
-The migration can be done incrementally, reducing risk and allowing for validation at each step. The end result will be a more robust, scalable, and maintainable codebase that can easily accommodate future requirements and improvements.
+The refactoring can be done incrementally, reducing risk and allowing for validation at each step. The end result will be a more robust, scalable, and maintainable codebase that can easily accommodate future requirements and improvements.
