@@ -736,7 +736,7 @@ export class LinkDeviceFlow {
         this.session.vrfChallenge = vrfChallenge;
 
         // Derive VRF keypair from PRF output for storage
-        const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromPrf({
+        const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
           credential: credential,
           nearAccountId: realAccountId // Use base account ID for PRF salt consistency
         });
@@ -863,7 +863,7 @@ export class LinkDeviceFlow {
         this.session.vrfChallenge = vrfChallenge;
 
         // For Option E, also derive VRF keypair from regenerated credential
-        const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromPrf({
+        const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypair({
           credential: credential,
           nearAccountId: realAccountId // Use base account ID for PRF salt consistency
         });

@@ -48,6 +48,13 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
+  // Unified confirmation configuration
+  confirmationConfig: {
+    showPreConfirm: boolean;
+    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
+    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    autoProceedDelay?: number;
+  };
   // User preferences can be extended here as needed
 }
 
@@ -86,7 +93,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 9, // Increment version for adding serverEncryptedVrfKeypair field
+  dbVersion: 11, // Increment version for adding confirmation settings to UserPreferences
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators'
@@ -253,6 +260,12 @@ export class PasskeyClientDBManager {
       preferences: {
         useRelayer: false,
         useNetwork: 'testnet',
+        confirmationConfig: {
+          showPreConfirm: true,
+          uiMode: 'shadow',
+          behavior: 'requireClick',
+          autoProceedDelay: 2000,
+        },
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,

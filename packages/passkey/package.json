@@ -76,6 +76,7 @@
     "@near-js/types": "^2.0.1",
     "@types/qrcode": "^1.5.5",
     "jsqr": "^1.4.0",
+    "lit": "^3.3.1",
     "qrcode": "^1.5.4",
     "tslib": "^2.8.1"
   },
@@ -84,8 +85,8 @@
     "@near-js/client": "^2.0.1",
     "@near-js/crypto": "^2.0.1",
     "@near-js/keystores": "^2.0.1",
-    "@near-js/signers": "^2.0.1",
     "@near-js/providers": "^2.0.1",
+    "@near-js/signers": "^2.0.1",
     "@playwright/test": "^1.40.0",
     "@types/node": "^20.19.9",
     "@types/react": "^18.3.23",

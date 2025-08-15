@@ -105,8 +105,8 @@ export async function signNEP413Message(
 
     // Emit signing progress event
     options?.onEvent?.({
-      step: 5,
-      phase: ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS,
+      step: 6,
+      phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
       status: ActionStatus.PROGRESS,
       message: 'Signing NEP-413 message'
     });
@@ -124,8 +124,8 @@ export async function signNEP413Message(
     if (result.success) {
       // Emit completion event
       options?.onEvent?.({
-        step: 8,
-        phase: ActionPhase.STEP_8_ACTION_COMPLETE,
+        step: 9,
+        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
         status: ActionStatus.SUCCESS,
         message: 'NEP-413 message signed successfully'
       });

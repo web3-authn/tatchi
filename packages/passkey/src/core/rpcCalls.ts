@@ -94,7 +94,6 @@ export async function executeDeviceLinkingContractCalls({
   nextNextNextNonce,
   txBlockHash,
   vrfChallenge,
-  credential,
   onEvent,
 }: {
   context: PasskeyManagerContext,
@@ -105,7 +104,6 @@ export async function executeDeviceLinkingContractCalls({
   nextNextNextNonce: string,
   txBlockHash: string,
   vrfChallenge: VRFChallenge,
-  credential: any, // PublicKeyCredential type
   onEvent?: (event: DeviceLinkingSSEEvent) => void
 }): Promise<{
   addKeyTxResult: FinalExecutionOutcome;
@@ -161,10 +159,9 @@ export async function executeDeviceLinkingContractCalls({
     blockHash: txBlockHash,
     contractId: context.webAuthnManager.configs.contractId,
     vrfChallenge: vrfChallenge,
-    credential: credential,
     nearRpcUrl: context.webAuthnManager.configs.nearRpcUrl,
     onEvent: (progress) => {
-      if (progress.phase == ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE) {
+      if (progress.phase == ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
           step: 3,
           phase: DeviceLinkingPhase.STEP_3_AUTHORIZATION,
@@ -222,14 +219,9 @@ export async function executeDeviceLinkingContractCalls({
       contractTx,
       DEFAULT_WAIT_STATUS.linkDeviceAccountMapping
     );
-    console.log('LinkDeviceFlow: Contract mapping transaction result:', storeDeviceLinkingTxResult?.transaction?.hash);
+
   } catch (txError: any) {
     console.error('LinkDeviceFlow: Transaction broadcasting failed:', txError);
-    console.error('LinkDeviceFlow: Transaction error details:', {
-      message: txError.message,
-      stack: txError.stack,
-      name: txError.name
-    });
     throw new Error(`Transaction broadcasting failed: ${txError.message}`);
   }
 

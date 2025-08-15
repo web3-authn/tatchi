@@ -1,6 +1,6 @@
 # Web3 Authn SDK
 
-The Web3 Authn SDK is an opinionated approach to embedded wallets that gives devs complete control over the wallet UX experience. No wallet selectors, no popups.
+The Web3 Authn SDK is 'deconstructed' embedded wallet that gives developers more control over the wallet UX experience. No wallet selectors, no popups (unless you or your users want it).
 
 
 ### Key Features

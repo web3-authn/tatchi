@@ -95,6 +95,17 @@ export type WasmTransactionSignResult = InstanceType<typeof wasmModule.Transacti
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
 export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 
+// Confirmation Configuration Types
+export type ConfirmationUIMode = 'native' | 'shadow' | 'embedded' | 'popup';
+export type ConfirmationBehavior = 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+
+export interface ConfirmationConfig {
+  showPreConfirm: boolean;
+  uiMode: ConfirmationUIMode;
+  behavior: ConfirmationBehavior;
+  autoProceedDelay?: number;
+}
+
 export type WasmRequestResult = WasmRecoverKeypairResult
   | WasmRegistrationResult
   | WasmRegistrationCheckResult

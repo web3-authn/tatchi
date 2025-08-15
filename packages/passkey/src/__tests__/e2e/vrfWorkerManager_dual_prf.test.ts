@@ -260,7 +260,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Derive deterministic VRF keypair from PRF output (used during recovery)
         console.log('Deriving VRF keypair from PRF output...');
         const cred1 = await getCredentialForAccount(testConfig.ACCOUNT_ID);
-        const derivedResult1 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
+        const derivedResult1 = await vrfWorkerManager.deriveVrfKeypairFromPrf({
           credential: cred1,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: {
@@ -272,7 +272,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Derive again with same PRF output to test deterministic behavior
         console.log('Deriving VRF keypair again with same PRF...');
         const cred2 = await getCredentialForAccount(testConfig.ACCOUNT_ID);
-        const derivedResult2 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
+        const derivedResult2 = await vrfWorkerManager.deriveVrfKeypairFromPrf({
           credential: cred2,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: {
@@ -285,7 +285,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         console.log('Testing with different PRF output...');
         const differentAccount = `${testConfig.ACCOUNT_ID}-alt`;
         const cred3 = await getCredentialForAccount(differentAccount);
-        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromSeed({
+        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromPrf({
           credential: cred3,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: testConfig.VRF_INPUT_PARAMS
@@ -602,7 +602,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
           // Provide a tiny/invalid salt to force PRF handling issues downstream
           const invalidSalt = new TextEncoder().encode('%%%INVALID%%%').buffer;
           const invalidCred = await buildCredential(invalidSalt);
-          await vrfWorkerManager.deriveVrfKeypairFromSeed({
+          await vrfWorkerManager.deriveVrfKeypairFromPrf({
             credential: invalidCred,
             nearAccountId: testConfig.ACCOUNT_ID as AccountId
           });
@@ -618,7 +618,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         console.log('Testing VRF derivation with empty PRF...');
         try {
           const emptyCred = await buildCredential(null);
-          await vrfWorkerManager.deriveVrfKeypairFromSeed({
+          await vrfWorkerManager.deriveVrfKeypairFromPrf({
             credential: emptyCred,
             nearAccountId: testConfig.ACCOUNT_ID as AccountId
           });

@@ -60,6 +60,8 @@ const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 console.debug(`[Signer Worker] WASM URL resolved to: ${wasmUrl.href}`);
 const { handle_signer_message } = wasmModule;
 
+import { SecureConfirmMessageType } from './WebAuthnManager/signerWorkerManager';
+
 let messageProcessed = false;
 
 /**
@@ -144,6 +146,55 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
+// Bridge function called from Rust to await user confirmation on the main thread
+// Phase A: native confirm() via main thread, using a simple request/response message
+(globalThis as any).awaitSecureConfirmation = function awaitSecureConfirmation(
+  requestId: string,
+  summary: any,
+  digest: string,
+  actionsJson: string
+): Promise<{
+  requestId: string;
+  intentDigest?: string;
+  confirmed: boolean;
+  credential?: any;
+  prfOutput?: string;
+}> {
+  return new Promise((resolve) => {
+    // Use main channel only - simpler and more reliable with worker lifecycle
+    const onMainChannelDecision = (e: MessageEvent) => {
+      const data = (e.data || {}) as any;
+      if (
+        data &&
+        data.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION &&
+        data.data?.requestId === requestId
+      ) {
+        console.log('[signer-worker]: Decision matched! Resolving promise for requestId', requestId, data.data);
+        self.removeEventListener('message', onMainChannelDecision as any);
+        resolve({
+          requestId,
+          intentDigest: data.data?.intentDigest,
+          confirmed: !!data.data?.confirmed,
+          credential: data.data?.credential,
+          prfOutput: data.data?.prfOutput,
+        });
+      }
+    };
+
+    self.addEventListener('message', onMainChannelDecision as any);
+
+    (self as any).postMessage({
+      type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM,
+      data: {
+        requestId,
+        summary,
+        intentDigest: digest,
+        actions: actionsJson
+      }
+    });
+  });
+};
+
 /**
  * Initialize WASM module
  */
@@ -157,9 +208,17 @@ async function initializeWasm(): Promise<void> {
 }
 
 self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
+  const eventType = (event.data as any)?.type;
+  // Allow follow-up decision messages to flow to awaitSecureConfirmation listener
   if (messageProcessed) {
+    if (eventType === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION) {
+      console.log(`[signer-worker]: ${SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION} received while messageProcessed=true, allowing through`);
+      // Let the awaitSecureConfirmation listener handle it
+      return;
+    }
+    console.error('[signer-worker]: Rejecting message - already processed');
     self.postMessage({
-      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure, // Use any failure type as fallback
+      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
       payload: { error: 'Worker has already processed a message' }
     });
     self.close();

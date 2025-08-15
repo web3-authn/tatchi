@@ -110,7 +110,7 @@ export async function registerPasskey(
       canRegisterUserResult,
     } = await Promise.all([
       // Generate deterministic VRF keypair from PRF output for recovery
-      webAuthnManager.deriveVrfKeypairFromPrf({
+      webAuthnManager.deriveVrfKeypair({
         credential,
         nearAccountId,
         saveInMemory: true, // Save in worker memory so it can be used for challenge generation

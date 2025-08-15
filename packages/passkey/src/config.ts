@@ -3,7 +3,7 @@ import { BUILD_PATHS } from '../build-paths.js';
 // === CONFIGURATION ===
 export const SIGNER_WORKER_MANAGER_CONFIG = {
   TIMEOUTS: {
-    DEFAULT: 10_000,      // 10s
+    DEFAULT: 30_000,      // 10s
     TRANSACTION: 30_000,  // 30s for contract verification + signing
     REGISTRATION: 30_000, // 30s for registration operations
   },

@@ -320,7 +320,7 @@ export async function recoverAccount(
       blockHash,
     };
 
-    const deterministicVrfResult = await webAuthnManager.deriveVrfKeypairFromPrf({
+    const deterministicVrfResult = await webAuthnManager.deriveVrfKeypair({
       credential,
       nearAccountId: accountId,
       vrfInputData,

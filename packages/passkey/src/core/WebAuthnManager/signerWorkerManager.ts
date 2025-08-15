@@ -1,6 +1,6 @@
 import { SignedTransaction, type NearClient } from '../NearClient';
 import { getNonceBlockHashAndHeight } from "../PasskeyManager/actions";
-import { ClientAuthenticatorData } from '../IndexedDBManager';
+import { ClientAuthenticatorData, PasskeyClientDBManager } from '../IndexedDBManager';
 import { PasskeyNearKeysDBManager, type EncryptedKeyData } from '../IndexedDBManager/passkeyNearKeysDB';
 import { TouchIdPrompt } from "./touchIdPrompt";
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../config";
@@ -39,7 +39,61 @@ import {
 import { VRFChallenge } from '../types/vrf-worker';
 import type { onProgressEvents } from '../types/passkeyManager';
 import { AccountId, toAccountId } from "../types/accountIds";
-import type { AuthenticatorOptions, OriginPolicyInput, UserVerificationPolicy } from '../types/authenticatorOptions';
+import type { AuthenticatorOptions } from '../types/authenticatorOptions';
+
+// === SECURE CONFIRM TYPES ===
+
+/**
+ * Unified confirmation configuration that controls the entire confirmation flow
+ */
+interface ConfirmationConfig {
+  /** Whether to show confirmation UI before TouchID prompt (true) or go straight to TouchID (false) */
+  showPreConfirm: boolean;
+
+  /** Type of UI to display for confirmation */
+  uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
+
+  /** How the confirmation UI behaves */
+  behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+
+  /** Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay) */
+  autoProceedDelay?: number;
+}
+
+interface SecureConfirmData {
+  requestId: string;
+  summary: string | object;
+  actions?: string;
+  intentDigest?: string;
+  nearAccountId?: string; // Account ID for credential lookup
+  vrfChallenge?: any; // VRF challenge for credential generation
+  confirmationConfig?: ConfirmationConfig; // Confirmation configuration from WASM worker
+}
+
+export enum SecureConfirmMessageType {
+  PASSKEY_SECURE_CONFIRM = 'PASSKEY_SECURE_CONFIRM',
+  PASSKEY_SECURE_CONFIRM_DECISION = 'PASSKEY_SECURE_CONFIRM_DECISION',
+}
+
+interface SecureConfirmMessage {
+  type: SecureConfirmMessageType;
+  data: SecureConfirmData;
+}
+
+interface SecureConfirmDecision {
+  requestId: string;
+  intentDigest?: string;
+  confirmed: boolean;
+  credential?: any; // Serialized WebAuthn credential
+  prfOutput?: string; // Base64url-encoded PRF output
+}
+
+interface TransactionSummary {
+  to?: string;
+  amount?: string;
+  method?: string;
+  fingerprint?: string;
+}
 
 // === IMPORT AUTO-GENERATED WASM TYPES ===
 // WASM-generated types now correctly match runtime data with js_name attributes
@@ -54,9 +108,369 @@ import * as wasmModule from '../../wasm_signer_worker/wasm_signer_worker.js';
 export class SignerWorkerManager {
 
   private nearKeysDB: PasskeyNearKeysDBManager;
+  private clientDB: PasskeyClientDBManager;
+  private touchIdPrompt: TouchIdPrompt;
+
+  /** Unified confirmation configuration */
+  private confirmationConfig: ConfirmationConfig = {
+    showPreConfirm: true,
+    uiMode: 'shadow',
+    behavior: 'requireClick',
+    autoProceedDelay: 2000, // 2 seconds default delay
+  };
+
+  private currentUserAccountId: string | null = null;
 
   constructor() {
     this.nearKeysDB = new PasskeyNearKeysDBManager();
+    this.clientDB = new PasskeyClientDBManager();
+    this.touchIdPrompt = new TouchIdPrompt();
+  }
+
+  /**
+   * Set the unified confirmation configuration
+   */
+  setConfirmationConfig(config: Partial<ConfirmationConfig>): void {
+    this.confirmationConfig = { ...this.confirmationConfig, ...config };
+    this.saveUserSettings();
+  }
+
+  /**
+   * Set whether to show confirmation UI before TouchID prompt
+   */
+  setShowPreConfirm(show: boolean): void {
+    this.confirmationConfig.showPreConfirm = show;
+    this.saveUserSettings();
+  }
+
+  /**
+   * Set the UI mode for confirmation
+   */
+  setConfirmationUIMode(mode: ConfirmationConfig['uiMode']): void {
+    this.confirmationConfig.uiMode = mode;
+    this.saveUserSettings();
+  }
+
+  /**
+   * Set the confirmation behavior
+   */
+  setConfirmBehavior(behavior: ConfirmationConfig['behavior']): void {
+    this.confirmationConfig.behavior = behavior;
+    this.saveUserSettings();
+  }
+
+  /**
+   * Set the auto-proceed delay (only used with autoProceedWithDelay behavior)
+   */
+  setAutoProceedDelay(delayMs: number): void {
+    this.confirmationConfig.autoProceedDelay = delayMs;
+    this.saveUserSettings();
+  }
+
+  /**
+   * Get the current confirmation configuration
+   */
+  getConfirmationConfig(): ConfirmationConfig {
+    return { ...this.confirmationConfig };
+  }
+
+  /**
+   * Set the current user account ID for settings persistence
+   */
+  setCurrentUser(accountId: string): void {
+    this.currentUserAccountId = accountId;
+    this.loadUserSettings();
+  }
+
+  /**
+   * Load user confirmation settings from IndexedDB
+   */
+  private async loadUserSettings(): Promise<void> {
+    if (!this.currentUserAccountId) {
+      console.debug('[SignerWorkerManager]: No current user set, using default settings');
+      return;
+    }
+
+    try {
+      const user = await this.clientDB.getUser(toAccountId(this.currentUserAccountId));
+      if (user?.preferences?.confirmationConfig) {
+        this.confirmationConfig = {
+          ...this.confirmationConfig,
+          ...user.preferences.confirmationConfig
+        };
+        console.debug('[SignerWorkerManager]: Loaded confirmationConfig:', this.confirmationConfig);
+      }
+    } catch (error) {
+      console.warn('[SignerWorkerManager]: Failed to load user settings:', error);
+    }
+  }
+
+  /**
+   * Save current confirmation settings to IndexedDB
+   */
+  private async saveUserSettings(): Promise<void> {
+    if (!this.currentUserAccountId) {
+      console.debug('[SignerWorkerManager]: No current user set, skipping settings save');
+      return;
+    }
+
+    try {
+      await this.clientDB.updatePreferences(toAccountId(this.currentUserAccountId), {
+        confirmationConfig: this.confirmationConfig,
+      });
+      console.debug('[SignerWorkerManager]: Saved user settings:', {
+        showPreConfirm: this.confirmationConfig.showPreConfirm,
+        uiMode: this.confirmationConfig.uiMode,
+        behavior: this.confirmationConfig.behavior,
+        autoProceedDelay: this.confirmationConfig.autoProceedDelay,
+      });
+    } catch (error) {
+      console.warn('[SignerWorkerManager]: Failed to save user settings:', error);
+    }
+  }
+
+  private async renderConfirmUI(
+    summary: TransactionSummary,
+    actionsJson?: string
+  ): Promise<boolean> {
+    switch (this.confirmationConfig.uiMode) {
+      case 'native': {
+        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
+        return window.confirm(message);
+      }
+      case 'shadow': {
+        // Components are imported dynamically to avoid DOM APIs in worker context
+        const { mountSecureTxConfirm } = await import('./Components');
+        return mountSecureTxConfirm({
+          summary: {
+            to: summary?.to,
+            amount: summary?.amount,
+            method: summary?.method,
+            fingerprint: summary?.fingerprint,
+          },
+          actionsJson,
+          mode: 'modal'
+        });
+      }
+      case 'embedded': {
+        // TODO: Implement embedded shadow DOM confirmation
+        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
+        return window.confirm(message);
+      }
+      case 'popup': {
+        // TODO: Implement sandboxed iframe/popup confirmation
+        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
+        return window.confirm(message);
+      }
+      default:
+        return window.confirm('Confirm transaction?');
+    }
+  }
+
+  /**
+   * Handles secure confirmation requests from the worker with robust error handling
+   * and proper data validation. Supports both transaction and registration confirmation flows.
+   */
+  private async handleSecureConfirmRequest(message: SecureConfirmMessage, worker: Worker): Promise<void> {
+    try {
+      console.log('[SignerWorkerManager]: Processing secure confirm request:', {
+        requestId: message.data?.requestId,
+        hasActions: !!message.data?.actions,
+        hasSummary: !!message.data?.summary,
+        hasIntentDigest: !!message.data?.intentDigest
+      });
+
+      // Validate required fields
+      const data = message.data;
+      if (!data || !data.requestId) {
+        console.error('[SignerWorkerManager]: Invalid secure confirm request - missing requestId');
+        return;
+      }
+
+      // Parse and validate summary data (can contain extra fields we need)
+      const summary = this.parseTransactionSummary(data.summary);
+      const isRegistration = summary?.isRegistration || (summary as any)?.type === 'registration';
+
+      // Get confirmation configuration from data or use default
+      const confirmationConfig = data.confirmationConfig || this.confirmationConfig;
+      console.log('[SignerWorkerManager]: Using confirmation config:', confirmationConfig);
+
+      const transactionSummary: TransactionSummary = {
+        to: summary?.to || (isRegistration ? 'Registration' : undefined),
+        amount: summary?.amount,
+        method: summary?.method || (isRegistration ? 'Register Account' : undefined),
+        fingerprint: data.intentDigest
+      };
+
+      // Render confirmation per behavior
+      let confirmed = false;
+      let decision: SecureConfirmDecision = {
+        requestId: data.requestId,
+        intentDigest: data.intentDigest,
+        confirmed: false
+      };
+
+      if (confirmationConfig.uiMode === 'shadow' && confirmationConfig.behavior === 'autoProceedWithDelay') {
+        // Show modal as context but do not wait for click; we'll close it after TouchID
+        const { mountSecureTxConfirmWithHandle } = await import('./Components');
+        const handle = mountSecureTxConfirmWithHandle({
+          summary: {
+            to: transactionSummary.to,
+            amount: transactionSummary.amount,
+            method: transactionSummary.method,
+            fingerprint: transactionSummary.fingerprint,
+          },
+          actionsJson: data.actions,
+          mode: 'modal',
+          loading: true // Show loading state with only cancel button
+        });
+
+        // Give user time to read transaction details before TouchID prompt
+        const delay = confirmationConfig.autoProceedDelay || 2000;
+        console.log(`[SignerWorkerManager]: Showing transaction details for ${delay}ms before TouchID prompt...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+
+        // We proceed to TouchID after delay; close will be called after completion
+        confirmed = true; // treat as user intent to proceed
+        // We'll close the modal after credential collection below
+        (decision as any)._confirmHandle = handle; // temp stash for later close
+      } else {
+        // Require explicit confirm
+        confirmed = await this.renderConfirmUI(transactionSummary, data.actions);
+      }
+
+      decision.confirmed = confirmed;
+
+      // If confirmed, collect credentials and PRF output
+      // Derive parameters from either top-level fields or summary payload
+      const nearAccountIdFromMsg = data.nearAccountId || (summary && (summary.nearAccountId || summary.summary?.nearAccountId));
+      const vrfLike = data.vrfChallenge || (summary && (summary.vrfChallenge || summary.summary?.vrfChallenge));
+
+      if (confirmed && nearAccountIdFromMsg && vrfLike) {
+        try {
+          console.log('[SignerWorkerManager]: User confirmed - collecting credentials...');
+
+          // Get credentials using TouchID prompt
+          const vrfChallengeObj = (typeof (vrfLike as any)?.outputAs32Bytes === 'function')
+            ? vrfLike
+            : new VRFChallenge({
+                vrfInput: vrfLike.vrfInput,
+                vrfOutput: vrfLike.vrfOutput,
+                vrfProof: vrfLike.vrfProof,
+                vrfPublicKey: vrfLike.vrfPublicKey,
+                userId: vrfLike.userId,
+                rpId: vrfLike.rpId,
+                blockHeight: vrfLike.blockHeight,
+                blockHash: vrfLike.blockHash,
+              });
+
+          const authenticators = await this.clientDB.getAuthenticatorsByUser(nearAccountIdFromMsg);
+
+          const credential = await this.touchIdPrompt.getCredentials({
+            nearAccountId: nearAccountIdFromMsg,
+            challenge: vrfChallengeObj.outputAs32Bytes(),
+            authenticators: authenticators,
+          });
+
+          // Extract PRF output for decryption (registration needs both PRF outputs)
+          const dualPrfOutputs = extractPrfFromCredential({
+            credential,
+            firstPrfOutput: true,
+            secondPrfOutput: isRegistration, // Registration needs second PRF output
+          });
+
+          if (!dualPrfOutputs.chacha20PrfOutput) {
+            throw new Error('Failed to extract PRF outputs from credential');
+          }
+
+          // Serialize credential for WASM worker (use appropriate serializer based on flow type)
+          const serializedCredential = isRegistration
+            ? serializeRegistrationCredentialWithPRF({
+                credential,
+                firstPrfOutput: true,
+                secondPrfOutput: true
+              })
+            : serializeAuthenticationCredentialWithPRF({ credential });
+
+          // Add credentials to decision
+          decision.credential = serializedCredential;
+          decision.prfOutput = dualPrfOutputs.chacha20PrfOutput;
+
+          console.log('[SignerWorkerManager]: Credentials collected successfully');
+
+          // If we auto-mounted the modal for context, close it now
+          const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
+          if (confirmHandle && typeof confirmHandle.close === 'function') {
+            try { confirmHandle.close(true); } catch {}
+            (decision as any)._confirmHandle = undefined;
+          }
+        } catch (credentialError) {
+          console.error('[SignerWorkerManager]: Failed to collect credentials:', credentialError);
+          // If credential collection fails, reject the transaction
+          decision.confirmed = false;
+          // Close auto-mounted modal if present
+          const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
+          if (confirmHandle && typeof confirmHandle.close === 'function') {
+            try { confirmHandle.close(false); } catch {}
+            (decision as any)._confirmHandle = undefined;
+          }
+        }
+      }
+
+      console.log('[SignerWorkerManager]: Sending secure confirm decision:', {
+        requestId: decision.requestId,
+        confirmed: decision.confirmed,
+        hasIntentDigest: !!decision.intentDigest
+      });
+
+      worker.postMessage({
+        type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION,
+        data: decision
+      });
+
+    } catch (error) {
+      console.error('[SignerWorkerManager]: Failed to handle secure confirm request:', error);
+
+      // Send rejection decision on error
+      try {
+        const errorDecision: SecureConfirmDecision = {
+          requestId: message.data?.requestId || 'unknown',
+          intentDigest: message.data?.intentDigest,
+          confirmed: false
+        };
+        worker.postMessage({
+          type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION,
+          data: errorDecision
+        });
+      } catch (postError) {
+        console.error('[SignerWorkerManager]: Failed to send error decision:', postError);
+      }
+    }
+  }
+
+  /**
+   * Safely parses transaction summary data, handling both string and object formats
+   */
+  private parseTransactionSummary(summaryData: string | object | undefined): any {
+    if (!summaryData) {
+      return {};
+    }
+
+    if (typeof summaryData === 'string') {
+      try {
+        return JSON.parse(summaryData);
+      } catch (error) {
+        console.warn('[SignerWorkerManager]: Failed to parse summary JSON:', error);
+        return {};
+      }
+    }
+
+    if (typeof summaryData === 'object') {
+      return summaryData;
+    }
+
+    console.warn('[SignerWorkerManager]: Unexpected summary data type:', typeof summaryData);
+    return {};
   }
 
   createSecureWorker(): Worker {
@@ -117,7 +531,7 @@ export class SignerWorkerManager {
 
       const responses: WorkerResponseForRequest<T>[] = [];
 
-      worker.onmessage = (event) => {
+      worker.onmessage = async (event) => {
         try {
           // Use strong typing from WASM-generated types
           const response = event.data as WorkerResponseForRequest<T>;
@@ -129,6 +543,12 @@ export class SignerWorkerManager {
             hasPayload: !!response?.payload,
             fullResponse: response
           });
+
+          // Intercept secure confirm handshake (Phase A: pluggable UI)
+          if (event.data.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM) {
+            await this.handleSecureConfirmRequest(event.data as SecureConfirmMessage, worker);
+            return; // do not treat as a worker response, continue listening for more messages
+          }
 
           // Handle progress updates using WASM-generated numeric enum values
           if (isWorkerProgress(response)) {
@@ -532,13 +952,6 @@ export class SignerWorkerManager {
         throw new Error(`No encrypted key found for account: ${nearAccountId}`);
       }
 
-      // Extract PRF output from credential
-      const dualPrfOutputs = extractPrfFromCredential({
-        credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-
       const {
         accessKeyInfo,
         nextNonce,
@@ -547,6 +960,7 @@ export class SignerWorkerManager {
       } = await getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId });
 
       // Step 2: Execute registration transaction via WASM
+      // Credentials will be collected during the confirmation flow
       const response = await this.sendMessage({
         message: {
           type: WorkerRequestType.SignVerifyAndRegisterUser,
@@ -555,11 +969,8 @@ export class SignerWorkerManager {
               contractId: contractId,
               nearRpcUrl: nearRpcUrl,
               vrfChallenge: vrfChallenge,
-              authenticationCredential: undefined,
-              registrationCredential: serializeRegistrationCredentialWithPRF({ credential }),
             },
             decryption: {
-              chacha20PrfOutput: dualPrfOutputs.chacha20PrfOutput,
               encryptedPrivateKeyData: encryptedKeyData.encryptedData,
               encryptedPrivateKeyIv: encryptedKeyData.iv
             },
@@ -620,8 +1031,8 @@ export class SignerWorkerManager {
     transactions,
     blockHash,
     contractId,
+    authenticators,
     vrfChallenge,
-    credential,
     nearRpcUrl,
     onEvent
   }: {
@@ -633,8 +1044,8 @@ export class SignerWorkerManager {
     }>;
     blockHash: string;
     contractId: string;
+    authenticators: ClientAuthenticatorData[];
     vrfChallenge: VRFChallenge;
-    credential: PublicKeyCredential;
     nearRpcUrl: string;
     onEvent?: (update: onProgressEvents) => void
   }): Promise<Array<{
@@ -677,18 +1088,8 @@ export class SignerWorkerManager {
         throw new Error(`No encrypted key found for account: ${nearAccountId}`);
       }
 
-      // Extract dual PRF outputs from credential
-      const dualPrfOutputs = extractPrfFromCredential({
-        credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
+      // Credentials and PRF outputs are now collected during user confirmation handshake
 
-      if (!dualPrfOutputs.chacha20PrfOutput) {
-        throw new Error('Failed to extract PRF outputs from credential');
-      }
-
-      console.debug('WebAuthnManager: Sending batch transaction signing request to worker');
       // Create transaction signing requests
       const txSigningRequests = transactions.map(tx => ({
         nearAccountId: tx.nearAccountId,
@@ -707,15 +1108,19 @@ export class SignerWorkerManager {
               contractId: contractId,
               nearRpcUrl: nearRpcUrl,
               vrfChallenge: vrfChallenge,
-              authenticationCredential: serializeAuthenticationCredentialWithPRF({ credential }),
-              registrationCredential: undefined, // Registration Only
             },
             decryption: {
-              chacha20PrfOutput: dualPrfOutputs.chacha20PrfOutput,
               encryptedPrivateKeyData: encryptedKeyData.encryptedData,
               encryptedPrivateKeyIv: encryptedKeyData.iv
             },
-            txSigningRequests: txSigningRequests
+            txSigningRequests: txSigningRequests,
+            preConfirm: this.confirmationConfig.showPreConfirm,
+            confirmationConfig: {
+              showPreConfirm: this.confirmationConfig.showPreConfirm,
+              uiMode: this.confirmationConfig.uiMode as any,
+              behavior: this.confirmationConfig.behavior as any,
+              autoProceedDelay: this.confirmationConfig.autoProceedDelay,
+            }
           }
         },
         onEvent
