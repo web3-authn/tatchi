@@ -11,6 +11,9 @@ const external = [
   // All @near-js packages
   /@near-js\/.*/,
 
+  // Exclude Lit SSR shim (not needed for client-side only)
+  '@lit-labs/ssr-dom-shim',
+
   // Core dependencies that should be provided by consuming application
   'borsh',
   'bs58',
@@ -42,7 +45,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // CJS build
   {
@@ -59,7 +61,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // Server ESM build
   {
@@ -75,7 +76,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // Server CJS build
   {
@@ -92,7 +92,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // React ESM build
   {
@@ -108,7 +107,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // React CJS build
   {
@@ -125,7 +123,6 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
-    plugins: []
   },
   // React CSS build - output to separate styles directory to avoid JS conflicts
   {
@@ -135,7 +132,6 @@ export default defineConfig([
       format: 'esm',
       assetFileNames: 'styles.css'
     },
-    plugins: []
   },
   // WASM VRF Worker build for server usage - includes WASM binary
   {
