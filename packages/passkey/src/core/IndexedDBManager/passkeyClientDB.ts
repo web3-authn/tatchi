@@ -48,6 +48,9 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
+  // Confirmation settings
+  usePreConfirmFlow?: boolean;
+  confirmBehavior?: 'requireClick' | 'autoProceed';
   // User preferences can be extended here as needed
 }
 
@@ -86,7 +89,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 9, // Increment version for adding serverEncryptedVrfKeypair field
+  dbVersion: 11, // Increment version for adding confirmation settings to UserPreferences
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators'

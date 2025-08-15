@@ -51,6 +51,8 @@ export class WebAuthnManager {
     this.touchIdPrompt = new TouchIdPrompt();
     this.configs = configs;
 
+    // Set confirm behavior to auto-proceed to TouchID
+    this.signerWorkerManager.setConfirmBehavior('autoProceed');
     // VRF worker initializes on-demand with proper error propagation
     console.debug('WebAuthnManager: Constructor complete, VRF worker will initialize on-demand');
   }
@@ -93,7 +95,7 @@ export class WebAuthnManager {
    * @param saveInMemory - Whether to save the derived VRF keypair in worker memory for immediate use
    * @returns Deterministic VRF public key, optional VRF challenge, and encrypted VRF keypair for storage
    */
-  async deriveVrfKeypairFromPrf({
+  async deriveVrfKeypair({
     credential,
     nearAccountId,
     vrfInputData,
@@ -112,7 +114,7 @@ export class WebAuthnManager {
   }> {
     try {
       console.debug('WebAuthnManager: Deriving deterministic VRF keypair from PRF output');
-      const vrfResult = await this.vrfWorkerManager.deriveVrfKeypairFromSeed({
+      const vrfResult = await this.vrfWorkerManager.deriveVrfKeypairFromPrf({
         credential,
         nearAccountId,
         vrfInputData,
@@ -229,6 +231,27 @@ export class WebAuthnManager {
 
   async getUser(nearAccountId: AccountId): Promise<ClientUserData | null> {
     return await IndexedDBManager.clientDB.getUser(nearAccountId);
+  }
+
+  /**
+   * Set the current user for settings persistence
+   */
+  setCurrentUser(accountId: string): void {
+    this.signerWorkerManager.setCurrentUser(accountId);
+  }
+
+  /**
+   * Set pre-confirmation flow setting for the current user
+   */
+  setPreConfirmFlow(enabled: boolean): void {
+    this.signerWorkerManager.setPreConfirmFlow(enabled);
+  }
+
+  /**
+   * Set confirmation behavior setting for the current user
+   */
+  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
+    this.signerWorkerManager.setConfirmBehavior(behavior);
   }
 
   async getAllUserData(): Promise<ClientUserData[]> {
@@ -401,7 +424,6 @@ export class WebAuthnManager {
     blockHash,
     contractId,
     vrfChallenge,
-    credential,
     nearRpcUrl,
     onEvent,
   }: {
@@ -415,7 +437,6 @@ export class WebAuthnManager {
     blockHash: string,
     contractId: string,
     vrfChallenge: VRFChallenge,
-    credential: PublicKeyCredential,
     nearRpcUrl: string,
     onEvent?: (update: onProgressEvents) => void
   }): Promise<VerifyAndSignTransactionResult[]> {
@@ -423,14 +444,16 @@ export class WebAuthnManager {
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');
     }
+    let nearAccountId = transactions[0].nearAccountId;
+    const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
 
     return await this.signerWorkerManager.signTransactionsWithActions(
       {
         transactions,
         blockHash,
         contractId,
+        authenticators,
         vrfChallenge,
-        credential,
         nearRpcUrl,
         onEvent
       },

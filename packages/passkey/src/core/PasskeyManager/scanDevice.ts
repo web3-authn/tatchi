@@ -87,14 +87,6 @@ export async function linkDeviceWithQRCode(
 
     const vrfChallenge = await context.webAuthnManager.generateVrfChallenge(vrfInputData);
 
-    // Single TouchID prompt for both transactions
-    const authenticators = await context.webAuthnManager.getAuthenticatorsByUser(device1AccountId);
-    const credential = await context.webAuthnManager.touchIdPrompt.getCredentials({
-      nearAccountId: device1AccountId,
-      challenge: vrfChallenge.outputAs32Bytes(),
-      authenticators,
-    });
-
     onEvent?.({
       step: 6,
       phase: DeviceLinkingPhase.STEP_6_REGISTRATION,
@@ -116,7 +108,6 @@ export async function linkDeviceWithQRCode(
       nextNextNextNonce,
       txBlockHash,
       vrfChallenge,
-      credential,
       onEvent
     });
 

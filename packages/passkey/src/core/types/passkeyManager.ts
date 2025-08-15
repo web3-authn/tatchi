@@ -41,15 +41,16 @@ export enum LoginStatus {
 
 // Action Enums
 export enum ActionPhase {
-  STEP_1_PREPARATION = 'preparation',
-  STEP_2_GENERATING_CHALLENGE = 'generating-challenge',
-  STEP_3_WEBAUTHN_AUTHENTICATION = 'webauthn-authentication',           // Rust WASM worker phase: WebauthnAuthentication = 31
-  STEP_4_AUTHENTICATION_COMPLETE = 'authentication-complete',           // Rust WASM worker phase: AuthenticationComplete = 32
-  STEP_5_TRANSACTION_SIGNING_PROGRESS = 'transaction-signing-progress', // Rust WASM worker phase: TransactionSigningProgress = 33
-  STEP_6_TRANSACTION_SIGNING_COMPLETE = 'transaction-signing-complete', // Rust WASM worker phase: TransactionSigningComplete = 34
-  WASM_ERROR = 'wasm-error',                                            // Rust WASM worker phase: Error = 35
-  STEP_7_BROADCASTING = 'broadcasting',
-  STEP_8_ACTION_COMPLETE = 'action-complete',
+  STEP_1_PREPARATION = 'preparation',                                    // Rust WASM worker phase: Preparation = 100
+  STEP_2_USER_CONFIRMATION = 'user-confirmation',                        // Rust WASM worker phase: UserConfirmation = 101
+  STEP_3_CONTRACT_VERIFICATION = 'contract-verification',                // Rust WASM worker phase: ContractVerification = 102
+  STEP_4_WEBAUTHN_AUTHENTICATION = 'webauthn-authentication',            // Rust WASM worker phase: WebauthnAuthentication = 103
+  STEP_5_AUTHENTICATION_COMPLETE = 'authentication-complete',            // Rust WASM worker phase: AuthenticationComplete = 104
+  STEP_6_TRANSACTION_SIGNING_PROGRESS = 'transaction-signing-progress',  // Rust WASM worker phase: TransactionSigningProgress = 105
+  STEP_7_TRANSACTION_SIGNING_COMPLETE = 'transaction-signing-complete',  // Rust WASM worker phase: TransactionSigningComplete = 106
+  WASM_ERROR = 'wasm-error',                                             // Rust WASM worker phase: Error = 107
+  STEP_8_BROADCASTING = 'broadcasting',
+  STEP_9_ACTION_COMPLETE = 'action-complete',
   ACTION_ERROR = 'action-error',
 }
 export enum ActionStatus {
@@ -270,48 +271,53 @@ export interface ActionEventStep1 extends BaseActionSSEEvent {
 
 export interface ActionEventStep2 extends BaseActionSSEEvent {
   step: 2;
-  phase: ActionPhase.STEP_2_GENERATING_CHALLENGE;
+  phase: ActionPhase.STEP_2_USER_CONFIRMATION;
 }
 
 export interface ActionEventStep3 extends BaseActionSSEEvent {
   step: 3;
-  phase: ActionPhase.STEP_3_WEBAUTHN_AUTHENTICATION;
-  data?: any;
-  logs?: string[];
+  phase: ActionPhase.STEP_3_CONTRACT_VERIFICATION;
 }
 
 export interface ActionEventStep4 extends BaseActionSSEEvent {
   step: 4;
-  phase: ActionPhase.STEP_4_AUTHENTICATION_COMPLETE;
+  phase: ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION;
   data?: any;
   logs?: string[];
 }
 
 export interface ActionEventStep5 extends BaseActionSSEEvent {
   step: 5;
-  phase: ActionPhase.STEP_5_TRANSACTION_SIGNING_PROGRESS;
+  phase: ActionPhase.STEP_5_AUTHENTICATION_COMPLETE;
+  data?: any;
+  logs?: string[];
 }
 
 export interface ActionEventStep6 extends BaseActionSSEEvent {
   step: 6;
-  phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_COMPLETE;
-  status: ActionStatus.SUCCESS;
-  data?: any;
+  phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS;
 }
 
 export interface ActionEventStep7 extends BaseActionSSEEvent {
   step: 7;
-  phase: ActionPhase.STEP_7_BROADCASTING;
-  status: ActionStatus.PROGRESS;
+  phase: ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE;
+  status: ActionStatus.SUCCESS;
   data?: any;
 }
 
 export interface ActionEventStep8 extends BaseActionSSEEvent {
   step: 8;
-  phase: ActionPhase.STEP_8_ACTION_COMPLETE;
+  phase: ActionPhase.STEP_8_BROADCASTING;
+}
+
+export interface ActionEventStep9 extends BaseActionSSEEvent {
+  step: 9;
+  phase: ActionPhase.STEP_9_ACTION_COMPLETE;
   status: ActionStatus.SUCCESS;
   data?: any;
 }
+
+
 
 export interface ActionEventError extends BaseActionSSEEvent {
   step: 0;
@@ -336,6 +342,7 @@ export type ActionSSEEvent =
   | ActionEventStep6
   | ActionEventStep7
   | ActionEventStep8
+  | ActionEventStep9
   | ActionEventError
   | ActionEventWasmError;
 
