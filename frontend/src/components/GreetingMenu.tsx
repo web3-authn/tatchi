@@ -90,17 +90,13 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
       waitUntil: TxExecutionStatus.FINAL,
       hooks: {
         afterCall: (success: boolean, result?: any) => {
-          console.log("afterCall success: ", success);
-          console.log("afterCall result: ", result);
           if (success && result?.transactionId) {
             const txId = result.transactionId;
             const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
 
             // Reset greeting input on any successful transaction
-            console.log("Result: ", result);
             setGreetingInput("");
             // Transaction executed successfully - fetch the updated greeting
-            console.log('afterCall success - fetching updated greeting');
             fetchGreeting();
 
             onTransactionUpdate({

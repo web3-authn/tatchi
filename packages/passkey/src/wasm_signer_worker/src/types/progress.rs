@@ -60,11 +60,13 @@ impl TryFrom<u32> for ProgressMessageType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProgressStep {
     Preparation = 100,
-    WebauthnAuthentication = 101,
-    AuthenticationComplete = 102,
-    TransactionSigningProgress = 103,
-    TransactionSigningComplete = 104,
-    Error = 105,
+    UserConfirmation = 101,
+    ContractVerification = 102,
+    WebauthnAuthentication = 103,
+    AuthenticationComplete = 104,
+    TransactionSigningProgress = 105,
+    TransactionSigningComplete = 106,
+    Error = 107,
 }
 
 impl TryFrom<u32> for ProgressStep {
@@ -73,11 +75,13 @@ impl TryFrom<u32> for ProgressStep {
     fn try_from(value: u32) -> Result<Self, <Self as TryFrom<u32>>::Error> {
         match value {
             100 => Ok(ProgressStep::Preparation),
-            101 => Ok(ProgressStep::WebauthnAuthentication),
-            102 => Ok(ProgressStep::AuthenticationComplete),
-            103 => Ok(ProgressStep::TransactionSigningProgress),
-            104 => Ok(ProgressStep::TransactionSigningComplete),
-            105 => Ok(ProgressStep::Error),
+            101 => Ok(ProgressStep::UserConfirmation),
+            102 => Ok(ProgressStep::ContractVerification),
+            103 => Ok(ProgressStep::WebauthnAuthentication),
+            104 => Ok(ProgressStep::AuthenticationComplete),
+            105 => Ok(ProgressStep::TransactionSigningProgress),
+            106 => Ok(ProgressStep::TransactionSigningComplete),
+            107 => Ok(ProgressStep::Error),
             _ => Err(format!("Invalid ProgressStep value: {}", value)),
         }
     }
@@ -205,6 +209,8 @@ pub fn progress_message_type_name(message_type: ProgressMessageType) -> &'static
 pub fn progress_step_name(step: ProgressStep) -> &'static str {
     match step {
         ProgressStep::Preparation => "preparation",
+        ProgressStep::UserConfirmation => "user-confirmation",
+        ProgressStep::ContractVerification => "contract-verification",
         ProgressStep::WebauthnAuthentication => "webauthn-authentication",
         ProgressStep::AuthenticationComplete => "authentication-complete",
         ProgressStep::TransactionSigningProgress => "transaction-signing-progress",
