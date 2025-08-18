@@ -1,418 +1,447 @@
-# Neumorphism Style Guide
+## Web3Authn SDK UI Style Guide
 
-*A guide for implementing neumorphic design in the Web3 Authentication SDK*
+Reference aesthetic: clean monochrome, subtle animated borders, translucent backgrounds, crisp typography. Based on the actual implementation in `EmbeddedTxConfirm.tsx`.
 
-## Table of Contents
+### Principles
+- **Monochrome first**: white backgrounds, black text, subtle grays for hierarchy
+- **Translucent layers**: backdrop blur effects with semi-transparent backgrounds
+- **Animated borders**: subtle conic-gradient animations for visual interest
+- **Crisp content**: solid white content areas with clean typography
 
-1. [What is Neumorphism?](#what-is-neumorphism)
-2. [Core Design Principles](#core-design-principles)
-3. [Color System](#color-system)
-4. [Shadow & Light System](#shadow--light-system)
-5. [Component Guidelines](#component-guidelines)
-6. [Typography](#typography)
-7. [Accessibility Considerations](#accessibility-considerations)
-8. [Implementation Examples](#implementation-examples)
-9. [Best Practices](#best-practices)
-10. [Common Pitfalls](#common-pitfalls)
-
-## What is Neumorphism?
-
-Neumorphism (New Skeuomorphism) is a design trend that combines elements of skeuomorphism and flat design. It creates interfaces where UI elements appear to be **softly extruded from or pressed into the background**, achieving depth through subtle shadows and highlights rather than harsh borders or contrasts.
-
-### Key Characteristics:
-- **Soft, tactile surfaces** that feel like they're carved from the background
-- **Minimal color palettes** with subtle variations
-- **Dual shadow system** (light and dark) for depth
-- **Low contrast** between elements and background
-- **Clean, modern aesthetic** with subtle dimensionality
-
-## Core Design Principles
-
-### 1. Unified Background Philosophy
-Elements don't sit **on** the background—they emerge **from** it. The background acts as a single material that components are carved from or pressed into.
-
-### 2. Subtle Depth Through Shadows
-Depth is achieved through **dual shadows**:
-- **Light shadow** (highlight) on top-left
-- **Dark shadow** (lowlight) on bottom-right
-
-### 3. Minimal Color Variation
-Use **monochromatic or near-monochromatic** palettes with subtle tonal variations to maintain the unified material feel.
-
-### 4. Soft Interaction States
-Interactive elements should have **gentle state transitions** that maintain the soft, tactile feeling.
-
-## Color System
-
-### Primary Palette (Light Mode)
-```css
-/* Base Colors */
---neu-bg-primary: #e8ecf0;           /* Main background */
---neu-bg-secondary: #e8ecf0;         /* Component background */
---neu-text-primary: #2d3748;         /* Primary text */
---neu-text-secondary: #718096;       /* Secondary text */
---neu-text-muted: #a0aec0;          /* Muted text */
-
-/* Accent Colors */
---neu-accent-blue: #4299e1;         /* Primary accent */
---neu-accent-success: #48bb78;      /* Success states */
---neu-accent-warning: #ed8936;      /* Warning states */
---neu-accent-danger: #f56565;       /* Error states */
-```
-
-### Shadow System
-```css
-/* Light & Dark Shadows */
---neu-shadow-light: #ffffff;        /* Highlight shadow */
---neu-shadow-dark: #bec3c9;         /* Lowlight shadow */
-
-/* Inset Shadows */
---neu-shadow-inset-light: rgba(255, 255, 255, 0.7);
---neu-shadow-inset-dark: rgba(190, 195, 201, 0.7);
-
-/* Pre-defined Shadow Combinations */
---neu-shadow-raised: 6px 6px 12px var(--neu-shadow-dark),
-                     -6px -6px 12px var(--neu-shadow-light);
---neu-shadow-pressed: inset 3px 3px 6px var(--neu-shadow-inset-dark),
-                      inset -3px -3px 6px var(--neu-shadow-inset-light);
---neu-shadow-flat: 2px 2px 4px var(--neu-shadow-dark),
-                   -2px -2px 4px var(--neu-shadow-light);
---neu-shadow-hover: 8px 8px 16px var(--neu-shadow-dark),
-                    -8px -8px 16px var(--neu-shadow-light);
-```
-
-### Dark Mode Palette
-```css
-/* Dark Mode Colors */
---neu-bg-primary-dark: #1a202c;
---neu-bg-secondary-dark: #1a202c;
---neu-text-primary-dark: #e2e8f0;
---neu-text-secondary-dark: #a0aec0;
---neu-shadow-light-dark: #2d3748;
---neu-shadow-dark-dark: #0d1117;
-```
-
-## Shadow & Light System
-
-### Shadow Directions
-Following the **top-left light source** convention:
-- **Raised elements**: Light shadow top-left, dark shadow bottom-right
-- **Pressed elements**: Inset shadows with reversed light/dark positioning
-- **Flat elements**: Minimal shadows for subtle definition
-
-### Shadow Intensities
-```css
-/* Subtle (Default) */
---neu-shadow-subtle: 4px 4px 8px var(--neu-shadow-dark),
-                     -4px -4px 8px var(--neu-shadow-light);
-
-/* Medium */
---neu-shadow-medium: 6px 6px 12px var(--neu-shadow-dark),
-                     -6px -6px 12px var(--neu-shadow-light);
-
-/* Strong (Hover/Focus) */
---neu-shadow-strong: 8px 8px 16px var(--neu-shadow-dark),
-                     -8px -8px 16px var(--neu-shadow-light);
-
-/* Inset (Pressed) */
---neu-shadow-inset: inset 3px 3px 6px var(--neu-shadow-inset-dark),
-                    inset -3px -3px 6px var(--neu-shadow-inset-light);
-```
-
-## Component Guidelines
-
-### Buttons
-
-#### Primary Button (Raised)
-```css
-.neu-button-primary {
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-raised);
-  border: none;
-  border-radius: 12px;
-  color: var(--neu-text-primary);
-  transition: all 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.neu-button-primary:hover {
-  box-shadow: var(--neu-shadow-hover);
-  transform: translateY(-2px);
-}
-
-.neu-button-primary:active {
-  box-shadow: var(--neu-shadow-pressed);
-  transform: translateY(0);
-}
-```
-
-#### Secondary Button (Flat)
-```css
-.neu-button-secondary {
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-flat);
-  border: none;
-  border-radius: 12px;
-  color: var(--neu-text-secondary);
-}
-```
-
-### Cards
-
-#### Raised Card
-```css
-.neu-card {
-  background: var(--neu-bg-secondary);
-  box-shadow: var(--neu-shadow-raised);
-  border-radius: 20px;
-  padding: 24px;
-  position: relative;
-  overflow: hidden;
-}
-
-/* Subtle inner highlight */
-.neu-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  border-radius: 20px;
-  background: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0.05));
-  pointer-events: none;
-}
-```
-
-#### Pressed Card (Input Fields)
-```css
-.neu-input {
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-pressed);
-  border: none;
-  border-radius: 12px;
-  padding: 12px 16px;
-  color: var(--neu-text-primary);
-}
-```
-
-### Interactive States
-
-#### Hover Effects
-- **Elevation increase**: Enhanced shadow depth
-- **Subtle lift**: 2px translateY for tactile feedback
-- **Smooth transitions**: 200-300ms easing
-
-#### Focus States
-- **Accessibility-first**: Clear focus indicators
-- **Soft glow**: Subtle accent color outline
-- **Maintained neumorphism**: Focus doesn't break the design
-
-#### Active/Pressed States
-- **Inset shadows**: Element appears pressed into surface
-- **Immediate feedback**: No transition delay
-- **Reset transform**: Return to original position
-
-## Typography
-
-### Font System
-```css
---neu-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
-                   Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
---neu-font-size-xs: 12px;
---neu-font-size-sm: 14px;
---neu-font-size-base: 16px;
---neu-font-size-lg: 18px;
---neu-font-size-xl: 24px;
---neu-font-size-2xl: 32px;
-```
-
-### Text Shadows
-Subtle text shadows enhance the neumorphic effect:
-```css
-.neu-text-raised {
-  text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
-}
-
-.neu-text-pressed {
-  text-shadow: inset 1px 1px 2px rgba(190, 195, 201, 0.3);
-}
-```
-
-### Hierarchy
-- **Headings**: Slightly raised with soft text shadows
-- **Body text**: Clean, minimal shadows
-- **Captions**: Subtle, muted appearance
-
-## Accessibility Considerations
-
-### Contrast Requirements
-- **Text contrast**: Maintain WCAG AA standards (4.5:1 minimum)
-- **Interactive elements**: Clear visual distinction between states
-- **Focus indicators**: High contrast outlines for keyboard navigation
-
-### Color Independence
-- **Don't rely on color alone**: Use shadows and shapes for meaning
-- **Test with color blindness**: Ensure usability across vision types
-- **High contrast mode**: Provide alternative styles when needed
-
-### Touch Targets
-- **Minimum size**: 44px × 44px for touch interfaces
-- **Clear boundaries**: Subtle but discernible element edges
-- **Adequate spacing**: Prevent accidental interactions
-
-## Implementation Examples
-
-### Modal Dialog
-```css
-.neu-modal {
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-raised);
-  border-radius: 20px;
-  backdrop-filter: blur(8px) saturate(1.2);
-}
-
-.neu-modal-backdrop {
-  background: rgba(232, 236, 240, 0.85);
-}
-```
-
-### Form Controls
-```css
-.neu-checkbox {
-  appearance: none;
-  width: 20px;
-  height: 20px;
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-pressed);
-  border-radius: 4px;
-}
-
-.neu-checkbox:checked {
-  box-shadow: var(--neu-shadow-flat);
-  background: linear-gradient(135deg, var(--neu-accent-blue), #3182ce);
-}
-```
-
-### Progress Indicators
-```css
-.neu-progress-track {
-  background: var(--neu-bg-primary);
-  box-shadow: var(--neu-shadow-pressed);
-  border-radius: 10px;
-  height: 8px;
-}
-
-.neu-progress-fill {
-  background: linear-gradient(135deg, var(--neu-accent-blue), #3182ce);
-  box-shadow: var(--neu-shadow-flat);
-  border-radius: 10px;
-  height: 100%;
-}
-```
-
-## Best Practices
-
-### Do's
-- **Maintain consistency** in shadow directions and intensities
-- **Use subtle color variations** within the same tone family
-- **Provide clear interaction feedback** through shadow changes
-- **Test across different screen sizes** and resolutions
-- **Consider performance** - complex shadows can impact rendering
-- **Implement dark mode** support from the start
-
-### Don'ts
-- **Avoid high contrast** between elements and backgrounds
-- **Don't overuse the effect** - not every element needs neumorphism
-- **Avoid tiny elements** - neumorphism works best with adequate size
-- **Don't ignore accessibility** - maintain proper contrast ratios
-- **Avoid mixing with other design systems** inconsistently
-
-## Common Pitfalls
-
-### 1. Accessibility Issues
-**Problem**: Low contrast makes text hard to read
-**Solution**: Ensure text meets WCAG contrast requirements
-
-### 2. Overuse of Effects
-**Problem**: Every element has neumorphic styling
-**Solution**: Use selectively for key interactive elements
-
-### 3. Inconsistent Light Source
-**Problem**: Shadows pointing in different directions
-**Solution**: Establish and maintain consistent light source (top-left)
-
-### 4. Performance Impact
-**Problem**: Complex box-shadows causing rendering issues
-**Solution**: Optimize shadow complexity, use CSS custom properties
-
-### 5. Mobile Considerations
-**Problem**: Effects don't translate well to small screens
-**Solution**: Simplify effects on mobile, maintain touch target sizes
-
-## Responsive Considerations
-
-### Mobile Adaptations
-```css
-@media (max-width: 640px) {
-  .neu-card {
-    border-radius: 16px;
-    padding: 16px;
-    box-shadow: var(--neu-shadow-flat); /* Reduced shadow */
-  }
-
-  .neu-button {
-    min-height: 44px; /* Touch-friendly */
-    border-radius: 10px;
-  }
-}
-```
-
-### High DPI Displays
-```css
-@media (-webkit-min-device-pixel-ratio: 2) {
-  .neu-element {
-    box-shadow: 3px 3px 6px var(--neu-shadow-dark),
-                -3px -3px 6px var(--neu-shadow-light);
-  }
-}
-```
-
-## Performance Optimization
-
-### CSS Custom Properties
-Use CSS custom properties for dynamic theming and reduced code duplication:
+### Design Tokens
+Use these CSS variables to maintain consistency across components.
 
 ```css
 :root {
-  --neu-shadow-x: 6px;
-  --neu-shadow-y: 6px;
-  --neu-shadow-blur: 12px;
+  /* Colors */
+  --w3a-bg: #ffffff;
+  --w3a-surface: rgba(255, 255, 255, 0.8);
+  --w3a-surface-solid: #ffffff;
+  --w3a-text: #1f2937;
+  --w3a-text-dim: #4a5568;
+  --w3a-border: #e2e8f0;
+  --w3a-border-strong: #cbd5e0;
+  --w3a-shadow: rgba(0, 0, 0, 0.05);
+  --w3a-shadow-strong: rgba(0, 0, 0, 0.1);
 
-  --neu-shadow-raised:
-    var(--neu-shadow-x) var(--neu-shadow-y) var(--neu-shadow-blur) var(--neu-shadow-dark),
-    calc(-1 * var(--neu-shadow-x)) calc(-1 * var(--neu-shadow-y)) var(--neu-shadow-blur) var(--neu-shadow-light);
+  /* Typography */
+  --w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Sizing & Spacing */
+  --w3a-radius-sm: 8px;
+  --w3a-radius: 16px;
+  --w3a-radius-lg: 24px;
+  --w3a-gap-1: 4px;
+  --w3a-gap-2: 8px;
+  --w3a-gap-3: 12px;
+  --w3a-gap-4: 16px;
+  --w3a-gap-6: 24px;
+
+  /* Motion */
+  --w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --w3a-fast: 200ms;
+  --w3a-med: 400ms;
 }
 ```
 
-### Animation Performance
+### Animated Border System
+The signature animated border using conic-gradient with CSS custom properties.
+
 ```css
-.neu-element {
-  /* Use transform for animations instead of box-shadow changes */
-  will-change: transform;
-  transition: transform 200ms ease, box-shadow 200ms ease;
+/* Base animated border class */
+.animated-border {
+  --border-angle: 0deg;
+  background: linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      rgba(0, 0, 0, 0.0) 0%,
+      rgba(0, 0, 0, 0.35) 10%,
+      rgba(0, 0, 0, 0.0) 20%,
+      rgba(0, 0, 0, 0.0) 100%
+    ) border-box;
+  border: 4px solid transparent;
+  border-radius: var(--w3a-radius);
+  animation: border-angle-rotate 4s infinite linear;
+}
+
+/* CSS custom property for animation */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+/* Animation keyframes */
+@keyframes border-angle-rotate {
+  from { --border-angle: 0deg; }
+  to { --border-angle: 360deg; }
 }
 ```
 
----
+### Translucent Background System
+Layered translucent backgrounds with backdrop blur for depth.
 
-## Reference Implementation
+```css
+/* Primary translucent container */
+.translucent-container {
+  background: transparent;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-lg);
+  padding: var(--w3a-gap-2);
+}
 
-See `packages/passkey/src/core/Components/SecureTxConfirmElement.ts` for a complete implementation example following these guidelines.
+/* Solid content area within translucent container */
+.content-area {
+  background: var(--w3a-surface-solid);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius);
+  padding: var(--w3a-gap-4);
+  box-shadow: 0 2px 4px var(--w3a-shadow);
+}
+```
 
-## Further Reading
+### Typography
 
-- [Justinmind Neumorphism Guide](https://www.justinmind.com/ui-design/neumorphism)
-- [CSS Box Shadow Generator](https://neumorphism.io/)
-- [WCAG Accessibility Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+```css
+.heading {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--w3a-text);
+  margin-bottom: var(--w3a-gap-4);
+}
+
+.body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--w3a-text-dim);
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--w3a-text-dim);
+}
+
+.mono {
+  font-family: var(--w3a-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+```
+
+### Code Block Styling
+Fixed-height scrollable code blocks with monospace typography.
+
+```css
+.code-block {
+  font-family: var(--w3a-font-mono);
+  background: #f8fafc;
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-sm);
+  padding: var(--w3a-gap-2);
+  white-space: pre;
+  word-break: normal;
+  overflow: auto;
+  line-height: 1.4;
+  color: var(--w3a-text);
+  max-height: calc(1.4em * 3); /* Fixed 3-line height */
+}
+```
+
+### Button System
+Clean, accessible buttons with subtle hover states.
+
+```css
+.btn {
+  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  border: none;
+  border-radius: var(--w3a-radius-sm);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--w3a-gap-2);
+}
+
+.btn-primary {
+  background: #667eea;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #5a67d8;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+}
+
+.btn-secondary {
+  background: var(--w3a-border);
+  color: var(--w3a-text-dim);
+}
+
+.btn-secondary:hover {
+  background: var(--w3a-border-strong);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+```
+
+### Action List Component
+The signature component combining animated borders with solid content areas.
+
+```css
+.action-list {
+  /* Animated border wrapper */
+  --border-angle: 0deg;
+  background: linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      rgba(0, 0, 0, 0.0) 0%,
+      rgba(0, 0, 0, 0.35) 10%,
+      rgba(0, 0, 0, 0.0) 20%,
+      rgba(0, 0, 0, 0.0) 100%
+    ) border-box;
+  border: 4px solid transparent;
+  border-radius: var(--w3a-radius);
+  height: 100%;
+  overflow: hidden;
+  box-shadow: 0 2px 4px var(--w3a-shadow);
+  position: relative;
+  animation: border-angle-rotate 4s infinite linear;
+}
+
+.action-item {
+  padding: var(--w3a-gap-3);
+  border-bottom: 1px solid var(--w3a-border);
+  background: var(--w3a-surface-solid);
+}
+
+.action-item:last-child {
+  border-bottom: none;
+}
+
+.action-type {
+  font-weight: 600;
+  color: var(--w3a-text);
+  margin-bottom: var(--w3a-gap-2);
+  display: flex;
+  align-items: center;
+  gap: var(--w3a-gap-2);
+}
+
+.action-type-badge {
+  background: #667eea;
+  color: white;
+  padding: 2px var(--w3a-gap-2);
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.action-details {
+  font-size: 0.9rem;
+  color: var(--w3a-text-dim);
+}
+
+.action-detail {
+  margin-bottom: var(--w3a-gap-1);
+}
+
+.action-detail strong {
+  color: var(--w3a-text);
+}
+```
+
+### Tooltip System
+Hover-triggered tooltips with translucent backgrounds.
+
+```css
+.tooltip-container {
+  position: relative;
+  display: inline-block;
+  z-index: 1001;
+}
+
+.tooltip-content {
+  position: absolute;
+  background: transparent;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-lg);
+  padding: var(--w3a-gap-2);
+  z-index: 1000;
+  opacity: 0;
+  visibility: hidden;
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  height: var(--tooltip-height, auto);
+  max-height: var(--tooltip-max-height, none);
+  overflow-y: auto;
+}
+
+.tooltip-container:hover .tooltip-content {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Positioning variants */
+.tooltip-content.top {
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: var(--tooltip-offset, var(--w3a-gap-2));
+}
+
+.tooltip-content.bottom {
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: var(--tooltip-offset, var(--w3a-gap-2));
+}
+
+.tooltip-content.left {
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-right: var(--tooltip-offset, var(--w3a-gap-2));
+}
+
+.tooltip-content.right {
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: var(--tooltip-offset, var(--w3a-gap-2));
+}
+```
+
+### Copy Button
+Small utility button for copying content to clipboard.
+
+```css
+.copy-btn {
+  position: absolute;
+  top: var(--w3a-gap-2);
+  right: var(--w3a-gap-2);
+  background: #eef2f7;
+  color: var(--w3a-text);
+  border: 1px solid var(--w3a-border);
+  border-radius: 6px;
+  padding: 4px var(--w3a-gap-2);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--w3a-fast) var(--w3a-ease);
+}
+
+.copy-btn:hover {
+  background: #e5eaf1;
+}
+```
+
+### Loading States
+Subtle loading indicators with consistent styling.
+
+```css
+.loading {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--w3a-gap-2);
+  color: #667eea;
+  font-weight: 500;
+}
+
+.loading.show {
+  display: flex;
+}
+
+.spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--w3a-border);
+  border-top: 2px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+```
+
+### Layout & Spacing
+
+```css
+.section {
+  padding: var(--w3a-gap-6) 0;
+}
+
+.grid {
+  display: grid;
+  gap: var(--w3a-gap-4);
+}
+
+.grid.cols-2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.grid.cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.divider {
+  height: 1px;
+  background: var(--w3a-border);
+}
+```
+
+### Motion & States
+
+```css
+.hover-lift {
+  transition: transform var(--w3a-fast) var(--w3a-ease);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  border-color: var(--w3a-border-strong);
+}
+```
+
+### Accessibility
+- Maintain WCAG-AA contrast ratios
+- Focus-visible styles on all interactive elements
+- Respect reduced-motion preferences
+- Semantic HTML structure
+
+### Browser Support
+- Modern browsers with CSS custom properties support
+- Fallback for browsers without `@property` (animation disabled)
+- Graceful degradation for backdrop-filter
+
+### Integration Notes
+- These styles can coexist with existing design systems
+- Use CSS custom properties for easy theming
+- Maintain consistent spacing and typography scales
+- Keep animations subtle and purposeful
+
+
