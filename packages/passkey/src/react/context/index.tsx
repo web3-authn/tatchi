@@ -340,6 +340,14 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     useRelayer: relayerHook.useRelayer,
     setUseRelayer: relayerHook.setUseRelayer,
     toggleRelayer: relayerHook.toggleRelayer,
+
+    // Confirmation configuration functions
+    setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),
+    setConfirmationConfig: (config: any) => passkeyManager.setConfirmationConfig(config),
+    getConfirmationConfig: () => passkeyManager.getConfirmationConfig(),
+
+    // Account management functions
+    viewAccessKeyList: (accountId: string) => passkeyManager.viewAccessKeyList(accountId),
   };
 
   return <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>;

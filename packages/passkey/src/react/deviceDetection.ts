@@ -51,7 +51,6 @@ export const getOptimalCameraFacingMode = (): CameraFacingMode => {
 
     case 'desktop':
     default:
-      console.log('Desktop device detected - using front camera (user)');
       return 'user';
   }
 };

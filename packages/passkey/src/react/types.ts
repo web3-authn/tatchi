@@ -13,6 +13,9 @@ import type {
   SignNEP413MessageParams,
   SignNEP413MessageResult
 } from '../core/PasskeyManager';
+import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
+import type { AccountId } from '../core/types/accountIds';
+import type { ActionArgs } from '../core/types/actions';
 import type {
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1
@@ -30,7 +33,7 @@ import type {
   AccountRecoveryHooksOptions,
   ActionResult
 } from '../core/types/passkeyManager';
-import { ActionArgs } from '@/core/types/actions';
+import type { AccessKeyList } from '../core/NearClient';
 
 // Type-safe event handler for device linking events
 export type DeviceLinkingSSEEventHandler = (event: DeviceLinkingSSEEvent) => void;
@@ -196,6 +199,14 @@ export interface PasskeyContextType {
   useRelayer: boolean;
   setUseRelayer: (value: boolean) => void;
   toggleRelayer: () => void;
+
+  // Confirmation configuration functions
+  setConfirmBehavior: (behavior: ConfirmationBehavior) => void;
+  setConfirmationConfig: (config: ConfirmationConfig) => void;
+  getConfirmationConfig: () => ConfirmationConfig;
+
+  // Account management functions
+  viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;
 }
 
 /** Config options for PasskeyContextProvider
@@ -236,3 +247,40 @@ export type {
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
 } from '../core/types/linkDevice';
+
+// === EMBEDDED TRANSACTION CONFIRMATION TYPES ===
+export interface EmbeddedTxConfirmProps {
+  /** NEAR account ID */
+  nearAccountId: AccountId;
+  /** Action arguments (single action or array of actions) */
+  actionArgs: ActionArgs | ActionArgs[];
+  /** Component title */
+  title?: string;
+  /** Cancel button text */
+  cancelText?: string;
+  /** Confirm button text */
+  confirmText?: string;
+  /** Visual variant */
+  variant?: 'default' | 'warning' | 'danger';
+  /** Callback when user confirms - same signature as executeAction */
+  onConfirm?: (nearAccountId: AccountId, actionArgs: ActionArgs | ActionArgs[], options?: ActionHooksOptions) => Promise<ActionResult>;
+  /** Callback when user cancels */
+  onCancel?: () => void;
+  /** Loading state */
+  loading?: boolean;
+  /** Iframe height */
+  height?: string | number;
+  /** Iframe width */
+  width?: string | number;
+  /** Sandbox attributes for the iframe */
+  sandbox?: string;
+  /** Whether to show loading state during processing */
+  showLoading?: boolean;
+  /** Callback when transaction is successfully signed */
+  onSuccess?: (result: any) => void;
+  /** Callback when transaction fails */
+  onError?: (error: Error) => void;
+  /** Whether to auto-execute the transaction (default: true) */
+  autoExecute?: boolean;
+}
+

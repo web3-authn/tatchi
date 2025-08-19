@@ -30,7 +30,10 @@ export { PasskeyProvider, usePasskeyContext } from './context';
 // === REACT HOOKS ===
 
 export { useNearClient } from './hooks/useNearClient';
-export type { NearClient } from '../core/NearClient';
+export type {
+  NearClient,
+  AccessKeyList
+} from '../core/NearClient';
 export { useAccountInput } from './hooks/useAccountInput';
 export { useRelayer } from './hooks/useRelayer';
 export { useQRCamera, QRScanMode } from './hooks/useQRCamera';
@@ -45,6 +48,8 @@ export { TxExecutionStatus } from '../core/types/actions';
 export { ProfileSettingsButton } from './components/ProfileSettingsButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
+// Embedded transaction confirmation component
+export { EmbeddedTxConfirm } from './components/EmbeddedTxConfirm';
 
 // === TYPES ===
 export type {
@@ -76,6 +81,8 @@ export type {
   UseAccountInputReturn,
   UseRelayerOptions,
   UseRelayerReturn,
+  // Embedded transaction confirmation
+  EmbeddedTxConfirmProps,
 } from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===
