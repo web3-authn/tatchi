@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, LoginStatus, ActionPhase, ActionStatus } from '@web3authn/passkey/react'
+import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase } from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -10,7 +10,7 @@ import {
 
 import { Toggle } from './Toggle'
 import { usePostfixPosition } from '../hooks/usePostfixPosition'
-import { LinkDeviceShowQR } from './LinkDeviceShowQR'
+import './PasskeyLoginMenu.css'
 
 
 export function PasskeyLoginMenu() {
@@ -168,11 +168,19 @@ export function PasskeyLoginMenu() {
 
   if (!isSecureContext) {
     return (
-      <div className="passkey-container">
-        <h3>Passkey Authentication</h3>
-        <div className="security-warning">
-          <p>⚠️ Passkey operations require a secure context (HTTPS or localhost).</p>
-          <p>Please ensure your development server is running on HTTPS or access via localhost.</p>
+      <div className="passkey-container-root">
+        <div className="passkey-translucent-container">
+          <div className="passkey-content-area">
+            <div className="login-header">
+              <h2 className="login-title">Passkey Authentication</h2>
+            </div>
+            <div className="login-content">
+              <div className="security-warning">
+                <p>⚠️ Passkey operations require a secure context (HTTPS or localhost).</p>
+                <p>Please ensure your development server is running on HTTPS or access via localhost.</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -180,73 +188,78 @@ export function PasskeyLoginMenu() {
 
   return (
     <div className="passkey-container-root">
-      <div className="passkey-container">
+      <div className="passkey-translucent-container">
+        <div className="passkey-content-area">
+          <div className="login-header">
+            <h2 className="login-title">Passkey Login</h2>
+            <p className="login-caption">Authenticate onchain with Passkeys</p>
+          </div>
 
-        <h2>Passkey Login</h2>
-        <p className="caption">Authenticate onchain with Passkeys</p>
+          <div className="login-content">
+            <Toggle
+              checked={useRelayer}
+              onChange={toggleRelayer}
+              label={useRelayer ? 'Use relayer' : 'Use faucet'}
+              tooltip={useRelayer
+                ? 'Using relayer for account creation'
+                : 'Using faucet for account creation'
+              }
+              className="auth-mode-toggle"
+              size="small"
+              textPosition="left"
+            />
 
-        <Toggle
-          checked={useRelayer}
-          onChange={toggleRelayer}
-          label={useRelayer ? 'Use relayer' : 'Use faucet'}
-          tooltip={useRelayer
-            ? 'Using relayer for account creation'
-            : 'Using faucet for account creation'
-          }
-          className="auth-mode-toggle"
-          size="small"
-          textPosition="left"
-        />
-
-        <>
-          <div className="input-wrapper">
-            <div className="username-input-container">
-              <input
-                ref={usernameInputRef}
-                type="text"
-                value={inputUsername}
-                onChange={handleLocalUsernameChange}
-                placeholder="Enter username for passkey"
-                className="styled-input username-input"
-              />
-              <span
-                ref={postfixRef}
-                className={`account-postfix ${isUsingExistingAccount ? 'stored-account' : ''}`}
-                title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
-              >
-                {displayPostfix}
-                {isUsingExistingAccount && <span className="stored-indicator">●</span>}
-              </span>
-            </div>
-            {accountExists && inputUsername && (
-              <div className="account-exists-badge">
-                account exists
+            <div className="input-wrapper">
+              <div className="username-input-container">
+                <input
+                  ref={usernameInputRef}
+                  type="text"
+                  value={inputUsername}
+                  onChange={handleLocalUsernameChange}
+                  placeholder="Enter username for passkey"
+                  className="username-input passkey-focus-ring"
+                />
+                <span
+                  ref={postfixRef}
+                  className={`account-postfix ${isUsingExistingAccount ? 'stored-account' : ''}`}
+                  title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
+                >
+                  {displayPostfix}
+                  {isUsingExistingAccount && <span className="stored-indicator">●</span>}
+                </span>
               </div>
-            )}
+              {accountExists && inputUsername && (
+                <div className="account-exists-badge">
+                  account exists
+                </div>
+              )}
+            </div>
+
+            <div className="auth-buttons">
+              <button
+                onClick={onLogin}
+                className={`btn ${accountExists ? 'btn-primary' : 'btn-secondary'}`}
+                disabled={!inputUsername || !accountExists}
+              >
+                Login
+              </button>
+              <button
+                onClick={onRegister}
+                className={`btn ${!accountExists ? 'btn-primary' : 'btn-secondary'}`}
+                disabled={!inputUsername || !isSecureContext || accountExists}
+              >
+                Register Passkey
+              </button>
+              <button
+                onClick={onRecover}
+                className={`btn ${!accountExists ? 'btn-primary' : 'btn-secondary'}`}
+                disabled={!inputUsername || !isSecureContext || accountExists}
+              >
+                Recover Account
+              </button>
+            </div>
           </div>
-
-
-          <div className="auth-buttons">
-            <button onClick={onRegister}
-              className={`action-button ${!accountExists ? 'primary' : ''}`}
-              disabled={!inputUsername || !isSecureContext || accountExists}>
-              Register Passkey
-            </button>
-            <button onClick={onRecover}
-              className={`action-button ${!accountExists ? 'primary' : ''}`}
-              disabled={!inputUsername || !isSecureContext || accountExists}>
-              Recover Account
-            </button>
-            <button onClick={onLogin}
-              className={`action-button ${accountExists ? 'primary' : ''}`}
-              disabled={!inputUsername || !accountExists}
-            >
-              Login with Passkey
-            </button>
-          </div>
-
-          <LinkDeviceShowQR />
-        </>
+        </div>
       </div>
     </div>
   );

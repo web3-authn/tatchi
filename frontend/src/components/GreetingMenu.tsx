@@ -13,6 +13,7 @@ import {
   MUTED_GREEN,
   NEAR_EXPLORER_BASE_URL
 } from '../config';
+import './GreetingMenu.css';
 
 interface GreetingMenuProps {
   disabled?: boolean;
@@ -214,85 +215,90 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
   return (
     <div className="passkey-container-root">
-      <div className="passkey-container">
-
-        <h2>Welcome, {nearAccountId}</h2>
-        <p className="caption">Send NEAR transactions with Passkeys</p>
-
-        <div className="greeting-controls-box">
-          <div className="webauthn-contract-link">
-            Onchain message on&nbsp;
-            <a href={`${NEAR_EXPLORER_BASE_URL}/address/${WEBAUTHN_CONTRACT_ID}`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {WEBAUTHN_CONTRACT_ID}
-            </a>:
+      <div className="translucent-container">
+        <div className="content-area">
+          <div className="greeting-header">
+            <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+            <p className="greeting-caption">Send NEAR transactions with Passkeys</p>
           </div>
 
-          <div className="on-chain-greeting-box">
-            <button
-              onClick={handleRefreshGreeting}
-              disabled={isLoading}
-              title="Refresh Greeting"
-              className="refresh-icon-button"
-            >
-              <RefreshIcon size={22} color={MUTED_GREEN}/>
-            </button>
-            <p><strong>{onchainGreeting || "..."}</strong></p>
-          </div>
+          <div className="greeting-content">
+            <div className="greeting-controls-box">
+              <div className="webauthn-contract-link">
+                Onchain message on&nbsp;
+                <a href={`${NEAR_EXPLORER_BASE_URL}/address/${WEBAUTHN_CONTRACT_ID}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {WEBAUTHN_CONTRACT_ID}
+                </a>:
+              </div>
 
-          <div className="greeting-input-group">
-            <input
-              type="text"
-              value={greetingInput}
-              onChange={(e) => setGreetingInput(e.target.value)}
-              placeholder="Enter new greeting"
-              className="styled-input"
-            />
-            <button
-              onClick={handleSetGreeting}
-              className="action-button"
-              disabled={isLoading || !greetingInput.trim()}
-            >
-              {isLoading ? 'Processing...' : 'Set New Greeting'}
-            </button>
-          </div>
+              <div className="on-chain-greeting-box">
+                <button
+                  onClick={handleRefreshGreeting}
+                  disabled={isLoading}
+                  title="Refresh Greeting"
+                  className="refresh-icon-button"
+                >
+                  <RefreshIcon size={22} color={MUTED_GREEN}/>
+                </button>
+                <p><strong>{onchainGreeting || "..."}</strong></p>
+              </div>
 
-          <div className="transfer-section">
-            <h3>Send NEAR</h3>
-            <div className="transfer-input-group">
-              <input
-                type="text"
-                value={transferRecipient}
-                onChange={(e) => setTransferRecipient(e.target.value)}
-                placeholder="Recipient account (e.g., alice.testnet)"
-                className="styled-input"
-              />
-              <input
-                type="number"
-                value={transferAmount}
-                onChange={(e) => setTransferAmount(e.target.value)}
-                placeholder="Amount in NEAR"
-                className="styled-input"
-                min="0"
-                step="0.01"
-              />
-              <button
-                onClick={handleSendNear}
-                className="action-button"
-                disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
-              >
-                {isLoading ? 'Processing...' : 'Send NEAR'}
-              </button>
+              <div className="greeting-input-group">
+                <input
+                  type="text"
+                  value={greetingInput}
+                  onChange={(e) => setGreetingInput(e.target.value)}
+                  placeholder="Enter new greeting"
+                  className="focus-ring"
+                />
+                <button
+                  onClick={handleSetGreeting}
+                  className="btn btn-primary"
+                  disabled={isLoading || !greetingInput.trim()}
+                >
+                  {isLoading ? 'Processing...' : 'Set New Greeting'}
+                </button>
+              </div>
+
+              <div className="transfer-section">
+                <h3>Send NEAR</h3>
+                <div className="transfer-input-group">
+                  <input
+                    type="text"
+                    value={transferRecipient}
+                    onChange={(e) => setTransferRecipient(e.target.value)}
+                    placeholder="Recipient account (e.g., alice.testnet)"
+                    className="focus-ring"
+                  />
+                  <input
+                    type="number"
+                    value={transferAmount}
+                    onChange={(e) => setTransferAmount(e.target.value)}
+                    placeholder="Amount in NEAR"
+                    className="focus-ring"
+                    min="0"
+                    step="0.01"
+                  />
+                  <button
+                    onClick={handleSendNear}
+                    className="btn btn-primary"
+                    disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
+                  >
+                    {isLoading ? 'Processing...' : 'Send NEAR'}
+                  </button>
+                </div>
+              </div>
+
+              {error && (
+                <div className="error-message">
+                  Error: {error}
+                </div>
+              )}
             </div>
           </div>
-
-          {error && (
-            <div className="error-message">
-              Error: {error}
-            </div>
-          )}
         </div>
       </div>
     </div>

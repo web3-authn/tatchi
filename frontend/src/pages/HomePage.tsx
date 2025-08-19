@@ -6,6 +6,7 @@ import { GreetingMenu } from '../components/GreetingMenu';
 import { TransactionDetails } from '../components/TransactionDetails';
 import type { LastTxDetails } from '../types';
 import { LinkDeviceScanQR } from '../components/LinkDeviceScanQR';
+import { LinkDeviceShowQR } from '../components/LinkDeviceShowQR';
 
 export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
@@ -21,7 +22,10 @@ export function HomePage() {
           <LinkDeviceScanQR />
         </div>
       ) : (
-        <PasskeyLoginMenu />
+        <div className="homepage-content">
+          <PasskeyLoginMenu />
+            <LinkDeviceShowQR />
+        </div>
       )}
     </main>
   );

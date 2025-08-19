@@ -105,31 +105,7 @@ button:focus-visible {
   margin-top: 10px;
 }
 
-.styled-input {
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: text;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition: border-color 0.25s;
-  color: rgba(255, 255, 255, 0.87);
-  width: 100%;
-  height: 40px;
-  box-sizing: border-box;
-}
-
-.styled-input:hover {
-  border-color: #646cff;
-}
-
-.styled-input:focus,
-.styled-input:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-  border-color: #646cff;
-}
+/* Input styles moved to component-specific CSS files */
 
 @media (prefers-color-scheme: light) {
   :root {
@@ -142,23 +118,12 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
-  .styled-input {
-    background-color: #f9f9f9;
-    color: #213547;
-  }
-  .styled-input:hover {
-    border-color: #747bff;
-  }
-  .styled-input:focus,
-  .styled-input:focus-visible {
-    border-color: #747bff;
-  }
 }
 
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding-top: 65px;
+  padding-top: calc(65px + 0.5rem); /* 65px + 8px (nav bar height + margin-top) */
 }
 
 main {
@@ -176,31 +141,6 @@ header {
   font-size: 1.1rem;
   color: #666666;
   margin-bottom: 2rem;
-}
-
-.passkey-container-root {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 5rem;
-  width: 100%;
-}
-
-.passkey-container {
-  background-color: #ffffff;
-  border: 1px solid #e0e0e0;
-  border-radius: 12px;
-  padding: 2.5rem;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  width: 100%;
-  max-width: 480px;
-}
-
-.auth-buttons {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  margin: 0;
 }
 
 button {
@@ -386,52 +326,6 @@ header { /* Duplicate definition */
   margin-top: 0rem;
 }
 
-/* There were more styles in App.css. Appending the rest: */
-/* Note: Some of these styles might conflict with or override styles previously defined in index.css or earlier in this appended block. Careful review is recommended. */
-
-/* Styles from the end of App.css that were not fully captured in the initial read */
-.action-button {
-    background-color: var(--muted-green-primary);
-    color: white;
-    border: 1px solid var(--muted-green-primary);
-    padding: 0.75rem 1.5rem;
-    text-align: center;
-    text-decoration: none;
-    font-size: 1rem;
-    font-weight: 500;
-    margin: 0.5rem 0;
-    cursor: pointer;
-    border-radius: 8px;
-    transition: all 0.2s ease;
-    width: 100%;
-    box-sizing: border-box;
-}
-
-.action-button:hover {
-    background-color: var(--muted-green-hover);
-    border-color: var(--muted-green-hover);
-    color: white;
-}
-
-.action-button.primary {
-    background-color: var(--muted-green-primary);
-    color: white;
-    border-color: var(--muted-green-primary);
-}
-
-.action-button.primary:hover {
-    background-color: var(--muted-green-hover);
-    border-color: var(--muted-green-hover);
-    color: white;
-}
-
-.action-button:disabled {
-    background-color: #f5f5f5;
-    color: #999999;
-    border-color: #e0e0e0;
-    cursor: not-allowed;
-}
-
 .input-field {
     width: 100%;
     padding: 0.75rem 1rem;
@@ -547,49 +441,9 @@ header { /* Duplicate definition */
   background: var(--muted-green-hover);
 }
 
-/* PasskeyLogin Component Styles */
+/* PasskeyLogin Component Styles - Moved to component-specific CSS files */
 
-.greeting-controls-box {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.refresh-icon-button {
-  background: none;
-  border: none;
-  padding: 6px;
-  cursor: pointer;
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
-
-.on-chain-greeting-box {
-  position: relative;
-  background-color: rgba(141, 181, 142, 0.3);
-  color: var(--muted-green);
-  padding: 10px;
-  border: 1px solid var(--muted-green);
-  border-radius: 4px;
-  text-align: left;
-  width: 100%;
-  box-sizing: border-box;
-  margin-right: 0;
-  height: 48px;
-}
-
-.on-chain-greeting-box p {
-  margin: 0;
-}
-
-.on-chain-greeting-box p + p {
-  margin-top: 0.25em;
-  font-weight: bold;
-  font-size: 1.1em;
-}
-
+/* Transaction display styles - kept for other components */
 .last-tx-display {
   font-size: 0.9rem;
   font-weight: 600;
@@ -611,50 +465,6 @@ header { /* Duplicate definition */
   opacity: 0.8;
 }
 
-.greeting-input-group {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.greeting-input-group .styled-input {
-  flex-grow: 1;
-  margin-right: 10px;
-  height: 45px;
-}
-
-.greeting-input-group .action-button {
-  flex-shrink: 0;
-  width: auto;
-}
-
-/* Transfer Section Styles */
-.transfer-section {
-  margin-top: 2rem;
-}
-
-.transfer-section h3 {
-  margin-top: 0;
-  font-size: 1.5rem;
-}
-
-.transfer-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-}
-
-.transfer-input-group .styled-input {
-  margin-bottom: 0;
-}
-
-.transfer-input-group .action-button {
-  margin: 0;
-}
-
 .user-info-box {
   margin-bottom: 1rem;
   padding: 1rem;
@@ -665,15 +475,9 @@ header { /* Duplicate definition */
   align-items: center;
 }
 
-.webauthn-contract-link {
-  margin: 0.5rem 0;
-  font-size: 1rem;
-  font-weight: 600;
-}
-
 .logout-button {
   background-color: #f44336 !important;
-  color: white !important;
+  color: white;
   padding: 0.5rem 1rem !important;
   font-size: 0.9rem !important;
   width: auto !important;
@@ -905,7 +709,7 @@ header { /* Duplicate definition */
 
 @media (prefers-color-scheme: dark) {
   .username-input-container {
-    background-color: #1a1a1a;
+    background-color: #213547;
   }
 
   .username-input {
@@ -969,6 +773,7 @@ header { /* Duplicate definition */
 }
 
 .transaction-content {
+  display: flex;
 }
 
 .transaction-content .tx-message {

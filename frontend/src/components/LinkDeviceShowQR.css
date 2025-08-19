@@ -1,0 +1,297 @@
+/* Web3Authn SDK Style Guide Implementation for LinkDeviceShowQR */
+
+:root {
+  /* Colors */
+  --w3a-bg: #ffffff;
+  --w3a-surface: rgba(255, 255, 255, 0.8);
+  --w3a-surface-solid: #ffffff;
+  --w3a-text: #1f2937;
+  --w3a-text-dim: #4a5568;
+  --w3a-border: #e2e8f0;
+  --w3a-border-strong: #cbd5e0;
+  --w3a-shadow: rgba(0, 0, 0, 0.05);
+  --w3a-shadow-strong: rgba(0, 0, 0, 0.1);
+
+  /* Typography */
+  --w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Sizing & Spacing */
+  --w3a-radius-sm: 12px;
+  --w3a-radius: 24px;
+  --w3a-radius-lg: 32px;
+  --w3a-gap-1: 4px;
+  --w3a-gap-2: 8px;
+  --w3a-gap-3: 12px;
+  --w3a-gap-4: 16px;
+  --w3a-gap-6: 24px;
+
+  /* Motion */
+  --w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --w3a-fast: 200ms;
+  --w3a-med: 400ms;
+}
+
+/* Base Layout */
+.link-device-root {
+  display: flex;
+  max-width: 480px;
+  justify-content: center;
+  align-items: flex-start;
+  font-family: var(--w3a-font-sans);
+}
+
+/* Translucent outer shell wrapping solid content */
+.translucent-container {
+  background: transparent;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-lg);
+  padding: var(--w3a-gap-2);
+  max-width: 860px;
+  width: 100%;
+  box-shadow: 0 4px 20px var(--w3a-shadow-strong);
+}
+
+/* Solid content area inside translucent shell */
+.content-area {
+  background: var(--w3a-surface-solid);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius);
+  padding: var(--w3a-gap-4);
+  box-shadow: 0 2px 4px var(--w3a-shadow);
+  position: relative;
+}
+
+/* Header Section */
+.link-device-header {
+  padding: var(--w3a-gap-6);
+  border-bottom: 1px solid var(--w3a-border);
+  text-align: center;
+}
+
+.link-device-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--w3a-text);
+  margin: 0 0 var(--w3a-gap-2) 0;
+}
+
+.link-device-caption {
+  font-size: 0.9rem;
+  color: var(--w3a-text-dim);
+  margin: 0;
+}
+
+/* Content Section */
+.link-device-content {
+  padding: var(--w3a-gap-6);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+/* Device Linking Section */
+.device-linking-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w3a-gap-4);
+}
+
+/* Auth Buttons */
+.auth-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w3a-gap-2);
+  margin-top: var(--w3a-gap-2);
+  margin-bottom: var(--w3a-gap-2);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+/* Button System */
+.btn {
+  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  border: none;
+  border-radius: var(--w3a-radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--w3a-gap-2);
+  font-family: var(--w3a-font-sans);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: #667eea;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: #5a67d8;
+  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: var(--w3a-border);
+  color: var(--w3a-text-dim);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--w3a-border-strong);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Device Linking Help */
+.device-linking-help {
+  font-size: 0.85rem;
+  color: var(--w3a-text-dim);
+  line-height: 1.5;
+  margin: 0;
+  text-align: center;
+}
+
+/* Device Linking Active */
+.device-linking-active {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w3a-gap-4);
+  align-items: center;
+  text-align: center;
+}
+
+.device-linking-active h4 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--w3a-text);
+  margin: 0 0 var(--w3a-gap-3) 0;
+}
+
+/* QR Code Display */
+.qr-code-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--w3a-gap-3);
+  padding: var(--w3a-gap-4);
+  background: #f8fafc;
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-sm);
+  margin-bottom: var(--w3a-gap-4);
+}
+
+.qr-code-display p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--w3a-text);
+}
+
+.qr-code-display img {
+  max-width: 200px;
+  height: auto;
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-sm);
+  box-shadow: 0 2px 4px var(--w3a-shadow);
+}
+
+/* Typography */
+.heading {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--w3a-text);
+  margin-bottom: var(--w3a-gap-4);
+}
+
+.body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--w3a-text-dim);
+}
+
+.label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--w3a-text-dim);
+}
+
+.mono {
+  font-family: var(--w3a-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--w3a-text);
+}
+
+/* Focus Ring */
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  border-color: var(--w3a-border-strong);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .link-device-root {
+    margin: 1rem;
+  }
+
+  .link-device-header,
+  .link-device-content {
+    padding: var(--w3a-gap-4);
+  }
+
+  .auth-buttons {
+    gap: var(--w3a-gap-2);
+  }
+
+  .qr-code-display img {
+    max-width: 150px;
+  }
+}
+
+/* Scrollbar Styling */
+.link-device-root::-webkit-scrollbar {
+  width: 6px;
+}
+
+.link-device-root::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.link-device-root::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.link-device-root::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

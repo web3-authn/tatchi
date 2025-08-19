@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { usePasskeyContext, ProfileSettingsButton } from '@web3authn/passkey/react';
 
 export const Navbar: React.FC = () => {
-
   const { loginState } = usePasskeyContext();
 
   return (
@@ -19,6 +18,12 @@ export const Navbar: React.FC = () => {
         <Link to="/" style={{ textDecoration: 'none', color: '#666', fontSize: '14px' }}>
           Home
         </Link>
+        <Link to="/settings">
+          Settings
+        </Link>
+        <Link to="/embedded" style={{ textDecoration: 'none', color: '#666', fontSize: '14px' }}>
+          Embedded Demo
+        </Link>
       </div>
 
       {
@@ -28,6 +33,7 @@ export const Navbar: React.FC = () => {
           onLogout={() => {}}
         />
       }
+
     </nav>
   );
 };
