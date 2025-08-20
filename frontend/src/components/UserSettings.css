@@ -1,68 +1,13 @@
-/* Web3Authn SDK Style Guide Implementation for UserSettings */
 
-:root {
-  /* Colors */
-  --w3a-bg: #ffffff;
-  --w3a-surface: rgba(255, 255, 255, 0.8);
-  --w3a-surface-solid: #ffffff;
-  --w3a-text: #1f2937;
-  --w3a-text-dim: #4a5568;
-  --w3a-border: #e2e8f0;
-  --w3a-border-strong: #cbd5e0;
-  --w3a-shadow: rgba(0, 0, 0, 0.05);
-  --w3a-shadow-strong: rgba(0, 0, 0, 0.1);
-
-  /* Typography */
-  --w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-  /* Sizing & Spacing */
-  --w3a-radius-sm: 12px;
-  --w3a-radius: 24px;
-  --w3a-radius-lg: 32px;
-  --w3a-gap-1: 4px;
-  --w3a-gap-2: 8px;
-  --w3a-gap-3: 12px;
-  --w3a-gap-4: 16px;
-  --w3a-gap-6: 24px;
-
-  /* Motion */
-  --w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --w3a-fast: 200ms;
-  --w3a-med: 400ms;
-}
-
-/* Base Layout */
+/* Solid content area inside translucent shell */
 .user-settings-root {
   display: flex;
-  margin: 2rem;
+  margin-top: 2rem;
+  width: 100%;
   max-width: 480px;
   justify-content: center;
   align-items: flex-start;
   font-family: var(--w3a-font-sans);
-}
-
-/* Translucent outer shell wrapping solid content */
-.translucent-container {
-  background: transparent;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-lg);
-  padding: var(--w3a-gap-2);
-  max-width: 860px;
-  width: 100%;
-  box-shadow: 0 4px 20px var(--w3a-shadow-strong);
-}
-
-/* Solid content area inside translucent shell */
-.content-area {
-  background: var(--w3a-surface-solid);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius);
-  padding: var(--w3a-gap-4);
-  box-shadow: 0 2px 4px var(--w3a-shadow);
-  position: relative;
 }
 
 .settings-header {
@@ -104,7 +49,6 @@
 
 .settings-grid {
   display: grid;
-  gap: var(--w3a-gap-4);
 }
 
 /* Animated border system for lists */
@@ -153,7 +97,8 @@
   font-weight: 600;
   line-height: 1.5;
   color: var(--w3a-text);
-  margin-bottom: var(--w3a-gap-4);
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .body {
@@ -202,7 +147,7 @@
   color: var(--w3a-text);
   transition: all var(--w3a-fast) var(--w3a-ease);
   appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px;
@@ -213,7 +158,7 @@
 .form-input:focus {
   outline: none;
   border-color: var(--w3a-border-strong);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
 }
 
 .form-help {
@@ -239,13 +184,13 @@
 }
 
 .btn-primary {
-  background: #667eea;
+  background: var(--cobalt-primary);
   color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: #5a67d8;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+  background: var(--cobalt-primary-hover);
+  box-shadow: 0 2px 4px var(--cobalt-shadow);
   transform: translateY(-1px);
 }
 
@@ -256,12 +201,15 @@
 }
 
 .btn-secondary {
-  background: var(--w3a-border);
-  color: var(--w3a-text-dim);
+  background: var(--cobalt-primary-dimmed);
+  color: white;
+  border: 1px solid var(--cobalt-primary-dimmed);
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: var(--w3a-border-strong);
+  background: var(--cobalt-primary);
+  color: white;
+  border-color: var(--cobalt-primary);
 }
 
 /* Content Areas */
@@ -287,7 +235,7 @@
 /* Code Block */
 .code-block {
   font-family: var(--w3a-font-mono);
-  background: #f8fafc;
+  background: var(--w3a-bg-dark-1);
   border: 1px solid var(--w3a-border);
   border-radius: var(--w3a-radius-sm);
   padding: var(--w3a-gap-3);
@@ -295,7 +243,7 @@
   word-break: normal;
   overflow: auto;
   line-height: 1.4;
-  color: var(--w3a-text);
+  color: white;
   font-size: 0.8rem;
   max-height: 300px;
 }
@@ -389,7 +337,7 @@
 }
 
 .focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
   border-color: var(--w3a-border-strong);
 }
 

@@ -5,12 +5,13 @@ import { ActionPhase, usePasskeyContext } from '@web3authn/passkey/react';
 import type { ActionArgs, FunctionCallAction, TransferAction } from '@web3authn/passkey/react';
 import { ActionType, TxExecutionStatus } from '@web3authn/passkey/react';
 
+import { GlassBorder } from './GlassBorder';
 import type { LastTxDetails } from '../types';
 import { RefreshIcon } from './icons/RefreshIcon';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
-  MUTED_GREEN,
+  CERULEAN_BLUE,
   NEAR_EXPLORER_BASE_URL
 } from '../config';
 import './GreetingMenu.css';
@@ -214,93 +215,89 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
   }
 
   return (
-    <div className="passkey-container-root">
-      <div className="translucent-container">
-        <div className="content-area">
-          <div className="greeting-header">
-            <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
-            <p className="greeting-caption">Send NEAR transactions with Passkeys</p>
+    <GlassBorder>
+      <div className="greeting-header">
+        <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+        <p className="greeting-caption">Send NEAR transactions with Passkeys</p>
+      </div>
+
+      <div className="greeting-content">
+        <div className="greeting-controls-box">
+          <div className="webauthn-contract-link">
+            Onchain message on&nbsp;
+            <a href={`${NEAR_EXPLORER_BASE_URL}/address/${WEBAUTHN_CONTRACT_ID}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {WEBAUTHN_CONTRACT_ID}
+            </a>:
           </div>
 
-          <div className="greeting-content">
-            <div className="greeting-controls-box">
-              <div className="webauthn-contract-link">
-                Onchain message on&nbsp;
-                <a href={`${NEAR_EXPLORER_BASE_URL}/address/${WEBAUTHN_CONTRACT_ID}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {WEBAUTHN_CONTRACT_ID}
-                </a>:
-              </div>
+          <div className="on-chain-greeting-box">
+            <button
+              onClick={handleRefreshGreeting}
+              disabled={isLoading}
+              title="Refresh Greeting"
+              className="refresh-icon-button"
+            >
+              <RefreshIcon size={22} color={CERULEAN_BLUE}/>
+            </button>
+            <p><strong>{onchainGreeting || "..."}</strong></p>
+          </div>
 
-              <div className="on-chain-greeting-box">
-                <button
-                  onClick={handleRefreshGreeting}
-                  disabled={isLoading}
-                  title="Refresh Greeting"
-                  className="refresh-icon-button"
-                >
-                  <RefreshIcon size={22} color={MUTED_GREEN}/>
-                </button>
-                <p><strong>{onchainGreeting || "..."}</strong></p>
-              </div>
+          <div className="greeting-input-group">
+            <input
+              type="text"
+              value={greetingInput}
+              onChange={(e) => setGreetingInput(e.target.value)}
+              placeholder="Enter new greeting"
+              className="greeting-focus-ring"
+            />
+            <button
+              onClick={handleSetGreeting}
+              className="greeting-btn greeting-btn-primary"
+              disabled={isLoading || !greetingInput.trim()}
+            >
+              {isLoading ? 'Processing...' : 'Set New Greeting'}
+            </button>
+          </div>
 
-              <div className="greeting-input-group">
-                <input
-                  type="text"
-                  value={greetingInput}
-                  onChange={(e) => setGreetingInput(e.target.value)}
-                  placeholder="Enter new greeting"
-                  className="focus-ring"
-                />
-                <button
-                  onClick={handleSetGreeting}
-                  className="btn btn-primary"
-                  disabled={isLoading || !greetingInput.trim()}
-                >
-                  {isLoading ? 'Processing...' : 'Set New Greeting'}
-                </button>
-              </div>
-
-              <div className="transfer-section">
-                <h3>Send NEAR</h3>
-                <div className="transfer-input-group">
-                  <input
-                    type="text"
-                    value={transferRecipient}
-                    onChange={(e) => setTransferRecipient(e.target.value)}
-                    placeholder="Recipient account (e.g., alice.testnet)"
-                    className="focus-ring"
-                  />
-                  <input
-                    type="number"
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
-                    placeholder="Amount in NEAR"
-                    className="focus-ring"
-                    min="0"
-                    step="0.01"
-                  />
-                  <button
-                    onClick={handleSendNear}
-                    className="btn btn-primary"
-                    disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
-                  >
-                    {isLoading ? 'Processing...' : 'Send NEAR'}
-                  </button>
-                </div>
-              </div>
-
-              {error && (
-                <div className="error-message">
-                  Error: {error}
-                </div>
-              )}
+          <div className="transfer-section">
+            <h3>Send NEAR</h3>
+            <div className="transfer-input-group">
+              <input
+                type="text"
+                value={transferRecipient}
+                onChange={(e) => setTransferRecipient(e.target.value)}
+                placeholder="Recipient account (e.g., alice.testnet)"
+                className="greeting-focus-ring"
+              />
+              <input
+                type="number"
+                value={transferAmount}
+                onChange={(e) => setTransferAmount(e.target.value)}
+                placeholder="Amount in NEAR"
+                className="greeting-focus-ring"
+                min="0"
+                step="0.01"
+              />
+              <button
+                onClick={handleSendNear}
+                className="greeting-btn greeting-btn-primary"
+                disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
+              >
+                {isLoading ? 'Processing...' : 'Send NEAR'}
+              </button>
             </div>
           </div>
+
+          {error && (
+            <div className="error-message">
+              Error: {error}
+            </div>
+          )}
         </div>
       </div>
-    </div>
+    </GlassBorder>
   );
 }

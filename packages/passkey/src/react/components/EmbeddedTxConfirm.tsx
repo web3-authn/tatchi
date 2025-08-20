@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { usePasskeyContext } from '../context';
 import type { ActionArgs } from '../../core/types/actions';
 import type { ActionHooksOptions, ActionResult } from '../../core/types/passkeyManager';
@@ -20,6 +20,12 @@ export interface EmbeddedTxConfirmProps {
     /** Height of the button placeholder (default: '40px') */
     height?: string | number;
   };
+  /** Button color theme (default: '#667eea') */
+  color?: string;
+  /** Arbitrary CSS styles for the button (overrides default styles) */
+  buttonStyle?: React.CSSProperties;
+  /** Arbitrary CSS styles for the button hover state */
+  buttonHoverStyle?: React.CSSProperties;
   /** Callback when user confirms - same signature as executeAction */
   onConfirm?: (nearAccountId: AccountId, actionArgs: ActionArgs | ActionArgs[], options?: ActionHooksOptions) => Promise<ActionResult>;
   /** Callback when user cancels */
@@ -75,6 +81,7 @@ export interface EmbeddedTxConfirmProps {
  * - Beautiful UI: Modern, responsive design with loading states
  * - Type-safe: Full TypeScript support
  * - Configurable size: Fixed dimensions with tooltip overflow
+ * - Themable: Customizable button color and arbitrary CSS styles
  *
  * ## Size Configuration
  *
@@ -113,6 +120,45 @@ export interface EmbeddedTxConfirmProps {
  *     methodName: "setGreeting",
  *     args: { message: "Hello World" }
  *   }}
+ *   color="#2A52BE"
+ *   onSuccess={(result) => console.log('Transaction signed:', result)}
+ *   onError={(error) => console.error('Transaction failed:', error)}
+ *   onCancel={() => console.log('Transaction cancelled')}
+ * />
+ *
+ * // With custom color theme
+ * <EmbeddedTxConfirm
+ *   nearAccountId="alice.testnet"
+ *   actionArgs={{
+ *     type: ActionType.FunctionCall,
+ *     receiverId: "greeting.testnet",
+ *     methodName: "setGreeting",
+ *     args: { message: "Hello World" }
+ *   }}
+ *   color="#10B981"
+ *   onSuccess={(result) => console.log('Transaction signed:', result)}
+ *   onError={(error) => console.error('Transaction failed:', error)}
+ *   onCancel={() => console.log('Transaction cancelled')}
+ * />
+ *
+ * // With custom button styles
+ * <EmbeddedTxConfirm
+ *   nearAccountId="alice.testnet"
+ *   actionArgs={{
+ *     type: ActionType.FunctionCall,
+ *     receiverId: "greeting.testnet",
+ *     methodName: "setGreeting",
+ *     args: { message: "Hello World" }
+ *   }}
+ *   buttonStyle={{
+ *     background: 'linear-gradient(45deg, #667eea, #764ba2)',
+ *     borderRadius: '25px',
+ *     fontSize: '16px',
+ *     fontWeight: 'bold',
+ *     textTransform: 'uppercase',
+ *     letterSpacing: '1px',
+ *     boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)'
+ *   }}
  *   onSuccess={(result) => console.log('Transaction signed:', result)}
  *   onError={(error) => console.error('Transaction failed:', error)}
  *   onCancel={() => console.log('Transaction cancelled')}
@@ -139,10 +185,13 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
   nearAccountId,
   actionArgs,
   size = { width: '180px', height: '40px' },
+  color = '#667eea',
+  buttonStyle,
+  buttonHoverStyle,
   onConfirm,
   onCancel,
   loading = false,
-  sandbox = 'allow-scripts allow-same-origin allow-forms',
+  sandbox = 'allow-scripts allow-same-origin allow-forms allow-presentation',
   showLoading = true,
   onSuccess,
   onError,
@@ -150,6 +199,21 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
   tooltip = {}
 }) => {
   const { passkeyManager } = usePasskeyContext();
+
+  // Convert React CSSProperties to CSS string
+  const convertStylesToCSS = (styles: React.CSSProperties): string => {
+    return Object.entries(styles)
+      .map(([key, value]) => {
+        // Convert camelCase to kebab-case
+        const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
+        return `${cssKey}: ${value};`;
+      })
+      .join(' ');
+  };
+
+  // Generate custom button styles CSS
+  const customButtonStyles = buttonStyle ? convertStylesToCSS(buttonStyle) : '';
+  const customButtonHoverStyles = buttonHoverStyle ? convertStylesToCSS(buttonHoverStyle) : '';
 
   // Extract tooltip configuration with defaults
   const tooltipConfig = {
@@ -214,14 +278,15 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
 
   const iframeSize = calculateIframeSize();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
   const [isIframeReady, setIsIframeReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
 
 
-  // Create inline HTML content for the iframe
-  const iframeContent = `
+  // Create inline HTML content for the iframe - memoized to prevent re-renders
+  const iframeContent = useMemo(() => `
     <!DOCTYPE html>
     <html>
     <head>
@@ -250,6 +315,9 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
         :root {
           --btn-width: ${sizeConfig.width};
           --btn-height: ${sizeConfig.height};
+          --btn-color: ${color};
+          --btn-color-hover: ${color}dd;
+          --btn-color-shadow: ${color}33;
         }
 
         .action-list {
@@ -285,7 +353,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
         }
 
         .action-item {
-          padding: 12px;
+          padding: 0;
           border-bottom: 1px solid #e2e8f0;
         }
 
@@ -296,14 +364,21 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
         .action-type {
           font-weight: 600;
           color: #2d3748;
-          margin-bottom: 8px;
           display: flex;
           align-items: center;
           gap: 8px;
+          padding: 8px 8px 4px 8px;
+        }
+
+        .action-details {
+          font-size: 0.8rem;
+          color: #4a5568;
+          width: 100%;
+          overflow: hidden;
         }
 
         .action-type-badge {
-          background: #667eea;
+          background: var(--btn-color);
           color: white;
           padding: 2px 8px;
           border-radius: 12px;
@@ -311,24 +386,41 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           font-weight: 500;
         }
 
-        .action-details {
-          font-size: 0.9rem;
-          color: #4a5568;
+        .action-detail {
+          padding: 0 0 0 8px;
+          margin: 0;
+          border-bottom: 1px solid #f1f1f1;
         }
 
-        .action-detail {
-          margin-bottom: 4px;
+        .action-detail:last-child,
+        .action-detail.no-border {
+          border-bottom: none;
         }
 
         .action-detail strong {
           color: #2d3748;
+          padding: 0 0 0 8px;
+          font-weight: 600;
+          white-space: nowrap;
+          vertical-align: top;
+          width: 1%;
+          font-size: 0.75rem;
+        }
+
+        .action-detail span {
+          padding: 0 0 0 8px;
+          vertical-align: top;
+          word-break: break-word;
+        }
+
+        .action-detail:not(:has(strong)) {
+          display: none;
         }
 
         .code-block {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
           background: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
+          border-radius: 8px;
           padding: 6px;
           margin-top: 2px;
           white-space: pre-wrap; /* allow wrapping */
@@ -339,6 +431,9 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           font-size: 0.78rem;
           color: #1f2937;
           max-height: calc(1.35em * 8);
+          margin-left: -8px;
+          width: calc(100% + 8px);
+          box-sizing: content-box;
         }
 
         .tooltip-container {
@@ -351,23 +446,26 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           --tooltip-min-width: ${tooltipConfig.minWidth};
           --tooltip-offset: ${tooltipConfig.offset};
           z-index: 1001;
+          box-sizing: border-box;
+          overflow: visible;
+          pointer-events: auto;
         }
 
         .tooltip-content {
           position: absolute;
           background: transparent;
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
+          backdrop-filter: blur(4px);
+          -webkit-backdrop-filter: blur(4px);
           border: 1px solid #e2e8f0;
           border-radius: 24px;
           padding: 8px;
           z-index: 1000;
           opacity: 0;
           visibility: hidden;
-          transition: all 0.2s ease;
           height: var(--tooltip-height, auto);
           max-height: var(--tooltip-max-height, none);
           overflow-y: auto;
+          transition: all 0.2s ease;
         }
 
         .tooltip-content.top {
@@ -410,7 +508,8 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           width: var(--tooltip-width, 280px);
         }
 
-        .tooltip-container:hover .tooltip-content {
+        .tooltip-container:hover .tooltip-content,
+        .tooltip-content.show {
           opacity: 1;
           visibility: visible;
         }
@@ -430,22 +529,23 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           font-size: 1rem;
           font-weight: 500;
           cursor: pointer;
-          transition: all 0.2s ease;
           display: flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
+          box-shadow: none;
         }
 
         .btn-primary {
-          background: #667eea;
+          background: var(--btn-color);
           color: white;
+          width: 100%;
+          height: 100%;
+          box-sizing: border-box;
         }
 
         .btn-primary:hover {
-          background: #5a67d8;
-          transform: none;
-          box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+          background: var(--btn-color);
         }
 
         .btn-secondary {
@@ -454,7 +554,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
         }
 
         .btn-secondary:hover {
-          background: #cbd5e0;
+          background: #e2e8f0;
         }
 
         .btn:disabled {
@@ -468,7 +568,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           align-items: center;
           justify-content: center;
           gap: 8px;
-          color: #667eea;
+          color: var(--btn-color);
           font-weight: 500;
         }
 
@@ -480,7 +580,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           width: 16px;
           height: 16px;
           border: 2px solid #e2e8f0;
-          border-top: 2px solid #667eea;
+          border-top: 2px solid var(--btn-color);
           border-radius: 50%;
           animation: spin 1s linear infinite;
         }
@@ -500,12 +600,22 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           font-size: 0.9rem;
         }
 
+        .btn-custom {
+          ${customButtonStyles}
+        }
+
+        .btn-custom:hover {
+          ${customButtonHoverStyles}
+        }
 
       </style>
     </head>
     <body>
       <div class="tooltip-container" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: var(--btn-width); height: var(--btn-height);">
-        <button class="btn btn-primary" id="confirmBtn" style="width: 100%; height: 100%;">
+
+        <button class="btn btn-primary${(buttonStyle || buttonHoverStyle) ? ' btn-custom' : ''}"
+          id="confirmBtn"
+        >
           <span class="loading" id="loading">
             <div class="spinner"></div>
             Processing...
@@ -579,36 +689,34 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
 
             if (action.type === 'FunctionCall') {
               actionHtml += \`
-                <div class="action-detail"><strong>Receiver:</strong> \${action.receiverId}</div>
-                <div class="action-detail"><strong>Method:</strong> \${action.methodName}</div>
-                <div class="action-detail"><strong>Arguments:</strong>
-                  <pre class="code-block"><code>\${escapeHtml(JSON.stringify(action.args, null, 2))}</code></pre>
-                </div>
-                <div class="action-detail"><strong>Gas:</strong> \${action.gas || 'Not specified'}</div>
-                <div class="action-detail"><strong>Deposit:</strong> \${action.deposit || '0'}</div>
+                <div class="action-detail"><strong>Receiver</strong><span>\${action.receiverId}</span></div>
+                <div class="action-detail"><strong>Method</strong><span>\${action.methodName}</span></div>
+                <div class="action-detail"><strong>Gas</strong><span>\${action.gas || 'Not specified'}</span></div>
+                <div class="action-detail"><strong>Deposit</strong><span>\${action.deposit || '0'}</span></div>
+                <div class="action-detail no-border"><strong>Arguments</strong><span><pre class="code-block"><code>\${escapeHtml(JSON.stringify(action.args, null, 2))}</code></pre></span></div>
               \`;
             } else if (action.type === 'Transfer') {
               actionHtml += \`
-                <div class="action-detail"><strong>Receiver:</strong> \${action.receiverId}</div>
-                <div class="action-detail"><strong>Amount:</strong> \${action.amount}</div>
+                <div class="action-detail"><strong>Receiver</strong><span>\${action.receiverId}</span></div>
+                <div class="action-detail"><strong>Amount</strong><span>\${action.amount}</span></div>
               \`;
             } else if (action.type === 'Stake') {
               actionHtml += \`
-                <div class="action-detail"><strong>Public Key:</strong> \${action.publicKey}</div>
-                <div class="action-detail"><strong>Amount:</strong> \${action.amount}</div>
+                <div class="action-detail"><strong>Public Key</strong><span>\${action.publicKey}</span></div>
+                <div class="action-detail"><strong>Amount</strong><span>\${action.amount}</span></div>
               \`;
             } else if (action.type === 'AddKey') {
               actionHtml += \`
-                <div class="action-detail"><strong>Public Key:</strong> \${action.publicKey}</div>
-                <div class="action-detail"><strong>Access Key:</strong> \${JSON.stringify(action.accessKey, null, 2)}</div>
+                <div class="action-detail"><strong>Public Key</strong><span>\${action.publicKey}</span></div>
+                <div class="action-detail"><strong>Access Key</strong><span>\${JSON.stringify(action.accessKey, null, 2)}</span></div>
               \`;
             } else if (action.type === 'DeleteKey') {
               actionHtml += \`
-                <div class="action-detail"><strong>Public Key:</strong> \${action.publicKey}</div>
+                <div class="action-detail"><strong>Public Key</strong><span>\${action.publicKey}</span></div>
               \`;
             } else if (action.type === 'DeleteAccount') {
               actionHtml += \`
-                <div class="action-detail"><strong>Beneficiary:</strong> \${action.beneficiaryId}</div>
+                <div class="action-detail"><strong>Beneficiary</strong><span>\${action.beneficiaryId}</span></div>
               \`;
             }
 
@@ -657,14 +765,34 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           confirmBtn.addEventListener('click', function() {
             window.parent.postMessage({ type: 'CONFIRM' }, '*');
           });
+
+          confirmBtn.addEventListener('mouseleave', function() {
+            window.parent.postMessage({ type: 'MOUSE_LEAVE' }, '*');
+          });
         }
       </script>
     </body>
     </html>
-  `;
+  `, [
+    color,
+    customButtonStyles,
+    customButtonHoverStyles,
+    iframeSize.width,
+    iframeSize.height,
+    sizeConfig.width,
+    sizeConfig.height,
+    tooltipConfig.width,
+    tooltipConfig.height,
+    tooltipConfig.maxWidth,
+    tooltipConfig.maxHeight,
+    tooltipConfig.minWidth,
+    tooltipConfig.minHeight,
+    tooltipConfig.position,
+    tooltipConfig.offset
+  ]);
 
-  // Create data URL for iframe
-  const iframeSrc = `data:text/html;charset=utf-8,${encodeURIComponent(iframeContent)}`;
+  // Create data URL for iframe - memoized to prevent re-renders
+  const iframeSrc = useMemo(() => `data:text/html;charset=utf-8,${encodeURIComponent(iframeContent)}`, [iframeContent]);
 
   // Set current request ID (called by SignerWorkerManager)
   const setRequestId = useCallback((requestId: string) => {
@@ -806,6 +934,12 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
           onCancel();
         }
         break;
+      case 'MOUSE_LEAVE':
+        console.log('[EmbeddedTxConfirm]: Mouse left confirm button');
+        if (iframeRef.current) {
+          iframeRef.current.style.pointerEvents = 'none';
+        }
+        break;
       case 'ERROR':
         setError(payload?.message || 'Unknown error occurred');
         break;
@@ -904,22 +1038,26 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
         </div>
       )}
 
-      <div className="button-placeholder" style={{
-        width: sizeConfig.width,
-        height: sizeConfig.height,
-        position: 'relative',
-        display: 'inline-block'
-      }}
-      onMouseEnter={() => {
-        if (iframeRef.current) {
-          iframeRef.current.style.pointerEvents = 'auto';
-        }
-      }}
-      onMouseLeave={() => {
-        if (iframeRef.current) {
-          iframeRef.current.style.pointerEvents = 'none';
-        }
-      }}
+      <div className="button-placeholder"
+        style={{
+          width: sizeConfig.width,
+          height: sizeConfig.height,
+          position: 'relative',
+          display: 'inline-block',
+          cursor: 'pointer',
+          zIndex: 1001, // above iframe
+        }}
+        onMouseEnter={() => {
+          console.log("onMouseEnter");
+          if (iframeRef.current) {
+            iframeRef.current.style.pointerEvents = 'auto';
+          }
+        }}
+        // onMouseLeave={}
+        // We put the onMouseLeave function on the button in the iframe, because
+        // onMouseEnter sets pointerEvents=auto on the iframe, so the iframe will block
+        // onMouseLeave on the button-placeholder, it must be places on the button in the iframe.
+        // so it's on a higher layer than the iframe.
       >
         <iframe
           ref={iframeRef}
@@ -936,7 +1074,6 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
             borderRadius: '0',
             backgroundColor: 'transparent',
             zIndex: 1000,
-            pointerEvents: 'none'
           }}
           onLoad={handleIframeLoad}
           onError={handleIframeError}

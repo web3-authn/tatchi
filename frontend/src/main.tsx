@@ -7,7 +7,7 @@ import { PasskeyProvider } from '@web3authn/passkey/react';
 import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
-import { UserSettings } from './pages/UserSettings';
+import { UserSettingsPage } from './pages/UserSettingsPage';
 import { EmbeddedTxConfirmPage } from './pages/EmbeddedTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
@@ -72,7 +72,7 @@ function App() {
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
-          <Route path="/settings" element={<UserSettings/>} />
+          <Route path="/settings" element={<UserSettingsPage/>} />
           <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
         </Routes>
 

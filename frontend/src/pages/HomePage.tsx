@@ -16,15 +16,15 @@ export function HomePage() {
   return (
     <main>
       {loginState.isLoggedIn ? (
-        <div className="homepage-content">
+        <div className="layout-root">
           <GreetingMenu onTransactionUpdate={setLastTxDetails} />
           <TransactionDetails lastTxDetails={lastTxDetails} />
           <LinkDeviceScanQR />
         </div>
       ) : (
-        <div className="homepage-content">
+        <div className="layout-root">
           <PasskeyLoginMenu />
-            <LinkDeviceShowQR />
+          <LinkDeviceShowQR />
         </div>
       )}
     </main>

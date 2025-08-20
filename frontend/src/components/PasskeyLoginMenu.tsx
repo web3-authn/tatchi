@@ -10,6 +10,7 @@ import {
 
 import { Toggle } from './Toggle'
 import { usePostfixPosition } from '../hooks/usePostfixPosition'
+import { GlassBorder } from './GlassBorder'
 import './PasskeyLoginMenu.css'
 
 
@@ -168,7 +169,7 @@ export function PasskeyLoginMenu() {
 
   if (!isSecureContext) {
     return (
-      <div className="passkey-container-root">
+      <div className="passkey-login-container-root">
         <div className="passkey-translucent-container">
           <div className="passkey-content-area">
             <div className="login-header">
@@ -187,80 +188,64 @@ export function PasskeyLoginMenu() {
   }
 
   return (
-    <div className="passkey-container-root">
-      <div className="passkey-translucent-container">
-        <div className="passkey-content-area">
-          <div className="login-header">
-            <h2 className="login-title">Passkey Login</h2>
-            <p className="login-caption">Authenticate onchain with Passkeys</p>
-          </div>
-
-          <div className="login-content">
-            <Toggle
-              checked={useRelayer}
-              onChange={toggleRelayer}
-              label={useRelayer ? 'Use relayer' : 'Use faucet'}
-              tooltip={useRelayer
-                ? 'Using relayer for account creation'
-                : 'Using faucet for account creation'
-              }
-              className="auth-mode-toggle"
-              size="small"
-              textPosition="left"
-            />
-
-            <div className="input-wrapper">
-              <div className="username-input-container">
-                <input
-                  ref={usernameInputRef}
-                  type="text"
-                  value={inputUsername}
-                  onChange={handleLocalUsernameChange}
-                  placeholder="Enter username for passkey"
-                  className="username-input passkey-focus-ring"
-                />
-                <span
-                  ref={postfixRef}
-                  className={`account-postfix ${isUsingExistingAccount ? 'stored-account' : ''}`}
-                  title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
-                >
-                  {displayPostfix}
-                  {isUsingExistingAccount && <span className="stored-indicator">●</span>}
-                </span>
-              </div>
-              {accountExists && inputUsername && (
-                <div className="account-exists-badge">
-                  account exists
-                </div>
-              )}
-            </div>
-
-            <div className="auth-buttons">
-              <button
-                onClick={onLogin}
-                className={`btn ${accountExists ? 'btn-primary' : 'btn-secondary'}`}
-                disabled={!inputUsername || !accountExists}
-              >
-                Login
-              </button>
-              <button
-                onClick={onRegister}
-                className={`btn ${!accountExists ? 'btn-primary' : 'btn-secondary'}`}
-                disabled={!inputUsername || !isSecureContext || accountExists}
-              >
-                Register Passkey
-              </button>
-              <button
-                onClick={onRecover}
-                className={`btn ${!accountExists ? 'btn-primary' : 'btn-secondary'}`}
-                disabled={!inputUsername || !isSecureContext || accountExists}
-              >
-                Recover Account
-              </button>
-            </div>
-          </div>
+    <GlassBorder>
+      <div className="passkey-content-area">
+        <div className="login-header">
+          <h2 className="login-title">Passkey Login</h2>
+          <p className="login-caption">Authenticate onchain with Passkeys</p>
         </div>
+
+        <div className="login-content">
+          <div className="input-wrapper">
+            <div className="username-input-container">
+              <input
+                ref={usernameInputRef}
+                type="text"
+                value={inputUsername}
+                onChange={handleLocalUsernameChange}
+                placeholder="Enter username for passkey"
+                className="username-input passkey-focus-ring"
+              />
+              <span
+                ref={postfixRef}
+                className={`account-postfix ${isUsingExistingAccount ? 'stored-account' : ''}`}
+                title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
+              >
+                {displayPostfix}
+              </span>
+            </div>
+            {isUsingExistingAccount && (
+              <div className="account-exists-badge">
+                account exists
+              </div>
+            )}
+          </div>
+
+          <div className="passkey-auth-buttons">
+            <button
+              onClick={onLogin}
+              className={`passkey-btn ${accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
+              disabled={!inputUsername || !accountExists}
+            >
+              Login
+            </button>
+            <button
+              onClick={onRegister}
+              className={`passkey-btn ${!accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
+              disabled={!inputUsername || !isSecureContext || accountExists}
+            >
+              Register Passkey
+            </button>
+            <button
+              onClick={onRecover}
+              className={`passkey-btn ${!accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
+              disabled={!inputUsername || !isSecureContext || accountExists}
+            >
+              Recover Account
+            </button>
+          </div>
+          </div>
       </div>
-    </div>
+    </GlassBorder>
   );
 }

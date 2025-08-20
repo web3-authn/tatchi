@@ -1,68 +1,6 @@
-/* Web3Authn SDK Style Guide Implementation for PasskeyLoginMenu */
 
-:root {
-  /* Colors */
-  --w3a-bg: #ffffff;
-  --w3a-surface: rgba(255, 255, 255, 0.8);
-  --w3a-surface-solid: #ffffff;
-  --w3a-text: #1f2937;
-  --w3a-text-dim: #4a5568;
-  --w3a-border: #e2e8f0;
-  --w3a-border-strong: #cbd5e0;
-  --w3a-shadow: rgba(0, 0, 0, 0.05);
-  --w3a-shadow-strong: rgba(0, 0, 0, 0.1);
-
-  /* Typography */
-  --w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-
-  /* Sizing & Spacing */
-  --w3a-radius-sm: 12px;
-  --w3a-radius: 24px;
-  --w3a-radius-lg: 32px;
-  --w3a-gap-1: 4px;
-  --w3a-gap-2: 8px;
-  --w3a-gap-3: 12px;
-  --w3a-gap-4: 16px;
-  --w3a-gap-6: 24px;
-
-  /* Motion */
-  --w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --w3a-fast: 200ms;
-  --w3a-med: 400ms;
-}
-
-/* Base Layout */
-.passkey-container-root {
-  display: flex;
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-  width: 100%;
-  max-width: 480px;
-  justify-content: center;
-  align-items: flex-start;
-  font-family: var(--w3a-font-sans);
-}
-
-/* Translucent outer shell wrapping solid content */
-.passkey-translucent-container {
-  background: transparent;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-lg);
-  padding: var(--w3a-gap-2);
-  max-width: 860px;
-  width: 100%;
-  box-shadow: 0 4px 20px var(--w3a-shadow-strong);
-}
-
-/* Solid content area inside translucent shell */
 .passkey-content-area {
   background: var(--w3a-surface-solid);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius);
-  padding: var(--w3a-gap-4);
   box-shadow: 0 2px 4px var(--w3a-shadow);
   position: relative;
 }
@@ -152,32 +90,40 @@
 }
 
 .passkey-btn-primary {
-  background: #667eea;
+  background: var(--cobalt-primary);
   color: white;
 }
 
 .passkey-btn-primary:hover:not(:disabled) {
-  background: #5a67d8;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
+  background: var(--cobalt-primary-hover);
+  color: white;
+  box-shadow: 0 2px 4px var(--cobalt-shadow);
   transform: translateY(-1px);
 }
 
 .passkey-btn-primary:disabled {
+  background: var(--cobalt-disabled);
+  color: white;
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
 
 .passkey-btn-secondary {
-  background: var(--w3a-border);
-  color: var(--w3a-text-dim);
+  background: var(--cobalt-light);
+  color: white;
+  border: 1px solid var(--cobalt-light);
 }
 
 .passkey-btn-secondary:hover:not(:disabled) {
-  background: var(--w3a-border-strong);
+  background: var(--cobalt-lighter);
+  color: white;
+  border-color: var(--cobalt-lighter);
 }
 
 .passkey-btn-secondary:disabled {
+  background: var(--cobalt-disabled);
+  color: white;
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -224,13 +170,13 @@
 }
 
 .passkey-focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
   border-color: var(--w3a-border-strong);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .passkey-container-root {
+  .passkey-login-container-root {
     margin: 0rem;
   }
 
@@ -245,20 +191,126 @@
 }
 
 /* Scrollbar Styling */
-.passkey-container-root::-webkit-scrollbar {
+.passkey-login-container-root::-webkit-scrollbar {
   width: 6px;
 }
 
-.passkey-container-root::-webkit-scrollbar-track {
+.passkey-login-container-root::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
-.passkey-container-root::-webkit-scrollbar-thumb {
+.passkey-login-container-root::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
-.passkey-container-root::-webkit-scrollbar-thumb:hover {
+.passkey-login-container-root::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+.username-input-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background-color: var(--w3a-bg-dark-1);
+  transition: border-color 0.25s;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.username-input-container:hover {
+  border-color: var(--cobalt-light);
+}
+
+.username-input-container:focus-within {
+  border-color: var(--cobalt-light);
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.username-input {
+  width: 100%;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  padding: 0.6em 1.2em !important;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: white;
+  height: 40px;
+  box-sizing: border-box;
+}
+
+.account-postfix {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1em;
+  font-weight: 500;
+  user-select: none;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 1;
+  visibility: hidden;
+}
+
+/* Stored account postfix styling */
+.account-postfix.stored-account {
+  color: #2e8b57; /* Dark green for light mode */
+}
+
+.stored-indicator {
+  margin-left: 4px;
+  color: #2e8b57; /* Dark green for light mode */
+  font-size: 0.8em;
+  opacity: 0.8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .username-input-container {
+    background-color: var(--w3a-bg-dark-2);
+  }
+
+  .username-input {
+    color: white;
+  }
+
+  .account-postfix {
+    color: var(--slate-grey-600);
+  }
+
+  .account-postfix.stored-account {
+    color: #90ee90;
+  }
+}
+
+.account-exists-badge {
+  position: absolute;
+  bottom: 1px;
+  right: 10px;
+  background-color: rgba(0,0,0,0);
+  color: var(--slate-grey-500);
+  border-radius: 0px 4px 4px 0px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  z-index: 10;
+}
+
+.account-exists-badge::before {
+  content: "✓";
+  margin-right: 2px;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.auth-mode-toggle {
+  margin: 0.5rem;
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
 }

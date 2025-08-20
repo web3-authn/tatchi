@@ -1,0 +1,65 @@
+.transaction-details-container {
+  background: #ffffff;
+  padding: 16px;
+  margin: 16px 0;
+}
+
+.transaction-details-container h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.transaction-content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tx-message {
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  font-size: 14px;
+  color: #495057;
+  border-left: 3px solid var(--cobalt-primary);
+}
+
+.tx-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tx-details span {
+  font-size: 14px;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.tx-link {
+  color: var(--cobalt-primary) !important;
+  text-decoration: underline !important;
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Roboto Mono', monospace !important;
+  font-size: 13px;
+  transition: color 0.2s ease;
+}
+
+.tx-link:hover {
+  color: var(--cobalt-primary-hover) !important;
+  text-decoration: none !important;
+}
+
+.tx-link:focus {
+  outline: 2px solid var(--cobalt-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.tx-explorer-hint {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 4px;
+  font-style: italic;
+}

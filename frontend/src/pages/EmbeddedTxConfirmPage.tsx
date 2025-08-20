@@ -3,23 +3,7 @@ import { usePasskeyContext } from '@web3authn/passkey/react';
 import { EmbeddedTxConfirm, ActionType } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
-
-// Define the types locally since they're not exported from the SDK
-interface EmbeddedTxSummary {
-  to?: string;
-  amount?: string;
-  method?: string;
-  fingerprint?: string;
-}
-
-interface EmbeddedTxAction {
-  actionType: string;
-  method_name?: string;
-  args?: string;
-  gas?: string;
-  deposit?: string;
-  [key: string]: any;
-}
+import './EmbeddedTxConfirmPage.css';
 
 /**
  * Demo page showing how to use EmbeddedTxConfirm with the setGreeting functionality.
@@ -61,127 +45,117 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
 
   if (!loginState.isLoggedIn) {
     return (
-      <div style={{ padding: '20px', textAlign: 'center' }}>
-        <h2>Please log in to use the Embedded Transaction Confirmation</h2>
-        <p>You need to be logged in to test the embedded transaction confirmation feature.</p>
+      <div className="embedded-tx-page-root">
+        <div className="embedded-tx-translucent-container">
+          <div className="embedded-tx-content-area">
+            <div className="embedded-tx-login-prompt">
+              <h2 className="embedded-tx-heading">Log in to see the Embedded Transaction Button</h2>
+              <p className="embedded-tx-body">You must be logged in to test the embedded transaction confirmation feature.</p>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '800px', margin: '0 auto' }}>
-      <h2>Embedded Transaction Confirmation Demo</h2>
-      <p style={{ color: '#666', marginBottom: '20px' }}>
-        This page demonstrates the secure embedded transaction confirmation component using a sandboxed iframe.
-        The component provides maximum security isolation and communicates with the parent window using postMessage API.
-        When you click "Send Transaction", it will automatically dispatch to the WASM worker for validation and signing.
-      </p>
+    <div className="embedded-tx-page-root">
+      <div className="embedded-tx-translucent-container">
+        <div className="embedded-tx-content-area">
+          <div className="embedded-tx-header">
+            <h2 className="embedded-tx-title">Embedded Transaction Button Demo</h2>
+            <p className="embedded-tx-caption">
+              This component hosts the button and tooltip in a separate iframe. The wasm worker validates the transaction
+              being signed matches what's being shown in the tooltip.
+            </p>
+          </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Greeting Input:</h3>
-        <input
-          type="text"
-          value={greetingInput}
-          onChange={(e) => setGreetingInput(e.target.value)}
-          placeholder="Enter your greeting message"
-          style={{
-            width: '100%',
-            padding: '10px',
-            border: '1px solid #ddd',
-            borderRadius: '4px',
-            fontSize: '16px'
-          }}
-        />
-        <p style={{ fontSize: '14px', color: '#666', marginTop: '5px' }}>
-          This will be the greeting message that gets set on the smart contract.
-        </p>
-      </div>
+          <div className="embedded-tx-content">
+            <div className="embedded-tx-input-section">
+              <div className="embedded-tx-input-group">
+                <label className="embedded-tx-input-label">Greeting Input:</label>
+                <input
+                  type="text"
+                  value={greetingInput}
+                  onChange={(e) => setGreetingInput(e.target.value)}
+                  placeholder="Enter your greeting message"
+                  className="embedded-tx-input embedded-tx-focus-ring"
+                />
+                <p className="embedded-tx-input-help">
+                  This will be the greeting message that gets set on the smart contract.
+                </p>
+              </div>
+            </div>
 
-      <div style={{ marginBottom: '20px' }}>
-        <h3>Embedded Component:</h3>
-        <EmbeddedTxConfirm
-          nearAccountId={loginState.nearAccountId!}
-          actionArgs={createGreetingAction()}
-          onSuccess={(result) => {
-            setResult(`Transaction successful! Result: ${JSON.stringify(result, null, 2)}`);
-            setError('');
-          }}
-          size={{
-            width: '200px',
-            height: '48px'
-          }}
-          tooltip={{
-            width: '300px',
-            height: '300px',
-            position: 'right',
-            offset: '8px'
-          }}
-          onError={(error) => {
-            setError(`Transaction failed: ${error.message}`);
-            setResult('');
-          }}
-          onCancel={handleCancel}
-          showLoading={true}
-        />
-      </div>
+            <div className="embedded-tx-component-section">
+              <label className="embedded-tx-component-label">Embedded Component:</label>
+              <EmbeddedTxConfirm
+                nearAccountId={loginState.nearAccountId!}
+                actionArgs={createGreetingAction()}
+                color="#2A52BE"
+                buttonStyle={{
+                  background: '#1A52BE',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 12px rgba(42, 82, 190, 0.3)',
+                  border: 'none',
+                  transition: 'all 0.3s ease'
+                }}
+                buttonHoverStyle={{
+                  background: '#456CD6',
+                }}
+                onSuccess={(result) => {
+                  setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
+                  setError('');
+                }}
+                size={{
+                  width: '200px',
+                  height: '48px'
+                }}
+                tooltip={{
+                  width: '300px',
+                  height: '300px',
+                  position: 'bottom',
+                  offset: '8px'
+                }}
+                onError={(error) => {
+                  setError(`Transaction failed: ${error.message}`);
+                  setResult('');
+                }}
+                onCancel={handleCancel}
+                showLoading={true}
+              />
+            </div>
 
-      {loading && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>Processing:</h3>
-          <div style={{
-            background: '#e8f5e8',
-            padding: '10px',
-            borderRadius: '4px',
-            color: '#2d5a2d',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}>
-            <div style={{
-              width: '16px',
-              height: '16px',
-              border: '2px solid #2d5a2d',
-              borderTopColor: 'transparent',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }}></div>
-            Processing transaction...
+            {loading && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Processing:</label>
+                <div className="embedded-tx-loading">
+                  <div className="embedded-tx-spinner"></div>
+                  Processing transaction...
+                </div>
+              </div>
+            )}
+
+            {result && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Success:</label>
+                <div className="embedded-tx-success">
+                  <pre>{result}</pre>
+                </div>
+              </div>
+            )}
+
+            {error && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Error:</label>
+                <div className="embedded-tx-error">
+                  <pre>{error}</pre>
+                </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {result && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>Success:</h3>
-          <pre style={{
-            background: '#e8f5e8',
-            padding: '10px',
-            borderRadius: '4px',
-            color: '#2d5a2d',
-            fontSize: '12px',
-            overflow: 'auto'
-          }}>
-            {result}
-          </pre>
-        </div>
-      )}
-
-      {error && (
-        <div style={{ marginBottom: '20px' }}>
-          <h3>Error:</h3>
-          <pre style={{
-            background: '#ffe8e8',
-            padding: '10px',
-            borderRadius: '4px',
-            color: '#5a2d2d',
-            fontSize: '12px',
-            overflow: 'auto'
-          }}>
-            {error}
-          </pre>
-        </div>
-      )}
-
+      </div>
     </div>
   );
 };

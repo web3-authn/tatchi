@@ -1,6 +1,8 @@
 import React from 'react';
 import { shortenString } from '../utils/strings';
 import type { LastTxDetails } from '../types';
+import { GlassBorder } from './GlassBorder';
+import './TransactionDetails.css';
 
 interface TransactionDetailsProps {
   lastTxDetails: LastTxDetails | null;
@@ -12,7 +14,7 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ lastTxDe
   }
 
   return (
-    <div className="transaction-details-container">
+    <GlassBorder className="transaction-details-container">
       <h3>Latest Transaction</h3>
       <div className="transaction-content">
         {lastTxDetails.message && (
@@ -29,20 +31,15 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ lastTxDe
               rel="noopener noreferrer"
               title={`View transaction ${lastTxDetails.id} on NEAR Explorer`}
               className="tx-link"
-              style={{
-                color: '#007acc',
-                textDecoration: 'underline',
-                fontFamily: 'monospace'
-              }}
             >
               {shortenString(lastTxDetails.id, 12, 8)}
             </a>
-            <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+            <div className="tx-explorer-hint">
               Click to view on NEAR Explorer
             </div>
           </div>
         )}
       </div>
-    </div>
+    </GlassBorder>
   );
 };

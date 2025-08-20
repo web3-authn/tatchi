@@ -5,6 +5,9 @@ import { usePasskeyContext, DeviceLinkingPhase, DeviceLinkingStatus } from '@web
 // Import the improved QRCodeScanner from the SDK
 import { QRCodeScanner } from '@web3authn/passkey/react'
 
+import { GlassBorder } from './GlassBorder';
+import './LinkDeviceScanQR.css'
+
 export function LinkDeviceScanQR() {
   const {
     loginState: { isLoggedIn }
@@ -46,29 +49,28 @@ export function LinkDeviceScanQR() {
   };
 
   return (
-    <>
-      <div className="link-device-container-root">
-        <div className="passkey-container">
-          {deviceLinkingState.mode === 'idle' && (
-            <div className="device-linking-section">
-              <div className="auth-buttons">
-                <button
-                  onClick={onLinkDeviceAsDevice1}
-                  className="action-button"
-                  disabled={!isSecureContext || deviceLinkingState.isProcessing}
-                >
-                  Scan QR (Device1)
-                </button>
-              </div>
-              <p className="device-linking-help">
-                Device1: Scan a QR code to add Device2's key to your account<br/>
-                Device2: Generate a QR code for Device1 to scan
-              </p>
+    <GlassBorder style={{ marginTop: '1rem' }}>
+      <div className="link-device-scan-content-area">
+        <h3 className="link-device-scan-header">
+          Scan and Link Device
+        </h3>
+        {deviceLinkingState.mode === 'idle' && (
+          <div className="link-device-scan-section">
+            <div className="link-device-scan-auth-buttons">
+              <button
+                onClick={onLinkDeviceAsDevice1}
+                className="link-device-scan-btn link-device-scan-btn-primary link-device-scan-focus-ring"
+                disabled={!isSecureContext || deviceLinkingState.isProcessing}
+              >
+                Scan QR (Device1)
+              </button>
             </div>
-          )}
-        </div>
+            <p className="link-device-scan-help">
+              Device1: Scan QR code to add Device2 to your account
+            </p>
+          </div>
+        )}
       </div>
-
       <QRCodeScanner
         isOpen={deviceLinkingState.showScanner}
         fundingAmount="0.05"
@@ -127,6 +129,6 @@ export function LinkDeviceScanQR() {
           }
         }}
       />
-    </>
+    </GlassBorder>
   );
 }

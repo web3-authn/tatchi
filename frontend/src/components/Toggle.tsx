@@ -9,12 +9,18 @@ interface ToggleProps {
   className?: string;
   size?: 'small' | 'large';
   textPosition?: 'left' | 'right';
+  colors?: {
+    activeBackground: string;
+    activeShadow: string;
+    inactiveBackground: string;
+    inactiveShadow: string;
+  };
 }
 
 const TOGGLE_COLORS = {
-  activeBackground: '#62a57e', // green-600
-  activeShadow: 'rgba(22, 163, 74, 0.3)', // green-600 with opacity
-  inactiveBackground: '#d1d5db', // gray-300
+  activeBackground: '#2E54F3',
+  activeShadow: '2E54F380',
+  inactiveBackground: '#d1d5db',
   inactiveShadow: 'rgba(0, 0, 0, 0.1)',
 };
 
@@ -26,7 +32,8 @@ export const Toggle: React.FC<ToggleProps> = ({
   showTooltip = true,
   className = '',
   size = 'small',
-  textPosition = 'left'
+  textPosition = 'left',
+  colors = TOGGLE_COLORS,
 }) => {
   const isLarge = size === 'large';
   const isTextOnLeft = textPosition === 'left';
@@ -79,12 +86,12 @@ export const Toggle: React.FC<ToggleProps> = ({
             display: 'inline-block',
             width: isLarge ? '44px' : '32px',
             height: isLarge ? '24px' : '16px',
-            backgroundColor: checked ? TOGGLE_COLORS.activeBackground : TOGGLE_COLORS.inactiveBackground,
+            backgroundColor: checked ? colors.activeBackground : colors.inactiveBackground,
             borderRadius: isLarge ? '12px' : '8px',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             cursor: 'pointer',
             transform: checked ? 'scale(1.02)' : 'scale(1)',
-            boxShadow: checked ? `0 2px 8px ${TOGGLE_COLORS.activeShadow}` : `0 1px 3px ${TOGGLE_COLORS.inactiveShadow}`,
+            boxShadow: checked ? `0 2px 8px ${colors.activeShadow}` : `0 1px 3px ${colors.inactiveShadow}`,
             ...(isLarge && {
               [isTextOnLeft ? 'marginLeft' : 'marginRight']: '12px'
             })

@@ -33,16 +33,16 @@
 }
 
 /* Base Layout */
-.passkey-container-root {
+.greeting-container-root {
   display: flex;
   max-width: 480px;
+  margin-top: 2rem;
   justify-content: center;
   align-items: flex-start;
-  font-family: var(--w3a-font-sans);
 }
 
 /* Translucent outer shell wrapping solid content */
-.translucent-container {
+.greeting-translucent-container {
   background: transparent;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
@@ -55,7 +55,7 @@
 }
 
 /* Solid content area inside translucent shell */
-.content-area {
+.greeting-content-area {
   background: var(--w3a-surface-solid);
   border: 1px solid var(--w3a-border);
   border-radius: var(--w3a-radius);
@@ -103,7 +103,7 @@
 }
 
 .webauthn-contract-link a {
-  color: #667eea;
+  color: #2E54D3;
   text-decoration: none;
   font-weight: 500;
 }
@@ -117,7 +117,7 @@
   display: flex;
   align-items: center;
   gap: var(--w3a-gap-3);
-  padding: var(--w3a-gap-4);
+  padding: var(--w3a-gap-2);
   background: #f8fafc;
   border: 1px solid var(--w3a-border);
   border-radius: var(--w3a-radius-sm);
@@ -224,7 +224,7 @@
 }
 
 /* Button System */
-.btn {
+.greeting-btn {
   padding: var(--w3a-gap-3) var(--w3a-gap-4);
   border: none;
   border-radius: var(--w3a-radius-sm);
@@ -240,33 +240,40 @@
   white-space: nowrap;
 }
 
-.btn-primary {
-  background: #667eea;
+.greeting-btn-primary {
+  background: var(--cobalt-primary);
   color: white;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #5a67d8;
-  box-shadow: 0 2px 4px rgba(102, 126, 234, 0.2);
-  transform: translateY(-1px);
+.greeting-btn-primary:hover:not(:disabled) {
+  background: var(--cobalt-primary-hover);
+  color: white;
+  box-shadow: 0 2px 4px var(--cobalt-shadow);
 }
 
-.btn-primary:disabled {
+.greeting-btn-primary:disabled {
+  background: #718096;
+  color: white;
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
 
-.btn-secondary {
-  background: var(--w3a-border);
-  color: var(--w3a-text-dim);
+.greeting-btn-secondary {
+  background: #6F8DDF;
+  color: white;
+  border: 1px solid #6F8DDF;
 }
 
-.btn-secondary:hover:not(:disabled) {
-  background: var(--w3a-border-strong);
+.greeting-btn-secondary:hover:not(:disabled) {
+  background: #99AEE8;
+  color: white;
+  border-color: #99AEE8;
 }
 
-.btn-secondary:disabled {
+.greeting-btn-secondary:disabled {
+  background: #718096;
+  color: white;
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -283,7 +290,7 @@
 }
 
 /* Typography */
-.heading {
+.greeting-heading {
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.5;
@@ -291,13 +298,13 @@
   margin-bottom: var(--w3a-gap-4);
 }
 
-.body {
+.greeting-body {
   font-size: 0.9rem;
   line-height: 1.6;
   color: var(--w3a-text-dim);
 }
 
-.label {
+.greeting-label {
   font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -305,7 +312,7 @@
   color: var(--w3a-text-dim);
 }
 
-.mono {
+.greeting-mono {
   font-family: var(--w3a-font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
@@ -313,18 +320,18 @@
 }
 
 /* Focus Ring */
-.focus-ring {
+.greeting-focus-ring {
   outline: none;
 }
 
-.focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+.greeting-focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.18);
   border-color: var(--w3a-border-strong);
 }
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .passkey-container-root {
+  .greeting-container-root {
     margin: 1rem;
   }
 
@@ -343,20 +350,20 @@
 }
 
 /* Scrollbar Styling */
-.passkey-container-root::-webkit-scrollbar {
+.greeting-container-root::-webkit-scrollbar {
   width: 6px;
 }
 
-.passkey-container-root::-webkit-scrollbar-track {
+.greeting-container-root::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 3px;
 }
 
-.passkey-container-root::-webkit-scrollbar-thumb {
+.greeting-container-root::-webkit-scrollbar-thumb {
   background: #c1c1c1;
   border-radius: 3px;
 }
 
-.passkey-container-root::-webkit-scrollbar-thumb:hover {
+.greeting-container-root::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
