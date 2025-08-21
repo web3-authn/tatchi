@@ -1074,6 +1074,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps> = ({
             borderRadius: '0',
             backgroundColor: 'transparent',
             zIndex: 1000,
+            pointerEvents: 'none',
           }}
           onLoad={handleIframeLoad}
           onError={handleIframeError}
