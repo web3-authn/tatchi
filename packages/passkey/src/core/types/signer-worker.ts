@@ -69,7 +69,14 @@ export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.Derive
 export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
 export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
 export type WasmSignVerifyAndRegisterUserRequest = StripFree<wasmModule.SignVerifyAndRegisterUserRequest>;
-export type WasmSignTransactionsWithActionsRequest = StripFree<wasmModule.SignTransactionsWithActionsRequest>;
+// Override the WASM request type to accept string literals for confirmation config
+export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.SignTransactionsWithActionsRequest>, 'confirmationConfig'> & {
+  confirmationConfig?: {
+    uiMode: ConfirmationUIMode;
+    behavior: ConfirmationBehavior;
+    autoProceedDelay?: number;
+  };
+};
 export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
 export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
 export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
@@ -95,17 +102,57 @@ export type WasmTransactionSignResult = InstanceType<typeof wasmModule.Transacti
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
 export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 
-// Confirmation Configuration Types
-export type ConfirmationUIMode = 'native' | 'shadow' | 'embedded' | 'popup';
-export type ConfirmationBehavior = 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-
+/**
+ * Validation rules for ConfirmationConfig to ensure behavior conforms to UI mode:
+ *
+ * - uiMode: 'skip' | 'embedded' → behavior is ignored, autoProceedDelay is ignored
+ * - uiMode: 'modal' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
+ *
+ * The WASM worker automatically validates and overrides these settings:
+ * - For 'skip' and 'embedded' modes: behavior is set to 'autoProceed' with autoProceedDelay: 0
+ * - For 'modal' mode: behavior and autoProceedDelay are used as specified
+ *
+ * The actual type would be the following, but we use the flat interface for simplicity:
+ * export interface ConfirmationConfig {
+ *   uiMode: 'skip'
+ *     | 'embedded'
+ *     | { modal: { behavior: { requireClick: true } |  { autoProceed: { autoProceedDelay: 0 }}}}
+ *
+ * }
+ */
+export type ConfirmationUIMode = 'skip' | 'modal' | 'embedded';
+export type ConfirmationBehavior = 'requireClick' | 'autoProceed';
 export interface ConfirmationConfig {
-  showPreConfirm: boolean;
+  /** Type of UI to display for confirmation: 'skip' | 'modal' | 'embedded' */
   uiMode: ConfirmationUIMode;
+  /** How the confirmation UI behaves: 'requireClick' | 'autoProceed' */
   behavior: ConfirmationBehavior;
+  /** Delay in milliseconds before auto-proceeding (only used with autoProceed) */
   autoProceedDelay?: number;
 }
 
+
+// WASM enum types for confirmation configuration
+export type WasmConfirmationUIMode = wasmModule.ConfirmationUIMode;
+export type WasmConfirmationBehavior = wasmModule.ConfirmationBehavior;
+
+// Mapping functions to convert string literals to numeric enum values
+export const mapUIModeToWasm = (uiMode: ConfirmationUIMode): number => {
+  switch (uiMode) {
+    case 'skip': return wasmModule.ConfirmationUIMode.Skip;
+    case 'modal': return wasmModule.ConfirmationUIMode.Modal;
+    case 'embedded': return wasmModule.ConfirmationUIMode.Embedded;
+    default: return wasmModule.ConfirmationUIMode.Modal;
+  }
+};
+
+export const mapBehaviorToWasm = (behavior: ConfirmationBehavior): number => {
+  switch (behavior) {
+    case 'requireClick': return wasmModule.ConfirmationBehavior.RequireClick;
+    case 'autoProceed': return wasmModule.ConfirmationBehavior.AutoProceed;
+    default: return wasmModule.ConfirmationBehavior.RequireClick;
+  }
+};
 export type WasmRequestResult = WasmRecoverKeypairResult
   | WasmRegistrationResult
   | WasmRegistrationCheckResult

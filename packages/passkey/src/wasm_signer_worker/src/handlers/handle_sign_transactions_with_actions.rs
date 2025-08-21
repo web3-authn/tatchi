@@ -37,8 +37,8 @@ use crate::types::{
     handlers::ConfirmationConfig,
     wasm_to_json::WasmSignedTransaction,
 };
-use crate::handlers::confirm_tx_details::request_user_confirmation;
-use crate::confirmation_handlers::confirm_tx_details;
+use crate::handlers::confirm_tx_details::{request_user_confirmation, ConfirmationResult};
+
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
