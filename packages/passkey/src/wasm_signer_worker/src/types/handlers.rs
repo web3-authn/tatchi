@@ -98,14 +98,12 @@ pub struct VerificationPayload {
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum ConfirmationUIMode {
-    #[serde(rename = "native")]
-    Native,
-    #[serde(rename = "shadow")]
-    Shadow,
+    #[serde(rename = "skip")]
+    Skip,
+    #[serde(rename = "modal")]
+    Modal,
     #[serde(rename = "embedded")]
     Embedded,
-    #[serde(rename = "popup")]
-    Popup,
 }
 
 /// Behavior mode for confirmation flow
@@ -116,8 +114,6 @@ pub enum ConfirmationBehavior {
     RequireClick,
     #[serde(rename = "autoProceed")]
     AutoProceed,
-    #[serde(rename = "autoProceedWithDelay")]
-    AutoProceedWithDelay,
 }
 
 /// Unified confirmation configuration passed from main thread to WASM worker
@@ -125,10 +121,6 @@ pub enum ConfirmationBehavior {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct ConfirmationConfig {
-    /// Whether to show confirmation UI before TouchID prompt
-    #[wasm_bindgen(getter_with_clone, js_name = "showPreConfirm")]
-    pub show_pre_confirm: bool,
-
     /// Type of UI to display for confirmation
     #[wasm_bindgen(getter_with_clone, js_name = "uiMode")]
     pub ui_mode: ConfirmationUIMode,
@@ -145,8 +137,7 @@ pub struct ConfirmationConfig {
 impl Default for ConfirmationConfig {
     fn default() -> Self {
         Self {
-            show_pre_confirm: true,
-            ui_mode: ConfirmationUIMode::Shadow,
+            ui_mode: ConfirmationUIMode::Modal,
             behavior: ConfirmationBehavior::RequireClick,
             auto_proceed_delay: Some(2000),
         }
