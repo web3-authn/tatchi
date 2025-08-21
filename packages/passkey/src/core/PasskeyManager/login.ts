@@ -161,15 +161,12 @@ async function handleLoginUnlockVRF(
         if (!shamir.ciphertextVrfB64u || !shamir.kek_s_b64u) {
           throw new Error('Missing Shamir3Pass fields (ciphertextVrfB64u/kek_s_b64u)');
         }
-        console.log("shamir3pass unlock: using kek_s_b64u", shamir.kek_s_b64u);
-        console.log("shamir3pass unlock: using ciphertextVrfB64u", shamir.ciphertextVrfB64u);
 
         unlockResult = await webAuthnManager.shamir3PassDecryptVrfKeypair({
           nearAccountId,
           kek_s_b64u: shamir.kek_s_b64u,
           ciphertextVrfB64u: shamir.ciphertextVrfB64u,
         });
-        console.log("unlockResult", unlockResult);
 
         if (unlockResult.success) {
           const vrfStatus = await webAuthnManager.checkVrfStatus();
@@ -182,7 +179,7 @@ async function handleLoginUnlockVRF(
           throw new Error(`Shamir3Pass unlock failed: ${unlockResult.error}`);
         }
       } catch (error: any) {
-        console.log('Shamir3Pass unlock error, falling back to TouchID:', error.message);
+        console.warn('Shamir3Pass unlock error, falling back to TouchID:', error.message);
         unlockResult = { success: false, error: error.message };
       }
     }
@@ -199,7 +196,7 @@ async function handleLoginUnlockVRF(
 
       // Get credential for VRF unlock
       const challenge = crypto.getRandomValues(new Uint8Array(32));
-      const credential = await webAuthnManager.touchIdPrompt.getCredentials({
+      const credential = await webAuthnManager.getCredentials({
         nearAccountId,
         challenge,
         authenticators,

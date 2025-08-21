@@ -3,7 +3,12 @@ import { registerPasskey } from './registration';
 import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
 import { executeAction } from './actions';
 import { recoverAccount, AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
-import { MinimalNearClient, type NearClient, type SignedTransaction } from '../NearClient';
+import {
+  MinimalNearClient,
+  type NearClient,
+  type SignedTransaction,
+  type AccessKeyList,
+} from '../NearClient';
 import type {
   PasskeyManagerConfigs,
   RegistrationResult,
@@ -16,6 +21,7 @@ import type {
   LoginState,
   AccountRecoveryHooksOptions,
 } from '../types/passkeyManager';
+import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import { ActionType, type ActionArgs } from '../types/actions';
@@ -69,7 +75,7 @@ export class PasskeyManager {
     // VRF worker initializes automatically in the constructor
   }
 
-  private getContext(): PasskeyManagerContext {
+  getContext(): PasskeyManagerContext {
     return {
       webAuthnManager: this.webAuthnManager,
       nearClient: this.nearClient,
@@ -79,6 +85,15 @@ export class PasskeyManager {
 
   getNearClient(): NearClient {
     return this.nearClient;
+  }
+
+  /**
+   * View all access keys for a given account
+   * @param accountId - NEAR account ID to view access keys for
+   * @returns Promise resolving to access key list
+   */
+  async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
+    return this.nearClient.viewAccessKeyList(accountId);
   }
 
   ///////////////////////////////////////
@@ -147,13 +162,6 @@ export class PasskeyManager {
   ///////////////////////////////////////
 
   /**
-   * Set pre-confirmation flow setting for the current user
-   */
-  setPreConfirmFlow(enabled: boolean): void {
-    this.webAuthnManager.setPreConfirmFlow(enabled);
-  }
-
-  /**
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
@@ -163,24 +171,14 @@ export class PasskeyManager {
   /**
    * Set the unified confirmation configuration
    */
-  setConfirmationConfig(config: {
-    showPreConfirm?: boolean;
-    uiMode?: 'native' | 'shadow' | 'embedded' | 'popup';
-    behavior?: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-    autoProceedDelay?: number;
-  }): void {
+  setConfirmationConfig(config: ConfirmationConfig): void {
     this.webAuthnManager.setConfirmationConfig(config);
   }
 
   /**
    * Get the current confirmation configuration
    */
-  getConfirmationConfig(): {
-    showPreConfirm: boolean;
-    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
-    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-    autoProceedDelay?: number;
-  } {
+  getConfirmationConfig(): ConfirmationConfig {
     return this.webAuthnManager.getConfirmationConfig();
   }
 
@@ -250,7 +248,7 @@ export class PasskeyManager {
    */
   async executeAction(
     nearAccountId: string,
-    actionArgs: ActionArgs,
+    actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
     return executeAction(this.getContext(), toAccountId(nearAccountId), actionArgs, options);
