@@ -14,8 +14,8 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ lastTxDe
   }
 
   return (
-    <GlassBorder className="transaction-details-container">
-      <h3>Latest Transaction</h3>
+    <GlassBorder style={{ marginTop: '1rem' }}>
+      <h4>Latest Transaction</h4>
       <div className="transaction-content">
         {lastTxDetails.message && (
           <div className="tx-message">
@@ -34,9 +34,6 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ lastTxDe
             >
               {shortenString(lastTxDetails.id, 12, 8)}
             </a>
-            <div className="tx-explorer-hint">
-              Click to view on NEAR Explorer
-            </div>
           </div>
         )}
       </div>
