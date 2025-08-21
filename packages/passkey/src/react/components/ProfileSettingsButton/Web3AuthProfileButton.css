@@ -106,7 +106,7 @@
 .web3authn-profile-button-morphable {
   position: relative;
   background-color: white;
-  border: 1px solid var(--light-grey);
+  border: 1px solid var(--slate-grey-200);
   border-radius: 8px;
   font-size: 14px;
   font-weight: 500;
@@ -166,14 +166,14 @@
   width: 24px;
   height: 24px;
   background: linear-gradient(135deg, #f8fafc);
-  border: 1px solid var(--outline-color);
+  border: 1px solid var(--slate-grey-300);
 }
 
 .web3authn-profile-dropdown-avatar.expanded {
   width: 48px;
   height: 48px;
   background: linear-gradient(135deg, #f8fafc);
-  border: 1px solid var(--outline-color);
+  border: 1px solid var(--slate-grey-300);
 }
 
 .web3authn-profile-dropdown-avatar.shrunk svg {
@@ -304,7 +304,7 @@
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-  border: 1px solid var(--light-grey);
+  border: 1px solid var(--slate-grey-200);
   padding: 4px 0;
   z-index: 50;
 }
@@ -314,7 +314,7 @@
   max-width: 300px;
   background-color: transparent;
   border: none;
-  border-top: 1px solid var(--light-grey);
+  border-top: 1px solid var(--slate-grey-200);
   box-shadow: none;
   padding: 0;
   opacity: 0;
@@ -364,7 +364,7 @@
   height: 40px;
   margin-right: 4px;
   background: linear-gradient(135deg, #f8fafc);
-  border: 1px solid var(--light-grey);
+  border: 1px solid var(--slate-grey-200);
   border-radius: 50%;
   display: flex;
   align-items: center;
