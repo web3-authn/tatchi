@@ -133,7 +133,6 @@
 .embedded-tx-component-section {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-4);
 }
 
 .embedded-tx-component-label {
@@ -141,6 +140,7 @@
   font-weight: var(--w3a-font-semibold);
   color: var(--w3a-text-primary);
   margin: 0;
+  margin-bottom: var(--w3a-gap-2);
 }
 
 /* Status Sections */

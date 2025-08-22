@@ -92,29 +92,30 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               <EmbeddedTxConfirm
                 nearAccountId={loginState.nearAccountId!}
                 actionArgs={createGreetingAction()}
-                color="#2A52BE"
+                actionOptions={{
+                  hooks: {
+                    beforeCall: () => {
+                      // optional: add any per-call logging here
+                    }
+                  }
+                }}
                 buttonStyle={{
-                  background: '#1A52BE',
+                  background: '#0353A4', // cobalt-primary
                   borderRadius: '12px',
-                  boxShadow: '0 4px 12px rgba(42, 82, 190, 0.3)',
                   border: 'none',
                   transition: 'all 0.3s ease'
                 }}
                 buttonHoverStyle={{
-                  background: '#456CD6',
+                  background: '#0466c8', // cobalt-primary-hover
                 }}
                 onSuccess={(result) => {
                   setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
                   setError('');
                 }}
-                size={{
-                  width: '200px',
-                  height: '48px'
-                }}
-                tooltip={{
+                tooltipStyle={{
                   width: '300px',
                   height: '300px',
-                  position: 'bottom',
+                  position: 'right',
                   offset: '8px'
                 }}
                 onError={(error) => {
@@ -122,7 +123,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   setResult('');
                 }}
                 onCancel={handleCancel}
-                showLoading={true}
               />
             </div>
 
