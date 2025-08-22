@@ -84,46 +84,6 @@ pub fn generate_request_id() -> String {
     format!("{}-{}", js_sys::Date::now(), js_sys::Math::random())
 }
 
-/// Aggregates actions from multiple transactions into a single actions array
-///
-/// This function takes multiple transaction payloads, each containing a JSON string
-/// of actions, and combines them into a single array of action objects.
-///
-/// # Arguments
-/// * `tx_requests` - Array of transaction payloads, each with a JSON string of actions
-///
-/// # Returns
-/// * `Vec<serde_json::Value>` - Combined array of all action objects from all transactions
-///
-/// # Example
-/// ```
-/// // Input transactions:
-/// // tx1.actions = "[{\"action_type\":\"FunctionCall\",\"method_name\":\"set_greeting\"}]"
-/// // tx2.actions = "[{\"action_type\":\"Transfer\",\"deposit\":\"1000000000000000000000000\"}]"
-///
-/// // Output:
-/// // [
-/// //   {"action_type":"FunctionCall","method_name":"set_greeting"},
-/// //   {"action_type":"Transfer","deposit":"1000000000000000000000000"}
-/// // ]
-/// ```
-pub fn aggregate_transaction_actions(
-    tx_requests: &[TransactionPayload],
-) -> Result<Vec<serde_json::Value>, String> {
-    let mut all_actions = Vec::new();
-
-    for (tx_index, req) in tx_requests.iter().enumerate() {
-        // Parse the JSON string of actions for this transaction
-        let actions: Vec<serde_json::Value> = serde_json::from_str(&req.actions)
-            .map_err(|e| format!("Failed to parse actions for transaction {}: {}", tx_index + 1, e))?;
-
-        // Add all actions from this transaction to the combined array
-        all_actions.extend(actions);
-    }
-
-    Ok(all_actions)
-}
-
 /// Creates a transaction summary for user confirmation based on all transactions
 pub fn create_transaction_summary(
     tx_requests: &[TransactionPayload],
@@ -175,7 +135,7 @@ pub fn create_transaction_summary(
         } else {
             format!("{} recipients", unique_receivers.len())
         },
-        "amount": if total_deposit > 0 {
+        "totalAmount": if total_deposit > 0 {
             format!("{} yoctoNEAR", total_deposit)
         } else {
             "0 yoctoNEAR".to_string()
@@ -248,16 +208,12 @@ pub async fn request_user_confirmation_with_config(
                 "skipUI": should_skip_ui_confirm,
             });
 
-            // Aggregate all actions from all transactions into a single array
-            let all_actions = aggregate_transaction_actions(&tx_batch_request.tx_signing_requests)
-                .map_err(|e| format!("Failed to aggregate transaction actions: {}", e))?;
-
-            // Call JS bridge for credential collection only (no UI)
+            // Send transaction payloads directly to preserve receiverId information
             let confirm_result = await_secure_confirmation(
                 &request_id,
                 JsValue::from_str(&confirmation_data.to_string()),
                 &intent_digest,
-                &serde_json::to_string(&all_actions).unwrap_or_default()
+                &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
             ).await;
 
             let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;
@@ -292,6 +248,7 @@ pub async fn request_user_confirmation_with_config(
     logs.push(format!("Requesting user confirmation for {} transactions", tx_batch_request.tx_signing_requests.len()));
 
     // Extract account information for credential collection
+    // All transactions in the batch are signed by the same near_account_id.
     let near_account_id = &first_request.near_account_id;
 
     // Create enhanced confirmation data with account info and configuration
@@ -310,16 +267,12 @@ pub async fn request_user_confirmation_with_config(
         "confirmationConfig": normalized_config,
     });
 
-    // Aggregate all actions from all transactions into a single array
-    let all_actions = aggregate_transaction_actions(&tx_batch_request.tx_signing_requests)
-        .map_err(|e| format!("Failed to aggregate transaction actions: {}", e))?;
-
     // Call JS bridge for user confirmation with enhanced data
     let confirm_result = await_secure_confirmation(
         &request_id,
         JsValue::from_str(&confirmation_data.to_string()),
         &intent_digest,
-        &serde_json::to_string(&all_actions).unwrap_or_default()
+        &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
     ).await;
 
     // Parse confirmation result

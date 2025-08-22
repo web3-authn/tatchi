@@ -57,9 +57,7 @@ import { resolveWasmUrl } from './wasm/wasmLoader';
 
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
-console.debug(`[Signer Worker] WASM URL resolved to: ${wasmUrl.href}`);
 const { handle_signer_message } = wasmModule;
-
 import { SecureConfirmMessageType } from './WebAuthnManager/signerWorkerManager';
 
 let messageProcessed = false;
@@ -90,23 +88,9 @@ function sendProgressMessage(
   try {
     console.debug(`[signer-worker]: Progress update: ${messageTypeName} (${messageType}) - ${stepName} (${step}) - ${message}`);
 
-    // Parse structured data and logs
-    let parsedData: any = {};
-    let parsedLogs: string[] = [];
-
-    try {
-      parsedData = data ? JSON.parse(data) : {};
-    } catch (error) {
-      console.warn('[signer-worker]: Failed to parse progress data:', error);
-      parsedData = { rawData: data };
-    }
-
-    try {
-      parsedLogs = logs ? JSON.parse(logs) : [];
-    } catch (error) {
-      console.warn('[signer-worker]: Failed to parse progress logs:', error);
-      parsedLogs = logs ? [logs] : [];
-    }
+    // Parse structured data and logs using helper
+    const parsedData = safeJsonParse(data, {});
+    const parsedLogs = safeJsonParse(logs || '', []);
 
     // Create onProgressEvents-compatible payload
     const progressPayload = {
@@ -134,9 +118,9 @@ function sendProgressMessage(
 
     // Send error message as fallback - use a generic failure type
     self.postMessage({
-      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure, // Use any failure type as fallback
+      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
       payload: {
-        error: `Progress message failed: ${error?.message || 'Unknown error'}`,
+        error: `Progress message failed: ${extractErrorMessage(error)}`,
         context: { messageType, step, message }
       },
     });
@@ -152,7 +136,7 @@ function sendProgressMessage(
   requestId: string,
   summary: any,
   digest: string,
-  actionsJson: string
+  txSigningRequestsJson: string | undefined
 ): Promise<{
   requestId: string;
   intentDigest?: string;
@@ -161,16 +145,15 @@ function sendProgressMessage(
   prfOutput?: string;
 }> {
   return new Promise((resolve) => {
-    // Use main channel only - simpler and more reliable with worker lifecycle
-    const onMainChannelDecision = (e: MessageEvent) => {
-      const data = (e.data || {}) as any;
+    const onDecisionReceived = (e: MessageEvent) => {
+      const { data } = e;
+
       if (
-        data &&
-        data.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION &&
-        data.data?.requestId === requestId
+        data?.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION &&
+        data?.data?.requestId === requestId
       ) {
         console.log('[signer-worker]: Decision matched! Resolving promise for requestId', requestId, data.data);
-        self.removeEventListener('message', onMainChannelDecision as any);
+        self.removeEventListener('message', onDecisionReceived as any);
         resolve({
           requestId,
           intentDigest: data.data?.intentDigest,
@@ -181,34 +164,24 @@ function sendProgressMessage(
       }
     };
 
-    self.addEventListener('message', onMainChannelDecision as any);
+    self.addEventListener('message', onDecisionReceived as any);
 
-    // Parse the summary to extract nearAccountId and vrfChallenge if they're included
-    let parsedSummary;
-    let nearAccountId;
-    let vrfChallenge;
-    let confirmationConfig;
+    // Parse summary and send confirmation request to main thread
+    const parsedSummary = typeof summary === 'string' ? safeJsonParse(summary, summary) : summary;
 
-    try {
-      parsedSummary = typeof summary === 'string' ? JSON.parse(summary) : summary;
-      nearAccountId = parsedSummary.nearAccountId;
-      vrfChallenge = parsedSummary.vrfChallenge;
-      confirmationConfig = parsedSummary.confirmationConfig;
-    } catch (error) {
-      console.warn('[signer-worker]: Failed to parse summary for additional fields:', error);
-      parsedSummary = summary;
-    }
+    // Parse transaction signing requests if provided, otherwise use empty array
+    const parsedTxSigningRequests = txSigningRequestsJson ? safeJsonParse(txSigningRequestsJson, []) : [];
 
-    (self as any).postMessage({
+    self.postMessage({
       type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM,
       data: {
         requestId,
         summary: parsedSummary,
         intentDigest: digest,
-        actions: actionsJson,
-        nearAccountId,
-        vrfChallenge,
-        confirmationConfig
+        tx_signing_requests: parsedTxSigningRequests,
+        nearAccountId: parsedSummary?.nearAccountId,
+        vrfChallenge: parsedSummary?.vrfChallenge,
+        confirmationConfig: parsedSummary?.confirmationConfig
       }
     });
   });
@@ -222,70 +195,80 @@ async function initializeWasm(): Promise<void> {
     await init({ module_or_path: wasmUrl });
   } catch (error: any) {
     console.error('[signer-worker]: WASM initialization failed:', error);
-    throw new Error(`WASM initialization failed: ${error?.message || 'Unknown error'}`);
+    throw new Error(`WASM initialization failed: ${extractErrorMessage(error)}`);
   }
 }
 
-self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
-  const eventType = (event.data as any)?.type;
-  // Allow follow-up decision messages to flow to awaitSecureConfirmation listener
-  if (messageProcessed) {
-    if (eventType === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION) {
-      console.log(`[signer-worker]: ${SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION} received while messageProcessed=true, allowing through`);
-      // Let the awaitSecureConfirmation listener handle it
-      return;
-    }
-    console.error('[signer-worker]: Rejecting message - already processed');
-    self.postMessage({
-      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
-      payload: { error: 'Worker has already processed a message' }
-    });
-    self.close();
-    return;
-  }
-
+/**
+ * Process a WASM worker message (main operation)
+ */
+async function processWorkerMessage(event: MessageEvent): Promise<void> {
   messageProcessed = true;
-  console.debug('[signer-worker]: Received message:', { type: event.data.type });
-
+  console.debug('[signer-worker]: Processing worker message:', { type: event.data.type });
   try {
     // Initialize WASM
     await initializeWasm();
-
     // Convert TypeScript message to JSON and pass to Rust
     const messageJson = JSON.stringify(event.data);
     // Call the Rust message handler
     const responseJson = await handle_signer_message(messageJson);
     // Parse response and send back to main thread
     const response = JSON.parse(responseJson);
-
     self.postMessage(response);
     self.close();
-
   } catch (error: any) {
     console.error('[signer-worker]: Message processing failed:', error);
-
-    // Extract error message from JsValue or Error object
-    let errorMessage = 'Unknown error occurred';
-    if (error && typeof error === 'object') {
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.toString) {
-        errorMessage = error.toString();
-      } else {
-        errorMessage = JSON.stringify(error);
-      }
-    } else if (typeof error === 'string') {
-      errorMessage = error;
-    }
-
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
       payload: {
-        error: errorMessage,
+        error: extractErrorMessage(error),
         context: { type: event.data.type }
       }
     });
     self.close();
+  }
+}
+
+/**
+ * Send error response for invalid message states
+ */
+function sendInvalidMessageError(reason: string): void {
+  self.postMessage({
+    type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
+    payload: { error: reason }
+  });
+  self.close();
+}
+
+self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
+  const eventType = (event.data as any)?.type;
+
+  // Handle different message types explicitly
+  switch (true) {
+    case !messageProcessed:
+      // Case 1: First message - process as normal worker operation
+      console.debug('[signer-worker]: First message received, processing...');
+      await processWorkerMessage(event);
+      break;
+
+    case eventType === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION:
+      // Case 2: Secure confirmation decision - let it bubble to awaitSecureConfirmation listener
+      console.log('[signer-worker]: Secure confirmation decision received, allowing event to bubble');
+      // By breaking here without consuming the event, the message continues to propagate
+      // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmation
+      break;
+
+    case messageProcessed:
+      // Case 3: Worker already processed initial message and this isn't a confirmation
+      console.error('[signer-worker]: Invalid message - worker already processed initial message');
+      sendInvalidMessageError('Worker has already processed a message');
+      break;
+
+    default:
+      // Case 4: Unexpected state
+      console.error('[signer-worker]: Unexpected message state');
+      sendInvalidMessageError('Unexpected message state');
+      break;
   }
 };
 
@@ -303,3 +286,28 @@ self.onunhandledrejection = (event) => {
   console.error('[signer-worker]: Unhandled promise rejection:', event.reason);
   event.preventDefault();
 };
+
+/**
+ * Helper function to safely parse JSON with fallback
+ */
+function safeJsonParse(jsonString: string, fallback: any = {}): any {
+  try {
+    return jsonString ? JSON.parse(jsonString) : fallback;
+  } catch (error) {
+    console.warn('[signer-worker]: Failed to parse JSON:', error);
+    return Array.isArray(fallback) ? [jsonString] : { rawData: jsonString };
+  }
+}
+
+/**
+ * Helper function to extract error message from various error types
+ */
+function extractErrorMessage(error: any): string {
+  if (error && typeof error === 'object') {
+    if (error.message) return error.message;
+    if (error.toString) return error.toString();
+    return JSON.stringify(error);
+  }
+  return typeof error === 'string' ? error : 'Unknown error occurred';
+}
+

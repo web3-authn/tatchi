@@ -228,13 +228,13 @@ async function wasmAuthenticateAndSignTransaction(
     switch (action.type) {
       case ActionType.Transfer:
         return {
-          actionType: ActionType.Transfer,
+          action_type: ActionType.Transfer,
           deposit: action.amount
         };
 
       case ActionType.FunctionCall:
         return {
-          actionType: ActionType.FunctionCall,
+          action_type: ActionType.FunctionCall,
           method_name: action.methodName,
           args: JSON.stringify(action.args),
           gas: action.gas || "30000000000000",
@@ -250,37 +250,37 @@ async function wasmAuthenticateAndSignTransaction(
             : action.accessKey.permission // For FunctionCall permissions, pass as-is
         };
         return {
-          actionType: ActionType.AddKey,
+          action_type: ActionType.AddKey,
           public_key: action.publicKey,
           access_key: JSON.stringify(accessKey)
         };
 
       case ActionType.DeleteKey:
         return {
-          actionType: ActionType.DeleteKey,
+          action_type: ActionType.DeleteKey,
           public_key: action.publicKey
         };
 
       case ActionType.CreateAccount:
         return {
-          actionType: ActionType.CreateAccount
+          action_type: ActionType.CreateAccount
         };
 
       case ActionType.DeleteAccount:
         return {
-          actionType: ActionType.DeleteAccount,
+          action_type: ActionType.DeleteAccount,
           beneficiary_id: action.beneficiaryId
         };
 
       case ActionType.DeployContract:
         return {
-          actionType: ActionType.DeployContract,
+          action_type: ActionType.DeployContract,
           code: typeof action.code === 'string' ? Array.from(new TextEncoder().encode(action.code)) : Array.from(action.code)
         };
 
       case ActionType.Stake:
         return {
-          actionType: ActionType.Stake,
+          action_type: ActionType.Stake,
           stake: action.stake,
           public_key: action.publicKey
         };

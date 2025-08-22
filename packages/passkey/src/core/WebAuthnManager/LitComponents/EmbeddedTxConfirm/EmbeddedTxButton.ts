@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import type { ActionArgs } from '../../../core/types/actions';
+import type { ActionArgs } from '../../../types/actions';
 
 export type TooltipPosition =
   | 'top-left' | 'top-center' | 'top-right'
@@ -261,7 +261,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
         ) border-box;
       border: 1px solid transparent;
       border-radius: 16px;
-      height: 100%;
+      height: calc(100% - 2px);
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       position: relative;
@@ -367,11 +367,10 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    console.log('[EmbeddedTxConfirm Lit] Connected to DOM');
 
     // Browser doesn't know --border-angle is an animatable angle type,
     // so we need to register it globally.
-    // Otherwise --border-angle only cycles between 0deg and 360deg,
+    // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
     // not smoothly animating through the values in between.
     if (!(window as any).borderAngleRegistered && CSS.registerProperty) {
       try {
@@ -382,7 +381,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
           inherits: false
         });
         (window as any).borderAngleRegistered = true;
-        console.log('[EmbeddedTxConfirm] Registered --border-angle property');
       } catch (e) {
         console.warn('[EmbeddedTxConfirm] Failed to register --border-angle:', e);
       }
@@ -394,7 +392,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
     // Try sending initial geometry after a short delay to ensure DOM is rendered
     setTimeout(() => {
       if (!this.initialGeometrySent) {
-        console.log('[EmbeddedTxConfirm Lit] Attempting to send initial geometry from connectedCallback');
         this.sendInitialGeometry();
         this.initialGeometrySent = true;
       }
@@ -403,24 +400,15 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
   updated(changedProperties: Map<string, any>) {
     super.updated(changedProperties);
-    console.log('[EmbeddedTxConfirm Lit] Updated properties:', Object.fromEntries(changedProperties));
-
     // Update CSS variables when button styles change
     if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle') || changedProperties.has('color')) {
       this.setupCSSVariables();
     }
 
     if (changedProperties.has('nearAccountId') || changedProperties.has('actionArgs')) {
-      console.log('[EmbeddedTxConfirm Lit] Key properties changed, current state:', {
-        nearAccountId: this.nearAccountId,
-        actionArgs: this.actionArgs,
-        loading: this.loading
-      });
-
       // Send initial geometry for clip-path setup on first actionArgs update
       if (!this.initialGeometrySent && this.actionArgs) {
         requestAnimationFrame(() => {
-          console.log('[EmbeddedTxConfirm Lit] Sending initial geometry for clip-path setup');
           this.sendInitialGeometry();
           this.initialGeometrySent = true;
         });
@@ -431,7 +419,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
       if (this.tooltipVisible) {
         // Use requestAnimationFrame to ensure DOM has fully updated
         requestAnimationFrame(() => {
-          console.log('[EmbeddedTxConfirm Lit] Re-measuring tooltip after actionArgs change');
           this.measureTooltip();
         });
       }
@@ -630,23 +617,25 @@ export class EmbeddedTxConfirmElement extends LitElement {
   }
 
   // Method to force property update and re-render
-  updateProperties(props: Partial<{ nearAccountId: string; actionArgs: any; loading: boolean; buttonStyle: React.CSSProperties; buttonHoverStyle: React.CSSProperties }>) {
-    console.log('[EmbeddedTxConfirm Lit] updateProperties called with:', props);
+  updateProperties(props: Partial<{
+    nearAccountId: string;
+    actionArgs: any;
+    loading: boolean;
+    buttonStyle: React.CSSProperties;
+    buttonHoverStyle: React.CSSProperties;
+    tooltip: { width: string; height: string; position: TooltipPosition; offset: string }
+  }>) {
 
     Object.assign(this, props);
-
     // Update CSS variables if button styles changed
     if (props.buttonStyle || props.buttonHoverStyle) {
       this.setupCSSVariables();
     }
-
     // Force a re-render to update tooltip content
     this.requestUpdate();
-
     // If tooltip is visible and actionArgs changed, re-measure after render
     if (props.actionArgs && this.tooltipVisible) {
       requestAnimationFrame(() => {
-        console.log('[EmbeddedTxConfirm Lit] Re-measuring tooltip after updateProperties actionArgs change');
         this.measureTooltip();
       });
     }
@@ -784,11 +773,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
   }
 
   render() {
-    console.log('[EmbeddedTxConfirm Lit] Rendering with:', {
-      nearAccountId: this.nearAccountId,
-      actionArgs: this.actionArgs,
-      loading: this.loading
-    });
 
     if (!this.actionArgs) return html`<div>Loading...</div>`;
 

@@ -914,7 +914,7 @@ export class LinkDeviceFlow {
       // Build actions: AddKey new + DeleteKey old
       const actions: ActionParams[] = [
         {
-          actionType: ActionType.AddKey,
+          action_type: ActionType.AddKey,
           public_key: newPublicKey,
           access_key: JSON.stringify({
             // nonce: 0, // nonce should be 0 for the new key, specifying nonce here does not seem to do anything
@@ -922,7 +922,7 @@ export class LinkDeviceFlow {
           })
         },
         {
-          actionType: ActionType.DeleteKey,
+          action_type: ActionType.DeleteKey,
           public_key: oldPublicKey
         }
       ];

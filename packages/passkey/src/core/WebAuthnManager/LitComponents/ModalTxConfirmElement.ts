@@ -7,18 +7,26 @@ export type ConfirmVariant = 'default' | 'warning' | 'danger';
 
 export interface SecureTxSummary {
   to?: string;
-  amount?: string;
+  totalAmount?: string;
   method?: string;
   fingerprint?: string; // short digest for display
 }
 
 export interface TxAction {
-  actionType: string;
+  action_type: string;
   method_name?: string;
   args?: string;
   gas?: string;
   deposit?: string;
   [key: string]: any;
+}
+
+export interface TransactionPayload {
+  nearAccountId: string;
+  receiverId: string;
+  actions: string; // JSON string of actions
+  nonce: string;
+  blockHash: string;
 }
 
 // Store active promise resolvers in a WeakMap to prevent memory leaks
@@ -35,13 +43,13 @@ export class ModalTxConfirmElement extends LitElement {
     mode: { type: String },
     variant: { type: String },
     to: { type: String },
-    amount: { type: String },
+    totalAmount: { type: String },
     method: { type: String },
     fingerprint: { type: String },
     title: { type: String },
     cancelText: { type: String },
     confirmText: { type: String },
-    actions: { type: Array },
+    txSigningRequests: { type: Array },
     loading: { type: Boolean },
     _isVisible: { type: Boolean, state: true },
     _isAnimating: { type: Boolean, state: true }
@@ -49,14 +57,14 @@ export class ModalTxConfirmElement extends LitElement {
 
   mode: ConfirmRenderMode = 'modal';
   variant: ConfirmVariant = 'default';
-  to = '';
-  amount = '';
+
+  totalAmount = '';
   method = '';
   fingerprint = '';
   title = 'Confirm Transaction';
   cancelText = 'Cancel';
   confirmText = 'Confirm & Sign';
-  actions: TxAction[] = [];
+  txSigningRequests: TransactionPayload[] = [];
   loading = false;
 
   // Internal state
@@ -125,13 +133,11 @@ export class ModalTxConfirmElement extends LitElement {
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.15);
+      background: rgba(0, 0, 0, 0.5);
       z-index: 2147483647;
       backdrop-filter: blur(8px);
       animation: backdrop-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1);
     }
-
-
 
     /* Animations */
     @keyframes backdrop-enter {
@@ -162,31 +168,29 @@ export class ModalTxConfirmElement extends LitElement {
       line-height: 1.3;
       font-weight: 600;
       color: var(--w3a-color-text);
-      margin-bottom: var(--w3a-gap-6);
+      margin: 0;
       position: relative;
       z-index: 1;
-      animation: text-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) 0.1s both;
     }
 
     .grid {
       display: grid;
-      gap: var(--w3a-gap-3);
+      gap: 0.5rem;
       grid-template-columns: 1fr;
       margin-bottom: var(--w3a-gap-3);
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) 0.2s both;
+      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     .row {
       display: grid;
       grid-template-columns: 130px 1fr;
-      align-items: start;
-      gap: var(--w3a-gap-3);
-      padding: var(--w3a-gap-2);
-      background: var(--w3a-color-surface);
-      border: 1px solid var(--w3a-color-border);
-      border-radius: var(--w3a-radius-lg);
+      align-items: center;
+      gap: var(--w3a-gap-2);
+      padding: 0.5rem 0.75rem;
+      background: transparent;
+      border-radius: 0;
       transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
       position: relative;
       overflow: hidden;
@@ -198,7 +202,6 @@ export class ModalTxConfirmElement extends LitElement {
       font-size: var(--w3a-font-size-sm);
       line-height: 1.5;
       font-weight: 500;
-      text-transform: uppercase;
       letter-spacing: 0.02em;
     }
 
@@ -208,12 +211,20 @@ export class ModalTxConfirmElement extends LitElement {
       font-weight: 500;
     }
 
+    /* Summary section */
+    .summary-section {
+      margin-bottom: var(--w3a-gap-6);
+      position: relative;
+      z-index: 1;
+      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
+    }
+
     /* Actions section */
     .actions-section {
       margin: .75rem 0;
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) 0.3s both;
+      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     /* Outer glass border wrapper around actions (double border design) */
@@ -239,7 +250,7 @@ export class ModalTxConfirmElement extends LitElement {
       border: 1px solid transparent;
       border-radius: 1rem;
       height: 100%;
-      padding: 0.5rem;
+      padding: 1rem;
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       position: relative;
@@ -261,51 +272,50 @@ export class ModalTxConfirmElement extends LitElement {
       color: var(--w3a-color-text-secondary);
       font-size: var(--w3a-font-size-sm);
       font-weight: 600;
-      text-transform: uppercase;
       letter-spacing: 0.8px;
       margin-bottom: var(--w3a-gap-3);
     }
 
     .action-item {
-      margin-bottom: var(--w3a-gap-3);
+      margin-bottom: var(--w3a-gap-2);
       overflow: hidden;
       transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+      position: relative;
     }
 
     .action-item:last-child {
       margin-bottom: 0;
     }
 
-    .action-header {
-      font-size: var(--w3a-font-size-sm);
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding: calc(var(--w3a-gap-2) * 0.5) var(--w3a-gap-2);
+    .action-row {
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      align-items: center;
+      gap: var(--w3a-gap-2);
+      padding: 0;
+      margin-bottom: 0;
+      background: transparent;
+      border-radius: 0;
+      transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+    }
+
+    .action-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .action-label {
+      font-family: var(--w3a-font-family);
+      color: var(--w3a-color-text-secondary);
+      font-size: 0.75rem;
+      line-height: 1.5;
+      font-weight: 500;
+      letter-spacing: 0.02em;
     }
 
     .action-content {
-      padding: var(--w3a-gap-2);
+      padding: 0.25rem 0rem 0rem 0rem;
       font-size: var(--w3a-font-size-sm);
       line-height: 1.4;
-      max-height: 400px;
-      overflow-y: auto;
-    }
-
-    .code-block {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-      background: #f8fafc;
-      border: 1px solid #e0e0e0;
-      border-radius: 8px;
-      padding: 8px;
-      white-space: pre;
-      word-break: normal;
-      overflow: auto;
-      line-height: 1.4;
-      margin: 4px 0 0 0;
-      min-height: calc(1.4em * 3);
-      max-height: 400px;
-      height: auto;
     }
 
     .action-content::-webkit-scrollbar {
@@ -322,15 +332,62 @@ export class ModalTxConfirmElement extends LitElement {
       border-radius: 3px;
     }
 
+    .action-value {
+      color: var(--w3a-color-text);
+      word-break: break-word;
+      font-weight: 500;
+      font-size: 0.75rem;
+    }
+
+    .action-subitem {
+      margin-bottom: 0.5rem;
+      padding: 0rem 0rem 0rem 1rem;
+      background: var(--w3a-color-background);
+      position: relative;
+    }
+
+    .action-subitem:last-child {
+      margin-bottom: 0;
+    }
+
+    .action-subheader {
+      font-size: var(--w3a-font-size-sm);
+      font-weight: 600;
+      color: var(--w3a-color-primary);
+    }
+
+    .code-block {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      font-size: 0.75rem;
+      background: #f8fafc;
+      border: 1px solid #e0e0e0;
+      border-radius: var(--w3a-radius-md);
+      padding: 8px;
+      white-space: pre;
+      word-break: normal;
+      overflow: auto;
+      line-height: 1.4;
+      margin: 0.25rem 0rem 0rem 0rem;
+      min-height: calc(1.eem * 3);
+      max-height: 400px;
+      height: auto;
+    }
+
+    .method-name {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+      font-weight: 600;
+      color: var(--w3a-color-primary);
+    }
+
     /* Button styles */
     .buttons {
       display: flex;
       gap: var(--w3a-gap-3);
       justify-content: flex-end;
-      margin-top: var(--w3a-gap-3);
+      margin-top: var(--w3a-gap-2);
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) 0.4s both;
+      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     .toast .buttons {
@@ -417,18 +474,7 @@ export class ModalTxConfirmElement extends LitElement {
       box-shadow: 0 0 0 3px rgba(42, 82, 190, 0.18);
     }
 
-    /* Text Animations */
-    @keyframes text-enter {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
+    /* Content Animation */
     @keyframes content-enter {
       from {
         opacity: 0;
@@ -450,13 +496,19 @@ export class ModalTxConfirmElement extends LitElement {
 
       .row {
         grid-template-columns: 1fr;
-        gap: .5rem;
-        padding: 1rem;
+        gap: .25rem;
+        padding: 0.75rem;
       }
 
       .label {
         font-size: 0.75em;
         margin-bottom: 2px;
+      }
+
+      .action-row {
+        grid-template-columns: 1fr;
+        gap: .25rem;
+        padding: 0.5rem;
       }
 
       .buttons {
@@ -528,6 +580,7 @@ export class ModalTxConfirmElement extends LitElement {
     });
 
     const contentClasses = classMap({
+      'content': true,
       [this.variant]: this.variant !== 'default',
     });
 
@@ -540,19 +593,78 @@ export class ModalTxConfirmElement extends LitElement {
     return html`
       <div class=${containerClasses}>
         <div class=${contentClasses}>
+
+          <!-- Transaction Summary Section -->
+          ${when(this.totalAmount, () => html`
+            <div class="summary-section">
+              <div class="grid">
+                ${when(this.totalAmount, () => html`
+                  <div class="row">
+                    <div class="label">Total Amount</div>
+                    <div class="value">${this.totalAmount}</div>
+                  </div>
+                `)}
+
+              </div>
+            </div>
+          `)}
+
+          <!-- Actions Section -->
           <div class="actions-section">
             <div class="action-outer">
               <div class="action-list">
-              ${when(this.actions.length > 0, () => html`
-                ${this.actions.map((action, index) => html`
-                  <div class="action-item">
-                    <div class="action-header">Action ${index + 1}</div>
-                    <div class="action-content">
-                      <pre class="code-block"><code>${JSON.stringify(action, null, 2)}</code></pre>
-                    </div>
-                  </div>
+                <h2 class="header">${this.title}</h2>
+                ${when(this.txSigningRequests.length > 0, () => html`
+                  ${this.txSigningRequests.map((txPayload, txIndex) => {
+                    // Parse actions from the transaction payload
+                    let actions: TxAction[] = [];
+                    try {
+                      actions = JSON.parse(txPayload.actions);
+                    } catch (e) {
+                      console.warn('Failed to parse actions from transaction payload:', e);
+                    }
+
+                    return html`
+                      <div class="action-item">
+                        <div class="action-content">
+                          <!-- Transaction Receiver (only show for first action) -->
+                          ${actions.length > 0 ? html`
+                            <div class="action-subheader">
+                              <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${txPayload.receiverId}</span></div>
+                            </div>
+                          ` : ''}
+
+                          <!-- Actions for this transaction -->
+                          ${actions.map((action, actionIndex) => html`
+                            <div class="action-subitem">
+
+                              <!-- Deposit (only show if not 0) -->
+                              ${when(action.deposit && action.deposit !== '0', () => html`
+                                <div class="action-row">
+                                  <div class="action-label">Deposit</div>
+                                  <div class="action-value">${this._formatDeposit(action.deposit)}</div>
+                                </div>
+                              `)}
+
+                              <!-- Method call with args -->
+                              ${when(action.method_name && action.args, () => html`
+                                <div class="action-label">Calling <span class="method-name">${action.method_name}</span> using <span class="method-name">${this._formatGas(action.gas)}</span></div>
+                                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+                              `)}
+
+                              <!-- Args only (if no method name) -->
+                              ${when(action.args && !action.method_name, () => html`
+                                <div class="action-label">Args:</div>
+                                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+                              `)}
+                            </div>
+                          `)}
+                        </div>
+                      </div>
+                    `;
+                  })}
                 `)}
-              `)}
+
                 <div class="buttons">
                   ${this.loading ? html`
                     <!-- Loading mode: show only cancel button with loading indicator -->
@@ -561,7 +673,7 @@ export class ModalTxConfirmElement extends LitElement {
                       @click=${this._handleCancel}
                     >
                       <span class="loading-indicator"></span>
-                      ${this.cancelText}
+                      Signing
                     </button>
                   ` : html`
                     <!-- Normal mode: show both cancel and confirm buttons -->
@@ -601,6 +713,41 @@ export class ModalTxConfirmElement extends LitElement {
       resolve(confirmed);
       activeResolvers.delete(this);
       this.remove();
+    }
+  }
+
+  private _formatGas(gas: string | undefined): string {
+    if (!gas) return '';
+    try {
+      const gasValue = BigInt(gas);
+      const tgas = gasValue / BigInt('1000000000000'); // Convert to Tgas (divide by 10^12)
+      return `${tgas}Tgas`;
+    } catch (e) {
+      // If parsing fails, return original value
+      return gas;
+    }
+  }
+
+  private _formatArgs(args: string | undefined): string {
+    if (!args) return '';
+    try {
+      const parsed = JSON.parse(args);
+      return JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      // If parsing fails, return original value
+      return args;
+    }
+  }
+
+  private _formatDeposit(deposit: string | undefined): string {
+    if (!deposit || deposit === '0') return '';
+    try {
+      const depositValue = BigInt(deposit);
+      const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
+      return `${nearValue.toFixed(5)} NEAR`;
+    } catch (e) {
+      // If parsing fails, return original value
+      return deposit;
     }
   }
 }

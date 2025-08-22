@@ -14,6 +14,13 @@ const external = [
   // Exclude Lit SSR shim (not needed for client-side only)
   '@lit-labs/ssr-dom-shim',
 
+  // Node.js native modules for /server SDK
+  'fs',
+  'path',
+  'url',
+  'crypto',
+  'util',
+
   // Core dependencies that should be provided by consuming application
   'borsh',
   'bs58',
@@ -183,7 +190,7 @@ export default defineConfig([
   },
   // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
   {
-    input: 'src/react/components/EmbeddedTxConfirm/EmbeddedTxButton.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxButton.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
@@ -196,7 +203,7 @@ export default defineConfig([
   },
   // Embedded Transaction Confirmation Iframe Host component - new Lit-based host
   {
-    input: 'src/react/components/EmbeddedTxConfirm/EmbeddedTxIframe.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxIframe.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
