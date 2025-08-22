@@ -52,7 +52,9 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
   tooltipStyle?: {
     width: string;
     height: string;
-    position: 'top' | 'bottom' | 'left' | 'right';
+    position: 'left' | 'right'
+      | 'top-left' | 'top-center' | 'top-right'
+      | 'bottom-left' | 'bottom-center' | 'bottom-right';
     offset: string
   };
 }> = ({
@@ -66,7 +68,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
   tooltipStyle = {
     width: '280px',
     height: '300px',
-    position: 'top',
+    position: 'top-center',
     offset: '8px'
   },
   // Behavioral props
@@ -78,6 +80,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
 
   const hostRef = React.useRef<any>(null);
   const { passkeyManager } = usePasskeyContext();
+  const prevTooltipStyleRef = React.useRef(tooltipStyle);
 
   // Load the component bundle on mount
   React.useEffect(() => {
@@ -90,29 +93,34 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
     const host = hostRef.current;
     if (!host) return;
 
-    // Set properties on the Lit component
-    host.nearAccountId = nearAccountId;
+    // Check if tooltipStyle changed significantly (requires iframe re-render)
+    const tooltipStyleChanged = JSON.stringify(prevTooltipStyleRef.current) !== JSON.stringify(tooltipStyle);
+    prevTooltipStyleRef.current = tooltipStyle;
+
+    // Set properties on the Lit component using Lit setters
     host.actionArgs = actionArgs;
-    host.color = color;
     host.buttonStyle = buttonStyle;
     host.buttonHoverStyle = buttonHoverStyle;
     host.tooltipStyle = tooltipStyle;
-    host.showLoading = showLoading;
     host.actionOptions = actionOptions;
     host.passkeyManagerContext = passkeyManager.getContext();
 
-    // Set event handlers
+    // Set event handlers (these don't trigger updates)
     host.onSuccess = onSuccess;
     host.onError = onError;
     host.onCancel = onCancel;
+
+    // If tooltipStyle changed, force iframe re-initialization for proper sizing/positioning
+    if (tooltipStyleChanged && host.forceIframeReinitialize) {
+      console.debug('[EmbeddedTxConfirm] Tooltip style changed, forcing iframe re-initialization');
+      host.forceIframeReinitialize();
+    }
+
   }, [
-    nearAccountId,
     actionArgs,
-    color,
     buttonStyle,
     buttonHoverStyle,
     tooltipStyle,
-    showLoading,
     actionOptions,
     passkeyManager,
     onSuccess,
@@ -122,7 +130,12 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
 
   return React.createElement('embedded-tx-confirm-host', {
     ref: hostRef,
-    key: 'embedded-tx-confirm-host' // Stable key to prevent re-creation
+    key: 'embedded-tx-confirm-host', // Stable key to prevent re-creation
+    // Pass props as attributes - Lit will automatically handle property conversion
+    'near-account-id': nearAccountId,
+    'color': color,
+    'show-loading': showLoading,
+    // Complex objects still need to be set via properties in useEffect
   });
 };
 

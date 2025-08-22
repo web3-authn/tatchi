@@ -1,12 +1,25 @@
 import { LitElement, html, css } from 'lit';
 import type { ActionArgs } from '../../../core/types/actions';
 
-export interface TooltipGeometry {
-  width: number;
-  height: number;
-  side: 'top' | 'bottom' | 'left' | 'right';
+export type TooltipPosition =
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'left' | 'right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
+export interface Rectangle {
   x: number;
   y: number;
+  width: number;
+  height: number;
+  borderRadius?: number;
+}
+
+export interface TooltipGeometry {
+  button: Rectangle;
+  tooltip: Rectangle;
+  position: TooltipPosition;
+  gap: number;
+  visible: boolean;
 }
 
 /**
@@ -33,10 +46,15 @@ export class EmbeddedTxConfirmElement extends LitElement {
   color: string = '#667eea';
   buttonText: string = 'Confirm Transaction';
   loading: boolean = false;
-  tooltip: { width: string; height: string; position: 'top'|'bottom'|'left'|'right'; offset: string } = {
+  tooltip: {
+    width: string;
+    height: string;
+    position: TooltipPosition;
+    offset: string
+  } = {
     width: '280px',
     height: 'auto',
-    position: 'top',
+    position: 'top-center',
     offset: '8px'
   };
   buttonStyle: React.CSSProperties = {};
@@ -45,6 +63,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
   // Internal state
   private tooltipVisible: boolean = false;
   private hideTimeout: number | null = null;
+  private initialGeometrySent: boolean = false;
 
   static styles = css`
     :host {
@@ -86,7 +105,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
       align-items: center;
       justify-content: center;
       gap: 8px;
-      box-shadow: var(--btn-box-shadow, none);
       width: var(--btn-width, 200px);
       height: var(--btn-height, 48px);
       box-sizing: border-box;
@@ -95,6 +113,13 @@ export class EmbeddedTxConfirmElement extends LitElement {
       outline: none;
       text-decoration: none;
       font-family: inherit;
+      opacity: 0;
+      animation: fadeIn 0.1s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
     }
 
     .btn:hover {
@@ -105,7 +130,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
       padding: var(--btn-hover-padding, var(--btn-padding, 12px 24px));
       font-size: var(--btn-hover-font-size, var(--btn-font-size, 1rem));
       font-weight: var(--btn-hover-font-weight, var(--btn-font-weight, 500));
-      box-shadow: var(--btn-hover-box-shadow, var(--btn-box-shadow, none));
     }
 
     .btn:disabled {
@@ -140,6 +164,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
     .tooltip-content {
       position: absolute;
+      box-sizing: border-box;
       background: rgba(255, 255, 255, 0.95);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
@@ -152,26 +177,33 @@ export class EmbeddedTxConfirmElement extends LitElement {
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
       overflow-y: auto;
-      transition: all 0.2s ease;
+      transition: all 0.1s ease;
       min-width: 280px;
       max-width: 320px;
       width: var(--tooltip-width, 280px);
     }
 
-    .tooltip-content.top {
+    /* Top positions - aligned with button corners */
+    .tooltip-content.top-left {
+      bottom: 100%;
+      left: 0; /* Aligns tooltip's left edge with button's left edge */
+      margin-bottom: var(--tooltip-offset, 8px);
+    }
+
+    .tooltip-content.top-center {
       bottom: 100%;
       left: 50%;
       transform: translateX(-50%);
       margin-bottom: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.bottom {
-      top: 100%;
-      left: 50%;
-      transform: translateX(-50%);
-      margin-top: var(--tooltip-offset, 8px);
+    .tooltip-content.top-right {
+      bottom: 100%;
+      right: 0; /* Aligns tooltip's right edge with button's right edge */
+      margin-bottom: var(--tooltip-offset, 8px);
     }
 
+    /* Side positions */
     .tooltip-content.left {
       right: 100%;
       top: 50%;
@@ -186,6 +218,26 @@ export class EmbeddedTxConfirmElement extends LitElement {
       margin-left: var(--tooltip-offset, 8px);
     }
 
+    /* Bottom positions - aligned with button corners */
+    .tooltip-content.bottom-left {
+      top: 100%;
+      left: 0; /* Aligns tooltip's left edge with button's left edge */
+      margin-top: var(--tooltip-offset, 8px);
+    }
+
+    .tooltip-content.bottom-center {
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: var(--tooltip-offset, 8px);
+    }
+
+    .tooltip-content.bottom-right {
+      top: 100%;
+      right: 0; /* Aligns tooltip's right edge with button's right edge */
+      margin-top: var(--tooltip-offset, 8px);
+    }
+
     .tooltip-content.show {
       opacity: 1;
       visibility: visible;
@@ -196,6 +248,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
     }
 
     .action-list {
+      /* Thicker, subtle monochrome animated border */
       --border-angle: 0deg;
       background: linear-gradient(#ffffff, #ffffff) padding-box,
         conic-gradient(
@@ -208,7 +261,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
         ) border-box;
       border: 1px solid transparent;
       border-radius: 16px;
-      height: calc(100% - 2px); /* 2px for border for overflowing issues */
+      height: 100%;
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       position: relative;
@@ -315,25 +368,81 @@ export class EmbeddedTxConfirmElement extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     console.log('[EmbeddedTxConfirm Lit] Connected to DOM');
+
+    // Register the custom property globally for animation
+    if (!(window as any).borderAngleRegistered && CSS.registerProperty) {
+      try {
+        CSS.registerProperty({
+          name: '--border-angle',
+          syntax: '<angle>',
+          initialValue: '0deg',
+          inherits: false
+        });
+        (window as any).borderAngleRegistered = true;
+        console.log('[EmbeddedTxConfirm] Registered --border-angle property');
+      } catch (e) {
+        console.warn('[EmbeddedTxConfirm] Failed to register --border-angle:', e);
+      }
+    }
+
     this.setupCSSVariables();
     this.sendReadyMessage();
+
+    // Try sending initial geometry after a short delay to ensure DOM is rendered
+    setTimeout(() => {
+      if (!this.initialGeometrySent) {
+        console.log('[EmbeddedTxConfirm Lit] Attempting to send initial geometry from connectedCallback');
+        this.sendInitialGeometry();
+        this.initialGeometrySent = true;
+      }
+    }, 100);
   }
 
   updated(changedProperties: Map<string, any>) {
     super.updated(changedProperties);
     console.log('[EmbeddedTxConfirm Lit] Updated properties:', Object.fromEntries(changedProperties));
+
+    // Update CSS variables when button styles change
+    if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle') || changedProperties.has('color')) {
+      this.setupCSSVariables();
+    }
+
     if (changedProperties.has('nearAccountId') || changedProperties.has('actionArgs')) {
       console.log('[EmbeddedTxConfirm Lit] Key properties changed, current state:', {
         nearAccountId: this.nearAccountId,
         actionArgs: this.actionArgs,
         loading: this.loading
       });
+
+      // Send initial geometry for clip-path setup on first actionArgs update
+      if (!this.initialGeometrySent && this.actionArgs) {
+        requestAnimationFrame(() => {
+          console.log('[EmbeddedTxConfirm Lit] Sending initial geometry for clip-path setup');
+          this.sendInitialGeometry();
+          this.initialGeometrySent = true;
+        });
+      }
+
+      // Force DOM update and re-measure tooltip when transaction data changes
+      // The tooltip content should automatically update since it's part of the render template
+      if (this.tooltipVisible) {
+        // Use requestAnimationFrame to ensure DOM has fully updated
+        requestAnimationFrame(() => {
+          console.log('[EmbeddedTxConfirm Lit] Re-measuring tooltip after actionArgs change');
+          this.measureTooltip();
+        });
+      }
     }
   }
 
   private setupCSSVariables() {
-    this.style.setProperty('--btn-color', this.color);
-    this.style.setProperty('--btn-color-hover', this.color + 'dd');
+    // Use buttonStyle.background or buttonStyle.backgroundColor if available, otherwise fall back to this.color
+    const buttonBackground = this.buttonStyle?.background || this.buttonStyle?.backgroundColor || this.color;
+    this.style.setProperty('--btn-color', String(buttonBackground));
+
+    // Use buttonHoverStyle.background or buttonHoverStyle.backgroundColor if available, otherwise fall back to button background + transparency
+    const hoverColor = this.buttonHoverStyle?.background || this.buttonHoverStyle?.backgroundColor || String(buttonBackground) + 'dd';
+    this.style.setProperty('--btn-color-hover', String(hoverColor));
 
     // Use buttonStyle properties for width and height, with fallbacks
     const buttonWidth = this.buttonStyle?.width || '200px';
@@ -369,30 +478,102 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
   private measureTooltip() {
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const containerElement = this.shadowRoot?.querySelector('.embedded-confirm-container') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.btn') as HTMLElement;
 
-    if (!tooltipElement || !containerElement) return;
+    if (!tooltipElement || !buttonElement) return;
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
-    const containerRect = containerElement.getBoundingClientRect();
+    const buttonRect = buttonElement.getBoundingClientRect();
+    const gap = this.parsePixelValue(this.tooltip.offset);
 
     const geometry: TooltipGeometry = {
-      width: tooltipRect.width,
-      height: tooltipRect.height,
-      side: this.tooltip.position as 'top' | 'bottom' | 'left' | 'right',
-      x: tooltipRect.left,
-      y: tooltipRect.top
+      button: {
+        x: buttonRect.left,
+        y: buttonRect.top,
+        width: buttonRect.width,
+        height: buttonRect.height,
+        borderRadius: 8
+      },
+      tooltip: {
+        x: tooltipRect.left,
+        y: tooltipRect.top,
+        width: tooltipRect.width,
+        height: tooltipRect.height,
+        borderRadius: 24
+      },
+      position: this.tooltip.position,
+      gap,
+      visible: this.tooltipVisible
     };
 
     // Rate-limit updates using requestAnimationFrame
     requestAnimationFrame(() => {
       if (window.parent) {
         window.parent.postMessage({
-          type: 'TOOLTIP_GEOMETRY',
+          type: 'TOOLTIP_STATE',
           payload: geometry
         }, '*');
       }
     });
+  }
+
+  /**
+   * Send initial geometry data to parent for clip-path setup
+   */
+  private sendInitialGeometry() {
+    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.btn') as HTMLElement;
+
+    if (!tooltipElement || !buttonElement) return;
+
+    const tooltipRect = tooltipElement.getBoundingClientRect();
+    const buttonRect = buttonElement.getBoundingClientRect();
+    const gap = this.parsePixelValue(this.tooltip.offset);
+
+    const geometry: TooltipGeometry = {
+      button: {
+        x: buttonRect.left,
+        y: buttonRect.top,
+        width: buttonRect.width,
+        height: buttonRect.height,
+        borderRadius: 8
+      },
+      tooltip: {
+        x: tooltipRect.left,
+        y: tooltipRect.top,
+        width: tooltipRect.width,
+        height: tooltipRect.height,
+        borderRadius: 24
+      },
+      position: this.tooltip.position,
+      gap,
+      visible: false // Always false for initial setup
+    };
+
+    // Send initial geometry for clip-path setup
+    requestAnimationFrame(() => {
+      if (window.parent) {
+        window.parent.postMessage({
+          type: 'INIT_GEOMETRY',
+          payload: geometry
+        }, '*');
+      }
+    });
+  }
+
+  private parsePixelValue(value: string | number): number {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      if (value === 'auto') {
+        throw new Error('Cannot parse "auto" value for pixel calculations. Please provide a specific pixel value.');
+      }
+      const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+      if (match) {
+        return parseFloat(match[1]);
+      }
+      throw new Error(`Invalid pixel value: "${value}". Expected format: "123px" or numeric value.`);
+    }
+    return 0;
   }
 
   private showTooltip() {
@@ -410,7 +591,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
       this.hideTimeout = null;
     }
 
-    // Measure after showing
+    // Measure after showing - this will send TOOLTIP_STATE with visible: true
     setTimeout(() => this.measureTooltip(), 50);
   }
 
@@ -427,7 +608,10 @@ export class EmbeddedTxConfirmElement extends LitElement {
       tooltipElement.classList.remove('show', 'hiding');
       tooltipElement.setAttribute('aria-hidden', 'true');
       this.hideTimeout = null;
-    }, 150);
+
+      // Send updated tooltip state with visible: false
+      this.measureTooltip();
+    }, 100);
   }
 
   private cancelHide() {
@@ -444,16 +628,37 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
   // Method to force property update and re-render
   updateProperties(props: Partial<{ nearAccountId: string; actionArgs: any; loading: boolean; buttonStyle: React.CSSProperties; buttonHoverStyle: React.CSSProperties }>) {
+    console.log('[EmbeddedTxConfirm Lit] updateProperties called with:', props);
+
     Object.assign(this, props);
+
     // Update CSS variables if button styles changed
     if (props.buttonStyle || props.buttonHoverStyle) {
       this.setupCSSVariables();
     }
+
+    // Force a re-render to update tooltip content
     this.requestUpdate();
+
+    // If tooltip is visible and actionArgs changed, re-measure after render
+    if (props.actionArgs && this.tooltipVisible) {
+      requestAnimationFrame(() => {
+        console.log('[EmbeddedTxConfirm Lit] Re-measuring tooltip after updateProperties actionArgs change');
+        this.measureTooltip();
+      });
+    }
   }
 
   // Method to handle SET_STYLE messages
-  updateButtonStyles(buttonStyle: React.CSSProperties, buttonHoverStyle: React.CSSProperties, tooltipStyle?: { width: string; height: string | 'auto'; position: 'top' | 'bottom' | 'left' | 'right'; offset: string }) {
+  updateButtonStyles(
+    buttonStyle: React.CSSProperties,
+    buttonHoverStyle: React.CSSProperties,
+    tooltipStyle?: {
+      width: string;
+      height: string | 'auto';
+      position: TooltipPosition;
+      offset: string
+    }) {
     this.buttonStyle = buttonStyle;
     this.buttonHoverStyle = buttonHoverStyle;
     if (tooltipStyle) {
@@ -470,10 +675,26 @@ export class EmbeddedTxConfirmElement extends LitElement {
   }
 
   private handlePointerEnter() {
+    // Notify parent immediately about button hover for pointer-events activation
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'BUTTON_HOVER',
+        payload: { hovering: true }
+      }, '*');
+    }
+
     this.showTooltip();
   }
 
   private handlePointerLeave() {
+    // Notify parent about button hover end
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'BUTTON_HOVER',
+        payload: { hovering: false }
+      }, '*');
+    }
+
     this.hideTooltip();
   }
 
@@ -570,11 +791,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
     const actions = Array.isArray(this.actionArgs) ? this.actionArgs : [this.actionArgs];
 
-    // Convert React CSSProperties to style string
-    const buttonStyleString = Object.entries(this.buttonStyle || {})
-      .map(([key, value]) => `${key.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${value}`)
-      .join('; ');
-
     return html`
       <div class="embedded-confirm-container">
         <button
@@ -587,7 +803,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
           @blur=${this.handlePointerLeave}
           aria-describedby="tooltipContent"
           tabindex="0"
-          style="${buttonStyleString}"
         >
           <span class="loading ${this.loading ? 'show' : ''}">
             <div class="spinner"></div>

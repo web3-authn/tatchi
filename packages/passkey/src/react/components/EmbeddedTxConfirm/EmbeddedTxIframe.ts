@@ -5,22 +5,216 @@ import type { ActionHooksOptions } from '../../../core/types/passkeyManager';
 import { executeActionInternal } from '../../../core/PasskeyManager/actions';
 import { toAccountId } from '../../../core/types/accountIds';
 
+export type TooltipPosition =
+  | 'top-left' | 'top-center' | 'top-right'
+  | 'left' | 'right'
+  | 'bottom-left' | 'bottom-center' | 'bottom-right';
+
 export interface TooltipStyle {
   width: string;
   height: string;
-  position: 'top' | 'bottom' | 'left' | 'right';
+  position: TooltipPosition;
   offset: string;
 }
 
+export interface Rectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  borderRadius?: number;
+}
+
+export interface TooltipGeometry {
+  button: Rectangle;
+  tooltip: Rectangle;
+  position: TooltipPosition;
+  gap: number;
+  visible: boolean;
+}
+
 export interface IframeInitData {
-  color: string;
   size: { width: string; height: string };
   tooltip: { width: string; height: string; position: string; offset: string };
+  buttonPosition: { x: number; y: number }; // Precise button position inside iframe
+  backgroundColor: string; // Button background color for consistent CSS
 }
 
 export interface IframeMessage {
-  type: 'READY' | 'SET_TX_DATA' | 'SET_LOADING' | 'SET_STYLE' | 'CONFIRM' | 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION' | 'ETX_DEFINED';
+  type: 'READY'
+  | 'SET_TX_DATA'
+  | 'SET_LOADING'
+  | 'SET_STYLE'
+  | 'CONFIRM'
+  | 'IFRAME_ERROR'
+  | 'IFRAME_UNHANDLED_REJECTION'
+  | 'ETX_DEFINED'
+  | 'INIT_GEOMETRY'
+  | 'TOOLTIP_STATE'
+  | 'BUTTON_HOVER';
   payload?: any;
+}
+
+/**
+ * ClipPathGenerator creates precise clip-path polygons for button + tooltip unions.
+ * Supports all 8 tooltip positions with optimized shape algorithms.
+ */
+class ClipPathGenerator {
+  /**
+   * Generate a clip-path polygon that covers the union of button and tooltip
+   */
+  static generateUnion(geometry: TooltipGeometry): string {
+    const { button, tooltip, position, gap } = geometry;
+
+    // Check for clip-path support
+    if (!CSS.supports('clip-path: polygon(0 0)')) {
+      console.warn('clip-path not supported, skipping shape generation');
+      return '';
+    }
+
+    switch (position) {
+      case 'top-left':
+        return this.generateTopLeftUnion(button, tooltip, gap);
+      case 'top-center':
+        return this.generateTopCenterUnion(button, tooltip, gap);
+      case 'top-right':
+        return this.generateTopRightUnion(button, tooltip, gap);
+      case 'left':
+        return this.generateLeftUnion(button, tooltip, gap);
+      case 'right':
+        return this.generateRightUnion(button, tooltip, gap);
+      case 'bottom-left':
+        return this.generateBottomLeftUnion(button, tooltip, gap);
+      case 'bottom-center':
+        return this.generateBottomCenterUnion(button, tooltip, gap);
+      case 'bottom-right':
+        return this.generateBottomRightUnion(button, tooltip, gap);
+      default:
+        console.warn(`Unknown tooltip position: ${position}`);
+        return this.generateTopCenterUnion(button, tooltip, gap);
+    }
+  }
+
+  /**
+   * Generate vertical capsule for top-center and bottom-center positions
+   */
+  private static generateTopCenterUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = tooltip.y;
+    const maxY = button.y + button.height;
+
+    const borderRadius = 2; // Smaller radius to avoid clipping button corners
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateBottomCenterUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = button.y;
+    const maxY = tooltip.y + tooltip.height;
+
+    const borderRadius = 2; // Smaller radius to avoid clipping button corners
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  /**
+   * Generate horizontal capsule for left and right positions
+   */
+  private static generateLeftUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = tooltip.x;
+    const maxX = button.x + button.width;
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+
+    const borderRadius = 2; // Smaller radius to avoid clipping button corners
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateRightUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = button.x;
+    const maxX = tooltip.x + tooltip.width;
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+
+    const borderRadius = 2; // Smaller radius to avoid clipping button corners
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  /**
+   * Generate L-shaped corridors for corner positions
+   */
+  private static generateTopLeftUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    return this.generateLShapedUnion(button, tooltip, gap, 'top-left');
+  }
+
+  private static generateTopRightUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    return this.generateLShapedUnion(button, tooltip, gap, 'top-right');
+  }
+
+  private static generateBottomLeftUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    return this.generateLShapedUnion(button, tooltip, gap, 'bottom-left');
+  }
+
+  private static generateBottomRightUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    return this.generateLShapedUnion(button, tooltip, gap, 'bottom-right');
+  }
+
+  /**
+   * Create L-shaped union for corner tooltip positions
+   */
+  private static generateLShapedUnion(
+    button: Rectangle,
+    tooltip: Rectangle,
+    gap: number,
+    corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  ): string {
+    // For now, use a simple bounding rectangle approach
+    // TODO: Implement true L-shaped corridors with smooth corners
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+
+    const borderRadius = 2; // Smaller radius to avoid clipping button corners
+    const width = maxX - minX;
+    const height = maxY - minY;
+
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  /**
+   * Generate polygon points for rounded rectangle
+   */
+  public static createRoundedRect(
+    x: number, y: number, width: number, height: number, radius: number
+  ): string {
+    // Clamp radius to prevent overlapping corners
+    const r = Math.min(radius, width / 2, height / 2);
+
+    return [
+      `${Math.round(x + r)}px ${Math.round(y)}px`,
+      `${Math.round(x + width - r)}px ${Math.round(y)}px`,
+      `${Math.round(x + width)}px ${Math.round(y + r)}px`,
+      `${Math.round(x + width)}px ${Math.round(y + height - r)}px`,
+      `${Math.round(x + width - r)}px ${Math.round(y + height)}px`,
+      `${Math.round(x + r)}px ${Math.round(y + height)}px`,
+      `${Math.round(x)}px ${Math.round(y + height - r)}px`,
+      `${Math.round(x)}px ${Math.round(y + r)}px`
+    ].join(', ');
+  }
 }
 
 /**
@@ -29,15 +223,52 @@ export interface IframeMessage {
  */
 export class EmbeddedTxConfirmHost extends LitElement {
   static properties = {
-    nearAccountId: { type: String },
-    actionArgs: { type: Object },
+    nearAccountId: {
+      type: String,
+      attribute: 'near-account-id'
+    },
+    actionArgs: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        // Deep comparison for actionArgs to trigger proper updates
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
     color: { type: String },
-    buttonStyle: { type: Object },
-    buttonHoverStyle: { type: Object },
-    tooltipStyle: { type: Object },
-    showLoading: { type: Boolean },
-    actionOptions: { type: Object },
-    passkeyManagerContext: { type: Object },
+    buttonStyle: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
+    buttonHoverStyle: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
+    tooltipStyle: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
+    showLoading: {
+      type: Boolean,
+      attribute: 'show-loading'
+    },
+    actionOptions: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
+    passkeyManagerContext: {
+      type: Object,
+      hasChanged(newVal: any, oldVal: any) {
+        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
+      }
+    },
     // Event handlers
     onSuccess: { type: Object },
     onError: { type: Object },
@@ -45,28 +276,46 @@ export class EmbeddedTxConfirmHost extends LitElement {
   } as const;
 
   private iframeInitialized = false;
+  private currentGeometry: TooltipGeometry | null = null;
+  private clipPathSupported = false;
+  private initialClipPathApplied = false;
 
-  nearAccountId: string = '';
-  actionArgs: ActionArgs | ActionArgs[] | null = null;
-  color: string = '#667eea';
-  buttonStyle: Record<string, string | number> = {};
-  buttonHoverStyle: Record<string, string | number> = {};
-  tooltipStyle: TooltipStyle = {
-    width: '280px',
-    height: '300px',
-    position: 'top',
-    offset: '8px'
-  };
-  showLoading: boolean = false;
-  actionOptions: ActionHooksOptions = {};
-  passkeyManagerContext: any = null;
+  // Reactive properties are automatically created by Lit from static properties
+  // Don't declare them as instance properties - this overrides Lit's setters!
+  declare nearAccountId: string;
+  declare actionArgs: ActionArgs | ActionArgs[] | null;
+  declare color: string;
+  declare buttonStyle: Record<string, string | number>;
+  declare buttonHoverStyle: Record<string, string | number>;
+  declare tooltipStyle: TooltipStyle;
+  declare showLoading: boolean;
+  declare actionOptions: ActionHooksOptions;
+  declare passkeyManagerContext: any;
 
-  // Event handlers
+  // Event handlers (not reactive properties)
   onSuccess?: (result: any) => void;
   onError?: (error: Error) => void;
   onCancel?: () => void;
 
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
+
+  constructor() {
+    super();
+    // Initialize default values for reactive properties
+    this.nearAccountId = '';
+    this.actionArgs = null;
+    this.buttonStyle = {};
+    this.buttonHoverStyle = {};
+    this.tooltipStyle = {
+      width: '280px',
+      height: '300px',
+      position: 'top-center',
+      offset: '8px'
+    };
+    this.showLoading = false;
+    this.actionOptions = {};
+    this.passkeyManagerContext = null;
+  }
 
   static styles = css`
     :host {
@@ -81,20 +330,41 @@ export class EmbeddedTxConfirmHost extends LitElement {
       z-index: 1001;
     }
 
+    .embedded-confirm-button-placeholder {
+      padding: 0;
+      margin: 0;
+      display: block;
+    }
+
     iframe {
       border: none;
       background: transparent;
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
       z-index: 1000;
     }
+
+    /* Flush positioning classes for different tooltip positions */
+    iframe.flush-top-left { top: 0; left: 0; }
+    iframe.flush-top-center { top: 0; left: 50%; transform: translateX(-50%); }
+    iframe.flush-top-right { top: 0; right: 0; }
+    iframe.flush-left { top: 50%; left: 0; transform: translateY(-50%); }
+    iframe.flush-right { top: 50%; right: 0; transform: translateY(-50%); }
+    iframe.flush-bottom-left { bottom: 0; left: 0; }
+    iframe.flush-bottom-center { bottom: 0; left: 50%; transform: translateX(-50%); }
+    iframe.flush-bottom-right { bottom: 0; right: 0; }
   `;
 
   connectedCallback() {
     super.connectedCallback();
     console.log('[EmbeddedTxConfirmHost] Connected to DOM');
+    this.setupClipPathSupport();
+  }
+
+  private setupClipPathSupport() {
+    this.clipPathSupported = CSS.supports('clip-path: polygon(0 0)');
+    if (!this.clipPathSupported) {
+      console.warn('[EmbeddedTxConfirmHost] clip-path not supported, using rectangular iframe');
+    }
   }
 
   updated(changedProperties: Map<string, any>) {
@@ -133,25 +403,107 @@ export class EmbeddedTxConfirmHost extends LitElement {
     const tooltipHeight = this.tooltipStyle.height === 'auto' ? 200 : this.parsePixelValue(this.tooltipStyle.height);
     const offset = this.parsePixelValue(this.tooltipStyle.offset);
 
-    let iframeWidth = buttonWidth;
-    let iframeHeight = buttonHeight;
+    const padding = 8; // Minimal padding for safety
 
-    const iframePadding = 32;
+    let iframeWidth: number;
+    let iframeHeight: number;
+    let flushClass: string;
+    let buttonPositionX: number; // Button position inside iframe
+    let buttonPositionY: number;
+
+    console.log("POSITION: ", this.tooltipStyle.position);
 
     switch (this.tooltipStyle.position) {
-      case 'top':
-      case 'bottom':
-        iframeHeight += (tooltipHeight + offset) * 2 + iframePadding;
-        iframeWidth = Math.max(iframeWidth, tooltipWidth) + iframePadding;
+      case 'top-left':
+        // Iframe sits flush with bottom-left of placeholder, extends up and right
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-bottom-left';
+        buttonPositionX = padding / 2; // Button at left edge
+        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
         break;
+
+      case 'top-center':
+        // Iframe sits flush with bottom-center of placeholder, extends up
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-bottom-center';
+        buttonPositionX = (iframeWidth - buttonWidth) / 2; // Center button
+        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
+        break;
+
+      case 'top-right':
+        // Iframe sits flush with bottom-right of placeholder, extends up and left
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-bottom-right';
+        buttonPositionX = iframeWidth - buttonWidth - padding / 2; // Button at right edge
+        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
+        break;
+
       case 'left':
+        // Iframe sits flush with right-center of placeholder, extends left
+        iframeWidth = tooltipWidth + offset + buttonWidth + padding;
+        iframeHeight = Math.max(buttonHeight, tooltipHeight) + padding;
+        flushClass = 'flush-right';
+        buttonPositionX = tooltipWidth + offset + padding / 2; // Button to right of tooltip
+        buttonPositionY = (iframeHeight - buttonHeight) / 2; // Center button vertically
+        break;
+
       case 'right':
-        iframeWidth += (tooltipWidth + offset) * 2 + iframePadding;
-        iframeHeight = Math.max(iframeHeight, tooltipHeight) + iframePadding;
+        // Iframe sits flush with left-center of placeholder, extends right
+        iframeWidth = buttonWidth + offset + tooltipWidth + padding;
+        iframeHeight = Math.max(buttonHeight, tooltipHeight) + padding;
+        flushClass = 'flush-left';
+        buttonPositionX = padding / 2; // Button at left edge
+        buttonPositionY = (iframeHeight - buttonHeight) / 2; // Center button vertically
+        break;
+
+      case 'bottom-left':
+        // Iframe sits flush with top-left of placeholder, extends down and right
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-top-left';
+        buttonPositionX = padding / 2; // Button at left edge
+        buttonPositionY = padding / 2; // Button above tooltip
+        break;
+
+      case 'bottom-center':
+        // Iframe sits flush with top-center of placeholder, extends down
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-top-center';
+        buttonPositionX = (iframeWidth - buttonWidth) / 2; // Center button
+        buttonPositionY = padding / 2; // Button above tooltip
+        break;
+
+      case 'bottom-right':
+        // Iframe sits flush with top-right of placeholder, extends down and left
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-top-right';
+        buttonPositionX = iframeWidth - buttonWidth - padding / 2; // Button at right edge
+        buttonPositionY = padding / 2; // Button above tooltip
+        break;
+
+      default:
+        // Fallback for unknown positions
+        console.warn(`Unknown tooltip position: ${this.tooltipStyle.position}`);
+        iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
+        iframeHeight = buttonHeight + offset + tooltipHeight + padding;
+        flushClass = 'flush-top-center';
+        buttonPositionX = (iframeWidth - buttonWidth) / 2;
+        buttonPositionY = padding / 2;
         break;
     }
 
-    return { width: iframeWidth, height: iframeHeight };
+    return {
+      width: iframeWidth,
+      height: iframeHeight,
+      flushClass,
+      buttonPositionX,
+      buttonPositionY
+    };
   }
 
   private toPx(v: string | number) {
@@ -169,9 +521,34 @@ export class EmbeddedTxConfirmHost extends LitElement {
       if (!el) throw new Error('embedded-tx-confirm element not found');
 
       // Initialize component properties
-      el.color = data.color;
+      el.color = data.backgroundColor; // Use backgroundColor for consistency
       el.size = data.size;
       el.tooltip = data.tooltip;
+
+      // Apply precise button positioning after the component is ready
+      if (data.buttonPosition) {
+        const applyPositioning = () => {
+          const container = el.shadowRoot?.querySelector('.embedded-confirm-container');
+          if (container) {
+            // Remove default centering and apply precise positioning
+            container.style.position = 'absolute';
+            container.style.top = `${data.buttonPosition.y}px`;
+            container.style.left = `${data.buttonPosition.x}px`;
+            container.style.transform = 'none'; // Remove centering transform
+            console.log('[EmbeddedTxConfirm iframe] Applied precise positioning:', data.buttonPosition);
+          } else {
+            // Retry after a short delay if container not ready
+            setTimeout(applyPositioning, 10);
+          }
+        };
+
+        // Apply immediately if possible, or wait for component to be ready
+        if (el.shadowRoot) {
+          applyPositioning();
+        } else {
+          setTimeout(applyPositioning, 50);
+        }
+      }
 
       // Send ready message to parent
       window.parent.postMessage({ type: 'READY' }, '*');
@@ -183,6 +560,9 @@ export class EmbeddedTxConfirmHost extends LitElement {
 
         switch (type) {
           case 'SET_TX_DATA':
+            console.log('[EmbeddedTxConfirm iframe] Received SET_TX_DATA:', payload);
+            console.log('[EmbeddedTxConfirm iframe] Element updateProperties available:', !!el.updateProperties);
+
             if (el.updateProperties) {
               el.updateProperties({
                 nearAccountId: payload.nearAccountId,
@@ -191,8 +571,13 @@ export class EmbeddedTxConfirmHost extends LitElement {
             } else {
               el.nearAccountId = payload.nearAccountId;
               el.actionArgs = payload.actionArgs;
+
+              // Force update since we're not using updateProperties
+              if (el.requestUpdate) {
+                el.requestUpdate();
+              }
             }
-            console.log('[EmbeddedTxConfirm iframe] Set tx data:', payload.nearAccountId, payload.actionArgs);
+            console.log('[EmbeddedTxConfirm iframe] Set tx data complete');
             break;
 
           case 'SET_LOADING':
@@ -262,8 +647,9 @@ export class EmbeddedTxConfirmHost extends LitElement {
       height: this.buttonStyle?.height || '48px'
     };
 
+    const iframeSize = this.calculateIframeSize();
+
     const initData = {
-      color: this.color,
       size: {
         width: this.toPx(buttonSize.width),
         height: this.toPx(buttonSize.height)
@@ -273,7 +659,12 @@ export class EmbeddedTxConfirmHost extends LitElement {
         height: this.tooltipStyle.height,
         position: this.tooltipStyle.position,
         offset: this.toPx(this.tooltipStyle.offset)
-      }
+      },
+      buttonPosition: {
+        x: iframeSize.buttonPositionX,
+        y: iframeSize.buttonPositionY
+      },
+      backgroundColor: String(this.buttonStyle?.background || this.buttonStyle?.backgroundColor || this.color)
     };
 
     return `<!DOCTYPE html>
@@ -285,7 +676,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
           <script type="module" src="/sdk/embedded/embedded-tx-confirm.js"></script>
         </head>
         <body>
-          <embedded-tx-confirm id="etx" style="position: absolute; top: 0; left: 0; height: 99%"></embedded-tx-confirm>
+          <embedded-tx-confirm id="etx"></embedded-tx-confirm>
           <script type="module">
             ${this.createIframeInitScript(initData)}
           </script>
@@ -366,7 +757,22 @@ export class EmbeddedTxConfirmHost extends LitElement {
         return;
       }
 
-            if (type === 'READY') {
+      if (type === 'INIT_GEOMETRY') {
+        this.handleInitGeometry(payload as TooltipGeometry);
+        return;
+      }
+
+      if (type === 'TOOLTIP_STATE') {
+        this.handleTooltipState(payload as TooltipGeometry);
+        return;
+      }
+
+      if (type === 'BUTTON_HOVER') {
+        this.handleButtonHover(payload as { hovering: boolean });
+        return;
+      }
+
+      if (type === 'READY') {
         this.iframeRef.value!.contentWindow?.postMessage({
           type: 'SET_TX_DATA',
           payload: {
@@ -403,6 +809,10 @@ export class EmbeddedTxConfirmHost extends LitElement {
             }
           }, '*');
         }
+
+        // Apply optimistic clip-path immediately to prevent blocking clicks
+        // This will be replaced once INIT_GEOMETRY is received
+        this.applyOptimisticClipPath();
       } else if (type === 'CONFIRM') {
         this.handleConfirm();
       }
@@ -416,6 +826,120 @@ export class EmbeddedTxConfirmHost extends LitElement {
     // Add new listener and store reference
     (this as any)._messageHandler = onMessage;
     window.addEventListener('message', onMessage);
+  }
+
+    /**
+   * Apply clip-path using calculated button position before geometry is available
+   */
+  private applyOptimisticClipPath() {
+    if (!this.iframeRef.value) return;
+
+    const iframeSize = this.calculateIframeSize();
+    const buttonWidth = this.parsePixelValue(this.buttonStyle?.width || '200px');
+    const buttonHeight = this.parsePixelValue(this.buttonStyle?.height || '48px');
+
+    // Use the calculated button position from iframe sizing
+    const buttonX = iframeSize.buttonPositionX;
+    const buttonY = iframeSize.buttonPositionY;
+
+    const optimisticClipPath = `polygon(${buttonX}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY + buttonHeight}px, ${buttonX}px ${buttonY + buttonHeight}px)`;
+
+    this.iframeRef.value.style.clipPath = optimisticClipPath;
+    this.iframeRef.value.classList.remove('interactive');
+    // console.debug('[EmbeddedTxConfirmHost] Applied optimistic clip-path to prevent blocking:', optimisticClipPath);
+  }
+
+  /**
+   * Force iframe re-initialization when tooltip style changes
+   * This recalculates iframe size and positioning based on new tooltip dimensions
+   */
+  forceIframeReinitialize() {
+    this.iframeInitialized = false;
+    this.currentGeometry = null;
+    this.initialClipPathApplied = false;
+
+    // Re-initialize the iframe with new tooltip style
+    this.initializeIframe();
+    this.iframeInitialized = true;
+  }
+
+  /**
+   * Handle initial geometry setup from iframe - applies button-only clip-path to prevent blocking clicks
+   */
+  private handleInitGeometry(geometry: TooltipGeometry) {
+    this.currentGeometry = geometry;
+    // Replace optimistic clip-path with precise button-only clip-path
+    this.applyButtonOnlyClipPath();
+  }
+
+    /**
+   * Handle combined tooltip state updates (geometry + visibility) from the iframe
+   */
+  private handleTooltipState(geometry: TooltipGeometry) {
+    this.currentGeometry = geometry;
+    // Apply appropriate clip-path based on visibility state
+    if (!geometry.visible) {
+      this.applyButtonOnlyClipPath();
+    } else {
+      // Don't override button+tooltip clip-path when tooltip is visible (during hover)
+    }
+  }
+
+  /**
+   * Handle button hover state for dual clip-path management
+   * - Not hovering: Clip-path restricts to button area only
+   * - Hovering: Clip-path expands to include button + tooltip area
+   */
+  private handleButtonHover(payload: { hovering: boolean }) {
+    if (!this.iframeRef.value || !this.currentGeometry) return;
+
+    if (payload.hovering) {
+      // Apply button + tooltip clip-path when hovering and enable pointer events
+      this.applyButtonTooltipClipPath();
+    } else {
+      // Only apply button-only clip-path if tooltip is not visible
+      // This allows mouse movement from button to tooltip without closing
+      if (!this.currentGeometry.visible) {
+        this.applyButtonOnlyClipPath();
+      } else {
+        // Keep the expanded clip-path and pointer events so user can reach the tooltip
+      }
+    }
+  }
+
+  /**
+   * Apply clip-path that restricts interaction to button area only
+   */
+  private applyButtonOnlyClipPath() {
+    if (!this.iframeRef.value || !this.currentGeometry) return;
+
+    const { button } = this.currentGeometry;
+    // Use simple rectangle to avoid clipping button corners
+    const buttonClipPath = `polygon(${button.x}px ${button.y}px, ${button.x + button.width}px ${button.y}px, ${button.x + button.width}px ${button.y + button.height}px, ${button.x}px ${button.y + button.height}px)`;
+
+    this.iframeRef.value.style.clipPath = buttonClipPath;
+    // Remove pointer events to allow click-through outside button area
+    this.iframeRef.value.classList.remove('interactive');
+  }
+
+  /**
+   * Apply clip-path that includes both button and tooltip areas (for hover state)
+   */
+  private applyButtonTooltipClipPath() {
+    if (!this.iframeRef.value || !this.currentGeometry) return;
+
+    try {
+      const unionClipPath = ClipPathGenerator.generateUnion(this.currentGeometry);
+
+      if (unionClipPath) {
+        this.iframeRef.value.style.clipPath = unionClipPath;
+        this.iframeRef.value.classList.add('interactive');
+      }
+    } catch (error) {
+      console.error('[EmbeddedTxConfirmHost] Error generating button+tooltip clip-path:', error);
+      // Fallback to button-only clip-path
+      this.applyButtonOnlyClipPath();
+    }
   }
 
   private async handleConfirm() {
@@ -497,6 +1021,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         style="width: ${this.toPx(buttonSize.width)}; height: ${this.toPx(buttonSize.height)};">
         <iframe
           ${ref(this.iframeRef)}
+          class="${iframeSize.flushClass}"
           style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
           sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
         ></iframe>
