@@ -97,7 +97,7 @@ export async function signNEP413Message(
       blockHash: txBlockHash,
       blockHeight: txBlockHeight,
     });
-    const credential = await context.webAuthnManager.touchIdPrompt.getCredentials({
+    const credential = await context.webAuthnManager.getCredentials({
       nearAccountId,
       challenge: vrfChallenge.outputAs32Bytes(),
       authenticators,

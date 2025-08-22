@@ -6,6 +6,7 @@ import { GreetingMenu } from '../components/GreetingMenu';
 import { TransactionDetails } from '../components/TransactionDetails';
 import type { LastTxDetails } from '../types';
 import { LinkDeviceScanQR } from '../components/LinkDeviceScanQR';
+import { LinkDeviceShowQR } from '../components/LinkDeviceShowQR';
 
 export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
@@ -15,13 +16,16 @@ export function HomePage() {
   return (
     <main>
       {loginState.isLoggedIn ? (
-        <div className="homepage-content">
+        <div className="layout-root">
           <GreetingMenu onTransactionUpdate={setLastTxDetails} />
           <TransactionDetails lastTxDetails={lastTxDetails} />
           <LinkDeviceScanQR />
         </div>
       ) : (
-        <PasskeyLoginMenu />
+        <div className="layout-root">
+          <PasskeyLoginMenu />
+          <LinkDeviceShowQR />
+        </div>
       )}
     </main>
   );

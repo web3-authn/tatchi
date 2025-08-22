@@ -11,7 +11,9 @@ import {
   QueryResponseKind,
   TxExecutionStatus,
   AccessKeyView,
+  AccessKeyInfoView,
   AccessKeyList,
+  FunctionCallPermissionView,
   AccountView,
   BlockResult,
   BlockReference,
@@ -27,35 +29,22 @@ import {
 } from "../wasm_signer_worker/wasm_signer_worker.js";
 // import { Provider } from "@near-js/providers";
 
+// re-export near-js types
+export type { AccessKeyList } from "@near-js/types";
+
 // Type definitions for getAccessKeys function
-interface ViewAccountParams {
+export interface ViewAccountParams {
   account: string;
   block_id?: string;
 }
 
-interface FullAccessKey {
-  public_key: string;
-  access_key: {
-    nonce: bigint;
-    permission: 'FullAccess';
-  };
-}
+export type FullAccessKey = Omit<AccessKeyInfoView, 'access_key'>
+  & { access_key: Omit<AccessKeyView, 'permission'> & { permission: 'FullAccess' } }
 
-interface FunctionCallAccessKey {
-  public_key: string;
-  access_key: {
-    nonce: bigint;
-    permission: {
-      FunctionCall: {
-        allowance?: string;
-        receiver_id: string;
-        method_names: string[];
-      };
-    };
-  };
-}
+export type FunctionCallAccessKey = Omit<AccessKeyInfoView, 'access_key'>
+  & { access_key: Omit<AccessKeyView, 'permission'> & { permission: FunctionCallPermissionView } }
 
-interface ContractResult<T> extends QueryResponseKind {
+export interface ContractResult<T> extends QueryResponseKind {
   result?: T | string | number | any;
   logs: string[];
 }
@@ -155,6 +144,9 @@ export class MinimalNearClient implements NearClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
+    }).catch(e => {
+      console.error(e);
+      throw new Error(e);
     });
 
     if (!response.ok) {

@@ -107,7 +107,7 @@ export class LinkDeviceFlow {
 
         // Generate WebAuthn credentials with TouchID (for real account)
         // Note: Device number will be determined later when Device1 creates the mapping
-        const credential = await this.context.webAuthnManager.touchIdPrompt.generateRegistrationCredentials({
+        const credential = await this.context.webAuthnManager.generateRegistrationCredentials({
           nearAccountId: accountId,
           challenge: vrfChallenge.outputAs32Bytes(),
         });
@@ -725,9 +725,9 @@ export class LinkDeviceFlow {
         console.log(`LinkDeviceFlow: Using device number ${deviceNumber} for credential generation`);
 
         // Generate WebAuthn credentials with TouchID (now that we know the real account)
-        const credential = await this.context.webAuthnManager.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({
+        const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use account ID for consistent PRF salts across devices
-          deviceNumber, // Use device number discovered from contract during polling
+          deviceNumber: deviceNumber!, // Use device number discovered from contract during polling
           challenge: vrfChallenge.outputAs32Bytes(),
         });
 
@@ -852,9 +852,9 @@ export class LinkDeviceFlow {
         console.log(`LinkDeviceFlow: Option E - Using device number ${deviceNumber} for credential regeneration`);
 
         // Regenerate WebAuthn credentials with proper device number
-        const credential = await this.context.webAuthnManager.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({
+        const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use base account ID for consistent PRF salts across devices
-          deviceNumber, // Use device number discovered during polling
+          deviceNumber: deviceNumber!, // Use device number discovered during polling
           challenge: vrfChallenge.outputAs32Bytes(),
         });
 

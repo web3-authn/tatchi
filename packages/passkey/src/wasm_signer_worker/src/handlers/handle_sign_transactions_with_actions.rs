@@ -27,16 +27,18 @@ use crate::types::{
     SignedTransaction,
     VerificationPayload,
     DecryptionPayload,
+    progress::{
+        ProgressMessageType,
+        ProgressStep,
+        send_progress_message,
+        send_completion_message,
+        send_error_message
+    },
+    handlers::ConfirmationConfig,
+    wasm_to_json::WasmSignedTransaction,
 };
-use crate::types::progress::{
-    ProgressMessageType,
-    ProgressStep,
-    send_progress_message,
-    send_completion_message,
-    send_error_message
-};
-use crate::types::wasm_to_json::WasmSignedTransaction;
-use super::confirm_tx_details::request_user_confirmation;
+use crate::handlers::confirm_tx_details::{request_user_confirmation, ConfirmationResult};
+
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
@@ -48,9 +50,6 @@ pub struct SignTransactionsWithActionsRequest {
     pub decryption: DecryptionPayload,
     #[wasm_bindgen(getter_with_clone, js_name = "txSigningRequests")]
     pub tx_signing_requests: Vec<TransactionPayload>,
-    /// Gate to control when confirmation is requested (pre-verification if true)
-    #[wasm_bindgen(getter_with_clone, js_name = "preConfirm")]
-    pub pre_confirm: Option<bool>,
     /// Unified confirmation configuration for controlling the confirmation flow
     #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
     pub confirmation_config: Option<crate::types::handlers::ConfirmationConfig>,
@@ -206,42 +205,52 @@ pub async fn handle_sign_transactions_with_actions(
     let mut logs: Vec<String> = Vec::new();
     logs.push(format!("Processing {} transactions", tx_batch_request.tx_signing_requests.len()));
 
-    // Step 1: Conditionally request user confirmation and credential collection
-    let mut confirmation_result_opt: Option<super::confirm_tx_details::ConfirmationResult> = None;
+    // Step 1: Request user confirmation and credential collection
+    let mut confirmation_result_opt: Option<ConfirmationResult> = None;
 
-    // Determine if we should request confirmation based on configuration
-    let should_request_confirmation = tx_batch_request.pre_confirm.unwrap_or(false);
-
-    if should_request_confirmation {
-        logs.push("Requesting user confirmation and credentials...".to_string());
-        send_progress_message(
-            ProgressMessageType::ExecuteActionsProgress,
-            ProgressStep::UserConfirmation,
-            "Requesting user confirmation...",
-            Some(&serde_json::json!({"step": 1, "total": 4, "transaction_count": tx_batch_request.tx_signing_requests.len()}).to_string())
-        );
-
-        // Use the confirmation configuration if provided, otherwise use default
-        let confirmation_config = tx_batch_request.confirmation_config.as_ref();
-        logs.push(format!("Using confirmation config: {:?}", confirmation_config));
-
-        let c = request_user_confirmation(&tx_batch_request, &mut logs).await
-            .map_err(|e| format!("Confirmation request failed: {}", e))?;
-        if !c.confirmed {
-            return Ok(TransactionSignResult::failed(logs, "Transaction rejected by user".to_string()));
-        }
-        logs.push(format!("User confirmation received with digest: {}", c.intent_digest));
-        confirmation_result_opt = Some(c);
-    } else {
-        // Legacy flow: credentials provided in initial request
-        logs.push("Using provided credentials for verification...".to_string());
-        send_progress_message(
-            ProgressMessageType::ExecuteActionsProgress,
-            ProgressStep::Preparation,
-            "Preparing for verification with provided credentials...",
-            Some(&serde_json::json!({"step": 1, "total": 4, "transaction_count": tx_batch_request.tx_signing_requests.len()}).to_string())
-        );
+    // Log transaction details for validation
+    for (i, tx) in tx_batch_request.tx_signing_requests.iter().enumerate() {
+        logs.push(format!(
+            "Transaction {}: {} -> {} ({} actions)",
+            i + 1,
+            tx.near_account_id,
+            tx.receiver_id,
+            tx.actions
+        ));
     }
+    send_progress_message(
+        ProgressMessageType::ExecuteActionsProgress,
+        ProgressStep::UserConfirmation,
+        "Requesting user confirmation...",
+        Some(&serde_json::json!({
+            "step": 1,
+            "total": 4,
+            "transaction_count": tx_batch_request.tx_signing_requests.len()
+        }).to_string())
+    );
+
+    // Use the confirmation configuration if provided, otherwise use default
+    let confirmation_config = tx_batch_request.confirmation_config.as_ref();
+    logs.push(format!("Using confirmation config: {:?}", confirmation_config));
+
+    let c = request_user_confirmation(&tx_batch_request, &mut logs).await
+        .map_err(|e| format!("Confirmation request failed: {}", e))?;
+
+    if !c.confirmed {
+        return Ok(TransactionSignResult::failed(logs, "Transaction rejected by user".to_string()));
+    }
+    logs.push(format!("User confirmation received with digest: {}", c.intent_digest));
+
+    // Log validation success for embedded mode
+    if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+        if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
+            logs.push("[WASM] Embedded mode: Transaction details validation completed successfully".to_string());
+        } else {
+            logs.push("[WASM] User has confirmed transaction details".to_string());
+        }
+    }
+
+    confirmation_result_opt = Some(c);
 
     // Step 2: Extract credentials for verification
     logs.push("Extracting credentials for contract verification...".to_string());

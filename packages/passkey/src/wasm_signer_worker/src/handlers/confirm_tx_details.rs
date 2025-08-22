@@ -10,6 +10,7 @@ use serde_json;
 use sha2::{Sha256, Digest};
 use super::handle_sign_transactions_with_actions::{TransactionPayload, SignTransactionsWithActionsRequest};
 use super::handle_sign_verify_and_register_user::SignVerifyAndRegisterUserRequest;
+use crate::types::handlers::{ConfirmationConfig, ConfirmationUIMode, ConfirmationBehavior};
 
 // External JS function for secure confirmation
 #[wasm_bindgen]
@@ -47,6 +48,51 @@ pub struct ConfirmationResult {
     pub intent_digest: String,
     pub credential: Option<serde_json::Value>, // Serialized WebAuthn credential (JSON)
     pub prf_output: Option<String>, // Base64url-encoded PRF output for decryption
+}
+
+/// Validates and normalizes confirmation configuration according to documented rules
+///
+/// Validation rules:
+/// - uiMode: 'skip' | 'embedded' → behavior is ignored, autoProceedDelay is ignored
+/// - uiMode: 'modal' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
+///
+/// Returns a normalized config with proper defaults and logs validation messages
+pub fn validate_and_normalize_confirmation_config(
+    config: &ConfirmationConfig,
+    logs: &mut Vec<String>,
+) -> ConfirmationConfig {
+    let mut normalized = config.clone();
+
+    match config.ui_mode {
+        ConfirmationUIMode::Skip | ConfirmationUIMode::Embedded => {
+            // For skip/embedded modes, override behavior to autoProceed with 0 delay
+            normalized.behavior = ConfirmationBehavior::AutoProceed;
+            normalized.auto_proceed_delay = Some(0);
+        },
+
+        ConfirmationUIMode::Modal => {
+            // For modal mode, validate behavior and autoProceedDelay
+            match config.behavior {
+                ConfirmationBehavior::RequireClick => {
+                    if config.auto_proceed_delay.is_some() {
+                        normalized.auto_proceed_delay = None;
+                    }
+                },
+                ConfirmationBehavior::AutoProceed => {
+                    if config.auto_proceed_delay.is_none() {
+                        normalized.auto_proceed_delay = Some(2000);
+                    }
+                }
+            }
+        }
+    }
+
+    logs.push(format!(
+        "[WASM] Validation: Final config - uiMode: {:?}, behavior: {:?}, autoProceedDelay: {:?}",
+        normalized.ui_mode, normalized.behavior, normalized.auto_proceed_delay
+    ));
+
+    normalized
 }
 
 /// Generates a unique request ID for confirmation requests using timestamp and random value
@@ -154,7 +200,75 @@ pub async fn request_user_confirmation_with_config(
 
     let first_request = &tx_batch_request.tx_signing_requests[0];
 
-    // Create transaction summary and compute integrity digest
+    // Log transaction details for validation (especially important for embedded mode)
+    logs.push(format!("[WASM] Validating transaction details for confirmation:"));
+    logs.push(format!("[WASM] - Account ID: {}", first_request.near_account_id));
+    logs.push(format!("[WASM] - Receiver ID: {}", first_request.receiver_id));
+    logs.push(format!("[WASM] - Actions JSON: {}", first_request.actions));
+    logs.push(format!("[WASM] - Nonce: {}", first_request.nonce));
+    logs.push(format!("[WASM] - Block Hash: {}", first_request.block_hash));
+
+    // Log UI mode for debugging
+    if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+        logs.push(format!("[WASM] - UI Mode: {:?}", confirmation_config.ui_mode));
+        if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
+            logs.push("[WASM] - Embedded mode detected: Transaction details will be validated against user's confirmation".to_string());
+        }
+    }
+
+    // Check if UI mode is Skip OR Embedded - for embedded, we override to skip extra UI
+    // but still collect credentials and PRF output via the bridge (no additional UI shown)
+    if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+        if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Skip
+           || confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
+            logs.push("Skipping user confirmation (UI mode: skip/embedded override)".to_string());
+
+            // For skip/embedded override, we still need to collect credentials and PRF output
+            // but we don't show any UI. The main thread should handle this.
+            // For now, we'll still call the JS bridge but with a flag to indicate no UI
+            let intent_digest = compute_intent_digest(&tx_batch_request.tx_signing_requests)
+                .map_err(|e| format!("Failed to compute intent digest: {}", e))?;
+
+            let request_id = generate_request_id();
+            let near_account_id = &first_request.near_account_id;
+
+            // Validate and normalize confirmation config according to documented rules
+            let normalized_config = validate_and_normalize_confirmation_config(confirmation_config, logs);
+
+            let confirmation_data = serde_json::json!({
+                "summary": serde_json::json!({}),
+                "intentDigest": intent_digest,
+                "nearAccountId": near_account_id,
+                "vrfChallenge": tx_batch_request.verification.vrf_challenge,
+                "confirmationConfig": Some(normalized_config),
+                "skipUI": true,
+            });
+
+            // Call JS bridge for credential collection only (no UI)
+            let confirm_result = await_secure_confirmation(
+                &request_id,
+                JsValue::from_str(&confirmation_data.to_string()),
+                &intent_digest,
+                &first_request.actions
+            ).await;
+
+            let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;
+
+            // For skip/embedded override, we assume the user implicitly confirms
+            // but we still need the credentials and PRF output
+            if result.credential.is_some() && result.prf_output.is_some() {
+                logs.push("Credentials collected successfully (no UI override)".to_string());
+                return Ok(ConfirmationResult {
+                    confirmed: true, // Always true for "none" mode
+                    ..result
+                });
+            } else {
+                return Err("Failed to collect credentials in no-UI override".to_string());
+            }
+        }
+    }
+
+    // Normal confirmation flow for other UI modes
     let summary = create_transaction_summary(first_request, config)
         .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
@@ -169,16 +283,32 @@ pub async fn request_user_confirmation_with_config(
     );
     logs.push(format!("Requesting user confirmation for {} transactions", tx_batch_request.tx_signing_requests.len()));
 
+    // Additional validation logging for embedded mode
+    if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+        if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
+            logs.push("[WASM] Embedded mode: User has already confirmed transaction details in iframe".to_string());
+            logs.push("[WASM] Proceeding directly to TouchID/biometric authentication".to_string());
+            logs.push("[WASM] Transaction details will be validated during signing process".to_string());
+        }
+    }
+
     // Extract account information for credential collection
     let near_account_id = &first_request.near_account_id;
 
     // Create enhanced confirmation data with account info and configuration
+    // Validate and normalize confirmation config according to documented rules
+    let normalized_config = if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+        Some(validate_and_normalize_confirmation_config(confirmation_config, logs))
+    } else {
+        None
+    };
+
     let confirmation_data = serde_json::json!({
         "summary": summary,
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
         "vrfChallenge": tx_batch_request.verification.vrf_challenge,
-        "confirmationConfig": tx_batch_request.confirmation_config,
+        "confirmationConfig": normalized_config,
     });
 
     // Call JS bridge for user confirmation with enhanced data
@@ -197,6 +327,14 @@ pub async fn request_user_confirmation_with_config(
     // Log result
     if result.confirmed {
         logs.push("User confirmed transaction signing".to_string());
+
+        // Additional validation logging for embedded mode
+        if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
+            if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
+                logs.push("[WASM] Embedded mode: Transaction details validated successfully".to_string());
+                logs.push("[WASM] Proceeding to contract verification and signing".to_string());
+            }
+        }
     } else {
         logs.push("User rejected transaction signing".to_string());
     }

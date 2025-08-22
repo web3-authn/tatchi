@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import toast from 'react-hot-toast'
 
 import { usePasskeyContext, DeviceLinkingPhase, DeviceLinkingStatus } from '@web3authn/passkey/react'
+import './LinkDeviceShowQR.css'
+import { GlassBorder } from './GlassBorder';
 
 export function LinkDeviceShowQR() {
   const {
@@ -106,47 +108,53 @@ export function LinkDeviceShowQR() {
   }, []);
 
   return (
-    <div className="link-device-root">
-      {deviceLinkingState.mode === 'idle' && (
-        <div className="device-linking-section">
-          <div className="auth-buttons">
-            <button
-              onClick={onLinkDeviceAsDevice2}
-              className="action-button"
-              disabled={!isSecureContext || deviceLinkingState.isProcessing}
-            >
-              Generate QR (Device2)
-            </button>
-          </div>
-          <p className="device-linking-help">
-            Device1: Scan a QR code to add Device2's key to your account<br/>
-            Device2: Generate a QR code for Device1 to scan
-          </p>
+    <GlassBorder style={{ marginTop: '1rem' }}>
+      <div className="link-device-content-area">
+        <div className="link-device-header">
+          <h2 className="link-device-title">Link Device</h2>
+          <p className="link-device-caption">Connect multiple devices to your account</p>
         </div>
-      )}
 
-
-      {deviceLinkingState.mode === 'device2' && (
-        <div className="device-linking-active">
-          <h4>Device2: QR Code Mode</h4>
-          {deviceLinkingState.qrCodeDataURL ? (
-            <div className="qr-code-display">
-              <p>Show this QR code to Device1:</p>
-              <img
-                src={deviceLinkingState.qrCodeDataURL}
-                alt="Device Linking QR Code"
-                style={{ maxWidth: '200px', height: 'auto', border: '1px solid #ccc' }}
-              />
-              <p>Waiting for Device1 to scan...</p>
+        <div className="link-device-content">
+          {deviceLinkingState.mode === 'idle' && (
+            <div className="device-linking-section">
+              <div className="link-device-auth-buttons">
+                <button
+                  onClick={onLinkDeviceAsDevice2}
+                  className="link-device-btn link-device-btn-primary"
+                  disabled={!isSecureContext || deviceLinkingState.isProcessing}
+                >
+                  Generate QR (Device2)
+                </button>
+              </div>
+              <p className="device-linking-help">
+                Device2: Generate QR code for Device1 to scan
+              </p>
             </div>
-          ) : (
-            <p>Generating QR code...</p>
           )}
-          <button onClick={onCancelDeviceLinking} className="action-button">
-            Cancel
-          </button>
+
+          {deviceLinkingState.mode === 'device2' && (
+            <div className="device-linking-active">
+              <h4>Device2: QR Code Mode</h4>
+              {deviceLinkingState.qrCodeDataURL ? (
+                <div className="qr-code-display">
+                  <p>Show this QR code to Device1:</p>
+                  <img
+                    src={deviceLinkingState.qrCodeDataURL}
+                    alt="Device Linking QR Code"
+                  />
+                  <p>Waiting for Device1 to scan...</p>
+                </div>
+              ) : (
+                <p>Generating QR code...</p>
+              )}
+              <button onClick={onCancelDeviceLinking} className="link-device-btn link-device-btn-secondary">
+                Cancel
+              </button>
+            </div>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+    </GlassBorder>
   );
 }

@@ -91,7 +91,7 @@ export async function registerPasskey(
       message: 'Performing WebAuthn registration with VRF challenge...'
     });
 
-    const credential = await webAuthnManager.touchIdPrompt.generateRegistrationCredentials({
+    const credential = await webAuthnManager.generateRegistrationCredentials({
       nearAccountId: nearAccountId,
       challenge: vrfChallengeBytes,
     });

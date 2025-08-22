@@ -183,13 +183,32 @@ function sendProgressMessage(
 
     self.addEventListener('message', onMainChannelDecision as any);
 
+    // Parse the summary to extract nearAccountId and vrfChallenge if they're included
+    let parsedSummary;
+    let nearAccountId;
+    let vrfChallenge;
+    let confirmationConfig;
+
+    try {
+      parsedSummary = typeof summary === 'string' ? JSON.parse(summary) : summary;
+      nearAccountId = parsedSummary.nearAccountId;
+      vrfChallenge = parsedSummary.vrfChallenge;
+      confirmationConfig = parsedSummary.confirmationConfig;
+    } catch (error) {
+      console.warn('[signer-worker]: Failed to parse summary for additional fields:', error);
+      parsedSummary = summary;
+    }
+
     (self as any).postMessage({
       type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM,
       data: {
         requestId,
-        summary,
+        summary: parsedSummary,
         intentDigest: digest,
-        actions: actionsJson
+        actions: actionsJson,
+        nearAccountId,
+        vrfChallenge,
+        confirmationConfig
       }
     });
   });

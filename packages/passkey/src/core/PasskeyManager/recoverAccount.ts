@@ -232,7 +232,7 @@ async function getAvailablePasskeysForDomain(
 
   // Always try to authenticate with the provided account ID, even if no credentials found in contract
   try {
-    const credential = await webAuthnManager.touchIdPrompt.getCredentialsForRecovery({
+    const credential = await webAuthnManager.getCredentialsForRecovery({
       nearAccountId: accountId,
       challenge: vrfChallenge.outputAs32Bytes(),
       credentialIds: credentialIds.length > 0 ? credentialIds : [] // Empty array if no contract credentials
@@ -380,7 +380,7 @@ async function getOrCreateCredential(
   }
 
   const randomChallenge = crypto.getRandomValues(new Uint8Array(32));
-  return await webAuthnManager.touchIdPrompt.getCredentialsForRecovery({
+  return await webAuthnManager.getCredentialsForRecovery({
     nearAccountId: accountId,
     challenge: randomChallenge,
     credentialIds: []

@@ -78,6 +78,13 @@ export type {
 // === ERROR TYPES ===
 export type { PasskeyErrorDetails } from './core/types/errors';
 
+// === CONFIRMATION TYPES ===
+export type {
+  ConfirmationConfig,
+  ConfirmationUIMode,
+  ConfirmationBehavior,
+} from './core/types/signer-worker';
+
 // === SERVER PACKAGE ===
 // Core NEAR Account Service for server-side operations
 export {

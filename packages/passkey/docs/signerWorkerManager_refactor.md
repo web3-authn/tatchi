@@ -28,21 +28,17 @@ The `SignerWorkerManager` class has grown to **1,375 lines** and handles multipl
 
 ### 1. Core Architecture: Service-Based Pattern
 
+
 ```
 src/core/WebAuthnManager/
 ├── SignerWorkerManager/           # Main orchestrator (simplified)
 │   ├── index.ts                  # Main class (orchestrates services)
 │   ├── types.ts                  # Shared types and interfaces
 │   └── constants.ts              # Configuration constants
-├── services/                     # Individual service modules
-│   ├── WorkerService/            # Worker lifecycle management
-│   ├── UserSettingsService/      # User preferences management
-│   ├── ConfirmationService/      # Transaction confirmation UI
-│   ├── PrfService/              # PRF operations
-│   ├── TransactionService/       # Transaction signing operations
-│   ├── RegistrationService/      # User registration operations
-│   ├── RecoveryService/          # Account recovery operations
-│   └── MessageService/           # Worker communication
+├── services/                     # Core service modules
+│   ├── WorkerService/            # Worker lifecycle & communication
+│   ├── UserSettingsService/      # User preferences & IndexedDB
+│   └── ConfirmationService/      # Transaction confirmation UI
 └── utils/                        # Shared utilities
     ├── responseHandlers.ts       # Worker response processing
     ├── validation.ts             # Input validation
@@ -82,76 +78,60 @@ class ConfirmationService {
 }
 ```
 
-#### D. PrfService
-**Responsibility**: PRF operations and key derivation
-```typescript
-class PrfService {
-  deriveNearKeypairAndEncrypt(credential: PublicKeyCredential, accountId: string): Promise<EncryptionResult>
-  decryptPrivateKeyWithPrf(credential: PublicKeyCredential, accountId: string): Promise<DecryptionResult>
-  extractPrfOutputs(credential: PublicKeyCredential): DualPrfOutputs
-}
-```
+### 2. Service Responsibilities
 
-#### E. TransactionService
-**Responsibility**: Transaction signing operations
+#### A. WorkerService
+**Responsibility**: Worker lifecycle, communication, and message handling
 ```typescript
-class TransactionService {
-  signTransactionsWithActions(params: SignTransactionsParams): Promise<SignedTransaction[]>
-  signTransactionWithKeyPair(params: SignWithKeyPairParams): Promise<SignedTransaction>
-  signNep413Message(params: NEP413Params): Promise<NEP413Result>
-}
-```
-
-#### F. RegistrationService
-**Responsibility**: User registration operations
-```typescript
-class RegistrationService {
-  checkCanRegisterUser(params: RegistrationCheckParams): Promise<RegistrationCheckResult>
-  signVerifyAndRegisterUser(params: RegistrationParams): Promise<RegistrationResult>
-}
-```
-
-#### G. RecoveryService
-**Responsibility**: Account recovery operations
-```typescript
-class RecoveryService {
-  recoverKeypairFromPasskey(credential: PublicKeyCredential): Promise<RecoveryResult>
-}
-```
-
-#### H. MessageService
-**Responsibility**: Worker message handling and response processing
-```typescript
-class MessageService {
+class WorkerService {
+  createWorker(): Worker
+  sendMessage<T>(message: WorkerMessage<T>): Promise<WorkerResponse<T>>
+  handleWorkerError(error: Error): void
+  terminateWorker(worker: Worker): void
   processWorkerResponse<T>(response: WorkerResponse<T>): ProcessedResponse<T>
   handleProgressUpdates(response: WorkerProgressResponse): void
   handleErrorResponse(response: WorkerErrorResponse): Error
 }
 ```
 
+#### B. UserSettingsService
+**Responsibility**: User preferences management and IndexedDB operations
+```typescript
+class UserSettingsService {
+  loadSettings(accountId: string): Promise<UserSettings>
+  saveSettings(accountId: string, settings: Partial<UserSettings>): Promise<void>
+  getDefaultSettings(): UserSettings
+  getAuthenticatorsByUser(accountId: string): Promise<Authenticator[]>
+}
+```
+
+#### C. ConfirmationService
+**Responsibility**: Transaction confirmation UI, PRF operations, and credential handling
+```typescript
+class ConfirmationService {
+  handleSecureConfirmRequest(message: SecureConfirmMessage): Promise<SecureConfirmDecision>
+  renderConfirmationUI(summary: TransactionSummary): Promise<boolean>
+  parseTransactionSummary(data: any): TransactionSummary
+  extractPrfOutputs(credential: PublicKeyCredential): DualPrfOutputs
+  deriveNearKeypairAndEncrypt(credential: PublicKeyCredential, accountId: string): Promise<EncryptionResult>
+  decryptPrivateKeyWithPrf(credential: PublicKeyCredential, accountId: string): Promise<DecryptionResult>
+}
+```
+
 ### 3. Main SignerWorkerManager (Simplified)
 
-The main class becomes a lightweight orchestrator:
+The main class becomes a lightweight orchestrator with just 3 core services:
 
 ```typescript
 export class SignerWorkerManager {
   private workerService: WorkerService;
   private userSettingsService: UserSettingsService;
   private confirmationService: ConfirmationService;
-  private prfService: PrfService;
-  private transactionService: TransactionService;
-  private registrationService: RegistrationService;
-  private recoveryService: RecoveryService;
-  private messageService: MessageService;
 
   constructor() {
     this.workerService = new WorkerService();
     this.userSettingsService = new UserSettingsService();
-    this.confirmationService = new ConfirmationService();
-    this.prfService = new PrfService(this.workerService, this.messageService);
-    this.transactionService = new TransactionService(this.workerService, this.messageService);
-    this.registrationService = new RegistrationService(this.workerService, this.messageService);
-    this.recoveryService = new RecoveryService(this.workerService, this.messageService);
+    this.confirmationService = new ConfirmationService(this.workerService, this.userSettingsService);
     this.messageService = new MessageService();
   }
 
@@ -169,48 +149,6 @@ export class SignerWorkerManager {
   }
 }
 ```
-
-### 4. Benefits of This Refactoring
-
-#### A. Maintainability
-- **Single Responsibility**: Each service has one clear purpose
-- **Easier Testing**: Services can be unit tested independently
-- **Reduced Complexity**: Smaller, focused modules
-- **Better Error Handling**: Service-specific error handling
-
-#### B. Extensibility
-- **Plugin Architecture**: New services can be added easily
-- **Configuration**: Services can be configured independently
-- **Feature Flags**: Services can be enabled/disabled per feature
-
-#### C. Performance
-- **Lazy Loading**: Services can be loaded on-demand
-- **Memory Management**: Better resource cleanup
-- **Parallel Processing**: Services can operate independently
-
-#### D. Developer Experience
-- **Clear API**: Each service has a well-defined interface
-- **Better Documentation**: Smaller modules are easier to document
-- **Code Reuse**: Services can be reused across different contexts
-
-
-
-### 6. Testing Strategy
-
-#### Unit Tests
-- Each service has its own test suite
-- Mock dependencies for isolated testing
-- Test error conditions and edge cases
-
-#### Integration Tests
-- Test service interactions
-- Test end-to-end workflows
-- Test with real worker communication
-
-#### Performance Tests
-- Measure service initialization time
-- Test memory usage patterns
-- Benchmark critical operations
 
 ### 7. Configuration Management
 
@@ -231,38 +169,3 @@ export interface ServiceConfig {
   };
 }
 ```
-
-### 8. Error Handling Strategy
-
-#### Service-Level Errors
-- Each service defines its own error types
-- Consistent error handling patterns
-- Proper error propagation
-
-#### Global Error Handling
-- Centralized error logging
-- User-friendly error messages
-- Graceful degradation
-
-### 9. Future Considerations
-
-#### A. Plugin System
-- Services can be dynamically loaded
-- Third-party service extensions
-- Feature-based service composition
-
-#### B. Microservice Architecture
-- Services could run in separate workers
-- Distributed processing capabilities
-- Better resource isolation
-
-#### C. Performance Monitoring
-- Service-level metrics
-- Performance profiling
-- Resource usage tracking
-
-## Conclusion
-
-This refactoring will transform the monolithic `SignerWorkerManager` into a well-structured, maintainable, and extensible system. The service-based architecture provides clear separation of concerns, better testability, and improved developer experience while maintaining the same public API for existing consumers.
-
-The refactoring can be done incrementally, reducing risk and allowing for validation at each step. The end result will be a more robust, scalable, and maintainable codebase that can easily accommodate future requirements and improvements.

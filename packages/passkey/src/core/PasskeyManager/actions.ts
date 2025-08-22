@@ -4,6 +4,7 @@ import { ActionType } from '../types/actions';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { ActionArgs } from '../types/actions';
 import type { ActionHooksOptions, ActionResult } from '../types/passkeyManager';
+import type { ConfirmationConfig } from '../types/signer-worker';
 import type { TransactionContext, BlockInfo } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
 import type { NearClient } from '../NearClient';
@@ -11,15 +12,28 @@ import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 
 /**
- * Core action execution function without React dependencies
- * Handles blockchain transactions with PRF-based signing
- * Supports both single actions and batched transactions
+ * Public API for executing actions - respects user confirmation preferences
  */
 export async function executeAction(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
   options?: ActionHooksOptions,
+): Promise<ActionResult> {
+  // Public API always uses undefined override (respects user settings)
+  return executeActionInternal(context, nearAccountId, actionArgs, options, undefined);
+}
+
+/**
+ * Internal API for executing actions with optional confirmation override
+ * @internal - Only used by internal SDK components like EmbeddedTxConfirm
+ */
+export async function executeActionInternal(
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  actionArgs: ActionArgs | ActionArgs[],
+  options?: ActionHooksOptions,
+  confirmationConfigOverride?: ConfirmationConfig | undefined,
 ): Promise<ActionResult> {
 
   const { onEvent, onError, hooks, waitUntil } = options || {};
@@ -56,7 +70,7 @@ export async function executeAction(
       nearAccountId,
       transactionContext,
       actions,
-      { onEvent, onError, hooks, waitUntil }
+      { onEvent, onError, hooks, waitUntil, confirmationConfigOverride }
     );
 
     // 3. Transaction Broadcasting
@@ -98,11 +112,12 @@ export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr,
   nearPublicKeyStr: string,
   nearAccountId: AccountId
 }): Promise<TransactionContext> {
-
   // Get access key and transaction block info concurrently
   const [accessKeyInfo, txBlockInfo] = await Promise.all([
-    nearClient.viewAccessKey(nearAccountId, nearPublicKeyStr) as Promise<AccessKeyView>,
-    nearClient.viewBlock({ finality: 'final' }) as Promise<BlockInfo>
+    nearClient.viewAccessKey(nearAccountId, nearPublicKeyStr)
+      .catch(e => { throw new Error(`Failed to fetch Access Key`) }),
+    nearClient.viewBlock({ finality: 'final' })
+      .catch(e => { throw new Error(`Failed to fetch Block Info`) })
   ]);
   if (!accessKeyInfo || accessKeyInfo.nonce === undefined) {
     throw new Error(`Access key not found or invalid for account ${nearAccountId} with public key ${nearPublicKeyStr}. Response: ${JSON.stringify(accessKeyInfo)}`);
@@ -171,10 +186,11 @@ async function wasmAuthenticateAndSignTransaction(
   nearAccountId: AccountId,
   transactionContext: TransactionContext,
   actionArgs: ActionArgs[],
-  options?: ActionHooksOptions,
+  options?: ActionHooksOptions & { confirmationConfigOverride?: ConfirmationConfig }
+  // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<VerifyAndSignTransactionResult> {
 
-  const { onEvent, onError, hooks } = options || {};
+  const { onEvent, onError, hooks, confirmationConfigOverride } = options || {};
   const { webAuthnManager } = context;
 
   onEvent?.({
@@ -290,6 +306,7 @@ async function wasmAuthenticateAndSignTransaction(
     contractId: webAuthnManager.configs.contractId,
     vrfChallenge: vrfChallenge,
     nearRpcUrl: webAuthnManager.configs.nearRpcUrl,
+    confirmationConfigOverride: confirmationConfigOverride,
     // Pass through the onEvent callback for progress updates
     onEvent: onEvent ? (progressEvent) => {
       if (progressEvent.phase === ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION) {
@@ -325,7 +342,7 @@ async function wasmAuthenticateAndSignTransaction(
         });
       }
       onEvent({ ...progressEvent } as any);
-    } : undefined
+    } : undefined,
   });
 
   // Return the first (and only) result

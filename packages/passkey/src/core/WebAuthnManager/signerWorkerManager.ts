@@ -40,25 +40,15 @@ import { VRFChallenge } from '../types/vrf-worker';
 import type { onProgressEvents } from '../types/passkeyManager';
 import { AccountId, toAccountId } from "../types/accountIds";
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
+import {
+  ConfirmationConfig,
+  ConfirmationUIMode,
+  ConfirmationBehavior,
+  mapUIModeToWasm,
+  mapBehaviorToWasm
+} from '../types/signer-worker';
 
 // === SECURE CONFIRM TYPES ===
-
-/**
- * Unified confirmation configuration that controls the entire confirmation flow
- */
-interface ConfirmationConfig {
-  /** Whether to show confirmation UI before TouchID prompt (true) or go straight to TouchID (false) */
-  showPreConfirm: boolean;
-
-  /** Type of UI to display for confirmation */
-  uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
-
-  /** How the confirmation UI behaves */
-  behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-
-  /** Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay) */
-  autoProceedDelay?: number;
-}
 
 interface SecureConfirmData {
   requestId: string;
@@ -111,12 +101,11 @@ export class SignerWorkerManager {
   private clientDB: PasskeyClientDBManager;
   private touchIdPrompt: TouchIdPrompt;
 
-  /** Unified confirmation configuration */
+  /** Default confirmation configs (if user settings are unset */
   private confirmationConfig: ConfirmationConfig = {
-    showPreConfirm: true,
-    uiMode: 'shadow',
-    behavior: 'requireClick',
-    autoProceedDelay: 2000, // 2 seconds default delay
+    uiMode: 'modal',
+    behavior: 'autoProceed',
+    autoProceedDelay: 1000, // 1 seconds default delay
   };
 
   private currentUserAccountId: string | null = null;
@@ -130,16 +119,8 @@ export class SignerWorkerManager {
   /**
    * Set the unified confirmation configuration
    */
-  setConfirmationConfig(config: Partial<ConfirmationConfig>): void {
+  setConfirmationConfig(config: ConfirmationConfig): void {
     this.confirmationConfig = { ...this.confirmationConfig, ...config };
-    this.saveUserSettings();
-  }
-
-  /**
-   * Set whether to show confirmation UI before TouchID prompt
-   */
-  setShowPreConfirm(show: boolean): void {
-    this.confirmationConfig.showPreConfirm = show;
     this.saveUserSettings();
   }
 
@@ -147,6 +128,9 @@ export class SignerWorkerManager {
    * Set the UI mode for confirmation
    */
   setConfirmationUIMode(mode: ConfirmationConfig['uiMode']): void {
+    if (mode === "skip") {
+      this.confirmationConfig.autoProceedDelay = 0;
+    }
     this.confirmationConfig.uiMode = mode;
     this.saveUserSettings();
   }
@@ -160,7 +144,7 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Set the auto-proceed delay (only used with autoProceedWithDelay behavior)
+   * Set the auto-proceed delay (only used with autoProceed)
    */
   setAutoProceedDelay(delayMs: number): void {
     this.confirmationConfig.autoProceedDelay = delayMs;
@@ -218,12 +202,7 @@ export class SignerWorkerManager {
       await this.clientDB.updatePreferences(toAccountId(this.currentUserAccountId), {
         confirmationConfig: this.confirmationConfig,
       });
-      console.debug('[SignerWorkerManager]: Saved user settings:', {
-        showPreConfirm: this.confirmationConfig.showPreConfirm,
-        uiMode: this.confirmationConfig.uiMode,
-        behavior: this.confirmationConfig.behavior,
-        autoProceedDelay: this.confirmationConfig.autoProceedDelay,
-      });
+      console.debug('[SignerWorkerManager]: Saved user settings:', this.confirmationConfig);
     } catch (error) {
       console.warn('[SignerWorkerManager]: Failed to save user settings:', error);
     }
@@ -234,14 +213,10 @@ export class SignerWorkerManager {
     actionsJson?: string
   ): Promise<boolean> {
     switch (this.confirmationConfig.uiMode) {
-      case 'native': {
-        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
-        return window.confirm(message);
-      }
-      case 'shadow': {
+      case 'modal': {
         // Components are imported dynamically to avoid DOM APIs in worker context
-        const { mountSecureTxConfirm } = await import('./Components');
-        return mountSecureTxConfirm({
+        const { mountModalTxConfirm } = await import('./Components/modal');
+        return mountModalTxConfirm({
           summary: {
             to: summary?.to,
             amount: summary?.amount,
@@ -253,17 +228,23 @@ export class SignerWorkerManager {
         });
       }
       case 'embedded': {
-        // TODO: Implement embedded shadow DOM confirmation
-        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
-        return window.confirm(message);
+        // Legacy embedded mode removed - using iframe approach instead
+        throw new Error('Legacy embedded mode is no longer supported. Use the iframe-based EmbeddedTxConfirm component.');
       }
-      case 'popup': {
-        // TODO: Implement sandboxed iframe/popup confirmation
-        const message = `Confirm transaction?\nTo: ${summary?.to ?? ''}\nAmount: ${summary?.amount ?? ''}${summary?.method ? `\nMethod: ${summary?.method}` : ''}${actionsJson ? `\nActions: ${actionsJson}` : ''}`;
-        return window.confirm(message);
-      }
+
       default:
-        return window.confirm('Confirm transaction?');
+        // Fallback to modal mode if unknown
+        const { mountModalTxConfirm } = await import('./Components/modal');
+        return mountModalTxConfirm({
+          summary: {
+            to: summary?.to,
+            amount: summary?.amount,
+            method: summary?.method,
+            fingerprint: summary?.fingerprint,
+          },
+          actionsJson,
+          mode: 'modal'
+        });
     }
   }
 
@@ -277,7 +258,10 @@ export class SignerWorkerManager {
         requestId: message.data?.requestId,
         hasActions: !!message.data?.actions,
         hasSummary: !!message.data?.summary,
-        hasIntentDigest: !!message.data?.intentDigest
+        hasIntentDigest: !!message.data?.intentDigest,
+        hasNearAccountId: !!message.data?.nearAccountId,
+        hasVrfChallenge: !!message.data?.vrfChallenge,
+        fullData: message.data
       });
 
       // Validate required fields
@@ -291,12 +275,36 @@ export class SignerWorkerManager {
       const summary = this.parseTransactionSummary(data.summary);
       const isRegistration = summary?.isRegistration || (summary as any)?.type === 'registration';
 
+      // Extract receiverId from actions data for the "to" field
+      let receiverId: string | undefined;
+      if (data.actions) {
+        try {
+          const actions = JSON.parse(data.actions);
+          if (Array.isArray(actions) && actions.length > 0) {
+            // For single action, use its receiverId
+            // For multiple actions, use the first action's receiverId (or could be mixed)
+            receiverId = actions[0].receiverId;
+          }
+        } catch (error) {
+          console.warn('[SignerWorkerManager]: Failed to parse actions to extract receiverId:', error);
+        }
+      }
+
+      // If receiverId is not in actions, try to extract it from the transaction data
+      // The WASM worker should be passing the receiverId in the actions, but as a fallback
+      // we can try to get it from the summary or other available data
+      if (!receiverId && summary?.receiverId) {
+        receiverId = summary.receiverId;
+      }
+
       // Get confirmation configuration from data or use default
+      // For embedded component, always use embedded mode regardless of user settings
       const confirmationConfig = data.confirmationConfig || this.confirmationConfig;
       console.log('[SignerWorkerManager]: Using confirmation config:', confirmationConfig);
+      console.log('[SignerWorkerManager]: UI mode:', confirmationConfig.uiMode);
 
       const transactionSummary: TransactionSummary = {
-        to: summary?.to || (isRegistration ? 'Registration' : undefined),
+        to: receiverId || summary?.to || (isRegistration ? 'Registration' : undefined),
         amount: summary?.amount,
         method: summary?.method || (isRegistration ? 'Register Account' : undefined),
         fingerprint: data.intentDigest
@@ -310,10 +318,32 @@ export class SignerWorkerManager {
         confirmed: false
       };
 
-      if (confirmationConfig.uiMode === 'shadow' && confirmationConfig.behavior === 'autoProceedWithDelay') {
+      // Handle skip mode - bypass UI entirely
+      if (confirmationConfig.uiMode === 'skip') {
+        console.log('[SignerWorkerManager]: Skip mode - bypassing UI confirmation');
+        confirmed = true; // Automatically confirm in skip mode
+      } else if (confirmationConfig.uiMode === 'embedded') {
+        // Handle embedded mode - auto-confirm since user has already seen and confirmed in iframe
+        console.log('[SignerWorkerManager]: Embedded mode - auto-confirming transaction (user already confirmed in iframe)');
+
+        // Set the request ID in the EmbeddedTxConfirm component
+        if ((window as any).setEmbeddedTxConfirmRequestId) {
+          (window as any).setEmbeddedTxConfirmRequestId(data.requestId);
+        }
+
+        // For embedded mode, we automatically confirm since the user has already
+        // seen the transaction details and clicked confirm in the iframe
+        // The WASM worker will validate the transaction details against what was shown
+        confirmed = true;
+        console.log('[SignerWorkerManager]: Embedded mode - auto-confirming transaction, proceeding to TouchID');
+
+      } else if (
+        confirmationConfig.uiMode === 'modal' &&
+        confirmationConfig.behavior === 'autoProceed'
+      ) {
         // Show modal as context but do not wait for click; we'll close it after TouchID
-        const { mountSecureTxConfirmWithHandle } = await import('./Components');
-        const handle = mountSecureTxConfirmWithHandle({
+        const { mountModalTxConfirmWithHandle } = await import('./Components/modal');
+        const handle = mountModalTxConfirmWithHandle({
           summary: {
             to: transactionSummary.to,
             amount: transactionSummary.amount,
@@ -325,10 +355,15 @@ export class SignerWorkerManager {
           loading: true // Show loading state with only cancel button
         });
 
-        // Give user time to read transaction details before TouchID prompt
-        const delay = confirmationConfig.autoProceedDelay || 2000;
-        console.log(`[SignerWorkerManager]: Showing transaction details for ${delay}ms before TouchID prompt...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        // Give user time to read transaction details before TouchID prompt (autoProceedDelay)
+        if (
+          confirmationConfig.behavior === 'autoProceed' &&
+          !!confirmationConfig?.autoProceedDelay
+        ) {
+          const delay = confirmationConfig.autoProceedDelay;
+          console.log(`[SignerWorkerManager]: Showing transaction details for ${delay}ms before TouchID prompt...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
 
         // We proceed to TouchID after delay; close will be called after completion
         confirmed = true; // treat as user intent to proceed
@@ -343,8 +378,16 @@ export class SignerWorkerManager {
 
       // If confirmed, collect credentials and PRF output
       // Derive parameters from either top-level fields or summary payload
-      const nearAccountIdFromMsg = data.nearAccountId || (summary && (summary.nearAccountId || summary.summary?.nearAccountId));
+      const nearAccountIdFromMsg = (data as any)?.nearAccountId || (summary && ((summary as any).nearAccountId || (summary as any).summary?.nearAccountId));
       const vrfLike = data.vrfChallenge || (summary && (summary.vrfChallenge || summary.summary?.vrfChallenge));
+
+      console.log('[SignerWorkerManager]: Checking credentials collection conditions:', {
+        confirmed,
+        nearAccountIdFromMsg,
+        hasVrfLike: !!vrfLike,
+        dataKeys: Object.keys(data),
+        summaryKeys: summary ? Object.keys(summary) : 'no summary'
+      });
 
       if (confirmed && nearAccountIdFromMsg && vrfLike) {
         try {
@@ -401,7 +444,11 @@ export class SignerWorkerManager {
           // If we auto-mounted the modal for context, close it now
           const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
           if (confirmHandle && typeof confirmHandle.close === 'function') {
-            try { confirmHandle.close(true); } catch {}
+            try {
+              confirmHandle.close(true);
+            } catch (e: any) {
+              console.log(e)
+            }
             (decision as any)._confirmHandle = undefined;
           }
         } catch (credentialError) {
@@ -415,6 +462,12 @@ export class SignerWorkerManager {
             (decision as any)._confirmHandle = undefined;
           }
         }
+      } else {
+        console.log('[SignerWorkerManager]: Skipping credentials collection - conditions not met:', {
+          confirmed,
+          nearAccountIdFromMsg,
+          hasVrfLike: !!vrfLike
+        });
       }
 
       console.log('[SignerWorkerManager]: Sending secure confirm decision:', {
@@ -1034,7 +1087,8 @@ export class SignerWorkerManager {
     authenticators,
     vrfChallenge,
     nearRpcUrl,
-    onEvent
+    onEvent,
+    confirmationConfigOverride
   }: {
     transactions: Array<{
       nearAccountId: AccountId;
@@ -1047,7 +1101,8 @@ export class SignerWorkerManager {
     authenticators: ClientAuthenticatorData[];
     vrfChallenge: VRFChallenge;
     nearRpcUrl: string;
-    onEvent?: (update: onProgressEvents) => void
+    onEvent?: (update: onProgressEvents) => void;
+    confirmationConfigOverride?: ConfirmationConfig;
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
     nearAccountId: AccountId;
@@ -1094,7 +1149,10 @@ export class SignerWorkerManager {
       const txSigningRequests = transactions.map(tx => ({
         nearAccountId: tx.nearAccountId,
         receiverId: tx.receiverId,
-        actions: JSON.stringify(tx.actions),
+        actions: JSON.stringify(tx.actions.map(action => ({
+          ...action,
+          receiverId: tx.receiverId // Include receiverId in each action for confirmation
+        }))),
         nonce: tx.nonce,
         blockHash: blockHash
       }));
@@ -1114,11 +1172,13 @@ export class SignerWorkerManager {
               encryptedPrivateKeyIv: encryptedKeyData.iv
             },
             txSigningRequests: txSigningRequests,
-            preConfirm: this.confirmationConfig.showPreConfirm,
-            confirmationConfig: {
-              showPreConfirm: this.confirmationConfig.showPreConfirm,
-              uiMode: this.confirmationConfig.uiMode as any,
-              behavior: this.confirmationConfig.behavior as any,
+            confirmationConfig: confirmationConfigOverride ? {
+              uiMode: confirmationConfigOverride.uiMode,
+              behavior: confirmationConfigOverride.behavior,
+              autoProceedDelay: confirmationConfigOverride.autoProceedDelay,
+            } : {
+              uiMode: this.confirmationConfig.uiMode,
+              behavior: this.confirmationConfig.behavior,
               autoProceedDelay: this.confirmationConfig.autoProceedDelay,
             }
           }

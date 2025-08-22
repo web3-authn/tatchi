@@ -4,20 +4,25 @@ import { Link } from 'react-router-dom';
 import { usePasskeyContext, ProfileSettingsButton } from '@web3authn/passkey/react';
 
 export const Navbar: React.FC = () => {
-
   const { loginState } = usePasskeyContext();
 
   return (
     <nav className="navbar-container">
       <div className="navbar-title">
-        <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
+        <Link to="/">
           Web3Authn Passkeys
         </Link>
       </div>
 
-      <div className="navbar-links" style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-        <Link to="/" style={{ textDecoration: 'none', color: '#666', fontSize: '14px' }}>
+      <div className="navbar-links">
+        <Link to="/">
           Home
+        </Link>
+        <Link to="/settings">
+          Settings
+        </Link>
+        <Link to="/embedded">
+          Embedded Demo
         </Link>
       </div>
 
@@ -28,6 +33,7 @@ export const Navbar: React.FC = () => {
           onLogout={() => {}}
         />
       }
+
     </nav>
   );
 };

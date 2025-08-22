@@ -5,14 +5,16 @@ import { ActionPhase, usePasskeyContext } from '@web3authn/passkey/react';
 import type { ActionArgs, FunctionCallAction, TransferAction } from '@web3authn/passkey/react';
 import { ActionType, TxExecutionStatus } from '@web3authn/passkey/react';
 
+import { GlassBorder } from './GlassBorder';
 import type { LastTxDetails } from '../types';
 import { RefreshIcon } from './icons/RefreshIcon';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
-  MUTED_GREEN,
+  CERULEAN_BLUE,
   NEAR_EXPLORER_BASE_URL
 } from '../config';
+import './GreetingMenu.css';
 
 interface GreetingMenuProps {
   disabled?: boolean;
@@ -213,12 +215,13 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
   }
 
   return (
-    <div className="passkey-container-root">
-      <div className="passkey-container">
+    <GlassBorder>
+      <div className="greeting-header">
+        <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+        <p className="greeting-caption">Send NEAR transactions with Passkeys</p>
+      </div>
 
-        <h2>Welcome, {nearAccountId}</h2>
-        <p className="caption">Send NEAR transactions with Passkeys</p>
-
+      <div className="greeting-content">
         <div className="greeting-controls-box">
           <div className="webauthn-contract-link">
             Onchain message on&nbsp;
@@ -237,7 +240,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               title="Refresh Greeting"
               className="refresh-icon-button"
             >
-              <RefreshIcon size={22} color={MUTED_GREEN}/>
+              <RefreshIcon size={22} color={CERULEAN_BLUE}/>
             </button>
             <p><strong>{onchainGreeting || "..."}</strong></p>
           </div>
@@ -248,11 +251,11 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               value={greetingInput}
               onChange={(e) => setGreetingInput(e.target.value)}
               placeholder="Enter new greeting"
-              className="styled-input"
+              className="greeting-focus-ring"
             />
             <button
               onClick={handleSetGreeting}
-              className="action-button"
+              className="greeting-btn greeting-btn-primary"
               disabled={isLoading || !greetingInput.trim()}
             >
               {isLoading ? 'Processing...' : 'Set New Greeting'}
@@ -267,20 +270,20 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
                 value={transferRecipient}
                 onChange={(e) => setTransferRecipient(e.target.value)}
                 placeholder="Recipient account (e.g., alice.testnet)"
-                className="styled-input"
+                className="greeting-focus-ring"
               />
               <input
                 type="number"
                 value={transferAmount}
                 onChange={(e) => setTransferAmount(e.target.value)}
                 placeholder="Amount in NEAR"
-                className="styled-input"
+                className="greeting-focus-ring"
                 min="0"
                 step="0.01"
               />
               <button
                 onClick={handleSendNear}
-                className="action-button"
+                className="greeting-btn greeting-btn-primary"
                 disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
               >
                 {isLoading ? 'Processing...' : 'Send NEAR'}
@@ -295,6 +298,6 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
           )}
         </div>
       </div>
-    </div>
+    </GlassBorder>
   );
 }
