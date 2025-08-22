@@ -1,6 +1,7 @@
 // Import types and components needed for mount functions
 import {
   ModalTxConfirmElement,
+  TransactionPayload,
   activeResolvers,
   type ConfirmRenderMode,
   type ConfirmVariant,
@@ -18,7 +19,8 @@ export type {
   ConfirmRenderMode,
   ConfirmVariant,
   SecureTxSummary,
-  TxAction
+  TxAction,
+  TransactionPayload
 } from './ModalTxConfirmElement';
 
 /**
@@ -28,8 +30,7 @@ export type {
 export function mountModalTxConfirm(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
-  actions?: TxAction[];
-  actionsJson?: string;
+  txSigningRequests?: TransactionPayload[];
   mode?: ConfirmRenderMode;
   variant?: ConfirmVariant;
   title?: string;
@@ -53,27 +54,17 @@ export function mountModalTxConfirm(opts: {
     activeResolvers.set(element, resolve);
 
     // Set properties (Lit automatically handles reactivity)
-    element.mode = opts.mode ?? 'modal';
-    element.variant = opts.variant ?? 'default';
-    element.to = opts.summary?.to ?? '';
-    element.amount = opts.summary?.amount ?? '';
+      element.mode = opts.mode ?? 'modal';
+  element.variant = opts.variant ?? 'default';
+  element.totalAmount = opts.summary?.totalAmount ?? '';
     element.method = opts.summary?.method ?? '';
     element.fingerprint = opts.summary?.fingerprint ?? '';
     element.title = opts.title ?? 'Confirm Transaction';
     element.cancelText = opts.cancelText ?? 'Cancel';
     element.confirmText = opts.confirmText ?? 'Confirm & Sign';
 
-    // Handle actions - prefer structured actions over JSON
-    if (opts.actions) {
-      element.actions = opts.actions;
-    } else if (opts.actionsJson) {
-      try {
-        const parsed = JSON.parse(opts.actionsJson);
-        element.actions = Array.isArray(parsed) ? parsed : [parsed];
-      } catch {
-        // Fallback to empty array if JSON parsing fails
-        element.actions = [];
-      }
+    if (opts.txSigningRequests) {
+      element.txSigningRequests = opts.txSigningRequests;
     }
 
     // Apply custom theme if provided
@@ -98,8 +89,7 @@ export function mountModalTxConfirm(opts: {
 export function mountModalTxConfirmWithHandle(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
-  actions?: TxAction[];
-  actionsJson?: string;
+  txSigningRequests?: TransactionPayload[];
   mode?: ConfirmRenderMode;
   variant?: ConfirmVariant;
   title?: string;
@@ -121,8 +111,7 @@ export function mountModalTxConfirmWithHandle(opts: {
 
   element.mode = opts.mode ?? 'modal';
   element.variant = opts.variant ?? 'default';
-  element.to = opts.summary?.to ?? '';
-  element.amount = opts.summary?.amount ?? '';
+  element.totalAmount = opts.summary?.totalAmount ?? '';
   element.method = opts.summary?.method ?? '';
   element.fingerprint = opts.summary?.fingerprint ?? '';
   element.title = opts.title ?? 'Confirm Transaction';
@@ -130,15 +119,9 @@ export function mountModalTxConfirmWithHandle(opts: {
   element.confirmText = opts.confirmText ?? 'Confirm & Sign';
   element.loading = opts.loading ?? false;
 
-  if (opts.actions) {
-    element.actions = opts.actions;
-  } else if (opts.actionsJson) {
-    try {
-      const parsed = JSON.parse(opts.actionsJson);
-      element.actions = Array.isArray(parsed) ? parsed : [parsed];
-    } catch {
-      element.actions = [];
-    }
+  // Handle transaction signing requests (preferred) or legacy actions
+  if (opts.txSigningRequests) {
+    element.txSigningRequests = opts.txSigningRequests;
   }
 
   if (opts.theme) {

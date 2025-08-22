@@ -147,20 +147,20 @@ export type ActionArgs =
 
 // ActionParams matches the Rust enum structure exactly
 export type ActionParams =
-  | { actionType: ActionType.CreateAccount }
-  | { actionType: ActionType.DeployContract; code: number[] }
+  | { action_type: ActionType.CreateAccount }
+  | { action_type: ActionType.DeployContract; code: number[] }
   | {
-      actionType: ActionType.FunctionCall;
+      action_type: ActionType.FunctionCall;
       method_name: string;
       args: string; // JSON string, not object
       gas: string;
       deposit: string;
     }
-  | { actionType: ActionType.Transfer; deposit: string }
-  | { actionType: ActionType.Stake; stake: string; public_key: string }
-  | { actionType: ActionType.AddKey; public_key: string; access_key: string }
-  | { actionType: ActionType.DeleteKey; public_key: string }
-  | { actionType: ActionType.DeleteAccount; beneficiary_id: string }
+  | { action_type: ActionType.Transfer; deposit: string }
+  | { action_type: ActionType.Stake; stake: string; public_key: string }
+  | { action_type: ActionType.AddKey; public_key: string; access_key: string }
+  | { action_type: ActionType.DeleteKey; public_key: string }
+  | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
 
 // === ACTION TYPE VALIDATION ===
 
@@ -168,7 +168,7 @@ export type ActionParams =
  * Validate action parameters before sending to worker
  */
 export function validateActionParams(actionParams: ActionParams): void {
-  switch (actionParams.actionType) {
+  switch (actionParams.action_type) {
     case ActionType.FunctionCall:
       if (!actionParams.method_name) {
         throw new Error('method_name required for FunctionCall');
@@ -229,6 +229,6 @@ export function validateActionParams(actionParams: ActionParams): void {
       }
       break;
     default:
-      throw new Error(`Unsupported action type: ${(actionParams as any).actionType}`);
+      throw new Error(`Unsupported action type: ${(actionParams as any).action_type}`);
   }
 }

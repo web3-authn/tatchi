@@ -1,45 +1,6 @@
-import React from 'react';
-import type { EmbeddedTxConfirmProps } from '../../types';
-import { usePasskeyContext } from '../../context';
-
-/**
- * Global state to track if the embedded component is loaded
- */
-let isEmbeddedComponentLoaded = false;
-let loadPromise: Promise<void> | null = null;
-
-/**
- * Dynamically load the embedded component host from the SDK bundle
- */
-const loadEmbeddedComponent = () => {
-  if (isEmbeddedComponentLoaded) {
-    return Promise.resolve();
-  }
-
-  if (loadPromise) return loadPromise;
-
-  loadPromise = new Promise((resolve, reject) => {
-    // Check if the custom element is already defined
-    if (customElements.get('embedded-tx-confirm-host')) {
-      isEmbeddedComponentLoaded = true;
-      resolve();
-      return;
-    }
-
-    // Dynamically load the host component bundle
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = '/sdk/embedded/embedded-tx-confirm-host.js';
-    script.onload = () => {
-      isEmbeddedComponentLoaded = true;
-      resolve();
-    };
-    script.onerror = () => reject(new Error('Failed to load embedded component bundle'));
-    document.head.appendChild(script);
-  });
-
-  return loadPromise;
-};
+import React, { useState, useEffect } from 'react';
+import type { EmbeddedTxConfirmProps } from '../types';
+import { usePasskeyContext } from '../context';
 
 /**
  * React wrapper around the Lit `embedded-tx-confirm-host` component.
@@ -81,11 +42,47 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
   const hostRef = React.useRef<any>(null);
   const { passkeyManager } = usePasskeyContext();
   const prevTooltipStyleRef = React.useRef(tooltipStyle);
+  const [isComponentLoaded, setIsComponentLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Load the component bundle on mount
-  React.useEffect(() => {
+  useEffect(() => {
+    let loadPromise: Promise<void> | null = null;
+
+    const loadEmbeddedComponent = () => {
+      // Check if the custom element is already defined
+      if (customElements.get('embedded-tx-confirm-host')) {
+        setIsComponentLoaded(true);
+        return Promise.resolve();
+      }
+
+      if (loadPromise) return loadPromise;
+
+      loadPromise = new Promise((resolve, reject) => {
+        // Dynamically load the host component bundle
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '/sdk/embedded/embedded-tx-confirm-host.js';
+        script.onload = () => {
+          setIsComponentLoaded(true);
+          resolve();
+        };
+        script.onerror = () => {
+          const error = new Error('Failed to load embedded component bundle');
+          setLoadError(error.message);
+          reject(error);
+        };
+        document.head.appendChild(script);
+      });
+
+      return loadPromise;
+    };
+
     loadEmbeddedComponent()
-      .catch((err) => console.error('Failed to load embedded component:', err));
+      .catch((err: Error) => {
+        console.error('Failed to load embedded component:', err);
+        setLoadError(err.message);
+      });
   }, []);
 
   // Update the host component when props change

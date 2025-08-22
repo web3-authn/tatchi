@@ -3,6 +3,7 @@ import React from 'react';
 interface ToggleProps {
   checked: boolean;
   onChange: (checked: boolean) => void;
+  show?: boolean;
   label?: string;
   tooltip?: string;
   showTooltip?: boolean;
@@ -18,8 +19,8 @@ interface ToggleProps {
 }
 
 const TOGGLE_COLORS = {
-  activeBackground: '#2E54F3',
-  activeShadow: '2E54F380',
+  activeBackground: 'var(--cobalt-primary)',
+  activeShadow: 'var(--cobalt-shadow)',
   inactiveBackground: '#d1d5db',
   inactiveShadow: 'rgba(0, 0, 0, 0.1)',
 };
@@ -29,6 +30,7 @@ export const Toggle: React.FC<ToggleProps> = ({
   onChange,
   tooltip,
   label = "",
+  show = true,
   showTooltip = true,
   className = '',
   size = 'small',
@@ -37,6 +39,8 @@ export const Toggle: React.FC<ToggleProps> = ({
 }) => {
   const isLarge = size === 'large';
   const isTextOnLeft = textPosition === 'left';
+
+  if (!show) return null;
 
   return (
     <div className={`${className}`}>

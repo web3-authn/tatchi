@@ -28,6 +28,7 @@ import {
   WasmSignTransactionsWithActionsRequest,
   WasmSignVerifyAndRegisterUserRequest,
   WorkerRequestTypeMap,
+  TransactionPayload,
 } from '../types/signer-worker';
 import { toEnumUserVerificationPolicy } from '../types/authenticatorOptions';
 import {
@@ -53,7 +54,7 @@ import {
 interface SecureConfirmData {
   requestId: string;
   summary: string | object;
-  actions?: string;
+  tx_signing_requests?: TransactionPayload[]; // Array of TransactionPayload objects
   intentDigest?: string;
   nearAccountId?: string; // Account ID for credential lookup
   vrfChallenge?: any; // VRF challenge for credential generation
@@ -79,8 +80,7 @@ interface SecureConfirmDecision {
 }
 
 interface TransactionSummary {
-  to?: string;
-  amount?: string;
+  totalAmount?: string;
   method?: string;
   fingerprint?: string;
 }
@@ -210,20 +210,19 @@ export class SignerWorkerManager {
 
   private async renderConfirmUI(
     summary: TransactionSummary,
-    actionsJson?: string
+    txSigningRequests?: TransactionPayload[]
   ): Promise<boolean> {
     switch (this.confirmationConfig.uiMode) {
       case 'modal': {
         // Components are imported dynamically to avoid DOM APIs in worker context
-        const { mountModalTxConfirm } = await import('./Components/modal');
+        const { mountModalTxConfirm } = await import('./LitComponents/modal');
         return mountModalTxConfirm({
           summary: {
-            to: summary?.to,
-            amount: summary?.amount,
+            totalAmount: summary?.totalAmount,
             method: summary?.method,
             fingerprint: summary?.fingerprint,
           },
-          actionsJson,
+          txSigningRequests: txSigningRequests,
           mode: 'modal'
         });
       }
@@ -234,15 +233,14 @@ export class SignerWorkerManager {
 
       default:
         // Fallback to modal mode if unknown
-        const { mountModalTxConfirm } = await import('./Components/modal');
+        const { mountModalTxConfirm } = await import('./LitComponents/modal');
         return mountModalTxConfirm({
           summary: {
-            to: summary?.to,
-            amount: summary?.amount,
+            totalAmount: summary?.totalAmount,
             method: summary?.method,
             fingerprint: summary?.fingerprint,
           },
-          actionsJson,
+          txSigningRequests: txSigningRequests,
           mode: 'modal'
         });
     }
@@ -256,7 +254,7 @@ export class SignerWorkerManager {
     try {
       console.log('[SignerWorkerManager]: Processing secure confirm request:', {
         requestId: message.data?.requestId,
-        hasActions: !!message.data?.actions,
+        hasTxSigningRequests: !!message.data?.tx_signing_requests,
         hasSummary: !!message.data?.summary,
         hasIntentDigest: !!message.data?.intentDigest,
         hasNearAccountId: !!message.data?.nearAccountId,
@@ -275,37 +273,18 @@ export class SignerWorkerManager {
       const summary = this.parseTransactionSummary(data.summary);
       const isRegistration = summary?.isRegistration || (summary as any)?.type === 'registration';
 
-      // Extract receiverId from actions data for the "to" field
+      // Extract receiverId from transaction data for the "to" field
       let receiverId: string | undefined;
-      if (data.actions) {
-        try {
-          const actions = JSON.parse(data.actions);
-          if (Array.isArray(actions) && actions.length > 0) {
-            // For single action, use its receiverId
-            // For multiple actions, use the first action's receiverId (or could be mixed)
-            receiverId = actions[0].receiverId;
-          }
-        } catch (error) {
-          console.warn('[SignerWorkerManager]: Failed to parse actions to extract receiverId:', error);
-        }
-      }
-
-      // If receiverId is not in actions, try to extract it from the transaction data
-      // The WASM worker should be passing the receiverId in the actions, but as a fallback
-      // we can try to get it from the summary or other available data
-      if (!receiverId && summary?.receiverId) {
+      if (summary?.receiverId) {
         receiverId = summary.receiverId;
       }
 
       // Get confirmation configuration from data or use default
       // For embedded component, always use embedded mode regardless of user settings
       const confirmationConfig = data.confirmationConfig || this.confirmationConfig;
-      console.log('[SignerWorkerManager]: Using confirmation config:', confirmationConfig);
-      console.log('[SignerWorkerManager]: UI mode:', confirmationConfig.uiMode);
 
       const transactionSummary: TransactionSummary = {
-        to: receiverId || summary?.to || (isRegistration ? 'Registration' : undefined),
-        amount: summary?.amount,
+        totalAmount: summary?.totalAmount,
         method: summary?.method || (isRegistration ? 'Register Account' : undefined),
         fingerprint: data.intentDigest
       };
@@ -320,37 +299,30 @@ export class SignerWorkerManager {
 
       // Handle skip mode - bypass UI entirely
       if (confirmationConfig.uiMode === 'skip') {
-        console.log('[SignerWorkerManager]: Skip mode - bypassing UI confirmation');
         confirmed = true; // Automatically confirm in skip mode
       } else if (confirmationConfig.uiMode === 'embedded') {
         // Handle embedded mode - auto-confirm since user has already seen and confirmed in iframe
-        console.log('[SignerWorkerManager]: Embedded mode - auto-confirming transaction (user already confirmed in iframe)');
-
         // Set the request ID in the EmbeddedTxConfirm component
         if ((window as any).setEmbeddedTxConfirmRequestId) {
           (window as any).setEmbeddedTxConfirmRequestId(data.requestId);
         }
-
+        confirmed = true;
         // For embedded mode, we automatically confirm since the user has already
         // seen the transaction details and clicked confirm in the iframe
         // The WASM worker will validate the transaction details against what was shown
-        confirmed = true;
-        console.log('[SignerWorkerManager]: Embedded mode - auto-confirming transaction, proceeding to TouchID');
-
       } else if (
         confirmationConfig.uiMode === 'modal' &&
         confirmationConfig.behavior === 'autoProceed'
       ) {
         // Show modal as context but do not wait for click; we'll close it after TouchID
-        const { mountModalTxConfirmWithHandle } = await import('./Components/modal');
+        const { mountModalTxConfirmWithHandle } = await import('./LitComponents/modal');
         const handle = mountModalTxConfirmWithHandle({
           summary: {
-            to: transactionSummary.to,
-            amount: transactionSummary.amount,
+            totalAmount: transactionSummary.totalAmount,
             method: transactionSummary.method,
             fingerprint: transactionSummary.fingerprint,
           },
-          actionsJson: data.actions,
+          txSigningRequests: data.tx_signing_requests,
           mode: 'modal',
           loading: true // Show loading state with only cancel button
         });
@@ -361,7 +333,7 @@ export class SignerWorkerManager {
           !!confirmationConfig?.autoProceedDelay
         ) {
           const delay = confirmationConfig.autoProceedDelay;
-          console.log(`[SignerWorkerManager]: Showing transaction details for ${delay}ms before TouchID prompt...`);
+          console.debug(`[SignerWorkerManager]: Showing transaction details for ${delay}ms before TouchID prompt...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }
 
@@ -371,7 +343,7 @@ export class SignerWorkerManager {
         (decision as any)._confirmHandle = handle; // temp stash for later close
       } else {
         // Require explicit confirm
-        confirmed = await this.renderConfirmUI(transactionSummary, data.actions);
+        confirmed = await this.renderConfirmUI(transactionSummary, data.tx_signing_requests);
       }
 
       decision.confirmed = confirmed;
@@ -391,8 +363,6 @@ export class SignerWorkerManager {
 
       if (confirmed && nearAccountIdFromMsg && vrfLike) {
         try {
-          console.log('[SignerWorkerManager]: User confirmed - collecting credentials...');
-
           // Get credentials using TouchID prompt
           const vrfChallengeObj = (typeof (vrfLike as any)?.outputAs32Bytes === 'function')
             ? vrfLike
@@ -439,8 +409,6 @@ export class SignerWorkerManager {
           decision.credential = serializedCredential;
           decision.prfOutput = dualPrfOutputs.chacha20PrfOutput;
 
-          console.log('[SignerWorkerManager]: Credentials collected successfully');
-
           // If we auto-mounted the modal for context, close it now
           const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
           if (confirmHandle && typeof confirmHandle.close === 'function') {
@@ -463,18 +431,12 @@ export class SignerWorkerManager {
           }
         }
       } else {
-        console.log('[SignerWorkerManager]: Skipping credentials collection - conditions not met:', {
+        console.warn('[SignerWorkerManager]: Skipping credentials collection - conditions not met:', {
           confirmed,
           nearAccountIdFromMsg,
           hasVrfLike: !!vrfLike
         });
       }
-
-      console.log('[SignerWorkerManager]: Sending secure confirm decision:', {
-        requestId: decision.requestId,
-        confirmed: decision.confirmed,
-        hasIntentDigest: !!decision.intentDigest
-      });
 
       worker.postMessage({
         type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION,
@@ -590,13 +552,6 @@ export class SignerWorkerManager {
           const response = event.data as WorkerResponseForRequest<T>;
           responses.push(response);
 
-          // Add detailed logging for debugging
-          console.log('Worker response received:', {
-            type: response?.type,
-            hasPayload: !!response?.payload,
-            fullResponse: response
-          });
-
           // Intercept secure confirm handshake (Phase A: pluggable UI)
           if (event.data.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM) {
             await this.handleSecureConfirmRequest(event.data as SecureConfirmMessage, worker);
@@ -624,7 +579,6 @@ export class SignerWorkerManager {
           if (isWorkerSuccess(response)) {
             clearTimeout(timeoutId);
             worker.terminate();
-            console.log('Worker success response:', response);
             resolve(response as WorkerResponseForRequest<T>);
             return;
           }
@@ -758,7 +712,6 @@ export class SignerWorkerManager {
         throw new Error('Dual PRF registration failed');
       }
 
-      console.log('WebAuthnManager: Dual PRF registration successful with deterministic derivation');
       // response.payload is a WasmEncryptionResult with proper WASM types
       const wasmResult = response.payload;
       // Store the encrypted key in IndexedDB using the manager
@@ -1143,16 +1096,13 @@ export class SignerWorkerManager {
         throw new Error(`No encrypted key found for account: ${nearAccountId}`);
       }
 
-      // Credentials and PRF outputs are now collected during user confirmation handshake
+      // Credentials and PRF outputs are collected during user confirmation handshake
 
       // Create transaction signing requests
       const txSigningRequests = transactions.map(tx => ({
         nearAccountId: tx.nearAccountId,
         receiverId: tx.receiverId,
-        actions: JSON.stringify(tx.actions.map(action => ({
-          ...action,
-          receiverId: tx.receiverId // Include receiverId in each action for confirmation
-        }))),
+        actions: JSON.stringify(tx.actions),
         nonce: tx.nonce,
         blockHash: blockHash
       }));

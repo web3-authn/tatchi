@@ -9,7 +9,7 @@
   width: 100%;
   max-width: 480px;
   margin: 0 auto;
-  margin-top: 2rem;
+  margin-top: 1rem;
   padding: var(--w3a-gap-4);
   font-family: var(--w3a-font-sans);
 }

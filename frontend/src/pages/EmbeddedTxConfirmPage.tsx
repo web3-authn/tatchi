@@ -103,7 +103,10 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   background: '#0353A4', // cobalt-primary
                   borderRadius: '12px',
                   border: 'none',
-                  transition: 'all 0.3s ease'
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
+                  fontSize: '16px',
+                  height: '44px',
                 }}
                 buttonHoverStyle={{
                   background: '#0466c8', // cobalt-primary-hover
@@ -115,7 +118,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                 tooltipStyle={{
                   width: '300px',
                   height: '300px',
-                  position: 'right',
+                  position: 'bottom-left',
                   offset: '8px'
                 }}
                 onError={(error) => {

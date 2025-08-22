@@ -53,7 +53,7 @@ export function LinkDeviceScanQR() {
       <GlassBorder style={{ marginTop: '1rem' }}>
         <div className="link-device-scan-content-area">
           <h3 className="link-device-scan-header">
-            Scan and Link Device
+            Scan Device
           </h3>
           {deviceLinkingState.mode === 'idle' && (
             <div className="link-device-scan-section">
@@ -63,11 +63,11 @@ export function LinkDeviceScanQR() {
                   className="link-device-scan-btn link-device-scan-btn-primary link-device-scan-focus-ring"
                   disabled={!isSecureContext || deviceLinkingState.isProcessing}
                 >
-                  Scan QR (Device1)
+                  Scan QR
                 </button>
               </div>
               <p className="link-device-scan-help">
-                Device1: Scan QR code to add Device2 to your account
+                Scan QR code to add Device2 to your account
               </p>
             </div>
           )}

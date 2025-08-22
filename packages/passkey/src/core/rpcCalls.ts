@@ -119,7 +119,7 @@ export async function executeDeviceLinkingContractCalls({
         nearAccountId: device1AccountId,
         receiverId: device1AccountId,
         actions: [{
-          actionType: ActionType.AddKey,
+          action_type: ActionType.AddKey,
           public_key: device2PublicKey,
           access_key: JSON.stringify({
             permission: { FullAccess: {} },
@@ -133,7 +133,7 @@ export async function executeDeviceLinkingContractCalls({
         nearAccountId: device1AccountId,
         receiverId: context.webAuthnManager.configs.contractId,
         actions: [{
-          actionType: ActionType.FunctionCall,
+          action_type: ActionType.FunctionCall,
           method_name: 'store_device_linking_mapping',
           args: JSON.stringify({
             device_public_key: device2PublicKey,
@@ -149,7 +149,7 @@ export async function executeDeviceLinkingContractCalls({
         nearAccountId: device1AccountId,
         receiverId: device1AccountId,
         actions: [{
-          actionType: ActionType.DeleteKey,
+          action_type: ActionType.DeleteKey,
           public_key: device2PublicKey
         }],
         nonce: nextNextNextNonce,

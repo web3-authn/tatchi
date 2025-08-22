@@ -1,9 +1,9 @@
 import { LitElement, html, css } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
-import type { ActionArgs } from '../../../core/types/actions';
-import type { ActionHooksOptions } from '../../../core/types/passkeyManager';
-import { executeActionInternal } from '../../../core/PasskeyManager/actions';
-import { toAccountId } from '../../../core/types/accountIds';
+import type { ActionArgs } from '../../../types/actions';
+import type { ActionHooksOptions } from '../../../types/passkeyManager';
+import { executeActionInternal } from '../../../PasskeyManager/actions';
+import { toAccountId } from '../../../types/accountIds';
 
 export type TooltipPosition =
   | 'top-left' | 'top-center' | 'top-right'
@@ -182,7 +182,6 @@ class ClipPathGenerator {
     corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
   ): string {
     // For now, use a simple bounding rectangle approach
-    // TODO: Implement true L-shaped corridors with smooth corners
     const minX = Math.min(button.x, tooltip.x);
     const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
     const minY = Math.min(button.y, tooltip.y);
@@ -299,6 +298,9 @@ export class EmbeddedTxConfirmHost extends LitElement {
 
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
 
+  // Message handler reference for proper cleanup
+  private messageHandler?: (event: MessageEvent) => void;
+
   constructor() {
     super();
     // Initialize default values for reactive properties
@@ -411,16 +413,14 @@ export class EmbeddedTxConfirmHost extends LitElement {
     let buttonPositionX: number; // Button position inside iframe
     let buttonPositionY: number;
 
-    console.log("POSITION: ", this.tooltipStyle.position);
-
     switch (this.tooltipStyle.position) {
       case 'top-left':
         // Iframe sits flush with bottom-left of placeholder, extends up and right
         iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-bottom-left';
-        buttonPositionX = padding / 2; // Button at left edge
-        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
+        buttonPositionX = 0; // Button at left edge
+        buttonPositionY = tooltipHeight + offset; // Button below tooltip
         break;
 
       case 'top-center':
@@ -429,7 +429,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-bottom-center';
         buttonPositionX = (iframeWidth - buttonWidth) / 2; // Center button
-        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
+        buttonPositionY = tooltipHeight + offset; // Button below tooltip
         break;
 
       case 'top-right':
@@ -437,8 +437,8 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-bottom-right';
-        buttonPositionX = iframeWidth - buttonWidth - padding / 2; // Button at right edge
-        buttonPositionY = tooltipHeight + offset + padding / 2; // Button below tooltip
+        buttonPositionX = iframeWidth - buttonWidth; // Button at right edge
+        buttonPositionY = tooltipHeight + offset; // Button below tooltip
         break;
 
       case 'left':
@@ -446,7 +446,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeWidth = tooltipWidth + offset + buttonWidth + padding;
         iframeHeight = Math.max(buttonHeight, tooltipHeight) + padding;
         flushClass = 'flush-right';
-        buttonPositionX = tooltipWidth + offset + padding / 2; // Button to right of tooltip
+        buttonPositionX = tooltipWidth + offset; // Button to right of tooltip
         buttonPositionY = (iframeHeight - buttonHeight) / 2; // Center button vertically
         break;
 
@@ -455,7 +455,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeWidth = buttonWidth + offset + tooltipWidth + padding;
         iframeHeight = Math.max(buttonHeight, tooltipHeight) + padding;
         flushClass = 'flush-left';
-        buttonPositionX = padding / 2; // Button at left edge
+        buttonPositionX = 0; // Button to left of tooltip
         buttonPositionY = (iframeHeight - buttonHeight) / 2; // Center button vertically
         break;
 
@@ -464,8 +464,8 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-top-left';
-        buttonPositionX = padding / 2; // Button at left edge
-        buttonPositionY = padding / 2; // Button above tooltip
+        buttonPositionX = 0; // Button at left edge
+        buttonPositionY = 0; // Button above tooltip
         break;
 
       case 'bottom-center':
@@ -474,7 +474,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-top-center';
         buttonPositionX = (iframeWidth - buttonWidth) / 2; // Center button
-        buttonPositionY = padding / 2; // Button above tooltip
+        buttonPositionY = 0; // Button above tooltip
         break;
 
       case 'bottom-right':
@@ -482,8 +482,8 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeWidth = Math.max(buttonWidth, tooltipWidth) + padding;
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-top-right';
-        buttonPositionX = iframeWidth - buttonWidth - padding / 2; // Button at right edge
-        buttonPositionY = padding / 2; // Button above tooltip
+        buttonPositionX = iframeWidth - buttonWidth; // Button at right edge
+        buttonPositionY = 0; // Button above tooltip
         break;
 
       default:
@@ -493,7 +493,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
         iframeHeight = buttonHeight + offset + tooltipHeight + padding;
         flushClass = 'flush-top-center';
         buttonPositionX = (iframeWidth - buttonWidth) / 2;
-        buttonPositionY = padding / 2;
+        buttonPositionY = 0;
         break;
     }
 
@@ -819,12 +819,12 @@ export class EmbeddedTxConfirmHost extends LitElement {
     };
 
     // Remove previous listener if it exists
-    if ((this as any)._messageHandler) {
-      window.removeEventListener('message', (this as any)._messageHandler);
+    if (this.messageHandler) {
+      window.removeEventListener('message', this.messageHandler);
     }
 
     // Add new listener and store reference
-    (this as any)._messageHandler = onMessage;
+    this.messageHandler = onMessage;
     window.addEventListener('message', onMessage);
   }
 
@@ -872,7 +872,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
     this.applyButtonOnlyClipPath();
   }
 
-    /**
+  /**
    * Handle combined tooltip state updates (geometry + visibility) from the iframe
    */
   private handleTooltipState(geometry: TooltipGeometry) {
@@ -951,8 +951,8 @@ export class EmbeddedTxConfirmHost extends LitElement {
     try {
       await executeActionInternal(
         this.passkeyManagerContext,
-        toAccountId(this.nearAccountId as any),
-        this.actionArgs as any,
+        toAccountId(this.nearAccountId),
+        this.actionArgs,
         {
           ...this.actionOptions,
                     hooks: {
@@ -982,18 +982,15 @@ export class EmbeddedTxConfirmHost extends LitElement {
             this.actionOptions?.onError?.(err);
             this.onError?.(err);
           }
-        } as any,
+        },
         {
           uiMode: 'embedded',
           behavior: 'autoProceed',
           autoProceedDelay: 0
-        } as any
-            );
+        }
+      );
     } catch (err) {
-      this.iframeRef.value?.contentWindow?.postMessage({
-        type: 'SET_LOADING',
-        payload: false
-      }, '*');
+      this.iframeRef.value?.contentWindow?.postMessage({ type: 'SET_LOADING', payload: false }, '*');
       this.onError?.(err as any);
     }
   }
@@ -1002,9 +999,9 @@ export class EmbeddedTxConfirmHost extends LitElement {
     super.disconnectedCallback();
 
     // Clean up message listener
-    if ((this as any)._messageHandler) {
-      window.removeEventListener('message', (this as any)._messageHandler);
-      delete (this as any)._messageHandler;
+    if (this.messageHandler) {
+      window.removeEventListener('message', this.messageHandler);
+      this.messageHandler = undefined;
     }
   }
 

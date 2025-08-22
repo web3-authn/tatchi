@@ -6,16 +6,16 @@
 
 /* Header Section */
 .link-device-header {
-  padding: var(--w3a-gap-6);
+  padding: var(--w3a-gap-2);
   border-bottom: 1px solid var(--w3a-border);
   text-align: center;
 }
 
 .link-device-title {
-  font-size: 1.5rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--w3a-text);
-  margin: 0 0 var(--w3a-gap-2) 0;
+  margin: 0;
 }
 
 .link-device-caption {
@@ -26,7 +26,7 @@
 
 /* Content Section */
 .link-device-content {
-  padding: var(--w3a-gap-6) 0;
+  padding: var(--w3a-gap-2) 0;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -54,7 +54,8 @@
 
 /* Button System */
 .link-device-btn {
-  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  height: 44px;
+  padding: 0 var(--w3a-gap-4);
   border: none;
   border-radius: var(--w3a-radius-sm);
   font-size: 0.9rem;

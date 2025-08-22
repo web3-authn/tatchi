@@ -5,7 +5,7 @@ use bs58;
 // === ACTION TYPES AND HANDLERS ===
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-#[serde(tag = "actionType")]
+#[serde(tag = "action_type")]
 pub enum ActionParams {
     CreateAccount,
     DeployContract {
