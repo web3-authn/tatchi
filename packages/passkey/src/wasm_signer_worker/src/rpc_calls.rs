@@ -194,22 +194,6 @@ pub async fn verify_authentication_response_rpc_call(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    // Extract user_exists from view function response
-    let user_exists = contract_response.get("user_exists")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    // Since this is a view function, we don't get actual registration_info
-    // Return minimal info if verification succeeds to maintain API compatibility
-    let _registration_info = if verified {
-        Some(RegistrationInfo {
-            credential_id: vec![], // Empty since this is view-only verification
-            credential_public_key: vec![], // Empty since this is view-only verification
-        })
-    } else {
-        None
-    };
-
     // Extract logs
     let logs = contract_result.get("logs")
         .and_then(|l| l.as_array())
