@@ -135,7 +135,6 @@ export function LinkDeviceShowQR() {
 
           {deviceLinkingState.mode === 'device2' && (
             <div className="device-linking-active">
-              <h4>QR Code Mode</h4>
               {deviceLinkingState.qrCodeDataURL ? (
                 <div className="qr-code-display">
                   <p>Show this QR code to Device1:</p>
@@ -148,7 +147,7 @@ export function LinkDeviceShowQR() {
               ) : (
                 <p>Generating QR code...</p>
               )}
-              <button onClick={onCancelDeviceLinking} className="link-device-btn link-device-btn-secondary">
+              <button onClick={onCancelDeviceLinking} className="link-device-btn link-device-btn-primary">
                 Cancel
               </button>
             </div>

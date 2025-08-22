@@ -54,7 +54,8 @@
   align-items: center;
   justify-content: center;
   gap: var(--w3a-gap-1);
-  padding: var(--w3a-gap-2) var(--w3a-gap-3);
+  height: 44px;
+  padding: 0 var(--w3a-gap-3);
   border: none;
   border-radius: var(--w3a-radius-sm);
   font-size: var(--w3a-text-sm);

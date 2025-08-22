@@ -328,6 +328,10 @@
   margin: 0;
 }
 
+.copyable-key:hover {
+  cursor: crosshair;
+}
+
 .permission-badge {
   margin: var(--w3a-gap-1) 0;
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { usePasskeyContext, type AccessKeyList } from '@web3authn/passkey/react';
 import type { ConfirmationConfig, ConfirmationUIMode } from '@web3authn/passkey';
@@ -25,7 +25,6 @@ const AutoProceedSlider: React.FC<AutoProceedSliderProps> = ({
   if (!show) return null;
   return (
     <div className="slider-root" style={style}>
-      <label className="form-label">Delay</label>
       <div className="slider-container">
         <input
           type="range"
@@ -61,6 +60,16 @@ const AccessKeys: React.FC<AccessKeysProps> = ({
   accessKeys,
   isLoadingKeys
 }) => {
+  const handleCopyKey = async (key: string) => {
+    try {
+      await navigator.clipboard.writeText(key);
+      toast.success('Key copied to clipboard');
+    } catch (error) {
+      console.error('Failed to copy key:', error);
+      toast.error('Failed to copy key');
+    }
+  };
+
   return (
     <div className="settings-section">
       <h3 className="section-title">Keys</h3>
@@ -87,7 +96,13 @@ const AccessKeys: React.FC<AccessKeysProps> = ({
                 <div className="key-content">
                   <div className="key-details">
                     <div className="key-header">
-                      <p className="mono copyable-key">{key.public_key}</p>
+                      <p
+                        className="mono copyable-key"
+                        onClick={() => handleCopyKey(key.public_key)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {key.public_key}
+                      </p>
                       <span className={`status-badge ${key.access_key.permission === 'FullAccess' ? 'full-access' : 'function-call'}`}>
                         {key.access_key.permission === 'FullAccess' ? 'FullAccess' : 'FunctionCall'}
                       </span>
@@ -136,7 +151,7 @@ export const UserSettings: React.FC<UserSettingsProps> = () => {
     if (isLoggedIn && nearAccountId && !accessKeys && !isLoadingKeys) {
       handleViewAccessKeys();
     }
-  }, [isLoggedIn, nearAccountId, accessKeys, isLoadingKeys]);
+  }, [isLoggedIn, nearAccountId]);
 
   const handleToggleShowDetails = () => {
     if (currentConfig) {
@@ -167,7 +182,7 @@ export const UserSettings: React.FC<UserSettingsProps> = () => {
     if (currentConfig) {
       setConfirmationConfig({ ...currentConfig, autoProceedDelay: delay });
       setCurrentConfig(prev => prev ? { ...prev, autoProceedDelay: delay } : null);
-      toast.success(`Auto-proceed delay set to ${(delay / 1000).toFixed(1)}s`);
+      toast.success(`Auto-kkip after ${(delay / 1000).toFixed(1)}s`);
     }
   };
 

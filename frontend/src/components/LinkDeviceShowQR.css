@@ -54,7 +54,8 @@
 
 /* Button System */
 .link-device-btn {
-  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  height: 44px;
+  padding: 0 var(--w3a-gap-4);
   border: none;
   border-radius: var(--w3a-radius-sm);
   font-size: 0.9rem;
