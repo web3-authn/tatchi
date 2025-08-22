@@ -2,6 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { type ValidationResult, validateNearAccountId } from '../../utils/validation';
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
+import { ConfirmationUIMode, ConfirmationBehavior } from '../types/signer-worker'
 
 
 export interface ClientUserData {
@@ -48,11 +49,9 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
-  // Unified confirmation configuration
   confirmationConfig: {
-    showPreConfirm: boolean;
-    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
-    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
+    uiMode: ConfirmationUIMode;
+    behavior: ConfirmationBehavior;
     autoProceedDelay?: number;
   };
   // User preferences can be extended here as needed
@@ -261,10 +260,9 @@ export class PasskeyClientDBManager {
         useRelayer: false,
         useNetwork: 'testnet',
         confirmationConfig: {
-          showPreConfirm: true,
-          uiMode: 'shadow',
-          behavior: 'requireClick',
-          autoProceedDelay: 2000,
+          uiMode: 'modal',
+          behavior: 'autoProceed',
+          autoProceedDelay: 1000,
         },
         // Default preferences can be set here
       },
@@ -313,10 +311,6 @@ export class PasskeyClientDBManager {
       throw new Error(`Cannot store user with invalid account ID: ${validation.error}`);
     }
 
-    // CHANGE: Debug device number issue in lastUserAccountId
-    console.log("DEBUG storeUser: storing user with deviceNumber =", userData.deviceNumber,
-                "for account", userData.nearAccountId);
-
     const db = await this.getDB();
     await db.put(DB_CONFIG.userStore, userData);
 
@@ -364,8 +358,6 @@ export class PasskeyClientDBManager {
     let existingUser = await this.getUser(userData.nearAccountId);
     if (!existingUser) {
       const deviceNumberToUse = userData.deviceNumber || 1;
-      console.log("Creating new user with deviceNumber =", deviceNumberToUse,
-                  "(original =", userData.deviceNumber, ")");
       existingUser = await this.registerUser({
         nearAccountId: userData.nearAccountId,
         deviceNumber: deviceNumberToUse, // Use provided device number or default to 1

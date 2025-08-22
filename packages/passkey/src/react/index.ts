@@ -48,7 +48,7 @@ export { TxExecutionStatus } from '../core/types/actions';
 export { ProfileSettingsButton } from './components/ProfileSettingsButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
-// Embedded transaction confirmation component
+// Embedded transaction confirmation component (React wrapper hosting Lit component)
 export { EmbeddedTxConfirm } from './components/EmbeddedTxConfirm';
 
 // === TYPES ===

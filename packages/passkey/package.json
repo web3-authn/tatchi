@@ -25,11 +25,25 @@
     "./react/styles": "./dist/esm/react/styles/styles.css",
     "./worker": "./dist/web3authn-signer.worker.js",
     "./wasm": "./dist/wasm_signer_worker_bg.wasm",
-    "./wasm-js": "./dist/wasm_signer_worker.js"
+    "./wasm-js": "./dist/wasm_signer_worker.js",
+    "./components/modal": {
+      "import": "./dist/esm/core/WebAuthnManager/Components/modal.js",
+      "require": "./dist/cjs/core/WebAuthnManager/Components/modal.js",
+      "types": "./dist/types/src/core/WebAuthnManager/Components/modal.d.ts"
+    },
+    "./components/embedded": {
+      "import": "./dist/esm/core/WebAuthnManager/Components/embedded.js",
+      "require": "./dist/cjs/core/WebAuthnManager/Components/embedded.js",
+      "types": "./dist/types/src/core/WebAuthnManager/Components/embedded.d.ts"
+    }
   },
   "files": [
     "dist/",
     "README.md"
+  ],
+  "sideEffects": [
+    "**/*.css",
+    "**/*.scss"
   ],
   "scripts": {
     "build": "./scripts/build.sh",

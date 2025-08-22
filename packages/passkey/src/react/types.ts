@@ -251,7 +251,7 @@ export type {
 // === EMBEDDED TRANSACTION CONFIRMATION TYPES ===
 export interface EmbeddedTxConfirmProps {
   /** NEAR account ID */
-  nearAccountId: AccountId;
+  nearAccountId: string;
   /** Action arguments (single action or array of actions) */
   actionArgs: ActionArgs | ActionArgs[];
   /** Component title */
@@ -262,8 +262,8 @@ export interface EmbeddedTxConfirmProps {
   confirmText?: string;
   /** Visual variant */
   variant?: 'default' | 'warning' | 'danger';
-  /** Callback when user confirms - same signature as executeAction */
-  onConfirm?: (nearAccountId: AccountId, actionArgs: ActionArgs | ActionArgs[], options?: ActionHooksOptions) => Promise<ActionResult>;
+  /** Optional action hook options passed into executeAction */
+  actionOptions?: ActionHooksOptions;
   /** Callback when user cancels */
   onCancel?: () => void;
   /** Loading state */

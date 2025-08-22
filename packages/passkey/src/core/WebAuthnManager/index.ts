@@ -22,6 +22,7 @@ import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyMa
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
+import type { ConfirmationConfig } from '../types/signer-worker';
 
 
 /**
@@ -36,8 +37,8 @@ import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 export class WebAuthnManager {
   private readonly vrfWorkerManager: VrfWorkerManager;
   private readonly signerWorkerManager: SignerWorkerManager;
+  private readonly touchIdPrompt: TouchIdPrompt;
   readonly configs: PasskeyManagerConfigs;
-  readonly touchIdPrompt: TouchIdPrompt;
 
   constructor(configs: PasskeyManagerConfigs) {
     // Group VRF worker configuration into a single object
@@ -51,10 +52,16 @@ export class WebAuthnManager {
     this.touchIdPrompt = new TouchIdPrompt();
     this.configs = configs;
 
-    // Set confirm behavior to auto-proceed to TouchID
-    this.signerWorkerManager.setConfirmBehavior('autoProceed');
     // VRF worker initializes on-demand with proper error propagation
     console.debug('WebAuthnManager: Constructor complete, VRF worker will initialize on-demand');
+  }
+
+  getCredentials({ nearAccountId, challenge, authenticators }: {
+    nearAccountId: AccountId;
+    challenge: Uint8Array<ArrayBuffer>;
+    authenticators: ClientAuthenticatorData[];
+  }): Promise<PublicKeyCredential> {
+    return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
   }
 
   ///////////////////////////////////////
@@ -181,7 +188,6 @@ export class WebAuthnManager {
         return { success: false, error: 'VRF keypair unlock failed' };
       }
 
-      console.debug('WebAuthnManager: VRF keypair unlocked successfully');
       return { success: true };
 
     } catch (error: any) {
@@ -221,6 +227,13 @@ export class WebAuthnManager {
     return await this.vrfWorkerManager.clearVrfSession();
   }
 
+  /**
+   * Check VRF worker status
+   */
+  async checkVrfStatus(): Promise<{ active: boolean; nearAccountId: AccountId | null; sessionDuration?: number }> {
+    return this.vrfWorkerManager.checkVrfStatus();
+  }
+
   ///////////////////////////////////////
   // INDEXEDDB OPERATIONS
   ///////////////////////////////////////
@@ -241,13 +254,6 @@ export class WebAuthnManager {
   }
 
   /**
-   * Set pre-confirmation flow setting for the current user
-   */
-  setPreConfirmFlow(enabled: boolean): void {
-    this.signerWorkerManager.setShowPreConfirm(enabled);
-  }
-
-  /**
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
@@ -257,24 +263,14 @@ export class WebAuthnManager {
   /**
    * Set the unified confirmation configuration
    */
-  setConfirmationConfig(config: {
-    showPreConfirm?: boolean;
-    uiMode?: 'native' | 'shadow' | 'embedded' | 'popup';
-    behavior?: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-    autoProceedDelay?: number;
-  }): void {
+  setConfirmationConfig(config: ConfirmationConfig): void {
     this.signerWorkerManager.setConfirmationConfig(config);
   }
 
   /**
    * Get the current confirmation configuration
    */
-  getConfirmationConfig(): {
-    showPreConfirm: boolean;
-    uiMode: 'native' | 'shadow' | 'embedded' | 'popup';
-    behavior: 'requireClick' | 'autoProceed' | 'autoProceedWithDelay';
-    autoProceedDelay?: number;
-  } {
+  getConfirmationConfig(): ConfirmationConfig {
     return this.signerWorkerManager.getConfirmationConfig();
   }
 
@@ -343,6 +339,77 @@ export class WebAuthnManager {
       nearAccountId: lastUser.nearAccountId,
       deviceNumber: lastUser.deviceNumber,
     };
+  }
+
+  /**
+   * Atomically store all registration data (user, authenticator, VRF credentials)
+   */
+  async atomicStoreRegistrationData({
+    nearAccountId,
+    credential,
+    publicKey,
+    encryptedVrfKeypair,
+    vrfPublicKey,
+    serverEncryptedVrfKeypair,
+    onEvent
+  }: {
+    nearAccountId: AccountId;
+    credential: PublicKeyCredential;
+    publicKey: string;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    vrfPublicKey: string;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
+    onEvent?: (event: any) => void;
+  }): Promise<void> {
+
+    await this.atomicOperation(async (db) => {
+
+      // Store credential for authentication
+      const credentialId = base64UrlEncode(credential.rawId);
+      const response = credential.response as AuthenticatorAttestationResponse;
+
+      await this.storeAuthenticator({
+        nearAccountId: nearAccountId,
+        credentialId: credentialId,
+        credentialPublicKey: await this.extractCosePublicKey(
+          base64UrlEncode(response.attestationObject)
+        ),
+        transports: response.getTransports?.() || [],
+        name: `VRF Passkey for ${this.extractUsername(nearAccountId)}`,
+        registered: new Date().toISOString(),
+        syncedAt: new Date().toISOString(),
+        vrfPublicKey: vrfPublicKey,
+      });
+
+      // Store WebAuthn user data with encrypted VRF credentials
+      await this.storeUserData({
+        nearAccountId,
+        clientNearPublicKey: publicKey,
+        lastUpdated: Date.now(),
+        passkeyCredential: {
+          id: credential.id,
+          rawId: credentialId
+        },
+        encryptedVrfKeypair: {
+          encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
+        },
+        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
+          ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
+          kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
+        } : undefined,
+      });
+
+      console.debug('Registration data stored atomically');
+      return true;
+    });
+
+    onEvent?.({
+      step: 5,
+      phase: 'database-storage',
+      status: 'success',
+      message: 'VRF registration data stored successfully'
+    });
   }
 
   ///////////////////////////////////////
@@ -450,6 +517,7 @@ export class WebAuthnManager {
     vrfChallenge,
     nearRpcUrl,
     onEvent,
+    confirmationConfigOverride,
   }: {
     transactions: Array<{
       nearAccountId: AccountId;
@@ -462,7 +530,8 @@ export class WebAuthnManager {
     contractId: string,
     vrfChallenge: VRFChallenge,
     nearRpcUrl: string,
-    onEvent?: (update: onProgressEvents) => void
+    confirmationConfigOverride?: ConfirmationConfig,
+    onEvent?: (update: onProgressEvents) => void,
   }): Promise<VerifyAndSignTransactionResult[]> {
 
     if (transactions.length === 0) {
@@ -479,7 +548,8 @@ export class WebAuthnManager {
         authenticators,
         vrfChallenge,
         nearRpcUrl,
-        onEvent
+        confirmationConfigOverride,
+        onEvent,
       },
     );
   }
@@ -638,77 +708,6 @@ export class WebAuthnManager {
     }
   }
 
-  /**
-   * Atomically store all registration data (user, authenticator, VRF credentials)
-   */
-  async atomicStoreRegistrationData({
-    nearAccountId,
-    credential,
-    publicKey,
-    encryptedVrfKeypair,
-    vrfPublicKey,
-    serverEncryptedVrfKeypair,
-    onEvent
-  }: {
-    nearAccountId: AccountId;
-    credential: PublicKeyCredential;
-    publicKey: string;
-    encryptedVrfKeypair: EncryptedVRFKeypair;
-    vrfPublicKey: string;
-    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-    onEvent?: (event: any) => void;
-  }): Promise<void> {
-
-    await this.atomicOperation(async (db) => {
-
-      // Store credential for authentication
-      const credentialId = base64UrlEncode(credential.rawId);
-      const response = credential.response as AuthenticatorAttestationResponse;
-
-      await this.storeAuthenticator({
-        nearAccountId: nearAccountId,
-        credentialId: credentialId,
-        credentialPublicKey: await this.extractCosePublicKey(
-          base64UrlEncode(response.attestationObject)
-        ),
-        transports: response.getTransports?.() || [],
-        name: `VRF Passkey for ${this.extractUsername(nearAccountId)}`,
-        registered: new Date().toISOString(),
-        syncedAt: new Date().toISOString(),
-        vrfPublicKey: vrfPublicKey,
-      });
-
-      // Store WebAuthn user data with encrypted VRF credentials
-      await this.storeUserData({
-        nearAccountId,
-        clientNearPublicKey: publicKey,
-        lastUpdated: Date.now(),
-        passkeyCredential: {
-          id: credential.id,
-          rawId: credentialId
-        },
-        encryptedVrfKeypair: {
-          encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
-          chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
-        },
-        serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
-          ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
-          kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
-        } : undefined,
-      });
-
-      console.debug('Registration data stored atomically');
-      return true;
-    });
-
-    onEvent?.({
-      step: 5,
-      phase: 'database-storage',
-      status: 'success',
-      message: 'VRF registration data stored successfully'
-    });
-  }
-
   ///////////////////////////////////////
   // ACCOUNT RECOVERY
   ///////////////////////////////////////
@@ -763,6 +762,40 @@ export class WebAuthnManager {
     }
   }
 
+  async generateRegistrationCredentials({
+    nearAccountId,
+    challenge,
+  }: {
+    nearAccountId: AccountId;
+    challenge: Uint8Array<ArrayBuffer>;
+  }): Promise<PublicKeyCredential> {
+    return this.touchIdPrompt.generateRegistrationCredentials({ nearAccountId, challenge });
+  }
+
+  async generateRegistrationCredentialsForLinkDevice({
+    nearAccountId,
+    challenge,
+    deviceNumber,
+  }: {
+    nearAccountId: AccountId;
+    challenge: Uint8Array<ArrayBuffer>;
+    deviceNumber: number;
+  }): Promise<PublicKeyCredential> {
+    return this.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({ nearAccountId, challenge, deviceNumber });
+  }
+
+  async getCredentialsForRecovery({
+    nearAccountId,
+    challenge,
+    credentialIds,
+  }: {
+    nearAccountId: AccountId;
+    challenge: Uint8Array<ArrayBuffer>,
+    credentialIds: string[];
+  }): Promise<PublicKeyCredential> {
+    return this.touchIdPrompt.getCredentialsForRecovery({ nearAccountId, challenge, credentialIds });
+  }
+
   /**
    * Sign transaction with raw private key
    * for key replacement in device linking
@@ -794,13 +827,6 @@ export class WebAuthnManager {
       blockHash,
       actions
     });
-  }
-
-  /**
-   * Check VRF worker status
-   */
-  async checkVrfStatus(): Promise<{ active: boolean; nearAccountId: AccountId | null; sessionDuration?: number }> {
-    return this.vrfWorkerManager.checkVrfStatus();
   }
 
 }

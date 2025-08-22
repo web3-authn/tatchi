@@ -369,7 +369,10 @@ export class EmbeddedTxConfirmElement extends LitElement {
     super.connectedCallback();
     console.log('[EmbeddedTxConfirm Lit] Connected to DOM');
 
-    // Register the custom property globally for animation
+    // Browser doesn't know --border-angle is an animatable angle type,
+    // so we need to register it globally.
+    // Otherwise --border-angle only cycles between 0deg and 360deg,
+    // not smoothly animating through the values in between.
     if (!(window as any).borderAngleRegistered && CSS.registerProperty) {
       try {
         CSS.registerProperty({

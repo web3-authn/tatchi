@@ -1,10 +1,31 @@
-import { SecureTxConfirmElement, activeResolvers, type ConfirmRenderMode, type ConfirmVariant, type SecureTxSummary, type TxAction } from './SecureTxConfirmElement';
+// Import types and components needed for mount functions
+import {
+  ModalTxConfirmElement,
+  activeResolvers,
+  type ConfirmRenderMode,
+  type ConfirmVariant,
+  type SecureTxSummary,
+  type TxAction
+} from './ModalTxConfirmElement';
+
+// Granular exports for ModalTxConfirmElement
+export {
+  ModalTxConfirmElement,
+  activeResolvers
+} from './ModalTxConfirmElement';
+
+export type {
+  ConfirmRenderMode,
+  ConfirmVariant,
+  SecureTxSummary,
+  TxAction
+} from './ModalTxConfirmElement';
 
 /**
- * Mounts a secure transaction confirmation dialog using Lit and closed Shadow DOM.
+ * Mounts a modal transaction confirmation dialog using Lit and closed Shadow DOM.
  * Returns a promise that resolves to true if confirmed, false if cancelled.
  */
-export function mountSecureTxConfirm(opts: {
+export function mountModalTxConfirm(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
   actions?: TxAction[];
@@ -20,13 +41,13 @@ export function mountSecureTxConfirm(opts: {
     const attachRoot = opts.container ?? document.body;
 
     // Remove any existing instance
-    const existing = attachRoot.querySelector('passkey-confirm');
+    const existing = attachRoot.querySelector('passkey-modal-confirm');
     if (existing) {
       existing.remove();
     }
 
     // Create new Lit element
-    const element = new SecureTxConfirmElement();
+    const element = new ModalTxConfirmElement();
 
     // Store the resolver in WeakMap
     activeResolvers.set(element, resolve);
@@ -68,13 +89,13 @@ export function mountSecureTxConfirm(opts: {
 }
 
 /**
- * Mounts a secure confirmation UI and returns a handle to programmatically close it.
+ * Mounts a modal confirmation UI and returns a handle to programmatically close it.
  * Does not return a Promise; caller is responsible for calling close(confirmed) when appropriate.
  *
  * Used in signerWorkerManager.ts to programmatically close the confirmation dialog
  * after TouchID prompt succeeds.
  */
-export function mountSecureTxConfirmWithHandle(opts: {
+export function mountModalTxConfirmWithHandle(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
   actions?: TxAction[];
@@ -86,7 +107,7 @@ export function mountSecureTxConfirmWithHandle(opts: {
   confirmText?: string;
   theme?: Record<string, string>;
   loading?: boolean;
-}): { element: SecureTxConfirmElement; close: (confirmed: boolean) => void } {
+}): { element: ModalTxConfirmElement; close: (confirmed: boolean) => void } {
   const attachRoot = opts.container ?? document.body;
 
   const existing = attachRoot.querySelector('passkey-confirm');
@@ -94,8 +115,8 @@ export function mountSecureTxConfirmWithHandle(opts: {
     existing.remove();
   }
 
-  const element = new SecureTxConfirmElement();
-  // Store a no-op resolver by default; will be replaced if consumer also calls mountSecureTxConfirm
+  const element = new ModalTxConfirmElement();
+  // Store a no-op resolver by default; will be replaced if consumer also calls mountModalTxConfirm
   activeResolvers.set(element as unknown as HTMLElement, () => {});
 
   element.mode = opts.mode ?? 'modal';
@@ -139,59 +160,3 @@ export function mountSecureTxConfirmWithHandle(opts: {
 
   return { element, close };
 }
-
-/**
- * Helper functions for creating different UI variants
- */
-export const SecureTxConfirm = {
-  /**
-   * Show as inline component (embedded in page)
-   */
-  inline(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'mode'>) {
-    return mountSecureTxConfirm({ ...opts, mode: 'inline' });
-  },
-
-  /**
-   * Show as modal dialog (overlay with backdrop)
-   */
-  modal(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'mode'>) {
-    return mountSecureTxConfirm({ ...opts, mode: 'modal' });
-  },
-
-  /**
-   * Show as fullscreen dialog
-   */
-  fullscreen(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'mode'>) {
-    return mountSecureTxConfirm({ ...opts, mode: 'fullscreen' });
-  },
-
-  /**
-   * Show as toast notification (top-right corner)
-   */
-  toast(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'mode'>) {
-    return mountSecureTxConfirm({ ...opts, mode: 'toast' });
-  },
-
-  /**
-   * Show with warning variant (yellow/amber styling)
-   */
-  warning(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'variant'>) {
-    return mountSecureTxConfirm({ ...opts, variant: 'warning' });
-  },
-
-  /**
-   * Show with danger variant (red styling for high-risk transactions)
-   */
-  danger(opts: Omit<Parameters<typeof mountSecureTxConfirm>[0], 'variant'>) {
-    return mountSecureTxConfirm({ ...opts, variant: 'danger' });
-  }
-};
-
-// Re-export the component and types for convenience
-export {
-  SecureTxConfirmElement,
-  type ConfirmRenderMode,
-  type ConfirmVariant,
-  type SecureTxSummary,
-  type TxAction
-};

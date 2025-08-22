@@ -25,6 +25,25 @@ const external = [
   'tslib'
 ];
 
+// External dependencies for embedded component (excludes Lit to bundle it)
+const embeddedExternal = [
+  // React dependencies
+  'react',
+  'react-dom',
+  'react/jsx-runtime',
+  // All @near-js packages
+  /@near-js\/.*/,
+  // Core dependencies that should be provided by consuming application
+  'borsh',
+  'bs58',
+  'js-sha256',
+  'idb',
+  'near-api-js',
+  // Other common packages
+  'tslib'
+  // Note: Lit is not excluded here, it will be bundled
+];
+
 const aliasConfig = {
   '@build-paths': path.resolve(process.cwd(), 'build-paths.ts'),
   '@/*': path.resolve(process.cwd(), 'src/*')
@@ -161,5 +180,31 @@ export default defineConfig([
         }
       }
     ]
+  },
+  // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
+  {
+    input: 'src/react/components/EmbeddedTxConfirm/EmbeddedTxButton.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: 'embedded-tx-confirm.js'
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig
+    },
+  },
+  // Embedded Transaction Confirmation Iframe Host component - new Lit-based host
+  {
+    input: 'src/react/components/EmbeddedTxConfirm/EmbeddedTxIframe.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: 'embedded-tx-confirm-host.js'
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig
+    },
   }
 ]);
