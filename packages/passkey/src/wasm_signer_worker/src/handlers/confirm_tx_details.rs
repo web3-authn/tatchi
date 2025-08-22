@@ -243,9 +243,9 @@ pub async fn request_user_confirmation_with_config(
 
     // Log confirmation request
     web_sys::console::log_1(
-        &format!("[Rust] Requesting user confirmation with ID: {}", request_id).into()
+        &format!("[Rust] Prompting user confirmation in JS main thread with ID: {}", request_id).into()
     );
-    logs.push(format!("Requesting user confirmation for {} transactions", tx_batch_request.tx_signing_requests.len()));
+    logs.push(format!("Prompting user confirmation in JS main thread for {} transactions", tx_batch_request.tx_signing_requests.len()));
 
     // Extract account information for credential collection
     // All transactions in the batch are signed by the same near_account_id.
@@ -298,9 +298,9 @@ pub async fn request_user_registration_confirmation(
 
     // Log confirmation request
     web_sys::console::log_1(
-        &format!("[Rust] Requesting user registration confirmation with ID: {}", request_id).into()
+        &format!("[Rust] Prompting user registration confirmation in JS main thread with ID: {}", request_id).into()
     );
-    logs.push("Requesting user confirmation for registration".to_string());
+    logs.push("Prompting user confirmation in JS main thread for registration".to_string());
 
     // Extract account information for credential collection
     let near_account_id = &registration_request.registration.near_account_id;
@@ -322,7 +322,7 @@ pub async fn request_user_registration_confirmation(
         "" // No actions for registration
     ).await;
 
-    web_sys::console::log_1(&"[Rust] User registration confirmation completed".into());
+    web_sys::console::log_1(&"[Rust] User passkey confirmation response received".into());
 
     // Parse confirmation result
     let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;

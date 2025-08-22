@@ -1,0 +1,158 @@
+
+import { SignedTransaction } from '../../../NearClient';
+import { type ActionParams, validateActionParams } from '../../../types/actions';
+import type { onProgressEvents } from '../../../types/passkeyManager';
+import {
+  WorkerRequestType,
+  isSignTransactionsWithActionsSuccess,
+} from '../../../types/signer-worker';
+import { VRFChallenge } from '../../../types/vrf-worker';
+import { AccountId } from "../../../types/accountIds";
+import { ConfirmationConfig } from '../../../types/signer-worker';
+import { SignerWorkerManagerContext } from '..';
+
+
+/**
+ * Sign multiple transactions with shared VRF challenge and credential
+ * Efficiently processes multiple transactions with one PRF authentication
+ */
+export async function signTransactionsWithActions({
+  ctx,
+  transactions,
+  blockHash,
+  contractId,
+  vrfChallenge,
+  nearRpcUrl,
+  onEvent,
+  confirmationConfigOverride
+}: {
+  ctx: SignerWorkerManagerContext,
+  transactions: Array<{
+    nearAccountId: AccountId;
+    receiverId: string;
+    actions: ActionParams[];
+    nonce: string;
+  }>;
+  blockHash: string;
+  contractId: string;
+  vrfChallenge: VRFChallenge;
+  nearRpcUrl: string;
+  onEvent?: (update: onProgressEvents) => void;
+  confirmationConfigOverride?: ConfirmationConfig;
+}): Promise<Array<{
+  signedTransaction: SignedTransaction;
+  nearAccountId: AccountId;
+  logs?: string[]
+}>> {
+  try {
+    console.info(`WebAuthnManager: Starting batch transaction signing for ${transactions.length} transactions`);
+
+    if (transactions.length === 0) {
+      throw new Error('No transactions provided for batch signing');
+    }
+
+    // Validate all actions in all payloads
+    transactions.forEach((txPayload, txIndex) => {
+      txPayload.actions.forEach((action, actionIndex) => {
+        try {
+          validateActionParams(action);
+        } catch (error) {
+          throw new Error(`Transaction ${txIndex}, Action ${actionIndex} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      });
+    });
+
+    // All transactions should use the same account for signing
+    const nearAccountId = transactions[0].nearAccountId;
+
+    // Verify all payloads use the same account
+    for (const tx of transactions) {
+      if (tx.nearAccountId !== nearAccountId) {
+        throw new Error('All transactions must be signed by the same account');
+      }
+    }
+
+    // Retrieve encrypted key data from IndexedDB in main thread
+    console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
+    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
+    if (!encryptedKeyData) {
+      throw new Error(`No encrypted key found for account: ${nearAccountId}`);
+    }
+
+    // Credentials and PRF outputs are collected during user confirmation handshake
+
+    // Create transaction signing requests
+    const txSigningRequests = transactions.map(tx => ({
+      nearAccountId: tx.nearAccountId,
+      receiverId: tx.receiverId,
+      actions: JSON.stringify(tx.actions),
+      nonce: tx.nonce,
+      blockHash: blockHash
+    }));
+
+    // Send batch signing request to WASM worker
+    const response = await ctx.sendMessage({
+      message: {
+        type: WorkerRequestType.SignTransactionsWithActions,
+        payload: {
+          verification: {
+            contractId: contractId,
+            nearRpcUrl: nearRpcUrl,
+            vrfChallenge: vrfChallenge,
+          },
+          decryption: {
+            encryptedPrivateKeyData: encryptedKeyData.encryptedData,
+            encryptedPrivateKeyIv: encryptedKeyData.iv
+          },
+          txSigningRequests: txSigningRequests,
+          confirmationConfig: confirmationConfigOverride ? {
+            uiMode: confirmationConfigOverride.uiMode,
+            behavior: confirmationConfigOverride.behavior,
+            autoProceedDelay: confirmationConfigOverride.autoProceedDelay,
+          } : {
+            uiMode: ctx.confirmationConfig.uiMode,
+            behavior: ctx.confirmationConfig.behavior,
+            autoProceedDelay: ctx.confirmationConfig.autoProceedDelay,
+          }
+        }
+      },
+      onEvent
+    });
+
+    if (!isSignTransactionsWithActionsSuccess(response)) {
+      console.error('WebAuthnManager: Batch transaction signing failed:', response);
+      throw new Error('Batch transaction signing failed');
+    }
+    if (!response.payload.success) {
+      throw new Error(response.payload.error || 'Batch transaction signing failed');
+    }
+    // Extract arrays from the single result - wasmResult contains arrays of all transactions
+    const signedTransactions = response.payload.signedTransactions || [];
+    if (signedTransactions.length !== transactions.length) {
+      throw new Error(`Expected ${transactions.length} signed transactions but received ${signedTransactions.length}`);
+    }
+
+    // Process results for each transaction using WASM types directly
+    const results = signedTransactions.map((signedTx, index) => {
+      if (!signedTx || !signedTx.transaction || !signedTx.signature) {
+        throw new Error(`Incomplete signed transaction data received for transaction ${index + 1}`);
+      }
+
+      return {
+        signedTransaction: new SignedTransaction({
+          transaction: signedTx.transaction,
+          signature: signedTx.signature,
+          borsh_bytes: Array.from(signedTx.borshBytes || [])
+        }),
+        nearAccountId: transactions[index].nearAccountId,
+        logs: response.payload.logs
+      };
+    });
+
+    return results;
+
+  } catch (error: any) {
+    console.error('WebAuthnManager: Batch transaction signing error:', error);
+    throw error;
+  }
+}

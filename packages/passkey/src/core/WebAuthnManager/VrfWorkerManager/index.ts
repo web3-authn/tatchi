@@ -19,11 +19,11 @@ import type {
   WasmShamir3PassClientDecryptVrfKeypairRequest,
   WasmUnlockVrfKeypairRequest,
   WasmDeriveVrfKeypairFromPrfRequest,
-} from '../types/vrf-worker';
-import { VRFChallenge } from '../types/vrf-worker';
-import { BUILD_PATHS } from '../../../build-paths.js';
-import { AccountId, toAccountId } from '../types/accountIds';
-import { extractPrfFromCredential } from './credentialsHelpers';
+} from '../../types/vrf-worker';
+import { VRFChallenge } from '../../types/vrf-worker';
+import { BUILD_PATHS } from '../../../../build-paths.js';
+import { AccountId, toAccountId } from '../../types/accountIds';
+import { extractPrfFromCredential } from '../credentialsHelpers';
 
 /**
  * VRF Worker Manager
