@@ -5,8 +5,8 @@ import {
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
 import { type NearClient, SignedTransaction } from '../NearClient';
-import { SignerWorkerManager } from './signerWorkerManager';
-import { VrfWorkerManager } from './vrfWorkerManager';
+import { SignerWorkerManager } from './SignerWorkerManager';
+import { VrfWorkerManager } from './VrfWorkerManager';
 import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
@@ -440,11 +440,11 @@ export class WebAuthnManager {
     publicKey: string;
     signedTransaction?: SignedTransaction;
   }> {
-    return await this.signerWorkerManager.deriveNearKeypairAndEncrypt(
+    return await this.signerWorkerManager.deriveNearKeypairAndEncrypt({
       credential,
       nearAccountId,
-      options
-    );
+      options,
+    });
   }
 
   /**
@@ -479,11 +479,10 @@ export class WebAuthnManager {
     }
 
     // Use WASM worker to decrypt private key
-    const decryptionResult = await this.signerWorkerManager.decryptPrivateKeyWithPrf(
-      this.touchIdPrompt,
+    const decryptionResult = await this.signerWorkerManager.decryptPrivateKeyWithPrf({
       nearAccountId,
       authenticators,
-    );
+    });
 
     return {
       accountId: userData.nearAccountId,
@@ -537,15 +536,11 @@ export class WebAuthnManager {
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');
     }
-    let nearAccountId = transactions[0].nearAccountId;
-    const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
-
     return await this.signerWorkerManager.signTransactionsWithActions(
       {
         transactions,
         blockHash,
         contractId,
-        authenticators,
         vrfChallenge,
         nearRpcUrl,
         confirmationConfigOverride,
@@ -698,8 +693,6 @@ export class WebAuthnManager {
         };
       } else {
         console.warn('On-chain user registration failed - WASM worker returned unverified result');
-        // Note: This should never happen since WASM worker throws on failure
-        // But if it does, we don't have access to preSignedDeleteTransaction
         throw new Error('On-chain registration transaction failed');
       }
     } catch (error: any) {
@@ -748,10 +741,10 @@ export class WebAuthnManager {
       }
 
       // Call the WASM worker to derive and encrypt the keypair using dual PRF
-      const result = await this.signerWorkerManager.recoverKeypairFromPasskey(
-        authenticationCredential,
-        accountIdHint
-      );
+      const result = await this.signerWorkerManager.recoverKeypairFromPasskey({
+        credential: authenticationCredential,
+        accountIdHint,
+      });
 
        console.debug('WebAuthnManager: Deterministic keypair derivation successful');
        return result;

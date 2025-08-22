@@ -358,7 +358,6 @@ export class EmbeddedTxConfirmHost extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
-    console.log('[EmbeddedTxConfirmHost] Connected to DOM');
     this.setupClipPathSupport();
   }
 
@@ -535,7 +534,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
             container.style.top = `${data.buttonPosition.y}px`;
             container.style.left = `${data.buttonPosition.x}px`;
             container.style.transform = 'none'; // Remove centering transform
-            console.log('[EmbeddedTxConfirm iframe] Applied precise positioning:', data.buttonPosition);
+            console.debug('[EmbeddedTxConfirm iframe] Applied precise positioning:', data.buttonPosition);
           } else {
             // Retry after a short delay if container not ready
             setTimeout(applyPositioning, 10);
@@ -556,12 +555,10 @@ export class EmbeddedTxConfirmHost extends LitElement {
       // Set up message listener for parent communication
       window.addEventListener('message', (e: MessageEvent) => {
         const { type, payload } = e.data || {};
-        console.log('[EmbeddedTxConfirm iframe] Received message:', type, payload);
 
         switch (type) {
           case 'SET_TX_DATA':
-            console.log('[EmbeddedTxConfirm iframe] Received SET_TX_DATA:', payload);
-            console.log('[EmbeddedTxConfirm iframe] Element updateProperties available:', !!el.updateProperties);
+            console.debug('[EmbeddedTxConfirm iframe] Received SET_TX_DATA:', payload);
 
             if (el.updateProperties) {
               el.updateProperties({
@@ -577,7 +574,6 @@ export class EmbeddedTxConfirmHost extends LitElement {
                 el.requestUpdate();
               }
             }
-            console.log('[EmbeddedTxConfirm iframe] Set tx data complete');
             break;
 
           case 'SET_LOADING':
@@ -586,7 +582,6 @@ export class EmbeddedTxConfirmHost extends LitElement {
             } else {
               el.loading = !!payload;
             }
-            console.log('[EmbeddedTxConfirm iframe] Set loading:', !!payload);
             break;
 
           case 'SET_STYLE':
@@ -603,7 +598,7 @@ export class EmbeddedTxConfirmHost extends LitElement {
                 el.tooltip = payload.tooltipStyle;
               }
             }
-            console.log('[EmbeddedTxConfirm iframe] Set button styles:', payload);
+            console.debug('[EmbeddedTxConfirm iframe] Set button styles:', payload);
             break;
         }
       });

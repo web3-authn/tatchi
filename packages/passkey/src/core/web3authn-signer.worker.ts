@@ -58,7 +58,10 @@ import { resolveWasmUrl } from './wasm/wasmLoader';
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 const { handle_signer_message } = wasmModule;
-import { SecureConfirmMessageType } from './WebAuthnManager/signerWorkerManager';
+import {
+  SecureConfirmMessageType,
+  awaitSecureConfirmation,
+} from './WebAuthnManager/SignerWorkerManager/confirmTxFlow';
 
 let messageProcessed = false;
 
@@ -130,62 +133,8 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-// Bridge function called from Rust to await user confirmation on the main thread
-// Phase A: native confirm() via main thread, using a simple request/response message
-(globalThis as any).awaitSecureConfirmation = function awaitSecureConfirmation(
-  requestId: string,
-  summary: any,
-  digest: string,
-  txSigningRequestsJson: string | undefined
-): Promise<{
-  requestId: string;
-  intentDigest?: string;
-  confirmed: boolean;
-  credential?: any;
-  prfOutput?: string;
-}> {
-  return new Promise((resolve) => {
-    const onDecisionReceived = (e: MessageEvent) => {
-      const { data } = e;
-
-      if (
-        data?.type === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION &&
-        data?.data?.requestId === requestId
-      ) {
-        console.log('[signer-worker]: Decision matched! Resolving promise for requestId', requestId, data.data);
-        self.removeEventListener('message', onDecisionReceived as any);
-        resolve({
-          requestId,
-          intentDigest: data.data?.intentDigest,
-          confirmed: !!data.data?.confirmed,
-          credential: data.data?.credential,
-          prfOutput: data.data?.prfOutput,
-        });
-      }
-    };
-
-    self.addEventListener('message', onDecisionReceived as any);
-
-    // Parse summary and send confirmation request to main thread
-    const parsedSummary = typeof summary === 'string' ? safeJsonParse(summary, summary) : summary;
-
-    // Parse transaction signing requests if provided, otherwise use empty array
-    const parsedTxSigningRequests = txSigningRequestsJson ? safeJsonParse(txSigningRequestsJson, []) : [];
-
-    self.postMessage({
-      type: SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM,
-      data: {
-        requestId,
-        summary: parsedSummary,
-        intentDigest: digest,
-        tx_signing_requests: parsedTxSigningRequests,
-        nearAccountId: parsedSummary?.nearAccountId,
-        vrfChallenge: parsedSummary?.vrfChallenge,
-        confirmationConfig: parsedSummary?.confirmationConfig
-      }
-    });
-  });
-};
+// Expose the worker bridge for WASM to call
+(globalThis as any).awaitSecureConfirmation = awaitSecureConfirmation;
 
 /**
  * Initialize WASM module
@@ -251,9 +200,9 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
       await processWorkerMessage(event);
       break;
 
-    case eventType === SecureConfirmMessageType.PASSKEY_SECURE_CONFIRM_DECISION:
-      // Case 2: Secure confirmation decision - let it bubble to awaitSecureConfirmation listener
-      console.log('[signer-worker]: Secure confirmation decision received, allowing event to bubble');
+    case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
+      // Case 2: User confirmation response - let it bubble to awaitSecureConfirmation listener
+      console.log('[signer-worker]: User confirmation response received, allowing event to bubble');
       // By breaking here without consuming the event, the message continues to propagate
       // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmation
       break;

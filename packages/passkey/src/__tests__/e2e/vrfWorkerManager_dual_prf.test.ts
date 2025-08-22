@@ -12,7 +12,7 @@
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 import { BUILD_PATHS } from '@build-paths';
-import type { VrfWorkerManager } from '../../core/WebAuthnManager/vrfWorkerManager';
+import type { VrfWorkerManager } from '../../core/WebAuthnManager/VrfWorkerManager';
 import type { AccountId } from '../../core/types/accountIds';
 
 // Test configuration
@@ -47,7 +47,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
         console.log('Testing VRF Worker Manager import from built SDK...');
         // Import VrfWorkerManager directly from its built module
         // @ts-ignore - Runtime import path
-        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/vrfWorkerManager.js');
+        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager.js');
         const vrfWorkerManager = new VrfWorkerManager({
           vrfWorkerUrl: testConfig.VRF_WORKER_URL,
           workerTimeout: 15000,
@@ -85,7 +85,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
       try {
         // Import VRF Worker Manager from built SDK
         // @ts-ignore - Runtime import path
-        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/vrfWorkerManager.js');
+        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager.js');
         console.log('Testing VRF Worker Manager initialization...');
         // Create VRF Worker Manager with test configuration
         const vrfWorkerManager = new VrfWorkerManager({
@@ -137,7 +137,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     const result = await page.evaluate(async (testConfig) => {
       try {
         // @ts-ignore - Runtime import path
-        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/vrfWorkerManager.js');
+        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager.js');
         console.log('Testing VRF bootstrap keypair generation...');
         const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
         await vrfWorkerManager.initialize();
@@ -226,7 +226,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     const result = await page.evaluate(async (testConfig) => {
       try {
         // @ts-ignore - Runtime import path
-        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/vrfWorkerManager.js');
+        const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager.js');
         console.log('Testing deterministic VRF keypair derivation from PRF...');
         const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
         await vrfWorkerManager.initialize();
