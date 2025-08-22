@@ -55,6 +55,10 @@
   margin-bottom: 0;
 }
 
+.input-wrapper {
+  position: relative;
+}
+
 /* Auth Buttons */
 .passkey-auth-buttons {
   display: flex;

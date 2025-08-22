@@ -115,7 +115,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                 tooltipStyle={{
                   width: '300px',
                   height: '300px',
-                  position: 'right',
+                  position: 'bottom-left',
                   offset: '8px'
                 }}
                 onError={(error) => {

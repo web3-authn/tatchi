@@ -5,8 +5,8 @@
 }
 
 .link-device-scan-header {
-  padding: var(--w3a-gap-4);
-  margin: var(--w3a-gap-4);
+  padding: var(--w3a-gap-2);
+  margin: var(--w3a-gap-2);
   border-bottom: 1px solid var(--w3a-border);
   text-align: center;
 }
@@ -28,14 +28,14 @@
 .link-device-scan-content {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-4);
+  gap: var(--w3a-gap-2);
 }
 
 /* Device Linking Section */
 .link-device-scan-section {
   display: flex;
   flex-direction: column;
-  padding: var(--w3a-gap-4);
+  padding: var(--w3a-gap-2);
   border-radius: var(--w3a-radius-md);
 }
 
@@ -43,8 +43,8 @@
 .link-device-scan-auth-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-2);
-  margin-bottom: var(--w3a-gap-2);
+  gap: var(--w3a-gap-1);
+  margin-bottom: var(--w3a-gap-1);
   width: 100%;
 }
 
@@ -53,8 +53,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--w3a-gap-2);
-  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  gap: var(--w3a-gap-1);
+  padding: var(--w3a-gap-2) var(--w3a-gap-3);
   border: none;
   border-radius: var(--w3a-radius-sm);
   font-size: var(--w3a-text-sm);
