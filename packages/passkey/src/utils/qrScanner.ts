@@ -146,6 +146,9 @@ export class ScanQRCodeFlow {
 
   /**
    * Stop scanning and cleanup resources
+   *
+   * This method stops the scanning process and cleans up all internal resources.
+   * For React contexts with external video elements, use destroy() instead.
    */
   stop(): void {
     this.setState(ScanQRCodeFlowState.CANCELLED);
@@ -348,24 +351,17 @@ export class ScanQRCodeFlow {
       this.progressIntervalId = null;
     }
 
-    // Stop media stream
+    // MediaStream Cleanup: Stop all tracks and clear all video references
+    // This ensures camera light turns off regardless of how the video element is managed
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());
       this.mediaStream = null;
     }
 
-    // Clear video source (but don't remove the element if externally provided)
+    // Clear all video sources to ensure no lingering MediaStream references
     if (this.video) {
       this.video.srcObject = null;
     }
-  }
-
-  /**
-   * Cleanup resources when flow is destroyed
-   */
-  destroy(): void {
-    this.stop();
-    this.video = null;
   }
 }
 

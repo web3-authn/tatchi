@@ -88,7 +88,8 @@ export const useQRCamera = (options: UseQRCameraOptions): UseQRCameraReturn => {
   const [isFrontCamera, setIsFrontCamera] = useState<boolean>(false);
   const [scanDurationMs, setScanDurationMs] = useState<number>(0);
 
-  // Initialize flow
+  // Create ScanQRCodeFlow instance
+  // This is the core scanning engine that handles camera access and QR detection
   useEffect(() => {
     flowRef.current = new ScanQRCodeFlow(
       {
@@ -130,7 +131,8 @@ export const useQRCamera = (options: UseQRCameraOptions): UseQRCameraReturn => {
 
     return () => {
       if (flowRef.current) {
-        flowRef.current.destroy();
+        // Hook Cleanup Point 1: Stop scanning and cleanup
+        flowRef.current.stop();
         flowRef.current = null;
       }
     };
@@ -176,7 +178,7 @@ export const useQRCamera = (options: UseQRCameraOptions): UseQRCameraReturn => {
     };
   }, [videoRef.current]);
 
-  // Start/stop scanning based on isOpen and scanMode
+  // Hook Cleanup Point 2: (when modal closes or scan mode changes from camera to file)
   useEffect(() => {
     const flow = flowRef.current;
     if (!flow) return;
@@ -206,6 +208,7 @@ export const useQRCamera = (options: UseQRCameraOptions): UseQRCameraReturn => {
     }
   }, []);
 
+  // Hook Cleanup Point 3: called when user explicitly stops scanning
   const stopScanning = useCallback(() => {
     if (flowRef.current) {
       flowRef.current.stop();

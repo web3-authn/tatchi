@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -64,7 +64,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   showFileUpload = false,
 }) => {
 
-  // Initialize device linking hook
   const { linkDevice } = useDeviceLinking({
     onDeviceLinked,
     onError,
@@ -91,27 +90,59 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     onError
   });
 
-  // Handle close with camera cleanup
+  // Camera Cleanup Point 1: User-initiated close
   const handleClose = useCallback(() => {
     qrCamera.stopScanning();
     onClose?.();
-  }, [qrCamera.stopScanning, onClose]);
+  }, [qrCamera.stopScanning, qrCamera.isScanning, qrCamera.videoRef, onClose]);
 
-  // Enhanced file upload that stops camera first
+  // Camera Cleanup Point 2: Component unmount
+  useEffect(() => {
+    return () => {
+      if (qrCamera.isScanning) {
+        qrCamera.stopScanning();
+      }
+    };
+  }, []);
+
+  // Camera Cleanup Point 3: Modal state changes (isOpen prop)
+  useEffect(() => {
+    if (!isOpen && qrCamera.isScanning) {
+      qrCamera.stopScanning();
+    }
+  }, [isOpen, qrCamera.isScanning, qrCamera.stopScanning, qrCamera.videoRef]);
+
+  // Camera Cleanup Point 4: ESC key handling
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleClose]);
+
+  // Camera Cleanup Point 5: File upload mode switch
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     // Stop camera scanning first to avoid conflicts
     if (qrCamera.isScanning) {
       qrCamera.stopScanning();
     }
-
     // Reset any camera errors
     qrCamera.setError(null);
-
     // Handle the file upload
     await fileUpload.handleFileUpload(event);
   }, [qrCamera, fileUpload.handleFileUpload]);
 
-  // Don't render if not open
+  // Early return for closed state:
+  // Prevents unnecessary rendering when modal is closed
+  // Note: Camera cleanup is handled by the useEffect hooks above, not by conditional rendering
   if (!isOpen) return null;
 
   // Determine processing state from camera or file upload
