@@ -6,7 +6,6 @@ import type {
 } from '@/index';
 import { useQRCamera, QRScanMode } from '../hooks/useQRCamera';
 import { useDeviceLinking } from '../hooks/useDeviceLinking';
-import { useQRFileUpload } from '../hooks/useQRFileUpload';
 
 /**
  * QR Code Scanner Component for Device Linking
@@ -46,7 +45,6 @@ export interface QRCodeScannerProps {
   className?: string;
   style?: React.CSSProperties;
   showCamera?: boolean;
-  showFileUpload?: boolean;
 }
 
 export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
@@ -61,7 +59,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   className,
   style,
   showCamera = true,
-  showFileUpload = false,
 }) => {
 
   const { linkDevice } = useDeviceLinking({
@@ -80,14 +77,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     onError,
     isOpen: showCamera ? isOpen : false, // Only active when camera should be shown
     cameraId
-  });
-
-  const fileUpload = useQRFileUpload({
-    onQRDetected: async (qrData: DeviceLinkingQRData) => {
-      onQRCodeScanned?.(qrData);
-      await linkDevice(qrData, QRScanMode.FILE);
-    },
-    onError
   });
 
   // Camera Cleanup Point 1: User-initiated close
@@ -128,25 +117,11 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     };
   }, [isOpen, handleClose]);
 
-  // Camera Cleanup Point 5: File upload mode switch
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Stop camera scanning first to avoid conflicts
-    if (qrCamera.isScanning) {
-      qrCamera.stopScanning();
-    }
-    // Reset any camera errors
-    qrCamera.setError(null);
-    // Handle the file upload
-    await fileUpload.handleFileUpload(event);
-  }, [qrCamera, fileUpload.handleFileUpload]);
-
-  // Early return for closed state:
-  // Prevents unnecessary rendering when modal is closed
-  // Note: Camera cleanup is handled by the useEffect hooks above, not by conditional rendering
-  if (!isOpen) return null;
-
-  // Determine processing state from camera or file upload
-  const isProcessing = qrCamera.isProcessing || fileUpload.isProcessing;
+  // Early return for closed state to prevent unnecessary rendering when modal is closed
+  // Note: Camera cleanup is handled by useEffect() above, not by conditional rendering
+  if (!isOpen) {
+    return null;
+  }
 
   if (qrCamera.error) {
     return (
@@ -208,12 +183,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
           {/* Instructions */}
           <div className="qr-scanner-instructions">
             <p>Position the QR code within the frame</p>
-            <p className="qr-scanner-sub-instruction">
-              {isProcessing
-                ? 'Processing QR code...'
-                : 'The camera will automatically scan when a QR code is detected'
-              }
-            </p>
             {qrCamera.isScanning && (
               <p className="qr-scanner-sub-instruction qr-scanner-sub-instruction--small">
                 Scanning...
@@ -238,59 +207,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
             </div>
           )}
         </div>
-      )}
-
-      {/* File Upload Section */}
-      {!showCamera && showFileUpload && (
-        <div className="qr-scanner-file-section">
-          <div className="qr-scanner-instructions">
-            <p>Upload QR Code Image</p>
-            <p className="qr-scanner-sub-instruction">
-              Click the upload button below to select a QR code image from your device
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Mode Controls */}
-      {(showCamera || showFileUpload) && (
-        <div className="qr-scanner-mode-controls">
-          {showCamera && (
-            <button
-              onClick={() => qrCamera.setScanMode(QRScanMode.CAMERA)}
-              className={
-                (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
-                  ? 'qr-scanner-mode-button--active'
-                  : 'qr-scanner-mode-button'
-              }
-            >
-              Camera
-            </button>
-          )}
-          {showFileUpload && (
-            <button
-              onClick={() => {
-                qrCamera.setScanMode(QRScanMode.FILE);
-                fileUpload.fileInputRef.current?.click();
-              }}
-              className="qr-scanner-mode-button"
-              disabled={isProcessing}
-            >
-              Upload
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Hidden File Input */}
-      {showFileUpload && (
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          ref={fileUpload.fileInputRef}
-          style={{ display: 'none' }}
-        />
       )}
 
       {/* Close Button */}

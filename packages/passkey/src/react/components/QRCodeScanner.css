@@ -4,6 +4,7 @@
   position: fixed;
   inset: 0;
   background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
   z-index: 9999;
   display: flex;
   justify-content: center;
@@ -147,41 +148,6 @@
   display: flex;
   gap: 10px;
   justify-content: center;
-}
-
-.qr-scanner-mode-button {
-  background-color: rgba(0, 0, 0, 0.7);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
-  min-width: 80px;
-}
-
-.qr-scanner-mode-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.qr-scanner-mode-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.qr-scanner-mode-button--active {
-  background-color: rgba(74, 222, 128, 0.2);
-  color: white;
-  border: 1px solid #4ade80;
-  border-radius: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  cursor: pointer;
-  backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
-  min-width: 80px;
 }
 
 .qr-scanner-close {
