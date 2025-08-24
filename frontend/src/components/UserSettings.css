@@ -259,7 +259,7 @@
   flex-direction: column;
   gap: var(--w3a-gap-2);
   max-height: 300px;
-  overflow-y: auto;
+  overflow: visible;
 }
 
 .key-item {
@@ -277,9 +277,8 @@
 
 .key-content {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: var(--w3a-gap-3);
+  justify-content: center;
+  align-items: center;
 }
 
 .key-details {
@@ -289,11 +288,9 @@
 
 .key-details .mono {
   word-break: break-all;
-  margin-bottom: var(--w3a-gap-1);
 }
 
 .key-details .body {
-  margin-bottom: var(--w3a-gap-1);
 }
 
 .key-details .body:last-child {
@@ -318,8 +315,6 @@
 .key-header {
   display: flex;
   align-items: center;
-  gap: var(--w3a-gap-2);
-  margin-bottom: var(--w3a-gap-1);
 }
 
 .copyable-key {

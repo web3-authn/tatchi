@@ -6,7 +6,7 @@ import { usePasskeyContext, DeviceLinkingPhase, DeviceLinkingStatus } from '@web
 import { QRCodeScanner } from '@web3authn/passkey/react'
 
 import { GlassBorder } from './GlassBorder';
-import './LinkDeviceScanQR.css'
+import './LinkDeviceScanQRExample.css'
 
 export function LinkDeviceScanQR() {
   const {
