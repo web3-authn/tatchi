@@ -1,0 +1,93 @@
+/* ProfileDropdown component-specific styles */
+
+/* Dropdown (grid height animation with data-state) */
+.w3a-profile-dropdown-morphed {
+  position: static;
+  box-sizing: border-box;
+  margin-top: 0;
+  opacity: 0;
+  visibility: hidden;
+  display: grid;
+  grid-template-rows: 0fr;
+  grid-template-columns: 1fr;
+  transition: opacity 120ms linear, grid-template-rows 140ms cubic-bezier(0.16, 1, 0.3, 1);
+  border-top: 1px solid rgb(243, 244, 246);
+}
+
+.w3a-profile-dropdown-morphed[data-state="open"] {
+  opacity: 1;
+  visibility: visible;
+  grid-template-rows: 1fr;
+  grid-template-columns: 1fr;
+  pointer-events: auto;
+  --stagger-base: 80ms;
+}
+
+.w3a-profile-dropdown-morphed[data-state="closed"] {
+  pointer-events: none;
+  border-top-width: 0;
+  grid-template-rows: 0fr;
+  height: 0;
+  min-height: 0;
+  width: 0;
+  min-width: 0;
+  max-width: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.w3a-profile-dropdown-morphed.hidden {
+  display: none;
+}
+
+/* Inner clip and container */
+.w3a-profile-dropdown-menu {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+  padding: 8px 0px 0px 0px;
+}
+
+/* Menu item animation states */
+
+.w3a-profile-dropdown-morphed[data-state="closed"] .w3a-dropdown-menu-item {
+  opacity: 0;
+  transform: translateX(-1rem);
+  animation: none;
+}
+
+.w3a-profile-dropdown-morphed[data-state="open"] .w3a-dropdown-menu-item {
+  animation: w3a-profile-menu-item-enter 240ms linear forwards;
+  animation-delay: calc(var(--stagger-base, 0ms) + var(--stagger-item-n, 0) * 40ms);
+}
+
+/* Menu Item Animation Keyframes */
+@keyframes w3a-profile-menu-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes w3a-profile-menu-item-exit {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-1rem);
+  }
+}
+
+/* Logout menu item specific styling */
+.w3a-logout-menu-item {
+  border-top: 1px solid var(--w3a-border);
+  border-radius: 0px 0px 12px 12px;
+  margin-top: 8px;
+}

@@ -25,6 +25,7 @@ interface ToggleProps {
   size?: 'small' | 'large';
   textPosition?: 'left' | 'right';
   colors?: ToggleColorProps;
+  disabled?: boolean;
 }
 
 export const Toggle: React.FC<ToggleProps> = ({
@@ -37,6 +38,7 @@ export const Toggle: React.FC<ToggleProps> = ({
   size = 'small',
   textPosition = 'left',
   colors = TOGGLE_COLORS,
+  disabled = false,
 }) => {
   const isLarge = size === 'large';
   const isTextOnLeft = textPosition === 'left';
@@ -59,10 +61,10 @@ export const Toggle: React.FC<ToggleProps> = ({
         {...(tooltip && showTooltip && { 'data-tooltip': tooltip })}
         style={{
           position: 'relative',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           userSelect: 'none',
           fontWeight: '500',
-          color: '#333333',
+          color: disabled ? '#999999' : '#333333',
           flexDirection: isTextOnLeft ? 'row-reverse' : 'row',
           ...(isLarge && {
             display: 'flex',
@@ -74,8 +76,9 @@ export const Toggle: React.FC<ToggleProps> = ({
         <input
           type="checkbox"
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
+          onChange={(e) => !disabled && onChange(e.target.checked)}
           className="toggle-checkbox"
+          disabled={disabled}
           style={{
             opacity: 0,
             position: 'absolute',
@@ -89,12 +92,20 @@ export const Toggle: React.FC<ToggleProps> = ({
             display: 'inline-block',
             width: isLarge ? '44px' : '32px',
             height: isLarge ? '24px' : '16px',
-            backgroundColor: checked ? colors.activeBackground : colors.inactiveBackground,
+            backgroundColor: disabled
+              ? '#e5e5e5'
+              : checked
+                ? colors.activeBackground
+                : colors.inactiveBackground,
             borderRadius: isLarge ? '12px' : '8px',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            cursor: 'pointer',
-            transform: checked ? 'scale(1.02)' : 'scale(1)',
-            boxShadow: checked ? `0 2px 8px ${colors.activeShadow}` : `0 1px 3px ${colors.inactiveShadow}`,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            transform: disabled ? 'scale(1)' : checked ? 'scale(1.02)' : 'scale(1)',
+            boxShadow: disabled
+              ? 'none'
+              : checked
+                ? `0 2px 8px ${colors.activeShadow}`
+                : `0 1px 3px ${colors.inactiveShadow}`,
             ...(isLarge && {
               [isTextOnLeft ? 'marginLeft' : 'marginRight']: '12px'
             })
@@ -108,15 +119,19 @@ export const Toggle: React.FC<ToggleProps> = ({
               width: isLarge ? '18px' : '12px',
               left: isLarge ? '3px' : '2px',
               bottom: isLarge ? '3px' : '2px',
-              backgroundColor: 'white',
+              backgroundColor: disabled ? '#cccccc' : 'white',
               borderRadius: '50%',
-              transform: checked
-                ? `translateX(${isLarge ? '20px' : '15px'}) scale(1.1)`
-                : 'translateX(0px) scale(1)',
+              transform: disabled
+                ? 'translateX(0px) scale(1)'
+                : checked
+                  ? `translateX(${isLarge ? '20px' : '15px'}) scale(1.1)`
+                  : 'translateX(0px) scale(1)',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: checked
-                ? '0 3px 12px rgba(0, 0, 0, 0.3)'
-                : '0 1px 2px rgba(0, 0, 0, 0.2)'
+              boxShadow: disabled
+                ? 'none'
+                : checked
+                  ? '0 3px 12px rgba(0, 0, 0, 0.3)'
+                  : '0 1px 2px rgba(0, 0, 0, 0.2)'
             }}
           />
         </span>
@@ -126,7 +141,7 @@ export const Toggle: React.FC<ToggleProps> = ({
           style={{
             fontWeight: '500',
             fontSize: isLarge ? '14px' : '0.8rem',
-            color: '#333333',
+            color: disabled ? '#999999' : '#333333',
             [isTextOnLeft ? 'marginRight' : 'marginLeft']: isLarge ? '0' : '8px',
             display: 'flex',
             alignItems: 'center',

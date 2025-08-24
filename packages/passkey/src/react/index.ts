@@ -107,15 +107,15 @@ export {
 export type {
   ProfileDimensions,
   ProfileAnimationConfig,
-  ProfileMenuItem,
+  MenuItem,
   ProfileButtonProps,
-  ProfileTriggerProps,
+  UserAccountButtonProps,
   ProfileDropdownProps,
-  ProfileMenuItemProps,
-  ProfileLogoutSectionProps,
+  MenuItemProps,
+  LogoutMenuItemProps,
   ProfileRelayerToggleSectionProps,
   ProfileStateRefs,
-  ProfileCalculationParams,
+  DeviceLinkingScannerParams,
   ToggleColorProps,
 } from './components/ProfileSettingsButton/types';
 

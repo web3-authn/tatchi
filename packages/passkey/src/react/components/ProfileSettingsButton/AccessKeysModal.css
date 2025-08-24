@@ -1,0 +1,342 @@
+/* Access Keys Modal Styles */
+
+.w3a-access-keys-modal-outer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: 100%;
+  display: grid;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.w3a-access-keys-modal-inner {
+  width: 100%;
+  max-width: 480;
+  border-radius: var(--w3a-radius);
+  box-shadow: 0 4px 12px var(--w3a-shadow);
+  overflow: visible;
+}
+
+.w3a-access-keys-modal-glass {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--w3a-surface-solid);
+  position: relative;
+  overflow: visible;
+}
+
+.w3a-access-keys-modal-header {
+  display: flex;
+  justify-content: space-between;
+  box-sizing: border-box;
+  align-items: center;
+  padding: var(--w3a-gap-4);
+  padding-bottom: var(--w3a-gap-3);
+  border-bottom: 1px solid var(--w3a-border);
+  margin-bottom: var(--w3a-gap-4);
+}
+
+.w3a-access-keys-modal-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--w3a-text);
+  margin: 0;
+}
+
+.w3a-access-keys-modal-close {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--w3a-text-dim);
+  cursor: pointer;
+  padding: var(--w3a-gap-2);
+  border-radius: var(--w3a-radius-sm);
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+}
+
+.w3a-access-keys-modal-close:hover {
+  color: var(--w3a-text);
+  background: var(--w3a-bg);
+}
+
+.w3a-access-keys-modal-content {
+  flex: 1;
+  overflow: visible;
+  min-height: 200px;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Loading, error, and empty states */
+.w3a-access-keys-error,
+.w3a-access-keys-empty {
+  text-align: center;
+  padding: var(--w3a-gap-6);
+  color: var(--w3a-text-dim);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.w3a-access-keys-error {
+  color: #dc2626;
+}
+
+.w3a-access-keys-error .w3a-btn {
+  margin-top: var(--w3a-gap-3);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .w3a-access-keys-modal-outer {
+    padding: var(--w3a-gap-2);
+  }
+
+  .w3a-access-keys-modal-inner {
+    max-width: 100%;
+    max-height: 90vh;
+  }
+
+  .w3a-access-keys-modal-header {
+    padding: var(--w3a-gap-3);
+  }
+
+  .w3a-access-keys-modal-content {
+    padding: 0 var(--w3a-gap-3) var(--w3a-gap-3);
+    max-width: 480px;
+  }
+}
+
+@media (max-width: 480px) {
+  .w3a-key-item {
+    max-width: 100%;
+  }
+}
+
+/* Access Keys List */
+.w3a-keys-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w3a-gap-2);
+  flex: 1;
+  overflow-x: visible;
+}
+
+.w3a-key-item {
+  height: 62px;
+  box-sizing: border-box;
+  width: 480px; /* 100% on screens smaller than 480px */
+  background: var(--slate-grey-100);
+  border: 1px solid var(--w3a-border);
+  border-radius: var(--w3a-radius-sm);
+  padding: var(--w3a-gap-3);
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  overflow: visible;
+  animation: fadeInKeyItem 0.2s ease-in;
+}
+
+.w3a-key-item:hover {
+  border-color: var(--w3a-border-strong);
+  box-shadow: 0 2px 4px var(--w3a-shadow);
+}
+
+.w3a-key-content {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: var(--w3a-gap-3);
+}
+
+.w3a-key-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.w3a-key-details .mono {
+  word-break: break-all;
+}
+
+.w3a-key-details .body {
+  margin-bottom: 0;
+}
+
+.w3a-key-details .body:last-child {
+  margin-bottom: 0;
+}
+
+.w3a-key-status {
+  flex-shrink: 0;
+}
+
+.w3a-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  padding: 2px var(--w3a-gap-2);
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.w3a-key-header {
+  display: flex;
+  align-items: center;
+  gap: var(--w3a-gap-2);
+}
+
+.w3a-copyable-key {
+  cursor: pointer;
+  flex: 1;
+  margin: 0;
+  transition: all var(--w3a-fast) var(--w3a-ease);
+}
+
+.w3a-copyable-key:hover {
+  cursor: pointer;
+  color: var(--cobalt-primary);
+}
+
+/* Tooltip styles */
+.w3a-copyable-key {
+  position: relative;
+}
+
+.w3a-copy-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--w3a-text);
+  color: var(--w3a-surface-solid);
+  padding: var(--w3a-gap-1) var(--w3a-gap-2);
+  border-radius: var(--w3a-radius-sm);
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 10000;
+  margin-bottom: var(--w3a-gap-1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  animation: tooltipFadeIn 0.2s ease-in-out;
+  pointer-events: none;
+}
+
+.w3a-copy-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: var(--w3a-text);
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.w3a-status-badge.w3a-full-access {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.w3a-status-badge.w3a-function-call {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.w3a-status-badge.w3a-copied {
+  background: #dcfce7;
+  color: #166534;
+  animation: copiedPulse 0.3s ease-in-out;
+}
+
+@keyframes copiedPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Button System */
+.w3a-btn {
+  padding: var(--w3a-gap-2) var(--w3a-gap-3);
+  border: none;
+  border-radius: var(--w3a-radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--w3a-fast) var(--w3a-ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--w3a-gap-1);
+  font-family: var(--w3a-font-sans);
+}
+
+.w3a-btn-primary {
+  background: var(--cobalt-primary);
+  color: white;
+}
+
+.w3a-btn-primary:hover:not(:disabled) {
+  background: var(--cobalt-primary-hover);
+  box-shadow: 0 2px 4px var(--cobalt-shadow);
+  transform: translateY(-1px);
+}
+
+.w3a-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.w3a-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--w3a-border);
+  border-top: 2px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes fadeInKeyItem {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}

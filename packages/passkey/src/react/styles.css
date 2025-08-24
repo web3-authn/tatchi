@@ -2,6 +2,12 @@
 
 /* Import ProfileSettingsButton styles */
 @import './components/ProfileSettingsButton/Web3AuthProfileButton.css';
+@import './components/ProfileSettingsButton/ProfileDropdown.css';
+@import './components/ProfileSettingsButton/AccessKeysModal.css';
+@import './components/ProfileSettingsButton/GlassBorder.css';
+@import './components/ProfileSettingsButton/TransactionSettingsSection.css';
+@import './components/ProfileSettingsButton/UserAccountButton.css';
+@import './components/ProfileSettingsButton/MenuItem.css';
 
 /* Import QRCodeScanner styles */
 @import './components/QRCodeScanner.css';

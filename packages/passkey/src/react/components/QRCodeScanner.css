@@ -3,13 +3,17 @@
 .qr-scanner-modal {
   position: fixed;
   inset: 0;
-  background-color: rgba(0, 0, 0, 0.8);
-  backdrop-filter: blur(6px);
   z-index: 9999;
   display: flex;
   justify-content: center;
   align-items: center;
   flex-direction: column;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(6px);
+  animation: qr-scanner-modal-fade-in 100ms ease-out both;
+  transition: background-color 0.1s ease-in-out, backdrop-filter 0.2s ease-in-out;
+  /* add a subtle background pattern */
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23424242' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
   /* Safe area insets for mobile notch devices */
   padding-top: max(env(safe-area-inset-top), 20px);
   padding-bottom: max(env(safe-area-inset-bottom), 20px);
@@ -17,7 +21,37 @@
   padding-right: max(env(safe-area-inset-right), 20px);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .qr-scanner-modal {
+    animation: none;
+    transition: none;
+  }
+}
+
+@keyframes qr-scanner-modal-fade-in {
+  from {
+    background-color: rgba(0, 0, 0, 0);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(6px);
+  }
+}
+
+@keyframes qr-scanner-video-fade-in {
+  from {
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
 .qr-scanner-camera-container {
+  background-color: #333;
   position: relative;
   display: inline-block;
 }
@@ -31,6 +65,20 @@
   display: block;
   margin: 0 auto; /* Center the video element itself */
   transform: translateX(0); /* Ensure no horizontal offset */
+  opacity: 0;
+}
+
+.qr-scanner-video.is-ready {
+  animation: qr-scanner-video-fade-in 200ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-scanner-video {
+    opacity: 1;
+  }
+  .qr-scanner-video.is-ready {
+    animation: none;
+  }
 }
 
 .qr-scanner-canvas {
@@ -52,8 +100,8 @@
 .qr-scanner-box {
   width: 394px;
   height: 394px;
-  border: 2px solid rgba(74, 222, 128, 0.6);
-  border-radius: 10px;
+  border: 3px solid rgba(74, 222, 128, 0.7);
+  border-radius: 12px;
   position: relative;
   background: transparent;
   box-shadow: 0 0 15px rgba(74, 222, 128, 0.4);

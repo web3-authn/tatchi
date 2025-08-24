@@ -1,0 +1,97 @@
+/* Expander (TransactionSettingsSection) */
+.w3a-dropdown-tx-settings-root {
+  background-color: var(--w3a-surface-solid);
+  transform-origin: top;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.w3a-dropdown-tx-settings-root.is-expanded {
+  border-top: 1px solid var(--w3a-border);
+  border-bottom: 1px solid var(--w3a-border);
+  background-color: var(--slate-grey-100);
+  grid-template-rows: 1fr;
+}
+
+.w3a-dropdown-toggle-tx-settings {
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+}
+
+.w3a-dropdown-toggle-tx-settings-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16px;
+  transition: opacity 200ms ease, transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.w3a-dropdown-tx-settings-root.is-expanded .w3a-dropdown-toggle-tx-settings-content {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Slider styles used inside the expander */
+.w3a-slider-root {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.w3a-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.w3a-slider-container .form-label {
+  text-align: right;
+}
+
+.w3a-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--w3a-border);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.w3a-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--cobalt-primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.w3a-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--cobalt-primary);
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.w3a-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--w3a-text-dim);
+}
+

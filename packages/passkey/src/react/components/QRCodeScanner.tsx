@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -79,6 +79,15 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     cameraId
   });
 
+  const [isVideoReady, setIsVideoReady] = useState(false);
+
+  // Reset video ready state when modal opens so we can re-fade
+  useEffect(() => {
+    if (isOpen) {
+      setIsVideoReady(false);
+    }
+  }, [isOpen]);
+
   // Camera Cleanup Point 1: User-initiated close
   const handleClose = useCallback(() => {
     qrCamera.stopScanning();
@@ -156,13 +165,15 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
           <div className="qr-scanner-camera-container">
             <video
               ref={qrCamera.videoRef}
-              className="qr-scanner-video"
+              className={`qr-scanner-video${isVideoReady ? ' is-ready' : ''}`}
               style={{
                 transform: qrCamera.isFrontCamera ? 'scaleX(-1)' : 'none'
               }}
               playsInline
               autoPlay
               muted
+              onCanPlay={() => setIsVideoReady(true)}
+              onLoadedData={() => setIsVideoReady(true)}
             />
             <canvas
               ref={qrCamera.canvasRef}
