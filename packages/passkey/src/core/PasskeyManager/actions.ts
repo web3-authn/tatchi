@@ -1,11 +1,10 @@
-import type { AccessKeyView } from '@near-js/types';
 import { ActionParams } from '../types';
 import { ActionType } from '../types/actions';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { ActionArgs } from '../types/actions';
 import type { ActionHooksOptions, ActionResult } from '../types/passkeyManager';
 import type { ConfirmationConfig } from '../types/signer-worker';
-import type { TransactionContext, BlockInfo } from '../types/rpc';
+import type { TransactionContext } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
 import type { NearClient } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
@@ -13,6 +12,15 @@ import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 
 /**
  * Public API for executing actions - respects user confirmation preferences
+ * executeAction signs a single transaction (with actions[]) to a single receiver.
+ * If you want to sign multiple transactions to different receivers,
+ * use signTransactionsWithActions() instead.
+ *
+ * @param context - PasskeyManager context
+ * @param nearAccountId - NEAR account ID to sign transactions with
+ * @param actionArgs - Action arguments to sign transactions with
+ * @param options - Options for the action
+ * @returns Promise resolving to the action result
  */
 export async function executeAction(
   context: PasskeyManagerContext,
@@ -27,6 +35,12 @@ export async function executeAction(
 /**
  * Internal API for executing actions with optional confirmation override
  * @internal - Only used by internal SDK components like EmbeddedTxConfirm
+ *
+ * @param context - PasskeyManager context
+ * @param nearAccountId - NEAR account ID to sign transactions with
+ * @param actionArgs - Action arguments to sign transactions with
+ * @param options - Options for the action
+ * @returns Promise resolving to the action result
  */
 export async function executeActionInternal(
   context: PasskeyManagerContext,

@@ -2,6 +2,7 @@ import { WebAuthnManager } from '../WebAuthnManager';
 import { registerPasskey } from './registration';
 import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
 import { executeAction } from './actions';
+import { signTransactionsWithActions, sendTransaction } from './signSendTransactions';
 import { recoverAccount, AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import {
   MinimalNearClient,
@@ -9,6 +10,7 @@ import {
   type SignedTransaction,
   type AccessKeyList,
 } from '../NearClient';
+import type { FinalExecutionOutcome } from '@near-js/types';
 import type {
   PasskeyManagerConfigs,
   RegistrationResult,
@@ -24,7 +26,7 @@ import type {
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { ActionType, type ActionArgs } from '../types/actions';
+import { ActionType, type ActionArgs, type ActionParams, TxExecutionStatus } from '../types/actions';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -252,6 +254,107 @@ export class PasskeyManager {
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
     return executeAction(this.getContext(), toAccountId(nearAccountId), actionArgs, options);
+  }
+
+  /**
+   * Batch sign transactions (with actions), allows you to sign transactions
+   * to different receivers with a single TouchID prompt.
+   * This method does not broadcast transactions, use sendTransaction() to do that.
+   *
+   * This method fetches the current nonce and increments it for the next N transactions,
+   * so you do not need to manually increment the nonce for each transaction.
+   *
+   * @param nearAccountId - NEAR account ID to sign transactions with
+   * @param params - Transaction signing parameters
+   * - @param params.transactions: Array of transaction objects with nearAccountId, receiverId, actions, and nonce
+   * - @param params.onEvent: Optional progress event callback
+   * @returns Promise resolving to signed transaction results
+   *
+   * @example
+   * ```typescript
+   * // Sign a single transaction
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [{
+   *     receiverId: 'bob.near',
+   *     actions: [{
+   *       action_type: ActionType.Transfer,
+   *       deposit: '1000000000000000000000000'
+   *     }],
+   *   }],
+   *   onEvent: (event) => console.log('Signing progress:', event)
+   * });
+   *
+   * // Sign multiple transactions in a batch
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [
+   *     {
+   *       receiverId: 'bob.near',
+   *       actions: [{
+   *         action_type: ActionType.Transfer,
+   *         deposit: '1000000000000000000000000'
+   *       }],
+   *     },
+   *     {
+   *       receiverId: 'contract.near',
+   *       actions: [{
+   *         action_type: ActionType.FunctionCall,
+   *         method_name: 'log_transfer',
+   *         args: JSON.stringify({ recipient: 'bob.near' }),
+   *         gas: '30000000000000',
+   *         deposit: '0'
+   *       }],
+   *     }
+   *   ]
+   * });
+   * ```
+   */
+  async signTransactionsWithActions(
+    nearAccountId: string,
+    params: {
+      transactions: Array<{
+        receiverId: string;
+        actions: ActionParams[];
+      }>;
+      onEvent?: (update: any) => void;
+    }
+  ): Promise<any[]> {
+    return signTransactionsWithActions(this.getContext(), nearAccountId, params);
+  }
+
+  /**
+   * Send a signed transaction to the NEAR network
+   * This method broadcasts a previously signed transaction and waits for execution
+   *
+   * @param signedTransaction - The signed transaction to broadcast
+   * @param waitUntil - The execution status to wait for (defaults to FINAL)
+   * @returns Promise resolving to the transaction execution outcome
+   *
+   * @example
+   * ```typescript
+   * // Sign a transaction first
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [{
+   *     receiverId: 'bob.near',
+   *     actions: [{
+   *       action_type: ActionType.Transfer,
+   *       deposit: '1000000000000000000000000'
+   *     }],
+   *   }]
+   * });
+   *
+   * // Then broadcast it
+   * const result = await passkeyManager.sendTransaction(
+   *   signedTransactions[0].signedTransaction,
+   *   TxExecutionStatus.FINAL
+   * );
+   * console.log('Transaction ID:', result.transaction_outcome?.id);
+   * ```
+   */
+  async sendTransaction(
+    signedTransaction: SignedTransaction,
+    waitUntil: TxExecutionStatus = TxExecutionStatus.FINAL
+  ): Promise<FinalExecutionOutcome> {
+    return sendTransaction(this.getContext(), signedTransaction, waitUntil);
   }
 
   ///////////////////////////////////////
