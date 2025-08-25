@@ -6,7 +6,9 @@
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
+use serde::{Deserialize, Serialize};
 use serde_json;
+use serde_wasm_bindgen;
 use sha2::{Sha256, Digest};
 use super::handle_sign_transactions_with_actions::{TransactionPayload, SignTransactionsWithActionsRequest};
 use super::handle_sign_verify_and_register_user::SignVerifyAndRegisterUserRequest;
@@ -16,6 +18,7 @@ use crate::types::handlers::{
     ConfirmationBehavior
 };
 use crate::encoders::base64_url_encode;
+use crate::actions::ActionParams;
 
 // External JS function for secure confirmation
 #[wasm_bindgen]
@@ -23,20 +26,31 @@ extern "C" {
     #[wasm_bindgen(js_name = awaitSecureConfirmation)]
     async fn await_secure_confirmation(
         request_id: &str,
-        summary: JsValue,
         digest: &str,
+        summary: JsValue,
+        confirmation_data: JsValue,
         actions_json: &str
     ) -> JsValue;
 }
 
 /// Transaction confirmation result with detailed information
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ConfirmationResult {
     pub confirmed: bool,
     pub request_id: String,
+    /// SHA-256 digest of ActionParams[], then base64url encoded.
+    /// Used to ensure that what the user sees in the secure iframe is what
+    /// is actually signed in the wasm-worker
     pub intent_digest: String,
     pub credential: Option<serde_json::Value>, // Serialized WebAuthn credential (JSON)
     pub prf_output: Option<String>, // Base64url-encoded PRF output for decryption
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ConfirmationSummaryAction {
+    pub to: String,
+    #[serde(rename = "totalAmount")]
+    pub total_amount: String,
 }
 
 /// Validates and normalizes confirmation configuration according to documented rules
@@ -48,7 +62,6 @@ pub struct ConfirmationResult {
 /// Returns a normalized config with proper defaults and logs validation messages
 pub fn validate_and_normalize_confirmation_config(
     config: &ConfirmationConfig,
-    logs: &mut Vec<String>,
 ) -> ConfirmationConfig {
     let mut normalized = config.clone();
 
@@ -101,48 +114,43 @@ pub fn create_transaction_summary(
         unique_receivers.insert(tx_request.receiver_id.clone());
 
         // Parse actions to extract deposits
-        let actions: Vec<serde_json::Value> = serde_json::from_str(&tx_request.actions)
+        let actions: Vec<ActionParams> = serde_json::from_str(&tx_request.actions)
             .map_err(|e| format!("Failed to parse actions JSON: {}", e))?;
 
         for action in actions {
-            // Extract deposit amount from Transfer actions
-            if let Some(action_type) = action.get("action_type").and_then(|t| t.as_str()) {
-                if action_type == "Transfer" {
-                    if let Some(deposit) = action.get("deposit").and_then(|d| d.as_str()) {
-                        if let Ok(amount) = deposit.parse::<u128>() {
-                            total_deposit += amount;
-                        }
-                    }
+            match action {
+                ActionParams::CreateAccount => {}
+                ActionParams::DeployContract { .. } => {}
+                ActionParams::FunctionCall { deposit, .. } => {
+                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
                 }
-            }
-            // Extract deposit amount from FunctionCall actions
-            if let Some(action_type) = action.get("action_type").and_then(|t| t.as_str()) {
-                if action_type == "FunctionCall" {
-                    if let Some(deposit) = action.get("deposit").and_then(|d| d.as_str()) {
-                        if let Ok(amount) = deposit.parse::<u128>() {
-                            total_deposit += amount;
-                        }
-                    }
+                ActionParams::Transfer { deposit } => {
+                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
                 }
+                ActionParams::Stake { stake, .. } => {
+                    total_deposit += stake.parse::<u128>().unwrap_or(0);
+                }
+                ActionParams::AddKey { .. } => {}
+                ActionParams::DeleteKey { .. } => {}
+                ActionParams::DeleteAccount { .. } => {}
             }
         }
     }
 
     // Format the summary
-    let summary = serde_json::json!({
-        "to": if unique_receivers.len() == 1 {
-            unique_receivers.iter().next().unwrap().to_string()
-        } else {
-            format!("{} recipients", unique_receivers.len())
+    let summary = ConfirmationSummaryAction {
+        to: match unique_receivers.len() {
+            1 => unique_receivers.iter().next().unwrap().to_string(),
+            _ => format!("{} recipients", unique_receivers.len()),
         },
-        "totalAmount": if total_deposit > 0 {
-            format!("{} yoctoNEAR", total_deposit)
-        } else {
-            "0 yoctoNEAR".to_string()
+        total_amount: match total_deposit {
+            0 => "0".to_string(),
+            _ => format!("{}", total_deposit),
         },
-    });
+    };
 
-    Ok(summary)
+    serde_json::to_value(&summary)
+        .map_err(|e| format!("Failed to serialize transaction summary: {}", e))
 }
 
 /// Computes SHA-256 digest of transaction requests for integrity verification
@@ -185,7 +193,7 @@ pub async fn request_user_confirmation_with_config(
             || confirmation_config.ui_mode == ConfirmationUIMode::Embedded;
 
         if should_skip_ui_confirm {
-            logs.push("Skipping user confirmation (UI mode: skip/embedded override)".to_string());
+            logs.push("Skipping user confirmation (UI mode: skip/embedded)".to_string());
 
             // For skip/embedded override, we still need to collect credentials and PRF output
             // but we don't show any UI. The main thread should handle this.
@@ -197,37 +205,40 @@ pub async fn request_user_confirmation_with_config(
             let near_account_id = &first_request.near_account_id;
 
             // Validate and normalize confirmation config according to documented rules
-            let normalized_config = validate_and_normalize_confirmation_config(confirmation_config, logs);
+            let normalized_config = validate_and_normalize_confirmation_config(confirmation_config);
+
+            let summary = create_transaction_summary(&tx_batch_request.tx_signing_requests)
+                .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
             let confirmation_data = serde_json::json!({
-                "summary": serde_json::json!({}),
                 "intentDigest": intent_digest,
                 "nearAccountId": near_account_id,
                 "vrfChallenge": tx_batch_request.verification.vrf_challenge,
                 "confirmationConfig": Some(normalized_config),
-                "skipUI": should_skip_ui_confirm,
+                "isRegistration": false, // not registration flow
             });
 
             // Send transaction payloads directly to preserve receiverId information
             let confirm_result = await_secure_confirmation(
                 &request_id,
-                JsValue::from_str(&confirmation_data.to_string()),
                 &intent_digest,
+                JsValue::from_str(&summary.to_string()),
+                JsValue::from_str(&confirmation_data.to_string()),
                 &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
             ).await;
 
-            let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;
+            let result = parse_confirmation_result(confirm_result)?;
 
             // For skip/embedded override, we assume the user implicitly confirms
             // but we still need the credentials and PRF output
             if result.credential.is_some() && result.prf_output.is_some() {
-                logs.push("Credentials collected successfully (no UI override)".to_string());
+                logs.push("Credentials collected successfully".to_string());
                 return Ok(ConfirmationResult {
                     confirmed: true, // Always true for "none" mode
                     ..result
                 });
             } else {
-                return Err("Failed to collect credentials in no-UI override".to_string());
+                return Err("Failed to collect credentials".to_string());
             }
         }
     }
@@ -254,29 +265,30 @@ pub async fn request_user_confirmation_with_config(
     // Create enhanced confirmation data with account info and configuration
     // Validate and normalize confirmation config according to documented rules
     let normalized_config = if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
-        Some(validate_and_normalize_confirmation_config(confirmation_config, logs))
+        Some(validate_and_normalize_confirmation_config(confirmation_config))
     } else {
         None
     };
 
     let confirmation_data = serde_json::json!({
-        "summary": summary,
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
         "vrfChallenge": tx_batch_request.verification.vrf_challenge,
         "confirmationConfig": normalized_config,
+        "isRegistration": false, // not registration flow
     });
 
     // Call JS bridge for user confirmation with enhanced data
     let confirm_result = await_secure_confirmation(
         &request_id,
-        JsValue::from_str(&confirmation_data.to_string()),
         &intent_digest,
+        JsValue::from_str(&summary.to_string()),
+        JsValue::from_str(&confirmation_data.to_string()),
         &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
     ).await;
 
     // Parse confirmation result
-    let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;
+    let result = parse_confirmation_result(confirm_result)?;
 
     Ok(result)
 }
@@ -285,7 +297,6 @@ pub async fn request_user_confirmation_with_config(
 /// This is different from transaction confirmation as it needs to collect registration credentials
 pub async fn request_user_registration_confirmation(
     registration_request: &SignVerifyAndRegisterUserRequest,
-    logs: &mut Vec<String>,
 ) -> Result<ConfirmationResult, String> {
 
     // Create registration summary
@@ -300,32 +311,39 @@ pub async fn request_user_registration_confirmation(
     web_sys::console::log_1(
         &format!("[Rust] Prompting user registration confirmation in JS main thread with ID: {}", request_id).into()
     );
-    logs.push("Prompting user confirmation in JS main thread for registration".to_string());
 
     // Extract account information for credential collection
     let near_account_id = &registration_request.registration.near_account_id;
 
     // Create registration confirmation data
     let confirmation_data = serde_json::json!({
-        "summary": summary,
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
         "vrfChallenge": registration_request.verification.vrf_challenge,
+        // No need to show confirmation modal for registration flow,
+        // so we use the default config for skip/embedded modes.
+        "confirmationConfig": ConfirmationConfig {
+            ui_mode: ConfirmationUIMode::Skip,
+            behavior: ConfirmationBehavior::AutoProceed,
+            auto_proceed_delay: Some(0),
+        },
         "isRegistration": true, // Flag to indicate this is registration flow
     });
 
     // Call JS bridge for user confirmation
     let confirm_result = await_secure_confirmation(
         &request_id,
-        JsValue::from_str(&confirmation_data.to_string()),
         &intent_digest,
-        "" // No actions for registration
+        JsValue::from_str(&summary.to_string()),
+        JsValue::from_str(&confirmation_data.to_string()),
+        "" // No actions for registration, actions are signed by either server account
+        // or delegated action account, so no need to show TX confirmation modals.
     ).await;
 
     web_sys::console::log_1(&"[Rust] User passkey confirmation response received".into());
 
     // Parse confirmation result
-    let result = parse_confirmation_result(confirm_result, request_id, intent_digest)?;
+    let result = parse_confirmation_result(confirm_result)?;
 
     Ok(result)
 }
@@ -344,45 +362,9 @@ fn create_registration_summary(request: &SignVerifyAndRegisterUserRequest) -> Re
 }
 
 /// Parses the confirmation result from JavaScript bridge
-fn parse_confirmation_result(
-    confirm_result: JsValue,
-    request_id: String,
-    intent_digest: String,
-) -> Result<ConfirmationResult, String> {
-
-    let result_data = confirm_result
-        .into_serde::<serde_json::Value>()
-        .map_err(|e| format!("Failed to parse confirmation result: {}", e))?;
-
-    let confirmed = result_data
-        .get("confirmed")
-        .and_then(|b| b.as_bool())
-        .unwrap_or(false);
-
-    // Extract credential if present (as raw JSON)
-    let credential = result_data.get("credential").cloned();
-
-    // Extract PRF output if present: prefer base64url string; if array of numbers, encode
-    let prf_output = if let Some(val) = result_data.get("prfOutput") {
-        if let Some(s) = val.as_str() {
-            Some(s.to_string())
-        } else if let Some(array) = val.as_array() {
-            let bytes: Vec<u8> = array.iter().filter_map(|v| v.as_u64().map(|n| n as u8)).collect();
-            Some(base64_url_encode(&bytes))
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    Ok(ConfirmationResult {
-        confirmed,
-        request_id,
-        intent_digest,
-        credential,
-        prf_output,
-    })
+fn parse_confirmation_result(confirm_result: JsValue) -> Result<ConfirmationResult, String> {
+    serde_wasm_bindgen::from_value::<ConfirmationResult>(confirm_result)
+        .map_err(|e| format!("Failed to parse confirmation result: {}", e))
 }
 
 

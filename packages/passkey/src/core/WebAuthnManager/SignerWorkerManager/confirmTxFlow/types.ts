@@ -46,10 +46,11 @@ export interface WorkerConfirmationRequest {
   txSigningRequestsJson: string | undefined;
 }
 
+// Payload to return to Rust WASM is snake_case
 export interface WorkerConfirmationResponse {
-  requestId: string;
-  intentDigest?: string;
+  request_id: string;
+  intent_digest?: string;
   confirmed: boolean;
   credential?: any;
-  prfOutput?: string;
+  prf_output?: string;
 }

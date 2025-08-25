@@ -5,7 +5,6 @@
 // ******************************************************************************
 
 use wasm_bindgen::prelude::*;
-use wasm_bindgen::JsValue;
 use log::info;
 use serde::{Serialize, Deserialize};
 use serde_json;
@@ -52,7 +51,7 @@ pub struct SignTransactionsWithActionsRequest {
     pub tx_signing_requests: Vec<TransactionPayload>,
     /// Unified confirmation configuration for controlling the confirmation flow
     #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
-    pub confirmation_config: Option<crate::types::handlers::ConfirmationConfig>,
+    pub confirmation_config: Option<ConfirmationConfig>,
 }
 
 #[wasm_bindgen]
@@ -63,8 +62,10 @@ pub struct TransactionPayload {
     pub near_account_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
     pub receiver_id: String,
+    // JSON string of ActionParams[]
+    // WASM does not support complex Enums, so it's passed in as a JSON string
     #[wasm_bindgen(getter_with_clone, js_name = "actions")]
-    pub actions: String, // JSON string
+    pub actions: String,
     #[wasm_bindgen(getter_with_clone, js_name = "nonce")]
     pub nonce: String,
     #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]

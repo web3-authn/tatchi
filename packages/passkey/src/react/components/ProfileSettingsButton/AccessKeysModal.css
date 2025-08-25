@@ -135,7 +135,7 @@
 }
 
 .w3a-key-item {
-  height: 62px;
+  height: 60px;
   box-sizing: border-box;
   width: 480px; /* 100% on screens smaller than 480px */
   background: var(--slate-grey-100);
@@ -163,6 +163,9 @@
 .w3a-key-details {
   flex: 1;
   min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  line-height: 1rem;
 }
 
 .w3a-key-details .mono {

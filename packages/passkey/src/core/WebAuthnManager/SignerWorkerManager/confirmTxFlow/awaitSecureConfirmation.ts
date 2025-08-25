@@ -1,5 +1,25 @@
 import { SecureConfirmMessageType, WorkerConfirmationResponse } from './types';
 
+interface ConfirmationData {
+  intentDigest: string;
+  nearAccountId: string;
+  vrfChallenge: string;
+  confirmationConfig: any;
+}
+
+interface ConfirmationSummaryAction {
+  to: string;
+  totalAmount: string;
+}
+
+interface ConfirmationSummaryRegistration {
+  type: string;
+  nearAccountId: string;
+  deviceNumber: number;
+  contractId: string;
+  deterministicVrfPublicKey: string;
+}
+
 /**
  * Bridge function called from Rust to await user confirmation on the main thread
  *
@@ -8,14 +28,46 @@ import { SecureConfirmMessageType, WorkerConfirmationResponse } from './types';
  * 1. Sending a confirmation request to the main thread
  * 2. Waiting for the user's decision
  * 3. Returning the decision back to the WASM worker
+ *
+ * See await_secure_confirmation() function definition in src/handlers/confirm_tx_details.rs
+ * for more details on the parameters and their types
  */
 export function awaitSecureConfirmation(
   requestId: string,
-  summary: any,
   digest: string,
+  summary: string,
+  confirmationData: string,
   txSigningRequestsJson: string | undefined
 ): Promise<WorkerConfirmationResponse> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
+
+    console.log("awaitSecureConfirmation called with: ", {
+      requestId,
+      digest,
+      summary,
+      confirmationData,
+      txSigningRequestsJson,
+    });
+
+    // parsedSummary is only use for display purposes
+    let parsedSummary: ConfirmationSummaryAction | ConfirmationSummaryRegistration;
+    let parsedConfirmationData: ConfirmationData;
+    let parsedTxSigningRequests: any[] = [];
+
+    try {
+      if (summary.includes("to") && summary.includes("totalAmount")) {
+        parsedSummary = safeJsonParseStrict<ConfirmationSummaryAction>(summary, 'action summary');
+      } else {
+        parsedSummary = safeJsonParseStrict<ConfirmationSummaryRegistration>(summary, 'registration summary');
+      }
+      parsedConfirmationData = safeJsonParseStrict<ConfirmationData>(confirmationData, 'confirmationData');
+      parsedTxSigningRequests = txSigningRequestsJson
+        ? safeJsonParseStrict<any[]>(txSigningRequestsJson, 'txSigningRequestsJson')
+        : [];
+    } catch (error) {
+      return reject(error);
+    }
+
     /**
      * Handles the user confirmation response from the main thread
      *
@@ -28,33 +80,35 @@ export function awaitSecureConfirmation(
      * 3. Extracts credentials and PRF output if confirmed
      * 4. Resolves the promise to return the result to Rust WASM
      *
-     * @param e - MessageEvent containing the user's confirmation response
+     * @param messageEvent - MessageEvent containing the user's confirmation response
      */
-    const onDecisionReceived = (e: MessageEvent) => {
-      const { data } = e;
+    const onDecisionReceived = (messageEvent: MessageEvent) => {
+      const { data } = messageEvent;
+
       if (
         data?.type === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE &&
         data?.data?.requestId === requestId
       ) {
-        console.log('[signer-worker]: Passkey response received, returning payload to Rust for requestId', requestId, data.data);
-        self.removeEventListener('message', onDecisionReceived as any);
+        // Always remove listener once we've handled this requestId
+        self.removeEventListener('message', onDecisionReceived);
+
+        // Validate payload shape; do NOT reject on confirmed === false (that's a valid user choice)
+        if (typeof data?.data?.confirmed !== 'boolean') {
+          return reject(new Error('[signer-worker]: Invalid confirmation response: missing boolean "confirmed"'));
+        }
+
+        // Rust expects snake_case fields
         resolve({
-          requestId,
-          intentDigest: data.data?.intentDigest,
+          request_id: requestId,
+          intent_digest: data.data?.intentDigest,
           confirmed: !!data.data?.confirmed,
           credential: data.data?.credential,
-          prfOutput: data.data?.prfOutput,
+          prf_output: data.data?.prfOutput,
         });
       }
     };
 
-    self.addEventListener('message', onDecisionReceived as any);
-
-    // Parse summary and send confirmation request to main thread
-    const parsedSummary = typeof summary === 'string' ? safeJsonParse(summary, summary) : summary;
-
-    // Parse transaction signing requests if provided, otherwise use empty array
-    const parsedTxSigningRequests = txSigningRequestsJson ? safeJsonParse(txSigningRequestsJson, []) : [];
+    self.addEventListener('message', onDecisionReceived);
 
     self.postMessage({
       type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
@@ -63,22 +117,22 @@ export function awaitSecureConfirmation(
         summary: parsedSummary,
         intentDigest: digest,
         tx_signing_requests: parsedTxSigningRequests,
-        nearAccountId: parsedSummary?.nearAccountId,
-        vrfChallenge: parsedSummary?.vrfChallenge,
-        confirmationConfig: parsedSummary?.confirmationConfig
+        nearAccountId: parsedConfirmationData?.nearAccountId,
+        vrfChallenge: parsedConfirmationData?.vrfChallenge,
+        confirmationConfig: parsedConfirmationData?.confirmationConfig
       }
     });
   });
 }
 
 /**
- * Helper function to safely parse JSON with fallback
+ * Helper function to strictly parse JSON. Throws on failure.
  */
-function safeJsonParse(jsonString: string, fallback: any = {}): any {
+function safeJsonParseStrict<T>(jsonString: string, context: string): T {
   try {
-    return jsonString ? JSON.parse(jsonString) : fallback;
+    return JSON.parse(jsonString) as T;
   } catch (error) {
-    console.warn('[signer-worker]: Failed to parse JSON:', error);
-    return Array.isArray(fallback) ? [jsonString] : { rawData: jsonString };
+    console.error(`[signer-worker]: Failed to parse ${context} JSON:`, error);
+    throw error instanceof Error ? error : new Error(`Invalid JSON in ${context}`);
   }
 }
