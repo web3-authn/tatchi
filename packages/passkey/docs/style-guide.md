@@ -52,23 +52,23 @@ Use these levels to guide user attention:
 ```css
 /* Level 1: Critical Actions (Primary buttons, main CTAs) */
 --visual-weight-critical: 900;
---visual-weight-critical-color: var(--_theme---base-dark--10);
+--visual-weight-critical-color: var(--w3a-text);
 
 /* Level 2: Primary Content (Main headings, important text) */
 --visual-weight-primary: 700;
---visual-weight-primary-color: var(--_theme---base-dark--8);
+--visual-weight-primary-color: var(--w3a-text);
 
 /* Level 3: Secondary Content (Body text, descriptions) */
 --visual-weight-secondary: 400;
---visual-weight-secondary-color: var(--_theme---base-dark--6);
+--visual-weight-secondary-color: var(--w3a-text-secondary);
 
 /* Level 4: Supporting Content (Help text, metadata) */
 --visual-weight-supporting: 300;
---visual-weight-supporting-color: var(--_theme---base-dark--4);
+--visual-weight-supporting-color: var(--w3a-text-dim);
 
 /* Level 5: Navigation & Utilities (Nav links, icons) */
 --visual-weight-utility: 400;
---visual-weight-utility-color: var(--_theme---base-dark--5);
+--visual-weight-utility-color: var(--w3a-text-secondary);
 ```
 
 ### Application Examples
@@ -184,61 +184,84 @@ The design system supports light and dark themes through CSS custom properties w
 
 #### Theme Classes
 ```css
-.u-theme-light  /* Default light theme */
-.u-theme-dark   /* Dark theme variant */
+/* Default light theme (no class needed) */
+/* Dark theme can be implemented by overriding CSS variables */
 ```
 
 #### Color Tokens
 ```css
-/* Light scale (backgrounds, surfaces) */
---_theme---base-light--1    /* Pure white/lightest */
---_theme---base-light--3    /* Off-white */
---_theme---base-light--10   /* Light gray */
+/* Web3Authn Design System Colors */
+--w3a-bg: #ffffff                    /* Main background */
+--w3a-surface: rgba(255, 255, 255, 0.8)  /* Translucent surface */
+--w3a-surface-solid: #ffffff         /* Solid surface */
+--w3a-text: #1f2937                 /* Primary text */
+--w3a-text-primary: #1f2937         /* Primary text */
+--w3a-text-secondary: #4a5568       /* Secondary text */
+--w3a-text-dim: #4a5568             /* Dimmed text */
+--w3a-border: #e2e8f0               /* Standard border */
+--w3a-border-strong: #cbd5e0        /* Strong border */
+--w3a-shadow: rgba(0, 0, 0, 0.05)   /* Subtle shadow */
+--w3a-shadow-strong: rgba(0, 0, 0, 0.1) /* Strong shadow */
+--w3a-bg-secondary: #f8fafc         /* Secondary background */
+--w3a-bg-tertiary: #f1f5f9          /* Tertiary background */
 
-/* Dark scale (text, borders) */
---_theme---base-dark--1     /* Lightest text */
---_theme---base-dark--8     /* Body text */
---_theme---base-dark--10    /* Pure black/darkest */
+/* Dark backgrounds */
+--w3a-bg-dark-1: #001233            /* Dark background 1 */
+--w3a-bg-dark-2: #001845            /* Dark background 2 */
+--w3a-bg-dark-3: #002855            /* Dark background 3 */
 
-/* Accent blurs (decorative) */
---_theme---base-light-blurs--green-blur
---_theme---base-light-blurs--blue-blur
---_theme---base-light-blurs--pink-blur
---_theme---base-light-blurs--peach-blur
+/* Slate gray scale */
+--slate-grey-100: #f1f5f9           /* Lightest gray */
+--slate-grey-200: #e2e8f0           /* Light gray */
+--slate-grey-300: #cbd5e0           /* Medium light gray */
+--slate-grey-400: #94a3b8           /* Medium gray */
+--slate-grey-500: #64748b           /* Medium dark gray */
+--slate-grey-600: #475569           /* Dark gray */
+--slate-grey-700: #334155           /* Darker gray */
+--slate-grey-800: #1e293b           /* Very dark gray */
+--slate-grey-900: #0f172a           /* Darkest gray */
 ```
 
 #### Usage
 ```html
-<body class="u-theme-light">
-  <div style="color: var(--_theme---base-dark--8);">Body text</div>
-  <div style="background: var(--_theme---base-light--1);">Surface</div>
+<body>
+  <div style="color: var(--w3a-text);">Body text</div>
+  <div style="background: var(--w3a-bg);">Surface</div>
+  <div style="border: 1px solid var(--w3a-border);">Bordered element</div>
 </body>
 ```
 
 ### Brand Colors
-The system uses a sophisticated neutral palette with cerulean blue as the primary accent color:
+The system uses a sophisticated neutral palette with cobalt blue as the primary accent color:
 
-#### Primary Cerulean Blue Palette
-- **Primary**: `#2E54D3` (Cerulean Blue - Primary brand color)
-- **Primary Hover**: `#DCE7FF` (Alice Blue - Hover state)
-- **Primary Light**: `#F1F2F2` (Zircon - Light accent)
-- **Primary Dark**: `#1C1C1E` (Electric Grey - Dark accent)
+#### Cobalt Blue Color Palette
+- **Primary**: `#0353A4` (Cobalt Primary - Primary brand color)
+- **Primary Hover**: `#0466C8` (Cobalt Primary Hover - Hover state)
+- **Primary Dimmed**: `#023E7D` (Cobalt Primary Dimmed - Disabled state)
+- **Light**: `#5FA8D3` (Cobalt Light - Light accent)
+- **Lighter**: `#89C2D9` (Cobalt Lighter - Very light accent)
+- **Lightest**: `#A9D6E5` (Cobalt Lightest - Lightest accent)
 
 #### Complete Color Palette
-- `--cerulean-primary`: `#2E54D3` (Cerulean Blue - Primary buttons, focus states)
-- `--alice-blue`: `#DCE7FF` (Alice Blue - Hover states, backgrounds)
-- `--zircon`: `#F1F2F2` (Zircon - Light backgrounds, borders)
-- `--electric-grey`: `#1C1C1E` (Electric Grey - Text, dark accents)
+- `--cobalt-primary`: `#0353A4` (Cobalt Primary - Primary buttons, focus states)
+- `--cobalt-primary-hover`: `#0466C8` (Cobalt Primary Hover - Hover states)
+- `--cobalt-primary-dimmed`: `#023E7D` (Cobalt Primary Dimmed - Disabled states)
+- `--cobalt-light`: `#5FA8D3` (Cobalt Light - Light backgrounds, borders)
+- `--cobalt-lighter`: `#89C2D9` (Cobalt Lighter - Very light backgrounds)
+- `--cobalt-lightest`: `#A9D6E5` (Cobalt Lightest - Lightest backgrounds)
+- `--cobalt-shadow`: `rgba(3, 83, 164, 0.3)` (Cobalt Shadow - Focus shadows)
+- `--cobalt-focus`: `rgba(3, 83, 164, 0.18)` (Cobalt Focus - Focus states)
+- `--cobalt-disabled`: `#718096` (Cobalt Disabled - Disabled states)
 
 #### Gradient Options
-- **Primary Gradient**: `linear-gradient(135deg, #2E54D3 0%, #DCE7FF 100%)`
-- **Subtle Gradient**: `linear-gradient(135deg, #F1F2F2 0%, #DCE7FF 100%)`
+- **Primary Gradient**: `linear-gradient(135deg, #0353A4 0%, #5FA8D3 100%)`
+- **Subtle Gradient**: `linear-gradient(135deg, #A9D6E5 0%, #89C2D9 100%)`
 
 #### Other Colors
-- **Success**: `#2E54D3` (Cerulean blue for success states)
+- **Success**: `#0353A4` (Cobalt blue for success states)
 - **Warning**: `#fbbf24` (amber)
 - **Error**: `#f87171` (red)
-- **Neutral grays**: Extensive scale from `#f8fafc` to `#1f2937`
+- **Neutral grays**: Extensive scale from `#f1f5f9` to `#0f172a`
 
 ## Typography System
 
@@ -246,17 +269,24 @@ The system uses a sophisticated neutral palette with cerulean blue as the primar
 The system uses semantic heading classes with consistent tokens:
 
 ```css
-/* Heading tokens */
---_typography---h1--font-size: 3.5rem;     /* 56px */
---_typography---h2--font-size: 3rem;       /* 48px */
---_typography---h3--font-size: 2.25rem;    /* 36px */
---_typography---h4--font-size: 1.875rem;   /* 30px */
---_typography---h5--font-size: 1.5rem;     /* 24px */
---_typography---h6--font-size: 1.25rem;    /* 20px */
+/* Typography tokens */
+--w3a-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+--w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+--w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
-/* Shared heading properties */
---_typography---heading--font-weight: 600;
---_typography---heading--letter-spacing: -0.025em;
+/* Font weights */
+--w3a-font-normal: 400;
+--w3a-font-medium: 500;
+--w3a-font-semibold: 600;
+--w3a-font-bold: 700;
+
+/* Text sizes */
+--w3a-text-xs: 0.75rem;    /* 12px */
+--w3a-text-sm: 0.875rem;   /* 14px */
+--w3a-text-base: 1rem;     /* 16px */
+--w3a-text-lg: 1.125rem;   /* 18px */
+--w3a-text-xl: 1.25rem;    /* 20px */
+--w3a-text-2xl: 1.5rem;    /* 24px */
 ```
 
 #### Heading Classes
@@ -293,10 +323,11 @@ The system uses semantic heading classes with consistent tokens:
 
 ### Font Stack
 ```css
-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+/* Primary font stack */
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
 
-/* Tagline/monospace */
---_typography---tagline--font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+/* Monospace font stack */
+font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 ```
 
 ## Layout & Spacing
@@ -326,27 +357,23 @@ Fine-grained width control:
 Consistent spacing system with T-shirt sizing:
 
 ```css
-/* Padding classes */
-.padding-tiny      /* 0.25rem / 4px */
-.padding-xxsmall   /* 0.5rem / 8px */
-.padding-xsmall    /* 0.75rem / 12px */
-.padding-small     /* 1rem / 16px */
-.padding-medium    /* 1.5rem / 24px */
-.padding-large     /* 2rem / 32px */
-.padding-xlarge    /* 3rem / 48px */
-.padding-xxlarge   /* 4rem / 64px */
-.padding-huge      /* 6rem / 96px */
-.padding-xhuge     /* 8rem / 128px */
-.padding-xxhuge    /* 12rem / 192px */
+/* Sizing & Spacing tokens */
+--w3a-radius-sm: 12px;     /* Small border radius */
+--w3a-radius: 24px;        /* Standard border radius */
+--w3a-radius-lg: 32px;     /* Large border radius */
+--w3a-radius-xl: 40px;     /* Extra large border radius */
 
-/* Margin classes (same scale) */
-.margin-tiny, .margin-xxsmall, .margin-xsmall...
+/* Gap spacing */
+--w3a-gap-1: 4px;          /* Tiny gap */
+--w3a-gap-2: 8px;          /* Small gap */
+--w3a-gap-3: 12px;         /* Medium gap */
+--w3a-gap-4: 16px;         /* Large gap */
+--w3a-gap-6: 24px;         /* Extra large gap */
 
-/* Directional variants */
-.padding-top, .padding-bottom, .padding-left, .padding-right
-.padding-horizontal, .padding-vertical
-.margin-top, .margin-bottom, .margin-left, .margin-right
-.margin-horizontal, .margin-vertical
+/* Motion tokens */
+--w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+--w3a-fast: 200ms;
+--w3a-med: 400ms;
 ```
 
 ### Section Padding
@@ -761,8 +788,8 @@ Prefer multiple utility classes over custom CSS:
 Always use design tokens instead of hardcoded values:
 ```css
 /* Good */
-color: var(--_theme---base-dark--8);
-background: var(--_theme---base-light--1);
+color: var(--w3a-text);
+background: var(--w3a-bg);
 
 /* Avoid */
 color: #333;

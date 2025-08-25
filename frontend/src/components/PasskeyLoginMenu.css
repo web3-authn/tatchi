@@ -219,7 +219,7 @@
   align-items: center;
   border: 1px solid transparent;
   border-radius: 12px;
-  background-color: var(--w3a-bg-dark-1);
+  background-color: var(--w3a-bg-dark-3);
   transition: border-color 0.25s;
   width: 100%;
   box-sizing: border-box;
@@ -275,7 +275,7 @@
 
 @media (prefers-color-scheme: dark) {
   .username-input-container {
-    background-color: var(--w3a-bg-dark-2);
+    background-color: var(--w3a-bg-dark-3);
   }
 
   .username-input {

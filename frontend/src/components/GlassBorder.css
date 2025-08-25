@@ -2,6 +2,7 @@
 
 /* Translucent outer shell wrapping solid content */
 .glass-border-root {
+  box-sizing: border-box;
   background: transparent;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
@@ -11,10 +12,10 @@
   max-width: 860px;
   width: 100%;
   box-shadow: 2px 6px 10px var(--w3a-shadow-strong);
-  /* box-shadow: 0 1px 3px var(--w3a-shadow-strong); */
 }
 
 .glass-border-inner {
+  box-sizing: border-box;
   background: var(--w3a-surface-solid);
   border: 1px solid var(--w3a-border);
   border-radius: var(--w3a-radius-lg);

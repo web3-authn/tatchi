@@ -24,11 +24,11 @@ export const Navbar: React.FC = () => {
         <Link to="/">
           Home
         </Link>
-        <Link to="/settings">
-          Settings
-        </Link>
         <Link to="/embedded">
           Embedded Demo
+        </Link>
+        <Link to="/modal">
+          Modal Demo
         </Link>
       </div>
 
