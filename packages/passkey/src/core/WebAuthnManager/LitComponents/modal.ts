@@ -114,9 +114,9 @@ export function mountModalTxConfirmWithHandle(opts: {
   element.totalAmount = opts.summary?.totalAmount ?? '';
   element.method = opts.summary?.method ?? '';
   element.fingerprint = opts.summary?.fingerprint ?? '';
-  element.title = opts.title ?? 'Confirm Transaction';
+  element.title = opts.title ?? 'Sign Transaction with TouchID';
   element.cancelText = opts.cancelText ?? 'Cancel';
-  element.confirmText = opts.confirmText ?? 'Confirm & Sign';
+  element.confirmText = opts.confirmText ?? 'Confirm';
   element.loading = opts.loading ?? false;
 
   // Handle transaction signing requests (preferred) or legacy actions

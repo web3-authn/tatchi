@@ -1,5 +1,6 @@
 import { LitElement, html, css } from 'lit';
-import type { ActionArgs } from '../../../types/actions';
+import { when } from 'lit/directives/when.js';
+import { ActionArgs } from '../../../types/actions';
 
 export type TooltipPosition =
   | 'top-left' | 'top-center' | 'top-right'
@@ -42,9 +43,10 @@ export class EmbeddedTxConfirmElement extends LitElement {
   } as const;
 
   nearAccountId: string = '';
+  // ActionArgs from the main thread, before sending to wasm-worker
   actionArgs: ActionArgs | ActionArgs[] | null = null;
   color: string = '#667eea';
-  buttonText: string = 'Confirm Transaction';
+  buttonText: string = 'Sign Transaction';
   loading: boolean = false;
   tooltip: {
     width: string;
@@ -314,7 +316,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
     }
 
     .action-detail {
-      padding: 0 0 0 8px;
+      padding: 0;
       margin: 0;
       border-bottom: 1px solid #f1f1f1;
       display: table;
@@ -698,78 +700,208 @@ export class EmbeddedTxConfirmElement extends LitElement {
     this.hideTooltip();
   }
 
-  private renderActionDetails(action: ActionArgs, index: number) {
+  private renderActions(action: ActionArgs, index: number) {
     return html`
       <div class="action-item">
         <div class="action-type">
           <span class="action-type-badge">${action.type}</span>
-          Action ${index + 1}
+          <span class="action-index">Action ${index + 1}</span>
         </div>
         <div class="action-details">
-          ${action.type === 'FunctionCall' ? html`
-            <div class="action-detail">
-              <strong>Receiver</strong>
-              <span>${action.receiverId}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Method</strong>
-              <span>${action.methodName}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Gas</strong>
-              <span>${action.gas || 'Not specified'}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Deposit</strong>
-              <span>${action.deposit || '0'}</span>
-            </div>
-            <div class="action-detail no-border">
-              <strong>Arguments</strong>
-              <span>
-                <pre class="code-block"><code>${JSON.stringify(action.args, null, 2)}</code></pre>
-              </span>
-            </div>
-          ` : action.type === 'Transfer' ? html`
-            <div class="action-detail">
-              <strong>Receiver</strong>
-              <span>${action.receiverId}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Amount</strong>
-              <span>${action.amount}</span>
-            </div>
-          ` : action.type === 'Stake' ? html`
-            <div class="action-detail">
-              <strong>Public Key</strong>
-              <span>${action.publicKey}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Amount</strong>
-              <span>${action.stake}</span>
-            </div>
-          ` : action.type === 'AddKey' ? html`
-            <div class="action-detail">
-              <strong>Public Key</strong>
-              <span>${action.publicKey}</span>
-            </div>
-            <div class="action-detail">
-              <strong>Access Key</strong>
-              <span>${JSON.stringify(action.accessKey, null, 2)}</span>
-            </div>
-          ` : action.type === 'DeleteKey' ? html`
-            <div class="action-detail">
-              <strong>Public Key</strong>
-              <span>${action.publicKey}</span>
-            </div>
-          ` : action.type === 'DeleteAccount' ? html`
-            <div class="action-detail">
-              <strong>Beneficiary</strong>
-              <span>${action.beneficiaryId}</span>
-            </div>
-          ` : ''}
+          ${this._renderActionDetails(action)}
         </div>
       </div>
     `;
+  }
+
+  // Note action is ActionsArgs type (typescript camelCase) becuase this information
+  // is being passed from typescript, before sending it to the wasm-worker
+  // The wasm-worker merely checks back in the main thread and validates that
+  // the transaction data in the iframe sandbox is valid.
+  private _renderActionDetails(action: ActionArgs) {
+    if (action.type === 'CreateAccount') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Create Account</div>
+        </div>
+      `;
+    }
+    if (action.type === 'DeployContract') {
+      const code = action.code;
+      const sizeLabel = (() => {
+        if (!code) return '0 bytes';
+        if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
+        if (Array.isArray(code)) return `${code.length} bytes`;
+        if (typeof code === 'string') return `${code.length} bytes`;
+        return 'unknown';
+      })();
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Deploy Contract</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Code Size</div>
+          <div class="action-value">${sizeLabel}</div>
+        </div>
+      `;
+    }
+    if (action.type === 'FunctionCall') {
+      return html`
+        <div class="action-detail">
+          <strong>Receiver</strong>
+          <span>${action.receiverId}</span>
+        </div>
+        <div class="action-detail">
+          <strong>Deposit</strong>
+          <span>${action.deposit || '0'}</span>
+        </div>
+        <div class="action-detail">
+          <strong>Gas</strong>
+          <span>${this._formatGas(action.gas)}</span>
+        </div>
+        <div class="action-detail no-border">
+          <strong>Method</strong>
+          <span>${action.methodName}</span>
+        </div>
+        ${when(action.args, () => {
+          return html`
+            <div class="action-detail no-border" style="margin-top: -4px">
+              <span>
+                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+              </span>
+            </div>
+          `;
+        })}
+      `;
+    }
+    if (action.type === 'Transfer') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Transfer</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Amount</div>
+          <div class="action-value">${this._formatDeposit(action.amount)}</div>
+        </div>
+      `;
+    }
+    if (action.type === 'Stake') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Stake</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${(action as any).public_key || ''}</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Amount</div>
+          <div class="action-value">${(action as any).stake || ''}</div>
+        </div>
+      `;
+    }
+    if (action.type === 'AddKey') {
+      const ak = action.accessKey;
+      let akPretty = '';
+      try {
+        akPretty = JSON.stringify(typeof ak === 'string' ? JSON.parse(ak) : ak, null, 2);
+      } catch {
+        akPretty = String(ak);
+      }
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Add Key</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${action.publicKey || ''}</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Access Key</div>
+          <div class="action-value"><pre class="code-block"><code>${akPretty}</code></pre></div>
+        </div>
+      `;
+    }
+    if (action.type === 'DeleteKey') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Delete Key</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${action.publicKey || ''}</div>
+        </div>
+      `;
+    }
+    if (action.type === 'DeleteAccount') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Delete Account</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Beneficiary</div>
+          <div class="action-value">${action.beneficiaryId || ''}</div>
+        </div>
+      `;
+    }
+    // Fallback: show raw JSON for unknown/extended actions
+    let raw = '';
+    try {
+      raw = JSON.stringify(action, null, 2);
+    } catch {
+      raw = String(action);
+    }
+    return html`
+      <div class="action-row">
+        <div class="action-label">Action</div>
+        <div class="action-value">Unknown</div>
+      </div>
+      <div class="action-row">
+        <div class="action-label">Data</div>
+        <div class="action-value"><pre class="code-block"><code>${raw}</code></pre></div>
+      </div>
+    `;
+  }
+
+  private _formatGas(gas: string | undefined): string {
+    if (!gas) return '';
+    try {
+      const gasValue = BigInt(gas);
+      const tgas = gasValue / BigInt('1000000000000'); // Convert to Tgas (divide by 10^12)
+      return `${tgas}Tgas`;
+    } catch (e) {
+      // If parsing fails, return original value
+      return gas;
+    }
+  }
+
+  private _formatArgs(args: string | undefined | Record<string, any>): string {
+    if (!args) return '';
+    try {
+      return JSON.stringify(args, null, 2);
+    } catch (e) {
+      // If parsing fails, return original value
+      return String(args);
+    }
+  }
+
+  private _formatDeposit(deposit: string | undefined): string {
+    if (!deposit || deposit === '0') return '';
+    try {
+      const depositValue = BigInt(deposit);
+      const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
+      return `${nearValue.toFixed(5)} NEAR`;
+    } catch (e) {
+      // If parsing fails, return original value
+      return deposit;
+    }
   }
 
   render() {
@@ -809,7 +941,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
           @pointerleave=${this.handleTooltipLeave}
         >
           <div class="action-list">
-            ${actions.map((action, index) => this.renderActionDetails(action, index))}
+            ${actions.map((action, index) => this.renderActions(action, index))}
           </div>
         </div>
       </div>

@@ -748,7 +748,6 @@ export class EmbeddedTxConfirmHost extends LitElement {
       }
 
       if (type === 'ETX_DEFINED') {
-        console.debug('[EmbeddedTxConfirmHost iframe] custom element defined');
         return;
       }
 

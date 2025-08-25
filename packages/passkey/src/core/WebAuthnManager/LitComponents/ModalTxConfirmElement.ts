@@ -12,6 +12,7 @@ export interface SecureTxSummary {
   fingerprint?: string; // short digest for display
 }
 
+// TxAction from wasm-worker
 export interface TxAction {
   action_type: string;
   method_name?: string;
@@ -61,7 +62,7 @@ export class ModalTxConfirmElement extends LitElement {
   totalAmount = '';
   method = '';
   fingerprint = '';
-  title = 'Confirm Transaction';
+  title = 'Sign Transaction';
   cancelText = 'Cancel';
   confirmText = 'Confirm & Sign';
   txSigningRequests: TransactionPayload[] = [];
@@ -601,7 +602,7 @@ export class ModalTxConfirmElement extends LitElement {
                 ${when(this.totalAmount, () => html`
                   <div class="row">
                     <div class="label">Total Amount</div>
-                    <div class="value">${this.totalAmount}</div>
+                    <div class="value">${this._formatDeposit(this.totalAmount)}</div>
                   </div>
                 `)}
 
@@ -633,30 +634,10 @@ export class ModalTxConfirmElement extends LitElement {
                               <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${txPayload.receiverId}</span></div>
                             </div>
                           ` : ''}
-
                           <!-- Actions for this transaction -->
                           ${actions.map((action, actionIndex) => html`
                             <div class="action-subitem">
-
-                              <!-- Deposit (only show if not 0) -->
-                              ${when(action.deposit && action.deposit !== '0', () => html`
-                                <div class="action-row">
-                                  <div class="action-label">Deposit</div>
-                                  <div class="action-value">${this._formatDeposit(action.deposit)}</div>
-                                </div>
-                              `)}
-
-                              <!-- Method call with args -->
-                              ${when(action.method_name && action.args, () => html`
-                                <div class="action-label">Calling <span class="method-name">${action.method_name}</span> using <span class="method-name">${this._formatGas(action.gas)}</span></div>
-                                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
-                              `)}
-
-                              <!-- Args only (if no method name) -->
-                              ${when(action.args && !action.method_name, () => html`
-                                <div class="action-label">Args:</div>
-                                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
-                              `)}
+                              ${this._renderActionDetails(action)}
                             </div>
                           `)}
                         </div>
@@ -695,6 +676,147 @@ export class ModalTxConfirmElement extends LitElement {
             </div>
           </div>
         </div>
+      </div>
+    `;
+  }
+
+  private _renderActionDetails(action: TxAction) {
+    console.log('>>>>> action', action);
+    if (action.action_type === 'CreateAccount') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Create Account</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'DeployContract') {
+      const code = action.code;
+      const sizeLabel = (() => {
+        if (!code) return '0 bytes';
+        if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
+        if (Array.isArray(code)) return `${code.length} bytes`;
+        if (typeof code === 'string') return `${code.length} bytes`;
+        return 'unknown';
+      })();
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Deploy Contract</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Code Size</div>
+          <div class="action-value">${sizeLabel}</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'FunctionCall') {
+      return html`
+        ${when(action.deposit && action.deposit !== '0', () => {
+          return html`
+            <div class="action-row">
+              <div class="action-label">Deposit</div>
+              <div class="action-value">${this._formatDeposit(action.deposit)}</div>
+            </div>
+          `
+        })}
+        ${when(action.args, () => {
+          return html`
+            <div class="action-label">Calling <span class="method-name">${action.method_name}</span> using <span class="method-name">${
+this._formatGas(action.gas)}</span>
+            </div>
+            <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+          `;
+        })}
+      `;
+    }
+    if (action.action_type === 'Transfer') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Transfer</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Amount</div>
+          <div class="action-value">${this._formatDeposit(action.deposit)}</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'Stake') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Stake</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${(action as any).public_key || ''}</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Amount</div>
+          <div class="action-value">${(action as any).stake || ''}</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'AddKey') {
+      const accessKey = JSON.parse(action.access_key);
+      const permissions = 'FullAccess' in Object.keys(accessKey.permission)
+        ? 'Full Access'
+        : 'Function Call';
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Add Key</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${action.public_key || ''}</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Access Key</div>
+          <div class="action-value">${permissions}</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'DeleteKey') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Delete Key</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Public Key</div>
+          <div class="action-value">${action.public_key || ''}</div>
+        </div>
+      `;
+    }
+    if (action.action_type === 'DeleteAccount') {
+      return html`
+        <div class="action-row">
+          <div class="action-label">Action</div>
+          <div class="action-value">Delete Account</div>
+        </div>
+        <div class="action-row">
+          <div class="action-label">Beneficiary</div>
+          <div class="action-value">${action.beneficiary_id || ''}</div>
+        </div>
+      `;
+    }
+    // Fallback: show raw JSON for unknown/extended actions
+    let raw = '';
+    try {
+      raw = JSON.stringify(action, null, 2);
+    } catch {
+      raw = String(action);
+    }
+    return html`
+      <div class="action-row">
+        <div class="action-label">Action</div>
+        <div class="action-value">Unknown</div>
+      </div>
+      <div class="action-row">
+        <div class="action-label">Data</div>
+        <div class="action-value"><pre class="code-block"><code>${raw}</code></pre></div>
       </div>
     `;
   }
@@ -744,7 +866,9 @@ export class ModalTxConfirmElement extends LitElement {
     try {
       const depositValue = BigInt(deposit);
       const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
-      return `${nearValue.toFixed(5)} NEAR`;
+      // Remove trailing zeros and possible trailing decimal point
+      let formatted = nearValue.toFixed(5).replace(/\.?0+$/, '');
+      return `${formatted} NEAR`;
     } catch (e) {
       // If parsing fails, return original value
       return deposit;
