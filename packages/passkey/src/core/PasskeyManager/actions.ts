@@ -1,14 +1,23 @@
-import { ActionParams } from '../types';
-import { ActionType } from '../types/actions';
-import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
-import type { ActionArgs } from '../types/actions';
-import type { ActionHooksOptions, ActionResult } from '../types/passkeyManager';
+import { ActionType, toActionArgsWasm } from '../types/actions';
+import type {
+  SendTransactionHooksOptions,
+  SignTransactionHooksOptions,
+  VerifyAndSignTransactionResult,
+  ActionHooksOptions,
+  ActionResult,
+  SignAndSendTransactionHooksOptions
+} from '../types/passkeyManager';
+import type { ActionArgs, TransactionInput } from '../types/actions';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import type { TransactionContext } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
-import type { NearClient } from '../NearClient';
+import type { NearClient, SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+
+//////////////////////////////
+// === PUBLIC API ===
+//////////////////////////////
 
 /**
  * Public API for executing actions - respects user confirmation preferences
@@ -22,15 +31,162 @@ import { ActionPhase, ActionStatus } from '../types/passkeyManager';
  * @param options - Options for the action
  * @returns Promise resolving to the action result
  */
-export async function executeAction(
+export async function executeAction(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
+  receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
   options?: ActionHooksOptions,
-): Promise<ActionResult> {
-  // Public API always uses undefined override (respects user settings)
-  return executeActionInternal(context, nearAccountId, actionArgs, options, undefined);
+}): Promise<ActionResult> {
+  try {
+    // Public API always uses undefined override (respects user settings)
+    return executeActionInternal({
+      context: args.context,
+      nearAccountId: args.nearAccountId,
+      receiverId: args.receiverId,
+      actionArgs: args.actionArgs,
+      options: args.options,
+      confirmationConfigOverride: undefined
+    });
+  } catch (error: any) {
+    throw error;
+  }
 }
+
+/**
+ * Signs multiple transactions with actions, and broadcasts them
+ *
+ * @param context - PasskeyManager context
+ * @param nearAccountId - NEAR account ID to sign transactions with
+ * @param transactionInput - Transaction input to sign
+ * @param options - Options for the action
+ * @returns Promise resolving to the action result
+ */
+export async function signAndSendTransactions(args: {
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  transactionInputs: TransactionInput[],
+  options?: SignAndSendTransactionHooksOptions,
+}): Promise<ActionResult[]> {
+  return signAndSendTransactionsInternal({
+    context: args.context,
+    nearAccountId: args.nearAccountId,
+    transactionInputs: args.transactionInputs,
+    options: args.options,
+    confirmationConfigOverride: undefined
+  });
+}
+
+/**
+ * Signs transactions with actions, without broadcasting them
+ *
+ * @param context - PasskeyManager context
+ * @param nearAccountId - NEAR account ID to sign transactions with
+ * @param actionArgs - Action arguments to sign transactions with
+ * @param options - Options for the action
+ * @returns Promise resolving to the action result
+ */
+export async function signTransactionsWithActions(args: {
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  transactionInputs: TransactionInput[],
+  options?: SignTransactionHooksOptions,
+}): Promise<VerifyAndSignTransactionResult[]> {
+  try {
+    return signTransactionsWithActionsInternal({
+      context: args.context,
+      nearAccountId: args.nearAccountId,
+      transactionInputs: args.transactionInputs,
+      options: args.options,
+      confirmationConfigOverride: undefined
+      // Public API always uses undefined override (respects user settings)
+    });
+  } catch (error: any) {
+    throw error;
+  }
+}
+
+/**
+ * 3. Transaction Broadcasting - Broadcasts the signed transaction to NEAR network
+ * This method broadcasts a previously signed transaction and waits for execution
+ *
+ * @param context - PasskeyManager context
+ * @param signedTransaction - The signed transaction to broadcast
+ * @param waitUntil - The execution status to wait for (defaults to FINAL)
+ * @returns Promise resolving to the transaction execution outcome
+ *
+ * @example
+ * ```typescript
+ * // Sign a transaction first
+ * const signedTransactions = await signTransactionsWithActions(context, 'alice.near', {
+ *   transactions: [{
+ *     nearAccountId: 'alice.near',
+ *     receiverId: 'bob.near',
+ *     actions: [{
+ *       action_type: ActionType.Transfer,
+ *       deposit: '1000000000000000000000000'
+ *     }],
+ *     nonce: '123'
+ *   }]
+ * });
+ *
+ * // Then broadcast it
+ * const result = await sendTransaction(
+ *   context,
+ *   signedTransactions[0].signedTransaction,
+ *   TxExecutionStatus.FINAL
+ * );
+ * console.log('Transaction ID:', result.transaction_outcome?.id);
+ * ```
+ */
+export async function sendTransaction({
+  context,
+  signedTransaction,
+  options,
+}: {
+  context: PasskeyManagerContext,
+  signedTransaction: SignedTransaction,
+  options?: SendTransactionHooksOptions,
+}): Promise<ActionResult> {
+
+  options?.onEvent?.({
+    step: 8,
+    phase: ActionPhase.STEP_8_BROADCASTING,
+    status: ActionStatus.PROGRESS,
+    message: `Broadcasting transaction with signature ${signedTransaction.signature}...`
+  });
+
+  let transactionResult;
+  let txId;
+  try {
+    transactionResult = await context.nearClient.sendTransaction(
+      signedTransaction,
+      options?.waitUntil
+    );
+    txId = transactionResult.transaction?.hash || transactionResult.transaction?.id;
+    options?.onEvent?.({
+      step: 8,
+      phase: ActionPhase.STEP_8_BROADCASTING,
+      status: ActionStatus.SUCCESS,
+      message: `Sent transaction ${txId}`
+    });
+  } catch (error) {
+    console.error('[sendTransaction] sendTransaction failed:', error);
+    throw error;
+  }
+
+  const actionResult: ActionResult = {
+    success: true,
+    transactionId: txId,
+    result: transactionResult
+  };
+
+  return actionResult;
+}
+
+//////////////////////////////
+// === INTERNAL API ===
+//////////////////////////////
 
 /**
  * Internal API for executing actions with optional confirmation override
@@ -42,65 +198,47 @@ export async function executeAction(
  * @param options - Options for the action
  * @returns Promise resolving to the action result
  */
-export async function executeActionInternal(
+export async function executeActionInternal({
+  context,
+  nearAccountId,
+  receiverId,
+  actionArgs,
+  options,
+  confirmationConfigOverride,
+}: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
+  receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
   options?: ActionHooksOptions,
   confirmationConfigOverride?: ConfirmationConfig | undefined,
-): Promise<ActionResult> {
+}): Promise<ActionResult> {
 
   const { onEvent, onError, hooks, waitUntil } = options || {};
-
-  // Normalize to array for consistent processing
   const actions = Array.isArray(actionArgs) ? actionArgs : [actionArgs];
-  const isMultipleActions = actions.length > 1;
-
-  // Run beforeCall hook
-  await hooks?.beforeCall?.();
-
-  // Emit started event
-  onEvent?.({
-    step: 1,
-    phase: ActionPhase.STEP_1_PREPARATION,
-    status: ActionStatus.PROGRESS,
-    message: isMultipleActions
-      ? `Starting batched transaction with ${actions.length} actions`
-      : `Starting ${actions[0].type} action to ${actions[0].receiverId}`
-  });
 
   try {
-    // 1. Validation (use first action for account validation)
-    const transactionContext = await validateActionInputs(
+    await options?.hooks?.beforeCall?.();
+
+    const signedTxs = await signTransactionsWithActionsInternal({
       context,
       nearAccountId,
-      actions[0],
-      { onEvent, onError, hooks, waitUntil }
-    );
+      transactionInputs: [{
+        receiverId: receiverId,
+        actions: actions,
+      }],
+      options: { onEvent, onError, hooks, waitUntil },
+      confirmationConfigOverride
+    });
 
-    // 2. VRF Authentication + Transaction Signing
-    const signingResult = await wasmAuthenticateAndSignTransaction(
+    const txResult = await sendTransaction({
       context,
-      nearAccountId,
-      transactionContext,
-      actions,
-      { onEvent, onError, hooks, waitUntil, confirmationConfigOverride }
-    );
+      signedTransaction: signedTxs[0].signedTransaction,
+      options: { onEvent, onError, hooks, waitUntil }
+    });
 
-    // 3. Transaction Broadcasting
-    const actionResult = await broadcastTransaction(
-      context,
-      signingResult,
-      { onEvent, onError, hooks, waitUntil }
-    );
-
-    try {
-      hooks?.afterCall?.(true, actionResult);
-    } catch (hookError: any) {
-      console.error('[executeAction] Error in afterCall hook:', hookError);
-      // Don't fail the entire transaction if the hook fails
-    }
-    return actionResult;
+    hooks?.afterCall?.(true, txResult);
+    return txResult;
 
   } catch (error: any) {
     console.error('[executeAction] Error during execution:', error);
@@ -113,13 +251,128 @@ export async function executeActionInternal(
       error: error.message
     });
 
-    const result = { success: false, error: error.message };
+    const result = { success: false, error: error.message, transactionId: undefined };
     hooks?.afterCall?.(false, result);
     return result;
   }
 }
 
+export async function signAndSendTransactionsInternal({
+  context,
+  nearAccountId,
+  transactionInputs,
+  options,
+  confirmationConfigOverride,
+}: {
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  transactionInputs: TransactionInput[],
+  options?: SignAndSendTransactionHooksOptions,
+  confirmationConfigOverride?: ConfirmationConfig | undefined,
+}): Promise<ActionResult[]> {
+
+  const signedTxs = await signTransactionsWithActionsInternal({
+    context,
+    nearAccountId,
+    transactionInputs,
+    options,
+    confirmationConfigOverride
+  });
+
+  if (options?.executeSequentially) {
+    const txResults = [];
+    for (const tx of signedTxs) {
+      const txResult = await sendTransaction({
+        context,
+        signedTransaction: tx.signedTransaction,
+        options
+      });
+      txResults.push(txResult);
+    }
+    return txResults;
+
+  } else {
+    return Promise.all(signedTxs.map(tx => sendTransaction({
+      context,
+      signedTransaction: tx.signedTransaction,
+      options
+    })))
+  }
+}
+
+/**
+ * Internal API for signing transactions with actions
+ * @internal - Only used by internal SDK components with confirmationConfigOverride
+ *
+ * @param context - PasskeyManager context
+ * @param nearAccountId - NEAR account ID to sign transactions with
+ * @param actionArgs - Action arguments to sign transactions with
+ * @param options - Options for the action
+ * @returns Promise resolving to the action result
+ */
+export async function signTransactionsWithActionsInternal({
+  context,
+  nearAccountId,
+  transactionInputs,
+  options,
+  confirmationConfigOverride,
+}: {
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  transactionInputs: TransactionInput[],
+  options?: ActionHooksOptions,
+  confirmationConfigOverride?: ConfirmationConfig | undefined,
+}): Promise<VerifyAndSignTransactionResult[]> {
+
+  const { onEvent, onError, hooks, waitUntil } = options || {};
+
+  try {
+    await options?.hooks?.beforeCall?.();
+    // Emit started event
+    onEvent?.({
+      step: 1,
+      phase: ActionPhase.STEP_1_PREPARATION,
+      status: ActionStatus.PROGRESS,
+      message: transactionInputs.length > 1
+        ? `Starting batched transaction with ${transactionInputs.length} actions`
+        : `Starting ${transactionInputs[0].actions[0].type} action`
+    });
+
+    // 1. Validation (use first action for account validation)
+    const transactionContext = await validateTransactionInputs(
+      context,
+      nearAccountId,
+      transactionInputs,
+      { onEvent, onError, hooks, waitUntil }
+    );
+
+    // 2. VRF Authentication + Transaction Signing
+    const signedTxs = await wasmAuthenticateAndSignTransactions(
+      context,
+      nearAccountId,
+      transactionContext,
+      transactionInputs,
+      { onEvent, onError, hooks, waitUntil, confirmationConfigOverride }
+    );
+
+    return signedTxs;
+  } catch (error: any) {
+    console.error('[signTransactionsWithActions] Error during execution:', error);
+    onError?.(error);
+    onEvent?.({
+      step: 0,
+      phase: ActionPhase.ACTION_ERROR,
+      status: ActionStatus.ERROR,
+      message: `Action failed: ${error.message}`,
+      error: error.message
+    });
+    throw error;
+  }
+}
+
+//////////////////////////////
 // === HELPER FUNCTIONS ===
+//////////////////////////////
 
 export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {
   nearClient: NearClient,
@@ -152,10 +405,10 @@ export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr,
 /**
  * 1. Validation - Validates inputs and prepares transaction context
  */
-async function validateActionInputs(
+async function validateTransactionInputs(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
-  actionArgs: ActionArgs,
+  transactionInputs: TransactionInput[],
   options?: ActionHooksOptions,
 ): Promise<TransactionContext> {
 
@@ -165,15 +418,6 @@ async function validateActionInputs(
   if (!nearAccountId) {
     throw new Error('User not logged in or NEAR account ID not set for direct action.');
   }
-  if (!actionArgs.receiverId) {
-    throw new Error('Missing required parameter: receiverId');
-  }
-  if (actionArgs.type === ActionType.FunctionCall && (!actionArgs.methodName || actionArgs.args === undefined)) {
-    throw new Error('Missing required parameters for function call: methodName or args');
-  }
-  if (actionArgs.type === ActionType.Transfer && !actionArgs.amount) {
-    throw new Error('Missing required parameter for transfer: amount');
-  }
 
   onEvent?.({
     step: 1,
@@ -181,6 +425,20 @@ async function validateActionInputs(
     status: ActionStatus.PROGRESS,
     message: 'Validating inputs...'
   });
+
+  for (const transactionInput of transactionInputs) {
+    if (!transactionInput.receiverId) {
+      throw new Error('Missing required parameter: receiverId');
+    }
+    for (const action of transactionInput.actions) {
+      if (action.type === ActionType.FunctionCall && (!action.methodName || action.args === undefined)) {
+        throw new Error('Missing required parameters for function call: methodName or args');
+      }
+      if (action.type === ActionType.Transfer && !action.amount) {
+        throw new Error('Missing required parameter for transfer: amount');
+      }
+    }
+  }
 
   const userData = await webAuthnManager.getUser(nearAccountId);
   const nearPublicKeyStr = userData?.clientNearPublicKey;
@@ -195,14 +453,14 @@ async function validateActionInputs(
  * 2. VRF Authentication - Handles VRF challenge generation and WebAuthn authentication
  *  with the webauthn contract
  */
-async function wasmAuthenticateAndSignTransaction(
+async function wasmAuthenticateAndSignTransactions(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionContext: TransactionContext,
-  actionArgs: ActionArgs[],
+  transactionInputs: TransactionInput[],
   options?: ActionHooksOptions & { confirmationConfigOverride?: ConfirmationConfig }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
-): Promise<VerifyAndSignTransactionResult> {
+): Promise<VerifyAndSignTransactionResult[]> {
 
   const { onEvent, onError, hooks, confirmationConfigOverride } = options || {};
   const { webAuthnManager } = context;
@@ -237,84 +495,21 @@ async function wasmAuthenticateAndSignTransaction(
     message: 'Verifying contract...'
   });
 
-  // Convert all actions to ActionParams format for batched transaction
-  const actionParams: ActionParams[] = actionArgs.map(action => {
-    switch (action.type) {
-      case ActionType.Transfer:
-        return {
-          action_type: ActionType.Transfer,
-          deposit: action.amount
-        };
-
-      case ActionType.FunctionCall:
-        return {
-          action_type: ActionType.FunctionCall,
-          method_name: action.methodName,
-          args: JSON.stringify(action.args),
-          gas: action.gas || "30000000000000",
-          deposit: action.deposit || "0"
-        };
-
-      case ActionType.AddKey:
-        // Ensure access key has proper format with nonce and permission object
-        const accessKey = {
-          nonce: action.accessKey.nonce || 0,
-          permission: action.accessKey.permission === 'FullAccess'
-            ? { FullAccess: {} }
-            : action.accessKey.permission // For FunctionCall permissions, pass as-is
-        };
-        return {
-          action_type: ActionType.AddKey,
-          public_key: action.publicKey,
-          access_key: JSON.stringify(accessKey)
-        };
-
-      case ActionType.DeleteKey:
-        return {
-          action_type: ActionType.DeleteKey,
-          public_key: action.publicKey
-        };
-
-      case ActionType.CreateAccount:
-        return {
-          action_type: ActionType.CreateAccount
-        };
-
-      case ActionType.DeleteAccount:
-        return {
-          action_type: ActionType.DeleteAccount,
-          beneficiary_id: action.beneficiaryId
-        };
-
-      case ActionType.DeployContract:
-        return {
-          action_type: ActionType.DeployContract,
-          code: typeof action.code === 'string' ? Array.from(new TextEncoder().encode(action.code)) : Array.from(action.code)
-        };
-
-      case ActionType.Stake:
-        return {
-          action_type: ActionType.Stake,
-          stake: action.stake,
-          public_key: action.publicKey
-        };
-
-      default:
-        throw new Error(`Action type ${(action as any).type} is not supported`);
+  // Convert all actions to ActionArgsWasm format for batched transaction
+  const transactionInputsWasm = transactionInputs.map((tx, i) => {
+    return {
+      nearAccountId: nearAccountId,
+      receiverId: tx.receiverId,
+      actions: tx.actions.map(action => toActionArgsWasm(action)),
+      nonce: (BigInt(transactionContext.nextNonce) + BigInt(i)).toString(),
     }
   });
 
-  // Determine receiver ID (use first action's receiver, or account if mixed)
-  const receiverId = actionArgs.length === 1 ? actionArgs[0].receiverId : nearAccountId;
+  console.log("transactionInputsWasm>>>", transactionInputsWasm);
 
   // Use the unified action-based WASM worker transaction signing
-  const signingResults = await webAuthnManager.signTransactionsWithActions({
-    transactions: [{
-      nearAccountId: nearAccountId,
-      receiverId: receiverId,
-      actions: actionParams,
-      nonce: transactionContext.nextNonce,
-    }],
+  const signedTxs = await webAuthnManager.signTransactionsWithActions({
+    transactions: transactionInputsWasm,
     // Common parameters
     blockHash: transactionContext.txBlockHash,
     contractId: webAuthnManager.configs.contractId,
@@ -359,69 +554,7 @@ async function wasmAuthenticateAndSignTransaction(
     } : undefined,
   });
 
-  // Return the first (and only) result
-  return signingResults[0];
+  return signedTxs;
 }
-
-/**
- * 3. Transaction Broadcasting - Broadcasts the signed transaction to NEAR network
- */
-export async function broadcastTransaction(
-  context: PasskeyManagerContext,
-  signingResult: VerifyAndSignTransactionResult,
-  options?: ActionHooksOptions,
-): Promise<ActionResult> {
-
-  const { onEvent, onError, hooks } = options || {};
-  const { nearClient } = context;
-
-  onEvent?.({
-    step: 8,
-    phase: ActionPhase.STEP_8_BROADCASTING,
-    status: ActionStatus.PROGRESS,
-    message: 'Broadcasting transaction...'
-  });
-
-  // The signingResult contains structured SignedTransaction with embedded raw bytes
-  const signedTransaction = signingResult.signedTransaction;
-
-  // Send the transaction using NearClient
-  let transactionResult;
-  try {
-    transactionResult = await nearClient.sendTransaction(
-      signedTransaction,
-      options?.waitUntil
-    );
-    console.log('[broadcastTransaction] Transaction result received successfully');
-  } catch (error) {
-    console.error('[broadcastTransaction] sendTransaction failed:', error);
-    throw error;
-  }
-
-  // Extract transaction ID from NEAR FinalExecutionOutcome
-  // Based on logs, the structure has transaction_outcome.id
-  const transactionId = transactionResult?.transaction_outcome?.id
-    || transactionResult?.transaction?.hash;
-
-  const actionResult: ActionResult = {
-    success: true,
-    transactionId: transactionId,
-    result: transactionResult
-  };
-
-  onEvent?.({
-    step: 9,
-    phase: ActionPhase.STEP_9_ACTION_COMPLETE,
-    status: ActionStatus.SUCCESS,
-    message: 'Transaction completed successfully',
-    data: {
-      transactionId: actionResult.transactionId,
-      result: actionResult.result
-    }
-  });
-
-  return actionResult;
-}
-
 
 

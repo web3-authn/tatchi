@@ -15,7 +15,7 @@ import {
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
 import { VRFChallenge } from '../../types/vrf-worker';
-import type { ActionParams } from '../../types/actions';
+import type { ActionArgsWasm } from '../../types/actions';
 import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
@@ -380,7 +380,7 @@ export class SignerWorkerManager {
     transactions: Array<{
       nearAccountId: AccountId;
       receiverId: string;
-      actions: ActionParams[];
+      actions: ActionArgsWasm[];
       nonce: string;
     }>;
     blockHash: string;
@@ -431,7 +431,7 @@ export class SignerWorkerManager {
     receiverId: string;
     nonce: string;
     blockHash: string;
-    actions: ActionParams[];
+    actions: ActionArgsWasm[];
   }): Promise<{
     signedTransaction: SignedTransaction;
     logs?: string[];

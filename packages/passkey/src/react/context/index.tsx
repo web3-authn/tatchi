@@ -258,20 +258,30 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     });
   }
 
-  const executeAction = async (
+  const executeAction = async (args: {
     nearAccountId: string,
+    receiverId: string,
     actionArgs: ActionArgs,
     options?: ActionHooksOptions
-  ) => {
-    return await passkeyManager.executeAction(nearAccountId, actionArgs, options);
+  }) => {
+    return await passkeyManager.executeAction({
+      nearAccountId: args.nearAccountId,
+      receiverId: args.receiverId,
+      actionArgs: args.actionArgs,
+      options: args.options
+    });
   }
 
-  const signNEP413Message = async (
+  const signNEP413Message = async (args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
     options?: BaseHooksOptions
-  ) => {
-    return await passkeyManager.signNEP413Message(nearAccountId, params, options);
+  }) => {
+    return await passkeyManager.signNEP413Message({
+      nearAccountId: args.nearAccountId,
+      params: args.params,
+      options: args.options
+    });
   }
 
   // Function to manually refresh login state

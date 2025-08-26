@@ -13,6 +13,7 @@ import type {
   SignNEP413MessageParams,
   SignNEP413MessageResult
 } from '../core/PasskeyManager';
+import { TransactionPayload, } from '../core/types/signer-worker';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
 import type { AccountId } from '../core/types/accountIds';
 import type { ActionArgs } from '../core/types/actions';
@@ -164,14 +165,19 @@ export interface PasskeyContextType {
   logout: () => void;
 
   // Execute actions
-  executeAction: (
-    nearAccountId: string,
-    actionArgs: ActionArgs,
-    options?: ActionHooksOptions
-  ) => Promise<ActionResult>;
+  executeAction: (args: {
+    nearAccountId: string;
+    receiverId: string;
+    actionArgs: ActionArgs;
+    options?: ActionHooksOptions;
+  }) => Promise<ActionResult>;
 
   // NEP-413 message signing
-  signNEP413Message: (nearAccountId: string, params: SignNEP413MessageParams, options?: BaseHooksOptions) => Promise<SignNEP413MessageResult>;
+  signNEP413Message: (args: {
+    nearAccountId: string;
+    params: SignNEP413MessageParams;
+    options?: BaseHooksOptions;
+  }) => Promise<SignNEP413MessageResult>;
 
   // Account recovery functions
   startAccountRecoveryFlow: (options: AccountRecoveryHooksOptions) => AccountRecoveryFlow;
@@ -252,8 +258,10 @@ export type {
 export interface EmbeddedTxConfirmProps {
   /** NEAR account ID */
   nearAccountId: string;
-  /** Action arguments (single action or array of actions) */
-  actionArgs: ActionArgs | ActionArgs[];
+  /** Transaction payloads to sign */
+  txSigningRequests?: TransactionPayload[];
+  /** Legacy: Action arguments to sign (deprecated, use txSigningRequests instead) */
+  actionArgs?: ActionArgs | ActionArgs[];
   /** Component title */
   title?: string;
   /** Cancel button text */
@@ -262,8 +270,8 @@ export interface EmbeddedTxConfirmProps {
   confirmText?: string;
   /** Visual variant */
   variant?: 'default' | 'warning' | 'danger';
-  /** Optional action hook options passed into executeAction */
-  actionOptions?: ActionHooksOptions;
+  /** Optional hook options passed into signAndSendTransactions */
+  options?: ActionHooksOptions;
   /** Callback when user cancels */
   onCancel?: () => void;
   /** Loading state */

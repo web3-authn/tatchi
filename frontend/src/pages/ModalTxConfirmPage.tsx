@@ -1,6 +1,6 @@
 
 import React, { useState, useCallback } from 'react';
-import { usePasskeyContext } from '@web3authn/passkey/react';
+import { ActionStatus, usePasskeyContext } from '@web3authn/passkey/react';
 import type { ActionArgs, FunctionCallAction, TransferAction, CreateAccountAction, DeployContractAction, StakeAction, AddKeyAction, DeleteKeyAction, DeleteAccountAction } from '@web3authn/passkey/react';
 import { ActionType, ActionPhase, TxExecutionStatus } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
@@ -63,7 +63,6 @@ export const ModalTxConfirmPage: React.FC = () => {
       if (greetingInput.trim()) {
         actions.push({
           type: ActionType.FunctionCall,
-          receiverId: WEBAUTHN_CONTRACT_ID,
           methodName: 'set_greeting',
           args: { greeting: greetingInput.trim() },
           gas: "30000000000000",
@@ -77,7 +76,6 @@ export const ModalTxConfirmPage: React.FC = () => {
         if (yoctoAmount !== '0') {
           actions.push({
             type: ActionType.Transfer,
-            receiverId: transferRecipient.trim(),
             amount: yoctoAmount,
           });
         }
@@ -86,14 +84,12 @@ export const ModalTxConfirmPage: React.FC = () => {
       // CreateAccount Action
       actions.push({
         type: ActionType.CreateAccount,
-        receiverId: 'new-account.testnet',
       });
 
       // DeployContract Action
       const contractCode = new Uint8Array([0x00, 0x61, 0x73, 0x6d]); // Minimal WASM header
       actions.push({
         type: ActionType.DeployContract,
-        receiverId: nearAccountId!,
         code: contractCode,
       });
 
@@ -103,7 +99,6 @@ export const ModalTxConfirmPage: React.FC = () => {
         if (yoctoStake !== '0') {
           actions.push({
             type: ActionType.Stake,
-            receiverId: nearAccountId!,
             stake: yoctoStake,
             publicKey: publicKey.trim(),
           });
@@ -114,7 +109,6 @@ export const ModalTxConfirmPage: React.FC = () => {
       if (publicKey.trim()) {
         actions.push({
           type: ActionType.AddKey,
-          receiverId: nearAccountId!,
           publicKey: publicKey.trim(),
           accessKey: {
             permission: 'FullAccess',
@@ -126,7 +120,6 @@ export const ModalTxConfirmPage: React.FC = () => {
       if (publicKey.trim()) {
         actions.push({
           type: ActionType.DeleteKey,
-          receiverId: nearAccountId!,
           publicKey: publicKey.trim(),
         });
       }
@@ -135,7 +128,6 @@ export const ModalTxConfirmPage: React.FC = () => {
       if (beneficiaryId.trim()) {
         actions.push({
           type: ActionType.DeleteAccount,
-          receiverId: nearAccountId!,
           beneficiaryId: beneficiaryId.trim(),
         });
       }
@@ -146,26 +138,31 @@ export const ModalTxConfirmPage: React.FC = () => {
       }
 
       // Execute all actions in a single transaction
-      await passkeyManager.executeAction(nearAccountId!, actions, {
-        onEvent: (event) => {
-          switch (event.phase) {
-            case ActionPhase.STEP_1_PREPARATION:
-              toast.loading('Processing transaction...', { id: 'combinedTx' });
-              break;
-            case ActionPhase.STEP_9_ACTION_COMPLETE:
-              toast.success('Transaction completed successfully!', { id: 'combinedTx' });
-              break;
-            case ActionPhase.ACTION_ERROR:
-              toast.error(`Transaction failed: ${event.error}`, { id: 'combinedTx' });
-              break;
-          }
-        },
-        waitUntil: TxExecutionStatus.FINAL,
-        hooks: {
-          afterCall: (success: boolean, result?: any) => {
-            if (success && result?.transactionId) {
-              console.log('Combined transaction success:', result.transactionId);
-              console.log('Actions executed:', actions.length);
+      await passkeyManager.executeAction({
+        nearAccountId: nearAccountId!,
+        receiverId: WEBAUTHN_CONTRACT_ID,
+        actionArgs: actions,
+                options: {
+          onEvent: (event) => {
+            switch (event.phase) {
+              case ActionPhase.STEP_1_PREPARATION:
+                toast.loading('Processing transaction...', { id: 'combinedTx' });
+                break;
+              case ActionPhase.STEP_9_ACTION_COMPLETE:
+                toast.success('Transaction completed successfully!', { id: 'combinedTx' });
+                break;
+              case ActionPhase.ACTION_ERROR:
+                toast.error(`Transaction failed: ${event.error}`, { id: 'combinedTx' });
+                break;
+            }
+          },
+          waitUntil: TxExecutionStatus.FINAL,
+          hooks: {
+            afterCall: (success: boolean, result?: any) => {
+              if (success && result?.transactionId) {
+                console.log('Combined transaction success:', result.transactionId);
+                console.log('Actions executed:', actions.length);
+              }
             }
           }
         }
@@ -202,54 +199,55 @@ export const ModalTxConfirmPage: React.FC = () => {
       }
 
       // Sign 3 transfer transactions to different accounts
-      const signedTransactions = await passkeyManager.signTransactionsWithActions(nearAccountId!, {
+      const txResults = await passkeyManager.signAndSendTransactions({
+        nearAccountId: nearAccountId!,
         transactions: [
           {
             receiverId: 'alice.testnet',
             actions: [{
-              action_type: ActionType.Transfer,
-              deposit: yoctoAmount
+              type: ActionType.Transfer,
+              amount: yoctoAmount
             }]
           },
           {
             receiverId: 'bob.testnet',
             actions: [{
-              action_type: ActionType.Transfer,
-              deposit: yoctoAmount
+              type: ActionType.Transfer,
+              amount: yoctoAmount
             }]
           },
           {
             receiverId: 'charlie.testnet',
             actions: [{
-              action_type: ActionType.Transfer,
-              deposit: yoctoAmount
+              type: ActionType.Transfer,
+              amount: yoctoAmount
             }]
           }
         ],
-        onEvent: (event) => {
-          console.log('Batch signing progress:', event);
-          if (event.phase === ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
-            toast.success('All transactions signed successfully!');
-          }
+        options: {
+          executeSequentially: false,
+          onEvent: (event) => {
+            console.log('send TX event:', event);
+            switch (event.phase) {
+              case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+                toast.success(event.message, { id: 'batchTx' });
+                break;
+              case ActionPhase.STEP_8_BROADCASTING:
+                if (event.status === ActionStatus.SUCCESS) {
+                  toast.success(event.message, { id: 'batchTx' });
+                }
+                if (event.status === ActionStatus.ERROR) {
+                  toast.error(event.message, { id: 'batchTx' });
+                }
+                break;
+              case ActionPhase.STEP_9_ACTION_COMPLETE:
+                toast.success(event.message, { id: 'batchTx' });
+                break;
+            }
+          },
         }
       });
-      console.log('Signed transactions:', signedTransactions);
-
-      // Sequentially broadcast each transaction
-      for (const [index, signedTx] of signedTransactions.entries()) {
-        if (!signedTx.signedTransaction) return;
-        try {
-          const result = await passkeyManager.sendTransaction(
-            signedTx.signedTransaction,
-            TxExecutionStatus.FINAL
-          );
-          console.log(`Transaction ${index + 1} broadcasted:`, result.transaction_outcome?.id);
-          toast.success(`Transfer ${index + 1} completed: ${result.transaction_outcome?.id}`);
-        } catch (error) {
-          console.error(`Failed to broadcast transaction ${index + 1}:`, error);
-          toast.error(`Transfer ${index + 1} failed: ${error}`);
-        }
-      }
+      console.log(`Sent ${txResults.length} transactions:`, txResults);
 
     } catch (error) {
       console.error('Batch signing error:', error);

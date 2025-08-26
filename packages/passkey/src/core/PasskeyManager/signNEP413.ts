@@ -51,13 +51,14 @@ export interface SignNEP413MessageResult {
  * @param options - Action options for event handling
  * @returns Promise resolving to signing result
  */
-export async function signNEP413Message(
+export async function signNEP413Message(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   params: SignNEP413MessageParams,
   options?: BaseHooksOptions
-): Promise<SignNEP413MessageResult> {
+}): Promise<SignNEP413MessageResult> {
 
+  const { context, nearAccountId, params, options } = args;
   const { nearClient, webAuthnManager } = context;
 
   try {

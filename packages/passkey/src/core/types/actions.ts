@@ -1,3 +1,16 @@
+
+// === TRANSACTION INPUT INTERFACES ===
+
+export interface TransactionInput {
+  receiverId: string;
+  actions: ActionArgs[],
+}
+
+export interface TransactionInputWasm {
+  receiverId: string;
+  actions: ActionArgsWasm[],
+}
+
 /**
  * Enum for all supported NEAR action types
  * Provides type safety and better developer experience
@@ -22,22 +35,9 @@ export enum TxExecutionStatus {
   EXECUTED_OPTIMISTIC = 'EXECUTED_OPTIMISTIC'
 }
 
-// === ACTION INTERFACES (NEAR-JS STYLE) ===
+// === ACTION INTERFACES (camelCase for JS) ===
 
-/**
- * Base interface for all NEAR actions
- * Following near-js patterns for better developer experience
- */
-interface BaseAction {
-  /** Account ID that will receive this action */
-  receiverId: string;
-}
-
-/**
- * Call a smart contract function
- * Most commonly used action type
- */
-export interface FunctionCallAction extends BaseAction {
+export interface FunctionCallAction {
   type: ActionType.FunctionCall;
   /** Name of the contract method to call */
   methodName: string;
@@ -49,35 +49,23 @@ export interface FunctionCallAction extends BaseAction {
   deposit?: string;
 }
 
-/**
- * Transfer NEAR tokens to another account
- */
-export interface TransferAction extends BaseAction {
+export interface TransferAction {
   type: ActionType.Transfer;
   /** Amount of NEAR tokens to transfer in yoctoNEAR */
   amount: string;
 }
 
-/**
- * Create a new NEAR account
- */
-export interface CreateAccountAction extends BaseAction {
+export interface CreateAccountAction {
   type: ActionType.CreateAccount;
 }
 
-/**
- * Deploy a smart contract
- */
-export interface DeployContractAction extends BaseAction {
+export interface DeployContractAction {
   type: ActionType.DeployContract;
   /** Contract code as Uint8Array or base64 string */
   code: Uint8Array | string;
 }
 
-/**
- * Stake NEAR tokens for validation
- */
-export interface StakeAction extends BaseAction {
+export interface StakeAction {
   type: ActionType.Stake;
   /** Amount to stake in yoctoNEAR */
   stake: string;
@@ -85,10 +73,7 @@ export interface StakeAction extends BaseAction {
   publicKey: string;
 }
 
-/**
- * Add an access key to an account
- */
-export interface AddKeyAction extends BaseAction {
+export interface AddKeyAction {
   type: ActionType.AddKey;
   /** Public key to add */
   publicKey: string;
@@ -111,27 +96,21 @@ export interface AddKeyAction extends BaseAction {
   };
 }
 
-/**
- * Remove an access key from an account
- */
-export interface DeleteKeyAction extends BaseAction {
+export interface DeleteKeyAction {
   type: ActionType.DeleteKey;
   /** Public key to remove */
   publicKey: string;
 }
 
-/**
- * Delete an account and transfer remaining balance
- */
-export interface DeleteAccountAction extends BaseAction {
+export interface DeleteAccountAction {
   type: ActionType.DeleteAccount;
   /** Account that will receive the remaining balance */
   beneficiaryId: string;
 }
 
 /**
- * Union type for all possible NEAR actions
- * Provides type safety and IntelliSense support
+ * Action types for all NEAR actions
+ * camelCase for JS
  */
 export type ActionArgs =
   | FunctionCallAction
@@ -145,8 +124,9 @@ export type ActionArgs =
 
 // === ACTION TYPES ===
 
-// ActionParams matches the Rust enum structure exactly
-export type ActionParams =
+// ActionArgsWasm matches the Rust enum structure exactly
+// snake_case for wasm
+export type ActionArgsWasm =
   | { action_type: ActionType.CreateAccount }
   | { action_type: ActionType.DeployContract; code: number[] }
   | {
@@ -162,35 +142,101 @@ export type ActionParams =
   | { action_type: ActionType.DeleteKey; public_key: string }
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
 
+export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
+  switch (action.type) {
+    case ActionType.Transfer:
+      return {
+        action_type: ActionType.Transfer,
+        deposit: action.amount
+      };
+
+    case ActionType.FunctionCall:
+      return {
+        action_type: ActionType.FunctionCall,
+        method_name: action.methodName,
+        args: JSON.stringify(action.args),
+        gas: action.gas || "30000000000000",
+        deposit: action.deposit || "0"
+      };
+
+    case ActionType.AddKey:
+      // Ensure access key has proper format with nonce and permission object
+      const accessKey = {
+        nonce: action.accessKey.nonce || 0,
+        permission: action.accessKey.permission === 'FullAccess'
+          ? { FullAccess: {} }
+          : action.accessKey.permission // For FunctionCall permissions, pass as-is
+      };
+      return {
+        action_type: ActionType.AddKey,
+        public_key: action.publicKey,
+        access_key: JSON.stringify(accessKey)
+      };
+
+    case ActionType.DeleteKey:
+      return {
+        action_type: ActionType.DeleteKey,
+        public_key: action.publicKey
+      };
+
+    case ActionType.CreateAccount:
+      return {
+        action_type: ActionType.CreateAccount
+      };
+
+    case ActionType.DeleteAccount:
+      return {
+        action_type: ActionType.DeleteAccount,
+        beneficiary_id: action.beneficiaryId
+      };
+
+    case ActionType.DeployContract:
+      return {
+        action_type: ActionType.DeployContract,
+        code: typeof action.code === 'string' ? Array.from(new TextEncoder().encode(action.code)) : Array.from(action.code)
+      };
+
+    case ActionType.Stake:
+      return {
+        action_type: ActionType.Stake,
+        stake: action.stake,
+        public_key: action.publicKey
+      };
+
+    default:
+      throw new Error(`Action type ${(action as any).type} is not supported`);
+  }
+}
+
 // === ACTION TYPE VALIDATION ===
 
 /**
  * Validate action parameters before sending to worker
  */
-export function validateActionParams(actionParams: ActionParams): void {
-  switch (actionParams.action_type) {
+export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
+  switch (actionArgsWasm.action_type) {
     case ActionType.FunctionCall:
-      if (!actionParams.method_name) {
+      if (!actionArgsWasm.method_name) {
         throw new Error('method_name required for FunctionCall');
       }
-      if (!actionParams.args) {
+      if (!actionArgsWasm.args) {
         throw new Error('args required for FunctionCall');
       }
-      if (!actionParams.gas) {
+      if (!actionArgsWasm.gas) {
         throw new Error('gas required for FunctionCall');
       }
-      if (!actionParams.deposit) {
+      if (!actionArgsWasm.deposit) {
         throw new Error('deposit required for FunctionCall');
       }
       // Validate args is valid JSON string
       try {
-        JSON.parse(actionParams.args);
+        JSON.parse(actionArgsWasm.args);
       } catch {
         throw new Error('FunctionCall action args must be valid JSON string');
       }
       break;
     case ActionType.Transfer:
-      if (!actionParams.deposit) {
+      if (!actionArgsWasm.deposit) {
         throw new Error('deposit required for Transfer');
       }
       break;
@@ -198,37 +244,37 @@ export function validateActionParams(actionParams: ActionParams): void {
       // No additional validation needed
       break;
     case ActionType.DeployContract:
-      if (!actionParams.code || actionParams.code.length === 0) {
+      if (!actionArgsWasm.code || actionArgsWasm.code.length === 0) {
         throw new Error('code required for DeployContract');
       }
       break;
     case ActionType.Stake:
-      if (!actionParams.stake) {
+      if (!actionArgsWasm.stake) {
         throw new Error('stake amount required for Stake');
       }
-      if (!actionParams.public_key) {
+      if (!actionArgsWasm.public_key) {
         throw new Error('public_key required for Stake');
       }
       break;
     case ActionType.AddKey:
-      if (!actionParams.public_key) {
+      if (!actionArgsWasm.public_key) {
         throw new Error('public_key required for AddKey');
       }
-      if (!actionParams.access_key) {
+      if (!actionArgsWasm.access_key) {
         throw new Error('access_key required for AddKey');
       }
       break;
     case ActionType.DeleteKey:
-      if (!actionParams.public_key) {
+      if (!actionArgsWasm.public_key) {
         throw new Error('public_key required for DeleteKey');
       }
       break;
     case ActionType.DeleteAccount:
-      if (!actionParams.beneficiary_id) {
+      if (!actionArgsWasm.beneficiary_id) {
         throw new Error('beneficiary_id required for DeleteAccount');
       }
       break;
     default:
-      throw new Error(`Unsupported action type: ${(actionParams as any).action_type}`);
+      throw new Error(`Unsupported action type: ${(actionArgsWasm as any).action_type}`);
   }
 }

@@ -8,7 +8,7 @@ import { getNonceBlockHashAndHeight } from './actions';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
-import { ActionType, type ActionParams } from '../types/actions';
+import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
@@ -912,7 +912,7 @@ export class LinkDeviceFlow {
       console.log(`   - New key: ${newPublicKey}`);
 
       // Build actions: AddKey new + DeleteKey old
-      const actions: ActionParams[] = [
+      const actions: ActionArgsWasm[] = [
         {
           action_type: ActionType.AddKey,
           public_key: newPublicKey,

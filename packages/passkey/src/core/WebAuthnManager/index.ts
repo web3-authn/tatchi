@@ -17,7 +17,7 @@ import {
   VRFInputData,
   VRFChallenge
 } from '../types/vrf-worker';
-import type { ActionParams } from '../types/actions';
+import type { ActionArgsWasm } from '../types/actions';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
@@ -521,7 +521,7 @@ export class WebAuthnManager {
     transactions: Array<{
       nearAccountId: AccountId;
       receiverId: string;
-      actions: ActionParams[];
+      actions: ActionArgsWasm[];
       nonce: string;
     }>,
     // Common parameters for all transactions
@@ -536,17 +536,15 @@ export class WebAuthnManager {
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');
     }
-    return await this.signerWorkerManager.signTransactionsWithActions(
-      {
-        transactions,
-        blockHash,
-        contractId,
-        vrfChallenge,
-        nearRpcUrl,
-        confirmationConfigOverride,
-        onEvent,
-      },
-    );
+    return await this.signerWorkerManager.signTransactionsWithActions({
+      transactions,
+      blockHash,
+      contractId,
+      vrfChallenge,
+      nearRpcUrl,
+      confirmationConfigOverride,
+      onEvent,
+    });
   }
 
   async signNEP413Message(payload: {
@@ -807,7 +805,7 @@ export class WebAuthnManager {
     receiverId: string;
     nonce: string;
     blockHash: string;
-    actions: ActionParams[];
+    actions: ActionArgsWasm[];
   }): Promise<{
     signedTransaction: SignedTransaction;
     logs?: string[];

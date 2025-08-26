@@ -1,6 +1,6 @@
 
 import { SignedTransaction } from '../../../NearClient';
-import { type ActionParams, validateActionParams } from '../../../types/actions';
+import { type ActionArgsWasm, validateActionArgsWasm } from '../../../types/actions';
 import type { onProgressEvents } from '../../../types/passkeyManager';
 import {
   WorkerRequestType,
@@ -10,6 +10,7 @@ import { VRFChallenge } from '../../../types/vrf-worker';
 import { AccountId } from "../../../types/accountIds";
 import { ConfirmationConfig } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
+import { WasmTransactionSignResult } from '../../../types/signer-worker';
 
 
 /**
@@ -30,7 +31,7 @@ export async function signTransactionsWithActions({
   transactions: Array<{
     nearAccountId: AccountId;
     receiverId: string;
-    actions: ActionParams[];
+    actions: ActionArgsWasm[];
     nonce: string;
   }>;
   blockHash: string;
@@ -55,7 +56,7 @@ export async function signTransactionsWithActions({
     transactions.forEach((txPayload, txIndex) => {
       txPayload.actions.forEach((action, actionIndex) => {
         try {
-          validateActionParams(action);
+          validateActionArgsWasm(action);
         } catch (error) {
           throw new Error(`Transaction ${txIndex}, Action ${actionIndex} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -137,7 +138,6 @@ export async function signTransactionsWithActions({
       if (!signedTx || !signedTx.transaction || !signedTx.signature) {
         throw new Error(`Incomplete signed transaction data received for transaction ${index + 1}`);
       }
-
       return {
         signedTransaction: new SignedTransaction({
           transaction: signedTx.transaction,

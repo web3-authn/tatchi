@@ -314,6 +314,7 @@
 
 .button__text {
   display: inline-block;
+  margin-left: var(--w3a-gap-2);
 }
 
 @keyframes spin {

@@ -1,8 +1,12 @@
 import { WebAuthnManager } from '../WebAuthnManager';
 import { registerPasskey } from './registration';
 import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
-import { executeAction } from './actions';
-import { signTransactionsWithActions, sendTransaction } from './signSendTransactions';
+import {
+  executeAction,
+  signTransactionsWithActions,
+  sendTransaction,
+  signAndSendTransactions,
+} from './actions';
 import { recoverAccount, AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import {
   MinimalNearClient,
@@ -10,7 +14,6 @@ import {
   type SignedTransaction,
   type AccessKeyList,
 } from '../NearClient';
-import type { FinalExecutionOutcome } from '@near-js/types';
 import type {
   PasskeyManagerConfigs,
   RegistrationResult,
@@ -22,11 +25,19 @@ import type {
   ActionResult,
   LoginState,
   AccountRecoveryHooksOptions,
+  VerifyAndSignTransactionResult,
+  SignAndSendTransactionHooksOptions,
+  SendTransactionHooksOptions,
 } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { ActionType, type ActionArgs, type ActionParams, TxExecutionStatus } from '../types/actions';
+import {
+  ActionType,
+  type ActionArgs,
+  type TransactionInput
+} from '../types/actions';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -248,12 +259,89 @@ export class PasskeyManager {
    * });
    * ```
    */
-  async executeAction(
+  async executeAction(args: {
     nearAccountId: string,
+    receiverId: string,
     actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
-  ): Promise<ActionResult> {
-    return executeAction(this.getContext(), toAccountId(nearAccountId), actionArgs, options);
+  }): Promise<ActionResult> {
+    return executeAction({
+      context: this.getContext(),
+      nearAccountId: toAccountId(args.nearAccountId),
+      receiverId: toAccountId(args.receiverId),
+      actionArgs: args.actionArgs,
+      options: args.options
+    });
+  }
+
+  /**
+   * Sign and send multiple transactions with actions
+   * This method signs transactions with actions and sends them to the network
+   *
+   * @param nearAccountId - NEAR account ID to sign and send transactions with
+   * @param transactionInputs - Transaction inputs to sign and send
+   * @param options - Sign and send transaction options
+   * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
+   * - onError: (error: Error) => void - Optional error callback
+   * - hooks: OperationHooks - Optional operation hooks
+   * - waitUntil: TxExecutionStatus - Optional waitUntil status
+   * - executeSequentially: boolean - Wait for each transaction to finish before sending the next (default: true)
+   * @returns Promise resolving to action results
+   *
+   * @example
+   * ```typescript
+   * // Sign and send multiple transactions in a batch
+   * const results = await passkeyManager.signAndSendTransactions('alice.near', {
+   *   transactions: [
+   *     {
+   *       receiverId: 'bob.near',
+   *       actions: [{
+   *         action_type: ActionType.Transfer,
+   *         deposit: '1000000000000000000000000'
+   *       }],
+   *     },
+   *     {
+   *       receiverId: 'contract.near',
+   *       actions: [{
+   *         action_type: ActionType.FunctionCall,
+   *         method_name: 'log_transfer',
+   *         args: JSON.stringify({ recipient: 'bob.near' }),
+   *         gas: '30000000000000',
+   *         deposit: '0'
+   *       }],
+   *     }
+   *   ],
+   *   options: {
+   *     onEvent: (event) => console.log('Signing and sending progress:', event)
+   *     executeSequentially: true
+   *   }
+   * });
+   * ```
+   */
+  async signAndSendTransactions({
+    nearAccountId,
+    transactions,
+    options = { executeSequentially: true }
+  }: {
+    nearAccountId: string,
+    transactions: TransactionInput[],
+    options?: SignAndSendTransactionHooksOptions,
+  }): Promise<ActionResult[]> {
+    return signAndSendTransactions({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      transactionInputs: transactions,
+      options
+    }).then(txResults => {
+      const txIds = txResults.map(txResult => txResult.transactionId).join(', ');
+      options?.onEvent?.({
+        step: 9,
+        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+        status: ActionStatus.SUCCESS,
+        message: `All transactions sent: ${txIds}`
+      });
+      return txResults;
+    });
   }
 
   /**
@@ -308,17 +396,17 @@ export class PasskeyManager {
    * });
    * ```
    */
-  async signTransactionsWithActions(
+  async signTransactionsWithActions({ nearAccountId, transactions, options }: {
     nearAccountId: string,
-    params: {
-      transactions: Array<{
-        receiverId: string;
-        actions: ActionParams[];
-      }>;
-      onEvent?: (update: any) => void;
-    }
-  ): Promise<any[]> {
-    return signTransactionsWithActions(this.getContext(), nearAccountId, params);
+    transactions: TransactionInput[],
+    options?: ActionHooksOptions
+  }): Promise<VerifyAndSignTransactionResult[]> {
+    return signTransactionsWithActions({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      transactionInputs: transactions,
+      options
+    });
   }
 
   /**
@@ -350,11 +438,20 @@ export class PasskeyManager {
    * console.log('Transaction ID:', result.transaction_outcome?.id);
    * ```
    */
-  async sendTransaction(
+  async sendTransaction({ signedTransaction, options }: {
     signedTransaction: SignedTransaction,
-    waitUntil: TxExecutionStatus = TxExecutionStatus.FINAL
-  ): Promise<FinalExecutionOutcome> {
-    return sendTransaction(this.getContext(), signedTransaction, waitUntil);
+    options?: SendTransactionHooksOptions
+  }): Promise<ActionResult> {
+    return sendTransaction({ context: this.getContext(), signedTransaction, options })
+    .then(txResult => {
+      options?.onEvent?.({
+        step: 9,
+        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+        status: ActionStatus.SUCCESS,
+        message: `Transaction ${txResult.transactionId} broadcasted`
+      });
+      return txResult;
+    });
   }
 
   ///////////////////////////////////////
@@ -398,12 +495,17 @@ export class PasskeyManager {
    * }
    * ```
    */
-  async signNEP413Message(
+  async signNEP413Message(args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
     options?: BaseHooksOptions
-  ): Promise<SignNEP413MessageResult> {
-    return signNEP413Message(this.getContext(), toAccountId(nearAccountId), params, options);
+  }): Promise<SignNEP413MessageResult> {
+    return signNEP413Message({
+      context: this.getContext(),
+      nearAccountId: toAccountId(args.nearAccountId),
+      params: args.params,
+      options: args.options
+    });
   }
 
   ///////////////////////////////////////
@@ -641,13 +743,16 @@ export class PasskeyManager {
     }
 
     // Use the executeAction method with DeleteKey action
-    return this.executeAction(accountId, {
-      type: ActionType.DeleteKey,
+    return this.executeAction({
+      nearAccountId: accountId,
       receiverId: accountId,
-      publicKey: publicKeyToDelete
-    }, options);
+      actionArgs: {
+        type: ActionType.DeleteKey,
+        publicKey: publicKeyToDelete
+      },
+      options: options
+    });
   }
-
 
 }
 
