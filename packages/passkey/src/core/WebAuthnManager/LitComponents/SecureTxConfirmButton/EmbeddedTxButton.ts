@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { when } from 'lit/directives/when.js';
-import { ActionArgs } from '../../../types/actions';
+import { ActionArgs, TransactionInput } from '../../../types/actions';
+import TooltipTxTree, { type TreeNode } from './TooltipTxTree';
 
 export type TooltipPosition =
   | 'top-left' | 'top-center' | 'top-right'
@@ -27,10 +28,10 @@ export interface TooltipGeometry {
  * Lit-based embedded transaction confirmation element for iframe usage.
  * Implements the clip-path approach with tooltip measurement and postMessage communication.
  */
-export class EmbeddedTxConfirmElement extends LitElement {
+export class EmbeddedTxButton extends LitElement {
   static properties = {
     nearAccountId: { type: String },
-    actionArgs: { type: Object },
+    txSigningRequests: { type: Array },
     color: { type: String },
     buttonText: { type: String },
     loading: { type: Boolean },
@@ -43,8 +44,8 @@ export class EmbeddedTxConfirmElement extends LitElement {
   } as const;
 
   nearAccountId: string = '';
-  // ActionArgs from the main thread, before sending to wasm-worker
-  actionArgs: ActionArgs | ActionArgs[] | null = null;
+  // Incoming TransactionPayloads to display (array of transactions)
+  txSigningRequests: TransactionInput[] = [];
   color: string = '#667eea';
   buttonText: string = 'Sign Transaction';
   loading: boolean = false;
@@ -66,6 +67,8 @@ export class EmbeddedTxConfirmElement extends LitElement {
   private tooltipVisible: boolean = false;
   private hideTimeout: number | null = null;
   private initialGeometrySent: boolean = false;
+  // Ensure TooltipTxTree is retained in the bundle, and not tree-shaken out
+  private _ensureTreeDefinition = TooltipTxTree;
 
   static styles = css`
     :host {
@@ -94,7 +97,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
       transform: translate(-50%, -50%);
     }
 
-    .btn {
+    .embedded-btn {
       background: var(--btn-background, var(--btn-color, #222));
       color: var(--btn-color-text, white);
       border: var(--btn-border, none);
@@ -124,7 +127,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
       to { opacity: 1; }
     }
 
-    .btn:hover {
+    .embedded-btn:hover {
       background: var(--btn-hover-background, var(--btn-color-hover, #5a6fd8));
       color: var(--btn-hover-color, white);
       border: var(--btn-hover-border, var(--btn-border, none));
@@ -134,7 +137,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
       font-weight: var(--btn-hover-font-weight, var(--btn-font-weight, 500));
     }
 
-    .btn:disabled {
+    .embedded-btn:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
@@ -249,7 +252,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
       transition-delay: 150ms;
     }
 
-    .action-list {
+    .gradient-border {
       /* Thicker, subtle monochrome animated border */
       --border-angle: 0deg;
       background: linear-gradient(#ffffff, #ffffff) padding-box,
@@ -407,9 +410,9 @@ export class EmbeddedTxConfirmElement extends LitElement {
       this.setupCSSVariables();
     }
 
-    if (changedProperties.has('nearAccountId') || changedProperties.has('actionArgs')) {
+    if (changedProperties.has('nearAccountId') || changedProperties.has('txSigningRequests')) {
       // Send initial geometry for clip-path setup on first actionArgs update
-      if (!this.initialGeometrySent && this.actionArgs) {
+      if (!this.initialGeometrySent && this.txSigningRequests) {
         requestAnimationFrame(() => {
           this.sendInitialGeometry();
           this.initialGeometrySent = true;
@@ -470,7 +473,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
 
   private measureTooltip() {
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.btn') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
 
     if (!tooltipElement || !buttonElement) return;
 
@@ -514,7 +517,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
    */
   private sendInitialGeometry() {
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.btn') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
 
     if (!tooltipElement || !buttonElement) return;
 
@@ -573,6 +576,12 @@ export class EmbeddedTxConfirmElement extends LitElement {
     if (!tooltipElement || this.tooltipVisible) return;
 
     this.tooltipVisible = true;
+    // Allow content to expand naturally when visible
+    try {
+      tooltipElement.style.setProperty('--tooltip-height', 'auto');
+    } catch {
+    }
+    tooltipElement.style.height = 'auto';
     tooltipElement.classList.add('show');
     tooltipElement.classList.remove('hiding');
     tooltipElement.setAttribute('aria-hidden', 'false');
@@ -599,11 +608,23 @@ export class EmbeddedTxConfirmElement extends LitElement {
       this.tooltipVisible = false;
       tooltipElement.classList.remove('show', 'hiding');
       tooltipElement.setAttribute('aria-hidden', 'true');
+      // Restore configured height when hidden
+      try { tooltipElement.style.setProperty('--tooltip-height', this.tooltip.height); } catch {}
+      tooltipElement.style.height = typeof this.tooltip.height === 'string' ? this.tooltip.height : `${this.tooltip.height}`;
       this.hideTimeout = null;
 
       // Send updated tooltip state with visible: false
       this.measureTooltip();
     }, 100);
+  }
+
+  private handleTreeToggled() {
+    // Wait 2 frames to ensure <details> layout is fully resolved before measuring
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.measureTooltip();
+      });
+    });
   }
 
   private cancelHide() {
@@ -621,7 +642,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
   // Method to force property update and re-render
   updateProperties(props: Partial<{
     nearAccountId: string;
-    actionArgs: any;
+    txSigningRequests: TransactionInput[];
     loading: boolean;
     buttonStyle: React.CSSProperties;
     buttonHoverStyle: React.CSSProperties;
@@ -636,7 +657,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
     // Force a re-render to update tooltip content
     this.requestUpdate();
     // If tooltip is visible and actionArgs changed, re-measure after render
-    if (props.actionArgs && this.tooltipVisible) {
+    if (props.txSigningRequests && this.tooltipVisible) {
       requestAnimationFrame(() => {
         this.measureTooltip();
       });
@@ -749,10 +770,6 @@ export class EmbeddedTxConfirmElement extends LitElement {
     }
     if (action.type === 'FunctionCall') {
       return html`
-        <div class="action-detail">
-          <strong>Receiver</strong>
-          <span>${action.receiverId}</span>
-        </div>
         <div class="action-detail">
           <strong>Deposit</strong>
           <span>${action.deposit || '0'}</span>
@@ -904,16 +921,153 @@ export class EmbeddedTxConfirmElement extends LitElement {
     }
   }
 
+  // Build a two-level tree: Transaction -> Action N -> subfields
+  private buildTreeFromActions(tx: TransactionInput): TreeNode {
+
+    const actionFolders: TreeNode[] = tx.actions.map((action, idx) => {
+
+      const label = `Action ${idx + 1}: ${action.type}`;
+
+      const fieldNodes: TreeNode[] = (() => {
+        if (action.type === 'FunctionCall') {
+          return [
+            { id: `a${idx}-method`, label: `method: ${action.methodName}`, type: 'file' },
+            { id: `a${idx}-gas`, label: `gas: ${action.gas ?? ''}`, type: 'file' },
+            { id: `a${idx}-deposit`, label: `deposit: ${action.deposit ?? ''}`, type: 'file' },
+            {
+              id: `a${idx}-args`,
+              label: 'args',
+              type: 'file',
+              content: (() => { try { return JSON.stringify(action.args, null, 2); } catch { return String(action.args); } })()
+            }
+          ];
+        }
+        if (action.type === 'Transfer') {
+          return [
+            { id: `a${idx}-amount`, label: `amount: ${action.amount}`, type: 'file' }
+          ];
+        }
+        if (action.type === 'CreateAccount') {
+          return [
+          ];
+        }
+        if (action.type === 'DeployContract') {
+          const code = (action as any).code;
+          const codeSize = (() => {
+            if (!code) return '0 bytes';
+            if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
+            if (Array.isArray(code)) return `${code.length} bytes`;
+            if (typeof code === 'string') return `${code.length} bytes`;
+            return 'unknown';
+          })();
+          return [
+            { id: `a${idx}-code-size`, label: `codeSize: ${codeSize}`, type: 'file' }
+          ];
+        }
+        if (action.type === 'Stake') {
+          const a: any = action;
+          return [
+            { id: `a${idx}-publicKey`, label: `publicKey: ${a.publicKey}`, type: 'file' },
+            { id: `a${idx}-stake`, label: `stake: ${a.stake}`, type: 'file' }
+          ];
+        }
+        if (action.type === 'AddKey') {
+          const ak = action.accessKey;
+          let akPretty = '';
+          try { akPretty = JSON.stringify(ak, null, 2); } catch { akPretty = String(ak); }
+          return [
+            { id: `a${idx}-publicKey`, label: `publicKey: ${action.publicKey}`, type: 'file' },
+            { id: `a${idx}-accessKey`, label: 'accessKey', type: 'file', content: akPretty }
+          ];
+        }
+        if (action.type === 'DeleteKey') {
+          return [
+            { id: `a${idx}-publicKey`, label: `publicKey: ${action.publicKey}`, type: 'file' }
+          ];
+        }
+        if (action.type === 'DeleteAccount') {
+          return [
+            { id: `a${idx}-beneficiaryId`, label: `beneficiaryId: ${action.beneficiaryId}`, type: 'file' }
+          ];
+        }
+        // Unknown action
+        let raw = '';
+        try { raw = JSON.stringify(action, null, 2); } catch { raw = String(action); }
+        return [ { id: `a${idx}-raw`, label: 'data', type: 'file', content: raw } ];
+      })();
+
+      const folder: TreeNode = {
+        id: `action-${idx}`,
+        label,
+        type: 'folder',
+        open: false,
+        children: fieldNodes
+      };
+      return folder;
+    });
+
+    const result: TreeNode = {
+      id: 'tx-root',
+      label: actionFolders.length > 1 ? 'Transaction' : 'Action',
+      type: 'folder',
+      open: true,
+      children: actionFolders
+    };
+    return result;
+  }
+
+  private buildDisplayTreeFromTxPayloads(txSigningRequests: TransactionInput[]): TreeNode {
+
+    const txFolders: TreeNode[] = txSigningRequests.map((tx: TransactionInput, tIdx: number) => {
+
+      // Handle the case where actions might be a JSON string (from TransactionPayload)
+      let actions: ActionArgs[] = [];
+      if (typeof (tx as any).actions === 'string') {
+        try {
+          actions = JSON.parse((tx as any).actions);
+        } catch (e) {
+          console.error('[EmbeddedTxButton] Failed to parse actions JSON:', e);
+        }
+      } else if (Array.isArray(tx.actions)) {
+        actions = tx.actions;
+      }
+
+      // Create a proper TransactionInput object
+      const txInput: TransactionInput = {
+        receiverId: tx.receiverId,
+        actions: actions
+      };
+
+      const children = this.buildTreeFromActions(txInput).children || [];
+      return {
+        id: `tx-${tIdx}`,
+        label: `Transaction ${tIdx + 1} to ${tx.receiverId}`,
+        type: 'folder',
+        open: tIdx === 0,
+        children: [...children]
+      };
+    });
+    return {
+      id: 'txs-root',
+      label: txFolders.length > 1 ? 'Transactions' : 'Transaction',
+      type: 'folder',
+      open: true,
+      children: txFolders
+    };
+  }
+
   render() {
 
-    if (!this.actionArgs) return html`<div>Loading...</div>`;
+    if (!this.txSigningRequests || this.txSigningRequests.length === 0) {
+      return html`<div>Loading...</div>`;
+    }
 
-    const actions = Array.isArray(this.actionArgs) ? this.actionArgs : [this.actionArgs];
+    const tree = this.buildDisplayTreeFromTxPayloads(this.txSigningRequests);
 
     return html`
       <div class="embedded-confirm-container">
         <button
-          class="btn"
+          class="embedded-btn"
           ?disabled=${this.loading}
           @click=${this.handleConfirm}
           @pointerenter=${this.handlePointerEnter}
@@ -940,8 +1094,12 @@ export class EmbeddedTxConfirmElement extends LitElement {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          <div class="action-list">
-            ${actions.map((action, index) => this.renderActions(action, index))}
+          <div class="gradient-border">
+            <tooltip-tx-tree
+              .node=${tree}
+              .depth=${0}
+              @tree-toggled=${this.handleTreeToggled}
+            ></tooltip-tx-tree>
           </div>
         </div>
       </div>
@@ -950,7 +1108,7 @@ export class EmbeddedTxConfirmElement extends LitElement {
 }
 
 // Define the custom element
-customElements.define('embedded-tx-confirm', EmbeddedTxConfirmElement);
+customElements.define('embedded-tx-button', EmbeddedTxButton);
 
 // Export default only to avoid name collision with React wrapper export
-export default EmbeddedTxConfirmElement;
+export default EmbeddedTxButton;

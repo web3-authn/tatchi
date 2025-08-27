@@ -13,7 +13,7 @@ import type {
   SignNEP413MessageParams,
   SignNEP413MessageResult
 } from '../core/PasskeyManager';
-import { TransactionPayload, } from '../core/types/signer-worker';
+import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
 import type { AccountId } from '../core/types/accountIds';
 import type { ActionArgs } from '../core/types/actions';
@@ -255,13 +255,11 @@ export type {
 } from '../core/types/linkDevice';
 
 // === EMBEDDED TRANSACTION CONFIRMATION TYPES ===
-export interface EmbeddedTxConfirmProps {
+export interface SecureTxConfirmButtonProps {
   /** NEAR account ID */
   nearAccountId: string;
   /** Transaction payloads to sign */
-  txSigningRequests?: TransactionPayload[];
-  /** Legacy: Action arguments to sign (deprecated, use txSigningRequests instead) */
-  actionArgs?: ActionArgs | ActionArgs[];
+  txSigningRequests?: TransactionInput[];
   /** Component title */
   title?: string;
   /** Cancel button text */

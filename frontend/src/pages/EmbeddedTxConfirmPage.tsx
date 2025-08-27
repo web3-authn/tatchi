@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePasskeyContext } from '@web3authn/passkey/react';
-import { EmbeddedTxConfirm, ActionType } from '@web3authn/passkey/react';
+import { SecureTxConfirmButton, ActionType } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import './EmbeddedTxConfirmPage.css';
@@ -30,7 +30,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
 
     return {
       type: ActionType.FunctionCall,
-      receiverId: WEBAUTHN_CONTRACT_ID,
       methodName: 'set_greeting',
       args: { greeting: newGreetingMessage },
       gas: '30000000000000',
@@ -87,12 +86,15 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="embedded-tx-component-section">
-              <label className="embedded-tx-component-label">Embedded Component:</label>
-              <EmbeddedTxConfirm
+            <div className="test-embedded-section">
+              <label className="test-embedded-section-label">Embedded Component:</label>
+              <SecureTxConfirmButton
                 nearAccountId={loginState.nearAccountId!}
-                actionArgs={createGreetingAction()}
-                actionOptions={{
+                txSigningRequests={[{
+                  receiverId: WEBAUTHN_CONTRACT_ID,
+                  actions: [createGreetingAction()]
+                }]}
+                options={{
                   hooks: {
                     beforeCall: () => {
                       // optional: add any per-call logging here

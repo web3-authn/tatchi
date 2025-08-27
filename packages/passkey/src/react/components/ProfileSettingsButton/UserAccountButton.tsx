@@ -24,7 +24,7 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
           <div className={`w3a-user-account--avatar ${isOpen ? 'expanded' : 'shrunk'}`}>
             <Settings
               className={`w3a-user-account--gear-icon ${isOpen ? 'open' : 'closed'}`}
-              strokeWidth={1}
+              strokeWidth={1.4}
             />
           </div>
           <UserAccountId

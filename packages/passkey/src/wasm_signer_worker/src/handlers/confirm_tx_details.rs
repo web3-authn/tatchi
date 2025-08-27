@@ -218,13 +218,23 @@ pub async fn request_user_confirmation_with_config(
                 "isRegistration": false, // not registration flow
             });
 
-            // Send transaction payloads directly to preserve receiverId information
+            // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
+            let tx_signing_requests_json = tx_batch_request.tx_signing_requests.iter().map(|tx| {
+                let actions_value: serde_json::Value = serde_json::from_str(&tx.actions)
+                    .unwrap_or_else(|_| serde_json::json!([]));
+                serde_json::json!({
+                    "nearAccountId": tx.near_account_id,
+                    "receiverId": tx.receiver_id,
+                    "actions": actions_value
+                })
+            }).collect::<Vec<serde_json::Value>>();
+
             let confirm_result = await_secure_confirmation(
                 &request_id,
                 &intent_digest,
                 JsValue::from_str(&summary.to_string()),
                 JsValue::from_str(&confirmation_data.to_string()),
-                &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
+                &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
             ).await;
 
             let result = parse_confirmation_result(confirm_result)?;
@@ -278,13 +288,24 @@ pub async fn request_user_confirmation_with_config(
         "isRegistration": false, // not registration flow
     });
 
+    // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
+    let tx_signing_requests_json = tx_batch_request.tx_signing_requests.iter().map(|tx| {
+        let actions_value: serde_json::Value = serde_json::from_str(&tx.actions)
+            .unwrap_or_else(|_| serde_json::json!([]));
+        serde_json::json!({
+            "nearAccountId": tx.near_account_id,
+            "receiverId": tx.receiver_id,
+            "actions": actions_value
+        })
+    }).collect::<Vec<serde_json::Value>>();
+
     // Call JS bridge for user confirmation with enhanced data
     let confirm_result = await_secure_confirmation(
         &request_id,
         &intent_digest,
         JsValue::from_str(&summary.to_string()),
         JsValue::from_str(&confirmation_data.to_string()),
-        &serde_json::to_string(&tx_batch_request.tx_signing_requests).unwrap_or_default()
+        &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
     ).await;
 
     // Parse confirmation result

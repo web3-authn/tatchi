@@ -1,7 +1,7 @@
 // Import types and components needed for mount functions
+import { TransactionPayload } from '../../types/signer-worker';
 import {
   ModalTxConfirmElement,
-  TransactionPayload,
   activeResolvers,
   type ConfirmRenderMode,
   type ConfirmVariant,
@@ -20,7 +20,6 @@ export type {
   ConfirmVariant,
   SecureTxSummary,
   TxAction,
-  TransactionPayload
 } from './ModalTxConfirmElement';
 
 /**
@@ -54,9 +53,9 @@ export function mountModalTxConfirm(opts: {
     activeResolvers.set(element, resolve);
 
     // Set properties (Lit automatically handles reactivity)
-      element.mode = opts.mode ?? 'modal';
-  element.variant = opts.variant ?? 'default';
-  element.totalAmount = opts.summary?.totalAmount ?? '';
+    element.mode = opts.mode ?? 'modal';
+    element.variant = opts.variant ?? 'default';
+    element.totalAmount = opts.summary?.totalAmount ?? '';
     element.method = opts.summary?.method ?? '';
     element.fingerprint = opts.summary?.fingerprint ?? '';
     element.title = opts.title ?? 'Confirm Transaction';

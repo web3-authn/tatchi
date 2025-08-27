@@ -53,9 +53,9 @@ signerWorkerManager.onSecureConfirmRequest = async (message) => {
 ### React Component
 
 ```tsx
-import { EmbeddedTxConfirm } from '@web3authn/passkey/react';
+import { SecureTxConfirmButton } from '@web3authn/passkey/react';
 
-<EmbeddedTxConfirm
+<SecureTxConfirmButton
   nearAccountId="user.near"
   actionArgs={actions}
   color="#667eea"
@@ -134,7 +134,7 @@ const { passkeyManager, loginPasskey } = usePasskeyContext();
 ### Basic Transfer
 
 ```tsx
-<EmbeddedTxConfirm
+<SecureTxConfirmButton
   nearAccountId="alice.testnet"
   actionArgs={[{
     type: 'Transfer',
@@ -149,7 +149,7 @@ const { passkeyManager, loginPasskey } = usePasskeyContext();
 ### Smart Contract Call
 
 ```tsx
-<EmbeddedTxConfirm
+<SecureTxConfirmButton
   nearAccountId="alice.testnet"
   actionArgs={[{
     type: 'FunctionCall',
@@ -167,7 +167,7 @@ const { passkeyManager, loginPasskey } = usePasskeyContext();
 ### High-Value Transaction
 
 ```tsx
-<EmbeddedTxConfirm
+<SecureTxConfirmButton
   nearAccountId="alice.testnet"
   actionArgs={[{
     type: 'FunctionCall',

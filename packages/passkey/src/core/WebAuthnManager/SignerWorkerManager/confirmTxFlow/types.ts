@@ -1,9 +1,11 @@
+import { TransactionPayload } from '../../../types/signer-worker';
+
 // === SECURE CONFIRM TYPES ===
 
 export interface SecureConfirmData {
   requestId: string;
   summary: string | object;
-  tx_signing_requests?: any[]; // Array of TransactionPayload objects
+  tx_signing_requests?: TransactionPayload[]; // Array of TransactionPayload objects
   intentDigest?: string;
   nearAccountId?: string; // Account ID for credential lookup
   vrfChallenge?: any; // VRF challenge for credential generation

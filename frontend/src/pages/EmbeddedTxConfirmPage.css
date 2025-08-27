@@ -130,12 +130,12 @@
 }
 
 /* Component Section */
-.embedded-tx-component-section {
+.test-embedded-section {
   display: flex;
   flex-direction: column;
 }
 
-.embedded-tx-component-label {
+.test-embedded-section-label {
   font-size: var(--w3a-text-sm);
   font-weight: var(--w3a-font-semibold);
   color: var(--w3a-text-primary);

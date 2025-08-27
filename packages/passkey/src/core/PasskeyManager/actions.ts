@@ -190,7 +190,7 @@ export async function sendTransaction({
 
 /**
  * Internal API for executing actions with optional confirmation override
- * @internal - Only used by internal SDK components like EmbeddedTxConfirm
+ * @internal - Only used by internal SDK components like SecureTxConfirmButton
  *
  * @param context - PasskeyManager context
  * @param nearAccountId - NEAR account ID to sign transactions with

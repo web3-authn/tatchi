@@ -126,7 +126,7 @@ impl RegistrationInfoStruct {
 pub async fn handle_sign_verify_and_register_user(
     request: SignVerifyAndRegisterUserRequest
 ) -> Result<RegistrationResult, String> {
-    let mut logs = Vec::new();
+    let logs = Vec::new();
 
     let vrf_challenge = request.verification.vrf_challenge
         .as_ref().ok_or_else(|| "Missing vrfChallenge in verification".to_string())?;

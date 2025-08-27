@@ -1,3 +1,4 @@
+import { ActionArgsWasm, TransactionInput, TransactionInputWasm } from '../../../types';
 import { SecureConfirmMessageType, WorkerConfirmationResponse } from './types';
 
 interface ConfirmationData {
@@ -48,11 +49,13 @@ export function awaitSecureConfirmation(
       confirmationData,
       txSigningRequestsJson,
     });
+    console.log("txSigningRequestsJson: ", txSigningRequestsJson);
+
 
     // parsedSummary is only use for display purposes
     let parsedSummary: ConfirmationSummaryAction | ConfirmationSummaryRegistration;
     let parsedConfirmationData: ConfirmationData;
-    let parsedTxSigningRequests: any[] = [];
+    let parsedTxSigningRequests: TransactionInputWasm[] = [];
 
     try {
       if (summary.includes("to") && summary.includes("totalAmount")) {
@@ -62,10 +65,17 @@ export function awaitSecureConfirmation(
       }
       parsedConfirmationData = safeJsonParseStrict<ConfirmationData>(confirmationData, 'confirmationData');
       parsedTxSigningRequests = txSigningRequestsJson
-        ? safeJsonParseStrict<any[]>(txSigningRequestsJson, 'txSigningRequestsJson')
+        ? safeJsonParseStrict<TransactionInputWasm[]>(txSigningRequestsJson, 'txSigningRequestsJson')
         : [];
     } catch (error) {
       return reject(error);
+    }
+
+    console.log("parsedTxSigningRequests: ", parsedTxSigningRequests);
+    for (const tx of parsedTxSigningRequests) {
+      console.log("tx: ", tx);
+      console.log("tx.actions: ", tx.actions);
+      console.log("tx.actions.[0]: ", tx.actions?.[0]);
     }
 
     /**

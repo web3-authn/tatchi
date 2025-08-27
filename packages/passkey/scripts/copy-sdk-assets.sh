@@ -37,15 +37,15 @@ cp -r "$BUILD_CJS" "$FRONTEND_SDK/"
 # Copy embedded Lit components to stable public path
 echo "Copying embedded component..."
 mkdir -p "$FRONTEND_SDK/embedded"
-cp "$BUILD_ESM/react/embedded/embedded-tx-confirm.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded component not found"
-cp "$BUILD_ESM/react/embedded/embedded-tx-confirm-host.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded host component not found"
+cp "$BUILD_ESM/react/embedded/embedded-tx-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded-button component not found"
+cp "$BUILD_ESM/react/embedded/iframe-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: iframe-button component not found"
 
 # Optional sourcemaps
-if [ -f "$BUILD_ESM/react/embedded/embedded-tx-confirm.js.map" ]; then
-  cp "$BUILD_ESM/react/embedded/embedded-tx-confirm.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
+if [ -f "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" ]; then
+  cp "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
 fi
-if [ -f "$BUILD_ESM/react/embedded/embedded-tx-confirm-host.js.map" ]; then
-  cp "$BUILD_ESM/react/embedded/embedded-tx-confirm-host.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
+if [ -f "$BUILD_ESM/react/embedded/iframe-button.js.map" ]; then
+  cp "$BUILD_ESM/react/embedded/iframe-button.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
 fi
 
 echo "✅ SDK files copied successfully!"

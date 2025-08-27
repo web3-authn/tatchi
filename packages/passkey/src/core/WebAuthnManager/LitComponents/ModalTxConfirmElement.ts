@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
+import { TransactionPayload } from '../../types/signer-worker';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -20,14 +21,6 @@ export interface TxAction {
   gas?: string;
   deposit?: string;
   [key: string]: any;
-}
-
-export interface TransactionPayload {
-  nearAccountId: string;
-  receiverId: string;
-  actions: string; // JSON string of actions
-  nonce: string;
-  blockHash: string;
 }
 
 // Store active promise resolvers in a WeakMap to prevent memory leaks

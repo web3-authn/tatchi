@@ -1,4 +1,5 @@
-import { LogOut } from 'lucide-react';
+// import { LogOut } from 'lucide-react';
+import LogOutIcon from './LogOutIcon2';
 import { memo } from 'react';
 import type { LogoutMenuItemProps } from './types';
 
@@ -17,7 +18,7 @@ export const LogoutMenuItem: React.FC<LogoutMenuItemProps> = memo(({
       }}
     >
       <div className="w3a-dropdown-menu-item-icon">
-        <LogOut />
+        <LogOutIcon />
       </div>
       <div className="w3a-dropdown-menu-item-content">
         <div className="w3a-dropdown-menu-item-label">

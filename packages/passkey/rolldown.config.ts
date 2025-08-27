@@ -190,24 +190,24 @@ export default defineConfig([
   },
   // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
   {
-    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxButton.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/EmbeddedTxButton.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'embedded-tx-confirm.js'
+      entryFileNames: 'embedded-tx-button.js'
     },
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
     },
   },
-  // Embedded Transaction Confirmation Iframe Host component - new Lit-based host
+  // Embedded Transaction Confirmation Iframe Host component
   {
-    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxIframe.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButton.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'embedded-tx-confirm-host.js'
+      entryFileNames: 'iframe-button.js'
     },
     external: embeddedExternal,
     resolve: {

@@ -142,7 +142,7 @@ export const ModalTxConfirmPage: React.FC = () => {
         nearAccountId: nearAccountId!,
         receiverId: WEBAUTHN_CONTRACT_ID,
         actionArgs: actions,
-                options: {
+        options: {
           onEvent: (event) => {
             switch (event.phase) {
               case ActionPhase.STEP_1_PREPARATION:

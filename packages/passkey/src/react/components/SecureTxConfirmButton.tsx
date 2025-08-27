@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import type { EmbeddedTxConfirmProps } from '../types';
+import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
+import { IFRAME_BUTTON_ID } from '../../core/types/components';
 
 /**
- * React wrapper around the Lit `embedded-tx-confirm-host` component.
+ * React wrapper around the Lit `iframe-button` component.
  * Much cleaner implementation that delegates iframe management to Lit.
  */
-export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
+export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
@@ -20,8 +21,8 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
   };
 }> = ({
   nearAccountId,
-  actionArgs,
-  actionOptions,
+  txSigningRequests,
+  options,
   // Optional customizations
   color = '#667eea',
   buttonStyle,
@@ -51,7 +52,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
 
     const loadEmbeddedComponent = () => {
       // Check if the custom element is already defined
-      if (customElements.get('embedded-tx-confirm-host')) {
+      if (customElements.get(IFRAME_BUTTON_ID)) {
         setIsComponentLoaded(true);
         return Promise.resolve();
       }
@@ -62,7 +63,7 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
         // Dynamically load the host component bundle
         const script = document.createElement('script');
         script.type = 'module';
-        script.src = '/sdk/embedded/embedded-tx-confirm-host.js';
+        script.src = `/sdk/embedded/${IFRAME_BUTTON_ID}.js`;
         script.onload = () => {
           setIsComponentLoaded(true);
           resolve();
@@ -95,11 +96,11 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
     prevTooltipStyleRef.current = tooltipStyle;
 
     // Set properties on the Lit component using Lit setters
-    host.actionArgs = actionArgs;
+    host.txSigningRequests = txSigningRequests;
     host.buttonStyle = buttonStyle;
     host.buttonHoverStyle = buttonHoverStyle;
     host.tooltipStyle = tooltipStyle;
-    host.actionOptions = actionOptions;
+    host.options = options;
     host.passkeyManagerContext = passkeyManager.getContext();
 
     // Set event handlers (these don't trigger updates)
@@ -109,25 +110,25 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
 
     // If tooltipStyle changed, force iframe re-initialization for proper sizing/positioning
     if (tooltipStyleChanged && host.forceIframeReinitialize) {
-      console.debug('[EmbeddedTxConfirm] Tooltip style changed, forcing iframe re-initialization');
+      console.debug('[SecureTxConfirmButton] Tooltip style changed, forcing iframe re-initialization');
       host.forceIframeReinitialize();
     }
 
   }, [
-    actionArgs,
+    txSigningRequests,
     buttonStyle,
     buttonHoverStyle,
     tooltipStyle,
-    actionOptions,
+    options,
     passkeyManager,
     onSuccess,
     onError,
     onCancel
   ]);
 
-  return React.createElement('embedded-tx-confirm-host', {
+  return React.createElement(IFRAME_BUTTON_ID, {
     ref: hostRef,
-    key: 'embedded-tx-confirm-host', // Stable key to prevent re-creation
+    key: IFRAME_BUTTON_ID, // Stable key to prevent re-creation
     // Pass props as attributes - Lit will automatically handle property conversion
     'near-account-id': nearAccountId,
     'color': color,
@@ -136,6 +137,6 @@ export const EmbeddedTxConfirm: React.FC<EmbeddedTxConfirmProps & {
   });
 };
 
-export default EmbeddedTxConfirm;
+export default SecureTxConfirmButton;
 
 
