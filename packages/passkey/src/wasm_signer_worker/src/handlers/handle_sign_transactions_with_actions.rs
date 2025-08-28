@@ -72,6 +72,19 @@ pub struct TransactionPayload {
     pub block_hash: String,
 }
 
+impl TransactionPayload {
+    /// Parse the actions JSON string into a typed Vec<ActionParams>
+    pub fn parsed_actions(&self) -> Result<Vec<ActionParams>, serde_json::Error> {
+        serde_json::from_str(&self.actions)
+    }
+
+    /// Parse the actions JSON string into serde_json::Value
+    /// Returns an empty array on parse failure
+    pub fn parsed_actions_value(&self) -> serde_json::Value {
+        serde_json::from_str(&self.actions).unwrap_or_else(|_| serde_json::json!([]))
+    }
+}
+
 #[wasm_bindgen]
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -467,7 +480,7 @@ async fn sign_near_transactions_with_actions_impl(
         logs.push(format!("Processing transaction {} of {}", index + 1, tx_requests.len()));
 
         // Parse and build actions for this transaction
-        let action_params: Vec<ActionParams> = match serde_json::from_str::<Vec<ActionParams>>(&tx_data.actions) {
+        let action_params: Vec<ActionParams> = match tx_data.parsed_actions() {
             Ok(params) => {
                 logs.push(format!("Transaction {}: Parsed {} actions", index + 1, params.len()));
                 params

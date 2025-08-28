@@ -26,7 +26,6 @@ extern "C" {
     #[wasm_bindgen(js_name = awaitSecureConfirmation)]
     async fn await_secure_confirmation(
         request_id: &str,
-        digest: &str,
         summary: JsValue,
         confirmation_data: JsValue,
         actions_json: &str
@@ -44,6 +43,7 @@ pub struct ConfirmationResult {
     pub intent_digest: String,
     pub credential: Option<serde_json::Value>, // Serialized WebAuthn credential (JSON)
     pub prf_output: Option<String>, // Base64url-encoded PRF output for decryption
+    pub error: Option<String>, // Error message if confirmation failed
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -114,7 +114,7 @@ pub fn create_transaction_summary(
         unique_receivers.insert(tx_request.receiver_id.clone());
 
         // Parse actions to extract deposits
-        let actions: Vec<ActionParams> = serde_json::from_str(&tx_request.actions)
+        let actions: Vec<ActionParams> = tx_request.parsed_actions()
             .map_err(|e| format!("Failed to parse actions JSON: {}", e))?;
 
         for action in actions {
@@ -138,6 +138,55 @@ pub fn create_transaction_summary(
     }
 
     // Format the summary
+    let summary = ConfirmationSummaryAction {
+        to: match unique_receivers.len() {
+            1 => unique_receivers.iter().next().unwrap().to_string(),
+            _ => format!("{} recipients", unique_receivers.len()),
+        },
+        total_amount: match total_deposit {
+            0 => "0".to_string(),
+            _ => format!("{}", total_deposit),
+        },
+    };
+
+    serde_json::to_value(&summary)
+        .map_err(|e| format!("Failed to serialize transaction summary: {}", e))
+}
+
+/// Creates a transaction summary from pre-parsed actions to avoid double parsing
+pub fn create_transaction_summary_from_parsed(
+    receivers_and_actions: &[(String, Vec<ActionParams>)]
+) -> Result<serde_json::Value, String> {
+    if receivers_and_actions.is_empty() {
+        return Err("No transactions provided for summary".to_string());
+    }
+
+    let mut total_deposit = 0u128;
+    let mut unique_receivers = std::collections::HashSet::new();
+
+    for (receiver_id, actions) in receivers_and_actions {
+        unique_receivers.insert(receiver_id.clone());
+
+        for action in actions {
+            match action {
+                ActionParams::CreateAccount => {}
+                ActionParams::DeployContract { .. } => {}
+                ActionParams::FunctionCall { deposit, .. } => {
+                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
+                }
+                ActionParams::Transfer { deposit } => {
+                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
+                }
+                ActionParams::Stake { stake, .. } => {
+                    total_deposit += stake.parse::<u128>().unwrap_or(0);
+                }
+                ActionParams::AddKey { .. } => {}
+                ActionParams::DeleteKey { .. } => {}
+                ActionParams::DeleteAccount { .. } => {}
+            }
+        }
+    }
+
     let summary = ConfirmationSummaryAction {
         to: match unique_receivers.len() {
             1 => unique_receivers.iter().next().unwrap().to_string(),
@@ -185,6 +234,16 @@ pub async fn request_user_confirmation_with_config(
 
     let first_request = &tx_batch_request.tx_signing_requests[0];
 
+    // Pre-parse actions once for summary and UI payloads
+    let parsed_receivers_and_actions: Vec<(String, Vec<ActionParams>)> = tx_batch_request
+        .tx_signing_requests
+        .iter()
+        .map(|tx| {
+            let actions = tx.parsed_actions().unwrap_or_default();
+            (tx.receiver_id.clone(), actions)
+        })
+        .collect();
+
     // Check if UI mode is Skip OR Embedded - for embedded, we override to skip extra UI
     // but still collect credentials and PRF output via the bridge (no additional UI shown)
     if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
@@ -207,7 +266,7 @@ pub async fn request_user_confirmation_with_config(
             // Validate and normalize confirmation config according to documented rules
             let normalized_config = validate_and_normalize_confirmation_config(confirmation_config);
 
-            let summary = create_transaction_summary(&tx_batch_request.tx_signing_requests)
+            let summary = create_transaction_summary_from_parsed(&parsed_receivers_and_actions)
                 .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
             let confirmation_data = serde_json::json!({
@@ -219,19 +278,15 @@ pub async fn request_user_confirmation_with_config(
             });
 
             // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
-            let tx_signing_requests_json = tx_batch_request.tx_signing_requests.iter().map(|tx| {
-                let actions_value: serde_json::Value = serde_json::from_str(&tx.actions)
-                    .unwrap_or_else(|_| serde_json::json!([]));
+            let tx_signing_requests_json = parsed_receivers_and_actions.iter().map(|(receiver_id, actions)| {
                 serde_json::json!({
-                    "nearAccountId": tx.near_account_id,
-                    "receiverId": tx.receiver_id,
-                    "actions": actions_value
+                    "receiverId": receiver_id,
+                    "actions": actions
                 })
             }).collect::<Vec<serde_json::Value>>();
 
             let confirm_result = await_secure_confirmation(
                 &request_id,
-                &intent_digest,
                 JsValue::from_str(&summary.to_string()),
                 JsValue::from_str(&confirmation_data.to_string()),
                 &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
@@ -248,13 +303,17 @@ pub async fn request_user_confirmation_with_config(
                     ..result
                 });
             } else {
-                return Err("Failed to collect credentials".to_string());
+                if let Some(error) = result.error {
+                    return Err(error);
+                } else {
+                    return Err("Failed to collect credentials".to_string());
+                }
             }
         }
     }
 
     // Normal confirmation flow for other UI modes
-    let summary = create_transaction_summary(&tx_batch_request.tx_signing_requests)
+    let summary = create_transaction_summary_from_parsed(&parsed_receivers_and_actions)
         .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
     let intent_digest = compute_intent_digest(&tx_batch_request.tx_signing_requests)
@@ -289,20 +348,16 @@ pub async fn request_user_confirmation_with_config(
     });
 
     // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
-    let tx_signing_requests_json = tx_batch_request.tx_signing_requests.iter().map(|tx| {
-        let actions_value: serde_json::Value = serde_json::from_str(&tx.actions)
-            .unwrap_or_else(|_| serde_json::json!([]));
+    let tx_signing_requests_json = parsed_receivers_and_actions.iter().map(|(receiver_id, actions)| {
         serde_json::json!({
-            "nearAccountId": tx.near_account_id,
-            "receiverId": tx.receiver_id,
-            "actions": actions_value
+            "receiverId": receiver_id,
+            "actions": actions
         })
     }).collect::<Vec<serde_json::Value>>();
 
     // Call JS bridge for user confirmation with enhanced data
     let confirm_result = await_secure_confirmation(
         &request_id,
-        &intent_digest,
         JsValue::from_str(&summary.to_string()),
         JsValue::from_str(&confirmation_data.to_string()),
         &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
@@ -354,7 +409,6 @@ pub async fn request_user_registration_confirmation(
     // Call JS bridge for user confirmation
     let confirm_result = await_secure_confirmation(
         &request_id,
-        &intent_digest,
         JsValue::from_str(&summary.to_string()),
         JsValue::from_str(&confirmation_data.to_string()),
         "" // No actions for registration, actions are signed by either server account
