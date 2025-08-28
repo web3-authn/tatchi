@@ -1,25 +1,13 @@
-import { ActionArgsWasm, TransactionInput, TransactionInputWasm } from '../../../types';
-import { SecureConfirmMessageType, WorkerConfirmationResponse } from './types';
-
-interface ConfirmationData {
-  intentDigest: string;
-  nearAccountId: string;
-  vrfChallenge: string;
-  confirmationConfig: any;
-}
-
-interface ConfirmationSummaryAction {
-  to: string;
-  totalAmount: string;
-}
-
-interface ConfirmationSummaryRegistration {
-  type: string;
-  nearAccountId: string;
-  deviceNumber: number;
-  contractId: string;
-  deterministicVrfPublicKey: string;
-}
+import { TransactionInputWasm } from '../../../types';
+import {
+  WorkerConfirmationResponse,
+  SecureConfirmMessageType,
+  SecureConfirmData,
+  ConfirmationSummaryAction,
+  ConfirmationSummaryRegistration
+} from './types';
+import { VRFChallenge } from '@/core/types/vrf-worker';
+import { VRFChallengeData } from '@/wasm_vrf_worker/wasm_vrf_worker';
 
 /**
  * Bridge function called from Rust to await user confirmation on the main thread
@@ -35,47 +23,24 @@ interface ConfirmationSummaryRegistration {
  */
 export function awaitSecureConfirmation(
   requestId: string,
-  digest: string,
   summary: string,
   confirmationData: string,
   txSigningRequestsJson: string | undefined
 ): Promise<WorkerConfirmationResponse> {
   return new Promise((resolve, reject) => {
 
-    console.log("awaitSecureConfirmation called with: ", {
-      requestId,
-      digest,
-      summary,
-      confirmationData,
-      txSigningRequestsJson,
-    });
-    console.log("txSigningRequestsJson: ", txSigningRequestsJson);
-
 
     // parsedSummary is only use for display purposes
     let parsedSummary: ConfirmationSummaryAction | ConfirmationSummaryRegistration;
-    let parsedConfirmationData: ConfirmationData;
+    let parsedConfirmationData: SecureConfirmData;
     let parsedTxSigningRequests: TransactionInputWasm[] = [];
 
     try {
-      if (summary.includes("to") && summary.includes("totalAmount")) {
-        parsedSummary = safeJsonParseStrict<ConfirmationSummaryAction>(summary, 'action summary');
-      } else {
-        parsedSummary = safeJsonParseStrict<ConfirmationSummaryRegistration>(summary, 'registration summary');
-      }
-      parsedConfirmationData = safeJsonParseStrict<ConfirmationData>(confirmationData, 'confirmationData');
-      parsedTxSigningRequests = txSigningRequestsJson
-        ? safeJsonParseStrict<TransactionInputWasm[]>(txSigningRequestsJson, 'txSigningRequestsJson')
-        : [];
+      parsedSummary = parseSummary(summary);
+      parsedConfirmationData = parseConfirmationData(confirmationData);
+      parsedTxSigningRequests = parseTxSigningRequests(txSigningRequestsJson);
     } catch (error) {
       return reject(error);
-    }
-
-    console.log("parsedTxSigningRequests: ", parsedTxSigningRequests);
-    for (const tx of parsedTxSigningRequests) {
-      console.log("tx: ", tx);
-      console.log("tx.actions: ", tx.actions);
-      console.log("tx.actions.[0]: ", tx.actions?.[0]);
     }
 
     /**
@@ -94,7 +59,6 @@ export function awaitSecureConfirmation(
      */
     const onDecisionReceived = (messageEvent: MessageEvent) => {
       const { data } = messageEvent;
-
       if (
         data?.type === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE &&
         data?.data?.requestId === requestId
@@ -114,6 +78,7 @@ export function awaitSecureConfirmation(
           confirmed: !!data.data?.confirmed,
           credential: data.data?.credential,
           prf_output: data.data?.prfOutput,
+          error: data.data?.error
         });
       }
     };
@@ -123,12 +88,12 @@ export function awaitSecureConfirmation(
     self.postMessage({
       type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
       data: {
-        requestId,
+        requestId: requestId,
         summary: parsedSummary,
-        intentDigest: digest,
-        tx_signing_requests: parsedTxSigningRequests,
+        intentDigest: parsedConfirmationData?.intentDigest,
         nearAccountId: parsedConfirmationData?.nearAccountId,
         vrfChallenge: parsedConfirmationData?.vrfChallenge,
+        tx_signing_requests: parsedTxSigningRequests,
         confirmationConfig: parsedConfirmationData?.confirmationConfig
       }
     });
@@ -145,4 +110,27 @@ function safeJsonParseStrict<T>(jsonString: string, context: string): T {
     console.error(`[signer-worker]: Failed to parse ${context} JSON:`, error);
     throw error instanceof Error ? error : new Error(`Invalid JSON in ${context}`);
   }
+}
+
+function parseSummary(summary: string): ConfirmationSummaryAction | ConfirmationSummaryRegistration {
+  if (summary.includes("to") && summary.includes("totalAmount")) {
+    return safeJsonParseStrict<ConfirmationSummaryAction>(summary, 'action summary');
+  } else {
+    return safeJsonParseStrict<ConfirmationSummaryRegistration>(summary, 'registration summary');
+  }
+}
+
+function parseConfirmationData(confirmationData: string): SecureConfirmData {
+  let parsedConfirmationData = safeJsonParseStrict<SecureConfirmData>(confirmationData, 'confirmationData');
+  // NOTE: postMessage strips the prototype and so the VrfChallenge class instance arrives
+  // in handleSecureConfirmRequest as a plain object (no methods; instanceof fails)
+  // So we must convert it to a VRFChallenge class instance after to get the outputAs32Bytes() method
+  return parsedConfirmationData;
+}
+
+function parseTxSigningRequests(txSigningRequestsJson?: string): TransactionInputWasm[] {
+  if (!txSigningRequestsJson) {
+    return [];
+  }
+  return safeJsonParseStrict<TransactionInputWasm[]>(txSigningRequestsJson, 'txSigningRequestsJson');
 }

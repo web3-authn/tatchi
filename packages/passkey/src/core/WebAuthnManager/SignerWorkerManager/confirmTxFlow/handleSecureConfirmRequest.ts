@@ -5,33 +5,29 @@ import {
 } from '../../credentialsHelpers';
 import { VRFChallenge } from '../../../types/vrf-worker';
 import type { SignerWorkerManagerContext } from '../index';
-import type { TransactionPayload } from '../../../types/signer-worker';
+import type { ConfirmationConfig, TransactionPayload } from '../../../types/signer-worker';
 import {
   SecureConfirmMessage,
   SecureConfirmDecision,
   TransactionSummary,
-  SecureConfirmMessageType
+  SecureConfirmMessageType,
+  SecureConfirmData
 } from './types';
+import { toAccountId } from '../../../types/accountIds';
+import { ModalTxConfirmElement } from '../../LitComponents/modal';
 
-// Type for VRF challenge data that can be either a VRFChallenge instance or raw data
-type VRFChallengeData = VRFChallenge | {
-  vrfInput: string;
-  vrfOutput: string;
-  vrfProof: string;
-  vrfPublicKey: string;
-  userId: string;
-  rpId: string;
-  blockHeight: string;
-  blockHash: string;
-};
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
+ * => SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD
  * and proper data validation. Supports both transaction and registration confirmation flows.
  */
-export async function handleSecureConfirmRequest(
+export async function handlePromptUserConfirmInJsMainThread(
   ctx: SignerWorkerManagerContext,
-  message: SecureConfirmMessage,
+  message: {
+    type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+    data: SecureConfirmData,
+  },
   worker: Worker
 ): Promise<void> {
   try {
@@ -39,51 +35,58 @@ export async function handleSecureConfirmRequest(
     const {
       data,
       summary,
-      isRegistration,
       confirmationConfig,
       transactionSummary
-    } = validateAndParseRequest(message, ctx);
+    } = validateAndParseRequest({ ctx, message });
 
-    // 2. Determine user confirmation
-    const { confirmed, confirmHandle } = await determineUserConfirmation(
+    // 2. Determine user confirmation parameters
+    const { confirmed, confirmHandle } = await determineUserConfirmUI({
       ctx,
       confirmationConfig,
       transactionSummary,
-      data
-    );
+      data,
+    });
 
     // 3. Create initial decision
     let decision: SecureConfirmDecision = {
       requestId: data.requestId,
       intentDigest: data.intentDigest,
-      confirmed
+      confirmed: confirmed,
+      _confirmHandle: confirmHandle
+      // Store confirm handle for later cleanup
     };
 
-    // Store confirm handle for later cleanup
-    if (confirmHandle) {
-      (decision as any)._confirmHandle = confirmHandle;
+    // 4. If user rejected (confirmed === false), exit early and do NOT prompt Touch ID
+    if (!confirmed) {
+      worker.postMessage({
+        type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
+        data: decision
+      });
+      return;
     }
 
-    // 4. Collect credentials and PRF output if confirmed
-    await collectCredentialsIfNeeded(ctx, decision, data, summary, isRegistration);
+    // 5. Collect credentials and PRF output (only if confirmed)
+    let { decisionWithCredentials } = await collectTouchIdCredentials({
+      ctx,
+      data,
+      decision,
+    });
 
-    // 5. Send confirmation response back to wasm-signer-worker
+    // 6. Send confirmation response back to wasm-signer-worker
     worker.postMessage({
       type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-      data: decision
+      data: decisionWithCredentials
     });
 
   } catch (error) {
-    console.error('[SignerWorkerManager]: Failed to handle secure confirm request:', error);
     // Send error response
-    const errorDecision: SecureConfirmDecision = {
-      requestId: message.data?.requestId || 'unknown',
-      intentDigest: message.data?.intentDigest,
-      confirmed: false
-    };
     worker.postMessage({
       type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-      data: errorDecision
+      data: {
+        requestId: message.data?.requestId || 'unknown',
+        intentDigest: message.data?.intentDigest,
+        confirmed: false
+      } as SecureConfirmDecision
     });
   }
 }
@@ -93,69 +96,76 @@ export async function handleSecureConfirmRequest(
  * Renders confirmation UI based on the current configuration
  * Returns either boolean (for requireClick) or { confirmed: boolean, handle?: any } (for autoProceed)
  */
-async function renderConfirmUI(
+async function renderConfirmUI({
+  ctx,
+  summary,
+  txSigningRequests,
+  behavior,
+  autoProceedDelay
+}: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionPayload[],
   behavior?: 'requireClick' | 'autoProceed',
   autoProceedDelay?: number
-): Promise<boolean | { confirmed: boolean; handle?: any }> {
+}): Promise<{
+  confirmed: boolean;
+  confirmHandle?: {
+    element: ModalTxConfirmElement,
+    close: (confirmed: boolean) => void
+  }
+}> {
   switch (ctx.confirmationConfig.uiMode) {
+    case 'embedded': {
+      // Legacy embedded mode removed - using iframe approach instead
+      throw new Error('Legacy embedded mode is no longer supported. Use the iframe-based EmbeddedTxConfirm component.');
+    }
+
     case 'modal': {
       const { mountModalTxConfirm, mountModalTxConfirmWithHandle } = await import('../../LitComponents/modal');
-
       if (behavior === 'autoProceed') {
         // Show modal as context but do not wait for click; we'll close it after TouchID
-        const handle = mountModalTxConfirmWithHandle({
-          summary: {
-            totalAmount: summary?.totalAmount,
-            method: summary?.method,
-            fingerprint: summary?.fingerprint,
-          },
+        const autoProceedHandle = mountModalTxConfirmWithHandle({
+          summary: summary,
           txSigningRequests: txSigningRequests,
           mode: 'modal',
           loading: true // Show loading state with only cancel button
         });
-
         // Give user time to read transaction details before TouchID prompt (autoProceedDelay)
         if (autoProceedDelay) {
-          console.debug(`[SignerWorkerManager]: Showing transaction details for ${autoProceedDelay}ms before TouchID prompt...`);
           await new Promise(resolve => setTimeout(resolve, autoProceedDelay));
         }
+        return {
+          confirmed: true,
+          confirmHandle: autoProceedHandle
+        };
 
-        return { confirmed: true, handle };
       } else {
         // Require explicit confirm (requireClick behavior)
         const confirmed = await mountModalTxConfirm({
-          summary: {
-            totalAmount: summary?.totalAmount,
-            method: summary?.method,
-            fingerprint: summary?.fingerprint,
-          },
+          summary: summary,
           txSigningRequests: txSigningRequests,
           mode: 'modal'
         });
-        return confirmed;
+        return {
+          confirmed: confirmed,
+          confirmHandle: undefined
+        };
       }
-    }
-    case 'embedded': {
-      // Legacy embedded mode removed - using iframe approach instead
-      throw new Error('Legacy embedded mode is no longer supported. Use the iframe-based EmbeddedTxConfirm component.');
     }
 
     default: {
       // Fallback to modal mode if unknown
       const { mountModalTxConfirm } = await import('../../LitComponents/modal');
       const confirmed = await mountModalTxConfirm({
-        summary: {
-          totalAmount: summary?.totalAmount,
-          method: summary?.method,
-          fingerprint: summary?.fingerprint,
-        },
+        summary: summary,
         txSigningRequests: txSigningRequests,
         mode: 'modal'
       });
-      return confirmed;
+      return {
+        confirmed,
+        confirmHandle: undefined
+      };
     }
   }
 }
@@ -167,7 +177,15 @@ async function renderConfirmUI(
 /**
  * Validates and parses the confirmation request data
  */
-function validateAndParseRequest(message: SecureConfirmMessage, ctx: SignerWorkerManagerContext) {
+function validateAndParseRequest({ ctx, message }: {
+  ctx: SignerWorkerManagerContext,
+  message: SecureConfirmMessage,
+}): {
+  data: SecureConfirmData;
+  summary: TransactionSummary;
+  confirmationConfig: ConfirmationConfig;
+  transactionSummary: TransactionSummary;
+} {
   // Validate required fields
   const data = message.data;
   if (!data || !data.requestId) {
@@ -176,29 +194,24 @@ function validateAndParseRequest(message: SecureConfirmMessage, ctx: SignerWorke
 
   // Parse and validate summary data (can contain extra fields we need)
   const summary = parseTransactionSummary(data.summary);
-  const isRegistration = summary?.isRegistration || (summary as any)?.type === 'registration';
-
-  // Extract receiverId from transaction data for the "to" field
-  let receiverId: string | undefined;
-  if (summary?.receiverId) {
-    receiverId = summary.receiverId;
-  }
-
-  // Get confirmation configuration from data or use default
-  // For embedded component, always use embedded mode regardless of user settings
+  // Get confirmation configuration from data (overrides user settings) or use user's settings
   const confirmationConfig = data.confirmationConfig || ctx.confirmationConfig;
-
   const transactionSummary: TransactionSummary = {
     totalAmount: summary?.totalAmount,
-    method: summary?.method || (isRegistration ? 'Register Account' : undefined),
+    method: summary?.method || (data.isRegistration ? 'Register Account' : undefined),
     fingerprint: data.intentDigest
   };
 
+  // NOTE: postMessage strips the prototype and so the VrfChallenge class instance arrives
+  // in handleSecureConfirmRequest as a plain object (no methods; instanceof fails)
+  // So we must convert it to a VRFChallenge class instance after to get the outputAs32Bytes() method
+  const vrfChallengeClass = (data.vrfChallenge instanceof VRFChallenge)
+    ? data.vrfChallenge
+    : new VRFChallenge(data.vrfChallenge);
+
   return {
-    data,
+    data: { ...data, vrfChallenge: vrfChallengeClass },
     summary,
-    isRegistration,
-    receiverId,
     confirmationConfig,
     transactionSummary
   };
@@ -208,98 +221,93 @@ function validateAndParseRequest(message: SecureConfirmMessage, ctx: SignerWorke
 /**
  * Determines user confirmation based on UI mode and configuration
  */
-async function determineUserConfirmation(
+async function determineUserConfirmUI({
+  ctx,
+  confirmationConfig,
+  transactionSummary,
+  data
+}: {
   ctx: SignerWorkerManagerContext,
   confirmationConfig: any,
   transactionSummary: TransactionSummary,
-  data: any
-): Promise<{ confirmed: boolean; confirmHandle?: any }> {
+  data: SecureConfirmData
+}): Promise<{
+  confirmed: boolean;
+  confirmHandle?: {
+    element: ModalTxConfirmElement,
+    close: (confirmed: boolean) => void
+  }
+}> {
   switch (confirmationConfig.uiMode) {
     case 'skip':
       // Bypass UI entirely - automatically confirm
-      return { confirmed: true };
+      return { confirmed: true, confirmHandle: undefined };
 
     case 'embedded': {
-      // Auto-confirm since user has already seen and confirmed in iframe
-      // Set the request ID in the EmbeddedTxConfirm component
-      if ((window as any).setEmbeddedTxConfirmRequestId) {
-        (window as any).setEmbeddedTxConfirmRequestId(data.requestId);
-      }
       // For embedded mode, we automatically confirm since the user has already
       // seen the transaction details and clicked confirm in the iframe
       // The WASM worker will validate the transaction details against what was shown
-      return { confirmed: true };
+
+      // TODO: get data from Embedded TooltipTxTree and validate that it
+      // matches the data being signed in wasm-worker
+      return { confirmed: true, confirmHandle: undefined };
     }
 
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
         // Use renderConfirmUI with autoProceed behavior
-        const result = await renderConfirmUI(
+        return await renderConfirmUI({
           ctx,
-          transactionSummary,
-          data.tx_signing_requests,
-          'autoProceed',
-          confirmationConfig?.autoProceedDelay
-        ) as { confirmed: boolean; handle?: any };
-        return { confirmed: result.confirmed, confirmHandle: result.handle };
+          summary: transactionSummary,
+          txSigningRequests: data.tx_signing_requests,
+          behavior: 'autoProceed',
+          autoProceedDelay: confirmationConfig?.autoProceedDelay
+        });
 
       } else {
         // Require explicit confirm (requireClick behavior)
-        const confirmed = await renderConfirmUI(ctx, transactionSummary, data.tx_signing_requests, 'requireClick') as boolean;
-        return { confirmed };
+        return await renderConfirmUI({
+          ctx,
+          summary: transactionSummary,
+          txSigningRequests: data.tx_signing_requests,
+          behavior: 'requireClick'
+        });
       }
     }
 
     default:
       // Fallback to modal with explicit confirm for unknown UI modes
-      const confirmed = await renderConfirmUI(ctx, transactionSummary, data.tx_signing_requests, 'requireClick') as boolean;
-      return { confirmed };
+      return await renderConfirmUI({
+        ctx,
+        summary: transactionSummary,
+        txSigningRequests: data.tx_signing_requests,
+        behavior: 'requireClick'
+      });
   }
 }
 
 /**
  * Collects WebAuthn credentials and PRF output if conditions are met
  */
-async function collectCredentialsIfNeeded(
+async function collectTouchIdCredentials({
+  ctx,
+  data,
+  decision,
+}: {
   ctx: SignerWorkerManagerContext,
+  data: SecureConfirmData,
   decision: SecureConfirmDecision,
-  data: any,
-  summary: any,
-  isRegistration: boolean
-): Promise<void> {
+}): Promise<{ decisionWithCredentials: SecureConfirmDecision }> {
 
-  const nearAccountIdFromMsg = (data as any)?.nearAccountId;
-  const vrfLike: VRFChallengeData | undefined = data.vrfChallenge;
-
-  if (!decision.confirmed || !nearAccountIdFromMsg || !vrfLike) {
-    console.warn('[SignerWorkerManager]: Skipping credentials collection - conditions not met:', {
-      confirmed: decision.confirmed,
-      nearAccountIdFromMsg,
-      hasVrfLike: !!vrfLike
-    });
-    return;
-  }
+  const nearAccountId = data.nearAccountId;
+  const vrfChallenge = data.vrfChallenge;
 
   try {
-    // Get credentials using TouchID prompt
-    const vrfChallengeObj: VRFChallenge = (vrfLike instanceof VRFChallenge)
-      ? vrfLike
-      : new VRFChallenge({
-          vrfInput: vrfLike.vrfInput,
-          vrfOutput: vrfLike.vrfOutput,
-          vrfProof: vrfLike.vrfProof,
-          vrfPublicKey: vrfLike.vrfPublicKey,
-          userId: vrfLike.userId,
-          rpId: vrfLike.rpId,
-          blockHeight: vrfLike.blockHeight,
-          blockHash: vrfLike.blockHash,
-        });
-
-    const authenticators = await ctx.clientDB.getAuthenticatorsByUser(nearAccountIdFromMsg);
+    const authenticators = await ctx.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
 
     const credential = await ctx.touchIdPrompt.getCredentials({
-      nearAccountId: nearAccountIdFromMsg,
-      challenge: vrfChallengeObj.outputAs32Bytes(),
+      nearAccountId: nearAccountId,
+      challenge: vrfChallenge.outputAs32Bytes(),
       authenticators: authenticators,
     });
 
@@ -307,15 +315,15 @@ async function collectCredentialsIfNeeded(
     const dualPrfOutputs = extractPrfFromCredential({
       credential,
       firstPrfOutput: true,
-      secondPrfOutput: isRegistration, // Registration needs second PRF output
+      secondPrfOutput: data.isRegistration, // Registration needs second PRF output
     });
 
     if (!dualPrfOutputs.chacha20PrfOutput) {
-      throw new Error('Failed to extract PRF outputs from credential');
+      throw new Error('Failed to extract PRF output from credential');
     }
 
     // Serialize credential for WASM worker (use appropriate serializer based on flow type)
-    const serializedCredential = isRegistration
+    const serializedCredential = data.isRegistration
       ? serializeRegistrationCredentialWithPRF({
           credential,
           firstPrfOutput: true,
@@ -323,29 +331,41 @@ async function collectCredentialsIfNeeded(
         })
       : serializeAuthenticationCredentialWithPRF({ credential });
 
-    // Add credentials to decision
-    decision.credential = serializedCredential;
-    decision.prfOutput = dualPrfOutputs.chacha20PrfOutput;
-
-    // If we auto-mounted the modal for context, close it now
-    const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
-    if (confirmHandle && typeof confirmHandle.close === 'function') {
-      try {
-        confirmHandle.close(true);
-      } catch (e: any) {
-        console.log(e)
+    return {
+      decisionWithCredentials: {
+        ...decision,
+        credential: serializedCredential,
+        prfOutput: dualPrfOutputs.chacha20PrfOutput,
+        confirmed: true,
+        _confirmHandle: undefined,
       }
-      (decision as any)._confirmHandle = undefined;
     }
+
   } catch (credentialError) {
     console.error('[SignerWorkerManager]: Failed to collect credentials:', credentialError);
+    const isDom = credentialError instanceof DOMException;
+    const cancelled = isDom && (credentialError.name === 'NotAllowedError' || credentialError.name === 'AbortError');
+    if (cancelled) {
+      console.log('[SignerWorkerManager]: User cancelled secure confirm request');
+    } else {
+      console.error('[SignerWorkerManager]: Failed to handle secure confirm request:', credentialError);
+    }
     // If credential collection fails, reject the transaction
-    decision.confirmed = false;
-    // Close auto-mounted modal if present
-    const confirmHandle = (decision as any)._confirmHandle as { close: (confirmed: boolean) => void } | undefined;
-    if (confirmHandle && typeof confirmHandle.close === 'function') {
-      try { confirmHandle.close(false); } catch {}
-      (decision as any)._confirmHandle = undefined;
+    return {
+      decisionWithCredentials: {
+        ...decision,
+        confirmed: false,
+        _confirmHandle: undefined,
+        error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials'
+      }
+    }
+
+  } finally {
+    // If we auto-mounted the modal for context, close it now
+    const confirmHandle = decision._confirmHandle;
+    if (confirmHandle) {
+      try { confirmHandle.close(true); } catch (e: any) { console.error(e) }
+      decision._confirmHandle = undefined;
     }
   }
 }

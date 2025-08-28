@@ -1,16 +1,33 @@
+import { VRFChallenge } from '@/core/types/vrf-worker';
 import { TransactionPayload } from '../../../types/signer-worker';
+import { ConfirmationConfig } from '../../../types';
 
 // === SECURE CONFIRM TYPES ===
 
 export interface SecureConfirmData {
   requestId: string;
   summary: string | object;
-  tx_signing_requests?: TransactionPayload[]; // Array of TransactionPayload objects
-  intentDigest?: string;
-  nearAccountId?: string; // Account ID for credential lookup
-  vrfChallenge?: any; // VRF challenge for credential generation
-  confirmationConfig?: any; // Confirmation configuration from WASM worker
+  tx_signing_requests: TransactionPayload[]; // Array of TransactionPayload objects
+  intentDigest: string;
+  nearAccountId: string; // Account ID for credential lookup
+  vrfChallenge: VRFChallenge; // VRF challenge for credential generation
+  confirmationConfig?: ConfirmationConfig; // Confirmation configuration from WASM worker
+  isRegistration: boolean;
 }
+
+export interface ConfirmationSummaryAction {
+  to: string;
+  totalAmount: string;
+}
+
+export interface ConfirmationSummaryRegistration {
+  type: string;
+  nearAccountId: string;
+  deviceNumber: number;
+  contractId: string;
+  deterministicVrfPublicKey: string;
+}
+
 
 export enum SecureConfirmMessageType {
   PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD = 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD',
@@ -28,6 +45,9 @@ export interface SecureConfirmDecision {
   confirmed: boolean;
   credential?: any; // Serialized WebAuthn credential
   prfOutput?: string; // Base64url-encoded PRF output
+  // This is a private field used to close the confirmation modal
+  _confirmHandle?: { close: (confirmed: boolean) => void };
+  error?: string;
 }
 
 export interface TransactionSummary {
@@ -40,14 +60,6 @@ export interface TransactionSummary {
   summary?: any;
 }
 
-// Worker bridge types
-export interface WorkerConfirmationRequest {
-  requestId: string;
-  summary: any;
-  digest: string;
-  txSigningRequestsJson: string | undefined;
-}
-
 // Payload to return to Rust WASM is snake_case
 export interface WorkerConfirmationResponse {
   request_id: string;
@@ -55,4 +67,5 @@ export interface WorkerConfirmationResponse {
   confirmed: boolean;
   credential?: any;
   prf_output?: string;
+  error?: string;
 }

@@ -34,11 +34,12 @@ import {
 } from './handlers';
 
 import {
-  handleSecureConfirmRequest,
   loadUserSettings,
   saveUserSettings,
   SecureConfirmMessageType,
   SecureConfirmMessage,
+  SecureConfirmData,
+  handlePromptUserConfirmInJsMainThread,
 } from './confirmTxFlow';
 
 
@@ -207,7 +208,14 @@ export class SignerWorkerManager {
 
           // Intercept secure confirm handshake (Phase A: pluggable UI)
           if (event.data.type === SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD) {
-            await handleSecureConfirmRequest(this.getContext(), event.data as SecureConfirmMessage, worker);
+            await handlePromptUserConfirmInJsMainThread(
+              this.getContext(),
+              event.data as {
+                type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+                data: SecureConfirmData,
+              },
+              worker
+            );
             return; // do not treat as a worker response, continue listening for more messages
           }
 
