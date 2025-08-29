@@ -39,6 +39,7 @@ echo "Copying embedded component..."
 mkdir -p "$FRONTEND_SDK/embedded"
 cp "$BUILD_ESM/react/embedded/embedded-tx-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded-button component not found"
 cp "$BUILD_ESM/react/embedded/iframe-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: iframe-button component not found"
+cp "$BUILD_ESM/react/embedded/iframe-bootstrap.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: iframe-bootstrap module not found"
 
 # Optional sourcemaps
 if [ -f "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" ]; then
@@ -46,6 +47,9 @@ if [ -f "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" ]; then
 fi
 if [ -f "$BUILD_ESM/react/embedded/iframe-button.js.map" ]; then
   cp "$BUILD_ESM/react/embedded/iframe-button.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
+fi
+if [ -f "$BUILD_ESM/react/embedded/iframe-bootstrap.js.map" ]; then
+  cp "$BUILD_ESM/react/embedded/iframe-bootstrap.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
 fi
 
 echo "✅ SDK files copied successfully!"

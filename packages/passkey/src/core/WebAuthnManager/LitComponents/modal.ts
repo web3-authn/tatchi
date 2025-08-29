@@ -1,12 +1,11 @@
 // Import types and components needed for mount functions
-import { TransactionPayload } from '../../types/signer-worker';
+import { TransactionInputWasm } from '../../types';
 import {
   ModalTxConfirmElement,
   activeResolvers,
   type ConfirmRenderMode,
   type ConfirmVariant,
   type SecureTxSummary,
-  type TxAction
 } from './ModalTxConfirmElement';
 
 // Granular exports for ModalTxConfirmElement
@@ -29,7 +28,7 @@ export type {
 export function mountModalTxConfirm(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
-  txSigningRequests?: TransactionPayload[];
+  txSigningRequests?: TransactionInputWasm[];
   mode?: ConfirmRenderMode;
   variant?: ConfirmVariant;
   title?: string;
@@ -88,7 +87,7 @@ export function mountModalTxConfirm(opts: {
 export function mountModalTxConfirmWithHandle(opts: {
   container?: HTMLElement | null;
   summary: SecureTxSummary;
-  txSigningRequests?: TransactionPayload[];
+  txSigningRequests?: TransactionInputWasm[];
   mode?: ConfirmRenderMode;
   variant?: ConfirmVariant;
   title?: string;
@@ -96,9 +95,12 @@ export function mountModalTxConfirmWithHandle(opts: {
   confirmText?: string;
   theme?: Record<string, string>;
   loading?: boolean;
-}): { element: ModalTxConfirmElement; close: (confirmed: boolean) => void } {
-  const attachRoot = opts.container ?? document.body;
+}): {
+  element: ModalTxConfirmElement;
+  close: (confirmed: boolean) => void
+} {
 
+  const attachRoot = opts.container ?? document.body;
   const existing = attachRoot.querySelector('passkey-confirm');
   if (existing) {
     existing.remove();

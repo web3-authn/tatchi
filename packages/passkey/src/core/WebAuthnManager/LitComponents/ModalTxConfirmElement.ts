@@ -1,7 +1,8 @@
 import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
-import { TransactionPayload } from '../../types/signer-worker';
+import { TransactionInputWasm, ActionArgsWasm } from '../../types';
+import { formatArgs, formatDeposit, formatGas } from './renderUtils';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -58,7 +59,7 @@ export class ModalTxConfirmElement extends LitElement {
   title = 'Sign Transaction';
   cancelText = 'Cancel';
   confirmText = 'Confirm & Sign';
-  txSigningRequests: TransactionPayload[] = [];
+  txSigningRequests: TransactionInputWasm[] = [];
   loading = false;
 
   // Internal state
@@ -595,7 +596,7 @@ export class ModalTxConfirmElement extends LitElement {
                 ${when(this.totalAmount, () => html`
                   <div class="row">
                     <div class="label">Total Amount</div>
-                    <div class="value">${this._formatDeposit(this.totalAmount)}</div>
+                    <div class="value">${formatDeposit(this.totalAmount)}</div>
                   </div>
                 `)}
 
@@ -609,22 +610,16 @@ export class ModalTxConfirmElement extends LitElement {
               <div class="action-list">
                 <h2 class="header">${this.title}</h2>
                 ${when(this.txSigningRequests.length > 0, () => html`
-                  ${this.txSigningRequests.map((txPayload, txIndex) => {
-                    // Parse actions from the transaction payload
-                    let actions: TxAction[] = [];
-                    try {
-                      actions = JSON.parse(txPayload.actions);
-                    } catch (e) {
-                      console.warn('Failed to parse actions from transaction payload:', e);
-                    }
-
+                  ${this.txSigningRequests.map((tx, txIndex) => {
+                    // Parse actions from the transaction payload (supports string or already-parsed array)
+                    let actions: ActionArgsWasm[] = tx.actions;
                     return html`
                       <div class="action-item">
                         <div class="action-content">
                           <!-- Transaction Receiver (only show for first action) -->
                           ${actions.length > 0 ? html`
                             <div class="action-subheader">
-                              <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${txPayload.receiverId}</span></div>
+                              <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${tx.receiverId}</span></div>
                             </div>
                           ` : ''}
                           <!-- Actions for this transaction -->
@@ -673,8 +668,7 @@ export class ModalTxConfirmElement extends LitElement {
     `;
   }
 
-  private _renderActionDetails(action: TxAction) {
-    console.log('>>>>> action', action);
+  private _renderActionDetails(action: ActionArgsWasm) {
     if (action.action_type === 'CreateAccount') {
       return html`
         <div class="action-row">
@@ -689,7 +683,6 @@ export class ModalTxConfirmElement extends LitElement {
         if (!code) return '0 bytes';
         if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
         if (Array.isArray(code)) return `${code.length} bytes`;
-        if (typeof code === 'string') return `${code.length} bytes`;
         return 'unknown';
       })();
       return html`
@@ -709,16 +702,16 @@ export class ModalTxConfirmElement extends LitElement {
           return html`
             <div class="action-row">
               <div class="action-label">Deposit</div>
-              <div class="action-value">${this._formatDeposit(action.deposit)}</div>
+              <div class="action-value">${formatDeposit(action.deposit)}</div>
             </div>
           `
         })}
         ${when(action.args, () => {
           return html`
             <div class="action-label">Calling <span class="method-name">${action.method_name}</span> using <span class="method-name">${
-this._formatGas(action.gas)}</span>
+formatGas(action.gas)}</span>
             </div>
-            <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+            <pre class="code-block"><code>${formatArgs(action.args)}</code></pre>
           `;
         })}
       `;
@@ -731,7 +724,7 @@ this._formatGas(action.gas)}</span>
         </div>
         <div class="action-row">
           <div class="action-label">Amount</div>
-          <div class="action-value">${this._formatDeposit(action.deposit)}</div>
+          <div class="action-value">${formatDeposit(action.deposit)}</div>
         </div>
       `;
     }
@@ -743,11 +736,11 @@ this._formatGas(action.gas)}</span>
         </div>
         <div class="action-row">
           <div class="action-label">Public Key</div>
-          <div class="action-value">${(action as any).public_key || ''}</div>
+          <div class="action-value">${action.public_key || ''}</div>
         </div>
         <div class="action-row">
           <div class="action-label">Amount</div>
-          <div class="action-value">${(action as any).stake || ''}</div>
+          <div class="action-value">${formatDeposit(action.stake || '')}</div>
         </div>
       `;
     }
@@ -831,42 +824,6 @@ this._formatGas(action.gas)}</span>
     }
   }
 
-  private _formatGas(gas: string | undefined): string {
-    if (!gas) return '';
-    try {
-      const gasValue = BigInt(gas);
-      const tgas = gasValue / BigInt('1000000000000'); // Convert to Tgas (divide by 10^12)
-      return `${tgas}Tgas`;
-    } catch (e) {
-      // If parsing fails, return original value
-      return gas;
-    }
-  }
-
-  private _formatArgs(args: string | undefined): string {
-    if (!args) return '';
-    try {
-      const parsed = JSON.parse(args);
-      return JSON.stringify(parsed, null, 2);
-    } catch (e) {
-      // If parsing fails, return original value
-      return args;
-    }
-  }
-
-  private _formatDeposit(deposit: string | undefined): string {
-    if (!deposit || deposit === '0') return '';
-    try {
-      const depositValue = BigInt(deposit);
-      const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
-      // Remove trailing zeros and possible trailing decimal point
-      let formatted = nearValue.toFixed(5).replace(/\.?0+$/, '');
-      return `${formatted} NEAR`;
-    } catch (e) {
-      // If parsing fails, return original value
-      return deposit;
-    }
-  }
 }
 
 // Register the custom element

@@ -203,11 +203,14 @@ export default defineConfig([
   },
   // Embedded Transaction Confirmation Iframe Host component
   {
-    input: 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButton.ts',
+    input: {
+      'iframe-button': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButtonHost.ts',
+      'iframe-bootstrap': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframeBootstrap.ts',
+    },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'iframe-button.js'
+      entryFileNames: '[name].js'
     },
     external: embeddedExternal,
     resolve: {
