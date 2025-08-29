@@ -1,4 +1,5 @@
-import { LitElement, html, css } from 'lit';
+import { LitElementWithProps } from '../LitElementWithProps';
+import { html, css } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 
 export type TreeNodeType = 'folder' | 'file';
@@ -14,6 +15,31 @@ export interface TreeNode {
    */
   content?: string;
   children?: TreeNode[];
+  /**
+   * Optional highlighting information for special nodes
+   */
+  highlight?: {
+    type: 'receiverId' | 'methodName';
+    color: string;
+  };
+}
+
+export interface TooltipTreeStyles {
+  // Allow any CSS properties for maximum flexibility
+  root?: Record<string, string>;
+  treeChildren?: Record<string, string>;
+  details?: Record<string, string>;
+  summary?: Record<string, string>;
+  summaryRow?: Record<string, string>;
+  row?: Record<string, string>;
+  indent?: Record<string, string>;
+  label?: Record<string, string>;
+  chevron?: Record<string, string>;
+  fileContent?: Record<string, string>;
+  folderChildren?: Record<string, string>;
+  // Highlighting styles for transaction details
+  highlightReceiverId?: Record<string, string>;
+  highlightMethodName?: Record<string, string>;
 }
 
 /**
@@ -22,52 +48,86 @@ export interface TreeNode {
  *
  * Usage:
  *   <tooltip-tx-tree .node=${node} depth="0"></tooltip-tx-tree>
+ *
+ * Mapping note: txSigningRequests (TransactionInput[]) → TreeNode structure
+ * Example (single FunctionCall):
+ * {
+ *   id: 'txs-root', label: 'Transaction', type: 'folder', open: true,
+ *   children: [
+ *     {
+ *       id: 'tx-0',
+ *       label: 'Transaction 1 to web3-authn-v5.testnet',
+ *       type: 'folder',
+ *       open: true,
+ *       children: [
+ *         {
+ *           id: 'action-0',
+ *           label: 'Action 1: FunctionCall',
+ *           type: 'folder',
+ *           open: false,
+ *           children: [
+ *             { id: 'a0-method', label: 'method: set_greeting', type: 'file' },
+ *             { id: 'a0-gas', label: 'gas: 30000000000000', type: 'file' },
+ *             { id: 'a0-deposit', label: 'deposit: 0', type: 'file' },
+ *             { id: 'a0-args', label: 'args', type: 'file', content: '{\n  "greeting": "Hello from Embedded Component! [...]"\n}' }
+ *           ]
+ *         }
+ *       ]
+ *     }
+ *   ]
+ * }
  */
-export class TooltipTxTree extends LitElement {
+export class TooltipTxTree extends LitElementWithProps {
+
   // Pure component contract:
-  // - Renders solely from inputs (node, depth); holds no internal state
+  // - Renders solely from inputs (node, depth, tooltipTreeStyles); holds no internal state
   // - Complex inputs are passed via property binding, not attributes
-  // - Do NOT initialize reactive props here; default them in render()
   static properties = {
     // Explicitly disable attribute reflection for complex objects to ensure
-    // property binding (.node=..., .depth=...) is used and not coerced via attributes
+    // property binding (.node=..., .depth=..., .tooltipTreeStyles=...) is used and not coerced via attributes
     node: { attribute: false },
     // depth is driven by parent; keep attribute: false to avoid attr/property mismatch
-    depth: { type: Number, attribute: false }
+    depth: { type: Number, attribute: false },
+    // tooltipTreeStyles accepts full CSS customization
+    tooltipTreeStyles: { attribute: false }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
   // Initializers can overwrite values set by the parent during element upgrade.
   node?: TreeNode | null;
   depth?: number;
+  tooltipTreeStyles?: TooltipTreeStyles;
 
   static styles = css`
     :host {
-      display: block;
-      color: var(--w3a-tree-text, #e6e9f5);
-      background: var(--w3a-tree-bg, transparent);
+      display: var(--w3a-tree-host-display, block);
+      color: var(--w3a-tree-host-color, #e6e9f5);
+      background: var(--w3a-tree-host-background, transparent);
     }
 
     .tree-root {
-      background: var(--w3a-tree-panel, #151833);
-      max-width: var(--w3a-tree-max-width, 600px);
-      margin: var(--w3a-tree-wrap-margin, 0 auto);
-      border-radius: 12px;
-      overflow: hidden;
-      width: var(--w3a-tree-width, auto);
-      height: var(--w3a-tree-height, auto);
+      background: var(--w3a-tree-root-background, #151833);
+      max-width: var(--w3a-tree-root-max-width, 600px);
+      margin: var(--w3a-tree-root-margin, 0 auto);
+      border-radius: var(--w3a-tree-root-border-radius, 12px);
+      border: var(--w3a-tree-root-border, none);
+      overflow: var(--w3a-tree-root-overflow, hidden);
+      width: var(--w3a-tree-root-width, auto);
+      height: var(--w3a-tree-root-height, auto);
+      padding: var(--w3a-tree-root-padding, 0);
     }
-    .children {
-      display: block;
-      padding: 6px;
+
+    .tree-children {
+      display: var(--w3a-tree-children-display, block);
+      padding: var(--w3a-tree-children-padding, 6px);
     }
 
     details {
-      margin: 0;
-      padding: 0;
-      border-radius: 8px;
-      overflow: hidden;
-      background: transparent;
+      margin: var(--w3a-tree-details-margin, 0);
+      padding: var(--w3a-tree-details-padding, 0);
+      border-radius: var(--w3a-tree-details-border-radius, 8px);
+      overflow: var(--w3a-tree-details-overflow, hidden);
+      background: var(--w3a-tree-details-background, transparent);
     }
 
     /* Remove the default marker */
@@ -75,79 +135,105 @@ export class TooltipTxTree extends LitElement {
     summary { list-style: none; }
 
     .row {
-      display: grid;
-      grid-template-columns: var(--indent, 0) 1fr 0px;
-      align-items: center;
-      box-sizing: border-box;
-      width: 100%;
-      color: var(--w3a-tree-text, #e6e9f5);
-      background: transparent;
+      display: var(--w3a-tree-row-display, grid);
+      grid-template-columns: var(--w3a-tree-row-grid-template-columns, var(--indent, 0) 1fr 0px);
+      align-items: var(--w3a-tree-row-align-items, center);
+      box-sizing: var(--w3a-tree-row-box-sizing, border-box);
+      width: var(--w3a-tree-row-width, 100%);
+      color: var(--w3a-tree-row-color, #e6e9f5);
+      background: var(--w3a-tree-row-background, transparent);
     }
 
     .summary-row {
-      cursor: pointer;
-      padding: 4px 6px;
-      border-radius: 6px;
-      transition: background 0.15s ease;
+      cursor: var(--w3a-tree-summary-cursor, pointer);
+      padding: var(--w3a-tree-summary-padding, 4px 6px);
+      border-radius: var(--w3a-tree-summary-border-radius, 6px);
+      transition: var(--w3a-tree-summary-transition, background 0.15s ease);
+      background: var(--w3a-tree-summary-background, transparent);
     }
 
     .summary-row:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--w3a-tree-summary-hover-background, rgba(255, 255, 255, 0.06));
     }
 
     .indent {
-      width: var(--indent, 0);
-      height: 100%;
+      width: var(--w3a-tree-indent-width, var(--indent, 0));
+      height: var(--w3a-tree-indent-height, 100%);
     }
 
     .label {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-width: 0; /* enable ellipsis */
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      font-size: 12px;
+      display: var(--w3a-tree-label-display, inline-flex);
+      align-items: var(--w3a-tree-label-align-items, center);
+      gap: var(--w3a-tree-label-gap, 6px);
+      min-width: var(--w3a-tree-label-min-width, 0);
+      white-space: var(--w3a-tree-label-white-space, nowrap);
+      overflow: var(--w3a-tree-label-overflow, hidden);
+      text-overflow: var(--w3a-tree-label-text-overflow, ellipsis);
+      font-size: var(--w3a-tree-label-font-size, 12px);
+      color: var(--w3a-tree-label-color, inherit);
+      font-weight: var(--w3a-tree-label-font-weight, inherit);
     }
 
     .chevron {
-      display: inline-block;
-      width: 10px;
-      height: 10px;
-      transform: rotate(0deg);
-      transition: transform 0.12s ease;
-      opacity: 0.85;
+      display: var(--w3a-tree-chevron-display, inline-block);
+      width: var(--w3a-tree-chevron-width, 10px);
+      height: var(--w3a-tree-chevron-height, 10px);
+      transform: var(--w3a-tree-chevron-transform, rotate(0deg));
+      transition: var(--w3a-tree-chevron-transition, transform 0.12s ease);
+      opacity: var(--w3a-tree-chevron-opacity, 0.85);
+      color: var(--w3a-tree-chevron-color, currentColor);
     }
 
     details[open] > summary .chevron {
-      transform: rotate(90deg);
+      transform: var(--w3a-tree-chevron-open-transform, rotate(90deg));
     }
 
     .file-row {
-      padding: 2px 6px;
-      font-size: 12px;
+      padding: var(--w3a-tree-file-row-padding, 2px 6px);
+      font-size: var(--w3a-tree-file-row-font-size, 12px);
+      background: var(--w3a-tree-file-row-background, transparent);
     }
 
     .file-content {
-      box-sizing: border-box;
-      margin: 0px;
-      padding: 8px;
-      border-radius: 6px;
-      background: rgba(255, 255, 255, 0.06);
-      max-height: 180px;
-      overflow: auto;
-      color: #e2e8f0;
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.35;
-      font-size: 11px;
+      box-sizing: var(--w3a-tree-file-content-box-sizing, border-box);
+      margin: var(--w3a-tree-file-content-margin, 0px);
+      padding: var(--w3a-tree-file-content-padding, 8px);
+      border-radius: var(--w3a-tree-file-content-border-radius, 6px);
+      background: var(--w3a-tree-file-content-background, rgba(255, 255, 255, 0.06));
+      max-height: var(--w3a-tree-file-content-max-height, 180px);
+      overflow: var(--w3a-tree-file-content-overflow, auto);
+      color: var(--w3a-tree-file-content-color, #e2e8f0);
+      font-family: var(--w3a-tree-file-content-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+      white-space: var(--w3a-tree-file-content-white-space, pre-wrap);
+      word-break: var(--w3a-tree-file-content-word-break, break-word);
+      line-height: var(--w3a-tree-file-content-line-height, 1.35);
+      font-size: var(--w3a-tree-file-content-font-size, 11px);
     }
 
     .folder-children {
-      display: block;
-      padding: 2px 0 2px 0;
+      display: var(--w3a-tree-folder-children-display, block);
+      padding: var(--w3a-tree-folder-children-padding, 2px 0 2px 0);
+    }
+
+    /* Highlighting styles for transaction details */
+    .highlight-receiverId {
+      color: var(--w3a-tree-highlight-receiver-id-color, #ff6b6b) !important;
+      font-weight: var(--w3a-tree-highlight-receiver-id-font-weight, 600) !important;
+      background: var(--w3a-tree-highlight-receiver-id-background, transparent) !important;
+      text-decoration: var(--w3a-tree-highlight-receiver-id-text-decoration, none) !important;
+      padding: var(--w3a-tree-highlight-receiver-id-padding, 0) !important;
+      border-radius: var(--w3a-tree-highlight-receiver-id-border-radius, 0) !important;
+      box-shadow: var(--w3a-tree-highlight-receiver-id-box-shadow, none) !important;
+    }
+
+    .highlight-methodName {
+      color: var(--w3a-tree-highlight-method-name-color, #4ecdc4) !important;
+      font-weight: var(--w3a-tree-highlight-method-name-font-weight, 600) !important;
+      background: var(--w3a-tree-highlight-method-name-background, transparent) !important;
+      text-decoration: var(--w3a-tree-highlight-method-name-text-decoration, none) !important;
+      padding: var(--w3a-tree-highlight-method-name-padding, 0) !important;
+      border-radius: var(--w3a-tree-highlight-method-name-border-radius, 0) !important;
+      box-shadow: var(--w3a-tree-highlight-method-name-box-shadow, none) !important;
     }
   `;
 
@@ -156,15 +242,37 @@ export class TooltipTxTree extends LitElement {
     this.dispatchEvent(new CustomEvent('tree-toggled', { bubbles: true, composed: true }));
   }
 
-  private renderLeaf(node: TreeNode, depth: number): unknown {
+  private applyStyles(styles: TooltipTreeStyles): void {
+    if (!styles) return;
+
+    // Apply styles to host element via CSS custom properties
+    Object.entries(styles).forEach(([section, sectionStyles]) => {
+      if (sectionStyles && typeof sectionStyles === 'object') {
+        Object.entries(sectionStyles).forEach(([prop, value]) => {
+          const cssVar = `--w3a-tree-${section}-${this.camelToKebab(prop)}`;
+          this.style.setProperty(cssVar, String(value));
+        });
+      }
+    });
+  }
+
+  private camelToKebab(str: string): string {
+    return str.replace(/([A-Z])/g, '-$1').toLowerCase();
+  }
+
+  private renderLeaf(depth: number, node: TreeNode, open?: boolean): unknown {
     const indent = `${Math.max(0, depth - 1)}rem`;
+
+    // Apply highlighting class if specified
+    const highlightClass = node.highlight ? `highlight-${node.highlight.type}` : '';
+
     // If content exists, render a collapsible details with the content
     if (typeof node.content === 'string' && node.content.length > 0) {
       return html`
-        <details class="tree-node file" ?open=${false} @toggle=${this.handleToggle}>
+        <details class="tree-node file" ?open=${!!open} @toggle=${this.handleToggle}>
           <summary class="row summary-row" style="--indent: ${indent}">
             <span class="indent"></span>
-            <span class="label">
+            <span class="label ${highlightClass}">
               <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
               </svg>
@@ -182,18 +290,28 @@ export class TooltipTxTree extends LitElement {
     return html`
       <div class="row file-row" style="--indent: ${indent}">
         <span class="indent"></span>
-        <span class="label">${node.label}</span>
+        <span class="label ${highlightClass}">${node.label}</span>
       </div>
     `;
   }
 
-  private renderFolder(label: string, nodeChildren: TreeNode[] | undefined, open: boolean | undefined, depth: number): unknown {
+  private renderFolder(
+    depth: number,
+    label: string,
+    nodeChildren?: TreeNode[],
+    open?: boolean,
+    highlight?: { type: 'receiverId' | 'methodName'; color: string }
+  ): unknown {
     const indent = `${Math.max(0, depth - 1)}rem`;
+
+    // Apply highlighting class if specified
+    const highlightClass = highlight ? `highlight-${highlight.type}` : '';
+
     return html`
       <details class="tree-node folder" ?open=${!!open} @toggle=${this.handleToggle}>
         <summary class="row summary-row" style="--indent: ${indent}">
           <span class="indent"></span>
-          <span class="label">
+          <span class="label ${highlightClass}">
             <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
               <path fill="currentColor" d="M6 3l5 5-5 5z" />
             </svg>
@@ -211,14 +329,17 @@ export class TooltipTxTree extends LitElement {
 
   private renderAnyNode(node: TreeNode, depth: number): unknown {
     return node.type === 'file'
-      ? this.renderLeaf(node, depth)
-      : this.renderFolder(node.label, node.children, node.open, depth);
+      ? this.renderLeaf(depth, node, node?.open)
+      : this.renderFolder(depth, node.label, node.children, node.open, node.highlight);
   }
 
   render() {
-
     const depth = this.depth ?? 0;
-    console.log('[TooltipTxTree] render called with node:', this.node, 'depth:', depth);
+
+    // Apply styles if provided
+    if (this.tooltipTreeStyles) {
+      this.applyStyles(this.tooltipTreeStyles);
+    }
 
     if (!this.node || (this.node.type === 'folder' && !this.node.children?.length)) {
       return html``;
@@ -230,7 +351,7 @@ export class TooltipTxTree extends LitElement {
       // Render only the children as top-level entries
       content = html`
         <div class="tree-root">
-          <div class="children">
+          <div class="tree-children">
             ${repeat(
               Array.isArray(this.node.children) ? this.node.children : [],
               (child) => child.id,
@@ -240,9 +361,9 @@ export class TooltipTxTree extends LitElement {
         </div>
       `;
     } else if (this.node.type === 'folder') {
-      content = this.renderFolder(this.node.label, this.node.children, this.node.open, depth);
+      content = this.renderFolder(depth, this.node.label, this.node.children, this.node.open, this.node.highlight);
     } else if (this.node.type === 'file') {
-      content = this.renderLeaf(this.node, depth);
+      content = this.renderLeaf(depth, this.node, this.node?.open);
     }
 
     return content;
@@ -252,5 +373,4 @@ export class TooltipTxTree extends LitElement {
 customElements.define('tooltip-tx-tree', TooltipTxTree);
 
 export default TooltipTxTree;
-
 

@@ -1,34 +1,24 @@
-import { LitElement, html, css } from 'lit';
+import { LitElementWithProps } from '../LitElementWithProps';
+import { html, css } from 'lit';
 import { when } from 'lit/directives/when.js';
 import { ActionArgs, TransactionInput } from '../../../types/actions';
 import TooltipTxTree, { type TreeNode } from './TooltipTxTree';
-
-export type TooltipPosition =
-  | 'top-left' | 'top-center' | 'top-right'
-  | 'left' | 'right'
-  | 'bottom-left' | 'bottom-center' | 'bottom-right';
-
-export interface Rectangle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  borderRadius?: number;
-}
-
-export interface TooltipGeometry {
-  button: Rectangle;
-  tooltip: Rectangle;
-  position: TooltipPosition;
-  gap: number;
-  visible: boolean;
-}
+import { buildActionTree } from './tooltipTxTreeUtils';
+import { formatArgs, formatDeposit, formatGas } from '../renderUtils';
+import {
+  TooltipGeometry,
+  TooltipPosition,
+  TooltipPositionEnum,
+  Rectangle
+} from './iframeGeometry';
+import { TOOLTIP_THEMES, type TooltipTheme } from './tooltipTxTreeThemes';
+import type { TooltipTreeStyles } from './TooltipTxTree';
 
 /**
  * Lit-based embedded transaction confirmation element for iframe usage.
  * Implements the clip-path approach with tooltip measurement and postMessage communication.
  */
-export class EmbeddedTxButton extends LitElement {
+export class EmbeddedTxButton extends LitElementWithProps {
   static properties = {
     nearAccountId: { type: String },
     txSigningRequests: { type: Array },
@@ -39,34 +29,39 @@ export class EmbeddedTxButton extends LitElement {
     size: { type: Object },
     buttonStyle: { type: Object },
     buttonHoverStyle: { type: Object },
+    tooltipTreeStyles: { type: Object, attribute: false },
+    theme: { type: String },
     tooltipVisible: { state: true },
     hideTimeout: { state: true }
   } as const;
 
   nearAccountId: string = '';
-  // Incoming TransactionPayloads to display (array of transactions)
   txSigningRequests: TransactionInput[] = [];
   color: string = '#667eea';
   buttonText: string = 'Sign Transaction';
   loading: boolean = false;
-  tooltip: {
-    width: string;
-    height: string;
-    position: TooltipPosition;
-    offset: string
-  } = {
-    width: '280px',
+  tooltip: TooltipPosition = {
+    width: '360px',
     height: 'auto',
     position: 'top-center',
     offset: '8px'
   };
   buttonStyle: React.CSSProperties = {};
   buttonHoverStyle: React.CSSProperties = {};
+  theme: TooltipTheme = 'dark';
+  tooltipTreeStyles!: TooltipTreeStyles;
 
   // Internal state
   private tooltipVisible: boolean = false;
   private hideTimeout: number | null = null;
   private initialGeometrySent: boolean = false;
+  private initialGeometryRetryCount: number = 0;
+  private buttonPosition: { x: number; y: number } | null = null;
+  // Hide coordination and scheduled measurement handles
+  private isHiding: boolean = false;
+  private measureTimeout: number | null = null;
+  private treeRaf1: number | null = null;
+  private treeRaf2: number | null = null;
   // Ensure TooltipTxTree is retained in the bundle, and not tree-shaken out
   private _ensureTreeDefinition = TooltipTxTree;
 
@@ -118,6 +113,7 @@ export class EmbeddedTxButton extends LitElement {
       outline: none;
       text-decoration: none;
       font-family: inherit;
+     /* fadeIn as iframe pops in after page loads */
       opacity: 0;
       animation: fadeIn 0.1s ease forwards;
     }
@@ -373,6 +369,9 @@ export class EmbeddedTxButton extends LitElement {
   connectedCallback() {
     super.connectedCallback();
 
+    // Initialize tooltipTreeStyles based on theme
+    this.updateTooltipTheme();
+
     // Browser doesn't know --border-angle is an animatable angle type,
     // so we need to register it globally.
     // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
@@ -393,14 +392,6 @@ export class EmbeddedTxButton extends LitElement {
 
     this.setupCSSVariables();
     this.sendReadyMessage();
-
-    // Try sending initial geometry after a short delay to ensure DOM is rendered
-    setTimeout(() => {
-      if (!this.initialGeometrySent) {
-        this.sendInitialGeometry();
-        this.initialGeometrySent = true;
-      }
-    }, 100);
   }
 
   updated(changedProperties: Map<string, any>) {
@@ -410,15 +401,12 @@ export class EmbeddedTxButton extends LitElement {
       this.setupCSSVariables();
     }
 
-    if (changedProperties.has('nearAccountId') || changedProperties.has('txSigningRequests')) {
-      // Send initial geometry for clip-path setup on first actionArgs update
-      if (!this.initialGeometrySent && this.txSigningRequests) {
-        requestAnimationFrame(() => {
-          this.sendInitialGeometry();
-          this.initialGeometrySent = true;
-        });
-      }
+    // Update tooltip theme when theme property changes
+    if (changedProperties.has('theme')) {
+      this.updateTooltipTheme();
+    }
 
+    if (changedProperties.has('nearAccountId') || changedProperties.has('txSigningRequests')) {
       // Force DOM update and re-measure tooltip when transaction data changes
       // The tooltip content should automatically update since it's part of the render template
       if (this.tooltipVisible) {
@@ -465,6 +453,12 @@ export class EmbeddedTxButton extends LitElement {
     }
   }
 
+  private updateTooltipTheme() {
+    // Update tooltipTreeStyles based on the current theme
+    const selectedTheme = TOOLTIP_THEMES[this.theme] || TOOLTIP_THEMES.dark;
+    this.tooltipTreeStyles = { ...selectedTheme };
+  }
+
   private sendReadyMessage() {
     if (window.parent) {
       window.parent.postMessage({ type: 'READY' }, '*');
@@ -472,6 +466,7 @@ export class EmbeddedTxButton extends LitElement {
   }
 
   private measureTooltip() {
+    if (this.isHiding) return; // suppress transient measurements during hide
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
     const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
 
@@ -512,10 +507,8 @@ export class EmbeddedTxButton extends LitElement {
     });
   }
 
-  /**
-   * Send initial geometry data to parent for clip-path setup
-   */
-  private sendInitialGeometry() {
+  private measureTooltipAndUpdateParentSync() {
+    if (this.isHiding) return; // suppress transient measurements during hide
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
     const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
 
@@ -536,6 +529,103 @@ export class EmbeddedTxButton extends LitElement {
       tooltip: {
         x: tooltipRect.left,
         y: tooltipRect.top,
+        width: tooltipRect.width,
+        height: tooltipRect.height,
+        borderRadius: 24
+      },
+      position: this.tooltip.position,
+      gap,
+      visible: this.tooltipVisible
+    };
+
+    // Send message SYNCHRONOUSLY (no requestAnimationFrame delay)
+    // This ensures parent updates happen in the same frame as tooltip expansion
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'TOOLTIP_STATE',
+        payload: geometry
+      }, '*');
+    }
+  }
+
+  private sendTooltipState(visible: boolean) {
+    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
+    if (!tooltipElement || !buttonElement) return;
+
+    const tooltipRect = tooltipElement.getBoundingClientRect();
+    const buttonRect = buttonElement.getBoundingClientRect();
+    const gap = this.parsePixelValue(this.tooltip.offset);
+
+    const geometry: TooltipGeometry = {
+      button: { x: buttonRect.left, y: buttonRect.top, width: buttonRect.width, height: buttonRect.height, borderRadius: 8 },
+      tooltip: { x: tooltipRect.left, y: tooltipRect.top, width: tooltipRect.width, height: tooltipRect.height, borderRadius: 24 },
+      position: this.tooltip.position,
+      gap,
+      visible
+    };
+    if (window.parent) {
+      window.parent.postMessage({ type: 'TOOLTIP_STATE', payload: geometry }, '*');
+    }
+  }
+
+  /**
+   * Send initial geometry data to parent for clip-path setup
+   */
+  sendInitialGeometry() {
+
+    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
+
+    if (!tooltipElement || !buttonElement) {
+      this.initialGeometryRetryCount++;
+      if (this.initialGeometryRetryCount > 10) {
+        console.error('[EmbeddedTxButton] Failed to find elements after 10 retries, giving up');
+        return;
+      }
+      console.error(`[EmbeddedTxButton] Missing elements for initial geometry, retry ${this.initialGeometryRetryCount}/10 in 100ms`);
+      // Retry after a short delay if elements aren't ready
+      setTimeout(() => {
+        if (!this.initialGeometrySent) {
+          this.sendInitialGeometry();
+        }
+      }, 100);
+      return;
+    }
+
+    // Ensure button has correct dimensions before measuring
+    const expectedHeight = this.parsePixelValue(this.buttonStyle?.height || '48px');
+    const expectedWidth = this.parsePixelValue(this.buttonStyle?.width || '200px');
+
+    // Force a reflow to ensure button dimensions are correct
+    buttonElement.offsetHeight;
+
+    const tooltipRect = tooltipElement.getBoundingClientRect();
+    const buttonRect = buttonElement.getBoundingClientRect();
+    const gap = this.parsePixelValue(this.tooltip.offset);
+
+    // Validate and correct button dimensions if needed
+    const buttonHeight = Math.abs(buttonRect.height - expectedHeight) < 5 ? buttonRect.height : expectedHeight;
+    const buttonWidth = Math.abs(buttonRect.width - expectedWidth) < 5 ? buttonRect.width : expectedWidth;
+
+    // Use the positioned coordinates from getBoundingClientRect()
+    // In iframe context, these should already be relative to iframe viewport
+    const buttonX = buttonRect.left;
+    const buttonY = buttonRect.top;
+    const tooltipX = tooltipRect.left;
+    const tooltipY = tooltipRect.top;
+
+    const geometry: TooltipGeometry = {
+      button: {
+        x: buttonX,
+        y: buttonY,
+        width: buttonWidth,
+        height: buttonHeight,
+        borderRadius: 8
+      },
+      tooltip: {
+        x: tooltipX,
+        y: tooltipY,
         width: tooltipRect.width,
         height: tooltipRect.height,
         borderRadius: 24
@@ -593,7 +683,11 @@ export class EmbeddedTxButton extends LitElement {
     }
 
     // Measure after showing - this will send TOOLTIP_STATE with visible: true
-    setTimeout(() => this.measureTooltip(), 50);
+    this.measureTimeout = window.setTimeout(() => {
+      this.measureTimeout = null;
+      if (!this.tooltipVisible || this.isHiding) return;
+      this.measureTooltip();
+    }, 16);
   }
 
   private hideTooltip() {
@@ -602,6 +696,21 @@ export class EmbeddedTxButton extends LitElement {
     const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
     if (!tooltipElement) return;
 
+    // Enter hiding state and cancel any scheduled measurements/RAFs
+    this.isHiding = true;
+    if (this.measureTimeout) {
+      clearTimeout(this.measureTimeout);
+      this.measureTimeout = null;
+    }
+    if (this.treeRaf1) {
+      cancelAnimationFrame(this.treeRaf1);
+      this.treeRaf1 = null;
+    }
+    if (this.treeRaf2) {
+      cancelAnimationFrame(this.treeRaf2);
+      this.treeRaf2 = null;
+    }
+
     tooltipElement.classList.add('hiding');
 
     this.hideTimeout = window.setTimeout(() => {
@@ -609,21 +718,43 @@ export class EmbeddedTxButton extends LitElement {
       tooltipElement.classList.remove('show', 'hiding');
       tooltipElement.setAttribute('aria-hidden', 'true');
       // Restore configured height when hidden
-      try { tooltipElement.style.setProperty('--tooltip-height', this.tooltip.height); } catch {}
+      try {
+        tooltipElement.style.setProperty('--tooltip-height', this.tooltip.height);
+      } catch {
+
+      }
       tooltipElement.style.height = typeof this.tooltip.height === 'string' ? this.tooltip.height : `${this.tooltip.height}`;
       this.hideTimeout = null;
 
-      // Send updated tooltip state with visible: false
-      this.measureTooltip();
+      // Send updated tooltip state with visible: false (no extra measure scheduling)
+      this.sendTooltipState(false);
+      this.isHiding = false;
     }, 100);
   }
 
   private handleTreeToggled() {
-    // Wait 2 frames to ensure <details> layout is fully resolved before measuring
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this.measureTooltip();
-      });
+    if (this.isHiding) {
+      return; // skip measuring during hide
+    }
+    // Pure measurement approach: Calculate expected dimensions without DOM manipulation
+
+    // Cancel any pending animation frames
+    if (this.treeRaf1) {
+      cancelAnimationFrame(this.treeRaf1);
+      this.treeRaf1 = null;
+    }
+    if (this.treeRaf2) {
+      cancelAnimationFrame(this.treeRaf2);
+      this.treeRaf2 = null;
+    }
+
+    // Single frame: Calculate expected dimensions and update everything atomically
+    this.treeRaf1 = requestAnimationFrame(() => {
+      // Step 1: Force re-render to update the tree structure first
+      this.requestUpdate();
+
+      // Step 2: Immediately measure the expanded tooltip (after re-render)
+      this.measureTooltipAndUpdateParentSync();
     });
   }
 
@@ -637,6 +768,10 @@ export class EmbeddedTxButton extends LitElement {
         tooltipElement.classList.remove('hiding');
       }
     }
+
+    // CRITICAL: Reset isHiding flag when hide is cancelled
+    // This allows tree expansion measurements to proceed normally
+    this.isHiding = false;
   }
 
   // Method to force property update and re-render
@@ -646,13 +781,18 @@ export class EmbeddedTxButton extends LitElement {
     loading: boolean;
     buttonStyle: React.CSSProperties;
     buttonHoverStyle: React.CSSProperties;
-    tooltip: { width: string; height: string; position: TooltipPosition; offset: string }
+    tooltipPosition: TooltipPosition;
+    theme: TooltipTheme;
   }>) {
 
     Object.assign(this, props);
     // Update CSS variables if button styles changed
     if (props.buttonStyle || props.buttonHoverStyle) {
       this.setupCSSVariables();
+    }
+    // Update tooltip theme if theme changed
+    if (props.theme) {
+      this.updateTooltipTheme();
     }
     // Force a re-render to update tooltip content
     this.requestUpdate();
@@ -668,16 +808,12 @@ export class EmbeddedTxButton extends LitElement {
   updateButtonStyles(
     buttonStyle: React.CSSProperties,
     buttonHoverStyle: React.CSSProperties,
-    tooltipStyle?: {
-      width: string;
-      height: string | 'auto';
-      position: TooltipPosition;
-      offset: string
-    }) {
+    tooltipPosition?: TooltipPosition
+  ) {
     this.buttonStyle = buttonStyle;
     this.buttonHoverStyle = buttonHoverStyle;
-    if (tooltipStyle) {
-      this.tooltip = tooltipStyle;
+    if (tooltipPosition) {
+      this.tooltip = tooltipPosition;
     }
     this.setupCSSVariables();
     this.requestUpdate();
@@ -776,7 +912,7 @@ export class EmbeddedTxButton extends LitElement {
         </div>
         <div class="action-detail">
           <strong>Gas</strong>
-          <span>${this._formatGas(action.gas)}</span>
+          <span>${formatGas(action.gas)}</span>
         </div>
         <div class="action-detail no-border">
           <strong>Method</strong>
@@ -786,7 +922,7 @@ export class EmbeddedTxButton extends LitElement {
           return html`
             <div class="action-detail no-border" style="margin-top: -4px">
               <span>
-                <pre class="code-block"><code>${this._formatArgs(action.args)}</code></pre>
+                <pre class="code-block"><code>${formatArgs(action.args)}</code></pre>
               </span>
             </div>
           `;
@@ -801,7 +937,7 @@ export class EmbeddedTxButton extends LitElement {
         </div>
         <div class="action-row">
           <div class="action-label">Amount</div>
-          <div class="action-value">${this._formatDeposit(action.amount)}</div>
+          <div class="action-value">${formatDeposit(action.amount)}</div>
         </div>
       `;
     }
@@ -887,166 +1023,27 @@ export class EmbeddedTxButton extends LitElement {
     `;
   }
 
-  private _formatGas(gas: string | undefined): string {
-    if (!gas) return '';
-    try {
-      const gasValue = BigInt(gas);
-      const tgas = gasValue / BigInt('1000000000000'); // Convert to Tgas (divide by 10^12)
-      return `${tgas}Tgas`;
-    } catch (e) {
-      // If parsing fails, return original value
-      return gas;
-    }
-  }
-
-  private _formatArgs(args: string | undefined | Record<string, any>): string {
-    if (!args) return '';
-    try {
-      return JSON.stringify(args, null, 2);
-    } catch (e) {
-      // If parsing fails, return original value
-      return String(args);
-    }
-  }
-
-  private _formatDeposit(deposit: string | undefined): string {
-    if (!deposit || deposit === '0') return '';
-    try {
-      const depositValue = BigInt(deposit);
-      const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
-      return `${nearValue.toFixed(5)} NEAR`;
-    } catch (e) {
-      // If parsing fails, return original value
-      return deposit;
-    }
-  }
-
-  // Build a two-level tree: Transaction -> Action N -> subfields
-  private buildTreeFromActions(tx: TransactionInput): TreeNode {
-
-    const actionFolders: TreeNode[] = tx.actions.map((action, idx) => {
-
-      const label = `Action ${idx + 1}: ${action.type}`;
-
-      const fieldNodes: TreeNode[] = (() => {
-        if (action.type === 'FunctionCall') {
-          return [
-            { id: `a${idx}-method`, label: `method: ${action.methodName}`, type: 'file' },
-            { id: `a${idx}-gas`, label: `gas: ${action.gas ?? ''}`, type: 'file' },
-            { id: `a${idx}-deposit`, label: `deposit: ${action.deposit ?? ''}`, type: 'file' },
-            {
-              id: `a${idx}-args`,
-              label: 'args',
-              type: 'file',
-              content: (() => { try { return JSON.stringify(action.args, null, 2); } catch { return String(action.args); } })()
-            }
-          ];
-        }
-        if (action.type === 'Transfer') {
-          return [
-            { id: `a${idx}-amount`, label: `amount: ${action.amount}`, type: 'file' }
-          ];
-        }
-        if (action.type === 'CreateAccount') {
-          return [
-          ];
-        }
-        if (action.type === 'DeployContract') {
-          const code = (action as any).code;
-          const codeSize = (() => {
-            if (!code) return '0 bytes';
-            if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
-            if (Array.isArray(code)) return `${code.length} bytes`;
-            if (typeof code === 'string') return `${code.length} bytes`;
-            return 'unknown';
-          })();
-          return [
-            { id: `a${idx}-code-size`, label: `codeSize: ${codeSize}`, type: 'file' }
-          ];
-        }
-        if (action.type === 'Stake') {
-          const a: any = action;
-          return [
-            { id: `a${idx}-publicKey`, label: `publicKey: ${a.publicKey}`, type: 'file' },
-            { id: `a${idx}-stake`, label: `stake: ${a.stake}`, type: 'file' }
-          ];
-        }
-        if (action.type === 'AddKey') {
-          const ak = action.accessKey;
-          let akPretty = '';
-          try { akPretty = JSON.stringify(ak, null, 2); } catch { akPretty = String(ak); }
-          return [
-            { id: `a${idx}-publicKey`, label: `publicKey: ${action.publicKey}`, type: 'file' },
-            { id: `a${idx}-accessKey`, label: 'accessKey', type: 'file', content: akPretty }
-          ];
-        }
-        if (action.type === 'DeleteKey') {
-          return [
-            { id: `a${idx}-publicKey`, label: `publicKey: ${action.publicKey}`, type: 'file' }
-          ];
-        }
-        if (action.type === 'DeleteAccount') {
-          return [
-            { id: `a${idx}-beneficiaryId`, label: `beneficiaryId: ${action.beneficiaryId}`, type: 'file' }
-          ];
-        }
-        // Unknown action
-        let raw = '';
-        try { raw = JSON.stringify(action, null, 2); } catch { raw = String(action); }
-        return [ { id: `a${idx}-raw`, label: 'data', type: 'file', content: raw } ];
-      })();
-
-      const folder: TreeNode = {
-        id: `action-${idx}`,
-        label,
-        type: 'folder',
-        open: false,
-        children: fieldNodes
-      };
-      return folder;
-    });
-
-    const result: TreeNode = {
-      id: 'tx-root',
-      label: actionFolders.length > 1 ? 'Transaction' : 'Action',
-      type: 'folder',
-      open: true,
-      children: actionFolders
-    };
-    return result;
-  }
-
   private buildDisplayTreeFromTxPayloads(txSigningRequests: TransactionInput[]): TreeNode {
 
     const txFolders: TreeNode[] = txSigningRequests.map((tx: TransactionInput, tIdx: number) => {
-
-      // Handle the case where actions might be a JSON string (from TransactionPayload)
-      let actions: ActionArgs[] = [];
-      if (typeof (tx as any).actions === 'string') {
-        try {
-          actions = JSON.parse((tx as any).actions);
-        } catch (e) {
-          console.error('[EmbeddedTxButton] Failed to parse actions JSON:', e);
-        }
-      } else if (Array.isArray(tx.actions)) {
-        actions = tx.actions;
-      }
-
-      // Create a proper TransactionInput object
-      const txInput: TransactionInput = {
-        receiverId: tx.receiverId,
-        actions: actions
-      };
-
-      const children = this.buildTreeFromActions(txInput).children || [];
+      // Build a two-level tree: Transaction -> Action N -> subfields
+      const highlightMethodColor = this.tooltipTreeStyles?.highlightMethodName?.color;
+      const children = buildActionTree(tx, highlightMethodColor).children || [];
       return {
         id: `tx-${tIdx}`,
         label: `Transaction ${tIdx + 1} to ${tx.receiverId}`,
         type: 'folder',
         open: tIdx === 0,
+        ...(this.tooltipTreeStyles?.highlightReceiverId?.color && {
+          highlight: {
+            type: 'receiverId' as const,
+            color: this.tooltipTreeStyles.highlightReceiverId.color
+          }
+        }),
         children: [...children]
       };
     });
+
     return {
       id: 'txs-root',
       label: txFolders.length > 1 ? 'Transactions' : 'Transaction',
@@ -1098,6 +1095,7 @@ export class EmbeddedTxButton extends LitElement {
             <tooltip-tx-tree
               .node=${tree}
               .depth=${0}
+              .tooltipTreeStyles=${this.tooltipTreeStyles}
               @tree-toggled=${this.handleTreeToggled}
             ></tooltip-tx-tree>
           </div>

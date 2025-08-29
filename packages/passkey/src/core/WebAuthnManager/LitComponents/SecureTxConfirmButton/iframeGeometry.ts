@@ -1,0 +1,390 @@
+
+export type TooltipPositionEnum =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'left'
+  | 'right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
+export interface TooltipPosition {
+  width: string;
+  height: string;
+  position: TooltipPositionEnum;
+  offset: string;
+}
+
+export interface Rectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  borderRadius?: number;
+}
+
+export interface TooltipGeometry {
+  button: Rectangle;
+  tooltip: Rectangle;
+  position: TooltipPositionEnum;
+  gap: number;
+  visible: boolean;
+}
+
+export interface IframeInitData {
+  size: { width: string; height: string };
+  tooltip: { width: string; height: string; position: string; offset: string };
+  buttonPosition: { x: number; y: number }; // Precise button position inside iframe
+  backgroundColor: string; // Button background color for consistent CSS
+  tagName: string; // Custom element tag name for the embedded button
+}
+
+export interface IframeMessage {
+  type: 'READY'
+  | 'SET_INIT'
+  | 'SET_TX_DATA'
+  | 'SET_LOADING'
+  | 'SET_STYLE'
+  | 'CONFIRM'
+  | 'IFRAME_ERROR'
+  | 'IFRAME_UNHANDLED_REJECTION'
+  | 'ETX_DEFINED'
+  | 'POSITIONING_APPLIED'
+  | 'REQUEST_GEOMETRY'
+  | 'INIT_GEOMETRY'
+  | 'TOOLTIP_STATE'
+  | 'BUTTON_HOVER';
+  payload?: any;
+}
+
+// === Local helpers (pure) ===
+
+export function toPx(v: string | number): string {
+  return typeof v === 'number' ? `${v}px` : v;
+}
+
+export function utilParsePx(value: string | number): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    if (value === 'auto') {
+      throw new Error('Cannot parse "auto" value for pixel calculations. Please provide a specific pixel value.');
+    }
+    const match = value.match(/^(\d+(?:\.\d+)?)px$/);
+    if (match) {
+      return parseFloat(match[1]);
+    }
+    throw new Error(`Invalid pixel value: "${value}". Expected format: "123px" or numeric value.`);
+  }
+  return 0;
+}
+
+export function computeIframeSizePure(input: {
+  buttonWidthPx: number;
+  buttonHeightPx: number;
+  tooltipWidthPx: number;
+  tooltipHeightPx: number;
+  offsetPx: number;
+  position: TooltipPositionEnum;
+  paddingPx?: number;
+}): { width: number; height: number; flushClass: string; buttonPositionX: number; buttonPositionY: number } {
+  const p = input.paddingPx ?? 8;
+  const { buttonWidthPx: bw, buttonHeightPx: bh, tooltipWidthPx: tw, tooltipHeightPx: th, offsetPx: o, position } = input;
+  let width = 0, height = 0, buttonPositionX = 0, buttonPositionY = 0;
+  let flushClass = 'flush-top-center';
+  switch (position) {
+    case 'top-left':
+      flushClass = 'flush-bottom-left';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = 0; buttonPositionY = th + o; break;
+    case 'top-center':
+      flushClass = 'flush-bottom-center';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = (width - bw) / 2; buttonPositionY = th + o; break;
+    case 'top-right':
+      flushClass = 'flush-bottom-right';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = width - bw; buttonPositionY = th + o; break;
+    case 'left':
+      flushClass = 'flush-right';
+      width = tw + o + bw + p; height = Math.max(bh, th) + p; buttonPositionX = tw + o; buttonPositionY = (height - bh) / 2; break;
+    case 'right':
+      flushClass = 'flush-left';
+      width = bw + o + tw + p; height = Math.max(bh, th) + p; buttonPositionX = 0; buttonPositionY = (height - bh) / 2; break;
+    case 'bottom-left':
+      flushClass = 'flush-top-left';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = 0; buttonPositionY = 0; break;
+    case 'bottom-center':
+      flushClass = 'flush-top-center';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = (width - bw) / 2; buttonPositionY = 0; break;
+    case 'bottom-right':
+      flushClass = 'flush-top-right';
+      width = Math.max(bw, tw) + p; height = bh + o + th + p; buttonPositionX = width - bw; buttonPositionY = 0; break;
+  }
+  return { width, height, flushClass, buttonPositionX, buttonPositionY };
+}
+
+export function computeExpandedIframeSizeFromGeometryPure(input: {
+  geometry: { button: { x: number; y: number; width: number; height: number }; tooltip: { x: number; y: number; width: number; height: number } };
+  paddingPx?: number;
+  fallback: { width: number; height: number };
+}): { width: number; height: number } {
+  const p = input.paddingPx ?? 8;
+  const g = input.geometry;
+  const right = Math.max(g.button.x + g.button.width, g.tooltip.x + g.tooltip.width);
+  const bottom = Math.max(g.button.y + g.button.height, g.tooltip.y + g.tooltip.height);
+  return {
+    width: Math.max(input.fallback.width, Math.ceil(right) + p),
+    height: Math.max(input.fallback.height, Math.ceil(bottom) + p)
+  };
+}
+
+/**
+ * IframeClipPathGenerator creates precise clip-path polygons for button + tooltip unions.
+ * Supports all 8 tooltip positions with optimized shape algorithms.
+ */
+export class IframeClipPathGenerator {
+  static generateUnion(geometry: TooltipGeometry): string {
+    const { button, tooltip, position, gap } = geometry;
+    if (!CSS.supports('clip-path: polygon(0 0)')) {
+      console.warn('clip-path not supported, skipping shape generation');
+      return '';
+    }
+    switch (position) {
+      case 'top-left': {
+        const upper = (button.y <= tooltip.y) ? button : tooltip;
+        const lower = (upper === button) ? tooltip : button;
+        return this.generateVerticalLUnion(upper, lower, 'left');
+      }
+      case 'top-center':
+        return this.generateTopCenterUnion(button, tooltip, gap);
+      case 'top-right': {
+        const upper = (button.y <= tooltip.y) ? button : tooltip;
+        const lower = (upper === button) ? tooltip : button;
+        return this.generateVerticalLUnion(upper, lower, 'right');
+      }
+      case 'left':
+        return this.generateLeftUnion(button, tooltip, gap);
+      case 'right':
+        return this.generateRightUnion(button, tooltip, gap);
+      case 'bottom-left': {
+        const upper = (button.y <= tooltip.y) ? button : tooltip;
+        const lower = (upper === button) ? tooltip : button;
+        return this.generateVerticalLUnion(upper, lower, 'left');
+      }
+      case 'bottom-center':
+        return this.generateBottomCenterUnion(button, tooltip, gap);
+      case 'bottom-right': {
+        const upper = (button.y <= tooltip.y) ? button : tooltip;
+        const lower = (upper === button) ? tooltip : button;
+        return this.generateVerticalLUnion(upper, lower, 'right');
+      }
+      default:
+        console.warn(`Unknown tooltip position: ${position}`);
+        return this.generateTopCenterUnion(button, tooltip, gap);
+    }
+  }
+
+  /**
+   * Build an L-shaped rectilinear polygon for two vertically stacked rectangles (upper over lower).
+   * The hingeSide selects which side (left|right) the connecting corridor should hug to avoid
+   * capturing the opposite empty corner.
+   *
+   * Visual reference (tooltip at bottom-left, flush with button's left edge):
+   *
+   *   +----------------------------------------------+
+   *   |                   BUTTON                     |
+   *   +-------------------------------+--------------+
+   *   |           TOOLTIP             |              |
+   *   |           TOOLTIP             |              |
+   *   |           TOOLTIP             |              |
+   *   +-------------------------------+              |
+   *   |                                              |
+   *   +----------------------------------------------+
+   *
+   * Visual reference (tooltip at top-right, flush with button's right edge):
+   *
+   *   +----------------------------------------------+
+   *   |                              +---------------+
+   *   |                              |    TOOLTIP    |
+   *   |                              |    TOOLTIP    |
+   *   |                              |    TOOLTIP    |
+   *   |                +-------------+---------------+
+   *   |                |            BUTTON           |
+   *   +----------------+-----------------------------+
+   */
+  private static generateVerticalLUnion(
+    upper: Rectangle,
+    lower: Rectangle,
+    hingeSide: 'left' | 'right'
+  ): string {
+    // Ensure vertical ordering (upper.y <= lower.y). If not, swap.
+    if (upper.y > lower.y) {
+      const tmp = upper; upper = lower; lower = tmp;
+    }
+
+    const uL = upper.x;
+    const uR = upper.x + upper.width;
+    const uT = upper.y;
+    const uB = upper.y + upper.height;
+
+    const lL = lower.x;
+    const lR = lower.x + lower.width;
+    const lT = lower.y;
+    const lB = lower.y + lower.height;
+
+    // If rectangles overlap in Y (contrary to expectation) or overlap fully in X,
+    // fallback to a simple bounding rectangle to avoid degenerate polygons.
+    const overlapY = Math.max(0, Math.min(uB, lB) - Math.max(uT, lT));
+    if (overlapY > 0) {
+      const minX = Math.min(uL, lL);
+      const maxX = Math.max(uR, lR);
+      const minY = Math.min(uT, lT);
+      const maxY = Math.max(uB, lB);
+      return `polygon(${minX}px ${minY}px, ${maxX}px ${minY}px, ${maxX}px ${maxY}px, ${minX}px ${maxY}px)`;
+    }
+
+    // Construct polygon that wraps around both rects while hugging the hinge side
+    let points: Array<{ x: number; y: number }> = [];
+    if (hingeSide === 'left') {
+      /*
+       * Left-hinge 10-point polygon (indices in order):
+       *  1: (uL,uT)  → upper top-left
+       *  2: (uR,uT)  → upper top-right
+       *  3: (uR,uB)  → upper bottom-right
+       *  4: (uL,uB)  → upper bottom-left
+       *  5: (lL,uB)  → vertical corridor down along left hinge to lower top-left (flush when uL==lL)
+       *  6: (lL,lB)  → lower bottom-left
+       *  7: (lR,lB)  → lower bottom-right
+       *  8: (lR,lT)  → lower top-right
+       *  9: (uL,lT)  → horizontal corridor back to the left hinge at lower top
+       * 10: (uL,uT)  → close loop at upper top-left
+       */
+      points = [
+        { x: uL, y: uT },
+        { x: uR, y: uT },
+        { x: uR, y: uB },
+        { x: uL, y: uB },
+        { x: lL, y: uB },
+        { x: lL, y: lB },
+        { x: lR, y: lB },
+        { x: lR, y: lT },
+        { x: uL, y: lT },
+        { x: uL, y: uT },
+      ];
+    } else { // hingeSide === 'right'
+      /*
+       * Right-hinge 10-point polygon (indices in order):
+       *  1: (uL,uT)  → upper top-left
+       *  2: (uR,uT)  → upper top-right
+       *  3: (uR,uB)  → upper bottom-right
+       *  4: (lR,uB)  → vertical corridor down along right hinge to lower top-right (flush when uR==lR)
+       *  5: (lR,lB)  → lower bottom-right
+       *  6: (lL,lB)  → lower bottom-left
+       *  7: (lL,lT)  → lower top-left
+       *  8: (uR,lT)  → horizontal corridor back to the right hinge at lower top
+       *  9: (uR,uT)  → vertical back up to upper top-right
+       * 10: (uL,uT)  → close loop at upper top-left
+       */
+      points = [
+        { x: uL, y: uT },
+        { x: uR, y: uT },
+        { x: uR, y: uB },
+        { x: lR, y: uB },
+        { x: lR, y: lB },
+        { x: lL, y: lB },
+        { x: lL, y: lT },
+        { x: uR, y: lT },
+        { x: uR, y: uT },
+        { x: uL, y: uT },
+      ];
+    }
+
+    // Convert to CSS polygon string, collapsing consecutive duplicates
+    const deduped = points.filter((p, i, arr) => i === 0 || !(p.x === arr[i - 1].x && p.y === arr[i - 1].y));
+    const coords = deduped.map(p => `${Math.round(p.x)}px ${Math.round(p.y)}px`).join(', ');
+    return `polygon(${coords})`;
+  }
+
+  private static generateTopCenterUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = tooltip.y;
+    const maxY = button.y + button.height;
+    const borderRadius = 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateBottomCenterUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = button.y;
+    const maxY = tooltip.y + tooltip.height;
+    const borderRadius = 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateLeftUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = tooltip.x;
+    const maxX = button.x + button.width;
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+    const borderRadius = 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateRightUnion(button: Rectangle, tooltip: Rectangle, gap: number): string {
+    const minX = button.x;
+    const maxX = tooltip.x + tooltip.width;
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+    const borderRadius = 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  private static generateLShapedUnion(
+    button: Rectangle,
+    tooltip: Rectangle,
+    gap: number,
+    corner: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+  ): string {
+    const minX = Math.min(button.x, tooltip.x);
+    const maxX = Math.max(button.x + button.width, tooltip.x + tooltip.width);
+    const minY = Math.min(button.y, tooltip.y);
+    const maxY = Math.max(button.y + button.height, tooltip.y + tooltip.height);
+    const borderRadius = 2;
+    const width = maxX - minX;
+    const height = maxY - minY;
+    return `polygon(${this.createRoundedRect(minX, minY, width, height, borderRadius)})`;
+  }
+
+  public static createRoundedRect(
+    x: number, y: number, width: number, height: number, radius: number
+  ): string {
+    const r = Math.min(radius, width / 2, height / 2);
+    return [
+      `${Math.round(x + r)}px ${Math.round(y)}px`,
+      `${Math.round(x + width - r)}px ${Math.round(y)}px`,
+      `${Math.round(x + width)}px ${Math.round(y + r)}px`,
+      `${Math.round(x + width)}px ${Math.round(y + height - r)}px`,
+      `${Math.round(x + width - r)}px ${Math.round(y + height)}px`,
+      `${Math.round(x + r)}px ${Math.round(y + height)}px`,
+      `${Math.round(x)}px ${Math.round(y + height - r)}px`,
+      `${Math.round(x)}px ${Math.round(y + r)}px`
+    ].join(', ');
+  }
+
+  public static buildButtonClipPathPure(rect: { x: number; y: number; width: number; height: number }): string {
+    const { x, y, width, height } = rect;
+    const clipPath = `polygon(${Math.round(x)}px ${Math.round(y)}px, ${Math.round(x + width)}px ${Math.round(y)}px, ${Math.round(x + width)}px ${Math.round(y + height)}px, ${Math.round(x)}px ${Math.round(y + height)}px)`;
+    return clipPath;
+  }
+}
+
+export default IframeClipPathGenerator;
+
