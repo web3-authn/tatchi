@@ -7,7 +7,7 @@ import type {
   ActionResult,
   SignAndSendTransactionHooksOptions
 } from '../types/passkeyManager';
-import type { ActionArgs, TransactionInput } from '../types/actions';
+import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import type { TransactionContext } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
@@ -496,19 +496,17 @@ async function wasmAuthenticateAndSignTransactions(
   });
 
   // Convert all actions to ActionArgsWasm format for batched transaction
-  const transactionInputsWasm = transactionInputs.map((tx, i) => {
+  const transactionInputsWasm: TransactionInputWasm[] = transactionInputs.map((tx, i) => {
     return {
-      nearAccountId: nearAccountId,
       receiverId: tx.receiverId,
       actions: tx.actions.map(action => toActionArgsWasm(action)),
       nonce: (BigInt(transactionContext.nextNonce) + BigInt(i)).toString(),
     }
   });
 
-  console.log("transactionInputsWasm>>>", transactionInputsWasm);
-
   // Use the unified action-based WASM worker transaction signing
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
+    nearAccountId: nearAccountId,
     transactions: transactionInputsWasm,
     // Common parameters
     blockHash: transactionContext.txBlockHash,

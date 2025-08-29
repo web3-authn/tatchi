@@ -5,14 +5,15 @@ import {
 } from '../../credentialsHelpers';
 import { VRFChallenge } from '../../../types/vrf-worker';
 import type { SignerWorkerManagerContext } from '../index';
-import type { ConfirmationConfig, TransactionPayload } from '../../../types/signer-worker';
+import type { ConfirmationConfig } from '../../../types/signer-worker';
 import {
   SecureConfirmMessage,
   SecureConfirmDecision,
   TransactionSummary,
   SecureConfirmMessageType,
-  SecureConfirmData
+  SecureConfirmData,
 } from './types';
+import { TransactionInputWasm } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
 import { ModalTxConfirmElement } from '../../LitComponents/modal';
 
@@ -105,7 +106,7 @@ async function renderConfirmUI({
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
-  txSigningRequests?: TransactionPayload[],
+  txSigningRequests?: TransactionInputWasm[],
   behavior?: 'requireClick' | 'autoProceed',
   autoProceedDelay?: number
 }): Promise<{
@@ -115,6 +116,10 @@ async function renderConfirmUI({
     close: (confirmed: boolean) => void
   }
 }> {
+  console.log('[SignerWorkerManager]: txSigningRequests', txSigningRequests?.[0]);
+  console.log('[SignerWorkerManager]:<actions>type', typeof txSigningRequests?.[0].actions);
+  console.log('[SignerWorkerManager]:<actions>', txSigningRequests?.[0].actions);
+
   switch (ctx.confirmationConfig.uiMode) {
     case 'embedded': {
       // Legacy embedded mode removed - using iframe approach instead

@@ -1,5 +1,5 @@
 import { VRFChallenge } from '@/core/types/vrf-worker';
-import { TransactionPayload } from '../../../types/signer-worker';
+import { TransactionInputWasm } from '../../../types';
 import { ConfirmationConfig } from '../../../types';
 
 // === SECURE CONFIRM TYPES ===
@@ -7,7 +7,7 @@ import { ConfirmationConfig } from '../../../types';
 export interface SecureConfirmData {
   requestId: string;
   summary: string | object;
-  tx_signing_requests: TransactionPayload[]; // Array of TransactionPayload objects
+  tx_signing_requests: TransactionInputWasm[]; // Array of TransactionInputWasm objects
   intentDigest: string;
   nearAccountId: string; // Account ID for credential lookup
   vrfChallenge: VRFChallenge; // VRF challenge for credential generation

@@ -1,3 +1,4 @@
+import { AccountId } from "./accountIds";
 
 // === TRANSACTION INPUT INTERFACES ===
 
@@ -9,6 +10,7 @@ export interface TransactionInput {
 export interface TransactionInputWasm {
   receiverId: string;
   actions: ActionArgsWasm[],
+  nonce: string;
 }
 
 /**

@@ -17,7 +17,7 @@ import {
   VRFInputData,
   VRFChallenge
 } from '../types/vrf-worker';
-import type { ActionArgsWasm } from '../types/actions';
+import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
@@ -511,6 +511,7 @@ export class WebAuthnManager {
    */
   async signTransactionsWithActions({
     transactions,
+    nearAccountId,
     blockHash,
     contractId,
     vrfChallenge,
@@ -518,13 +519,9 @@ export class WebAuthnManager {
     onEvent,
     confirmationConfigOverride,
   }: {
-    transactions: Array<{
-      nearAccountId: AccountId;
-      receiverId: string;
-      actions: ActionArgsWasm[];
-      nonce: string;
-    }>,
+    transactions: TransactionInputWasm[],
     // Common parameters for all transactions
+    nearAccountId: AccountId,
     blockHash: string,
     contractId: string,
     vrfChallenge: VRFChallenge,
@@ -538,6 +535,7 @@ export class WebAuthnManager {
     }
     return await this.signerWorkerManager.signTransactionsWithActions({
       transactions,
+      nearAccountId,
       blockHash,
       contractId,
       vrfChallenge,

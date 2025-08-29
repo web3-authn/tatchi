@@ -272,9 +272,7 @@ export class VrfWorkerManager {
    * This is called during authentication to create WebAuthn challenges
    */
   async generateVrfChallenge(inputData: VRFInputData): Promise<VRFChallenge> {
-    console.debug('VRF Manager: Generating VRF challenge...');
     await this.ensureWorkerReady(true);
-
     const message: VRFWorkerMessage<WasmGenerateVrfChallengeRequest> = {
       type: 'GENERATE_VRF_CHALLENGE',
       id: this.generateMessageId(),
@@ -378,12 +376,7 @@ export class VrfWorkerManager {
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
-    console.debug('VRF Manager: Generating bootstrap VRF keypair', {
-      saveInMemory,
-      withChallenge: !!vrfInputData
-    });
     await this.ensureWorkerReady();
-
     try {
       const message: VRFWorkerMessage<WasmGenerateVrfKeypairBootstrapRequest> = {
         type: 'GENERATE_VRF_KEYPAIR_BOOTSTRAP',

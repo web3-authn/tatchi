@@ -9,7 +9,7 @@ export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums direc
 import { StripFree } from ".";
 import type { onProgressEvents } from "./passkeyManager";
 
-export type TransactionPayload = wasmModule.TransactionPayload;
+export type TransactionPayload = StripFree<wasmModule.TransactionPayload>;
 
 // === WORKER REQUEST TYPE MAPPING ===
 // Define the complete type mapping for each worker request

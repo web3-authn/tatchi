@@ -37,8 +37,6 @@ import {
   SignerWorkerMessage,
   WorkerRequestType,
   WorkerResponseType,
-  ProgressStep,
-  ProgressStepMap,
   WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
@@ -89,8 +87,6 @@ function sendProgressMessage(
   logs?: string
 ): void {
   try {
-    console.debug(`[signer-worker]: Progress update: ${messageTypeName} (${messageType}) - ${stepName} (${step}) - ${message}`);
-
     // Parse structured data and logs using helper
     const parsedData = safeJsonParse(data, {});
     const parsedLogs = safeJsonParse(logs || '', []);
@@ -118,7 +114,6 @@ function sendProgressMessage(
 
   } catch (error: any) {
     console.error('[signer-worker]: Failed to send progress message:', error);
-
     // Send error message as fallback - use a generic failure type
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
@@ -153,7 +148,6 @@ async function initializeWasm(): Promise<void> {
  */
 async function processWorkerMessage(event: MessageEvent): Promise<void> {
   messageProcessed = true;
-  console.debug('[signer-worker]: Processing worker message:', { type: event.data.type });
   try {
     // Initialize WASM
     await initializeWasm();
@@ -196,13 +190,11 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
   switch (true) {
     case !messageProcessed:
       // Case 1: First message - process as normal worker operation
-      console.debug('[signer-worker]: First message received, processing...');
       await processWorkerMessage(event);
       break;
 
     case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
       // Case 2: User confirmation response - let it bubble to awaitSecureConfirmation listener
-      console.log('[signer-worker]: User confirmation response received, allowing event to bubble');
       // By breaking here without consuming the event, the message continues to propagate
       // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmation
       break;
@@ -222,7 +214,7 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
 };
 
 self.onerror = (message, filename, lineno, colno, error) => {
-  console.error('[signer-worker]: Global error:', {
+  console.error('[signer-worker]: error:', {
     message: typeof message === 'string' ? message : 'Unknown error',
     filename: filename || 'unknown',
     lineno: lineno || 0,

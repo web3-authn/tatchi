@@ -15,7 +15,7 @@ import {
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
 import { VRFChallenge } from '../../types/vrf-worker';
-import type { ActionArgsWasm } from '../../types/actions';
+import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
@@ -385,12 +385,8 @@ export class SignerWorkerManager {
    * Efficiently processes multiple transactions with one PRF authentication
    */
   async signTransactionsWithActions(args: {
-    transactions: Array<{
-      nearAccountId: AccountId;
-      receiverId: string;
-      actions: ActionArgsWasm[];
-      nonce: string;
-    }>;
+    transactions: TransactionInputWasm[],
+    nearAccountId: AccountId,
     blockHash: string;
     contractId: string;
     vrfChallenge: VRFChallenge;

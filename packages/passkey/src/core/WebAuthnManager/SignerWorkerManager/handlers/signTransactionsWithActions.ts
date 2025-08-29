@@ -1,16 +1,16 @@
 
 import { SignedTransaction } from '../../../NearClient';
-import { type ActionArgsWasm, validateActionArgsWasm } from '../../../types/actions';
+import { TransactionInputWasm, validateActionArgsWasm } from '../../../types/actions';
 import type { onProgressEvents } from '../../../types/passkeyManager';
 import {
   WorkerRequestType,
+  TransactionPayload,
+  ConfirmationConfig,
   isSignTransactionsWithActionsSuccess,
 } from '../../../types/signer-worker';
 import { VRFChallenge } from '../../../types/vrf-worker';
 import { AccountId } from "../../../types/accountIds";
-import { ConfirmationConfig } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
-import { WasmTransactionSignResult } from '../../../types/signer-worker';
 
 
 /**
@@ -19,6 +19,7 @@ import { WasmTransactionSignResult } from '../../../types/signer-worker';
  */
 export async function signTransactionsWithActions({
   ctx,
+  nearAccountId,
   transactions,
   blockHash,
   contractId,
@@ -28,12 +29,8 @@ export async function signTransactionsWithActions({
   confirmationConfigOverride
 }: {
   ctx: SignerWorkerManagerContext,
-  transactions: Array<{
-    nearAccountId: AccountId;
-    receiverId: string;
-    actions: ActionArgsWasm[];
-    nonce: string;
-  }>;
+  nearAccountId: AccountId,
+  transactions: TransactionInputWasm[],
   blockHash: string;
   contractId: string;
   vrfChallenge: VRFChallenge;
@@ -63,16 +60,6 @@ export async function signTransactionsWithActions({
       });
     });
 
-    // All transactions should use the same account for signing
-    const nearAccountId = transactions[0].nearAccountId;
-
-    // Verify all payloads use the same account
-    for (const tx of transactions) {
-      if (tx.nearAccountId !== nearAccountId) {
-        throw new Error('All transactions must be signed by the same account');
-      }
-    }
-
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
     const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
@@ -83,8 +70,8 @@ export async function signTransactionsWithActions({
     // Credentials and PRF outputs are collected during user confirmation handshake
 
     // Create transaction signing requests
-    const txSigningRequests = transactions.map(tx => ({
-      nearAccountId: tx.nearAccountId,
+    const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
+      nearAccountId: nearAccountId,
       receiverId: tx.receiverId,
       actions: JSON.stringify(tx.actions),
       nonce: tx.nonce,
@@ -144,7 +131,7 @@ export async function signTransactionsWithActions({
           signature: signedTx.signature,
           borsh_bytes: Array.from(signedTx.borshBytes || [])
         }),
-        nearAccountId: transactions[index].nearAccountId,
+        nearAccountId: nearAccountId,
         logs: response.payload.logs
       };
     });

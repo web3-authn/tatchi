@@ -113,10 +113,10 @@ export async function executeDeviceLinkingContractCalls({
 
   // Sign three transactions with one PRF authentication
   const signedTransactions = await context.webAuthnManager.signTransactionsWithActions({
+    nearAccountId: device1AccountId,
     transactions: [
       // Transaction 1: AddKey - Add Device2's key to Device1's account
       {
-        nearAccountId: device1AccountId,
         receiverId: device1AccountId,
         actions: [{
           action_type: ActionType.AddKey,
@@ -130,7 +130,6 @@ export async function executeDeviceLinkingContractCalls({
       },
       // Transaction 2: Store temporary mapping in contract so Device2 can lookup Device1's accountID.
       {
-        nearAccountId: device1AccountId,
         receiverId: context.webAuthnManager.configs.contractId,
         actions: [{
           action_type: ActionType.FunctionCall,
@@ -146,7 +145,6 @@ export async function executeDeviceLinkingContractCalls({
       },
       // Transaction 3: Remove Device2's temporary key if it fails to complete linking after a timeout
       {
-        nearAccountId: device1AccountId,
         receiverId: device1AccountId,
         actions: [{
           action_type: ActionType.DeleteKey,
