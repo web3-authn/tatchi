@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { IFRAME_BUTTON_ID } from '../../core/types/components';
+import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframeGeometry';
 
 /**
  * React wrapper around the Lit `iframe-button` component.
@@ -11,14 +12,8 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
-  tooltipStyle?: {
-    width: string;
-    height: string;
-    position: 'left' | 'right'
-      | 'top-left' | 'top-center' | 'top-right'
-      | 'bottom-left' | 'bottom-center' | 'bottom-right';
-    offset: string
-  };
+  tooltipPosition?: TooltipPosition;
+  tooltipTheme?: 'dark' | 'light';
 }> = ({
   nearAccountId,
   txSigningRequests,
@@ -27,12 +22,13 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   color = '#667eea',
   buttonStyle,
   buttonHoverStyle,
-  tooltipStyle = {
-    width: '280px',
-    height: '300px',
+  tooltipPosition = {
+    width: '360px',
+    height: 'auto',
     position: 'top-center',
     offset: '8px'
   },
+  tooltipTheme = 'dark',
   // Behavioral props
   onCancel,
   onSuccess,
@@ -42,7 +38,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
 
   const hostRef = React.useRef<any>(null);
   const { passkeyManager } = usePasskeyContext();
-  const prevTooltipStyleRef = React.useRef(tooltipStyle);
+  const prevTooltipPositionRef = React.useRef(tooltipPosition);
   const [isComponentLoaded, setIsComponentLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -92,14 +88,15 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     if (!host) return;
 
     // Check if tooltipStyle changed significantly (requires iframe re-render)
-    const tooltipStyleChanged = JSON.stringify(prevTooltipStyleRef.current) !== JSON.stringify(tooltipStyle);
-    prevTooltipStyleRef.current = tooltipStyle;
+    const tooltipPositionChanged = JSON.stringify(prevTooltipPositionRef.current) !== JSON.stringify(tooltipPosition);
+    prevTooltipPositionRef.current = tooltipPosition;
 
     // Set properties on the Lit component using Lit setters
     host.txSigningRequests = txSigningRequests;
     host.buttonStyle = buttonStyle;
     host.buttonHoverStyle = buttonHoverStyle;
-    host.tooltipStyle = tooltipStyle;
+    host.tooltipPosition = tooltipPosition;
+    host.tooltipTheme = tooltipTheme;
     host.options = options;
     host.passkeyManagerContext = passkeyManager.getContext();
 
@@ -109,7 +106,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     host.onCancel = onCancel;
 
     // If tooltipStyle changed, force iframe re-initialization for proper sizing/positioning
-    if (tooltipStyleChanged && host.forceIframeReinitialize) {
+    if (tooltipPositionChanged && host.forceIframeReinitialize) {
       console.debug('[SecureTxConfirmButton] Tooltip style changed, forcing iframe re-initialization');
       host.forceIframeReinitialize();
     }
@@ -118,7 +115,8 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     txSigningRequests,
     buttonStyle,
     buttonHoverStyle,
-    tooltipStyle,
+    tooltipPosition,
+    tooltipTheme,
     options,
     passkeyManager,
     onSuccess,
@@ -132,6 +130,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     // Pass props as attributes - Lit will automatically handle property conversion
     'near-account-id': nearAccountId,
     'color': color,
+    'tooltip-theme': tooltipTheme,
     'show-loading': showLoading,
     // Complex objects still need to be set via properties in useEffect
   });

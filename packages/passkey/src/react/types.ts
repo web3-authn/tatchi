@@ -259,7 +259,7 @@ export interface SecureTxConfirmButtonProps {
   /** NEAR account ID */
   nearAccountId: string;
   /** Transaction payloads to sign */
-  txSigningRequests?: TransactionInput[];
+  txSigningRequests: TransactionInput[];
   /** Component title */
   title?: string;
   /** Cancel button text */
