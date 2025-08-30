@@ -317,8 +317,6 @@ export interface ActionEventStep9 extends BaseActionSSEEvent {
   data?: any;
 }
 
-
-
 export interface ActionEventError extends BaseActionSSEEvent {
   step: 0;
   phase: ActionPhase.ACTION_ERROR;

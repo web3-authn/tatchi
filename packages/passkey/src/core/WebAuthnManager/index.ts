@@ -58,7 +58,7 @@ export class WebAuthnManager {
 
   getCredentials({ nearAccountId, challenge, authenticators }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
     authenticators: ClientAuthenticatorData[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
@@ -751,12 +751,9 @@ export class WebAuthnManager {
     }
   }
 
-  async generateRegistrationCredentials({
-    nearAccountId,
-    challenge,
-  }: {
+  async generateRegistrationCredentials({ nearAccountId, challenge }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.generateRegistrationCredentials({ nearAccountId, challenge });
   }
@@ -767,7 +764,7 @@ export class WebAuthnManager {
     deviceNumber,
   }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
     deviceNumber: number;
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({ nearAccountId, challenge, deviceNumber });
@@ -779,7 +776,7 @@ export class WebAuthnManager {
     credentialIds,
   }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>,
+    challenge: VRFChallenge,
     credentialIds: string[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentialsForRecovery({ nearAccountId, challenge, credentialIds });

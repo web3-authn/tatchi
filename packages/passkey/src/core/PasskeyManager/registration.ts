@@ -81,8 +81,6 @@ export async function registerPasskey(
       generateBootstrapVrfChallenge(context, nearAccountId),
     ]).then(([_, vrfChallenge]) => ({ vrfChallenge }));
 
-    const vrfChallengeBytes = vrfChallenge.outputAs32Bytes();
-
     // Step 2: WebAuthn registration ceremony with PRF (TouchID)
     onEvent?.({
       step: 1,
@@ -93,7 +91,7 @@ export async function registerPasskey(
 
     const credential = await webAuthnManager.generateRegistrationCredentials({
       nearAccountId: nearAccountId,
-      challenge: vrfChallengeBytes,
+      challenge: vrfChallenge,
     });
 
     onEvent?.({

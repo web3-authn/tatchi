@@ -100,7 +100,7 @@ export async function signNEP413Message(args: {
     });
     const credential = await context.webAuthnManager.getCredentials({
       nearAccountId,
-      challenge: vrfChallenge.outputAs32Bytes(),
+      challenge: vrfChallenge,
       authenticators,
     });
 

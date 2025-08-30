@@ -10,7 +10,12 @@ import { DEVICE_LINKING_CONFIG } from '../../config';
 
 import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import {
+  VRFChallenge,
+  outputAs32Bytes,
+  type EncryptedVRFKeypair,
+  type ServerEncryptedVrfKeypair
+} from '../types/vrf-worker';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 
 import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
@@ -109,7 +114,7 @@ export class LinkDeviceFlow {
         // Note: Device number will be determined later when Device1 creates the mapping
         const credential = await this.context.webAuthnManager.generateRegistrationCredentials({
           nearAccountId: accountId,
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Derive NEAR keypair with proper account-specific salt
@@ -728,7 +733,7 @@ export class LinkDeviceFlow {
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use account ID for consistent PRF salts across devices
           deviceNumber: deviceNumber!, // Use device number discovered from contract during polling
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Store credential and challenge in session for later cleanup
@@ -855,7 +860,7 @@ export class LinkDeviceFlow {
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use base account ID for consistent PRF salts across devices
           deviceNumber: deviceNumber!, // Use device number discovered during polling
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Store regenerated credential and challenge in session

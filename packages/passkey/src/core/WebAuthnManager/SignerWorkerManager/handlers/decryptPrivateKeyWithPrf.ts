@@ -9,6 +9,8 @@ import { extractPrfFromCredential } from '../../credentialsHelpers';
 import { AccountId, toAccountId } from "../../../types/accountIds";
 
 import { SignerWorkerManagerContext } from '..';
+import { base64UrlEncode } from '@/utils/encoders';
+import { createRandomVRFChallenge, VRFChallenge } from '@/core/types/vrf-worker';
 
 
 export async function decryptPrivateKeyWithPrf({
@@ -31,11 +33,11 @@ export async function decryptPrivateKeyWithPrf({
     // For private key export, no VRF challenge is needed.
     // we can use local random challenge for WebAuthn authentication.
     // Security comes from device possession + biometrics, not challenge validation
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
+    const challenge = createRandomVRFChallenge();
     // TouchID prompt
     const credential = await ctx.touchIdPrompt.getCredentials({
       nearAccountId,
-      challenge,
+      challenge: challenge as VRFChallenge,
       authenticators,
     });
 

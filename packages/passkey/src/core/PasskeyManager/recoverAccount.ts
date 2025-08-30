@@ -7,6 +7,7 @@ import { validateNearAccountId } from '../../utils/validation';
 import { toAccountId } from '../types/accountIds';
 import { generateBootstrapVrfChallenge } from './registration';
 import { base64UrlEncode } from '../../utils/encoders';
+import { createRandomVRFChallenge, outputAs32Bytes } from '../types/vrf-worker';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
@@ -234,7 +235,7 @@ async function getAvailablePasskeysForDomain(
   try {
     const credential = await webAuthnManager.getCredentialsForRecovery({
       nearAccountId: accountId,
-      challenge: vrfChallenge.outputAs32Bytes(),
+      challenge: vrfChallenge,
       credentialIds: credentialIds.length > 0 ? credentialIds : [] // Empty array if no contract credentials
     });
 
@@ -379,10 +380,11 @@ async function getOrCreateCredential(
     return reuseCredential;
   }
 
-  const randomChallenge = crypto.getRandomValues(new Uint8Array(32));
+  const challenge = createRandomVRFChallenge();
+
   return await webAuthnManager.getCredentialsForRecovery({
     nearAccountId: accountId,
-    challenge: randomChallenge,
+    challenge: challenge as VRFChallenge,
     credentialIds: []
   });
 }
