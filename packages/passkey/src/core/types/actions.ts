@@ -195,7 +195,9 @@ export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
     case ActionType.DeployContract:
       return {
         action_type: ActionType.DeployContract,
-        code: typeof action.code === 'string' ? Array.from(new TextEncoder().encode(action.code)) : Array.from(action.code)
+        code: typeof action.code === 'string'
+          ? Array.from(new TextEncoder().encode(action.code))
+          : Array.from(action.code)
       };
 
     case ActionType.Stake:

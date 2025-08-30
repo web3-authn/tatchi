@@ -34,23 +34,10 @@ cp -r "$BUILD_ESM" "$FRONTEND_SDK/"
 echo "Copying CJS modules..."
 cp -r "$BUILD_CJS" "$FRONTEND_SDK/"
 
-# Copy embedded Lit components to stable public path
-echo "Copying embedded component..."
+# Copy embedded Lit components (entire folder to include dynamic chunks)
+echo "Copying embedded components (with dynamic chunks)..."
 mkdir -p "$FRONTEND_SDK/embedded"
-cp "$BUILD_ESM/react/embedded/embedded-tx-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded-button component not found"
-cp "$BUILD_ESM/react/embedded/iframe-button.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: iframe-button component not found"
-cp "$BUILD_ESM/react/embedded/iframe-bootstrap.js" "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: iframe-bootstrap module not found"
-
-# Optional sourcemaps
-if [ -f "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" ]; then
-  cp "$BUILD_ESM/react/embedded/embedded-tx-button.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
-fi
-if [ -f "$BUILD_ESM/react/embedded/iframe-button.js.map" ]; then
-  cp "$BUILD_ESM/react/embedded/iframe-button.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
-fi
-if [ -f "$BUILD_ESM/react/embedded/iframe-bootstrap.js.map" ]; then
-  cp "$BUILD_ESM/react/embedded/iframe-bootstrap.js.map" "$FRONTEND_SDK/embedded/" 2>/dev/null || true
-fi
+cp -r "$BUILD_ESM/react/embedded/". "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded bundle directory not found"
 
 echo "✅ SDK files copied successfully!"
 echo "Files copied to: $FRONTEND_SDK"

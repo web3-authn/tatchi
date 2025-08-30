@@ -67,9 +67,10 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
       actionArgs: actionToExecute,
       options: {
         onEvent: (event) => {
+          console.log('event', event);
           switch (event.phase) {
             case ActionPhase.STEP_1_PREPARATION:
-              toast.loading('Processing transaction...', { id: 'action' });
+              toast.loading(event.message, { id: 'action' });
               break;
             case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
               toast.loading(event.message, { id: 'action' });
@@ -82,10 +83,10 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               toast.loading(event.message, { id: 'action' });
               break;
             case ActionPhase.STEP_8_BROADCASTING:
-              toast.success('Sending Transaction', { id: 'action' });
+              toast.success(event.message, { id: 'action' });
               break;
             case ActionPhase.STEP_9_ACTION_COMPLETE:
-              toast.success('Transaction completed successfully!', { id: 'action' });
+              toast.success(event.message, { id: 'action' });
               break;
             case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:
               toast.error(`Transaction failed: ${event.error}`, { id: 'action' });

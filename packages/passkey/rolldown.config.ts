@@ -205,7 +205,7 @@ export default defineConfig([
   {
     input: {
       'iframe-button': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButtonHost.ts',
-      'iframe-bootstrap': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframeBootstrap.ts',
+      'iframe-bootstrap': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframe-bootstrap-script.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,

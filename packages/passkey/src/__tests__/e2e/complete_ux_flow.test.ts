@@ -229,14 +229,14 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         let transferResult;
 
         try {
-          transferResult = await passkeyManager.executeAction(
-            toAccountId(testAccountId),
-            {
+          transferResult = await passkeyManager.executeAction({
+            nearAccountId: toAccountId(testAccountId),
+            receiverId: receiverAccountId,
+            actionArgs: {
               type: actionType.Transfer, // Use the passed ActionType
-              receiverId: receiverAccountId,
-              amount: "500000000000000000000000", // 0.5 NEAR in yoctoNEAR
+              amount: "5000000000000000000000", // 0.005 NEAR in yoctoNEAR
             },
-            {
+            options: {
               onEvent: (event: any) => {
                 actionEvents.push(event);
                 console.log(`Action [${event.step}]: ${event.phase} - ${event.message}`);
@@ -245,7 +245,7 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
                 console.error('Action Error:', error);
               }
             }
-          );
+          });
 
           console.log('Transfer completed. Result:', transferResult);
         } catch (transferError: any) {

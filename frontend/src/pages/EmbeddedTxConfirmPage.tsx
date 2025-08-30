@@ -117,12 +117,14 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
                   setError('');
                 }}
-                tooltipStyle={{
-                  width: '300px',
-                  height: '300px',
+                tooltipPosition={{
+                  width: '360px',
+                  height: 'auto',
                   position: 'bottom-left',
                   offset: '8px'
                 }}
+                // tooltipTheme="light"
+                tooltipTheme="dark"
                 onError={(error) => {
                   setError(`Transaction failed: ${error.message}`);
                   setResult('');
