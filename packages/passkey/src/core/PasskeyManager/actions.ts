@@ -153,7 +153,7 @@ export async function sendTransaction({
     step: 8,
     phase: ActionPhase.STEP_8_BROADCASTING,
     status: ActionStatus.PROGRESS,
-    message: `Broadcasting transaction with signature ${signedTransaction.signature}...`
+    message: `Broadcasting transaction...`
   });
 
   let transactionResult;
@@ -168,10 +168,16 @@ export async function sendTransaction({
       step: 8,
       phase: ActionPhase.STEP_8_BROADCASTING,
       status: ActionStatus.SUCCESS,
-      message: `Sent transaction ${txId}`
+      message: `Transaction ${txId} sent successfully`
+    });
+    options?.onEvent?.({
+      step: 9,
+      phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+      status: ActionStatus.SUCCESS,
+      message: `Transaction ${txId} completed `
     });
   } catch (error) {
-    console.error('[sendTransaction] sendTransaction failed:', error);
+    console.error('[sendTransaction] failed:', error);
     throw error;
   }
 
