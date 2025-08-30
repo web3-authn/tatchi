@@ -1,4 +1,6 @@
 import type { IframeInitData } from './iframe-geometry';
+import { computeUiIntentDigestFromTxs } from './tx-digest';
+import { toActionArgsWasm } from '../../../types/actions';
 
 /**
  * Iframe Bootstrap Script (ESM)
@@ -155,6 +157,18 @@ function onMessage(e: MessageEvent): void {
         el.sendInitialGeometry();
       }
       break;
+    case 'REQUEST_UI_DIGEST': {
+      if (typeof (el as any).computeUiIntentDigest === 'function') {
+        (el as any).computeUiIntentDigest().then((digest: string) => {
+          try { window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: true, digest } }, PARENT_ORIGIN || '*'); } catch {}
+        }).catch((err: any) => {
+          try { window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: false, error: String(err) } }, PARENT_ORIGIN || '*'); } catch {}
+        });
+      } else {
+        throw new Error('UI intent digest computation not available in secure iframe');
+      }
+      break;
+    }
   }
 }
 

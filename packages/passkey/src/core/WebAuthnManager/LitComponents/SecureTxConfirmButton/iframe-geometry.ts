@@ -56,7 +56,10 @@ export interface IframeMessage {
   | 'REQUEST_GEOMETRY'
   | 'INIT_GEOMETRY'
   | 'TOOLTIP_STATE'
-  | 'BUTTON_HOVER';
+  | 'BUTTON_HOVER'
+  | 'REQUEST_UI_DIGEST'
+  | 'UI_INTENT_DIGEST'
+  ;
   payload?: any;
 }
 

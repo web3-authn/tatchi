@@ -10,7 +10,7 @@ export function formatArgs(args?: string | Record<string, any>): string {
 }
 
 export function formatDeposit(deposit?: string): string {
-  if (!deposit || deposit === '0') return '';
+  if (!deposit || deposit === '0') return '0 NEAR';
   try {
     const depositValue = BigInt(deposit);
     const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR

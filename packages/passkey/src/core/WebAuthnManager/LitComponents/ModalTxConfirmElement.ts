@@ -2,7 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { TransactionInputWasm, ActionArgsWasm } from '../../types';
-import { formatArgs, formatDeposit, formatGas } from './renderUtils';
+import { formatArgs, formatDeposit, formatGas } from './formatters';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -172,7 +172,8 @@ export class ModalTxConfirmElement extends LitElement {
       display: grid;
       gap: 0.5rem;
       grid-template-columns: 1fr;
-      margin-bottom: var(--w3a-gap-3);
+      margin-top: var(--w3a-gap-2);
+      margin-bottom: var(--w3a-gap-2);
       position: relative;
       z-index: 1;
       animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
@@ -180,10 +181,9 @@ export class ModalTxConfirmElement extends LitElement {
 
     .row {
       display: grid;
-      grid-template-columns: 130px 1fr;
+      grid-template-columns: 115px 1fr;
       align-items: center;
       gap: var(--w3a-gap-2);
-      padding: 0.5rem 0.75rem;
       background: transparent;
       border-radius: 0;
       transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
@@ -192,23 +192,20 @@ export class ModalTxConfirmElement extends LitElement {
     }
 
     .label {
-      font-family: var(--w3a-font-family);
       color: var(--w3a-color-text-secondary);
       font-size: var(--w3a-font-size-sm);
-      line-height: 1.5;
       font-weight: 500;
-      letter-spacing: 0.02em;
     }
 
     .value {
       color: var(--w3a-color-text);
-      word-break: break-word;
+      font-size: var(--w3a-font-size-sm);
       font-weight: 500;
+      word-break: break-word;
     }
 
     /* Summary section */
     .summary-section {
-      margin-bottom: var(--w3a-gap-6);
       position: relative;
       z-index: 1;
       animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
@@ -585,30 +582,30 @@ export class ModalTxConfirmElement extends LitElement {
       [this.variant]: this.variant !== 'default',
     });
 
+    const displayTotalAmount = !(this.totalAmount === '0' || this.totalAmount === '');
+
     return html`
       <div class=${containerClasses}>
         <div class=${contentClasses}>
 
-          <!-- Transaction Summary Section -->
-          ${when(this.totalAmount, () => html`
-            <div class="summary-section">
-              <div class="grid">
-                ${when(this.totalAmount, () => html`
-                  <div class="row">
-                    <div class="label">Total Amount</div>
-                    <div class="value">${formatDeposit(this.totalAmount)}</div>
-                  </div>
-                `)}
-
-              </div>
-            </div>
-          `)}
-
-          <!-- Actions Section -->
           <div class="actions-section">
             <div class="action-outer">
               <div class="action-list">
                 <h2 class="header">${this.title}</h2>
+
+                <!-- Transaction Summary Section -->
+                ${when(displayTotalAmount, () => html`
+                  <div class="summary-section">
+                    <div class="grid">
+                      <div class="row">
+                        <div class="label">Total Sent</div>
+                        <div class="value">${formatDeposit(this.totalAmount)}</div>
+                      </div>
+                    </div>
+                  </div>
+                `)}
+
+                <!-- TxSigningRequests Section -->
                 ${when(this.txSigningRequests.length > 0, () => html`
                   ${this.txSigningRequests.map((tx, txIndex) => {
                     // Parse actions from the transaction payload (supports string or already-parsed array)

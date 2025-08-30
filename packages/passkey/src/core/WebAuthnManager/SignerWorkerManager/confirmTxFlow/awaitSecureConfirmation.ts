@@ -122,9 +122,9 @@ function parseSummary(summary: string): ConfirmationSummaryAction | Confirmation
 
 function parseConfirmationData(confirmationData: string): SecureConfirmData {
   let parsedConfirmationData = safeJsonParseStrict<SecureConfirmData>(confirmationData, 'confirmationData');
-  // NOTE: postMessage strips the prototype and so the VrfChallenge class instance arrives
-  // in handleSecureConfirmRequest as a plain object (no methods; instanceof fails)
-  // So we must convert it to a VRFChallenge class instance after to get the outputAs32Bytes() method
+  // NOTE: postMessage strips the prototype and so the VRFChallenge object arrives
+  // in handleSecureConfirmRequest as a plain object
+  // The standalone outputAs32Bytes() function handles the conversion
   return parsedConfirmationData;
 }
 

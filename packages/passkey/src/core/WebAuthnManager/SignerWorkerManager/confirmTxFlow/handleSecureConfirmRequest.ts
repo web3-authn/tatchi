@@ -16,6 +16,8 @@ import {
 import { TransactionInputWasm } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
 import { ModalTxConfirmElement } from '../../LitComponents/modal';
+import { IFRAME_BUTTON_ID } from '../../LitComponents/SecureTxConfirmButton/tags';
+import { computeUiIntentDigestFromTxs } from '../../LitComponents/SecureTxConfirmButton/tx-digest';
 
 
 /**
@@ -41,7 +43,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     } = validateAndParseRequest({ ctx, message });
 
     // 2. Determine user confirmation parameters
-    const { confirmed, confirmHandle } = await determineUserConfirmUI({
+  const { confirmed, confirmHandle, error: uiError } = await determineUserConfirmUI({
       ctx,
       confirmationConfig,
       transactionSummary,
@@ -61,7 +63,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     if (!confirmed) {
       worker.postMessage({
         type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-        data: decision
+        data: { ...decision, error: uiError }
       });
       return;
     }
@@ -207,15 +209,13 @@ function validateAndParseRequest({ ctx, message }: {
     fingerprint: data.intentDigest
   };
 
-  // NOTE: postMessage strips the prototype and so the VrfChallenge class instance arrives
-  // in handleSecureConfirmRequest as a plain object (no methods; instanceof fails)
-  // So we must convert it to a VRFChallenge class instance after to get the outputAs32Bytes() method
-  const vrfChallengeClass = (data.vrfChallenge instanceof VRFChallenge)
-    ? data.vrfChallenge
-    : new VRFChallenge(data.vrfChallenge);
+  // NOTE: postMessage strips the prototype and so the VrfChallenge object arrives
+  // in handleSecureConfirmRequest as a plain object
+  // We ensure it's properly typed as a VRFChallenge object
+  const vrfChallenge: VRFChallenge = data.vrfChallenge;
 
   return {
-    data: { ...data, vrfChallenge: vrfChallengeClass },
+    data: { ...data, vrfChallenge },
     summary,
     confirmationConfig,
     transactionSummary
@@ -241,7 +241,8 @@ async function determineUserConfirmUI({
   confirmHandle?: {
     element: ModalTxConfirmElement,
     close: (confirmed: boolean) => void
-  }
+  };
+  error?: string;
 }> {
   switch (confirmationConfig.uiMode) {
     case 'skip':
@@ -249,13 +250,28 @@ async function determineUserConfirmUI({
       return { confirmed: true, confirmHandle: undefined };
 
     case 'embedded': {
-      // For embedded mode, we automatically confirm since the user has already
-      // seen the transaction details and clicked confirm in the iframe
-      // The WASM worker will validate the transaction details against what was shown
-
-      // TODO: get data from Embedded TooltipTxTree and validate that it
-      // matches the data being signed in wasm-worker
-      return { confirmed: true, confirmHandle: undefined };
+      // For embedded mode, validate that the UI displayed transactions match
+      // the worker-provided transactions by comparing canonical digests.
+      try {
+        const hostEl = document.querySelector(IFRAME_BUTTON_ID) as any;
+        let uiDigest: string | null = null;
+        if (hostEl?.requestUiIntentDigest) {
+          uiDigest = await hostEl.requestUiIntentDigest();
+          console.log('[SecureConfirm] digest check', { uiDigest, intentDigest: data.intentDigest });
+        } else {
+          console.error('[SecureConfirm]: missing requestUiIntentDigest on secure element');
+        }
+        // Debug: show UI digest and WASM worker's provided intentDigest for comparison
+        if (uiDigest !== data.intentDigest) {
+          console.error('[SecureConfirm]: UI digest mismatch');
+          const errPayload = JSON.stringify({ code: 'ui_digest_mismatch', uiDigest, intentDigest: data.intentDigest });
+          return { confirmed: false, confirmHandle: undefined, error: errPayload };
+        }
+        return { confirmed: true, confirmHandle: undefined };
+      } catch (e) {
+        console.error('[SecureConfirm]: Failed to validate UI digest', e);
+        return { confirmed: false, confirmHandle: undefined, error: 'ui_digest_validation_failed' };
+      }
     }
 
     case 'modal': {
@@ -312,7 +328,7 @@ async function collectTouchIdCredentials({
 
     const credential = await ctx.touchIdPrompt.getCredentials({
       nearAccountId: nearAccountId,
-      challenge: vrfChallenge.outputAs32Bytes(),
+      challenge: vrfChallenge,
       authenticators: authenticators,
     });
 
@@ -396,5 +412,3 @@ function parseTransactionSummary(summaryData: string | object | undefined): any 
   console.warn('[SignerWorkerManager]: Unexpected summary data type:', typeof summaryData);
   return {};
 }
-
-

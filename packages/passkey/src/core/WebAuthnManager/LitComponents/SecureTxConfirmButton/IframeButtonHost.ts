@@ -27,7 +27,6 @@ import {
   TooltipPosition,
   utilParsePx
 } from './iframe-geometry';
-import { S } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 
 
 type MessageType = IframeMessage['type'];
@@ -52,6 +51,8 @@ type MessagePayloads = {
   INIT_GEOMETRY: TooltipGeometry;
   TOOLTIP_STATE: TooltipGeometry;
   BUTTON_HOVER: { hovering: boolean };
+  REQUEST_UI_DIGEST: undefined;
+  UI_INTENT_DIGEST: { ok: boolean; digest?: string; error?: string };
 };
 
 /**
@@ -143,6 +144,8 @@ export class IframeButtonHost extends LitElementWithProps {
 
   // Message handler reference for proper cleanup
   private messageHandler?: (event: MessageEvent) => void;
+  private pendingUiDigestResolve?: (v: string) => void;
+  private pendingUiDigestReject?: (e: any) => void;
 
   constructor() {
     super();
@@ -440,6 +443,17 @@ export class IframeButtonHost extends LitElementWithProps {
         case 'BUTTON_HOVER':
           this.handleButtonHover(payload as MessagePayloads['BUTTON_HOVER']);
           return;
+        case 'UI_INTENT_DIGEST': {
+          const p = payload as MessagePayloads['UI_INTENT_DIGEST'];
+          if (p?.ok && p?.digest && this.pendingUiDigestResolve) {
+            this.pendingUiDigestResolve(p.digest);
+          } else if (!p?.ok && this.pendingUiDigestReject) {
+            this.pendingUiDigestReject(new Error(p?.error || 'UI digest failed'));
+          }
+          this.pendingUiDigestResolve = undefined;
+          this.pendingUiDigestReject = undefined;
+          return;
+        }
         case 'READY':
           // Send only SET_INIT on READY so the iframe can position accurately.
           // Defer data/style until ETX_DEFINED to avoid upgrade races.
@@ -610,6 +624,28 @@ export class IframeButtonHost extends LitElementWithProps {
       this.applyButtonOnlyClipPath();
     }
   }
+
+  // Request a digest of the UI data from the iframe (computed inside embedded element)
+  requestUiIntentDigest(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      if (!this.getIframeWindow()) return reject(new Error('iframe not ready'));
+      if (this.pendingUiDigestReject) {
+        this.pendingUiDigestReject(new Error('superseded'));
+      }
+      this.pendingUiDigestResolve = resolve;
+      this.pendingUiDigestReject = reject;
+      this.postToIframe('REQUEST_UI_DIGEST');
+      setTimeout(() => {
+        if (this.pendingUiDigestReject) {
+          this.pendingUiDigestReject(new Error('UI digest timeout'));
+          this.pendingUiDigestResolve = undefined;
+          this.pendingUiDigestReject = undefined;
+        }
+      }, 3000);
+    });
+  }
+
+  // No-op: messages are not shown in iframe; errors are returned to worker
 
   private async handleConfirm() {
     if (!this.passkeyManagerContext || !this.nearAccountId || !this.txSigningRequests || this.txSigningRequests.length === 0) {

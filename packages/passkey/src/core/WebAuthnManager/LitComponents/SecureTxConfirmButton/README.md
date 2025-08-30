@@ -112,3 +112,50 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 - **Logging**: Comprehensive logging for debugging geometry issues
 
 This handshake ensures the clip-path accurately restricts interaction to the button area initially, then expands to include the tooltip area during hover, providing seamless user interaction within the iframe context.
+
+## UI Digest Integrity Checks
+
+To ensure “what the user sees is what gets signed”, the embedded flow performs digest checks over the transaction set at confirm time. All digests use the same procedure:
+
+- Serialize the same payload shape via `JSON.stringify` (preserving array order and property insertion order)
+- Compute SHA‑256 over the UTF‑8 bytes
+- Encode the digest as base64url
+
+### Payload Shape Used For Digests
+
+An array of objects with the following shape, matching the worker’s `tx_signing_requests` and what the UI renders after mapping:
+
+```
+[
+  {
+    receiverId: string,
+    actions: ActionArgsWasm[] // snake_case fields (e.g., method_name, deposit, gas, args as JSON string), same order
+  },
+  ...
+]
+```
+
+The UI maps its `TransactionInput[]` (camelCase actions) to `ActionArgsWasm[]` (snake_case) using the same conversion the worker uses. FunctionCall.args are stringified JSON.
+
+### Where Each Digest Is Calculated
+
+- UI Digest (`uiDigest`):
+  - Where: Inside the iframe, from `EmbeddedTxButton.txSigningRequests`
+  - When: Just‑in‑time on confirm, requested by host via `REQUEST_UI_DIGEST`
+  - How: UI maps `TransactionInput[]` → `ActionArgsWasm[]` and hashes via SHA‑256 → base64url
+
+- JS Worker Digest (`jsWorkerDigest`):
+  - Where: Main thread (handleSecureConfirmRequest.ts) before Touch ID
+  - From: The worker‑provided `tx_signing_requests` (already in wasm/worker shape)
+  - How: JSON.stringify → SHA‑256 → base64url
+
+- Worker Intent Digest (`intentDigest`):
+  - Where: Rust wasm worker (confirm_tx_details.rs)
+  - From: The same logical transaction set (receiver + parsed actions) that is passed to the main thread
+  - How: serde_json::to_string → SHA‑256 → base64url
+
+### Matching Rules And Integrity
+
+At confirm time, the main thread compares `uiDigest` with `jsWorkerDigest` (and logs the worker’s `intentDigest`). When all match, the user has viewed exactly the actions that the worker signs. If they differ, confirmation is aborted with a `ui_digest_mismatch` error.
+
+This alignment eliminates races and mutations between UI rendering and signing by binding the transaction set to a single canonical digest.

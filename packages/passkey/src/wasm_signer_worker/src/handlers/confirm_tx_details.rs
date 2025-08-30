@@ -19,6 +19,7 @@ use crate::types::handlers::{
 };
 use crate::encoders::base64_url_encode;
 use crate::actions::ActionParams;
+use serde_json::Value;
 
 // External JS function for secure confirmation
 #[wasm_bindgen]
@@ -202,15 +203,57 @@ pub fn create_transaction_summary_from_parsed(
         .map_err(|e| format!("Failed to serialize transaction summary: {}", e))
 }
 
-/// Computes SHA-256 digest of transaction requests for integrity verification
-pub fn compute_intent_digest(tx_requests: &[TransactionPayload]) -> Result<String, String> {
-    let serialized = serde_json::to_string(tx_requests)
-        .map_err(|e| format!("Failed to serialize transaction requests: {}", e))?;
+/// Computes SHA-256 digest (base64url) of the JS-level tx_signing_requests payload
+/// i.e. an array of objects shaped like: { receiverId: String, actions: Vec<ActionParams> }
+/// This matches what we send to the main thread in awaitSecureConfirmation and what the UI renders.
+///
+/// Note: serde_json::to_string produces a deterministic ordering for struct fields
+/// as they are defined in Rust (and for these constructed serde_json::Value objects,
+/// as we insert keys in a stable order). The UI should either mirror this order
+/// when building its digest input or alphabetize keys consistently before hashing
+/// to avoid ordering-related drift.
+pub fn compute_intent_digest_from_js_inputs(
+    receivers_and_actions: &[(String, Vec<ActionParams>)]
+) -> Result<String, String> {
+
+    // Build the exact JSON structure passed to the main thread
+    let js_array: Vec<serde_json::Value> = receivers_and_actions.iter()
+        .map(|(receiver_id, actions)| {
+            serde_json::json!({
+                "receiverId": receiver_id,
+                "actions": actions
+            })
+        })
+        .collect();
+
+    // alphabetize keys recursively to ensure deterministic JSON so that digest hashes
+    // match the ones calcuated in the JS main thread (which also alphabetize JSON keys)
+    fn alphabetize_json_value(v: &Value) -> Value {
+      match v {
+        Value::Object(map) => {
+          let mut keys: Vec<&String> = map.keys().collect();
+          keys.sort();
+          let mut out = serde_json::Map::new();
+          for k in keys {
+            if let Some(child) = map.get(k) {
+              out.insert(k.clone(), alphabetize_json_value(child));
+            }
+          }
+          Value::Object(out)
+        }
+        Value::Array(arr) => Value::Array(arr.iter().map(alphabetize_json_value).collect()),
+        _ => v.clone(),
+      }
+    }
+
+    let value = Value::Array(js_array);
+    let alphabetized_tx_signing_requests = alphabetize_json_value(&value);
+    let serialized_digest = serde_json::to_string(&alphabetized_tx_signing_requests)
+        .map_err(|e| format!("Failed to serialize js tx_signing_requests: {}", e))?;
 
     let mut hasher = Sha256::new();
-    hasher.update(serialized.as_bytes());
+    hasher.update(serialized_digest.as_bytes());
     let hash = hasher.finalize();
-
     Ok(base64_url_encode(&hash))
 }
 
@@ -257,7 +300,8 @@ pub async fn request_user_confirmation_with_config(
             // For skip/embedded override, we still need to collect credentials and PRF output
             // but we don't show any UI. The main thread should handle this.
             // For now, we'll still call the JS bridge but with a flag to indicate no UI
-            let intent_digest = compute_intent_digest(&tx_batch_request.tx_signing_requests)
+            // Compute digest over the same structure we pass to the main thread/UI
+            let intent_digest = compute_intent_digest_from_js_inputs(&parsed_receivers_and_actions)
                 .map_err(|e| format!("Failed to compute intent digest: {}", e))?;
 
             let request_id = generate_request_id();
@@ -316,7 +360,8 @@ pub async fn request_user_confirmation_with_config(
     let summary = create_transaction_summary_from_parsed(&parsed_receivers_and_actions)
         .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
-    let intent_digest = compute_intent_digest(&tx_batch_request.tx_signing_requests)
+    // Compute digest over the same structure we pass to the main thread/UI
+    let intent_digest = compute_intent_digest_from_js_inputs(&parsed_receivers_and_actions)
         .map_err(|e| format!("Failed to compute intent digest: {}", e))?;
 
     let request_id = generate_request_id();

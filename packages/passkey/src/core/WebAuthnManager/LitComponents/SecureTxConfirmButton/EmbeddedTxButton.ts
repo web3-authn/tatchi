@@ -1,7 +1,7 @@
 // External imports
 import { html, css } from 'lit';
 // SDK imports
-import { TransactionInput } from '../../../types/actions';
+import { TransactionInput, toActionArgsWasm } from '../../../types/actions';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
@@ -9,6 +9,8 @@ import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree
 import { TooltipGeometry, TooltipPosition } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
 import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
+import { computeUiIntentDigestFromTxs } from './tx-digest';
+import { T } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 
 /**
  * Lit-based embedded transaction confirmation element for iframe usage.
@@ -182,7 +184,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       -webkit-backdrop-filter: blur(4px);
       border: 1px solid #e2e8f0;
       border-radius: 24px;
-      padding: 8px;
       z-index: 1000;
       opacity: 0;
       visibility: hidden;
@@ -273,7 +274,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
         ) border-box;
       border: 1px solid transparent;
       border-radius: 16px;
-      height: calc(100% - 2px);
+      margin: 8px;
+      height: calc(100% - 2px); /* 2px for border: top and bottom */
       overflow: hidden;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
       position: relative;
@@ -289,91 +291,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
     @keyframes border-angle-rotate {
       from { --border-angle: 0deg; }
       to { --border-angle: 360deg; }
-    }
-
-    .action-item {
-      padding: 0;
-      /* border-bottom: 1px solid #e2e8f0; */
-    }
-
-    .action-item:last-child {
-      border-bottom: none;
-    }
-
-    .action-type {
-      font-weight: 600;
-      color: #2d3748;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 8px 4px 8px;
-    }
-
-    .action-details {
-      font-size: 0.8rem;
-      color: #4a5568;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .action-type-badge {
-      background: var(--btn-color, #667eea);
-      color: white;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-
-    .action-detail {
-      padding: 0;
-      margin: 0;
-      border-bottom: 1px solid #f1f1f1;
-      display: table;
-      width: 100%;
-      table-layout: fixed;
-    }
-
-    .action-detail:last-child,
-    .action-detail.no-border {
-      border-bottom: none;
-    }
-
-    .action-detail strong {
-      color: #2d3748;
-      padding: 4px 8px 4px 8px;
-      font-weight: 600;
-      white-space: nowrap;
-      vertical-align: top;
-      width: 25%;
-      font-size: 0.75rem;
-      display: table-cell;
-    }
-
-    .action-detail span {
-      padding: 4px 8px 4px 8px;
-      vertical-align: top;
-      word-break: break-word;
-      display: table-cell;
-    }
-
-    .code-block {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      background: #f8fafc;
-      border-radius: 8px;
-      padding: 6px;
-      margin-top: 2px;
-      white-space: pre-wrap;
-      word-break: break-word;
-      overflow-wrap: anywhere;
-      overflow: auto;
-      line-height: 1.35;
-      font-size: 0.78rem;
-      color: #1f2937;
-      max-height: calc(1.35em * 8);
-      margin-left: 0;
-      width: 100%;
-      box-sizing: border-box;
     }
   `;
 
@@ -869,11 +786,44 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.hideTooltip();
   }
 
-  render() {
+  // (UI digest is computed by the iframe bootstrap directly from txSigningRequests)
+  // Compute digest from UI txs converted to wasm-shape (receiverId + snake_case actions)
+  // This matches the worker/main-thread tx_signing_requests structure used for digest checks.
+  async computeUiIntentDigest(): Promise<string> {
+    const uiTxs = this.txSigningRequests || [];
+    const orderActionForDigest = (aw: any) => {
+      const type = aw?.action_type;
+      switch (type) {
+        case 'FunctionCall':
+          return { action_type: aw.action_type, args: aw.args, deposit: aw.deposit, gas: aw.gas, method_name: aw.method_name };
+        case 'Transfer':
+          return { action_type: aw.action_type, deposit: aw.deposit };
+        case 'Stake':
+          return { action_type: aw.action_type, stake: aw.stake, public_key: aw.public_key };
+        case 'AddKey':
+          return { action_type: aw.action_type, public_key: aw.public_key, access_key: aw.access_key };
+        case 'DeleteKey':
+          return { action_type: aw.action_type, public_key: aw.public_key };
+        case 'DeleteAccount':
+          return { action_type: aw.action_type, beneficiary_id: aw.beneficiary_id };
+        case 'DeployContract':
+          return { action_type: aw.action_type, code: aw.code };
+        case 'CreateAccount':
+        default:
+          return { action_type: aw.action_type };
+      }
+    };
+    const wasmShapedOrdered = uiTxs.map(tx => {
+      const actions = (tx.actions ?? []).map(action => orderActionForDigest(toActionArgsWasm(action)));
+      return { actions, receiverId: tx?.receiverId };
+    });
+    console.log('[EmbeddedTxButton] ui txSigningRequests (raw)', uiTxs);
+    console.log('[EmbeddedTxButton] uiDigest input (wasm-shaped, ordered)', wasmShapedOrdered);
+    console.log('[JS] uiDigest (string tx_signing_requests):', JSON.stringify(wasmShapedOrdered));
+    return computeUiIntentDigestFromTxs(wasmShapedOrdered);
+  }
 
-    if (!this.txSigningRequests || this.txSigningRequests.length === 0) {
-      return html`<div>Loading...</div>`;
-    }
+  render() {
 
     const tree = buildDisplayTreeFromTxPayloads(this.txSigningRequests, this.tooltipTreeStyles);
 
