@@ -1,25 +1,33 @@
-import { LitElementWithProps } from '../LitElementWithProps';
+// External imports
 import { html, css } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
-
-import type { ActionArgs, TransactionInput } from '../../../types/actions';
-import type { ActionHooksOptions } from '../../../types/passkeyManager';
-import { signTransactionsWithActionsInternal, sendTransaction } from '../../../PasskeyManager/actions';
+// SDK imports
+import type { TransactionInput } from '../../../types/actions';
 import { toAccountId } from '../../../types/accountIds';
-import { EMBEDDED_TX_BUTTON_ID, IFRAME_BUTTON_ID } from './tags';
+import type { SignAndSendTransactionHooksOptions } from '../../../types/passkeyManager';
+import { signAndSendTransactionsInternal } from '../../../PasskeyManager/actions';
+// Local imports
+import { LitElementWithProps } from '../LitElementWithProps';
+import type { TooltipTreeStyles } from '../TooltipTxTree';
+import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
 import {
-  TooltipGeometry,
-  TooltipPosition,
+  EMBEDDED_SDK_BASE_PATH,
+  EMBEDDED_TX_BUTTON_ID,
+  IFRAME_BOOTSTRAP_MODULE,
+  IFRAME_BUTTON_ID
+} from './tags';
+import {
+  computeExpandedIframeSizeFromGeometryPure,
+  computeIframeSizePure,
+  IframeClipPathGenerator,
   IframeInitData,
   IframeMessage,
-  computeIframeSizePure,
   toPx,
-  utilParsePx,
-  computeExpandedIframeSizeFromGeometryPure,
-  IframeClipPathGenerator,
-} from './iframeGeometry';
-import type { TooltipTreeStyles } from './TooltipTxTree';
-import { TOOLTIP_THEMES, type TooltipTheme } from './tooltipTxTreeThemes';
+  TooltipGeometry,
+  TooltipPosition,
+  utilParsePx
+} from './iframe-geometry';
+import { S } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 
 
 type MessageType = IframeMessage['type'];
@@ -45,13 +53,6 @@ type MessagePayloads = {
   TOOLTIP_STATE: TooltipGeometry;
   BUTTON_HOVER: { hovering: boolean };
 };
-
-
-/**
- * ClipPathGenerator creates precise clip-path polygons for button + tooltip unions.
- * Supports all 8 tooltip positions with optimized shape algorithms.
- */
-// ClipPathGenerator moved to IframeClipPathGenerator.ts
 
 /**
  * Lit component that hosts the SecureTxConfirmButton iframe and manages all iframe communication.
@@ -120,7 +121,7 @@ export class IframeButtonHost extends LitElementWithProps {
   private initialClipPathApplied = false;
 
   // Reactive properties are automatically created by Lit from static properties
-  // Don't declare them as instance properties - this overrides Lit's setters!
+  // Don't declare them as instance properties, this overrides Lit's setters
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInput[];
 
@@ -130,7 +131,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare tooltipPosition: TooltipPosition;
   declare tooltipTheme: TooltipTheme;
   declare showLoading: boolean;
-  declare options: ActionHooksOptions;
+  declare options: SignAndSendTransactionHooksOptions;
   declare passkeyManagerContext: any;
 
   // Event handlers (not reactive properties)
@@ -279,23 +280,26 @@ export class IframeButtonHost extends LitElementWithProps {
       },
       backgroundColor: String(this.buttonStyle?.background || this.buttonStyle?.backgroundColor || this.color),
       tagName: EMBEDDED_TX_BUTTON_ID,
+      targetOrigin: window.location.origin,
     };
   }
 
   private generateIframeHtml() {
-    const tagName = EMBEDDED_TX_BUTTON_ID;
+    const embeddedTxButtonTag = EMBEDDED_TX_BUTTON_ID;
+    const iframeBootstrapTag = IFRAME_BOOTSTRAP_MODULE;
+    const base = EMBEDDED_SDK_BASE_PATH;
     return `<!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <style>html,body{margin:0;padding:0;background:transparent}</style>
-          <script type="module" src="/sdk/embedded/${tagName}.js"></script>
-          <script type="module" src="/sdk/embedded/iframe-bootstrap.js"></script>
+          <script type="module" src="${base}${embeddedTxButtonTag}.js"></script>
+          <script type="module" src="${base}${iframeBootstrapTag}"></script>
         </head>
         <body>
-          <${tagName} id="etx"></${tagName}>
-          <!-- bootstrap handled by external iframe-bootstrap.js module -->
+          <${embeddedTxButtonTag} id="etx"></${embeddedTxButtonTag}>
+          <!-- bootstrap handled by external ${iframeBootstrapTag} module -->
         </body>
       </html>`;
   }
@@ -362,7 +366,9 @@ export class IframeButtonHost extends LitElementWithProps {
   private postToIframe<T extends keyof MessagePayloads>(type: T, payload?: MessagePayloads[T]) {
     const w = this.getIframeWindow();
     if (!w) return;
-    (w as any).postMessage({ type, payload }, '*');
+    // Post to iframe; for srcdoc + allow-same-origin, this matches parent origin
+    const targetOrigin = window.location.origin;
+    (w as any).postMessage({ type, payload }, targetOrigin);
   }
 
   private postInitialStateToIframe() {
@@ -394,6 +400,10 @@ export class IframeButtonHost extends LitElementWithProps {
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles: themeStyles
     });
+
+    // Also re-send SET_INIT to reapply precise positioning whenever the
+    // button's size or tooltip position changes, keeping embedded aligned.
+    this.postToIframe('SET_INIT', this.buildInitData());
   }
 
   private getThemeStyles(theme: TooltipTheme): TooltipTreeStyles {
@@ -433,7 +443,11 @@ export class IframeButtonHost extends LitElementWithProps {
         case 'READY':
           // Send only SET_INIT on READY so the iframe can position accurately.
           // Defer data/style until ETX_DEFINED to avoid upgrade races.
-          this.postToIframe('SET_INIT', this.buildInitData());
+          this.postToIframe('SET_INIT', {
+            ...this.buildInitData(),
+            // Provide parent origin for tighter child->parent messaging
+            targetOrigin: window.location.origin
+          } as any);
           // Apply optimistic clip-path immediately to prevent blocking clicks
           // This will be replaced once INIT_GEOMETRY is received
           this.applyOptimisticClipPath();
@@ -491,7 +505,7 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   /**
-   * Handle positioning applied notification from iframe - triggers geometry measurement
+   * Handle positioning applied notification from iframe, triggers geometry measurement
    */
   private handlePositioningApplied(buttonPosition?: { x: number; y: number }) {
     // Now that positioning is applied, request geometry measurement from iframe
@@ -499,7 +513,8 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   /**
-   * Handle initial geometry setup from iframe - applies button-only clip-path to prevent blocking clicks
+   * Handle initial geometry setup from iframe
+   * Applies button-only clip-path to prevent blocking clicks
    */
   private handleInitGeometry(geometry: TooltipGeometry) {
     this.currentGeometry = geometry;
@@ -565,6 +580,7 @@ export class IframeButtonHost extends LitElementWithProps {
    */
   private applyButtonOnlyClipPath() {
     if (!this.iframeRef.value || !this.currentGeometry) return;
+    if (!this.clipPathSupported) return;
 
     const { button } = this.currentGeometry;
     // Use simple rectangle to avoid clipping button corners
@@ -580,6 +596,7 @@ export class IframeButtonHost extends LitElementWithProps {
    */
   private applyButtonTooltipClipPath() {
     if (!this.iframeRef.value || !this.currentGeometry) return;
+    if (!this.clipPathSupported) return;
 
     try {
       const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry);
@@ -606,7 +623,7 @@ export class IframeButtonHost extends LitElementWithProps {
     try {
       this.options?.hooks?.beforeCall?.();
 
-      const signedTxs = await signTransactionsWithActionsInternal({
+      const txResults = await signAndSendTransactionsInternal({
         context: this.passkeyManagerContext,
         nearAccountId: toAccountId(this.nearAccountId),
         transactionInputs: this.txSigningRequests.map(tx => ({
@@ -618,6 +635,7 @@ export class IframeButtonHost extends LitElementWithProps {
           onError: this.options?.onError,
           hooks: this.options?.hooks,
           waitUntil: this.options?.waitUntil,
+          executeSequentially: this.options?.executeSequentially
         },
         confirmationConfigOverride: {
           uiMode: 'embedded',
@@ -626,18 +644,8 @@ export class IframeButtonHost extends LitElementWithProps {
         }
       });
 
-      const actionResult = await sendTransaction({
-        context: this.passkeyManagerContext,
-        signedTransaction: signedTxs[0].signedTransaction,
-        options: {
-          onEvent: this.options?.onEvent,
-          hooks: this.options?.hooks,
-          waitUntil: this.options?.waitUntil,
-        }
-      });
-
-      this.options?.hooks?.afterCall?.(true, actionResult);
-      this.onSuccess?.(actionResult);
+      this.options?.hooks?.afterCall?.(true, txResults);
+      this.onSuccess?.(txResults);
 
     } catch (err) {
       this.options?.onError?.(err as any);

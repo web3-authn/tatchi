@@ -1,33 +1,52 @@
-// Typed ESM bootstrap for the embedded iframe.
-// Listens for READY/SET_* messages and applies state to the embedded element.
+import type { IframeInitData } from './iframe-geometry';
 
+/**
+ * Iframe Bootstrap Script (ESM)
+ *
+ * What is it: a script that runs inside the embedded iframe to wire up a
+ * deterministic handshake with the parent and forward state to
+ * <embedded-tx-button>.
+ *
+ * When: loaded by the host in the iframe HTML alongside the embedded element
+ * bundle (see IframeButtonHost.generateIframeHtml()).
+ *
+ * How: READY → (parent) SET_INIT → POSITIONING_APPLIED → (parent)
+ * REQUEST_GEOMETRY → (embedded) INIT_GEOMETRY. Subsequent SET_* updates adjust
+ * data/styles/loading.
+ *
+ * Security: captures targetOrigin from SET_INIT and reuses it for all posts.
+ */
 
-import type { IframeInitData } from './iframeGeometry';
+// Parent communication configuration
+let PARENT_ORIGIN: string | undefined; // set from SET_INIT.targetOrigin
+let ETX_DEFINED_POSTED = false; // ensure we only announce once
 
+// Notify parent that we're ready to receive SET_INIT
 function notifyReady(): void {
   try {
     window.parent.postMessage({ type: 'READY' }, '*');
   } catch {}
 }
 
+// Forward iframe errors to parent for visibility
 function postError(kind: 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION', message: string): void {
   try {
-    window.parent.postMessage({ type: kind, payload: message }, '*');
+    window.parent.postMessage({ type: kind, payload: message }, PARENT_ORIGIN || '*');
   } catch {}
 }
 
-/**
- * Applies initialization data to the embedded element.
- * Part of the Initial Geometry Handshake - Step 2: Applies positioning and confirms completion.
- *
- * @param el - The embedded transaction button element
- * @param payload - Initialization data including positioning, styling, and configuration
- */
+/** Apply SET_INIT: element config + absolute positioning (before measure). */
 function applyInit(el: any, payload: IframeInitData): void {
   // Apply basic styling and configuration
   el.color = payload.backgroundColor;
   el.size = payload.size;
   el.tooltip = payload.tooltip;
+
+  // Capture target origin from host (optional hardening)
+  if ((payload as any).targetOrigin) {
+    PARENT_ORIGIN = String((payload as any).targetOrigin);
+    (window as any).__ETX_PARENT_ORIGIN = PARENT_ORIGIN;
+  }
 
   // STEP 2: Apply button positioning (critical for geometry handshake)
   if (payload.buttonPosition) {
@@ -49,7 +68,7 @@ function applyInit(el: any, payload: IframeInitData): void {
           window.parent.postMessage({
             type: 'POSITIONING_APPLIED',
             payload: payload.buttonPosition
-          }, '*');
+          }, PARENT_ORIGIN || '*');
         } catch {}
       } else {
         // Retry if shadow DOM elements aren't ready yet
@@ -65,7 +84,9 @@ function applyInit(el: any, payload: IframeInitData): void {
   if (window.customElements && window.customElements.whenDefined) {
     const tag = (payload as any).tagName || 'embedded-tx-button';
     window.customElements.whenDefined(tag).then(() => {
-      try { window.parent.postMessage({ type: 'ETX_DEFINED' }, '*'); } catch {}
+      if (ETX_DEFINED_POSTED) return;
+      ETX_DEFINED_POSTED = true;
+      try { window.parent.postMessage({ type: 'ETX_DEFINED' }, PARENT_ORIGIN || '*'); } catch {}
     });
   }
 }
@@ -137,7 +158,7 @@ function onMessage(e: MessageEvent): void {
   }
 }
 
-// Wire up event listeners for the Initial Geometry Handshake and other communication
+// Wire up event listeners for the Initial Geometry Handshake and updates
 window.addEventListener('message', onMessage);
 
 // Error handling for debugging geometry and positioning issues
@@ -148,7 +169,5 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
   postError('IFRAME_UNHANDLED_REJECTION', String(e?.reason || ''));
 });
 
-// STEP 0: Notify parent iframe that we're ready to receive initialization data
+// STEP 0: announce readiness to the parent
 notifyReady();
-
-

@@ -1,18 +1,14 @@
-import { LitElementWithProps } from '../LitElementWithProps';
+// External imports
 import { html, css } from 'lit';
-import { when } from 'lit/directives/when.js';
-import { ActionArgs, TransactionInput } from '../../../types/actions';
-import TooltipTxTree, { type TreeNode } from './TooltipTxTree';
-import { buildActionTree } from './tooltipTxTreeUtils';
-import { formatArgs, formatDeposit, formatGas } from '../renderUtils';
-import {
-  TooltipGeometry,
-  TooltipPosition,
-  TooltipPositionEnum,
-  Rectangle
-} from './iframeGeometry';
-import { TOOLTIP_THEMES, type TooltipTheme } from './tooltipTxTreeThemes';
-import type { TooltipTreeStyles } from './TooltipTxTree';
+// SDK imports
+import { TransactionInput } from '../../../types/actions';
+// Local imports
+import { LitElementWithProps } from '../LitElementWithProps';
+import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
+import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
+import { TooltipGeometry, TooltipPosition } from './iframe-geometry';
+import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
+import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
 
 /**
  * Lit-based embedded transaction confirmation element for iframe usage.
@@ -64,8 +60,22 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private treeRaf2: number | null = null;
   // Ensure TooltipTxTree is retained in the bundle, and not tree-shaken out
   private _ensureTreeDefinition = TooltipTxTree;
+  // Observers and dedupe state
+  private tooltipResizeObserver?: ResizeObserver;
+  private buttonResizeObserver?: ResizeObserver;
+  private lastSentGeometryKey: string | null = null;
+
+  // Type-safe element selectors bound to shadow root
+  private selectors: ElementSelectors;
+
+  constructor() {
+    super();
+    this.selectors = new ElementSelectors();
+  }
 
   static styles = css`
+    /* Data attribute selectors correspond to HTML data attributes for type-safe element selection */
+
     :host {
       display: block;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -92,7 +102,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       transform: translate(-50%, -50%);
     }
 
-    .embedded-btn {
+    [data-embedded-btn] {
       background: var(--btn-background, var(--btn-color, #222));
       color: var(--btn-color-text, white);
       border: var(--btn-border, none);
@@ -123,7 +133,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       to { opacity: 1; }
     }
 
-    .embedded-btn:hover {
+    [data-embedded-btn]:hover {
       background: var(--btn-hover-background, var(--btn-color-hover, #5a6fd8));
       color: var(--btn-hover-color, white);
       border: var(--btn-hover-border, var(--btn-border, none));
@@ -133,23 +143,23 @@ export class EmbeddedTxButton extends LitElementWithProps {
       font-weight: var(--btn-hover-font-weight, var(--btn-font-weight, 500));
     }
 
-    .embedded-btn:disabled {
+    [data-embedded-btn]:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
 
-    .loading {
+    [data-loading] {
       display: none;
       align-items: center;
       justify-content: center;
       gap: 8px;
     }
 
-    .loading.show {
+    [data-loading][data-visible="true"] {
       display: flex;
     }
 
-    .spinner {
+    [data-spinner] {
       width: 16px;
       height: 16px;
       border: 2px solid rgba(255, 255, 255, 0.3);
@@ -163,7 +173,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       100% { transform: rotate(360deg); }
     }
 
-    .tooltip-content {
+    /* Use data attributes instead of classes for guaranteed sync */
+    [data-tooltip-content] {
       position: absolute;
       box-sizing: border-box;
       background: rgba(255, 255, 255, 0.95);
@@ -184,67 +195,67 @@ export class EmbeddedTxButton extends LitElementWithProps {
       width: var(--tooltip-width, 280px);
     }
 
-    /* Top positions - aligned with button corners */
-    .tooltip-content.top-left {
+    /* Top positions: aligned with button corners */
+    [data-tooltip-content][data-position="top-left"] {
       bottom: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
       margin-bottom: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.top-center {
+    [data-tooltip-content][data-position="top-center"] {
       bottom: 100%;
       left: 50%;
       transform: translateX(-50%);
       margin-bottom: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.top-right {
+    [data-tooltip-content][data-position="top-right"] {
       bottom: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
       margin-bottom: var(--tooltip-offset, 8px);
     }
 
     /* Side positions */
-    .tooltip-content.left {
+    [data-tooltip-content][data-position="left"] {
       right: 100%;
       top: 50%;
       transform: translateY(-50%);
       margin-right: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.right {
+    [data-tooltip-content][data-position="right"] {
       left: 100%;
       top: 50%;
       transform: translateY(-50%);
       margin-left: var(--tooltip-offset, 8px);
     }
 
-    /* Bottom positions - aligned with button corners */
-    .tooltip-content.bottom-left {
+    /* Bottom positions: aligned with button corners */
+    [data-tooltip-content][data-position="bottom-left"] {
       top: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
       margin-top: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.bottom-center {
+    [data-tooltip-content][data-position="bottom-center"] {
       top: 100%;
       left: 50%;
       transform: translateX(-50%);
       margin-top: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.bottom-right {
+    [data-tooltip-content][data-position="bottom-right"] {
       top: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
       margin-top: var(--tooltip-offset, 8px);
     }
 
-    .tooltip-content.show {
+    [data-tooltip-content][data-visible="true"] {
       opacity: 1;
       visibility: visible;
     }
 
-    .tooltip-content.hiding {
+    [data-tooltip-content][data-hiding="true"] {
       transition-delay: 150ms;
     }
 
@@ -369,6 +380,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   connectedCallback() {
     super.connectedCallback();
 
+    // Bind selectors to shadow root, easier to querySelect elements with data-attributes
+    this.selectors = new ElementSelectors(this.shadowRoot);
+
     // Initialize tooltipTreeStyles based on theme
     this.updateTooltipTheme();
 
@@ -391,7 +405,41 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     this.setupCSSVariables();
-    this.sendReadyMessage();
+  }
+
+  firstUpdated() {
+    // Observe tooltip size changes to keep geometry in sync
+    const tooltip = this.selectors.getTooltipContent();
+    if (tooltip && 'ResizeObserver' in window) {
+      this.tooltipResizeObserver = new ResizeObserver(() => {
+        if (this.tooltipVisible && !this.isHiding) {
+          this.measureTooltip();
+        }
+      });
+      this.tooltipResizeObserver.observe(tooltip);
+    }
+
+    // Observe button size changes too
+    const button = this.selectors.getEmbeddedBtn();
+    if (button && 'ResizeObserver' in window) {
+      this.buttonResizeObserver = new ResizeObserver(() => {
+        if (!this.isHiding) {
+          this.measureTooltip();
+        }
+      });
+      this.buttonResizeObserver.observe(button);
+    }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    try { this.tooltipResizeObserver?.disconnect(); } catch {}
+    try { this.buttonResizeObserver?.disconnect(); } catch {}
+  }
+
+  // Parent origin for postMessage hardening (set by iframe bootstrap)
+  private getTargetOrigin(): string {
+    return (window as any).__ETX_PARENT_ORIGIN || '*';
   }
 
   updated(changedProperties: Map<string, any>) {
@@ -459,113 +507,93 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.tooltipTreeStyles = { ...selectedTheme };
   }
 
-  private sendReadyMessage() {
-    if (window.parent) {
-      window.parent.postMessage({ type: 'READY' }, '*');
-    }
-  }
-
   private measureTooltip() {
     if (this.isHiding) return; // suppress transient measurements during hide
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
+    const tooltipElement = this.selectors.getTooltipContent();
+    const buttonElement = this.selectors.getEmbeddedBtn();
 
     if (!tooltipElement || !buttonElement) return;
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
     const gap = this.parsePixelValue(this.tooltip.offset);
-
-    const geometry: TooltipGeometry = {
-      button: {
-        x: buttonRect.left,
-        y: buttonRect.top,
-        width: buttonRect.width,
-        height: buttonRect.height,
-        borderRadius: 8
-      },
-      tooltip: {
-        x: tooltipRect.left,
-        y: tooltipRect.top,
-        width: tooltipRect.width,
-        height: tooltipRect.height,
-        borderRadius: 24
-      },
-      position: this.tooltip.position,
-      gap,
-      visible: this.tooltipVisible
-    };
-
+    const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, this.tooltipVisible);
     // Rate-limit updates using requestAnimationFrame
     requestAnimationFrame(() => {
-      if (window.parent) {
-        window.parent.postMessage({
-          type: 'TOOLTIP_STATE',
-          payload: geometry
-        }, '*');
-      }
+      this.postTooltipStateIfChanged(geometry);
     });
   }
 
   private measureTooltipAndUpdateParentSync() {
     if (this.isHiding) return; // suppress transient measurements during hide
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
+    const tooltipElement = this.selectors.getTooltipContent();
+    const buttonElement = this.selectors.getEmbeddedBtn();
 
     if (!tooltipElement || !buttonElement) return;
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
     const gap = this.parsePixelValue(this.tooltip.offset);
+    const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, this.tooltipVisible);
+    // Send synchronously if changed
+    this.postTooltipStateIfChanged(geometry, true);
+  }
 
-    const geometry: TooltipGeometry = {
+  private sendTooltipState(visible: boolean) {
+    const tooltipElement = this.selectors.getTooltipContent();
+    const buttonElement = this.selectors.getEmbeddedBtn();
+    if (!tooltipElement || !buttonElement) return;
+
+    const tooltipRect = tooltipElement.getBoundingClientRect();
+    const buttonRect = buttonElement.getBoundingClientRect();
+    const gap = this.parsePixelValue(this.tooltip.offset);
+    const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, visible);
+    this.postTooltipStateIfChanged(geometry, true);
+  }
+
+  private buildGeometry(
+    buttonRect: DOMRect,
+    tooltipRect: DOMRect,
+    gap: number,
+    visible: boolean
+  ): TooltipGeometry {
+    const round = (n: number) => Math.round(n);
+    return {
       button: {
-        x: buttonRect.left,
-        y: buttonRect.top,
-        width: buttonRect.width,
-        height: buttonRect.height,
+        x: round(buttonRect.left),
+        y: round(buttonRect.top),
+        width: round(buttonRect.width),
+        height: round(buttonRect.height),
         borderRadius: 8
       },
       tooltip: {
-        x: tooltipRect.left,
-        y: tooltipRect.top,
-        width: tooltipRect.width,
-        height: tooltipRect.height,
+        x: round(tooltipRect.left),
+        y: round(tooltipRect.top),
+        width: round(tooltipRect.width),
+        height: round(tooltipRect.height),
         borderRadius: 24
       },
       position: this.tooltip.position,
       gap,
-      visible: this.tooltipVisible
-    };
-
-    // Send message SYNCHRONOUSLY (no requestAnimationFrame delay)
-    // This ensures parent updates happen in the same frame as tooltip expansion
-    if (window.parent) {
-      window.parent.postMessage({
-        type: 'TOOLTIP_STATE',
-        payload: geometry
-      }, '*');
-    }
-  }
-
-  private sendTooltipState(visible: boolean) {
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
-    if (!tooltipElement || !buttonElement) return;
-
-    const tooltipRect = tooltipElement.getBoundingClientRect();
-    const buttonRect = buttonElement.getBoundingClientRect();
-    const gap = this.parsePixelValue(this.tooltip.offset);
-
-    const geometry: TooltipGeometry = {
-      button: { x: buttonRect.left, y: buttonRect.top, width: buttonRect.width, height: buttonRect.height, borderRadius: 8 },
-      tooltip: { x: tooltipRect.left, y: tooltipRect.top, width: tooltipRect.width, height: tooltipRect.height, borderRadius: 24 },
-      position: this.tooltip.position,
-      gap,
       visible
     };
+  }
+
+  private geometryKey(g: TooltipGeometry): string {
+    return [
+      g.button.x, g.button.y, g.button.width, g.button.height,
+      g.tooltip.x, g.tooltip.y, g.tooltip.width, g.tooltip.height,
+      g.position, g.gap, g.visible
+    ].join('|');
+  }
+
+  private postTooltipStateIfChanged(geometry: TooltipGeometry, sync = false) {
+    const key = this.geometryKey(geometry);
+    if (key === this.lastSentGeometryKey) return;
+    this.lastSentGeometryKey = key;
+    const target = this.getTargetOrigin();
     if (window.parent) {
-      window.parent.postMessage({ type: 'TOOLTIP_STATE', payload: geometry }, '*');
+      window.parent.postMessage({ type: 'TOOLTIP_STATE', payload: geometry }, target);
     }
   }
 
@@ -574,8 +602,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
    */
   sendInitialGeometry() {
 
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
-    const buttonElement = this.shadowRoot?.querySelector('.embedded-btn') as HTMLElement;
+    const tooltipElement = this.selectors.getTooltipContent();
+    const buttonElement = this.selectors.getEmbeddedBtn();
 
     if (!tooltipElement || !buttonElement) {
       this.initialGeometryRetryCount++;
@@ -641,7 +669,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
         window.parent.postMessage({
           type: 'INIT_GEOMETRY',
           payload: geometry
-        }, '*');
+        }, this.getTargetOrigin());
+        this.initialGeometrySent = true;
       }
     });
   }
@@ -661,8 +690,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     return 0;
   }
 
-  private showTooltip() {
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+  private async showTooltip() {
+    const tooltipElement = ElementSelectors.getTooltipContent(this.shadowRoot);
     if (!tooltipElement || this.tooltipVisible) return;
 
     this.tooltipVisible = true;
@@ -682,18 +711,17 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.hideTimeout = null;
     }
 
-    // Measure after showing - this will send TOOLTIP_STATE with visible: true
-    this.measureTimeout = window.setTimeout(() => {
-      this.measureTimeout = null;
-      if (!this.tooltipVisible || this.isHiding) return;
-      this.measureTooltip();
-    }, 16);
+    // Measure after showing, wait for render and one frame
+    await this.updateComplete;
+    await new Promise(requestAnimationFrame);
+    if (!this.tooltipVisible || this.isHiding) return;
+    this.measureTooltip();
   }
 
   private hideTooltip() {
     if (!this.tooltipVisible) return;
 
-    const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+    const tooltipElement = this.selectors.getTooltipContent();
     if (!tooltipElement) return;
 
     // Enter hiding state and cancel any scheduled measurements/RAFs
@@ -732,30 +760,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }, 100);
   }
 
-  private handleTreeToggled() {
+  private async handleTreeToggled() {
     if (this.isHiding) {
       return; // skip measuring during hide
     }
-    // Pure measurement approach: Calculate expected dimensions without DOM manipulation
-
-    // Cancel any pending animation frames
-    if (this.treeRaf1) {
-      cancelAnimationFrame(this.treeRaf1);
-      this.treeRaf1 = null;
-    }
-    if (this.treeRaf2) {
-      cancelAnimationFrame(this.treeRaf2);
-      this.treeRaf2 = null;
-    }
-
-    // Single frame: Calculate expected dimensions and update everything atomically
-    this.treeRaf1 = requestAnimationFrame(() => {
-      // Step 1: Force re-render to update the tree structure first
-      this.requestUpdate();
-
-      // Step 2: Immediately measure the expanded tooltip (after re-render)
-      this.measureTooltipAndUpdateParentSync();
-    });
+    this.requestUpdate();
+    await this.updateComplete;
+    await new Promise(requestAnimationFrame);
+    this.measureTooltipAndUpdateParentSync();
   }
 
   private cancelHide() {
@@ -763,7 +775,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       clearTimeout(this.hideTimeout);
       this.hideTimeout = null;
 
-      const tooltipElement = this.shadowRoot?.querySelector('.tooltip-content') as HTMLElement;
+      const tooltipElement = this.selectors.getTooltipContent();
       if (tooltipElement) {
         tooltipElement.classList.remove('hiding');
       }
@@ -821,7 +833,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
   private handleConfirm() {
     if (window.parent) {
-      window.parent.postMessage({ type: 'CONFIRM' }, '*');
+      window.parent.postMessage({ type: 'CONFIRM' }, this.getTargetOrigin());
     }
   }
 
@@ -831,7 +843,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       window.parent.postMessage({
         type: 'BUTTON_HOVER',
         payload: { hovering: true }
-      }, '*');
+      }, this.getTargetOrigin());
     }
 
     this.showTooltip();
@@ -843,7 +855,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       window.parent.postMessage({
         type: 'BUTTON_HOVER',
         payload: { hovering: false }
-      }, '*');
+      }, this.getTargetOrigin());
     }
 
     this.hideTooltip();
@@ -857,214 +869,25 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.hideTooltip();
   }
 
-  private renderActions(action: ActionArgs, index: number) {
-    return html`
-      <div class="action-item">
-        <div class="action-type">
-          <span class="action-type-badge">${action.type}</span>
-          <span class="action-index">Action ${index + 1}</span>
-        </div>
-        <div class="action-details">
-          ${this._renderActionDetails(action)}
-        </div>
-      </div>
-    `;
-  }
-
-  // Note action is ActionsArgs type (typescript camelCase) becuase this information
-  // is being passed from typescript, before sending it to the wasm-worker
-  // The wasm-worker merely checks back in the main thread and validates that
-  // the transaction data in the iframe sandbox is valid.
-  private _renderActionDetails(action: ActionArgs) {
-    if (action.type === 'CreateAccount') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Create Account</div>
-        </div>
-      `;
-    }
-    if (action.type === 'DeployContract') {
-      const code = action.code;
-      const sizeLabel = (() => {
-        if (!code) return '0 bytes';
-        if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
-        if (Array.isArray(code)) return `${code.length} bytes`;
-        if (typeof code === 'string') return `${code.length} bytes`;
-        return 'unknown';
-      })();
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Deploy Contract</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Code Size</div>
-          <div class="action-value">${sizeLabel}</div>
-        </div>
-      `;
-    }
-    if (action.type === 'FunctionCall') {
-      return html`
-        <div class="action-detail">
-          <strong>Deposit</strong>
-          <span>${action.deposit || '0'}</span>
-        </div>
-        <div class="action-detail">
-          <strong>Gas</strong>
-          <span>${formatGas(action.gas)}</span>
-        </div>
-        <div class="action-detail no-border">
-          <strong>Method</strong>
-          <span>${action.methodName}</span>
-        </div>
-        ${when(action.args, () => {
-          return html`
-            <div class="action-detail no-border" style="margin-top: -4px">
-              <span>
-                <pre class="code-block"><code>${formatArgs(action.args)}</code></pre>
-              </span>
-            </div>
-          `;
-        })}
-      `;
-    }
-    if (action.type === 'Transfer') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Transfer</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Amount</div>
-          <div class="action-value">${formatDeposit(action.amount)}</div>
-        </div>
-      `;
-    }
-    if (action.type === 'Stake') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Stake</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${(action as any).public_key || ''}</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Amount</div>
-          <div class="action-value">${(action as any).stake || ''}</div>
-        </div>
-      `;
-    }
-    if (action.type === 'AddKey') {
-      const ak = action.accessKey;
-      let akPretty = '';
-      try {
-        akPretty = JSON.stringify(typeof ak === 'string' ? JSON.parse(ak) : ak, null, 2);
-      } catch {
-        akPretty = String(ak);
-      }
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Add Key</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${action.publicKey || ''}</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Access Key</div>
-          <div class="action-value"><pre class="code-block"><code>${akPretty}</code></pre></div>
-        </div>
-      `;
-    }
-    if (action.type === 'DeleteKey') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Delete Key</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${action.publicKey || ''}</div>
-        </div>
-      `;
-    }
-    if (action.type === 'DeleteAccount') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Delete Account</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Beneficiary</div>
-          <div class="action-value">${action.beneficiaryId || ''}</div>
-        </div>
-      `;
-    }
-    // Fallback: show raw JSON for unknown/extended actions
-    let raw = '';
-    try {
-      raw = JSON.stringify(action, null, 2);
-    } catch {
-      raw = String(action);
-    }
-    return html`
-      <div class="action-row">
-        <div class="action-label">Action</div>
-        <div class="action-value">Unknown</div>
-      </div>
-      <div class="action-row">
-        <div class="action-label">Data</div>
-        <div class="action-value"><pre class="code-block"><code>${raw}</code></pre></div>
-      </div>
-    `;
-  }
-
-  private buildDisplayTreeFromTxPayloads(txSigningRequests: TransactionInput[]): TreeNode {
-
-    const txFolders: TreeNode[] = txSigningRequests.map((tx: TransactionInput, tIdx: number) => {
-      // Build a two-level tree: Transaction -> Action N -> subfields
-      const highlightMethodColor = this.tooltipTreeStyles?.highlightMethodName?.color;
-      const children = buildActionTree(tx, highlightMethodColor).children || [];
-      return {
-        id: `tx-${tIdx}`,
-        label: `Transaction ${tIdx + 1} to ${tx.receiverId}`,
-        type: 'folder',
-        open: tIdx === 0,
-        ...(this.tooltipTreeStyles?.highlightReceiverId?.color && {
-          highlight: {
-            type: 'receiverId' as const,
-            color: this.tooltipTreeStyles.highlightReceiverId.color
-          }
-        }),
-        children: [...children]
-      };
-    });
-
-    return {
-      id: 'txs-root',
-      label: txFolders.length > 1 ? 'Transactions' : 'Transaction',
-      type: 'folder',
-      open: true,
-      children: txFolders
-    };
-  }
-
   render() {
 
     if (!this.txSigningRequests || this.txSigningRequests.length === 0) {
       return html`<div>Loading...</div>`;
     }
 
-    const tree = this.buildDisplayTreeFromTxPayloads(this.txSigningRequests);
+    const tree = buildDisplayTreeFromTxPayloads(this.txSigningRequests, this.tooltipTreeStyles);
 
     return html`
-      <div class="embedded-confirm-container">
+      <!--
+        Data attributes correspond to CSS selectors for type-safe element selection.
+        Each data attribute maps to a CSS selector in the static styles property.
+        This ensures perfect synchronization between CSS and JavaScript selectors.
+      -->
+      <!-- Container element - corresponds to [data-embedded-confirm-container] CSS selector -->
+      <div data-embedded-confirm-container>
+        <!-- Button element - corresponds to [data-embedded-btn] CSS selector -->
         <button
-          class="embedded-btn"
+          data-embedded-btn
           ?disabled=${this.loading}
           @click=${this.handleConfirm}
           @pointerenter=${this.handlePointerEnter}
@@ -1074,8 +897,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
           aria-describedby="tooltipContent"
           tabindex="0"
         >
-          <span class="loading ${this.loading ? 'show' : ''}">
-            <div class="spinner"></div>
+          <!-- Loading state element - corresponds to [data-loading] CSS selector -->
+          <span data-loading data-visible=${this.loading}>
+            <!-- Spinner element - corresponds to [data-spinner] CSS selector -->
+            <div data-spinner></div>
             Processing...
           </span>
           <span style="display: ${this.loading ? 'none' : 'inline'}">
@@ -1083,8 +908,12 @@ export class EmbeddedTxButton extends LitElementWithProps {
           </span>
         </button>
 
+        <!-- Tooltip content element - corresponds to [data-tooltip-content] CSS selector -->
         <div
-          class="tooltip-content ${this.tooltip.position}"
+          data-tooltip-content
+          data-position=${this.tooltip.position}
+          data-visible=${this.tooltipVisible}
+          data-hiding=${this.isHiding}
           id="tooltipContent"
           role="tooltip"
           aria-hidden="true"
@@ -1106,7 +935,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 }
 
 // Define the custom element
-customElements.define('embedded-tx-button', EmbeddedTxButton);
+customElements.define(EMBEDDED_TX_BUTTON_ID, EmbeddedTxButton);
 
 // Export default only to avoid name collision with React wrapper export
 export default EmbeddedTxButton;

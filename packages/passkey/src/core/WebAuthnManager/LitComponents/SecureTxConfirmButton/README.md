@@ -6,7 +6,7 @@ The SecureTxConfirmButton is a Lit-based web component for secure transaction co
 
 - **EmbeddedTxButton.ts**: Handles direct DOM-embedded confirmations.
 - **IframeButtonHost.ts**: Manages iframe-based confirmations with styling via IframeClipPathGenerator.
-- **IframeClipPathGenerator.ts**: Generates CSS clip-paths for iframe visual integration.
+- **Iframe clip-path (in `iframe-geometry.ts`)**: `IframeClipPathGenerator` generates CSS clip-paths for iframe visual integration.
 - **TooltipTxTree.ts**: Displays transaction tree tooltips on interaction.
 
 ## DOM Structure Visualization
@@ -22,7 +22,7 @@ Below is an ASCII art depiction of how the components are layered within the Sec
           |
           |
 +-----------------------------+
-| IframeButton.ts             |
+| IframeButtonHost.ts         |
 | (Direct DOM Element)        |
 +-----------------------------+
           |
@@ -55,19 +55,19 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 ### Process Flow
 
 ```
-1. IframeButtonHost → iframeBootstrap: SET_INIT
+1. IframeButtonHost → iframe bootstrap script: SET_INIT
    ├── Contains buttonPosition, tooltip config, and styling data
    └── Triggers button container positioning
 
-2. iframeBootstrap → IframeButtonHost: POSITIONING_APPLIED
+2. iframe bootstrap script → IframeButtonHost: POSITIONING_APPLIED
    ├── Confirms button positioning is complete
    └── Includes final button position coordinates
 
-3. IframeButtonHost → iframeBootstrap: REQUEST_GEOMETRY
+3. IframeButtonHost → iframe bootstrap script: REQUEST_GEOMETRY
    ├── Requests geometry measurement now that positioning is applied
    └── Ensures measurements use final positioned coordinates
 
-4. iframeBootstrap → EmbeddedTxButton: REQUEST_GEOMETRY
+4. iframe bootstrap script → EmbeddedTxButton: REQUEST_GEOMETRY
    ├── Forwards request to embedded button component
    └── Triggers sendInitialGeometry() method
 
@@ -85,7 +85,7 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 - **Receives**: `INIT_GEOMETRY` for clip-path setup
 - **Applies**: Button-only clip-path initially, expands on hover
 
-#### Iframe Bootstrap (`iframeBootstrap.ts`)
+#### Iframe Bootstrap (`iframe-bootstrap-script.ts`)
 - **Receives**: `SET_INIT` and applies button positioning
 - **Confirms**: Sends `POSITIONING_APPLIED` after positioning
 - **Forwards**: `REQUEST_GEOMETRY` to embedded button
@@ -112,56 +112,3 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 - **Logging**: Comprehensive logging for debugging geometry issues
 
 This handshake ensures the clip-path accurately restricts interaction to the button area initially, then expands to include the tooltip area during hover, providing seamless user interaction within the iframe context.
-
-## txSigningRequests → TreeNode mapping (TooltipTxTree)
-
-TooltipTxTree renders a light-weight tree UI from a normalized data shape (`TreeNode`). The data is produced from `txSigningRequests` (TransactionInput[]) by `EmbeddedTxButton`.
-
-- Root folder: wraps all transactions
-  - `id: 'txs-root'`
-  - `label: 'Transaction' | 'Transactions'`
-  - `type: 'folder'`
-  - `open: true`
-  - `children: [tx-0, tx-1, ...]`
-
-- Transaction folder (per TransactionInput)
-  - `id: 'tx-${index}'`
-  - `label: 'Transaction ${index+1} to ${receiverId}'`
-  - `type: 'folder'`
-  - `open: index === 0`
-  - `children: [action-0, action-1, ...]`
-
-- Action folder (per action)
-  - `id: 'action-${actionIndex}'`
-  - `label: 'Action ${actionIndex+1}: ${type}'`
-  - `type: 'folder'`
-  - `open: false`
-  - `children: [field file nodes]`
-
-- Field file nodes
-  - One file per relevant field; e.g., for FunctionCall: `method`, `gas`, `deposit`, `args`
-  - `args` file may include `content` with pretty JSON
-
-Example (single FunctionCall):
-
-```
-{
-  id: 'txs-root', label: 'Transaction', type: 'folder', open: true,
-  children: [
-    {
-      id: 'tx-0', label: 'Transaction 1 to web3-authn-v5.testnet', type: 'folder', open: true,
-      children: [
-        {
-          id: 'action-0', label: 'Action 1: FunctionCall', type: 'folder', open: false,
-          children: [
-            { id: 'a0-method',  label: 'method: set_greeting',        type: 'file' },
-            { id: 'a0-gas',     label: 'gas: 30000000000000',         type: 'file' },
-            { id: 'a0-deposit', label: 'deposit: 0',                  type: 'file' },
-            { id: 'a0-args',    label: 'args', type: 'file', content: '{\n  "greeting": "Hello from Embedded Component! [...]"\n}' }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
