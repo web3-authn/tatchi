@@ -77,45 +77,36 @@ export class TooltipTxTree extends LitElementWithProps {
   depth?: number;
   tooltipTreeStyles?: TooltipTreeStyles;
 
-  // Theme management
-  private currentTheme: 'dark' | 'light' = 'dark';
-
   static styles = css`
-    /* Interface Replica Design System - Glass Morphism */
     :host {
       display: var(--w3a-tree-host-display, block);
-      color: var(--w3a-tree-host-color, #ffffff); /* Interface Replica primary text */
+      color: var(--w3a-tree-host-color, #e6e9f5);
       background: var(--w3a-tree-host-background, transparent);
     }
 
     .tree-root {
-      /* Glass morphism with backdrop blur */
-      background: var(--w3a-tree-root-background, rgba(255, 255, 255, 0.08)); /* Glass primary */
-      backdrop-filter: var(--w3a-tree-root-backdrop-filter, blur(12px));
-      -webkit-backdrop-filter: var(--w3a-tree-root-backdrop-filter, blur(12px));
+      background: var(--w3a-tree-root-background, #151833);
       max-width: var(--w3a-tree-root-max-width, 600px);
       margin: var(--w3a-tree-root-margin, 0 auto);
-      border-radius: var(--w3a-tree-root-border-radius, 24px); /* Inner glass layer radius */
-      border: var(--w3a-tree-root-border, 1px solid rgba(255, 255, 255, 0.1)); /* Glass border */
+      border-radius: var(--w3a-tree-root-border-radius, 12px);
+      border: var(--w3a-tree-root-border, none);
       overflow: var(--w3a-tree-root-overflow, hidden);
       width: var(--w3a-tree-root-width, auto);
       height: var(--w3a-tree-root-height, auto);
       padding: var(--w3a-tree-root-padding, 0);
-      /* Theme-aware shadows */
-      box-shadow: var(--w3a-tree-root-box-shadow, 0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3));
     }
 
     .tree-children {
       display: var(--w3a-tree-children-display, block);
-      padding: var(--w3a-tree-children-padding, 12px); /* Increased padding for glass aesthetics */
+      padding: var(--w3a-tree-children-padding, 6px);
     }
 
     details {
       margin: var(--w3a-tree-details-margin, 0);
       padding: var(--w3a-tree-details-padding, 0);
-      border-radius: var(--w3a-tree-details-border-radius, 16px); /* Medium glass radius */
+      border-radius: var(--w3a-tree-details-border-radius, 8px);
       overflow: var(--w3a-tree-details-overflow, hidden);
-      background: var(--w3a-tree-details-background, rgba(255, 255, 255, 0.03)); /* Subtle glass secondary */
+      background: var(--w3a-tree-details-background, transparent);
     }
 
     /* Remove the default marker */
@@ -128,21 +119,20 @@ export class TooltipTxTree extends LitElementWithProps {
       align-items: var(--w3a-tree-row-align-items, center);
       box-sizing: var(--w3a-tree-row-box-sizing, border-box);
       width: var(--w3a-tree-row-width, 100%);
-      color: var(--w3a-tree-row-color, #ffffff); /* Interface Replica primary text */
+      color: var(--w3a-tree-row-color, #e6e9f5);
       background: var(--w3a-tree-row-background, transparent);
     }
 
     .summary-row {
       cursor: var(--w3a-tree-summary-cursor, pointer);
-      padding: var(--w3a-tree-summary-padding, 8px 12px); /* Increased for better touch targets */
-      border-radius: var(--w3a-tree-summary-border-radius, 12px); /* Glass aesthetics */
-      transition: var(--w3a-tree-summary-transition, all 0.15s cubic-bezier(0.4, 0, 0.2, 1)); /* Smooth transitions */
-      background: var(--w3a-tree-summary-background, rgba(255, 255, 255, 0.05)); /* Subtle glass */
+      padding: var(--w3a-tree-summary-padding, 4px 6px);
+      border-radius: var(--w3a-tree-summary-border-radius, 6px);
+      transition: var(--w3a-tree-summary-transition, background 0.15s ease);
+      background: var(--w3a-tree-summary-background, transparent);
     }
 
     .summary-row:hover {
-      background: var(--w3a-tree-summary-hover-background, rgba(255, 255, 255, 0.08)); /* Glass hover state */
-      transform: var(--w3a-tree-summary-hover-transform, translateY(-1px)); /* Subtle lift effect */
+      background: var(--w3a-tree-summary-hover-background, rgba(255, 255, 255, 0.06));
     }
 
     .indent {
@@ -153,83 +143,77 @@ export class TooltipTxTree extends LitElementWithProps {
     .label {
       display: var(--w3a-tree-label-display, inline-flex);
       align-items: var(--w3a-tree-label-align-items, center);
-      gap: var(--w3a-tree-label-gap, 8px); /* Increased gap for better spacing */
+      gap: var(--w3a-tree-label-gap, 6px);
       min-width: var(--w3a-tree-label-min-width, 0);
       white-space: var(--w3a-tree-label-white-space, nowrap);
       overflow: var(--w3a-tree-label-overflow, hidden);
       text-overflow: var(--w3a-tree-label-text-overflow, ellipsis);
-      font-size: var(--w3a-tree-label-font-size, 13px); /* Slightly larger for better readability */
+      font-size: var(--w3a-tree-label-font-size, 12px);
       color: var(--w3a-tree-label-color, inherit);
-      font-weight: var(--w3a-tree-label-font-weight, 500); /* Medium weight for glass aesthetics */
+      font-weight: var(--w3a-tree-label-font-weight, inherit);
     }
 
     .chevron {
       display: var(--w3a-tree-chevron-display, inline-block);
-      width: var(--w3a-tree-chevron-width, 12px); /* Slightly larger */
-      height: var(--w3a-tree-chevron-height, 12px);
+      width: var(--w3a-tree-chevron-width, 10px);
+      height: var(--w3a-tree-chevron-height, 10px);
       transform: var(--w3a-tree-chevron-transform, rotate(0deg));
-      transition: var(--w3a-tree-chevron-transition, all 0.2s cubic-bezier(0.4, 0, 0.2, 1)); /* Smoother transition */
-      opacity: var(--w3a-tree-chevron-opacity, 0.7); /* Subtle opacity */
-      color: var(--w3a-tree-chevron-color, rgba(255, 255, 255, 0.7)); /* Subtle color */
+      transition: var(--w3a-tree-chevron-transition, transform 0.12s ease);
+      opacity: var(--w3a-tree-chevron-opacity, 0.85);
+      color: var(--w3a-tree-chevron-color, currentColor);
       overflow: var(--w3a-tree-chevron-overflow, visible);
     }
 
     details[open] > summary .chevron {
       transform: var(--w3a-tree-chevron-open-transform, rotate(90deg));
-      opacity: var(--w3a-tree-chevron-open-opacity, 1); /* Full opacity when open */
     }
 
     .file-row {
-      padding: var(--w3a-tree-file-row-padding, 4px 8px); /* Increased padding */
-      font-size: var(--w3a-tree-file-row-font-size, 13px); /* Slightly larger */
+      padding: var(--w3a-tree-file-row-padding, 2px 6px);
+      font-size: var(--w3a-tree-file-row-font-size, 12px);
       background: var(--w3a-tree-file-row-background, transparent);
     }
 
     .file-content {
-      /* Metallic appearance with glass morphism */
       box-sizing: var(--w3a-tree-file-content-box-sizing, border-box);
       margin: var(--w3a-tree-file-content-margin, 0px);
-      padding: var(--w3a-tree-file-content-padding, 12px); /* Increased padding */
-      border-radius: var(--w3a-tree-file-content-border-radius, 12px); /* Glass aesthetics */
-      background: var(--w3a-tree-file-content-background, linear-gradient(135deg, #3a3a3a 0%, #1a1a1a 50%, #2a2a2a 100%)); /* Metallic gradient */
-      border: var(--w3a-tree-file-content-border, 1px solid rgba(255, 255, 255, 0.08)); /* Subtle metallic border */
-      box-shadow: var(--w3a-tree-file-content-box-shadow, 0 2px 8px rgba(0, 0, 0, 0.4)); /* Depth for metallic appearance */
-      max-height: var(--w3a-tree-file-content-max-height, 200px); /* Slightly taller */
+      padding: var(--w3a-tree-file-content-padding, 8px);
+      border-radius: var(--w3a-tree-file-content-border-radius, 6px);
+      background: var(--w3a-tree-file-content-background, rgba(255, 255, 255, 0.06));
+      max-height: var(--w3a-tree-file-content-max-height, 180px);
       overflow: var(--w3a-tree-file-content-overflow, auto);
       color: var(--w3a-tree-file-content-color, #e2e8f0);
       font-family: var(--w3a-tree-file-content-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
       white-space: var(--w3a-tree-file-content-white-space, pre-wrap);
       word-break: var(--w3a-tree-file-content-word-break, break-word);
-      line-height: var(--w3a-tree-file-content-line-height, 1.4); /* Better line height */
-      font-size: var(--w3a-tree-file-content-font-size, 12px); /* Slightly larger */
+      line-height: var(--w3a-tree-file-content-line-height, 1.35);
+      font-size: var(--w3a-tree-file-content-font-size, 11px);
     }
 
     .folder-children {
       display: var(--w3a-tree-folder-children-display, block);
-      padding: var(--w3a-tree-folder-children-padding, 4px 0 4px 0); /* Increased padding */
+      padding: var(--w3a-tree-folder-children-padding, 2px 0 2px 0);
     }
 
-    /* Interface Replica Highlighting - Sophisticated accent colors */
+    /* Highlighting styles for transaction details */
     .highlight-receiverId {
-      color: var(--w3a-tree-highlight-receiver-id-color, #ff6b35) !important; /* Interface Replica orange */
+      color: var(--w3a-tree-highlight-receiver-id-color, #ff6b6b) !important;
       font-weight: var(--w3a-tree-highlight-receiver-id-font-weight, 600) !important;
-      background: var(--w3a-tree-highlight-receiver-id-background, rgba(255, 107, 53, 0.1)) !important; /* Subtle background */
+      background: var(--w3a-tree-highlight-receiver-id-background, transparent) !important;
       text-decoration: var(--w3a-tree-highlight-receiver-id-text-decoration, none) !important;
-      padding: var(--w3a-tree-highlight-receiver-id-padding, 2px 6px) !important; /* Small padding */
-      border-radius: var(--w3a-tree-highlight-receiver-id-border-radius, 8px) !important; /* Rounded for glass */
+      padding: var(--w3a-tree-highlight-receiver-id-padding, 0) !important;
+      border-radius: var(--w3a-tree-highlight-receiver-id-border-radius, 0) !important;
       box-shadow: var(--w3a-tree-highlight-receiver-id-box-shadow, none) !important;
-      border: var(--w3a-tree-highlight-receiver-id-border, 1px solid rgba(255, 107, 53, 0.2)) !important; /* Subtle border */
     }
 
     .highlight-methodName {
-      color: var(--w3a-tree-highlight-method-name-color, #00d9ff) !important; /* Interface Replica cyan */
+      color: var(--w3a-tree-highlight-method-name-color, #4ecdc4) !important;
       font-weight: var(--w3a-tree-highlight-method-name-font-weight, 600) !important;
-      background: var(--w3a-tree-highlight-method-name-background, rgba(0, 217, 255, 0.1)) !important; /* Subtle background */
+      background: var(--w3a-tree-highlight-method-name-background, transparent) !important;
       text-decoration: var(--w3a-tree-highlight-method-name-text-decoration, none) !important;
-      padding: var(--w3a-tree-highlight-method-name-padding, 2px 6px) !important; /* Small padding */
-      border-radius: var(--w3a-tree-highlight-method-name-border-radius, 8px) !important; /* Rounded for glass */
+      padding: var(--w3a-tree-highlight-method-name-padding, 0) !important;
+      border-radius: var(--w3a-tree-highlight-method-name-border-radius, 0) !important;
       box-shadow: var(--w3a-tree-highlight-method-name-box-shadow, none) !important;
-      border: var(--w3a-tree-highlight-method-name-border, 1px solid rgba(0, 217, 255, 0.2)) !important; /* Subtle border */
     }
   `;
 
@@ -254,44 +238,6 @@ export class TooltipTxTree extends LitElementWithProps {
 
   private camelToKebab(str: string): string {
     return str.replace(/([A-Z])/g, '-$1').toLowerCase();
-  }
-
-  /**
-   * Set the theme for the tooltip tree component
-   * Applies Interface Replica design system themes
-   */
-  setTheme(theme: 'dark' | 'light'): void {
-    this.currentTheme = theme;
-
-    // Apply theme-aware CSS variables
-    if (theme === 'light') {
-      this.style.setProperty('--w3a-tree-host-color', '#000000');
-      this.style.setProperty('--w3a-tree-row-color', '#000000');
-      this.style.setProperty('--w3a-tree-chevron-color', 'rgba(0, 0, 0, 0.6)');
-      this.style.setProperty('--w3a-tree-root-background', 'rgba(255, 255, 255, 0.6)');
-      this.style.setProperty('--w3a-tree-root-border', '1px solid rgba(255, 255, 255, 0.2)');
-      this.style.setProperty('--w3a-tree-root-box-shadow', '0 8px 32px rgba(0, 0, 0, 0.12), 0 4px 16px rgba(0, 0, 0, 0.08)');
-      this.style.setProperty('--w3a-tree-summary-background', 'rgba(255, 255, 255, 0.25)');
-      this.style.setProperty('--w3a-tree-summary-hover-background', 'rgba(255, 255, 255, 0.35)');
-      this.style.setProperty('--w3a-tree-details-background', 'rgba(255, 255, 255, 0.15)');
-      this.style.setProperty('--w3a-tree-file-content-background', 'linear-gradient(135deg, #ffffff 0%, #f5f5f5 50%, #ffffff 100%)');
-      this.style.setProperty('--w3a-tree-file-content-border', '1px solid rgba(0, 0, 0, 0.08)');
-      this.style.setProperty('--w3a-tree-file-content-box-shadow', '0 2px 4px rgba(0, 0, 0, 0.12)');
-    } else {
-      // Dark theme (default)
-      this.style.setProperty('--w3a-tree-host-color', '#ffffff');
-      this.style.setProperty('--w3a-tree-row-color', '#ffffff');
-      this.style.setProperty('--w3a-tree-chevron-color', 'rgba(255, 255, 255, 0.7)');
-      this.style.setProperty('--w3a-tree-root-background', 'rgba(255, 255, 255, 0.08)');
-      this.style.setProperty('--w3a-tree-root-border', '1px solid rgba(255, 255, 255, 0.1)');
-      this.style.setProperty('--w3a-tree-root-box-shadow', '0 8px 32px rgba(0, 0, 0, 0.4), 0 4px 16px rgba(0, 0, 0, 0.3)');
-      this.style.setProperty('--w3a-tree-summary-background', 'rgba(255, 255, 255, 0.05)');
-      this.style.setProperty('--w3a-tree-summary-hover-background', 'rgba(255, 255, 255, 0.08)');
-      this.style.setProperty('--w3a-tree-details-background', 'rgba(255, 255, 255, 0.03)');
-      this.style.setProperty('--w3a-tree-file-content-background', 'linear-gradient(135deg, #3a3a3a 0%, #1a1a1a 50%, #2a2a2a 100%)');
-      this.style.setProperty('--w3a-tree-file-content-border', '1px solid rgba(255, 255, 255, 0.08)');
-      this.style.setProperty('--w3a-tree-file-content-box-shadow', '0 2px 8px rgba(0, 0, 0, 0.4)');
-    }
   }
 
   private renderLeaf(
@@ -379,12 +325,6 @@ export class TooltipTxTree extends LitElementWithProps {
 
   render() {
     const depth = this.depth ?? 0;
-
-    // Initialize theme on first render if not already set
-    if (!this.hasAttribute('data-theme-initialized')) {
-      this.setAttribute('data-theme-initialized', 'true');
-      this.setTheme(this.currentTheme);
-    }
 
     // Apply styles if provided
     if (this.tooltipTreeStyles) {
