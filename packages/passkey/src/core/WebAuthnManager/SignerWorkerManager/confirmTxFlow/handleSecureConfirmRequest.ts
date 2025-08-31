@@ -139,18 +139,19 @@ async function renderConfirmUI({
       }
     }
 
+    case 'skip': {
+      // Automatically returns
+      return { confirmed: true, confirmHandle: undefined };
+    }
+
     default: {
-      // Fallback to modal mode if unknown
-      const { mountModalTxConfirm } = await import('../../LitComponents/modal');
-      const confirmed = await mountModalTxConfirm({
-        summary: summary,
-        txSigningRequests: txSigningRequests,
-        mode: 'modal'
+      const handle = await mountIframeModalHostWithHandle({
+        ctx,
+        summary,
+        txSigningRequests,
+        loading: true
       });
-      return {
-        confirmed,
-        confirmHandle: undefined
-      };
+      return { confirmed: true, confirmHandle: handle };
     }
   }
 }
