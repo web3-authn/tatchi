@@ -173,22 +173,26 @@ export class IframeModalHost extends LitElementWithProps {
   // ==============================
   private setupMessageHandling() {
     const onMessage = (event: MessageEvent) => {
+
       const { data } = event || {};
       const type: MessageType | undefined = data?.type;
       const payload = data?.payload;
-      try { console.debug('[IframeModalHost] message', type, payload); } catch {}
+
       switch (type) {
         case 'MODAL_IFRAME_BOOT':
           try { console.log('[IframeModalHost] iframe srcdoc parsed'); } catch {}
           return;
+
         case 'IFRAME_ERROR':
         case 'IFRAME_UNHANDLED_REJECTION':
           console.error('[IframeModal] iframe error:', payload);
           return;
+
         case 'READY':
           console.debug('[IframeModalHost] child READY');
           this.postToIframe('SET_INIT', { targetOrigin: window.location.origin });
           return;
+
         case 'ETX_DEFINED':
           console.debug('[IframeModalHost] child ETX_DEFINED');
           // Push initial state
@@ -199,16 +203,23 @@ export class IframeModalHost extends LitElementWithProps {
           });
           this.postToIframe('SET_LOADING', this.showLoading);
           return;
+
         case 'CONFIRM':
           this.handleConfirm();
           return;
+
         case 'CANCEL':
           this.onCancel?.();
-          try { this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
-          // Two-phase: explicitly close inner modal and remove host immediately
+          try {
+            this.dispatchEvent(new CustomEvent('w3a:modal-cancel', {
+              bubbles: true, // bubble up to parent
+              composed: true // cross Shadow DOM boundaries to host
+            }));
+          } catch {}
+          // Two-phase: explicitly close inner modal
           this.postToIframe('CLOSE_MODAL', { confirmed: false });
-          try { this.remove(); } catch {}
           return;
+
         case 'UI_INTENT_DIGEST': {
           const p = payload as MessagePayloads['UI_INTENT_DIGEST'];
           if (p?.ok && p?.digest && this.pendingUiDigestResolve) {
@@ -219,6 +230,7 @@ export class IframeModalHost extends LitElementWithProps {
           this.pendingUiDigestResolve = undefined;
           this.pendingUiDigestReject = undefined;
           return;
+
         }
         default:
           return;
@@ -261,38 +273,43 @@ export class IframeModalHost extends LitElementWithProps {
   private async handleConfirm() {
     let confirmed = true;
     let error: string | undefined;
-    try {
-      if (this.intentDigest) {
-        let uiDigest: string | undefined;
-        try {
-          uiDigest = await this.requestUiIntentDigest();
-        } catch (e) {
-          throw e;
-        }
+
+    // Validate UI digest if present
+    if (this.intentDigest) {
+      try {
+        const uiDigest = await this.requestUiIntentDigest();
         if (uiDigest !== this.intentDigest) {
           confirmed = false;
-          error = JSON.stringify({ code: 'ui_digest_mismatch', uiDigest, intentDigest: this.intentDigest });
+          error = JSON.stringify({
+            code: 'ui_digest_mismatch',
+            uiDigest,
+            intentDigest: this.intentDigest
+          });
           this.onError?.(new Error('UI digest mismatch'));
         }
+      } catch (e: unknown) {
+        confirmed = false;
+        error = 'ui_digest_validation_failed';
+        const err = e instanceof Error ? e : new Error(String(e));
+        this.onError?.(err);
       }
-    } catch (e: unknown) {
-      confirmed = false;
-      error = 'ui_digest_validation_failed';
-      const err = e instanceof Error ? e : new Error(String(e));
-      this.onError?.(err);
-    } finally {
-      // Defer closing on confirm; show loading and let host decide when to close
-      if (confirmed) {
-        try { this.showLoading = true; } catch {}
-      } else {
-        // Close immediately on digest failure
-        this.postToIframe('CLOSE_MODAL', { confirmed: false });
-        try { this.remove(); } catch {}
-      }
-      try {
-        this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { detail: { confirmed, error }, bubbles: true, composed: true }));
-      } catch {}
     }
+
+    // Handle UI state and dispatch result
+    if (confirmed) {
+      try { this.showLoading = true; } catch {}
+    } else {
+      this.postToIframe('CLOSE_MODAL', { confirmed: false });
+      try { this.remove(); } catch {}
+    }
+
+    try {
+      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', {
+        detail: { confirmed, error },
+        bubbles: true, // bubble up to parent
+        composed: true // cross Shadow DOM boundaries to host
+      }));
+    } catch {}
   }
 
   render() {
