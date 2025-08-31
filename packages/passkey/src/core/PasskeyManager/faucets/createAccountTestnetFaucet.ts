@@ -154,12 +154,9 @@ export async function createAccountAndRegisterWithTestnetFaucet(
       message: 'Account creation verified successfully'
     });
 
-    // Use config-based authenticator options with fallback to defaults
-    const finalAuthenticatorOptions = authenticatorOptions || context.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS;
-
     // Step 3: Register with contract
     const contractRegistrationResult = await webAuthnManager.signVerifyAndRegisterUser({
-      contractId: webAuthnManager.configs.contractId,
+      contractId: context.configs.contractId,
       credential: credential,
       vrfChallenge: vrfChallenge,
       deterministicVrfPublicKey: deterministicVrfPublicKey,

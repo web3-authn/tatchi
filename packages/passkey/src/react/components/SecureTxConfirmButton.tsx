@@ -3,6 +3,7 @@ import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { IFRAME_BUTTON_ID } from '../../core/types/components';
 import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
+import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
 
 /**
  * React wrapper around the Lit `iframe-button` component.
@@ -13,7 +14,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
   tooltipPosition?: TooltipPosition;
-  tooltipTheme?: 'dark' | 'light';
+  theme?: EmbeddedTxButtonTheme;
 }> = ({
   nearAccountId,
   txSigningRequests,
@@ -28,7 +29,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     position: 'top-center',
     offset: '8px'
   },
-  tooltipTheme = 'dark',
+  theme = 'dark',
   // Behavioral props
   onCancel,
   onSuccess,
@@ -96,7 +97,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     host.buttonStyle = buttonStyle;
     host.buttonHoverStyle = buttonHoverStyle;
     host.tooltipPosition = tooltipPosition;
-    host.tooltipTheme = tooltipTheme;
+    host.theme = theme; // Single theme controls both button and tooltip
     host.options = options;
     host.passkeyManagerContext = passkeyManager.getContext();
 
@@ -116,7 +117,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     buttonStyle,
     buttonHoverStyle,
     tooltipPosition,
-    tooltipTheme,
+    theme, // tooltipTheme is now derived from theme
     options,
     passkeyManager,
     onSuccess,
@@ -130,7 +131,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     // Pass props as attributes - Lit will automatically handle property conversion
     'near-account-id': nearAccountId,
     'color': color,
-    'tooltip-theme': tooltipTheme,
+    'theme': theme, // Single theme controls both button and tooltip
     'show-loading': showLoading,
     // Complex objects still need to be set via properties in useEffect
   });

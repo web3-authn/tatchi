@@ -52,7 +52,7 @@ export async function signVerifyAndRegisterUser({
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }

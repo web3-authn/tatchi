@@ -56,7 +56,7 @@ export interface SecureConfirmDecision {
 export interface TransactionSummary {
   totalAmount?: string;
   method?: string;
-  fingerprint?: string;
+  intentDigest?: string;
   receiverId?: string;
   isRegistration?: boolean;
   vrfChallenge?: any;

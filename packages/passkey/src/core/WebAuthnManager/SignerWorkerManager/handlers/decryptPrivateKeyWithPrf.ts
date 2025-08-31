@@ -25,7 +25,7 @@ export async function decryptPrivateKeyWithPrf({
   try {
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
     // Retrieve encrypted key data from IndexedDB in main thread
-    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }

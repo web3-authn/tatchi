@@ -6,7 +6,8 @@ export { PasskeyNearKeysDBManager } from './passkeyNearKeysDB';
 export type {
   ClientUserData,
   UserPreferences,
-  ClientAuthenticatorData
+  ClientAuthenticatorData,
+  IndexedDBEvent
 } from './passkeyClientDB';
 
 export type {

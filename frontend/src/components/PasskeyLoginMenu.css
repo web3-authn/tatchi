@@ -102,7 +102,6 @@
   background: var(--cobalt-primary-hover);
   color: white;
   box-shadow: 0 2px 4px var(--cobalt-shadow);
-  transform: translateY(-1px);
 }
 
 .passkey-btn-primary:disabled {

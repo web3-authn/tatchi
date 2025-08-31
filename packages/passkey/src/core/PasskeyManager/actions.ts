@@ -449,8 +449,8 @@ async function wasmAuthenticateAndSignTransactions(
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
     transactions: transactionInputsWasm,
     rpcCall: {
-      contractId: webAuthnManager.configs.contractId,
-      nearRpcUrl: webAuthnManager.configs.nearRpcUrl,
+      contractId: context.configs.contractId,
+      nearRpcUrl: context.configs.nearRpcUrl,
       nearAccountId: nearAccountId, // caller account
     },
     // VRF challenge and NEAR data computed in confirmation flow

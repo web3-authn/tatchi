@@ -1,7 +1,7 @@
 
-import { MinimalNearClient, SignedTransaction, type NearClient } from '../../NearClient';
-import { ClientAuthenticatorData, PasskeyClientDBManager } from '../../IndexedDBManager';
-import { PasskeyNearKeysDBManager } from '../../IndexedDBManager/passkeyNearKeysDB';
+import { SignedTransaction, type NearClient } from '../../NearClient';
+import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedDBManager';
+import { IndexedDBManager } from '../../IndexedDBManager';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
 import {
@@ -35,24 +35,21 @@ import {
 } from './handlers';
 
 import {
-  loadUserSettings,
-  saveUserSettings,
   SecureConfirmMessageType,
   SecureConfirmMessage,
   SecureConfirmData,
   handlePromptUserConfirmInJsMainThread,
 } from './confirmTxFlow';
 import { RpcCallPayload } from '../../types/signer-worker';
+import { UserPreferencesManager } from '../userPreferences';
 
 
 export interface SignerWorkerManagerContext {
-  clientDB: PasskeyClientDBManager;
   touchIdPrompt: TouchIdPrompt;
-  confirmationConfig: ConfirmationConfig;
-  currentUserAccountId: string | null;
-  nearKeysDB: PasskeyNearKeysDBManager;
   nearClient: NearClient;
+  indexedDB: UnifiedIndexedDBManager;
   vrfWorkerManager?: VrfWorkerManager;
+  userPreferencesManager: UserPreferencesManager;
   sendMessage: <T extends WorkerRequestType>(args: {
     message: {
       type: T;
@@ -71,90 +68,33 @@ export interface SignerWorkerManagerContext {
  */
 export class SignerWorkerManager {
 
-  private nearKeysDB: PasskeyNearKeysDBManager;
-  private clientDB: PasskeyClientDBManager;
+  private indexedDB: UnifiedIndexedDBManager;
   private touchIdPrompt: TouchIdPrompt;
   private vrfWorkerManager: VrfWorkerManager;
   private nearClient: NearClient;
+  private userPreferencesManager: UserPreferencesManager;
 
-  /** Default confirmation configs (if user settings are unset */
-  private confirmationConfig: ConfirmationConfig = {
-    uiMode: 'modal',
-    behavior: 'autoProceed',
-    autoProceedDelay: 1000, // 1 seconds default delay
-  };
-
-  private currentUserAccountId: string | null = null;
-
-  constructor(vrfWorkerManager: VrfWorkerManager, nearClient: NearClient) {
-    this.nearKeysDB = new PasskeyNearKeysDBManager();
-    this.clientDB = new PasskeyClientDBManager();
+  constructor(
+    vrfWorkerManager: VrfWorkerManager,
+    nearClient: NearClient,
+    userPreferencesManager: UserPreferencesManager
+  ) {
+    this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt();
     this.vrfWorkerManager = vrfWorkerManager;
     this.nearClient = nearClient;
+    this.userPreferencesManager = userPreferencesManager;
   }
 
   private getContext(): SignerWorkerManagerContext {
     return {
-      nearKeysDB: this.nearKeysDB,
       sendMessage: this.sendMessage.bind(this), // bind to access this.createSecureWorker
-      clientDB: this.clientDB,
+      indexedDB: this.indexedDB,
       touchIdPrompt: this.touchIdPrompt,
-      confirmationConfig: this.confirmationConfig,
-      currentUserAccountId: this.currentUserAccountId,
       vrfWorkerManager: this.vrfWorkerManager,
       nearClient: this.nearClient,
+      userPreferencesManager: this.userPreferencesManager,
     };
-  }
-
-  /**
-   * Set the unified confirmation configuration
-   */
-  setConfirmationConfig(config: ConfirmationConfig): void {
-    this.confirmationConfig = { ...this.confirmationConfig, ...config };
-    saveUserSettings(this.getContext());
-  }
-
-  /**
-   * Set the UI mode for confirmation
-   */
-  setConfirmationUIMode(mode: ConfirmationConfig['uiMode']): void {
-    if (mode === "skip") {
-      this.confirmationConfig.autoProceedDelay = 0;
-    }
-    this.confirmationConfig.uiMode = mode;
-    saveUserSettings(this.getContext());
-  }
-
-  /**
-   * Set the confirmation behavior
-   */
-  setConfirmBehavior(behavior: ConfirmationConfig['behavior']): void {
-    this.confirmationConfig.behavior = behavior;
-    saveUserSettings(this.getContext());
-  }
-
-  /**
-   * Set the auto-proceed delay (only used with autoProceed)
-   */
-  setAutoProceedDelay(delayMs: number): void {
-    this.confirmationConfig.autoProceedDelay = delayMs;
-    saveUserSettings(this.getContext());
-  }
-
-  /**
-   * Get the current confirmation configuration
-   */
-  getConfirmationConfig(): ConfirmationConfig {
-    return { ...this.confirmationConfig };
-  }
-
-  /**
-   * Set the current user account ID for settings persistence
-   */
-  setCurrentUser(accountId: string): void {
-    this.currentUserAccountId = accountId;
-    loadUserSettings(this.getContext());
   }
 
   createSecureWorker(): Worker {
@@ -192,10 +132,7 @@ export class SignerWorkerManager {
     onEvent,
     timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT // 10s
   }: {
-    message: {
-      type: T;
-      payload: WorkerRequestTypeMap[T]['request'];
-    };
+    message: { type: T; payload: WorkerRequestTypeMap[T]['request'] };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
   }): Promise<WorkerResponseForRequest<T>> {

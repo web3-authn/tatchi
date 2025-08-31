@@ -99,7 +99,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
 
     if (!globalPasskeyManager || configChanged) {
-      console.log('PasskeyProvider: Creating new PasskeyManager instance with config:', finalConfig);
+      console.debug('PasskeyProvider: Creating new PasskeyManager instance with config:', finalConfig);
       globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
       globalConfig = finalConfig;
     } else {
@@ -149,7 +149,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Simple logout that only manages React state
   const logout = useCallback(async () => {
     try {
-      console.log("SDK LOGOUT");
       // Clear VRF session when user logs out
       await passkeyManager.logoutAndClearVrfSession();
     } catch (error) {
@@ -179,11 +178,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearAccountId: event.nearAccountId || null,
             nearPublicKey: event.clientNearPublicKey || null,
           }));
-
-          console.log('Login completed - VRF status:', {
-            vrfActive: currentLoginState.vrfActive,
-            isLoggedIn: isVRFLoggedIn
-          });
         }
         options.onEvent?.(event);
       },
@@ -211,13 +205,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearAccountId: nearAccountId,
             nearPublicKey: currentLoginState.publicKey || null,
           }));
-
-          console.log('Registration completed - VRF status:', {
-            vrfActive: currentLoginState.vrfActive,
-            isLoggedIn: isVRFLoggedIn,
-            nearAccountId: nearAccountId,
-            publicKey: currentLoginState.publicKey
-          });
         }
         options.onEvent?.(event);
       },
@@ -245,12 +232,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       onEvent: (event) => {
         // Call original event handler
         options?.onEvent?.(event);
-
-        console.log('Device linking event received:', { phase: event.phase, status: event.status, message: event.message });
-
         // Update React state when auto-login completes successfully
         if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === 'success') {
-          console.log('Device linking auto-login completed - refreshing login state...');
           // Refresh login state to update React context after successful auto-login
           refreshLoginState()
         }
@@ -299,14 +282,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
           nearPublicKey: loginState.publicKey,
           isLoggedIn: isVRFLoggedIn  // Only logged in if VRF is active
         }));
-
-        console.log('Refreshed login state:', {
-          nearAccountId: loginState.nearAccountId,
-          publicKey: loginState.publicKey,
-          isLoggedIn: isVRFLoggedIn,
-          vrfActive: loginState.vrfActive,
-          hasUserData: !!loginState.userData
-        });
       }
     } catch (error) {
       console.error('Error refreshing login state:', error);
@@ -354,6 +329,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     // Confirmation configuration functions
     setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),
     setConfirmationConfig: (config: any) => passkeyManager.setConfirmationConfig(config),
+    setUserTheme: (theme: 'dark' | 'light') => passkeyManager.setUserTheme(theme),
     getConfirmationConfig: () => passkeyManager.getConfirmationConfig(),
 
     // Account management functions

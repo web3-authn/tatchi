@@ -87,6 +87,7 @@ export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.S
     uiMode: ConfirmationUIMode;
     behavior: ConfirmationBehavior;
     autoProceedDelay?: number;
+    theme?: 'dark' | 'light';
   };
 };
 export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
@@ -141,8 +142,16 @@ export interface ConfirmationConfig {
   behavior: ConfirmationBehavior;
   /** Delay in milliseconds before auto-proceeding (only used with autoProceed) */
   autoProceedDelay?: number;
+  /** Theme for the confirmation UI: 'dark' | 'light' */
+  theme: 'dark' | 'light';
 }
 
+export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
+  uiMode: 'modal',
+  behavior: 'autoProceed',
+  autoProceedDelay: 1000,
+  theme: 'dark',
+};
 
 // WASM enum types for confirmation configuration
 export type WasmConfirmationUIMode = wasmModule.ConfirmationUIMode;

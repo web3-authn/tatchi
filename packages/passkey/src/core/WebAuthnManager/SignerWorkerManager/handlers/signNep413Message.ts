@@ -29,7 +29,7 @@ export async function signNep413Message({ ctx, payload }: {
   error?: string;
 }> {
   try {
-    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(payload.accountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(payload.accountId);
 
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${payload.accountId}`);

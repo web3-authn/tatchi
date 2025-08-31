@@ -118,7 +118,7 @@ export async function registerPasskey(
         nearAccountId
       }),
       webAuthnManager.checkCanRegisterUser({
-        contractId: webAuthnManager.configs.contractId,
+        contractId: context.configs.contractId,
         credential: credential,
         vrfChallenge: vrfChallenge,
         onEvent: (progress) => {

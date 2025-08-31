@@ -355,7 +355,7 @@ export class LinkDeviceFlow {
     try {
       const linkingResult = await getDeviceLinkingAccountContractCall(
         this.context.nearClient,
-        this.context.webAuthnManager.configs.contractId,
+        this.context.configs.contractId,
         this.session.nearPublicKey
       );
 
@@ -802,7 +802,7 @@ export class LinkDeviceFlow {
           credential: credential,
           options: {
             vrfChallenge: vrfChallenge,
-            contractId: this.context.webAuthnManager.configs.contractId,
+            contractId: this.context.configs.contractId,
             nonce: newKeyNonce, // Use NEW key's actual nonce for the registration transaction
             blockHash: newTxBlockHash,
             // Pass the deterministic VRF public key for contract call

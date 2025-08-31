@@ -139,7 +139,9 @@ export class PasskeyManager {
     options?: LoginHooksOptions
   ): Promise<LoginResult> {
     // Set current user for settings persistence
-    this.webAuthnManager.setCurrentUser(nearAccountId);
+    this.webAuthnManager.setCurrentUser(toAccountId(nearAccountId));
+    // Set as last user for future sessions
+    await this.webAuthnManager.setLastUser(toAccountId(nearAccountId));
     return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
   }
 
@@ -186,6 +188,10 @@ export class PasskeyManager {
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
     this.webAuthnManager.setConfirmationConfig(config);
+  }
+
+  setUserTheme(theme: 'dark' | 'light'): void {
+    this.webAuthnManager.setUserTheme(theme);
   }
 
   /**

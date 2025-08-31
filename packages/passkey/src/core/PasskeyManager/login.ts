@@ -226,6 +226,7 @@ async function handleLoginUnlockVRF(
 
     // Step 3: Update local data and return success
     await webAuthnManager.updateLastLogin(nearAccountId);
+    await webAuthnManager.setLastUser(nearAccountId);
 
     const result: LoginResult = {
       success: true,

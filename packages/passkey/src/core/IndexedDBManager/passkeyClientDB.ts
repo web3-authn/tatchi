@@ -2,7 +2,7 @@ import { openDB, type IDBPDatabase } from 'idb';
 import { type ValidationResult, validateNearAccountId } from '../../utils/validation';
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
-import { ConfirmationUIMode, ConfirmationBehavior } from '../types/signer-worker'
+import { ConfirmationConfig, DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker'
 
 
 export interface ClientUserData {
@@ -49,11 +49,7 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
 export interface UserPreferences {
   useRelayer: boolean;
   useNetwork: 'testnet' | 'mainnet';
-  confirmationConfig: {
-    uiMode: ConfirmationUIMode;
-    behavior: ConfirmationBehavior;
-    autoProceedDelay?: number;
-  };
+  confirmationConfig: ConfirmationConfig;
   // User preferences can be extended here as needed
 }
 
@@ -98,12 +94,44 @@ const DB_CONFIG: PasskeyClientDBConfig = {
   authenticatorStore: 'authenticators'
 } as const;
 
+export interface IndexedDBEvent {
+  type: 'user-updated' | 'preferences-updated' | 'user-deleted';
+  accountId: AccountId;
+  data?: any;
+}
+
 export class PasskeyClientDBManager {
   private config: PasskeyClientDBConfig;
   private db: IDBPDatabase | null = null;
+  private eventListeners: Set<(event: IndexedDBEvent) => void> = new Set();
 
   constructor(config: PasskeyClientDBConfig = DB_CONFIG) {
     this.config = config;
+  }
+
+  // === EVENT SYSTEM ===
+
+  /**
+   * Subscribe to IndexedDB change events
+   */
+  onChange(listener: (event: IndexedDBEvent) => void): () => void {
+    this.eventListeners.add(listener);
+    return () => {
+      this.eventListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Emit an event to all listeners
+   */
+  private emitEvent(event: IndexedDBEvent): void {
+    this.eventListeners.forEach(listener => {
+      try {
+        listener(event);
+      } catch (error) {
+        console.warn('[IndexedDBManager]: Error in event listener:', error);
+      }
+    });
   }
 
   private async getDB(): Promise<IDBPDatabase> {
@@ -263,6 +291,7 @@ export class PasskeyClientDBManager {
           uiMode: 'modal',
           behavior: 'autoProceed',
           autoProceedDelay: 1000,
+          theme: 'light',
         },
         // Default preferences can be set here
       },
@@ -282,13 +311,32 @@ export class PasskeyClientDBManager {
         ...updates,
         lastUpdated: Date.now()
       };
-      console.log("DEBUG updateUser: final updatedUser deviceNumber =", updatedUser.deviceNumber);
       await this.storeUser(updatedUser); // This will update the app state lastUserAccountId
+
+      // Emit event for user updates
+      this.emitEvent({
+        type: 'user-updated',
+        accountId: nearAccountId,
+        data: { updates, updatedUser }
+      });
     }
   }
 
   async updateLastLogin(nearAccountId: AccountId): Promise<void> {
     await this.updateUser(nearAccountId, { lastLogin: Date.now() });
+  }
+
+  /**
+   * Set the last logged-in user
+   * @param nearAccountId - The account ID of the user
+   * @param deviceNumber - The device number (defaults to 1)
+   */
+  async setLastUser(nearAccountId: AccountId, deviceNumber: number = 1): Promise<void> {
+    const lastUserState: LastUserAccountIdState = {
+      accountId: nearAccountId,
+      deviceNumber,
+    };
+    await this.setAppState('lastUserAccountId', lastUserState);
   }
 
   async updatePreferences(
@@ -302,6 +350,13 @@ export class PasskeyClientDBManager {
         ...preferences
       } as UserPreferences;
       await this.updateUser(nearAccountId, { preferences: updatedPreferences });
+
+      // Emit event for preference changes
+      this.emitEvent({
+        type: 'preferences-updated',
+        accountId: nearAccountId,
+        data: { preferences: updatedPreferences }
+      });
     }
   }
 
@@ -370,8 +425,6 @@ export class PasskeyClientDBManager {
 
     // Update with WebAuthn-specific data (including VRF credentials)
     const finalDeviceNumber = userData.deviceNumber || existingUser.deviceNumber;
-    console.log("DEBUG: Updating user with deviceNumber =", finalDeviceNumber,
-                "(provided =", userData.deviceNumber, ", existing =", existingUser.deviceNumber, ")");
 
     await this.updateUser(userData.nearAccountId, {
       clientNearPublicKey: userData.clientNearPublicKey,
@@ -519,6 +572,59 @@ export class PasskeyClientDBManager {
     }
 
     console.debug(`Deleted ${authenticators.length} authenticators for user ${nearAccountId}`);
+  }
+
+  /**
+   * Get user's confirmation config from IndexedDB
+   * @param nearAccountId - The user's account ID
+   * @returns ConfirmationConfig or undefined
+   */
+  async getConfirmationConfig(nearAccountId: AccountId): Promise<ConfirmationConfig> {
+    const user = await this.getUser(nearAccountId);
+    return user?.preferences?.confirmationConfig || DEFAULT_CONFIRMATION_CONFIG;
+  }
+
+  /**
+   * Get user's theme preference from IndexedDB
+   * @param nearAccountId - The user's account ID
+   * @returns 'dark' | 'light' | null
+   */
+  async getTheme(nearAccountId: AccountId): Promise<'dark' | 'light' | null> {
+    const user = await this.getUser(nearAccountId);
+    return user?.preferences?.confirmationConfig.theme || null;
+  }
+
+  /**
+   * Set user's theme preference in IndexedDB
+   * @param nearAccountId - The user's account ID
+   * @param theme - The theme to set ('dark' | 'light')
+   */
+  async setTheme(nearAccountId: AccountId, theme: 'dark' | 'light'): Promise<void> {
+    const existingConfig = await this.getConfirmationConfig(nearAccountId);
+    const confirmationConfig = { ...existingConfig, theme };
+    await this.updatePreferences(nearAccountId, { confirmationConfig });
+  }
+
+  /**
+   * Get user's theme with fallback to 'dark'
+   * @param nearAccountId - The user's account ID
+   * @returns 'dark' | 'light'
+   */
+  async getThemeOrDefault(nearAccountId: AccountId): Promise<'dark' | 'light'> {
+    const theme = await this.getTheme(nearAccountId);
+    return theme || 'dark';
+  }
+
+  /**
+   * Toggle between dark and light theme for a user
+   * @param nearAccountId - The user's account ID
+   * @returns The new theme that was set
+   */
+  async toggleTheme(nearAccountId: AccountId): Promise<'dark' | 'light'> {
+    const currentTheme = await this.getThemeOrDefault(nearAccountId);
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    await this.setTheme(nearAccountId, newTheme);
+    return newTheme;
   }
 
   /**

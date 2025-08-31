@@ -210,6 +210,7 @@ export interface PasskeyContextType {
   setConfirmBehavior: (behavior: ConfirmationBehavior) => void;
   setConfirmationConfig: (config: ConfirmationConfig) => void;
   getConfirmationConfig: () => ConfirmationConfig;
+  setUserTheme: (theme: 'dark' | 'light') => void;
 
   // Account management functions
   viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;

@@ -12,7 +12,7 @@ import {
   SecureConfirmMessageType,
   SecureConfirmData,
 } from './types';
-import { TransactionContext, TransactionInputWasm } from '../../../types';
+import { TransactionContext } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
 import { getNonceBlockHashAndHeight } from '../../../rpcCalls';
 import { awaitIframeModalDecisionWithHandle, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
@@ -31,6 +31,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   },
   worker: Worker
 ): Promise<void> {
+
   // 1. Validate and parse request
   const {
     data,
@@ -42,7 +43,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   // 2. Start NEAR RPC calls and modal display in parallel
   const [userConfirmResult, nearRpcResult] = await Promise.all([
     // Modal display (fast)
-    determineUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data }),
+    renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data }),
     // NEAR RPC calls (slow, but parallel)
     performNearRpcCalls(ctx, data)
   ]);
@@ -145,7 +146,7 @@ async function performNearRpcCalls(
   try {
     const nearAccountId = data.rpcCall.nearAccountId;
     const nearClient = ctx.nearClient;
-    const userData = await ctx.clientDB.getUser(toAccountId(nearAccountId));
+    const userData = await ctx.indexedDB.clientDB.getUser(toAccountId(nearAccountId));
     const nearPublicKeyStr = userData?.clientNearPublicKey;
     if (!nearPublicKeyStr) {
       throw new Error('Client NEAR public key not found in user data');
@@ -167,77 +168,6 @@ async function performNearRpcCalls(
       error: 'NEAR_RPC_FAILED',
       details: error instanceof Error ? error.message : String(error)
     };
-  }
-}
-
-/**
- * Renders confirmation UI based on the current configuration
- * Returns either boolean (for requireClick) or { confirmed: boolean, handle?: any } (for autoProceed)
- */
-async function renderConfirmUI({
-  ctx,
-  summary,
-  txSigningRequests,
-  behavior,
-  autoProceedDelay
-}: {
-  ctx: SignerWorkerManagerContext,
-  summary: TransactionSummary,
-  txSigningRequests?: TransactionInputWasm[],
-  behavior?: 'requireClick' | 'autoProceed',
-  autoProceedDelay?: number
-}): Promise<{
-  confirmed: boolean;
-  confirmHandle?: {
-    element: any,
-    close: (confirmed: boolean) => void
-  }
-}> {
-  switch (ctx.confirmationConfig.uiMode) {
-    case 'embedded': {
-      // Legacy embedded mode removed - using iframe approach instead
-      throw new Error('Legacy embedded mode is no longer supported. Use the iframe-based EmbeddedTxConfirm component.');
-    }
-
-    case 'modal': {
-      if (behavior === 'autoProceed') {
-        // Mount modal immediately in loading state
-        const handle = await mountIframeModalHostWithHandle({
-          ctx,
-          summary,
-          txSigningRequests,
-          loading: true
-        });
-        // Wait for the specified delay before proceeding
-        const delay = autoProceedDelay ?? 1000; // Default 1 seconds if not specified
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return { confirmed: true, confirmHandle: handle };
-
-      } else {
-        // Require click
-        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
-          ctx,
-          summary,
-          txSigningRequests,
-        });
-        return { confirmed, confirmHandle: handle };
-      }
-    }
-
-    case 'skip': {
-      // Automatically returns
-      return { confirmed: true, confirmHandle: undefined };
-    }
-
-    default: {
-      const handle = await mountIframeModalHostWithHandle({
-        ctx,
-        summary,
-        txSigningRequests,
-        loading: true
-      });
-      return { confirmed: true, confirmHandle: handle };
-    }
   }
 }
 
@@ -266,11 +196,11 @@ function validateAndParseRequest({ ctx, message }: {
   // Parse and validate summary data (can contain extra fields we need)
   const summary = parseTransactionSummary(data.summary);
   // Get confirmation configuration from data (overrides user settings) or use user's settings
-  const confirmationConfig = data.confirmationConfig || ctx.confirmationConfig;
+  const confirmationConfig = data.confirmationConfig || ctx.userPreferencesManager.getConfirmationConfig();
   const transactionSummary: TransactionSummary = {
     totalAmount: summary?.totalAmount,
     method: summary?.method || (data.isRegistration ? 'Register Account' : undefined),
-    fingerprint: data.intentDigest
+    intentDigest: data.intentDigest
   };
 
   return {
@@ -281,38 +211,41 @@ function validateAndParseRequest({ ctx, message }: {
   };
 }
 
-
 /**
  * Determines user confirmation based on UI mode and configuration
  */
-async function determineUserConfirmUI({
+async function renderUserConfirmUI({
   ctx,
   confirmationConfig,
   transactionSummary,
-  data
+  data,
 }: {
   ctx: SignerWorkerManagerContext,
-  confirmationConfig: any,
+  confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
-  data: SecureConfirmData
+  data: SecureConfirmData,
 }): Promise<{
   confirmed: boolean;
-  confirmHandle?: {
-    element: any,
-    close: (confirmed: boolean) => void
-  };
+  confirmHandle?: { element: any, close: (confirmed: boolean) => void };
   error?: string;
 }> {
   switch (confirmationConfig.uiMode) {
-    case 'skip':
+    case 'skip': {
       // Bypass UI entirely - automatically confirm
       return { confirmed: true, confirmHandle: undefined };
+    }
 
     case 'embedded': {
       // For embedded mode, validate that the UI displayed transactions match
       // the worker-provided transactions by comparing canonical digests.
       try {
         const hostEl = document.querySelector(IFRAME_BUTTON_ID) as any;
+
+        // Apply theme to existing embedded component if theme is specified
+        if (hostEl && confirmationConfig.theme) {
+          hostEl.theme = confirmationConfig.theme;
+        }
+
         let uiDigest: string | null = null;
         if (hostEl?.requestUiIntentDigest) {
           uiDigest = await hostEl.requestUiIntentDigest();
@@ -335,34 +268,42 @@ async function determineUserConfirmUI({
 
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        // Use renderConfirmUI with autoProceed behavior
-        return await renderConfirmUI({
+        // Mount modal immediately in loading state
+        const handle = await mountIframeModalHostWithHandle({
           ctx,
           summary: transactionSummary,
           txSigningRequests: data.tx_signing_requests,
-          behavior: 'autoProceed',
-          autoProceedDelay: confirmationConfig?.autoProceedDelay
+          loading: true,
+          theme: confirmationConfig.theme
         });
+        // Wait for the specified delay before proceeding
+        const delay = confirmationConfig.autoProceedDelay ?? 1000; // Default 1 seconds if not specified
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return { confirmed: true, confirmHandle: handle };
 
       } else {
-        // Require explicit confirm with requireClick behavior
-        return await renderConfirmUI({
+        // Require click
+        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
           ctx,
           summary: transactionSummary,
           txSigningRequests: data.tx_signing_requests,
-          behavior: 'requireClick'
+          theme: confirmationConfig.theme
         });
+        return { confirmed, confirmHandle: handle };
       }
     }
 
-    default:
+    default: {
       // Fallback to modal with explicit confirm for unknown UI modes
-      return await renderConfirmUI({
+      const handle = await mountIframeModalHostWithHandle({
         ctx,
         summary: transactionSummary,
         txSigningRequests: data.tx_signing_requests,
-        behavior: 'requireClick'
+        loading: true,
+        theme: confirmationConfig.theme
       });
+      return { confirmed: true, confirmHandle: handle };
+    }
   }
 }
 
@@ -388,7 +329,7 @@ async function collectTouchIdCredentials({
     throw new Error('VRF challenge not available for credential collection');
   }
 
-  const authenticators = await ctx.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+  const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
 
   const credential = await ctx.touchIdPrompt.getCredentials({
     nearAccountId: nearAccountId,
