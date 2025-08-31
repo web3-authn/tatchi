@@ -1,6 +1,8 @@
 import { VRFChallenge } from '@/core/types/vrf-worker';
 import { TransactionInputWasm } from '../../../types';
 import { ConfirmationConfig } from '../../../types';
+import { TransactionContext } from '../../../types/rpc';
+import { RpcCallPayload } from '../../../types/signer-worker';
 
 // === SECURE CONFIRM TYPES ===
 
@@ -9,8 +11,7 @@ export interface SecureConfirmData {
   summary: string | object;
   tx_signing_requests: TransactionInputWasm[]; // Array of TransactionInputWasm objects
   intentDigest: string;
-  nearAccountId: string; // Account ID for credential lookup
-  vrfChallenge: VRFChallenge; // VRF challenge for credential generation
+  rpcCall: RpcCallPayload; // RPC parameters for NEAR operations and VRF generation
   confirmationConfig?: ConfirmationConfig; // Confirmation configuration from WASM worker
   isRegistration: boolean;
 }
@@ -45,6 +46,8 @@ export interface SecureConfirmDecision {
   confirmed: boolean;
   credential?: any; // Serialized WebAuthn credential
   prfOutput?: string; // Base64url-encoded PRF output
+  vrfChallenge?: VRFChallenge; // VRF challenge generated during confirmation
+  transactionContext?: TransactionContext; // NEAR data fetched during confirmation
   // This is a private field used to close the confirmation modal
   _confirmHandle?: { close: (confirmed: boolean) => void };
   error?: string;
@@ -67,5 +70,7 @@ export interface WorkerConfirmationResponse {
   confirmed: boolean;
   credential?: any;
   prf_output?: string;
+  vrf_challenge?: VRFChallenge;     // VRF challenge generated during confirmation
+  transaction_context?: TransactionContext; // NEAR data fetched during confirmation
   error?: string;
 }

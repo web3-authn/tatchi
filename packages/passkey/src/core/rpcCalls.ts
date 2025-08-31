@@ -19,7 +19,7 @@ import { ActionPhase } from './types/passkeyManager';
 import { ActionType } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DeviceLinkingPhase, DeviceLinkingStatus } from './types/passkeyManager';
-import { DEFAULT_WAIT_STATUS } from './types/rpc';
+import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
 
 // ===========================
 // CONTRACT CALL RESPONSES
@@ -113,7 +113,11 @@ export async function executeDeviceLinkingContractCalls({
 
   // Sign three transactions with one PRF authentication
   const signedTransactions = await context.webAuthnManager.signTransactionsWithActions({
-    nearAccountId: device1AccountId,
+    rpcCall: {
+      contractId: context.webAuthnManager.configs.contractId,
+      nearRpcUrl: context.webAuthnManager.configs.nearRpcUrl,
+      nearAccountId: device1AccountId
+    },
     transactions: [
       // Transaction 1: AddKey - Add Device2's key to Device1's account
       {
@@ -153,11 +157,6 @@ export async function executeDeviceLinkingContractCalls({
         nonce: nextNextNextNonce,
       }
     ],
-    // Common parameters
-    blockHash: txBlockHash,
-    contractId: context.webAuthnManager.configs.contractId,
-    vrfChallenge: vrfChallenge,
-    nearRpcUrl: context.webAuthnManager.configs.nearRpcUrl,
     onEvent: (progress) => {
       if (progress.phase == ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
@@ -321,4 +320,32 @@ export async function syncAuthenticatorsContractCall(
     console.warn('Failed to fetch authenticators from contract:', error.message);
     return [];
   }
+}
+
+export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {
+  nearClient: NearClient,
+  nearPublicKeyStr: string,
+  nearAccountId: AccountId
+}): Promise<TransactionContext> {
+  // Get access key and transaction block info concurrently
+  const [accessKeyInfo, txBlockInfo] = await Promise.all([
+    nearClient.viewAccessKey(nearAccountId, nearPublicKeyStr)
+      .catch(e => { throw new Error(`Failed to fetch Access Key`) }),
+    nearClient.viewBlock({ finality: 'final' })
+      .catch(e => { throw new Error(`Failed to fetch Block Info`) })
+  ]);
+  if (!accessKeyInfo || accessKeyInfo.nonce === undefined) {
+    throw new Error(`Access key not found or invalid for account ${nearAccountId} with public key ${nearPublicKeyStr}. Response: ${JSON.stringify(accessKeyInfo)}`);
+  }
+  const nextNonce = (BigInt(accessKeyInfo.nonce) + BigInt(1)).toString();
+  const txBlockHeight = String(txBlockInfo.header.height);
+  const txBlockHash = txBlockInfo.header.hash; // Keep original base58 string
+
+  return {
+    nearPublicKeyStr,
+    accessKeyInfo,
+    nextNonce,
+    txBlockHeight,
+    txBlockHash,
+  };
 }

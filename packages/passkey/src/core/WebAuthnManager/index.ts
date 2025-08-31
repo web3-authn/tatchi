@@ -22,7 +22,7 @@ import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyMa
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import type { ConfirmationConfig } from '../types/signer-worker';
+import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 
 
 /**
@@ -40,7 +40,7 @@ export class WebAuthnManager {
   private readonly touchIdPrompt: TouchIdPrompt;
   readonly configs: PasskeyManagerConfigs;
 
-  constructor(configs: PasskeyManagerConfigs) {
+  constructor(configs: PasskeyManagerConfigs, nearClient: NearClient) {
     // Group VRF worker configuration into a single object
     this.vrfWorkerManager = new VrfWorkerManager({
       shamirPB64u: configs.vrfWorkerConfigs?.shamir3pass?.p,
@@ -48,7 +48,7 @@ export class WebAuthnManager {
       applyServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
       removeServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
-    this.signerWorkerManager = new SignerWorkerManager();
+    this.signerWorkerManager = new SignerWorkerManager(this.vrfWorkerManager, nearClient);
     this.touchIdPrompt = new TouchIdPrompt();
     this.configs = configs;
 
@@ -448,15 +448,7 @@ export class WebAuthnManager {
   }
 
   /**
-   * Export private key using PRF-based decryption
-   * Requires TouchId
-   *
-   * SECURITY MODEL: Local random challenge is sufficient for private key export because:
-   * - User must possess physical authenticator device
-   * - Device enforces biometric/PIN verification before PRF access
-   * - No network communication or replay attack surface
-   * - Challenge only needs to be random to prevent pre-computation
-   * - Security comes from device possession + biometrics, not challenge validation
+   * Export private key using PRF-based decryption. Requires TouchId
    */
   async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<{
     accountId: string,
@@ -499,33 +491,24 @@ export class WebAuthnManager {
    * Automatically verifies the authentication with the web3authn contract.
    *
    * @param transactions - Transaction payload containing:
-   *   - nearAccountId: NEAR account ID performing the transaction
    *   - receiverId: NEAR account ID receiving the transaction
    *   - actions: Array of NEAR actions to execute
-   *   - nonce: Transaction nonce
-   * @param blockHashBytes: Recent block hash for transaction freshness
-   * @param contractId: Web3Authn contract ID for verification
-   * @param vrfChallenge: VRF challenge used in authentication
-   * @param credential: WebAuthn credential from TouchID prompt
+   * @param rpcCall: RpcCallPayload containing:
+   *   - contractId: Web3Authn contract ID for verification
+   *   - nearRpcUrl: NEAR RPC endpoint URL
+   *   - nearAccountId: NEAR account ID performing the transaction
+   * @param confirmationConfigOverride: Optional confirmation configuration override
+   * @param onEvent: Optional callback for progress updates during signing
    * @param onEvent - Optional callback for progress updates during signing
    */
   async signTransactionsWithActions({
     transactions,
-    nearAccountId,
-    blockHash,
-    contractId,
-    vrfChallenge,
-    nearRpcUrl,
-    onEvent,
+    rpcCall,
     confirmationConfigOverride,
+    onEvent,
   }: {
     transactions: TransactionInputWasm[],
-    // Common parameters for all transactions
-    nearAccountId: AccountId,
-    blockHash: string,
-    contractId: string,
-    vrfChallenge: VRFChallenge,
-    nearRpcUrl: string,
+    rpcCall: RpcCallPayload,
     confirmationConfigOverride?: ConfirmationConfig,
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<VerifyAndSignTransactionResult[]> {
@@ -535,11 +518,7 @@ export class WebAuthnManager {
     }
     return await this.signerWorkerManager.signTransactionsWithActions({
       transactions,
-      nearAccountId,
-      blockHash,
-      contractId,
-      vrfChallenge,
-      nearRpcUrl,
+      rpcCall,
       confirmationConfigOverride,
       onEvent,
     });
@@ -581,7 +560,7 @@ export class WebAuthnManager {
     }
   }
 
-  // === COSE OPERATIONS (Delegated to WebAuthnWorkers) ===
+  // === COSE OPERATIONS ===
 
   /**
    * Extract COSE public key from WebAuthn attestation object using WASM worker
@@ -604,7 +583,7 @@ export class WebAuthnManager {
     contractId: string,
     credential: PublicKeyCredential,
     vrfChallenge: VRFChallenge,
-    authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
+    authenticatorOptions?: AuthenticatorOptions;
     onEvent?: (update: onProgressEvents) => void
   }): Promise<{
     success: boolean;

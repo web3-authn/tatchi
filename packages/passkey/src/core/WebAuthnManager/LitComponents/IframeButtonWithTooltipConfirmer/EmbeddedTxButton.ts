@@ -263,6 +263,16 @@ export class EmbeddedTxButton extends LitElementWithProps {
       transition-delay: 150ms;
     }
 
+    .tooltip-container {
+      position: relative;
+      border: 1px solid transparent;
+      border-radius: 16px;
+      margin: 8px;
+      height: calc(100% - 2px); /* 2px for border: top and bottom */
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    }
+
     .gradient-border {
       /* Thicker, subtle monochrome animated border */
       --border-angle: 0deg;
@@ -275,13 +285,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
           rgba(0, 0, 0, 0.5) 75%,
           rgba(0, 0, 0, 0.1) 100%
         ) border-box;
-      border: 1px solid transparent;
-      border-radius: 16px;
-      margin: 8px;
-      height: calc(100% - 2px); /* 2px for border: top and bottom */
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-      position: relative;
       animation: border-angle-rotate 4s infinite linear;
     }
 
@@ -877,7 +880,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          <div class="gradient-border">
+          <div class="tooltip-container gradient-border">
             <tooltip-tx-tree
               .node=${tree}
               .depth=${0}

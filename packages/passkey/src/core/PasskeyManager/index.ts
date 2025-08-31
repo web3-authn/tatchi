@@ -84,7 +84,7 @@ export class PasskeyManager {
     this.configs = configs;
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
-    this.webAuthnManager = new WebAuthnManager(configs);
+    this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
   }
 

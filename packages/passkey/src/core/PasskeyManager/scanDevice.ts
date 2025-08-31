@@ -1,7 +1,6 @@
 import type { PasskeyManagerContext } from './index';
 import { validateNearAccountId } from '../../utils/validation';
 import { getLoginState } from './login';
-import { getNonceBlockHashAndHeight } from './actions';
 import type { VRFInputData } from '../types/vrf-worker';
 import type {
   DeviceLinkingQRData,
@@ -11,7 +10,7 @@ import type {
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DEVICE_LINKING_CONFIG } from '../../config.js';
-import { executeDeviceLinkingContractCalls } from '../rpcCalls';
+import { executeDeviceLinkingContractCalls, getNonceBlockHashAndHeight } from '../rpcCalls';
 
 /**
  * Device1 (original device): Link device using pre-scanned QR data

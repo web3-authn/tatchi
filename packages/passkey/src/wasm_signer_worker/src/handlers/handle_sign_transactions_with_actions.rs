@@ -24,7 +24,6 @@ use crate::types::{
     WebAuthnAuthenticationCredential,
     WebAuthnAuthenticationCredentialStruct,
     SignedTransaction,
-    VerificationPayload,
     DecryptionPayload,
     progress::{
         ProgressMessageType,
@@ -33,7 +32,7 @@ use crate::types::{
         send_completion_message,
         send_error_message
     },
-    handlers::ConfirmationConfig,
+    handlers::{ConfirmationConfig, TransactionContext, RpcCallPayload},
     wasm_to_json::WasmSignedTransaction,
 };
 use crate::handlers::confirm_tx_details::{request_user_confirmation, ConfirmationResult};
@@ -43,8 +42,8 @@ use crate::handlers::confirm_tx_details::{request_user_confirmation, Confirmatio
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignTransactionsWithActionsRequest {
-    #[wasm_bindgen(getter_with_clone)]
-    pub verification: VerificationPayload,
+    #[wasm_bindgen(getter_with_clone, js_name = "rpcCall")]
+    pub rpc_call: RpcCallPayload,
     #[wasm_bindgen(getter_with_clone)]
     pub decryption: DecryptionPayload,
     #[wasm_bindgen(getter_with_clone, js_name = "txSigningRequests")]
@@ -66,10 +65,6 @@ pub struct TransactionPayload {
     // WASM does not support complex Enums, so it's passed in as a JSON string
     #[wasm_bindgen(getter_with_clone, js_name = "actions")]
     pub actions: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "nonce")]
-    pub nonce: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "blockHash")]
-    pub block_hash: String,
 }
 
 impl TransactionPayload {
@@ -275,11 +270,12 @@ pub async fn handle_sign_transactions_with_actions(
         Some(&serde_json::json!({"step": 2, "total": 4}).to_string())
     );
 
-    let vrf_challenge = tx_batch_request
-        .verification
-        .vrf_challenge
+    // VRF challenge is now generated in the main thread confirmation flow
+    // and passed via the confirmation result
+    let vrf_challenge = confirmation_result_opt
         .as_ref()
-        .ok_or_else(|| "Missing vrfChallenge in verification".to_string())?;
+        .and_then(|r| r.vrf_challenge.clone())
+        .ok_or_else(|| "Missing VRF challenge from confirmation result".to_string())?;
 
     // Get credential from confirmation result (mandatory now)
     let credential_json_value = confirmation_result_opt
@@ -307,7 +303,7 @@ pub async fn handle_sign_transactions_with_actions(
     };
 
     // Step 3: Contract verification using confirmed credentials (if preConfirm) or provided ones
-    logs.push(format!("Starting contract verification for {}", tx_batch_request.verification.contract_id));
+    logs.push(format!("Starting contract verification for {}", tx_batch_request.rpc_call.contract_id));
 
     // Send verification progress
     send_progress_message(
@@ -318,14 +314,14 @@ pub async fn handle_sign_transactions_with_actions(
     );
 
     // Convert structured types
-    let vrf_data = VrfData::try_from(vrf_challenge)
+    let vrf_data = VrfData::try_from(&vrf_challenge)
         .map_err(|e| format!("Failed to convert VRF data: {:?}", e))?;
     let webauthn_auth = WebAuthnAuthenticationCredential::from(&credential);
 
     // Perform contract verification once for the entire batch
     let verification_result = match verify_authentication_response_rpc_call(
-        &tx_batch_request.verification.contract_id,
-        &tx_batch_request.verification.near_rpc_url,
+        &tx_batch_request.rpc_call.contract_id,
+        &tx_batch_request.rpc_call.near_rpc_url,
         vrf_data,
         webauthn_auth,
     ).await {
@@ -404,9 +400,13 @@ pub async fn handle_sign_transactions_with_actions(
 
     // Process all transactions using the shared verification and decryption
     let tx_count = tx_batch_request.tx_signing_requests.len();
+    let confirmation_result = confirmation_result_opt
+        .as_ref()
+        .ok_or_else(|| "Confirmation result not available".to_string())?;
     let result = sign_near_transactions_with_actions_impl(
         tx_batch_request.tx_signing_requests,
         &decryption,
+        confirmation_result,
         logs,
     ).await?;
 
@@ -442,6 +442,7 @@ pub async fn handle_sign_transactions_with_actions(
 async fn sign_near_transactions_with_actions_impl(
     tx_requests: Vec<TransactionPayload>,
     decryption: &Decryption,
+    confirmation_result: &ConfirmationResult,
     mut logs: Vec<String>,
 ) -> Result<TransactionSignResult, String> {
 
@@ -471,6 +472,11 @@ async fn sign_near_transactions_with_actions_impl(
     ).map_err(|e| format!("Decryption failed: {}", e))?;
 
     logs.push("Private key decrypted successfully".to_string());
+
+    // Process NEAR data from confirmation result
+    let transaction_context = confirmation_result.transaction_context
+        .as_ref()
+        .ok_or_else(|| "Missing transaction context from confirmation".to_string())?;
 
     // Process each transaction
     let mut signed_transactions_wasm = Vec::new();
@@ -508,8 +514,8 @@ async fn sign_near_transactions_with_actions_impl(
         let transaction = match build_transaction_with_actions(
             &tx_data.near_account_id,
             &tx_data.receiver_id,
-            tx_data.nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
-            &bs58::decode(&tx_data.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
+            transaction_context.next_nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
+            &bs58::decode(&transaction_context.tx_block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
             &signing_key,
             actions,
         ) {

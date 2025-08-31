@@ -2,7 +2,7 @@ import type { PasskeyManagerContext } from './index';
 import type { BaseHooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
-import { getNonceBlockHashAndHeight } from './actions';
+import { getNonceBlockHashAndHeight } from '../rpcCalls';
 
 /**
  * NEP-413 message signing parameters

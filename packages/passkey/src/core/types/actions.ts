@@ -10,7 +10,7 @@ export interface TransactionInput {
 export interface TransactionInputWasm {
   receiverId: string;
   actions: ActionArgsWasm[],
-  nonce: string;
+  nonce?: string; // Optional - computed in confirmation flow if not provided
 }
 
 /**

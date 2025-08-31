@@ -78,6 +78,8 @@ export function awaitSecureConfirmation(
           confirmed: !!data.data?.confirmed,
           credential: data.data?.credential,
           prf_output: data.data?.prfOutput,
+          vrf_challenge: data.data?.vrfChallenge,           // VRF challenge from confirmation flow
+          transaction_context: data.data?.transactionContext, // NEAR data from confirmation flow
           error: data.data?.error
         });
       }
@@ -91,8 +93,7 @@ export function awaitSecureConfirmation(
         requestId: requestId,
         summary: parsedSummary,
         intentDigest: parsedConfirmationData?.intentDigest,
-        nearAccountId: parsedConfirmationData?.nearAccountId,
-        vrfChallenge: parsedConfirmationData?.vrfChallenge,
+        rpcCall: parsedConfirmationData?.rpcCall,
         tx_signing_requests: parsedTxSigningRequests,
         confirmationConfig: parsedConfirmationData?.confirmationConfig
       }

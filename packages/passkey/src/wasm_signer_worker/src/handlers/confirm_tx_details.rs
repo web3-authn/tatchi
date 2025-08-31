@@ -44,6 +44,8 @@ pub struct ConfirmationResult {
     pub intent_digest: String,
     pub credential: Option<serde_json::Value>, // Serialized WebAuthn credential (JSON)
     pub prf_output: Option<String>, // Base64url-encoded PRF output for decryption
+    pub vrf_challenge: Option<crate::types::VrfChallenge>, // VRF challenge generated in main thread
+    pub transaction_context: Option<crate::types::handlers::TransactionContext>, // NEAR data from main thread
     pub error: Option<String>, // Error message if confirmation failed
 }
 
@@ -316,7 +318,7 @@ pub async fn request_user_confirmation_with_config(
             let confirmation_data = serde_json::json!({
                 "intentDigest": intent_digest,
                 "nearAccountId": near_account_id,
-                "vrfChallenge": tx_batch_request.verification.vrf_challenge,
+                "rpcCall": tx_batch_request.rpc_call,
                 "confirmationConfig": Some(normalized_config),
                 "isRegistration": false, // not registration flow
             });
@@ -387,7 +389,7 @@ pub async fn request_user_confirmation_with_config(
     let confirmation_data = serde_json::json!({
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
-        "vrfChallenge": tx_batch_request.verification.vrf_challenge,
+        "rpcCall": tx_batch_request.rpc_call,
         "confirmationConfig": normalized_config,
         "isRegistration": false, // not registration flow
     });

@@ -1,5 +1,5 @@
 
-import { SignedTransaction, type NearClient } from '../../NearClient';
+import { MinimalNearClient, SignedTransaction, type NearClient } from '../../NearClient';
 import { ClientAuthenticatorData, PasskeyClientDBManager } from '../../IndexedDBManager';
 import { PasskeyNearKeysDBManager } from '../../IndexedDBManager/passkeyNearKeysDB';
 import { TouchIdPrompt } from "../touchIdPrompt";
@@ -15,6 +15,7 @@ import {
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
 import { VRFChallenge } from '../../types/vrf-worker';
+import { VrfWorkerManager } from '../VrfWorkerManager';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
 import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
@@ -41,6 +42,7 @@ import {
   SecureConfirmData,
   handlePromptUserConfirmInJsMainThread,
 } from './confirmTxFlow';
+import { RpcCallPayload } from '../../types/signer-worker';
 
 
 export interface SignerWorkerManagerContext {
@@ -49,6 +51,8 @@ export interface SignerWorkerManagerContext {
   confirmationConfig: ConfirmationConfig;
   currentUserAccountId: string | null;
   nearKeysDB: PasskeyNearKeysDBManager;
+  nearClient: NearClient;
+  vrfWorkerManager?: VrfWorkerManager;
   sendMessage: <T extends WorkerRequestType>(args: {
     message: {
       type: T;
@@ -70,6 +74,8 @@ export class SignerWorkerManager {
   private nearKeysDB: PasskeyNearKeysDBManager;
   private clientDB: PasskeyClientDBManager;
   private touchIdPrompt: TouchIdPrompt;
+  private vrfWorkerManager: VrfWorkerManager;
+  private nearClient: NearClient;
 
   /** Default confirmation configs (if user settings are unset */
   private confirmationConfig: ConfirmationConfig = {
@@ -80,10 +86,12 @@ export class SignerWorkerManager {
 
   private currentUserAccountId: string | null = null;
 
-  constructor() {
+  constructor(vrfWorkerManager: VrfWorkerManager, nearClient: NearClient) {
     this.nearKeysDB = new PasskeyNearKeysDBManager();
     this.clientDB = new PasskeyClientDBManager();
     this.touchIdPrompt = new TouchIdPrompt();
+    this.vrfWorkerManager = vrfWorkerManager;
+    this.nearClient = nearClient;
   }
 
   private getContext(): SignerWorkerManagerContext {
@@ -94,6 +102,8 @@ export class SignerWorkerManager {
       touchIdPrompt: this.touchIdPrompt,
       confirmationConfig: this.confirmationConfig,
       currentUserAccountId: this.currentUserAccountId,
+      vrfWorkerManager: this.vrfWorkerManager,
+      nearClient: this.nearClient,
     };
   }
 
@@ -386,13 +396,9 @@ export class SignerWorkerManager {
    */
   async signTransactionsWithActions(args: {
     transactions: TransactionInputWasm[],
-    nearAccountId: AccountId,
-    blockHash: string;
-    contractId: string;
-    vrfChallenge: VRFChallenge;
-    nearRpcUrl: string;
-    onEvent?: (update: onProgressEvents) => void;
-    confirmationConfigOverride?: ConfirmationConfig;
+    rpcCall: RpcCallPayload,
+    onEvent?: (update: onProgressEvents) => void,
+    confirmationConfigOverride?: ConfirmationConfig,
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
     nearAccountId: AccountId;

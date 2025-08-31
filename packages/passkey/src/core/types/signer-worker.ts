@@ -10,6 +10,16 @@ import { StripFree } from ".";
 import type { onProgressEvents } from "./passkeyManager";
 
 export type TransactionPayload = StripFree<wasmModule.TransactionPayload>;
+export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
+/**
+ * RPC call parameters for NEAR operations and VRF generation
+ * Used to pass essential parameters for background operations
+ * export interface RpcCallPayload {
+ *    contractId: string;    // Web3Authn contract ID for verification
+ *    nearRpcUrl: string;    // NEAR RPC endpoint URL
+ *    nearAccountId: string; // Account ID for VRF challenge generation
+ * }
+ */
 
 // === WORKER REQUEST TYPE MAPPING ===
 // Define the complete type mapping for each worker request

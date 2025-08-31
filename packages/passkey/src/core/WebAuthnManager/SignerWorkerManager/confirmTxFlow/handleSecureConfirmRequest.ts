@@ -3,7 +3,6 @@ import {
   serializeRegistrationCredentialWithPRF,
   serializeAuthenticationCredentialWithPRF,
 } from '../../credentialsHelpers';
-import { VRFChallenge } from '../../../types/vrf-worker';
 import type { SignerWorkerManagerContext } from '../index';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import {
@@ -13,9 +12,10 @@ import {
   SecureConfirmMessageType,
   SecureConfirmData,
 } from './types';
-import { TransactionInputWasm } from '../../../types';
+import { TransactionContext, TransactionInputWasm } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
-import { awaitIframeModalDecision, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
+import { getNonceBlockHashAndHeight } from '../../../rpcCalls';
+import { awaitIframeModalDecisionWithHandle, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 
 /**
@@ -31,64 +31,142 @@ export async function handlePromptUserConfirmInJsMainThread(
   },
   worker: Worker
 ): Promise<void> {
-  try {
-    // 1. Validate and parse request
-    const {
-      data,
-      summary,
-      confirmationConfig,
-      transactionSummary
-    } = validateAndParseRequest({ ctx, message });
+  // 1. Validate and parse request
+  const {
+    data,
+    summary,
+    confirmationConfig,
+    transactionSummary
+  } = validateAndParseRequest({ ctx, message });
 
-    // 2. Determine user confirmation parameters
-  const { confirmed, confirmHandle, error: uiError } = await determineUserConfirmUI({
-      ctx,
-      confirmationConfig,
-      transactionSummary,
-      data,
-    });
+  // 2. Start NEAR RPC calls and modal display in parallel
+  const [userConfirmResult, nearRpcResult] = await Promise.all([
+    // Modal display (fast)
+    determineUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data }),
+    // NEAR RPC calls (slow, but parallel)
+    performNearRpcCalls(ctx, data)
+  ]);
 
-    // 3. Create initial decision
-    let decision: SecureConfirmDecision = {
+  const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
+
+  // 3. If user rejected (confirmed === false), exit early
+  if (!confirmed) {
+    closeModalSafely(confirmHandle, false);
+    sendWorkerResponse(worker, {
       requestId: data.requestId,
       intentDigest: data.intentDigest,
-      confirmed: confirmed,
-      _confirmHandle: confirmHandle
-      // Store confirm handle for later cleanup
-    };
+      confirmed: false,
+      error: uiError
+    });
+    return;
+  }
 
-    // 4. If user rejected (confirmed === false), exit early and do NOT prompt Touch ID
-    if (!confirmed) {
-      worker.postMessage({
-        type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-        data: { ...decision, error: uiError }
-      });
-      return;
-    }
+  // 4. If NEAR RPC failed, return error
+  if (nearRpcResult.error || !nearRpcResult.transactionContext) {
+    sendWorkerResponse(worker, {
+      requestId: data.requestId,
+      intentDigest: data.intentDigest,
+      confirmed: false,
+      error: `Failed to fetch NEAR data: ${nearRpcResult.details}`
+    });
+    return;
+  }
 
-    // 5. Collect credentials and PRF output (only if confirmed)
-    let { decisionWithCredentials } = await collectTouchIdCredentials({
+  const transactionContext = nearRpcResult.transactionContext;
+
+  // 5. Generate VRF challenge with NEAR data
+  if (!ctx.vrfWorkerManager) {
+    throw new Error('VrfWorkerManager not available in context');
+  }
+  const vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
+    userId: data.rpcCall.nearAccountId,
+    rpId: window.location.hostname,
+    blockHeight: transactionContext.txBlockHeight,
+    blockHash: transactionContext.txBlockHash,
+  });
+
+  // 6. Create decision with generated data
+  const decision: SecureConfirmDecision = {
+    requestId: data.requestId,
+    intentDigest: data.intentDigest,
+    confirmed: true,
+    vrfChallenge, // Generated here
+    transactionContext: transactionContext, // Generated here
+    _confirmHandle: { close: () => {} } // No-op since modal is already handled
+  };
+
+  // 7. Collect credentials using generated VRF challenge
+  let decisionWithCredentials: SecureConfirmDecision;
+  let touchIdSuccess = false;
+
+  try {
+    const result = await collectTouchIdCredentials({
       ctx,
       data,
       decision,
     });
+    decisionWithCredentials = result.decisionWithCredentials;
+    touchIdSuccess = decisionWithCredentials?.confirmed ?? false;
+  } catch (touchIdError) {
+    console.error('[SignerWorkerManager]: Failed to collect credentials:', touchIdError);
+    const isCancelled = touchIdError instanceof DOMException &&
+      (touchIdError.name === 'NotAllowedError' || touchIdError.name === 'AbortError');
 
-    // 6. Send confirmation response back to wasm-signer-worker
-    worker.postMessage({
-      type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-      data: decisionWithCredentials
+    if (isCancelled) {
+      console.log('[SignerWorkerManager]: User cancelled secure confirm request');
+    }
+
+    decisionWithCredentials = {
+      ...decision,
+      confirmed: false,
+      error: isCancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials'
+    };
+    touchIdSuccess = false;
+  } finally {
+    // Always close the modal after TouchID attempt (success or failure)
+    closeModalSafely(confirmHandle, touchIdSuccess);
+  }
+
+  // 8. Send confirmation response back to wasm-signer-worker
+  sendWorkerResponse(worker, decisionWithCredentials);
+}
+
+/**
+ * Performs NEAR RPC call to get nonce, block hash and height
+ */
+async function performNearRpcCalls(
+  ctx: SignerWorkerManagerContext,
+  data: SecureConfirmData
+): Promise<{
+  transactionContext: TransactionContext | null;
+  error?: string;
+  details?: string;
+}> {
+  try {
+    const nearAccountId = data.rpcCall.nearAccountId;
+    const nearClient = ctx.nearClient;
+    const userData = await ctx.clientDB.getUser(toAccountId(nearAccountId));
+    const nearPublicKeyStr = userData?.clientNearPublicKey;
+    if (!nearPublicKeyStr) {
+      throw new Error('Client NEAR public key not found in user data');
+    }
+    const transactionContext = await getNonceBlockHashAndHeight({
+      nearClient,
+      nearPublicKeyStr,
+      nearAccountId: toAccountId(data.rpcCall.nearAccountId)
     });
-
+    console.log("finished fetching tx context")
+    return {
+      transactionContext,
+      error: undefined,
+      details: undefined
+    }
   } catch (error) {
-    // Send error response
-    worker.postMessage({
-      type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-      data: {
-        requestId: message.data?.requestId || 'unknown',
-        intentDigest: message.data?.intentDigest,
-        confirmed: false
-      } as SecureConfirmDecision
-    });
+    return {
+      transactionContext: null,
+      error: 'NEAR_RPC_FAILED',
+      details: error instanceof Error ? error.message : String(error)
+    };
   }
 }
 
@@ -123,19 +201,26 @@ async function renderConfirmUI({
 
     case 'modal': {
       if (behavior === 'autoProceed') {
+        // Mount modal immediately in loading state
         const handle = await mountIframeModalHostWithHandle({
           ctx,
           summary,
           txSigningRequests,
           loading: true
         });
-        if (autoProceedDelay) {
-          await new Promise(resolve => setTimeout(resolve, autoProceedDelay));
-        }
+        // Wait for the specified delay before proceeding
+        const delay = autoProceedDelay ?? 1000; // Default 1 seconds if not specified
+        await new Promise(resolve => setTimeout(resolve, delay));
         return { confirmed: true, confirmHandle: handle };
+
       } else {
-        const confirmed = await awaitIframeModalDecision({ ctx, summary, txSigningRequests });
-        return { confirmed, confirmHandle: undefined };
+        // Require click
+        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
+          ctx,
+          summary,
+          txSigningRequests,
+        });
+        return { confirmed, confirmHandle: handle };
       }
     }
 
@@ -188,13 +273,8 @@ function validateAndParseRequest({ ctx, message }: {
     fingerprint: data.intentDigest
   };
 
-  // NOTE: postMessage strips the prototype and so the VrfChallenge object arrives
-  // in handleSecureConfirmRequest as a plain object
-  // We ensure it's properly typed as a VRFChallenge object
-  const vrfChallenge: VRFChallenge = data.vrfChallenge;
-
   return {
-    data: { ...data, vrfChallenge },
+    data,
     summary,
     confirmationConfig,
     transactionSummary
@@ -265,7 +345,7 @@ async function determineUserConfirmUI({
         });
 
       } else {
-        // Require explicit confirm (requireClick behavior)
+        // Require explicit confirm with requireClick behavior
         return await renderConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -298,76 +378,53 @@ async function collectTouchIdCredentials({
   data: SecureConfirmData,
   decision: SecureConfirmDecision,
 }): Promise<{ decisionWithCredentials: SecureConfirmDecision }> {
+  const nearAccountId = data.rpcCall?.nearAccountId || (data as any).nearAccountId;
+  const vrfChallenge = decision.vrfChallenge; // Now comes from confirmation flow
 
-  const nearAccountId = data.nearAccountId;
-  const vrfChallenge = data.vrfChallenge;
-
-  try {
-    const authenticators = await ctx.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
-
-    const credential = await ctx.touchIdPrompt.getCredentials({
-      nearAccountId: nearAccountId,
-      challenge: vrfChallenge,
-      authenticators: authenticators,
-    });
-
-    // Extract PRF output for decryption (registration needs both PRF outputs)
-    const dualPrfOutputs = extractPrfFromCredential({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: data.isRegistration, // Registration needs second PRF output
-    });
-
-    if (!dualPrfOutputs.chacha20PrfOutput) {
-      throw new Error('Failed to extract PRF output from credential');
-    }
-
-    // Serialize credential for WASM worker (use appropriate serializer based on flow type)
-    const serializedCredential = data.isRegistration
-      ? serializeRegistrationCredentialWithPRF({
-          credential,
-          firstPrfOutput: true,
-          secondPrfOutput: true
-        })
-      : serializeAuthenticationCredentialWithPRF({ credential });
-
-    return {
-      decisionWithCredentials: {
-        ...decision,
-        credential: serializedCredential,
-        prfOutput: dualPrfOutputs.chacha20PrfOutput,
-        confirmed: true,
-        _confirmHandle: undefined,
-      }
-    }
-
-  } catch (credentialError) {
-    console.error('[SignerWorkerManager]: Failed to collect credentials:', credentialError);
-    const isDom = credentialError instanceof DOMException;
-    const cancelled = isDom && (credentialError.name === 'NotAllowedError' || credentialError.name === 'AbortError');
-    if (cancelled) {
-      console.log('[SignerWorkerManager]: User cancelled secure confirm request');
-    } else {
-      console.error('[SignerWorkerManager]: Failed to handle secure confirm request:', credentialError);
-    }
-    // If credential collection fails, reject the transaction
-    return {
-      decisionWithCredentials: {
-        ...decision,
-        confirmed: false,
-        _confirmHandle: undefined,
-        error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials'
-      }
-    }
-
-  } finally {
-    // If we auto-mounted the modal for context, close it now
-    const confirmHandle = decision._confirmHandle;
-    if (confirmHandle) {
-      try { confirmHandle.close(true); } catch (e: any) { console.error(e) }
-      decision._confirmHandle = undefined;
-    }
+  if (!nearAccountId) {
+    throw new Error('nearAccountId not available for credential collection');
   }
+  if (!vrfChallenge) {
+    throw new Error('VRF challenge not available for credential collection');
+  }
+
+  const authenticators = await ctx.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+
+  const credential = await ctx.touchIdPrompt.getCredentials({
+    nearAccountId: nearAccountId,
+    challenge: vrfChallenge,
+    authenticators: authenticators,
+  });
+
+  // Extract PRF output for decryption (registration needs both PRF outputs)
+  const dualPrfOutputs = extractPrfFromCredential({
+    credential,
+    firstPrfOutput: true,
+    secondPrfOutput: data.isRegistration, // Registration needs second PRF output
+  });
+
+  if (!dualPrfOutputs.chacha20PrfOutput) {
+    throw new Error('Failed to extract PRF output from credential');
+  }
+
+  // Serialize credential for WASM worker (use appropriate serializer based on flow type)
+  const serializedCredential = data.isRegistration
+    ? serializeRegistrationCredentialWithPRF({
+        credential,
+        firstPrfOutput: true,
+        secondPrfOutput: true
+      })
+    : serializeAuthenticationCredentialWithPRF({ credential });
+
+  return {
+    decisionWithCredentials: {
+      ...decision,
+      credential: serializedCredential,
+      prfOutput: dualPrfOutputs.chacha20PrfOutput,
+      confirmed: true,
+      _confirmHandle: undefined,
+    }
+  };
 }
 
 /**
@@ -390,4 +447,28 @@ function parseTransactionSummary(summaryData: string | object | undefined): any 
   }
   console.warn('[SignerWorkerManager]: Unexpected summary data type:', typeof summaryData);
   return {};
+}
+
+/**
+ * Safely closes modal with error handling
+ */
+function closeModalSafely(confirmHandle: any, confirmed: boolean): void {
+  if (confirmHandle?.close) {
+    try {
+      confirmHandle.close(confirmed);
+      console.log('[SecureConfirm] Modal closed safely');
+    } catch (modalError) {
+      console.warn('[SecureConfirm] Error closing modal:', modalError);
+    }
+  }
+}
+
+/**
+ * Sends response to worker with consistent message format
+ */
+function sendWorkerResponse(worker: Worker, responseData: any): void {
+  worker.postMessage({
+    type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
+    data: responseData
+  });
 }

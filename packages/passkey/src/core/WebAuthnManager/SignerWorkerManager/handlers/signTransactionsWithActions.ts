@@ -8,10 +8,10 @@ import {
   ConfirmationConfig,
   isSignTransactionsWithActionsSuccess,
 } from '../../../types/signer-worker';
-import { VRFChallenge } from '../../../types/vrf-worker';
 import { AccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
-
+import { RpcCallPayload } from '../../../types/signer-worker';
+import { toAccountId } from '../../../types/accountIds';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -19,22 +19,14 @@ import { SignerWorkerManagerContext } from '..';
  */
 export async function signTransactionsWithActions({
   ctx,
-  nearAccountId,
   transactions,
-  blockHash,
-  contractId,
-  vrfChallenge,
-  nearRpcUrl,
+  rpcCall,
   onEvent,
   confirmationConfigOverride
 }: {
   ctx: SignerWorkerManagerContext,
-  nearAccountId: AccountId,
   transactions: TransactionInputWasm[],
-  blockHash: string;
-  contractId: string;
-  vrfChallenge: VRFChallenge;
-  nearRpcUrl: string;
+  rpcCall: RpcCallPayload;
   onEvent?: (update: onProgressEvents) => void;
   confirmationConfigOverride?: ConfirmationConfig;
 }): Promise<Array<{
@@ -48,6 +40,9 @@ export async function signTransactionsWithActions({
     if (transactions.length === 0) {
       throw new Error('No transactions provided for batch signing');
     }
+
+    // Extract nearAccountId from rpcCall
+    const nearAccountId = rpcCall.nearAccountId;
 
     // Validate all actions in all payloads
     transactions.forEach((txPayload, txIndex) => {
@@ -70,12 +65,11 @@ export async function signTransactionsWithActions({
     // Credentials and PRF outputs are collected during user confirmation handshake
 
     // Create transaction signing requests
+    // NOTE: nonce and blockHash are computed in confirmation flow, not here
     const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
-      nearAccountId: nearAccountId,
+      nearAccountId: rpcCall.nearAccountId,
       receiverId: tx.receiverId,
-      actions: JSON.stringify(tx.actions),
-      nonce: tx.nonce,
-      blockHash: blockHash
+      actions: JSON.stringify(tx.actions)
     }));
 
     // Send batch signing request to WASM worker
@@ -83,11 +77,7 @@ export async function signTransactionsWithActions({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
-          verification: {
-            contractId: contractId,
-            nearRpcUrl: nearRpcUrl,
-            vrfChallenge: vrfChallenge,
-          },
+          rpcCall: rpcCall,
           decryption: {
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
             encryptedPrivateKeyIv: encryptedKeyData.iv
@@ -131,7 +121,7 @@ export async function signTransactionsWithActions({
           signature: signedTx.signature,
           borsh_bytes: Array.from(signedTx.borshBytes || [])
         }),
-        nearAccountId: nearAccountId,
+        nearAccountId: toAccountId(nearAccountId),
         logs: response.payload.logs
       };
     });

@@ -4,7 +4,7 @@ import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { generateBootstrapVrfChallenge } from './registration';
-import { getNonceBlockHashAndHeight } from './actions';
+import { getNonceBlockHashAndHeight } from '../rpcCalls';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 

@@ -1,7 +1,7 @@
 
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../../config";
 import { SignedTransaction, type NearClient } from '../../../NearClient';
-import { getNonceBlockHashAndHeight } from "../../../PasskeyManager/actions";
+import { getNonceBlockHashAndHeight } from "../../../rpcCalls";
 import { WorkerRequestType, isSignVerifyAndRegisterUserSuccess } from '../../../types/signer-worker';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
 import { VRFChallenge } from '../../../types/vrf-worker';

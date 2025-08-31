@@ -1,30 +1,16 @@
 // Import types and components needed for mount functions
 import { TransactionInputWasm } from '../../types';
-import {
-  ModalTxConfirmElement,
-  activeResolvers,
-  type ConfirmRenderMode,
-  type ConfirmVariant,
-  type SecureTxSummary,
-} from './ModalTxConfirmElement';
 import { IFRAME_MODAL_ID } from './IframeButtonWithTooltipConfirmer/tags';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 
-// Granular exports for ModalTxConfirmElement
-export {
-  ModalTxConfirmElement,
-  activeResolvers
-} from './ModalTxConfirmElement';
-
+export { ModalTxConfirmElement } from './IframeModalConfirmer/ModalTxConfirmer';
 export type {
   ConfirmRenderMode,
   ConfirmVariant,
   SecureTxSummary,
   TxAction,
-} from './ModalTxConfirmElement';
-
-// (Deprecated) Legacy direct modal mounts removed in favor of iframe-hosted modal
+} from './IframeModalConfirmer/ModalTxConfirmer';
 
 // ========= Iframe Modal helpers =========
 
@@ -73,7 +59,7 @@ export async function mountIframeModalHostWithHandle({
   return { element: el, close };
 }
 
-export async function awaitIframeModalDecision({
+export async function awaitIframeModalDecisionWithHandle({
   ctx,
   summary,
   txSigningRequests,
@@ -81,7 +67,10 @@ export async function awaitIframeModalDecision({
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
-}): Promise<boolean> {
+}): Promise<{
+  confirmed: boolean;
+  handle: { element: any; close: (confirmed: boolean) => void }
+}> {
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
     const el = document.createElement(IFRAME_MODAL_ID) as any;
@@ -92,14 +81,28 @@ export async function awaitIframeModalDecision({
     const onConfirm = (e: any) => {
       cleanup();
       const ok = !!(e?.detail?.confirmed);
-      resolve(ok);
+      resolve({
+        confirmed: ok,
+        handle: {
+          element: el,
+          close: (_confirmed: boolean) => { try { el.remove(); } catch {} }
+        }
+      });
     };
-    const onCancel = () => { cleanup(); resolve(false); };
+    const onCancel = () => {
+      cleanup();
+      resolve({
+        confirmed: false,
+        handle: {
+          element: el,
+          close: (_confirmed: boolean) => { try { el.remove(); } catch {} }
+        }
+      });
+    };
 
     const cleanup = () => {
       try { el.removeEventListener('w3a:modal-confirm', onConfirm as any); } catch {}
       try { el.removeEventListener('w3a:modal-cancel', onCancel as any); } catch {}
-      try { el.remove(); } catch {}
     };
 
     el.addEventListener('w3a:modal-confirm', onConfirm as any);

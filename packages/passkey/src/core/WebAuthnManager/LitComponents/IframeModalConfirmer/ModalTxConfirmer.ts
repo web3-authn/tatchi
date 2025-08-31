@@ -1,8 +1,8 @@
 import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
-import { TransactionInputWasm, ActionArgsWasm } from '../../types';
-import { formatArgs, formatDeposit, formatGas } from './common/formatters';
+import { TransactionInputWasm, ActionArgsWasm } from '../../../types';
+import { formatArgs, formatDeposit, formatGas } from '../common/formatters';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -133,8 +133,8 @@ export class ModalTxConfirmElement extends LitElement {
       place-items: center;
       background: rgba(0, 0, 0, 0.5);
       z-index: 2147483647;
-      backdrop-filter: blur(8px);
-      animation: backdrop-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1);
+      backdrop-filter: blur(2px);
+      animation: backdrop-enter 0ms ease-in-out;
     }
 
     /* Animations */
@@ -145,18 +145,7 @@ export class ModalTxConfirmElement extends LitElement {
       }
       to {
         opacity: 1;
-        backdrop-filter: blur(8px);
-      }
-    }
-
-    @keyframes card-enter {
-      from {
-        transform: translateY(20px) scale(0.95);
-        opacity: 0;
-      }
-      to {
-        transform: translateY(0) scale(1);
-        opacity: 1;
+        backdrop-filter: blur(2px);
       }
     }
 
@@ -179,7 +168,6 @@ export class ModalTxConfirmElement extends LitElement {
       margin-bottom: var(--w3a-gap-2);
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     .row {
@@ -211,7 +199,6 @@ export class ModalTxConfirmElement extends LitElement {
     .summary-section {
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     /* Actions section */
@@ -219,20 +206,30 @@ export class ModalTxConfirmElement extends LitElement {
       margin: .75rem 0;
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     /* Outer glass border wrapper around actions (double border design) */
     .action-outer {
-      background: transparent;
+      background: var(--w3a-color-border);
       backdrop-filter: blur(2px);
       -webkit-backdrop-filter: blur(2px);
       border: 8px solid rgba(255, 255, 255, 0.35);
       border-radius: 24px;
     }
 
-    /* Action list wrapper - style-guide animated border */
     .action-list {
+      border: 1px solid transparent;
+      border-radius: 1rem;
+      height: 100%;
+      padding: 1rem;
+      overflow: hidden;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      position: relative;
+      background: var(--w3a-color-background);
+    }
+
+    /* Action list wrapper - style-guide animated border */
+    .gradient-border {
       --border-angle: 0deg;
       background: linear-gradient(#ffffff, #ffffff) padding-box,
         conic-gradient(
@@ -242,13 +239,6 @@ export class ModalTxConfirmElement extends LitElement {
           rgba(0, 0, 0, 0.0) 20%,
           rgba(0, 0, 0, 0.0) 100%
         ) border-box;
-      border: 1px solid transparent;
-      border-radius: 1rem;
-      height: 100%;
-      padding: 1rem;
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-      position: relative;
       animation: border-angle-rotate 4s infinite linear;
     }
 
@@ -274,7 +264,6 @@ export class ModalTxConfirmElement extends LitElement {
     .action-item {
       margin-bottom: var(--w3a-gap-2);
       overflow: hidden;
-      transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
       position: relative;
     }
 
@@ -291,7 +280,6 @@ export class ModalTxConfirmElement extends LitElement {
       margin-bottom: 0;
       background: transparent;
       border-radius: 0;
-      transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
     }
 
     .action-row:last-child {
@@ -382,7 +370,6 @@ export class ModalTxConfirmElement extends LitElement {
       margin-top: var(--w3a-gap-2);
       position: relative;
       z-index: 1;
-      animation: content-enter 200ms cubic-bezier(0.2, 0.6, 0.2, 1) both;
     }
 
     .toast .buttons {
@@ -426,7 +413,7 @@ export class ModalTxConfirmElement extends LitElement {
       box-shadow: none;
       color: var(--w3a-color-text);
       background-color: transparent;
-      border-color: transparent;
+      border-color: var(--w3a-color-border);
     }
 
     .btn-cancel:hover {
@@ -467,18 +454,6 @@ export class ModalTxConfirmElement extends LitElement {
       outline: 2px solid var(--w3a-color-primary);
       outline-offset: 3px;
       box-shadow: 0 0 0 3px rgba(42, 82, 190, 0.18);
-    }
-
-    /* Content Animation */
-    @keyframes content-enter {
-      from {
-        opacity: 0;
-        transform: translateY(15px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
     }
 
     /* Responsive adjustments */
@@ -566,106 +541,6 @@ export class ModalTxConfirmElement extends LitElement {
       resolve(false); // Default to cancel
       activeResolvers.delete(this);
     }
-  }
-
-  render() {
-    const containerClasses = classMap({
-      container: true,
-      [this.mode]: true,
-    });
-
-    const contentClasses = classMap({
-      'content': true,
-      [this.variant]: this.variant !== 'default',
-    });
-
-    const confirmBtnClasses = classMap({
-      'btn': true,
-      'btn-confirm': true,
-      [this.variant]: this.variant !== 'default',
-    });
-
-    const displayTotalAmount = !(this.totalAmount === '0' || this.totalAmount === '');
-
-    return html`
-      <div class=${containerClasses}>
-        <div class=${contentClasses}>
-
-          <div class="actions-section">
-            <div class="action-outer">
-              <div class="action-list">
-                <h2 class="header">${this.title}</h2>
-
-                <!-- Transaction Summary Section -->
-                ${when(displayTotalAmount, () => html`
-                  <div class="summary-section">
-                    <div class="grid">
-                      <div class="row">
-                        <div class="label">Total Sent</div>
-                        <div class="value">${formatDeposit(this.totalAmount)}</div>
-                      </div>
-                    </div>
-                  </div>
-                `)}
-
-                <!-- TxSigningRequests Section -->
-                ${when(this.txSigningRequests.length > 0, () => html`
-                  ${this.txSigningRequests.map((tx, txIndex) => {
-                    // Parse actions from the transaction payload (supports string or already-parsed array)
-                    let actions: ActionArgsWasm[] = tx.actions;
-                    return html`
-                      <div class="action-item">
-                        <div class="action-content">
-                          <!-- Transaction Receiver (only show for first action) -->
-                          ${actions.length > 0 ? html`
-                            <div class="action-subheader">
-                              <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${tx.receiverId}</span></div>
-                            </div>
-                          ` : ''}
-                          <!-- Actions for this transaction -->
-                          ${actions.map((action, actionIndex) => html`
-                            <div class="action-subitem">
-                              ${this._renderActionDetails(action)}
-                            </div>
-                          `)}
-                        </div>
-                      </div>
-                    `;
-                  })}
-                `)}
-
-                <div class="buttons">
-                  ${this.loading ? html`
-                    <!-- Loading mode: show only cancel button with loading indicator -->
-                    <button
-                      class="btn btn-cancel loading"
-                      @click=${this._handleCancel}
-                    >
-                      <span class="loading-indicator"></span>
-                      Signing
-                    </button>
-                  ` : html`
-                    <!-- Normal mode: show both cancel and confirm buttons -->
-                    <button
-                      class="btn btn-cancel"
-                      @click=${this._handleCancel}
-                    >
-                      ${this.cancelText}
-                    </button>
-                    <button
-                      class=${confirmBtnClasses}
-                      @click=${this._handleConfirm}
-                    >
-                      ${this.confirmText}
-                    </button>
-                  `}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
   }
 
   private _renderActionDetails(action: ActionArgsWasm) {
@@ -807,6 +682,106 @@ formatGas(action.gas)}</span>
     `;
   }
 
+  render() {
+    const containerClasses = classMap({
+      container: true,
+      [this.mode]: true,
+    });
+
+    const contentClasses = classMap({
+      'content': true,
+      [this.variant]: this.variant !== 'default',
+    });
+
+    const confirmBtnClasses = classMap({
+      'btn': true,
+      'btn-confirm': true,
+      [this.variant]: this.variant !== 'default',
+    });
+
+    const displayTotalAmount = !(this.totalAmount === '0' || this.totalAmount === '');
+
+    return html`
+      <div class=${containerClasses} @click=${this._handleBackdropClick}>
+        <div class=${contentClasses} @click=${this._handleContentClick}>
+
+          <div class="actions-section">
+            <div class="action-outer">
+              <div class="action-list">
+                <h2 class="header">${this.title}</h2>
+
+                <!-- Transaction Summary Section -->
+                ${when(displayTotalAmount, () => html`
+                  <div class="summary-section">
+                    <div class="grid">
+                      <div class="row">
+                        <div class="label">Total Sent</div>
+                        <div class="value">${formatDeposit(this.totalAmount)}</div>
+                      </div>
+                    </div>
+                  </div>
+                `)}
+
+                <!-- TxSigningRequests Section -->
+                ${when(this.txSigningRequests.length > 0, () => html`
+                  ${this.txSigningRequests.map((tx, txIndex) => {
+                    // Parse actions from the transaction payload (supports string or already-parsed array)
+                    let actions: ActionArgsWasm[] = tx.actions;
+                    return html`
+                      <div class="action-item">
+                        <div class="action-content">
+                          <!-- Transaction Receiver (only show for first action) -->
+                          ${actions.length > 0 ? html`
+                            <div class="action-subheader">
+                              <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${tx.receiverId}</span></div>
+                            </div>
+                          ` : ''}
+                          <!-- Actions for this transaction -->
+                          ${actions.map((action, actionIndex) => html`
+                            <div class="action-subitem">
+                              ${this._renderActionDetails(action)}
+                            </div>
+                          `)}
+                        </div>
+                      </div>
+                    `;
+                  })}
+                `)}
+
+                <div class="buttons">
+                  ${this.loading ? html`
+                    <!-- Loading mode: show only cancel button with loading indicator -->
+                    <button
+                      class="btn btn-cancel loading"
+                      @click=${this._handleCancel}
+                    >
+                      <span class="loading-indicator"></span>
+                      Signing
+                    </button>
+                  ` : html`
+                    <!-- Normal mode: show both cancel and confirm buttons -->
+                    <button
+                      class="btn btn-cancel"
+                      @click=${this._handleCancel}
+                    >
+                      ${this.cancelText}
+                    </button>
+                    <button
+                      class=${confirmBtnClasses}
+                      @click=${this._handleConfirm}
+                    >
+                      ${this.confirmText}
+                    </button>
+                  `}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
   private _handleCancel() {
     try { this.dispatchEvent(new CustomEvent('w3a:cancel', { bubbles: true, composed: true })); } catch {}
     if (!this.deferClose) {
@@ -819,6 +794,14 @@ formatGas(action.gas)}</span>
     if (!this.deferClose) {
       this._resolveAndCleanup(true);
     }
+  }
+
+  private _handleBackdropClick() {
+    this._handleCancel();
+  }
+
+  private _handleContentClick(e: Event) {
+    e.stopPropagation();
   }
 
   private _resolveAndCleanup(confirmed: boolean) {

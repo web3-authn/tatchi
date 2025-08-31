@@ -14,6 +14,7 @@ import type { PasskeyManagerContext } from './index';
 import type { NearClient, SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+import { getNonceBlockHashAndHeight } from '../rpcCalls';
 
 //////////////////////////////
 // === PUBLIC API ===
@@ -344,19 +345,13 @@ export async function signTransactionsWithActionsInternal({
         : `Starting ${transactionInputs[0].actions[0].type} action`
     });
 
-    // 1. Validation (use first action for account validation)
-    const transactionContext = await validateTransactionInputs(
-      context,
-      nearAccountId,
-      transactionInputs,
-      { onEvent, onError, hooks, waitUntil }
-    );
+    // 1. Basic validation (NEAR data fetching moved to confirmation flow)
+    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, hooks, waitUntil });
 
-    // 2. VRF Authentication + Transaction Signing
+    // 2. VRF Authentication + Transaction Signing (NEAR data fetched in confirmation flow)
     const signedTxs = await wasmAuthenticateAndSignTransactions(
       context,
       nearAccountId,
-      transactionContext,
       transactionInputs,
       { onEvent, onError, hooks, waitUntil, confirmationConfigOverride }
     );
@@ -380,46 +375,16 @@ export async function signTransactionsWithActionsInternal({
 // === HELPER FUNCTIONS ===
 //////////////////////////////
 
-export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {
-  nearClient: NearClient,
-  nearPublicKeyStr: string,
-  nearAccountId: AccountId
-}): Promise<TransactionContext> {
-  // Get access key and transaction block info concurrently
-  const [accessKeyInfo, txBlockInfo] = await Promise.all([
-    nearClient.viewAccessKey(nearAccountId, nearPublicKeyStr)
-      .catch(e => { throw new Error(`Failed to fetch Access Key`) }),
-    nearClient.viewBlock({ finality: 'final' })
-      .catch(e => { throw new Error(`Failed to fetch Block Info`) })
-  ]);
-  if (!accessKeyInfo || accessKeyInfo.nonce === undefined) {
-    throw new Error(`Access key not found or invalid for account ${nearAccountId} with public key ${nearPublicKeyStr}. Response: ${JSON.stringify(accessKeyInfo)}`);
-  }
-  const nextNonce = (BigInt(accessKeyInfo.nonce) + BigInt(1)).toString();
-  const txBlockHeight = String(txBlockInfo.header.height);
-  const txBlockHash = txBlockInfo.header.hash; // Keep original base58 string
-
-  return {
-    nearPublicKeyStr,
-    accessKeyInfo,
-    nextNonce,
-    txBlockHeight,
-    txBlockHash,
-  };
-}
-
 /**
- * 1. Validation - Validates inputs and prepares transaction context
+ * 1. Input Validation - Validates inputs without fetching NEAR data
  */
-async function validateTransactionInputs(
-  context: PasskeyManagerContext,
+async function validateInputsOnly(
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: ActionHooksOptions,
-): Promise<TransactionContext> {
-
+): Promise<void> {
   const { onEvent, onError, hooks } = options || {};
-  const { webAuthnManager, nearClient } = context;
+
   // Basic validation
   if (!nearAccountId) {
     throw new Error('User not logged in or NEAR account ID not set for direct action.');
@@ -445,14 +410,6 @@ async function validateTransactionInputs(
       }
     }
   }
-
-  const userData = await webAuthnManager.getUser(nearAccountId);
-  const nearPublicKeyStr = userData?.clientNearPublicKey;
-  if (!nearPublicKeyStr) {
-    throw new Error('Client NEAR public key not found in user data');
-  }
-
-  return getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId });
 }
 
 /**
@@ -462,7 +419,6 @@ async function validateTransactionInputs(
 async function wasmAuthenticateAndSignTransactions(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
-  transactionContext: TransactionContext,
   transactionInputs: TransactionInput[],
   options?: ActionHooksOptions & { confirmationConfigOverride?: ConfirmationConfig }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
@@ -478,47 +434,26 @@ async function wasmAuthenticateAndSignTransactions(
     message: 'Requesting user confirmation...'
   });
 
-  // Check if VRF session is active by trying to generate a challenge
-  // This will fail if VRF is not unlocked, providing implicit status check
-  const vrfStatus = await webAuthnManager.checkVrfStatus();
-
-  if (!vrfStatus.active || vrfStatus.nearAccountId !== nearAccountId) {
-    throw new Error(`VRF session not active for ${nearAccountId}. Please login first. VRF status: ${JSON.stringify(vrfStatus)}`);
-  }
-
-  // Generate VRF challenge, Use VRF output as WebAuthn challenge
-  const vrfChallenge = await webAuthnManager.generateVrfChallenge({
-    userId: nearAccountId,
-    rpId: window.location.hostname,
-    blockHeight: transactionContext.txBlockHeight,
-    blockHash: transactionContext.txBlockHash, // Use original base58 string, not decoded bytes
-  });
-
-  onEvent?.({
-    step: 3,
-    phase: ActionPhase.STEP_3_CONTRACT_VERIFICATION,
-    status: ActionStatus.PROGRESS,
-    message: 'Verifying contract...'
-  });
+  // VRF challenge and NEAR data will be generated in the confirmation flow
+  // This eliminates the ~700ms blocking operations before modal display
 
   // Convert all actions to ActionArgsWasm format for batched transaction
   const transactionInputsWasm: TransactionInputWasm[] = transactionInputs.map((tx, i) => {
     return {
       receiverId: tx.receiverId,
       actions: tx.actions.map(action => toActionArgsWasm(action)),
-      nonce: (BigInt(transactionContext.nextNonce) + BigInt(i)).toString(),
     }
   });
 
   // Use the unified action-based WASM worker transaction signing
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
-    nearAccountId: nearAccountId,
     transactions: transactionInputsWasm,
-    // Common parameters
-    blockHash: transactionContext.txBlockHash,
-    contractId: webAuthnManager.configs.contractId,
-    vrfChallenge: vrfChallenge,
-    nearRpcUrl: webAuthnManager.configs.nearRpcUrl,
+    rpcCall: {
+      contractId: webAuthnManager.configs.contractId,
+      nearRpcUrl: webAuthnManager.configs.nearRpcUrl,
+      nearAccountId: nearAccountId, // caller account
+    },
+    // VRF challenge and NEAR data computed in confirmation flow
     confirmationConfigOverride: confirmationConfigOverride,
     // Pass through the onEvent callback for progress updates
     onEvent: onEvent ? (progressEvent) => {

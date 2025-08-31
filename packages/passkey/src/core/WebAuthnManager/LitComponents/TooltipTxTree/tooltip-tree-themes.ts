@@ -80,7 +80,8 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem',
       padding: '2px 4px',
       gap: '4px',
-      lineHeight: '1.5'
+      lineHeight: '1.5',
+      borderRadius: '1rem'
     },
     chevron: {
       color: '#94a3b8',
@@ -212,7 +213,8 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem',
       padding: '2px 4px',
       gap: '4px',
-      lineHeight: '1.5'
+      lineHeight: '1.5',
+      borderRadius: '1rem'
     },
     chevron: {
       color: '#64748b',

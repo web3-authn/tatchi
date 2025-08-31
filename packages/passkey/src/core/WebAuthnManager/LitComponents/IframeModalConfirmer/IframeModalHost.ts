@@ -23,7 +23,7 @@ type MessagePayloads = IframeModalMessagePayloads & {
 };
 
 /**
- * Lit component that hosts the ModalTxConfirmElement in a full‑screen iframe and manages messaging.
+ * Lit component that hosts the ModalTxConfirmer in a full‑screen iframe and manages messaging.
  */
 export class IframeModalHost extends LitElementWithProps {
   static properties = {
@@ -92,7 +92,7 @@ export class IframeModalHost extends LitElementWithProps {
       z-index: 2147483647;
     }
   `;
-  
+
   // ==============================
   // Lifecycle
   // ==============================
@@ -105,7 +105,7 @@ export class IframeModalHost extends LitElementWithProps {
       this.updateIframeViaPostMessage(changed);
     }
   }
-  
+
   disconnectedCallback() {
     super.disconnectedCallback();
     if (this.messageHandler) {
@@ -151,7 +151,7 @@ export class IframeModalHost extends LitElementWithProps {
     // Child is srcdoc+sandbox; origin can be opaque. Use '*' to ensure delivery.
     try { win.postMessage({ type, payload }, '*'); } catch {}
   }
-  
+
   // ==============================
   // Data Updates
   // ==============================
@@ -167,7 +167,7 @@ export class IframeModalHost extends LitElementWithProps {
       this.postToIframe('SET_LOADING', this.showLoading);
     }
   }
-  
+
   // ==============================
   // Messaging Helpers
   // ==============================
@@ -205,8 +205,9 @@ export class IframeModalHost extends LitElementWithProps {
         case 'CANCEL':
           this.onCancel?.();
           try { this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
-          // Two-phase: explicitly close modal on cancel
+          // Two-phase: explicitly close inner modal and remove host immediately
           this.postToIframe('CLOSE_MODAL', { confirmed: false });
+          try { this.remove(); } catch {}
           return;
         case 'UI_INTENT_DIGEST': {
           const p = payload as MessagePayloads['UI_INTENT_DIGEST'];
@@ -230,7 +231,7 @@ export class IframeModalHost extends LitElementWithProps {
     this.messageHandler = onMessage;
     window.addEventListener('message', onMessage);
   }
-  
+
   // ==============================
   // Digest & Confirm
   // ==============================
@@ -280,8 +281,14 @@ export class IframeModalHost extends LitElementWithProps {
       const err = e instanceof Error ? e : new Error(String(e));
       this.onError?.(err);
     } finally {
-      // Two-phase: instruct iframe to close now with decision
-      this.postToIframe('CLOSE_MODAL', { confirmed });
+      // Defer closing on confirm; show loading and let host decide when to close
+      if (confirmed) {
+        try { this.showLoading = true; } catch {}
+      } else {
+        // Close immediately on digest failure
+        this.postToIframe('CLOSE_MODAL', { confirmed: false });
+        try { this.remove(); } catch {}
+      }
       try {
         this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { detail: { confirmed, error }, bubbles: true, composed: true }));
       } catch {}
