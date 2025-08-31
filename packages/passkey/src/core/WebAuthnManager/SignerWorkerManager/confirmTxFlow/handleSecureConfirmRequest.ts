@@ -15,10 +15,8 @@ import {
 } from './types';
 import { TransactionInputWasm } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
-import { ModalTxConfirmElement } from '../../LitComponents/modal';
-import { IFRAME_BUTTON_ID } from '../../LitComponents/SecureTxConfirmButton/tags';
-import { computeUiIntentDigestFromTxs } from '../../LitComponents/SecureTxConfirmButton/tx-digest';
-
+import { awaitIframeModalDecision, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
+import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -94,7 +92,6 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 }
 
-
 /**
  * Renders confirmation UI based on the current configuration
  * Returns either boolean (for requireClick) or { confirmed: boolean, handle?: any } (for autoProceed)
@@ -114,14 +111,10 @@ async function renderConfirmUI({
 }): Promise<{
   confirmed: boolean;
   confirmHandle?: {
-    element: ModalTxConfirmElement,
+    element: any,
     close: (confirmed: boolean) => void
   }
 }> {
-  console.log('[SignerWorkerManager]: txSigningRequests', txSigningRequests?.[0]);
-  console.log('[SignerWorkerManager]:<actions>type', typeof txSigningRequests?.[0].actions);
-  console.log('[SignerWorkerManager]:<actions>', txSigningRequests?.[0].actions);
-
   switch (ctx.confirmationConfig.uiMode) {
     case 'embedded': {
       // Legacy embedded mode removed - using iframe approach instead
@@ -129,35 +122,20 @@ async function renderConfirmUI({
     }
 
     case 'modal': {
-      const { mountModalTxConfirm, mountModalTxConfirmWithHandle } = await import('../../LitComponents/modal');
       if (behavior === 'autoProceed') {
-        // Show modal as context but do not wait for click; we'll close it after TouchID
-        const autoProceedHandle = mountModalTxConfirmWithHandle({
-          summary: summary,
-          txSigningRequests: txSigningRequests,
-          mode: 'modal',
-          loading: true // Show loading state with only cancel button
+        const handle = await mountIframeModalHostWithHandle({
+          ctx,
+          summary,
+          txSigningRequests,
+          loading: true
         });
-        // Give user time to read transaction details before TouchID prompt (autoProceedDelay)
         if (autoProceedDelay) {
           await new Promise(resolve => setTimeout(resolve, autoProceedDelay));
         }
-        return {
-          confirmed: true,
-          confirmHandle: autoProceedHandle
-        };
-
+        return { confirmed: true, confirmHandle: handle };
       } else {
-        // Require explicit confirm (requireClick behavior)
-        const confirmed = await mountModalTxConfirm({
-          summary: summary,
-          txSigningRequests: txSigningRequests,
-          mode: 'modal'
-        });
-        return {
-          confirmed: confirmed,
-          confirmHandle: undefined
-        };
+        const confirmed = await awaitIframeModalDecision({ ctx, summary, txSigningRequests });
+        return { confirmed, confirmHandle: undefined };
       }
     }
 
@@ -239,7 +217,7 @@ async function determineUserConfirmUI({
 }): Promise<{
   confirmed: boolean;
   confirmHandle?: {
-    element: ModalTxConfirmElement,
+    element: any,
     close: (confirmed: boolean) => void
   };
   error?: string;

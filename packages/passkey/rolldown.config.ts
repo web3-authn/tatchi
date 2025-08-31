@@ -32,7 +32,9 @@ const external = [
   'tslib'
 ];
 
-// External dependencies for embedded component (excludes Lit to bundle it)
+// External dependencies for embedded components.
+// IMPORTANT: Externalize Lit so the host app's bundler (e.g., Vite) serves a consistent copy.
+// Bundling Lit into /sdk/embedded caused internal node_modules paths and ESM export mismatches.
 const embeddedExternal = [
   // React dependencies
   'react',
@@ -190,7 +192,7 @@ export default defineConfig([
   },
   // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
   {
-    input: 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/EmbeddedTxButton.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/EmbeddedTxButton.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
@@ -201,11 +203,26 @@ export default defineConfig([
       alias: aliasConfig
     },
   },
-  // Embedded Transaction Confirmation Iframe Host component
+  // Modal Transaction Confirm element bundle for iframe usage
+  {
+    input: 'src/core/WebAuthnManager/LitComponents/modal.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: 'modal-tx-confirm.js'
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig
+    },
+  },
+  // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
     input: {
-      'iframe-button': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButtonHost.ts',
-      'iframe-bootstrap': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframe-bootstrap-script.ts',
+      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
+      'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
+      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
+      'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,

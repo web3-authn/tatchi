@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { IFRAME_BUTTON_ID } from '../../core/types/components';
-import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/iframe-geometry';
+import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
 
 /**
  * React wrapper around the Lit `iframe-button` component.

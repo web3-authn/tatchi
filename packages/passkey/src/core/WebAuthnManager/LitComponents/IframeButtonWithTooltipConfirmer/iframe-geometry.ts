@@ -32,37 +32,6 @@ export interface TooltipGeometry {
   visible: boolean;
 }
 
-export interface IframeInitData {
-  size: { width: string; height: string };
-  tooltip: { width: string; height: string; position: string; offset: string };
-  buttonPosition: { x: number; y: number }; // Precise button position inside iframe
-  backgroundColor: string; // Button background color for consistent CSS
-  tagName: string; // Custom element tag name for the embedded button
-  /** Optional: restrict postMessage target origin for security */
-  targetOrigin?: string;
-}
-
-export interface IframeMessage {
-  type: 'READY'
-  | 'SET_INIT'
-  | 'SET_TX_DATA'
-  | 'SET_LOADING'
-  | 'SET_STYLE'
-  | 'CONFIRM'
-  | 'IFRAME_ERROR'
-  | 'IFRAME_UNHANDLED_REJECTION'
-  | 'ETX_DEFINED'
-  | 'POSITIONING_APPLIED'
-  | 'REQUEST_GEOMETRY'
-  | 'INIT_GEOMETRY'
-  | 'TOOLTIP_STATE'
-  | 'BUTTON_HOVER'
-  | 'REQUEST_UI_DIGEST'
-  | 'UI_INTENT_DIGEST'
-  ;
-  payload?: any;
-}
-
 /**
  * IframeClipPathGenerator creates precise clip-path polygons for button + tooltip unions.
  * Supports all 8 tooltip positions with optimized shape algorithms.

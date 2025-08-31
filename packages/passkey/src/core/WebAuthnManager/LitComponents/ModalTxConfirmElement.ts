@@ -2,7 +2,7 @@ import { LitElement, html, css } from 'lit';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { TransactionInputWasm, ActionArgsWasm } from '../../types';
-import { formatArgs, formatDeposit, formatGas } from './formatters';
+import { formatArgs, formatDeposit, formatGas } from './common/formatters';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -61,6 +61,9 @@ export class ModalTxConfirmElement extends LitElement {
   confirmText = 'Confirm & Sign';
   txSigningRequests: TransactionInputWasm[] = [];
   loading = false;
+  // When true, this element will NOT remove itself on confirm/cancel.
+  // The host is responsible for sending a CLOSE_MODAL instruction.
+  deferClose = false;
 
   // Internal state
   private _isVisible = false;
@@ -805,11 +808,17 @@ formatGas(action.gas)}</span>
   }
 
   private _handleCancel() {
-    this._resolveAndCleanup(false);
+    try { this.dispatchEvent(new CustomEvent('w3a:cancel', { bubbles: true, composed: true })); } catch {}
+    if (!this.deferClose) {
+      this._resolveAndCleanup(false);
+    }
   }
 
   private _handleConfirm() {
-    this._resolveAndCleanup(true);
+    try { this.dispatchEvent(new CustomEvent('w3a:confirm', { bubbles: true, composed: true })); } catch {}
+    if (!this.deferClose) {
+      this._resolveAndCleanup(true);
+    }
   }
 
   private _resolveAndCleanup(confirmed: boolean) {
@@ -821,8 +830,12 @@ formatGas(action.gas)}</span>
     }
   }
 
+  // Public method for two-phase close from host/bootstrap
+  close(confirmed: boolean) {
+    this._resolveAndCleanup(confirmed);
+  }
+
 }
 
 // Register the custom element
 customElements.define('passkey-modal-confirm', ModalTxConfirmElement);
-

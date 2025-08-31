@@ -56,10 +56,8 @@ import { resolveWasmUrl } from './wasm/wasmLoader';
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 const { handle_signer_message } = wasmModule;
-import {
-  SecureConfirmMessageType,
-  awaitSecureConfirmation,
-} from './WebAuthnManager/SignerWorkerManager/confirmTxFlow';
+import { awaitSecureConfirmation } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
+import { SecureConfirmMessageType } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/types';
 
 let messageProcessed = false;
 
@@ -251,4 +249,3 @@ function extractErrorMessage(error: any): string {
   }
   return typeof error === 'string' ? error : 'Unknown error occurred';
 }
-

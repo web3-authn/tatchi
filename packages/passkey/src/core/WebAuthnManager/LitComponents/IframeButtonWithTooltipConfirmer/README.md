@@ -55,46 +55,51 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 ### Process Flow
 
 ```
-1. IframeButtonHost → iframe bootstrap script: SET_INIT
+1. IframeButtonHost → iframe bootstrap script: HS1_INIT
    ├── Contains buttonPosition, tooltip config, and styling data
    └── Triggers button container positioning
 
-2. iframe bootstrap script → IframeButtonHost: POSITIONING_APPLIED
+2. iframe bootstrap script → IframeButtonHost: HS2_POSITIONED
    ├── Confirms button positioning is complete
    └── Includes final button position coordinates
 
-3. IframeButtonHost → iframe bootstrap script: REQUEST_GEOMETRY
+3. IframeButtonHost → iframe bootstrap script: HS3_GEOMETRY_REQUEST
    ├── Requests geometry measurement now that positioning is applied
    └── Ensures measurements use final positioned coordinates
 
-4. iframe bootstrap script → EmbeddedTxButton: REQUEST_GEOMETRY
+4. iframe bootstrap script → EmbeddedTxButton: HS3_GEOMETRY_REQUEST
    ├── Forwards request to embedded button component
    └── Triggers sendInitialGeometry() method
 
-5. EmbeddedTxButton → IframeButtonHost: INIT_GEOMETRY
+5. EmbeddedTxButton → IframeButtonHost: HS5_GEOMETRY_RESULT
    ├── Measures button and tooltip element positions
    ├── Sends geometry data for clip-path calculations
    └── Includes coordinates relative to iframe viewport
 ```
 
+### Handshake Notes
+
+- ETX_DEFINED: The iframe posts this once the embedded custom element is fully upgraded (customElements.whenDefined has resolved). The host waits for ETX_DEFINED before pushing state like SET_TX_DATA/SET_STYLE/SET_LOADING to avoid upgrade races after HS1_INIT.
+- Skipping HS4: Step 4 is an internal call (bootstrap invokes `sendInitialGeometry()` on the embedded element). Since it doesn’t cross the window boundary via postMessage, it isn’t labeled as a handshake message. Only cross-window messages are numbered HSx.
+
 ### Key Components
 
 #### IframeButtonHost (`IframeButtonHost.ts`)
-- **Initiates**: Sends `SET_INIT` with positioning data
-- **Coordinates**: Handles `POSITIONING_APPLIED` and sends `REQUEST_GEOMETRY`
-- **Receives**: `INIT_GEOMETRY` for clip-path setup
+- **Initiates**: Sends `HS1_INIT` with positioning data
+- **Coordinates**: Handles `HS2_POSITIONED` and sends `HS3_GEOMETRY_REQUEST`
+- **Receives**: `HS5_GEOMETRY_RESULT` for clip-path setup
 - **Applies**: Button-only clip-path initially, expands on hover
 
 #### Iframe Bootstrap (`iframe-bootstrap-script.ts`)
-- **Receives**: `SET_INIT` and applies button positioning
-- **Confirms**: Sends `POSITIONING_APPLIED` after positioning
-- **Forwards**: `REQUEST_GEOMETRY` to embedded button
+- **Receives**: `HS1_INIT` and applies button positioning
+- **Confirms**: Sends `HS2_POSITIONED` after positioning
+- **Forwards**: `HS3_GEOMETRY_REQUEST` to embedded button
 - **Ensures**: DOM is fully updated before measurements
 
 #### EmbeddedTxButton (`EmbeddedTxButton.ts`)
-- **Receives**: `REQUEST_GEOMETRY` trigger
+- **Receives**: `HS3_GEOMETRY_REQUEST` trigger
 - **Measures**: Button and tooltip positions using `getBoundingClientRect()`
-- **Sends**: `INIT_GEOMETRY` with precise coordinates
+- **Sends**: `HS5_GEOMETRY_RESULT` with precise coordinates
 - **Handles**: Subsequent tooltip state changes and measurements
 
 ### Critical Timing Aspects
@@ -102,16 +107,7 @@ The Initial Geometry Handshake ensures accurate clip-path calculations for ifram
 1. **Positioning First**: Button must be positioned before measuring geometry
 2. **DOM Updates**: `offsetHeight` forces reflow to ensure positioning is applied
 3. **Coordinate System**: Measurements use iframe-relative coordinates (0,0 = iframe top-left)
-4. **Precision**: Coordinates are rounded to prevent sub-pixel rendering issues
 
-### Error Prevention
-
-- **Retry Logic**: Handles cases where elements aren't ready initially
-- **Validation**: Checks for element existence before measurements
-- **Fallbacks**: Graceful degradation if positioning fails
-- **Logging**: Comprehensive logging for debugging geometry issues
-
-This handshake ensures the clip-path accurately restricts interaction to the button area initially, then expands to include the tooltip area during hover, providing seamless user interaction within the iframe context.
 
 ## UI Digest Integrity Checks
 
@@ -144,11 +140,6 @@ The UI maps its `TransactionInput[]` (camelCase actions) to `ActionArgsWasm[]` (
   - When: Just‑in‑time on confirm, requested by host via `REQUEST_UI_DIGEST`
   - How: UI maps `TransactionInput[]` → `ActionArgsWasm[]` and hashes via SHA‑256 → base64url
 
-- JS Worker Digest (`jsWorkerDigest`):
-  - Where: Main thread (handleSecureConfirmRequest.ts) before Touch ID
-  - From: The worker‑provided `tx_signing_requests` (already in wasm/worker shape)
-  - How: JSON.stringify → SHA‑256 → base64url
-
 - Worker Intent Digest (`intentDigest`):
   - Where: Rust wasm worker (confirm_tx_details.rs)
   - From: The same logical transaction set (receiver + parsed actions) that is passed to the main thread
@@ -156,6 +147,4 @@ The UI maps its `TransactionInput[]` (camelCase actions) to `ActionArgsWasm[]` (
 
 ### Matching Rules And Integrity
 
-At confirm time, the main thread compares `uiDigest` with `jsWorkerDigest` (and logs the worker’s `intentDigest`). When all match, the user has viewed exactly the actions that the worker signs. If they differ, confirmation is aborted with a `ui_digest_mismatch` error.
-
-This alignment eliminates races and mutations between UI rendering and signing by binding the transaction set to a single canonical digest.
+At confirm time, the main thread compares `uiDigest` with wasm-worker's `intentDigest`. When all match, the user has viewed exactly the actions that the worker signs. If they differ, confirmation is aborted with a `ui_digest_mismatch` error.

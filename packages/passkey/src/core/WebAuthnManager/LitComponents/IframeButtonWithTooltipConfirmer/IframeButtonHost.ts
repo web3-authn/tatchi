@@ -6,6 +6,7 @@ import type { TransactionInput } from '../../../types/actions';
 import { toAccountId } from '../../../types/accountIds';
 import type { SignAndSendTransactionHooksOptions } from '../../../types/passkeyManager';
 import { signAndSendTransactionsInternal } from '../../../PasskeyManager/actions';
+import type { PasskeyManagerContext } from '../../../PasskeyManager';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { TooltipTreeStyles } from '../TooltipTxTree';
@@ -20,40 +21,17 @@ import {
   computeExpandedIframeSizeFromGeometryPure,
   computeIframeSizePure,
   IframeClipPathGenerator,
-  IframeInitData,
-  IframeMessage,
   toPx,
   TooltipGeometry,
   TooltipPosition,
   utilParsePx
 } from './iframe-geometry';
-
-
-type MessageType = IframeMessage['type'];
-
-type MessagePayloads = {
-  READY: undefined;
-  SET_INIT: IframeInitData;
-  SET_TX_DATA: { nearAccountId: string; txSigningRequests: TransactionInput[] };
-  SET_LOADING: boolean;
-  SET_STYLE: {
-    buttonStyle: Record<string, string | number>;
-    buttonHoverStyle: Record<string, string | number>;
-    tooltipPosition: TooltipPosition;
-    tooltipTreeStyles?: TooltipTreeStyles;
-  };
-  CONFIRM: undefined;
-  IFRAME_ERROR: string;
-  IFRAME_UNHANDLED_REJECTION: string;
-  ETX_DEFINED: undefined;
-  POSITIONING_APPLIED: { x: number; y: number };
-  REQUEST_GEOMETRY: undefined;
-  INIT_GEOMETRY: TooltipGeometry;
-  TOOLTIP_STATE: TooltipGeometry;
-  BUTTON_HOVER: { hovering: boolean };
-  REQUEST_UI_DIGEST: undefined;
-  UI_INTENT_DIGEST: { ok: boolean; digest?: string; error?: string };
-};
+import {
+  IframeInitData,
+  IframeButtonMessageType,
+  IframeButtonMessagePayloads,
+  IframeButtonMessage,
+} from '../common/iframe-messages'
 
 /**
  * Lit component that hosts the SecureTxConfirmButton iframe and manages all iframe communication.
@@ -67,26 +45,26 @@ export class IframeButtonHost extends LitElementWithProps {
     txSigningRequests: {
       type: Array,
       // Always treat as changed so in-place mutations propagate to the iframe
-      hasChanged(_newVal: any, _oldVal: any) {
+      hasChanged(_newVal: unknown, _oldVal: unknown) {
         return true;
       }
     },
     color: { type: String },
     buttonStyle: {
       type: Object,
-      hasChanged(newVal: any, oldVal: any) {
+      hasChanged(newVal: unknown, oldVal: unknown) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     buttonHoverStyle: {
       type: Object,
-      hasChanged(newVal: any, oldVal: any) {
+      hasChanged(newVal: unknown, oldVal: unknown) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     tooltipPosition: {
       type: Object,
-      hasChanged(newVal: any, oldVal: any) {
+      hasChanged(newVal: unknown, oldVal: unknown) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
@@ -100,13 +78,13 @@ export class IframeButtonHost extends LitElementWithProps {
     },
     options: {
       type: Object,
-      hasChanged(newVal: any, oldVal: any) {
+      hasChanged(newVal: unknown, oldVal: unknown) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     passkeyManagerContext: {
       type: Object,
-      hasChanged(newVal: any, oldVal: any) {
+      hasChanged(newVal: unknown, oldVal: unknown) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
@@ -115,57 +93,6 @@ export class IframeButtonHost extends LitElementWithProps {
     onError: { type: Object },
     onCancel: { type: Object }
   } as const;
-
-  private iframeInitialized = false;
-  private currentGeometry: TooltipGeometry | null = null;
-  private clipPathSupported = false;
-  private initialClipPathApplied = false;
-
-  // Reactive properties are automatically created by Lit from static properties
-  // Don't declare them as instance properties, this overrides Lit's setters
-  declare nearAccountId: string;
-  declare txSigningRequests: TransactionInput[];
-
-  declare color: string;
-  declare buttonStyle: Record<string, string | number>;
-  declare buttonHoverStyle: Record<string, string | number>;
-  declare tooltipPosition: TooltipPosition;
-  declare tooltipTheme: TooltipTheme;
-  declare showLoading: boolean;
-  declare options: SignAndSendTransactionHooksOptions;
-  declare passkeyManagerContext: any;
-
-  // Event handlers (not reactive properties)
-  onSuccess?: (result: any) => void;
-  onError?: (error: Error) => void;
-  onCancel?: () => void;
-
-  private iframeRef: Ref<HTMLIFrameElement> = createRef();
-
-  // Message handler reference for proper cleanup
-  private messageHandler?: (event: MessageEvent) => void;
-  private pendingUiDigestResolve?: (v: string) => void;
-  private pendingUiDigestReject?: (e: any) => void;
-
-  constructor() {
-    super();
-    // Initialize default values for reactive properties
-    this.nearAccountId = '';
-    this.txSigningRequests = [];
-
-    this.buttonStyle = {};
-    this.buttonHoverStyle = {};
-    this.tooltipPosition = {
-      width: '280px',
-      height: '300px',
-      position: 'top-center',
-      offset: '8px'
-    };
-    this.tooltipTheme = 'dark';
-    this.showLoading = false;
-    this.options = {};
-    this.passkeyManagerContext = null;
-  }
 
   static styles = css`
     :host {
@@ -214,19 +141,62 @@ export class IframeButtonHost extends LitElementWithProps {
     iframe.flush-bottom-right { bottom: 0; right: 0; }
   `;
 
+  private iframeInitialized = false;
+  private currentGeometry: TooltipGeometry | null = null;
+  private clipPathSupported = false;
+  private initialClipPathApplied = false;
+  private iframeRef: Ref<HTMLIFrameElement> = createRef();
+
+  // Reactive properties are automatically created by Lit from static properties
+  // Don't declare them as instance properties, this overrides Lit's setters
+  declare nearAccountId: string;
+  declare txSigningRequests: TransactionInput[];
+
+  declare color: string;
+  declare buttonStyle: Record<string, string | number>;
+  declare buttonHoverStyle: Record<string, string | number>;
+  declare tooltipPosition: TooltipPosition;
+  declare tooltipTheme: TooltipTheme;
+  declare showLoading: boolean;
+  declare options: SignAndSendTransactionHooksOptions;
+  declare passkeyManagerContext: PasskeyManagerContext | null;
+
+  // Event handlers (not reactive properties)
+  onSuccess?: (result: unknown) => void;
+  onError?: (error: Error) => void;
+  onCancel?: () => void;
+
+  // Message handler reference for proper cleanup
+  private messageHandler?: (event: MessageEvent) => void;
+  private pendingUiDigestResolve?: (v: string) => void;
+  private pendingUiDigestReject?: (e: Error) => void;
+
+  constructor() {
+    super();
+    // Initialize default values for reactive properties
+    this.nearAccountId = '';
+    this.txSigningRequests = [];
+
+    this.buttonStyle = {};
+    this.buttonHoverStyle = {};
+    this.tooltipPosition = {
+      width: '280px',
+      height: '300px',
+      position: 'top-center',
+      offset: '8px'
+    };
+    this.tooltipTheme = 'dark';
+    this.showLoading = false;
+    this.options = {};
+    this.passkeyManagerContext = null;
+  }
+
   connectedCallback() {
     super.connectedCallback();
     this.setupClipPathSupport();
   }
 
-  private setupClipPathSupport() {
-    this.clipPathSupported = CSS.supports('clip-path: polygon(0 0)');
-    if (!this.clipPathSupported) {
-      console.warn('[IframeButton] clip-path not supported, using rectangular iframe');
-    }
-  }
-
-  updated(changedProperties: Map<string, any>) {
+  updated(changedProperties: Map<string, unknown>) {
     super.updated(changedProperties);
 
     // Only initialize iframe once, then use postMessage for updates
@@ -237,6 +207,36 @@ export class IframeButtonHost extends LitElementWithProps {
       // Use postMessage to update iframe properties instead of recreating HTML
       this.updateIframeViaPostMessage(changedProperties);
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    if (this.messageHandler) {
+      window.removeEventListener('message', this.messageHandler);
+      this.messageHandler = undefined;
+    }
+  }
+
+  render() {
+    const buttonSize = {
+      width: this.buttonStyle?.width || '200px',
+      height: this.buttonStyle?.height || '48px'
+    };
+
+    const iframeSize = this.calculateIframeSize();
+
+    return html`
+      <div class="iframe-button-host"
+        style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
+      >
+        <iframe
+          ${ref(this.iframeRef)}
+          class="${iframeSize.flushClass}"
+          style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+        ></iframe>
+      </div>
+    `;
   }
 
   private calculateIframeSize() {
@@ -287,6 +287,9 @@ export class IframeButtonHost extends LitElementWithProps {
     };
   }
 
+  // ==============================
+  // Iframe Init
+  // ==============================
   private generateIframeHtml() {
     const embeddedTxButtonTag = EMBEDDED_TX_BUTTON_ID;
     const iframeBootstrapTag = IFRAME_BOOTSTRAP_MODULE;
@@ -311,12 +314,11 @@ export class IframeButtonHost extends LitElementWithProps {
     if (!this.iframeRef.value) return;
 
     const html = this.generateIframeHtml();
-    const iframeEl = this.iframeRef.value as any;
+    const iframeEl = this.iframeRef.value;
     iframeEl.srcdoc = html;
 
     // Set up message handling
     this.setupMessageHandling();
-
     // Set host container to button size to prevent layout shifts
     this.setHostContainerToButtonSize();
   }
@@ -331,7 +333,10 @@ export class IframeButtonHost extends LitElementWithProps {
     this.style.setProperty('--button-height', typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight));
   }
 
-  private updateIframeViaPostMessage(changedProperties: Map<string, any>) {
+  // ==============================
+  // Sizing & Builders (continued)
+  // ==============================
+  private updateIframeViaPostMessage(changedProperties: Map<string, unknown>) {
     if (!this.iframeRef.value?.contentWindow) return;
 
     // Always push latest tx data; external apps may mutate arrays/objects in place
@@ -361,17 +366,19 @@ export class IframeButtonHost extends LitElementWithProps {
     }
   }
 
-  // === Unified message sending ===
+  // ==============================
+  // Messaging Helpers
+  // ==============================
   private getIframeWindow(): Window | null {
     return this.iframeRef.value?.contentWindow || null;
   }
 
-  private postToIframe<T extends keyof MessagePayloads>(type: T, payload?: MessagePayloads[T]) {
+  private postToIframe<T extends keyof IframeButtonMessagePayloads>(type: T, payload?: IframeButtonMessagePayloads[T]) {
     const w = this.getIframeWindow();
     if (!w) return;
     // Post to iframe; for srcdoc + allow-same-origin, this matches parent origin
     const targetOrigin = window.location.origin;
-    (w as any).postMessage({ type, payload }, targetOrigin);
+    w.postMessage({ type, payload }, targetOrigin);
   }
 
   private postInitialStateToIframe() {
@@ -388,12 +395,7 @@ export class IframeButtonHost extends LitElementWithProps {
       width: this.buttonStyle?.width || '200px',
       height: this.buttonStyle?.height || '48px'
     };
-
-    const mergedButtonStyle = {
-      ...this.buttonStyle,
-      ...buttonSize
-    };
-
+    const mergedButtonStyle = { ...this.buttonStyle, ...buttonSize };
     // Get theme styles for tooltip tree
     const themeStyles = this.getThemeStyles(this.tooltipTheme || 'dark');
 
@@ -404,14 +406,18 @@ export class IframeButtonHost extends LitElementWithProps {
       tooltipTreeStyles: themeStyles
     });
 
-    // Also re-send SET_INIT to reapply precise positioning whenever the
+    // Also re-send HS1_INIT to reapply precise positioning whenever the
     // button's size or tooltip position changes, keeping embedded aligned.
-    this.postToIframe('SET_INIT', this.buildInitData());
+    this.postToIframe('HS1_INIT', this.buildInitData());
   }
 
   private getThemeStyles(theme: TooltipTheme): TooltipTreeStyles {
     return TOOLTIP_THEMES[theme] || TOOLTIP_THEMES.dark;
   }
+
+  // ==============================
+  // Clip-path Helpers
+  // ==============================
 
   private setupMessageHandling() {
     if (!this.iframeRef.value) return;
@@ -420,8 +426,8 @@ export class IframeButtonHost extends LitElementWithProps {
       const w = this.getIframeWindow();
       if (!w || e.source !== w) return;
 
-      const { type, payload } = (e.data || {}) as IframeMessage;
-      switch (type as MessageType) {
+      const { type, payload } = (e.data || {}) as IframeButtonMessage;
+      switch (type as IframeButtonMessageType) {
         case 'IFRAME_ERROR':
         case 'IFRAME_UNHANDLED_REJECTION':
           console.error('[IframeButton iframe]', type, payload);
@@ -430,21 +436,21 @@ export class IframeButtonHost extends LitElementWithProps {
           // The embedded element is fully upgraded; send initial state now
           this.postInitialStateToIframe();
           return;
-        case 'POSITIONING_APPLIED':
+        case 'HS2_POSITIONED':
           // The button positioning has been applied; now we can measure geometry
-          this.handlePositioningApplied(payload as { x: number; y: number });
+          this.postToIframe('HS3_GEOMETRY_REQUEST');
           return;
-        case 'INIT_GEOMETRY':
-          this.handleInitGeometry(payload as MessagePayloads['INIT_GEOMETRY']);
+        case 'HS5_GEOMETRY_RESULT':
+          this.handleInitGeometry(payload as IframeButtonMessagePayloads['HS5_GEOMETRY_RESULT']);
           return;
         case 'TOOLTIP_STATE':
-          this.handleTooltipState(payload as MessagePayloads['TOOLTIP_STATE']);
+          this.handleTooltipState(payload as IframeButtonMessagePayloads['TOOLTIP_STATE']);
           return;
         case 'BUTTON_HOVER':
-          this.handleButtonHover(payload as MessagePayloads['BUTTON_HOVER']);
+          this.handleButtonHover(payload as IframeButtonMessagePayloads['BUTTON_HOVER']);
           return;
         case 'UI_INTENT_DIGEST': {
-          const p = payload as MessagePayloads['UI_INTENT_DIGEST'];
+          const p = payload as IframeButtonMessagePayloads['UI_INTENT_DIGEST'];
           if (p?.ok && p?.digest && this.pendingUiDigestResolve) {
             this.pendingUiDigestResolve(p.digest);
           } else if (!p?.ok && this.pendingUiDigestReject) {
@@ -455,15 +461,15 @@ export class IframeButtonHost extends LitElementWithProps {
           return;
         }
         case 'READY':
-          // Send only SET_INIT on READY so the iframe can position accurately.
+          // Send only HS1_INIT on READY so the iframe can position accurately.
           // Defer data/style until ETX_DEFINED to avoid upgrade races.
-          this.postToIframe('SET_INIT', {
+          this.postToIframe('HS1_INIT', {
             ...this.buildInitData(),
             // Provide parent origin for tighter child->parent messaging
             targetOrigin: window.location.origin
-          } as any);
+          });
           // Apply optimistic clip-path immediately to prevent blocking clicks
-          // This will be replaced once INIT_GEOMETRY is received
+          // This will be replaced once HS5_GEOMETRY_RESULT is received
           this.applyOptimisticClipPath();
           return;
         case 'CONFIRM':
@@ -484,7 +490,14 @@ export class IframeButtonHost extends LitElementWithProps {
     window.addEventListener('message', onMessage);
   }
 
-    /**
+  private setupClipPathSupport() {
+    this.clipPathSupported = CSS.supports('clip-path: polygon(0 0)');
+    if (!this.clipPathSupported) {
+      console.warn('[IframeButton] clip-path not supported, using rectangular iframe');
+    }
+  }
+
+  /**
    * Apply clip-path using calculated button position before geometry is available
    */
   private applyOptimisticClipPath() {
@@ -493,15 +506,47 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeSize = this.calculateIframeSize();
     const buttonWidth = utilParsePx(this.buttonStyle?.width || '200px');
     const buttonHeight = utilParsePx(this.buttonStyle?.height || '48px');
-
     // Use the calculated button position from iframe sizing
     const buttonX = iframeSize.buttonPositionX;
     const buttonY = iframeSize.buttonPositionY;
-
     const optimisticClipPath = `polygon(${buttonX}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY + buttonHeight}px, ${buttonX}px ${buttonY + buttonHeight}px)`;
 
     this.iframeRef.value.style.clipPath = optimisticClipPath;
     this.iframeRef.value.classList.remove('interactive');
+  }
+
+  /**
+   * Apply clip-path that restricts interaction to button area only
+   */
+  private applyButtonOnlyClipPath() {
+    if (!this.iframeRef.value || !this.currentGeometry) return;
+    if (!this.clipPathSupported) return;
+
+    const { button } = this.currentGeometry;
+    // Use simple rectangle to avoid clipping button corners
+    const buttonClipPath = IframeClipPathGenerator.buildButtonClipPathPure(button);
+    this.iframeRef.value.style.clipPath = buttonClipPath;
+    // Remove pointer events to allow click-through outside button area
+    this.iframeRef.value.classList.remove('interactive');
+  }
+
+  /**
+   * Apply clip-path that includes both button and tooltip areas (for hover state)
+   */
+  private applyButtonTooltipClipPath() {
+    if (!this.iframeRef.value || !this.currentGeometry) return;
+    if (!this.clipPathSupported) return;
+    try {
+      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry);
+      if (unionClipPath) {
+        this.iframeRef.value.style.clipPath = unionClipPath;
+        this.iframeRef.value.classList.add('interactive');
+      }
+    } catch (error) {
+      console.error('[IframeButton] Error generating button+tooltip clip-path:', error);
+      // Fallback to button-only clip-path
+      this.applyButtonOnlyClipPath();
+    }
   }
 
   /**
@@ -518,21 +563,17 @@ export class IframeButtonHost extends LitElementWithProps {
     this.iframeInitialized = true;
   }
 
-  /**
-   * Handle positioning applied notification from iframe, triggers geometry measurement
-   */
-  private handlePositioningApplied(buttonPosition?: { x: number; y: number }) {
-    // Now that positioning is applied, request geometry measurement from iframe
-    this.postToIframe('REQUEST_GEOMETRY');
-  }
+  // ==============================
+  // Handshake Handlers
+  // ==============================
 
   /**
    * Handle initial geometry setup from iframe
    * Applies button-only clip-path to prevent blocking clicks
    */
   private handleInitGeometry(geometry: TooltipGeometry) {
-    this.currentGeometry = geometry;
     // Replace optimistic clip-path with precise button-only clip-path
+    this.currentGeometry = geometry;
     this.applyButtonOnlyClipPath();
   }
 
@@ -589,41 +630,9 @@ export class IframeButtonHost extends LitElementWithProps {
     }
   }
 
-  /**
-   * Apply clip-path that restricts interaction to button area only
-   */
-  private applyButtonOnlyClipPath() {
-    if (!this.iframeRef.value || !this.currentGeometry) return;
-    if (!this.clipPathSupported) return;
-
-    const { button } = this.currentGeometry;
-    // Use simple rectangle to avoid clipping button corners
-    const buttonClipPath = IframeClipPathGenerator.buildButtonClipPathPure(button);
-
-    this.iframeRef.value.style.clipPath = buttonClipPath;
-    // Remove pointer events to allow click-through outside button area
-    this.iframeRef.value.classList.remove('interactive');
-  }
-
-  /**
-   * Apply clip-path that includes both button and tooltip areas (for hover state)
-   */
-  private applyButtonTooltipClipPath() {
-    if (!this.iframeRef.value || !this.currentGeometry) return;
-    if (!this.clipPathSupported) return;
-
-    try {
-      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry);
-      if (unionClipPath) {
-        this.iframeRef.value.style.clipPath = unionClipPath;
-        this.iframeRef.value.classList.add('interactive');
-      }
-    } catch (error) {
-      console.error('[IframeButton] Error generating button+tooltip clip-path:', error);
-      // Fallback to button-only clip-path
-      this.applyButtonOnlyClipPath();
-    }
-  }
+  // ==============================
+  // Digest & Confirm
+  // ==============================
 
   // Request a digest of the UI data from the iframe (computed inside embedded element)
   requestUiIntentDigest(): Promise<string> {
@@ -644,8 +653,6 @@ export class IframeButtonHost extends LitElementWithProps {
       }, 3000);
     });
   }
-
-  // No-op: messages are not shown in iframe; errors are returned to worker
 
   private async handleConfirm() {
     if (!this.passkeyManagerContext || !this.nearAccountId || !this.txSigningRequests || this.txSigningRequests.length === 0) {
@@ -684,44 +691,13 @@ export class IframeButtonHost extends LitElementWithProps {
       this.onSuccess?.(txResults);
 
     } catch (err) {
-      this.options?.onError?.(err as any);
-      this.onError?.(err as any);
+      const error = err instanceof Error ? err : new Error(String(err));
+      this.options?.onError?.(error);
+      this.onError?.(error);
 
     } finally {
       this.postToIframe('SET_LOADING', false);
     }
-  }
-
-  disconnectedCallback() {
-    super.disconnectedCallback();
-
-    // Clean up message listener
-    if (this.messageHandler) {
-      window.removeEventListener('message', this.messageHandler);
-      this.messageHandler = undefined;
-    }
-  }
-
-  render() {
-    const buttonSize = {
-      width: this.buttonStyle?.width || '200px',
-      height: this.buttonStyle?.height || '48px'
-    };
-
-    const iframeSize = this.calculateIframeSize();
-
-    return html`
-      <div class="iframe-button-host"
-        style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
-      >
-        <iframe
-          ${ref(this.iframeRef)}
-          class="${iframeSize.flushClass}"
-          style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
-        ></iframe>
-      </div>
-    `;
   }
 }
 

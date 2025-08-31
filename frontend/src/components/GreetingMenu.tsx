@@ -11,8 +11,8 @@ import { RefreshIcon } from './icons/RefreshIcon';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
-  CERULEAN_BLUE,
-  NEAR_EXPLORER_BASE_URL
+  NEAR_EXPLORER_BASE_URL,
+  COBALT_BLUE
 } from '../config';
 import './GreetingMenu.css';
 
@@ -67,7 +67,6 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
       actionArgs: actionToExecute,
       options: {
         onEvent: (event) => {
-          console.log('event', event);
           switch (event.phase) {
             case ActionPhase.STEP_1_PREPARATION:
               toast.loading(event.message, { id: 'action' });
@@ -250,7 +249,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               title="Refresh Greeting"
               className="refresh-icon-button"
             >
-              <RefreshIcon size={22} color={CERULEAN_BLUE}/>
+              <RefreshIcon size={22} color={COBALT_BLUE}/>
             </button>
             <p><strong>{onchainGreeting || "..."}</strong></p>
           </div>

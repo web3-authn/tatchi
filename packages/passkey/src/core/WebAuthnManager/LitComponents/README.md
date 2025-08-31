@@ -8,13 +8,13 @@ When renaming Lit component files, several files must be updated to maintain con
   ```typescript
   // Before
   input: {
-    'iframe-button': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButton.ts',
+    'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
     // ...
   }
 
   // After
   input: {
-    'iframe-button': 'src/core/WebAuthnManager/LitComponents/SecureTxConfirmButton/IframeButtonHost.ts',
+    'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
     // ...
   }
   ```
@@ -68,6 +68,6 @@ export default IframeButtonHost;
 
 ## Components
 
-- **SecureTxConfirmButton/**: Transaction confirmation components with iframe isolation
+- **IframeButtonWithTooltipConfirmer/**: Transaction confirmation components with iframe isolation
 - **ModalTxConfirmElement.ts**: Modal transaction confirmation dialog
 - **renderUtils.ts**: Shared rendering utilities for Lit components

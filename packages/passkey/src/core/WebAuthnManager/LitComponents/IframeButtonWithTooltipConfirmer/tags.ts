@@ -8,7 +8,11 @@ export const EMBEDDED_TX_BUTTON_ROOT_CLASS = 'embedded-tx-button-root';
 
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
 export const EMBEDDED_SDK_BASE_PATH = '/sdk/embedded/';
-export const IFRAME_BOOTSTRAP_MODULE = 'iframe-bootstrap.js';
+export const IFRAME_BOOTSTRAP_MODULE = 'iframe-button-bootstrap.js';
+// Modal iframe host + bootstrap + modal bundle
+export const IFRAME_MODAL_ID = 'iframe-modal';
+export const IFRAME_MODAL_BOOTSTRAP_MODULE = 'iframe-modal-bootstrap.js';
+export const MODAL_TX_CONFIRM_BUNDLE = 'modal-tx-confirm.js';
 
 // CSS Class Names - Centralized for type safety and maintainability
 export const CSS_CLASSES = {

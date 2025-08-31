@@ -1,6 +1,6 @@
 import { TooltipTreeStyles } from '.';
 import type { ActionArgs, TransactionInput } from '../../../types/actions';
-import { formatArgs, formatGas, formatDeposit } from '../formatters';
+import { formatArgs, formatGas, formatDeposit } from '../common/formatters';
 
 export type TreeNodeType = 'folder' | 'file';
 

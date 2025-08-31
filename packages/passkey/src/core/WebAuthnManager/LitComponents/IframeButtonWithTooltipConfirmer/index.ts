@@ -3,10 +3,12 @@ export type {
   TooltipPosition,
   TooltipPositionEnum,
   TooltipGeometry,
-  IframeInitData,
-  IframeMessage,
   Rectangle,
 } from './iframe-geometry';
+export type {
+  IframeInitData,
+  IframeButtonMessageType,
+} from '../common/iframe-messages'
 export {
   IframeClipPathGenerator,
   computeIframeSizePure,

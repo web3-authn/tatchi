@@ -1,7 +1,7 @@
 // External imports
 import { html, css } from 'lit';
 // SDK imports
-import { TransactionInput, toActionArgsWasm } from '../../../types/actions';
+import { TransactionInput, TransactionInputWasm, isActionArgsWasm, toActionArgsWasm } from '../../../types/actions';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
@@ -9,8 +9,7 @@ import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree
 import { TooltipGeometry, TooltipPosition } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
 import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
-import { computeUiIntentDigestFromTxs } from './tx-digest';
-import { T } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
 
 /**
  * Lit-based embedded transaction confirmation element for iframe usage.
@@ -33,6 +32,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     hideTimeout: { state: true }
   } as const;
 
+  // ==============================
+  // Props & Defaults
+  // ==============================
   nearAccountId: string = '';
   txSigningRequests: TransactionInput[] = [];
   color: string = '#667eea';
@@ -49,12 +51,13 @@ export class EmbeddedTxButton extends LitElementWithProps {
   theme: TooltipTheme = 'dark';
   tooltipTreeStyles!: TooltipTreeStyles;
 
-  // Internal state
+  // ==============================
+  // Internal State & Observers
+  // ==============================
   private tooltipVisible: boolean = false;
   private hideTimeout: number | null = null;
   private initialGeometrySent: boolean = false;
   private initialGeometryRetryCount: number = 0;
-  private buttonPosition: { x: number; y: number } | null = null;
   // Hide coordination and scheduled measurement handles
   private isHiding: boolean = false;
   private measureTimeout: number | null = null;
@@ -91,7 +94,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       height: 100%;
     }
 
-    .embedded-confirm-container {
+    [data-embedded-confirm-container] {
       position: relative;
       display: inline-block;
       z-index: 1001;
@@ -294,6 +297,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   `;
 
+  // ==============================
+  // Lifecycle & Setup
+  // ==============================
   connectedCallback() {
     super.connectedCallback();
 
@@ -348,17 +354,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   }
 
-  disconnectedCallback() {
-    super.disconnectedCallback();
-    try { this.tooltipResizeObserver?.disconnect(); } catch {}
-    try { this.buttonResizeObserver?.disconnect(); } catch {}
-  }
-
-  // Parent origin for postMessage hardening (set by iframe bootstrap)
-  private getTargetOrigin(): string {
-    return (window as any).__ETX_PARENT_ORIGIN || '*';
-  }
-
   updated(changedProperties: Map<string, any>) {
     super.updated(changedProperties);
     // Update CSS variables when button styles change
@@ -381,6 +376,12 @@ export class EmbeddedTxButton extends LitElementWithProps {
         });
       }
     }
+  }
+
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    try { this.tooltipResizeObserver?.disconnect(); } catch {}
+    try { this.buttonResizeObserver?.disconnect(); } catch {}
   }
 
   private setupCSSVariables() {
@@ -418,12 +419,18 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   }
 
+  // ==============================
+  // Theme & CSS Variables
+  // ==============================
   private updateTooltipTheme() {
     // Update tooltipTreeStyles based on the current theme
     const selectedTheme = TOOLTIP_THEMES[this.theme] || TOOLTIP_THEMES.dark;
     this.tooltipTreeStyles = { ...selectedTheme };
   }
 
+  // ==============================
+  // Geometry & Measurement
+  // ==============================
   private measureTooltip() {
     if (this.isHiding) return; // suppress transient measurements during hide
     const tooltipElement = this.selectors.getTooltipContent();
@@ -514,9 +521,20 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   }
 
+  // ==============================
+  // Messaging Helpers
+  // ==============================
+  // Parent origin for postMessage hardening (set by iframe bootstrap)
+  private getTargetOrigin(): string {
+    return (window as any).__ETX_PARENT_ORIGIN || '*';
+  }
+
   /**
    * Send initial geometry data to parent for clip-path setup
    */
+  // ==============================
+  // Handshake: Initial Geometry
+  // ==============================
   sendInitialGeometry() {
 
     const tooltipElement = this.selectors.getTooltipContent();
@@ -584,7 +602,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     requestAnimationFrame(() => {
       if (window.parent) {
         window.parent.postMessage({
-          type: 'INIT_GEOMETRY',
+          type: 'HS5_GEOMETRY_RESULT',
           payload: geometry
         }, this.getTargetOrigin());
         this.initialGeometrySent = true;
@@ -607,6 +625,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     return 0;
   }
 
+  // ==============================
+  // Tooltip Visibility & Pointer Handling
+  // ==============================
   private async showTooltip() {
     const tooltipElement = ElementSelectors.getTooltipContent(this.shadowRoot);
     if (!tooltipElement || this.tooltipVisible) return;
@@ -789,40 +810,26 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // (UI digest is computed by the iframe bootstrap directly from txSigningRequests)
   // Compute digest from UI txs converted to wasm-shape (receiverId + snake_case actions)
   // This matches the worker/main-thread tx_signing_requests structure used for digest checks.
+  // ==============================
+  // Digest
+  // ==============================
   async computeUiIntentDigest(): Promise<string> {
     const uiTxs = this.txSigningRequests || [];
-    const orderActionForDigest = (aw: any) => {
-      const type = aw?.action_type;
-      switch (type) {
-        case 'FunctionCall':
-          return { action_type: aw.action_type, args: aw.args, deposit: aw.deposit, gas: aw.gas, method_name: aw.method_name };
-        case 'Transfer':
-          return { action_type: aw.action_type, deposit: aw.deposit };
-        case 'Stake':
-          return { action_type: aw.action_type, stake: aw.stake, public_key: aw.public_key };
-        case 'AddKey':
-          return { action_type: aw.action_type, public_key: aw.public_key, access_key: aw.access_key };
-        case 'DeleteKey':
-          return { action_type: aw.action_type, public_key: aw.public_key };
-        case 'DeleteAccount':
-          return { action_type: aw.action_type, beneficiary_id: aw.beneficiary_id };
-        case 'DeployContract':
-          return { action_type: aw.action_type, code: aw.code };
-        case 'CreateAccount':
-        default:
-          return { action_type: aw.action_type };
-      }
-    };
-    const wasmShapedOrdered = uiTxs.map(tx => {
-      const actions = (tx.actions ?? []).map(action => orderActionForDigest(toActionArgsWasm(action)));
-      return { actions, receiverId: tx?.receiverId };
+    const txs = uiTxs.map(tx => {
+      const rawActions = tx?.actions || [];
+      const wasmActions = rawActions.map((a => isActionArgsWasm(a) ? a : toActionArgsWasm(a)));
+      const orderedActions = wasmActions.map(orderActionForDigest);
+      return {
+        receiverId: tx?.receiverId,
+        actions: orderedActions
+      } as TransactionInputWasm;
     });
-    console.log('[EmbeddedTxButton] ui txSigningRequests (raw)', uiTxs);
-    console.log('[EmbeddedTxButton] uiDigest input (wasm-shaped, ordered)', wasmShapedOrdered);
-    console.log('[JS] uiDigest (string tx_signing_requests):', JSON.stringify(wasmShapedOrdered));
-    return computeUiIntentDigestFromTxs(wasmShapedOrdered);
+    return computeUiIntentDigestFromTxs(txs);
   }
 
+  // ==============================
+  // Render
+  // ==============================
   render() {
 
     const tree = buildDisplayTreeFromTxPayloads(this.txSigningRequests, this.tooltipTreeStyles);

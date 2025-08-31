@@ -144,6 +144,10 @@ export type ActionArgsWasm =
   | { action_type: ActionType.DeleteKey; public_key: string }
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
 
+export function isActionArgsWasm(a?: any): a is ActionArgsWasm {
+  return a && typeof a === 'object' && 'action_type' in a
+}
+
 export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
   switch (action.type) {
     case ActionType.Transfer:

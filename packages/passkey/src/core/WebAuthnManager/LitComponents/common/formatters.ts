@@ -1,5 +1,5 @@
 
-export function formatArgs(args?: string | Record<string, any>): string {
+export function formatArgs(args?: string | Record<string, string>): string {
   if (!args) return '';
   if (typeof args === 'string') return args;
   try {
