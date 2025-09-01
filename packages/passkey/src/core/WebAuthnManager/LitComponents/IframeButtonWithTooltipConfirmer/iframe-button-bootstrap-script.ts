@@ -8,6 +8,7 @@ import type {
 import type { TooltipTreeStyles } from '../TooltipTxTree/tooltip-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
 import type { EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
+import { EMBEDDED_TX_BUTTON_ID, SELECTORS } from './tags';
 
 /**
  * Iframe Button Bootstrap Script (ESM)
@@ -46,6 +47,8 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   size?: { width: string | number; height: string | number };
   tooltip?: { width: string; height: string | 'auto'; position: string; offset: string };
   tooltipPosition?: TooltipPosition; // fallback path uses this name
+  theme?: 'dark' | 'light';
+  styles?: TooltipTreeStyles;
   updateProperties?: (props: Partial<{
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
@@ -58,7 +61,8 @@ interface EmbeddedTxButtonEl extends HTMLElement {
     buttonStyle: Record<string, string | number>,
     buttonHoverStyle: Record<string, string | number>,
     tooltipPosition?: TooltipPosition,
-    embeddedButtonTheme?: EmbeddedTxButtonStyles
+    embeddedButtonTheme?: EmbeddedTxButtonStyles,
+    theme?: 'dark' | 'light'
   ) => void;
   sendInitialGeometry?: () => void;
   computeUiIntentDigest?: () => Promise<string>;
@@ -92,7 +96,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
     const DELAY_MS = 20;
 
     const tryApply = (retriesLeft: number): void => {
-      const c = el.shadowRoot?.querySelector('[data-embedded-confirm-container]') as HTMLElement | null;
+      const c = el.shadowRoot?.querySelector(SELECTORS.EMBEDDED_CONFIRM_CONTAINER) as HTMLElement | null;
       if (c) {
         // Position the button container absolutely at the specified coordinates
         c.style.position = 'absolute';
@@ -122,7 +126,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
 
   // Notify when custom element is fully defined and ready
   if (window.customElements && window.customElements.whenDefined) {
-    const tag = payload.tagName || 'embedded-tx-button';
+    const tag = payload.tagName || EMBEDDED_TX_BUTTON_ID;
     window.customElements.whenDefined(tag).then(() => {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;
@@ -219,7 +223,8 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
             payload.buttonStyle || {},
             payload.buttonHoverStyle || {},
             payload.tooltipPosition,
-            payload.embeddedButtonTheme
+            payload.embeddedButtonTheme,
+            payload.theme
           );
         } else {
           el.buttonStyle = payload.buttonStyle || {};
@@ -228,9 +233,16 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
             el.tooltipPosition = payload.tooltipPosition;
           }
         }
+
+        // Handle direct theme updates
+        if (payload.theme && el.theme !== payload.theme) {
+          el.theme = payload.theme;
+          if (el.requestUpdate) el.requestUpdate();
+        }
+
         // Pass tooltip tree styles if available (maps to EmbeddedTxButton.styles)
-        if (payload.tooltipTreeStyles && (el as { styles?: TooltipTreeStyles }).styles !== payload.tooltipTreeStyles) {
-          (el as { styles?: TooltipTreeStyles }).styles = payload.tooltipTreeStyles;
+        if (payload.tooltipTreeStyles && el.styles !== payload.tooltipTreeStyles) {
+          el.styles = payload.tooltipTreeStyles;
           if (el.requestUpdate) el.requestUpdate();
         }
       }

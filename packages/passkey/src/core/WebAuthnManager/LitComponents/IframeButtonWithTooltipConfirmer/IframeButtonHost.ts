@@ -205,7 +205,6 @@ export class IframeButtonHost extends LitElementWithProps {
 
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-
     // Apply button style CSS variables when buttonStyle changes
     if (changedProperties.has('buttonStyle')) {
       this.applyButtonStyle();
@@ -338,7 +337,10 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   private initializeIframe() {
-    if (!this.iframeRef.value) return;
+    if (!this.iframeRef.value) {
+      console.warn('[IframeButtonHost]: ⚠️ No iframe ref available for initialization');
+      return;
+    }
 
     const html = this.generateIframeHtml();
     const iframeEl = this.iframeRef.value;
@@ -402,7 +404,10 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private postToIframe<T extends keyof IframeButtonMessagePayloads>(type: T, payload?: IframeButtonMessagePayloads[T]) {
     const w = this.getIframeWindow();
-    if (!w) return;
+    if (!w) {
+      console.error(`[IframeButtonHost]: Cannot post message - iframe window not available`);
+      return;
+    }
     // Post to iframe; for srcdoc + allow-same-origin, this matches parent origin
     const targetOrigin = window.location.origin;
     w.postMessage({ type, payload }, targetOrigin);
@@ -434,7 +439,8 @@ export class IframeButtonHost extends LitElementWithProps {
       buttonHoverStyle: this.buttonHoverStyle,
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles: themeStyles,
-      embeddedButtonTheme: embeddedButtonTheme
+      embeddedButtonTheme: embeddedButtonTheme,
+      theme: this.theme,
     });
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the
@@ -540,7 +546,8 @@ export class IframeButtonHost extends LitElementWithProps {
     // Use the calculated button position from iframe sizing
     const buttonX = iframeSize.buttonPositionX;
     const buttonY = iframeSize.buttonPositionY;
-    const optimisticClipPath = `polygon(${buttonX}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY}px, ${buttonX + buttonWidth}px ${buttonY + buttonHeight}px, ${buttonX}px ${buttonY + buttonHeight}px)`;
+    const pad = 4;
+    const optimisticClipPath = `polygon(${buttonX - pad}px ${buttonY - pad}px, ${buttonX + buttonWidth + pad}px ${buttonY - pad}px, ${buttonX + buttonWidth + pad}px ${buttonY + buttonHeight + pad}px, ${buttonX - pad}px ${buttonY + buttonHeight + pad}px)`;
 
     this.iframeRef.value.style.clipPath = optimisticClipPath;
     this.iframeRef.value.classList.remove('interactive');
@@ -555,7 +562,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     const { button } = this.currentGeometry;
     // Use simple rectangle to avoid clipping button corners
-    const buttonClipPath = IframeClipPathGenerator.buildButtonClipPathPure(button);
+    const buttonClipPath = IframeClipPathGenerator.buildButtonClipPathPure(button, 4);
     this.iframeRef.value.style.clipPath = buttonClipPath;
     // Remove pointer events to allow click-through outside button area
     this.iframeRef.value.classList.remove('interactive');
@@ -568,7 +575,7 @@ export class IframeButtonHost extends LitElementWithProps {
     if (!this.iframeRef.value || !this.currentGeometry) return;
     if (!this.clipPathSupported) return;
     try {
-      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry);
+      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry, 4);
       if (unionClipPath) {
         this.iframeRef.value.style.clipPath = unionClipPath;
         this.iframeRef.value.classList.add('interactive');
@@ -592,6 +599,20 @@ export class IframeButtonHost extends LitElementWithProps {
     // Re-initialize the iframe with new tooltip style
     this.initializeIframe();
     this.iframeInitialized = true;
+  }
+
+  /**
+   * Update theme dynamically - called by React component when user changes theme preference
+   */
+  updateTheme(newTheme: 'dark' | 'light'): void {
+    // Update the theme property
+    this.theme = newTheme as EmbeddedTxButtonTheme;
+    // If iframe is already initialized, send theme update via postMessage
+    if (this.iframeInitialized) {
+      this.postStyleUpdateToIframe();
+    }
+    // Request Lit update
+    this.requestUpdate();
   }
 
   // ==============================

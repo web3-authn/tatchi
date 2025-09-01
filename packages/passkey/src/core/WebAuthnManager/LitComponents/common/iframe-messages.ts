@@ -102,6 +102,7 @@ export interface IframeButtonMessagePayloads {
     tooltipPosition: TooltipPosition;
     tooltipTreeStyles?: TooltipTreeStyles;
     embeddedButtonTheme?: EmbeddedTxButtonStyles;
+    theme?: 'dark' | 'light'; // Add theme field for direct theme updates
   };
   CONFIRM: undefined;
   TOOLTIP_STATE: TooltipGeometry;

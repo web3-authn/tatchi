@@ -53,8 +53,9 @@ export class TooltipTxTree extends LitElementWithProps {
     node: { attribute: false },
     // depth is driven by parent; keep attribute: false to avoid attr/property mismatch
     depth: { type: Number, attribute: false },
-    // styles accepts full CSS customization
-    styles: { attribute: false }
+    // styles accepts full CSS customization - reactive to trigger re-renders
+    styles: { attribute: false, state: true },
+    theme: { type: String, attribute: false }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
@@ -62,31 +63,55 @@ export class TooltipTxTree extends LitElementWithProps {
   node?: TreeNode | null;
   depth?: number;
   styles?: TooltipTreeStyles;
+  theme?: 'dark' | 'light';
 
   static styles = css`
     :host {
       display: block;
+      box-sizing: border-box;
       font-family: var(--w3a-tree_host_font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: var(--w3a-tree_host_font-size, 1rem);
       color: var(--w3a-tree_host_color, #1e293b);
-      background-color: var(--w3a-tree_host_background-color, #ffffff);
     }
 
-    .tree-root {
-      background: var(--w3a-tree_root_background, #151833);
-      max-width: var(--w3a-tree_root_max-width, 600px);
-      margin: var(--w3a-tree_root_margin, 0 auto);
-      border-radius: var(--w3a-tree_root_border-radius, 12px);
-      border: var(--w3a-tree_root_border, none);
-      overflow: var(--w3a-tree_root_overflow, hidden);
-      width: var(--w3a-tree_root_width, auto);
-      height: var(--w3a-tree_root_height, auto);
-      padding: var(--w3a-tree_root_padding, 0);
+    .tooltip-border-outer {
+      position: relative;
+      background: var(--w3a-tree_tooltip-border-outer_background, rgba(255, 255, 255, 0.95));
+      backdrop-filter: var(--w3a-tree_tooltip-border-outer_backdrop-filter, blur(4px));
+      -webkit-backdrop-filter: var(--w3a-tree_tooltip-border-outer_webkit-backdrop-filter, blur(4px));
+      border: var(--w3a-tree_tooltip-border-outer_border, 1px solid var(--w3a-tree_tooltip-border-outer_border-color, oklch(0.8 0 0)));
+      border-radius: var(--w3a-tree_tooltip-border-outer_border-radius, 24px);
     }
 
-    .tree-children {
-      display: var(--w3a-tree_children_display, block);
-      padding: var(--w3a-tree_children_padding, 4px);
+    .tooltip-border-inner {
+      position: var(--w3a-tree_tooltip-border-inner_position, relative);
+      border: var(--w3a-tree_tooltip-border-inner_border, 1px solid transparent);
+      border-radius: var(--w3a-tree_tooltip-border-inner_border-radius, 24px);
+      margin: var(--w3a-tree_tooltip-border-inner_margin, 8px);
+      padding: var(--w3a-tree_tooltip-border-inner_padding, 0px);
+      height: var(--w3a-tree_tooltip-border-inner_height, calc(100% - 2px));
+      overflow: var(--w3a-tree_tooltip-border-inner_overflow, hidden);
+      box-shadow: var(--w3a-tree_tooltip-border-inner_box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
+      background: var(--w3a-tree_tooltip-border-inner_background, var(--w3a-color-surface));
+      backdrop-filter: var(--w3a-tree_tooltip-border-inner_backdrop-filter, blur(12px));
+      WebkitBackdropFilter: var(--w3a-tree_tooltip-border-inner_webkit-backdrop-filter, blur(12px));
+    }
+
+    .tooltip-tree-root {
+      background: var(--w3a-tree_tooltip-tree-root_background, #151833);
+      max-width: var(--w3a-tree_tooltip-tree-root_max-width, 600px);
+      margin: var(--w3a-tree_tooltip-tree-root_margin, 0 auto);
+      border-radius: var(--w3a-tree_tooltip-tree-root_border-radius, 12px);
+      border: var(--w3a-tree_tooltip-tree-root_border, none);
+      overflow: var(--w3a-tree_tooltip-tree-root_overflow, hidden);
+      width: var(--w3a-tree_tooltip-tree-root_width, auto);
+      height: var(--w3a-tree_tooltip-tree-root_height, auto);
+      padding: var(--w3a-tree_tooltip-tree-root_padding, 0);
+    }
+
+    .tooltip-tree-children {
+      display: var(--w3a-tree_tooltip-children_display, block);
+      padding: var(--w3a-tree_tooltip-children_padding, 0px);
     }
 
     details {
@@ -112,12 +137,12 @@ export class TooltipTxTree extends LitElementWithProps {
     }
 
     .summary-row {
-      cursor: var(--w3a-tree_summary_cursor, pointer);
+      cursor: var(--w3a-tree_summary-row_cursor, pointer);
       padding: var(--w3a-tree_summary-row_padding, 0px 1px);
-      margin-bottom: var(--w3a-tree_summary_margin-bottom, 1px);
-      border-radius: var(--w3a-tree_summary_border-radius, 1px);
-      transition: var(--w3a-tree_summary_transition, background 0.15s ease);
-      background: var(--w3a-tree_summary_background, transparent);
+      margin-bottom: var(--w3a-tree_summary-row_margin-bottom, 1px);
+      border-radius: var(--w3a-tree_summary-row_border-radius, 1px);
+      transition: var(--w3a-tree_summary-row_transition, background 0.15s ease);
+      background: var(--w3a-tree_summary-row_background, transparent);
     }
 
     .summary-row:hover {
@@ -178,7 +203,7 @@ export class TooltipTxTree extends LitElementWithProps {
       word-break: var(--w3a-tree_file-content_word-break, break-word);
       line-height: var(--w3a-tree_file-content_line-height, 1.3);
       font-size: var(--w3a-tree_file-content_font-size, 0.65rem);
-      box-shadow: var(--w3a-tree_file-content_box-shadow, var(--w3a-shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)));
+      box-shadow: var(--w3a-tree_file-content_box-shadow, none);
     }
 
     .file-content::-webkit-scrollbar {
@@ -200,7 +225,7 @@ export class TooltipTxTree extends LitElementWithProps {
     }
 
     /* Highlighting styles for transaction details */
-    .highlight-receiverId {
+    .highlight-receiver-id {
       color: var(--w3a-tree_highlight-receiver-id_color, #ff6b6b) !important;
       font-weight: var(--w3a-tree_highlight-receiver-id_font-weight, 600) !important;
       background: var(--w3a-tree_highlight-receiver-id_background, transparent) !important;
@@ -210,7 +235,7 @@ export class TooltipTxTree extends LitElementWithProps {
       box-shadow: var(--w3a-tree_highlight-receiver-id_box-shadow, none) !important;
     }
 
-    .highlight-methodName {
+    .highlight-method-name {
       color: var(--w3a-tree_highlight-method-name_color, #4ecdc4) !important;
       font-weight: var(--w3a-tree_highlight-method-name_font-weight, 600) !important;
       background: var(--w3a-tree_highlight-method-name_background, transparent) !important;
@@ -234,6 +259,40 @@ export class TooltipTxTree extends LitElementWithProps {
     super.applyStyles(styles, 'tree');
   }
 
+  /**
+   * Lifecycle method to apply styles when they change
+   */
+  protected updated(changedProperties: Map<string | number | symbol, unknown>): void {
+    super.updated(changedProperties);
+    // Apply styles whenever the styles prop changes
+    if (changedProperties.has('styles') && this.styles) {
+      this.applyStyles(this.styles);
+    }
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+
+    // Browser doesn't know --border-angle is an animatable angle type,
+    // so we need to register it globally.
+    // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
+    // not smoothly animating through the values in between.
+    const w = window as Window & { borderAngleRegistered?: boolean };
+    if (!w.borderAngleRegistered && CSS.registerProperty) {
+      try {
+        CSS.registerProperty({
+          name: '--border-angle',
+          syntax: '<angle>',
+          initialValue: '0deg',
+          inherits: false
+        });
+        w.borderAngleRegistered = true;
+      } catch (e) {
+        console.warn('[TooltipTxTree] Failed to register --border-angle:', e);
+      }
+    }
+  }
+
   private renderLabelWithSelectiveHighlight(
     label: string,
     highlight?: { type: 'receiverId' | 'methodName'; color: string }
@@ -242,7 +301,7 @@ export class TooltipTxTree extends LitElementWithProps {
       return label;
     }
 
-    const highlightClass = `highlight-${highlight.type}`;
+    const highlightClass = `highlight-${this.camelToKebab(highlight.type)}`;
 
     switch (highlight.type) {
       case 'receiverId': {
@@ -286,7 +345,7 @@ export class TooltipTxTree extends LitElementWithProps {
     if (typeof node.content === 'string' && node.content.length > 0) {
       return html`
         <details class="tree-node file" ?open=${!!open} @toggle=${this.handleToggle}>
-          <summary class="row summary-row" style="--indent: ${indent}">
+          <summary class="row summary-row" style="--indent: ${indent}; ${node.displayNone ? 'display: none;' : ''}">
             <span class="indent"></span>
             <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
               ${!hideChevron ? html`
@@ -320,7 +379,7 @@ export class TooltipTxTree extends LitElementWithProps {
 
     return html`
       <details class="tree-node folder" ?open=${!!open} @toggle=${this.handleToggle}>
-        <summary class="row summary-row" style="--indent: ${indent}">
+        <summary class="row summary-row" style="--indent: ${indent};${node.displayNone ? 'display: none;' : ''}">
           <span class="indent"></span>
           <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
             ${!hideChevron ? html`
@@ -358,13 +417,17 @@ export class TooltipTxTree extends LitElementWithProps {
     if (depth === 0) {
       // Render only the children as top-level entries
       content = html`
-        <div class="tree-root">
-          <div class="tree-children">
-            ${repeat(
-              Array.isArray(this.node.children) ? this.node.children : [],
-              (child) => child.id,
-              (child) => this.renderAnyNode(child, depth + 1)
-            )}
+        <div class="tooltip-border-outer">
+          <div class="tooltip-border-inner">
+            <div class="tooltip-tree-root">
+              <div class="tooltip-tree-children">
+                ${repeat(
+                  Array.isArray(this.node.children) ? this.node.children : [],
+                  (child) => child.id,
+                  (child) => this.renderAnyNode(child, depth + 1)
+                )}
+              </div>
+            </div>
           </div>
         </div>
       `;

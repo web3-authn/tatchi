@@ -25,6 +25,47 @@ export const GUIDELINES_COLORS = {
   mediumGray: 'oklch(0.53 0 0)',            // Medium gray for variations
 } as const;
 
+export const CHROMA_COLORS = {
+  // yellow color scale from lightest to darkest
+  yellow25: 'oklch(0.950 0.055 91.0)',  // lightest
+  yellow50: 'oklch(0.870 0.145 91.0)',
+  yellow100: 'oklch(0.790 0.134 91.0)',
+  yellow200: 'oklch(0.710 0.121 91.0)',
+  yellow300: 'oklch(0.630 0.107 91.0)',
+  yellow400: 'oklch(0.550 0.093 91.0)',
+  yellow500: 'oklch(0.470 0.080 91.0)',
+  yellow600: 'oklch(0.390 0.066 91.0)',
+  yellow700: 'oklch(0.310 0.053 91.0)', // darkest
+
+  // Blue color scale from lightest to darkest
+  blue25: 'oklch(0.900 0.041 260.0)',  // lightest
+  blue50: 'oklch(0.827 0.073 260.0)',
+  blue100: 'oklch(0.755 0.107 260.0)',
+  blue200: 'oklch(0.682 0.142 260.0)',
+  blue300: 'oklch(0.609 0.178 260.0)',
+  blue400: 'oklch(0.536 0.214 260.0)',
+  blue500: 'oklch(0.464 0.185 260.0)',
+  blue600: 'oklch(0.391 0.156 260.0)',
+  blue700: 'oklch(0.318 0.127 260.0)',
+  blue800: 'oklch(0.245 0.098 260.0)',
+  blue900: 'oklch(0.173 0.069 260.0)',
+  blue1000: 'oklch(0.100 0.040 260.0)', // darkest
+
+  // Red color scale from lightest to darkest
+  red25: 'oklch(0.900 0.060 20.0)',  // lightest
+  red50: 'oklch(0.827 0.110 20.0)',
+  red100: 'oklch(0.755 0.167 20.0)',
+  red200: 'oklch(0.682 0.233 20.0)',
+  red300: 'oklch(0.609 0.244 20.0)',
+  red400: 'oklch(0.536 0.215 20.0)',
+  red500: 'oklch(0.464 0.186 20.0)',
+  red600: 'oklch(0.391 0.156 20.0)',
+  red700: 'oklch(0.318 0.127 20.0)',
+  red800: 'oklch(0.245 0.098 20.0)',
+  red900: 'oklch(0.173 0.069 20.0)',
+  red1000: 'oklch(0.100 0.040 20.0)', // darkest
+} as const;
+
 // Comprehensive grey color palette with multiple variations
 // - Standard greys: Basic grey scale with subtle blue tint
 // - Neutral greys: Pure greys without any color tint
@@ -108,6 +149,7 @@ export const SPACING_VARS = {
 export const DARK_THEME_COLORS = {
   ...GUIDELINES_COLORS,
   ...GREY_COLORS,
+  ...CHROMA_COLORS,
 
   // Core colors using Guidelines.md palette
   colorBackground: GUIDELINES_COLORS.darkBackground,     // Primary dark background
@@ -117,8 +159,8 @@ export const DARK_THEME_COLORS = {
   colorTextSecondary: GUIDELINES_COLORS.darkTextSecondary, // Secondary text
 
   // Highlighting colors using available Guidelines.md colors
-  highlightReceiverId: GUIDELINES_COLORS.mediumGray,     // Using medium gray for contrast
-  highlightMethodName: GUIDELINES_COLORS.darkTextSecondary, // Using secondary text color
+  highlightReceiverId: CHROMA_COLORS.blue300,
+  highlightMethodName: CHROMA_COLORS.blue200,
 
   // Additional component colors
   colorButtonText: GUIDELINES_COLORS.darkButtonText,     // Button text
@@ -136,6 +178,7 @@ export const DARK_THEME_COLORS = {
 export const LIGHT_THEME_COLORS = {
   ...GUIDELINES_COLORS,
   ...GREY_COLORS,
+  ...CHROMA_COLORS,
 
   // Core colors using Guidelines.md palette
   colorBackground: GUIDELINES_COLORS.lightBackground,    // Primary light background
@@ -145,8 +188,8 @@ export const LIGHT_THEME_COLORS = {
   colorTextSecondary: GUIDELINES_COLORS.lightTextSecondary, // Secondary text
 
   // Highlighting colors using available Guidelines.md colors
-  highlightReceiverId: GUIDELINES_COLORS.lightTextSecondary, // Using secondary text for contrast
-  highlightMethodName: GUIDELINES_COLORS.dotPattern,        // Using dot pattern color
+  highlightReceiverId: CHROMA_COLORS.blue400,
+  highlightMethodName: CHROMA_COLORS.blue300,
 
   // Additional component colors
   colorButtonText: GUIDELINES_COLORS.lightButtonText,     // Button text

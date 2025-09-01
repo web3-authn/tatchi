@@ -180,7 +180,6 @@ export class IframeModalHost extends LitElementWithProps {
 
       switch (type) {
         case 'MODAL_IFRAME_BOOT':
-          try { console.log('[IframeModalHost] iframe srcdoc parsed'); } catch {}
           return;
 
         case 'IFRAME_ERROR':
@@ -310,6 +309,27 @@ export class IframeModalHost extends LitElementWithProps {
         composed: true // cross Shadow DOM boundaries to host
       }));
     } catch {}
+  }
+
+  /**
+   * Update theme dynamically - called by React component when user changes theme preference
+   */
+  updateTheme(newTheme: 'dark' | 'light'): void {
+    // Update the theme property
+    this.theme = newTheme;
+    // If iframe is already initialized, send theme update via postMessage
+    if (this.iframeInitialized) {
+      const txData = {
+        nearAccountId: this.nearAccountId,
+        txSigningRequests: this.txSigningRequests,
+        theme: this.theme
+      };
+      this.postToIframe('SET_TX_DATA', txData);
+    } else {
+      console.warn('[IframeModalHost]: Modal iframe not initialized yet, theme update deferred');
+    }
+    // Request Lit update
+    this.requestUpdate();
   }
 
   render() {

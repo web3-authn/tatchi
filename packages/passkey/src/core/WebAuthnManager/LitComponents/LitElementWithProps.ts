@@ -117,7 +117,7 @@ export class LitElementWithProps extends LitElement {
   /**
    * Converts camelCase strings to kebab-case for CSS variables
    */
-  private camelToKebab(str: string): string {
+  camelToKebab(str: string): string {
     return str.replace(/([A-Z])/g, '-$1').toLowerCase();
   }
 }

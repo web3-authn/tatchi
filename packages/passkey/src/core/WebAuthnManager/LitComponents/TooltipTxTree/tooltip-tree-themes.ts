@@ -7,8 +7,14 @@ export interface TooltipTreeStyles extends ComponentStyles {
 
   // Component-specific tree variables
   host?: Record<string, string>;
-  root?: Record<string, string>;
-  treeChildren?: Record<string, string>;
+
+  // Component-specific tooltip container variables
+  dataTooltipContentRoot?: Record<string, string>;
+  tooltipContainer?: Record<string, string>;
+  gradientBorder?: Record<string, string>;
+
+  tooltipTreeRoot?: Record<string, string>;
+  tooltipTreeChildren?: Record<string, string>;
   details?: Record<string, string>;
   summary?: Record<string, string>;
   summaryRow?: Record<string, string>;
@@ -47,14 +53,31 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       backgroundColor: DARK_THEME_COLORS.colorBackground
     },
 
-    // Component-specific tree variables
-    root: {
-      background: DARK_THEME_COLORS.colorSurface,
-      color: DARK_THEME_COLORS.colorText,
-      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)'
+    tooltipBorderOuter: {
+      background: DARK_THEME_COLORS.grey750,
+      backdropFilter: 'blur(4px)',
+      WebkitBackdropFilter: 'blur(4px)',
+      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
+      borderRadius: '32px',
+      padding: '0.5rem',
     },
-    treeChildren: {
-      padding: '1rem'
+
+    // Main tooltip container - the glass-like container around the content
+    tooltipBorderInner: {
+      background: DARK_THEME_COLORS.grey600,
+      borderRadius: '24px',
+      border: `1px solid transparent`,
+      boxShadow: '0 4px 6px -1px rgb(250 250 250 / 0.1)'
+    },
+
+    // Component-specific tree variables
+    tooltipTreeRoot: {
+      padding: '0.5rem',
+      background: DARK_THEME_COLORS.grey700,
+      border: 'none',
+      color: DARK_THEME_COLORS.colorText,
+    },
+    tooltipTreeChildren: {
     },
     details: {
       borderRadius: '0.5rem',
@@ -62,17 +85,16 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
     summary: {
       padding: '0.5rem 0.75rem',
-      borderRadius: '0.375rem'
     },
     summaryRow: {
       background: 'transparent',
       border: '1px solid transparent',
-      borderRadius: '0.75rem',
-      padding: '',
+      padding: '4px 16px',
+      borderRadius: '1rem',
     },
     summaryRowHover: {
       background: DARK_THEME_COLORS.colorBorder,
-      borderColor: DARK_THEME_COLORS.colorTextSecondary
+      borderColor: DARK_THEME_COLORS.colorTextSecondary,
     },
     row: {
       color: DARK_THEME_COLORS.colorText,
@@ -83,7 +105,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     label: {
       color: DARK_THEME_COLORS.colorText,
       fontSize: '0.875rem',
-      padding: '2px 4px',
       gap: '4px',
       lineHeight: '1.5',
     },
@@ -97,13 +118,12 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: DARK_THEME_COLORS.colorBackground,
-      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
-      borderRadius: '0.5rem',
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      background: DARK_THEME_COLORS.grey600,
+      border: `1px solid none`,
+      color: DARK_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      padding: '0.75rem',
-      boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.25)',
+      borderRadius: '0.5rem 0.5rem 1rem 0.5rem',
+      padding: '0.5rem',
       scrollbarTrackBackground: DARK_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: DARK_THEME_COLORS.colorTextSecondary
     },
@@ -153,14 +173,32 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       backgroundColor: LIGHT_THEME_COLORS.colorBackground
     },
 
-    // Component-specific tree variables
-    root: {
-      background: LIGHT_THEME_COLORS.colorBackground,
-      color: LIGHT_THEME_COLORS.colorText,
+    tooltipBorderOuter: {
+      background: LIGHT_THEME_COLORS.grey100,
+      backdropFilter: 'blur(12px)',
+      WebkitBackdropFilter: 'blur(12px)',
+      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
+      borderRadius: '32px',
+      padding: '0.5rem',
+    },
+
+    // Main tooltip container - the glass-like container around the content
+    tooltipBorderInner: {
+      background: LIGHT_THEME_COLORS.grey100,
+      borderRadius: '24px',
+      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
     },
-    treeChildren: {
-      padding: '1rem'
+
+    // Component-specific tree variables
+    tooltipTreeRoot: {
+      padding: '0.5rem',
+      background: LIGHT_THEME_COLORS.grey25,
+      border: 'none',
+      color: LIGHT_THEME_COLORS.colorText,
+    },
+    tooltipTreeChildren: {
+
     },
     details: {
       borderRadius: '0.5rem',
@@ -168,16 +206,15 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
     summary: {
       padding: '0.5rem 0.75rem',
-      borderRadius: '0.375rem'
     },
     summaryRow: {
       background: 'transparent',
       border: '1px solid transparent',
-      borderRadius: '0.75rem',
-      padding: '0px',
+      padding: '4px 16px',
+      borderRadius: '1rem',
     },
     summaryRowHover: {
-      background: LIGHT_THEME_COLORS.colorSurface,
+      background: LIGHT_THEME_COLORS.grey75,
       borderColor: LIGHT_THEME_COLORS.colorBorder
     },
     row: {
@@ -189,7 +226,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     label: {
       color: LIGHT_THEME_COLORS.colorText,
       fontSize: '0.875rem',
-      padding: '2px 4px',
       gap: '4px',
       lineHeight: '1.5',
     },
@@ -203,13 +239,12 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: LIGHT_THEME_COLORS.colorSurface,
+      background: LIGHT_THEME_COLORS.grey75,
       border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
-      borderRadius: '0.5rem',
       color: LIGHT_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      padding: '0.75rem',
-      boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
+      borderRadius: '0.5rem 0.5rem 1rem 0.5rem',
+      padding: '0.5rem',
       scrollbarTrackBackground: LIGHT_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: LIGHT_THEME_COLORS.colorBorder
     },

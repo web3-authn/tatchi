@@ -37,8 +37,18 @@ export interface TooltipGeometry {
  * Supports all 8 tooltip positions with optimized shape algorithms.
  */
 export class IframeClipPathGenerator {
-  static generateUnion(geometry: TooltipGeometry): string {
-    const { button, tooltip, position, gap } = geometry;
+  static generateUnion(geometry: TooltipGeometry, paddingPx: number = 0): string {
+    // Optionally expand both rectangles by padding to loosen the clip-path
+    const pad = (r: Rectangle): Rectangle => ({
+      x: r.x - paddingPx,
+      y: r.y - paddingPx,
+      width: r.width + 2 * paddingPx,
+      height: r.height + 2 * paddingPx,
+      borderRadius: r.borderRadius,
+    });
+    const button = paddingPx ? pad(geometry.button) : geometry.button;
+    const tooltip = paddingPx ? pad(geometry.tooltip) : geometry.tooltip;
+    const { position, gap } = geometry;
     if (!CSS.supports('clip-path: polygon(0 0)')) {
       console.warn('clip-path not supported, skipping shape generation');
       return '';
@@ -143,7 +153,7 @@ export class IframeClipPathGenerator {
     }
 
     const deduped = points.filter((p, i, arr) => i === 0 || !(p.x === arr[i - 1].x && p.y === arr[i - 1].y));
-    const coords = deduped.map(p => `${Math.round(p.x)}px ${Math.round(p.y)}px`).join(', ');
+    const coords = deduped.map(p => `${p.x}px ${p.y}px`).join(', ');
     return `polygon(${coords})`;
   }
 
@@ -196,20 +206,23 @@ export class IframeClipPathGenerator {
   ): string {
     const r = Math.min(radius, width / 2, height / 2);
     return [
-      `${Math.round(x + r)}px ${Math.round(y)}px`,
-      `${Math.round(x + width - r)}px ${Math.round(y)}px`,
-      `${Math.round(x + width)}px ${Math.round(y + r)}px`,
-      `${Math.round(x + width)}px ${Math.round(y + height - r)}px`,
-      `${Math.round(x + width - r)}px ${Math.round(y + height)}px`,
-      `${Math.round(x + r)}px ${Math.round(y + height)}px`,
-      `${Math.round(x)}px ${Math.round(y + height - r)}px`,
-      `${Math.round(x)}px ${Math.round(y + r)}px`
+      `${x + r}px ${y}px`,
+      `${x + width - r}px ${y}px`,
+      `${x + width}px ${y + r}px`,
+      `${x + width}px ${y + height - r}px`,
+      `${x + width - r}px ${y + height}px`,
+      `${x + r}px ${y + height}px`,
+      `${x}px ${y + height - r}px`,
+      `${x}px ${y + r}px`
     ].join(', ');
   }
 
-  public static buildButtonClipPathPure(rect: { x: number; y: number; width: number; height: number }): string {
-    const { x, y, width, height } = rect;
-    const clipPath = `polygon(${Math.round(x)}px ${Math.round(y)}px, ${Math.round(x + width)}px ${Math.round(y)}px, ${Math.round(x + width)}px ${Math.round(y + height)}px, ${Math.round(x)}px ${Math.round(y + height)}px)`;
+  public static buildButtonClipPathPure(rect: { x: number; y: number; width: number; height: number }, paddingPx: number = 0): string {
+    const x = rect.x - paddingPx;
+    const y = rect.y - paddingPx;
+    const width = rect.width + 2 * paddingPx;
+    const height = rect.height + 2 * paddingPx;
+    const clipPath = `polygon(${x}px ${y}px, ${x + width}px ${y}px, ${x + width}px ${y + height}px, ${x}px ${y + height}px)`;
     return clipPath;
   }
 }

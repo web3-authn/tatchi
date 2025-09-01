@@ -32,7 +32,7 @@ export const CSS_CLASSES = {
 
 // Type-safe selector functions using data attributes - corresponds to CSS selectors in EmbeddedTxButton.ts
 export const SELECTORS = {
-  EMBEDDED_CONFIRM_CONTAINER: `[data-embedded-confirm-container]`, // CSS: [data-embedded-confirm-container]
+  EMBEDDED_CONFIRM_CONTAINER: `[data-embedded-tx-button-root]`, // CSS: [data-embedded-tx-button-root]
   EMBEDDED_BTN: `[data-embedded-btn]`, // CSS: [data-embedded-btn]
   TOOLTIP_CONTENT: `[data-tooltip-content]`, // CSS: [data-tooltip-content], [data-tooltip-content][data-position="..."], etc.
   LOADING: `[data-loading]`, // CSS: [data-loading], [data-loading][data-visible="true"]
@@ -48,7 +48,7 @@ export class ElementSelectors {
   }
 
   // Instance methods (bound to the root passed in constructor) - uses SELECTORS that correspond to CSS selectors
-  getEmbeddedConfirmContainer(): HTMLElement | null { // Corresponds to [data-embedded-confirm-container] CSS selector
+  getEmbeddedConfirmContainer(): HTMLElement | null { // Corresponds to [data-embedded-tx-button-root] CSS selector
     return this.root?.querySelector(SELECTORS.EMBEDDED_CONFIRM_CONTAINER) || null;
   }
 
@@ -69,7 +69,7 @@ export class ElementSelectors {
   }
 
   // Static methods (require root parameter) - uses SELECTORS that correspond to CSS selectors
-  static getEmbeddedConfirmContainer(root: Document | ShadowRoot | Element | null | undefined): HTMLElement | null { // Corresponds to [data-embedded-confirm-container] CSS selector
+  static getEmbeddedConfirmContainer(root: Document | ShadowRoot | Element | null | undefined): HTMLElement | null { // Corresponds to [data-embedded-tx-button-root] CSS selector
     return root?.querySelector(SELECTORS.EMBEDDED_CONFIRM_CONTAINER) || null;
   }
 

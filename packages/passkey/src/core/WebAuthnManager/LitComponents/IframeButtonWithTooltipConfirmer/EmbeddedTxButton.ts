@@ -97,7 +97,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       height: var(--w3a-embedded_host_height, 100%);
     }
 
-    [data-embedded-confirm-container] {
+    [data-embedded-tx-button-root] {
       position: var(--w3a-embedded_confirm-container_position, relative);
       display: var(--w3a-embedded_confirm-container_display, inline-block);
       z-index: var(--w3a-embedded_confirm-container_z-index, 1001);
@@ -209,14 +209,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       width: var(--w3a-embedded_tooltip-content_width, var(--tooltip-width, 280px));
     }
 
-    .data-tooltip-content-root {
-      background: var(--w3a-embedded_data-tooltip-content-root_background, rgba(255, 255, 255, 0.95));
-      backdrop-filter: var(--w3a-embedded_data-tooltip-content-root_backdrop-filter, blur(4px));
-      -webkit-backdrop-filter: var(--w3a-embedded_data-tooltip-content-root_webkit-backdrop-filter, blur(4px));
-      border: var(--w3a-embedded_data-tooltip-content-root_border, 1px solid var(--w3a-embedded_data-tooltip-content-root_border-color, oklch(0.8 0 0)));
-      border-radius: var(--w3a-embedded_data-tooltip-content-root_border-radius, 24px);
-    }
-
     /* Top positions: aligned with button corners */
     [data-tooltip-content][data-position="top-left"] {
       bottom: 100%;
@@ -280,46 +272,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
     [data-tooltip-content][data-hiding="true"] {
       transition-delay: var(--w3a-embedded_tooltip-content-hiding_transition-delay, 150ms);
     }
-
-    .tooltip-border-inner {
-      position: var(--w3a-embedded_tooltip-border-inner_position, relative);
-      border: var(--w3a-embedded_tooltip-border-inner_border, 1px solid transparent);
-      border-radius: var(--w3a-embedded_tooltip-border-inner_border-radius, 16px);
-      margin: var(--w3a-embedded_tooltip-border-inner_margin, 8px);
-      height: var(--w3a-embedded_tooltip-border-inner_height, calc(100% - 2px)); /* 2px for border: top and bottom */
-      overflow: var(--w3a-embedded_tooltip-border-inner_overflow, hidden);
-      box-shadow: var(--w3a-embedded_tooltip-border-inner_box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
-      background: var(--w3a-embedded_tooltip-border-inner_background, var(--w3a-color-surface));
-      backdrop-filter: var(--w3a-embedded_tooltip-border-inner_backdrop-filter, blur(12px));
-      WebkitBackdropFilter: var(--w3a-embedded_tooltip-border-inner_webkit-backdrop-filter, blur(12px));
-    }
-
-    .gradient-border {
-      /* Thicker, subtle monochrome animated border */
-      --border-angle: 0deg;
-      background: var(--w3a-embedded_gradient-border_background, linear-gradient(#ffffff, #ffffff) padding-box,
-        conic-gradient(
-          from var(--border-angle),
-          rgba(0, 0, 0, 0.1) 0%,
-          rgba(0, 0, 0, 0.6) 25%,
-          rgba(0, 0, 0, 0.1) 50%,
-          rgba(0, 0, 0, 0.6) 75%,
-          rgba(0, 0, 0, 0.1) 100%
-        ) border-box);
-      animation: var(--w3a-embedded_gradient-border_animation, border-angle-rotate 4s infinite linear);
-      will-change: var(--w3a-embedded_gradient-border_will-change, background);
-    }
-
-    @property --border-angle {
-      syntax: "<angle>";
-      initial-value: 0deg;
-      inherits: false;
-    }
-
-    @keyframes border-angle-rotate {
-      from { --border-angle: 0deg; }
-      to { --border-angle: 360deg; }
-    }
   `;
 
   // ==============================
@@ -333,26 +285,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     // Initialize styles based on theme
     this.updateTooltipTheme();
-
-    // Browser doesn't know --border-angle is an animatable angle type,
-    // so we need to register it globally.
-    // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
-    // not smoothly animating through the values in between.
-    const w = window as Window & { borderAngleRegistered?: boolean };
-    if (!w.borderAngleRegistered && CSS.registerProperty) {
-      try {
-        CSS.registerProperty({
-          name: '--border-angle',
-          syntax: '<angle>',
-          initialValue: '0deg',
-          inherits: false
-        });
-        w.borderAngleRegistered = true;
-      } catch (e) {
-        console.warn('[EmbeddedTxConfirm] Failed to register --border-angle:', e);
-      }
-    }
-
     this.setupCSSVariables();
     this.applyButtonStyles();
   }
@@ -461,8 +393,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   }
 
   private applyButtonStyles() {
-    if (!this.buttonStyles) return;
-
+    if (!this.buttonStyles) {
+      return;
+    }
     // Use parent class applyStyles method for consistent naming and behavior
     this.applyStyles(this.buttonStyles);
   }
@@ -799,7 +732,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     buttonStyle: React.CSSProperties,
     buttonHoverStyle: React.CSSProperties,
     tooltipPosition?: TooltipPosition,
-    embeddedButtonTheme?: EmbeddedTxButtonStyles
+    embeddedButtonTheme?: EmbeddedTxButtonStyles,
+    theme?: 'dark' | 'light'
   ) {
     this.buttonStyle = buttonStyle;
     this.buttonHoverStyle = buttonHoverStyle;
@@ -809,6 +743,11 @@ export class EmbeddedTxButton extends LitElementWithProps {
     if (embeddedButtonTheme) {
       this.buttonStyles = embeddedButtonTheme;
       this.applyButtonStyles();
+    }
+    // Handle theme updates
+    if (theme && theme !== this.theme) {
+      this.theme = theme as EmbeddedTxButtonTheme;
+      this.updateTooltipTheme();
     }
     this.setupCSSVariables();
     this.requestUpdate();
@@ -885,8 +824,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
         Each data attribute maps to a CSS selector in the static styles property.
         This ensures perfect synchronization between CSS and JavaScript selectors.
       -->
-      <!-- Container element - corresponds to [data-embedded-confirm-container] CSS selector -->
-      <div data-embedded-confirm-container>
+      <!-- Container element - corresponds to [data-embedded-tx-button-root] CSS selector -->
+      <div data-embedded-tx-button-root>
         <!-- Button element - corresponds to [data-embedded-btn] CSS selector -->
         <button
           data-embedded-btn
@@ -913,7 +852,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
         <!-- Tooltip content element - corresponds to [data-tooltip-content] CSS selector -->
         <div
           data-tooltip-content
-          class="data-tooltip-content-root"
           data-position=${this.tooltip.position}
           data-visible=${this.tooltipVisible}
           data-hiding=${this.isHiding}
@@ -923,14 +861,13 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          <div class="tooltip-border-inner gradient-border">
-            <tooltip-tx-tree
-              .node=${tree}
-              .depth=${0}
-              .styles=${this.styles}
-              @tree-toggled=${this.handleTreeToggled}
-            ></tooltip-tx-tree>
-          </div>
+          <tooltip-tx-tree
+            .node=${tree}
+            .depth=${0}
+            .styles=${this.styles}
+            .theme=${this.theme}
+            @tree-toggled=${this.handleTreeToggled}
+          ></tooltip-tx-tree>
         </div>
       </div>
     `;
