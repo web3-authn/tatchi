@@ -107,8 +107,14 @@ export class LitElementWithProps extends LitElement {
     Object.entries(styles).forEach(([section, sectionStyles]) => {
       if (sectionStyles && typeof sectionStyles === 'object' && !baseVars.includes(section)) {
         Object.entries(sectionStyles).forEach(([prop, value]) => {
-          const cssVar = `--w3a-${prefix}_${this.camelToKebab(section)}_${this.camelToKebab(prop)}`;
-          this.style.setProperty(cssVar, String(value));
+          const kebabSection = this.camelToKebab(section);
+          const kebabProp = this.camelToKebab(prop);
+          // New convention with double underscores
+          const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
+          this.style.setProperty(cssVarNew, String(value));
+          // Legacy convention (single underscores) kept for backward-compat while migrating CSS
+          const cssVarLegacy = `--w3a-${prefix}_${kebabSection}_${kebabProp}`;
+          this.style.setProperty(cssVarLegacy, String(value));
         });
       }
     });

@@ -72,13 +72,12 @@ export class TooltipTxTree extends LitElementWithProps {
       font-family: var(--w3a-tree_host_font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: var(--w3a-tree_host_font-size, 1rem);
       color: var(--w3a-tree_host_color, #1e293b);
+      padding: 6px; /* Inner padding to give space for box-shadows on tooltip */
     }
 
     .tooltip-border-outer {
       position: relative;
       background: var(--w3a-tree_tooltip-border-outer_background, rgba(255, 255, 255, 0.95));
-      backdrop-filter: var(--w3a-tree_tooltip-border-outer_backdrop-filter, blur(4px));
-      -webkit-backdrop-filter: var(--w3a-tree_tooltip-border-outer_webkit-backdrop-filter, blur(4px));
       border: var(--w3a-tree_tooltip-border-outer_border, 1px solid var(--w3a-tree_tooltip-border-outer_border-color, oklch(0.8 0 0)));
       border-radius: var(--w3a-tree_tooltip-border-outer_border-radius, 24px);
     }
@@ -87,7 +86,7 @@ export class TooltipTxTree extends LitElementWithProps {
       position: var(--w3a-tree_tooltip-border-inner_position, relative);
       border: var(--w3a-tree_tooltip-border-inner_border, 1px solid transparent);
       border-radius: var(--w3a-tree_tooltip-border-inner_border-radius, 24px);
-      margin: var(--w3a-tree_tooltip-border-inner_margin, 8px);
+      margin: var(--w3a-tree_tooltip-border-inner_margin, 0px);
       padding: var(--w3a-tree_tooltip-border-inner_padding, 0px);
       height: var(--w3a-tree_tooltip-border-inner_height, calc(100% - 2px));
       overflow: var(--w3a-tree_tooltip-border-inner_overflow, hidden);
@@ -322,9 +321,16 @@ export class TooltipTxTree extends LitElementWithProps {
         return html`<span class="${highlightClass}">${label}</span>`;
       }
       case 'methodName': {
-        const match = label.match(/^Calling (.+) with$/);
+        const match = label.match(/^Calling (.+) with (.+)$/);
         if (match) {
           const methodName = match[1];
+          const gas = match[2];
+          return html`Calling <span class="${highlightClass}">${methodName}</span> with <span class="${highlightClass}">${gas}</span>`;
+        }
+        // Fallback for old format: "Calling methodName with"
+        const fallbackMatch = label.match(/^Calling (.+) with$/);
+        if (fallbackMatch) {
+          const methodName = fallbackMatch[1];
           return html`Calling <span class="${highlightClass}">${methodName}</span> with`;
         }
         return html`<span class="${highlightClass}">${label}</span>`;

@@ -54,11 +54,9 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
 
     tooltipBorderOuter: {
-      background: DARK_THEME_COLORS.grey750,
-      backdropFilter: 'blur(4px)',
-      WebkitBackdropFilter: 'blur(4px)',
-      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
-      borderRadius: '32px',
+      background: 'transparent',
+      border: `1px solid transparent`,
+      borderRadius: '28px',
       padding: '0.5rem',
     },
 
@@ -67,7 +65,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       background: DARK_THEME_COLORS.grey600,
       borderRadius: '24px',
       border: `1px solid transparent`,
-      boxShadow: '0 4px 6px -1px rgb(250 250 250 / 0.1)'
+      boxShadow: '0 4px 4px 0px rgba(2, 2, 2, 0.4)'
     },
 
     // Component-specific tree variables
@@ -174,11 +172,9 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
 
     tooltipBorderOuter: {
-      background: LIGHT_THEME_COLORS.grey100,
-      backdropFilter: 'blur(12px)',
-      WebkitBackdropFilter: 'blur(12px)',
-      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
-      borderRadius: '32px',
+      background: 'transparent',
+      border: `1px solid transparent`,
+      borderRadius: '28px',
       padding: '0.5rem',
     },
 

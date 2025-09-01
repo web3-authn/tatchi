@@ -121,9 +121,9 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   width: '360px',
                   height: 'auto',
                   position: 'bottom-left',
-                  offset: '8px'
+                  offset: '4px'
                 }}
-                theme="light"
+                tooltipTheme="light"
                 // tooltipTheme="dark"
                 onError={(error) => {
                   setError(`Transaction failed: ${error.message}`);

@@ -50,7 +50,7 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
   let label: string;
   switch (action.type) {
     case 'FunctionCall':
-      label = `Calling ${action.methodName} with`;
+      label = `Calling ${action.methodName} with ${formatGas(action.gas)}`;
       break;
     case 'Transfer':
       label = `Transferring ${formatDeposit(action.amount)} to`;
@@ -82,7 +82,9 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
   switch (action.type) {
     case 'FunctionCall':
       actionNodes = [
-        { id: `a${idx}-gas`, label: `gas: ${formatGas(action.gas)}`, type: 'file' },
+        // Skip showing gas for FunctionCall, we show it in the label
+        // { id: `a${idx}-gas`, label: `gas: ${formatGas(action.gas)}`, type: 'file' },
+        //
         // Only show deposit if it's not 0
         ...(action.deposit && action.deposit !== '0' ? [{
           id: `a${idx}-deposit`,

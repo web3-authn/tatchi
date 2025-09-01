@@ -86,6 +86,7 @@
     }
   },
   "dependencies": {
+    "@lit/react": "^1.0.8",
     "@near-js/transactions": "^2.0.1",
     "@near-js/types": "^2.0.1",
     "@types/qrcode": "^1.5.5",

@@ -244,7 +244,7 @@ async function renderUserConfirmUI({
 
         // Apply theme to existing embedded component if theme is specified
         if (hostEl && confirmationConfig.theme) {
-          hostEl.theme = confirmationConfig.theme;
+          hostEl.tooltipTheme = confirmationConfig.theme;
         }
 
         let uiDigest: string | null = null;

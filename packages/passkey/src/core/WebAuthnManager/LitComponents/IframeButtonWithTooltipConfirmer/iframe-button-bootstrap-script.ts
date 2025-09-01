@@ -47,7 +47,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   size?: { width: string | number; height: string | number };
   tooltip?: { width: string; height: string | 'auto'; position: string; offset: string };
   tooltipPosition?: TooltipPosition; // fallback path uses this name
-  theme?: 'dark' | 'light';
+  tooltipTheme?: 'dark' | 'light';
   styles?: TooltipTreeStyles;
   updateProperties?: (props: Partial<{
     nearAccountId: string;
@@ -234,9 +234,9 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
           }
         }
 
-        // Handle direct theme updates
-        if (payload.theme && el.theme !== payload.theme) {
-          el.theme = payload.theme;
+        // Handle direct tooltip theme updates
+        if (payload.theme && el.tooltipTheme !== payload.theme) {
+          el.tooltipTheme = payload.theme;
           if (el.requestUpdate) el.requestUpdate();
         }
 

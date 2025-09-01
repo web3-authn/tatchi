@@ -29,7 +29,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     buttonHoverStyle: { type: Object },
     styles: { type: Object, attribute: false },
     buttonStyles: { type: Object, attribute: false },
-    theme: { type: String },
+    tooltipTheme: { type: String },
     tooltipVisible: { state: true },
     hideTimeout: { state: true }
   } as const;
@@ -46,11 +46,11 @@ export class EmbeddedTxButton extends LitElementWithProps {
     width: '360px',
     height: 'auto',
     position: 'top-center',
-    offset: '8px'
+    offset: '4px'
   };
   buttonStyle: React.CSSProperties = {};
   buttonHoverStyle: React.CSSProperties = {};
-  theme: EmbeddedTxButtonTheme = 'dark';
+  tooltipTheme: EmbeddedTxButtonTheme = 'dark';
   styles!: TooltipTreeStyles;
   buttonStyles!: EmbeddedTxButtonStyles;
 
@@ -213,20 +213,20 @@ export class EmbeddedTxButton extends LitElementWithProps {
     [data-tooltip-content][data-position="top-left"] {
       bottom: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
-      margin-bottom: var(--tooltip-offset, 8px);
+      margin-bottom: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-position="top-center"] {
       bottom: 100%;
       left: 50%;
       transform: translateX(-50%);
-      margin-bottom: var(--tooltip-offset, 8px);
+      margin-bottom: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-position="top-right"] {
       bottom: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
-      margin-bottom: var(--tooltip-offset, 8px);
+      margin-bottom: var(--tooltip-offset, 4px);
     }
 
     /* Side positions */
@@ -234,34 +234,34 @@ export class EmbeddedTxButton extends LitElementWithProps {
       right: 100%;
       top: 50%;
       transform: translateY(-50%);
-      margin-right: var(--tooltip-offset, 8px);
+      margin-right: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-position="right"] {
       left: 100%;
       top: 50%;
       transform: translateY(-50%);
-      margin-left: var(--tooltip-offset, 8px);
+      margin-left: var(--tooltip-offset, 4px);
     }
 
     /* Bottom positions: aligned with button corners */
     [data-tooltip-content][data-position="bottom-left"] {
       top: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
-      margin-top: var(--tooltip-offset, 8px);
+      margin-top: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-position="bottom-center"] {
       top: 100%;
       left: 50%;
       transform: translateX(-50%);
-      margin-top: var(--tooltip-offset, 8px);
+      margin-top: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-position="bottom-right"] {
       top: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
-      margin-top: var(--tooltip-offset, 8px);
+      margin-top: var(--tooltip-offset, 4px);
     }
 
     [data-tooltip-content][data-visible="true"] {
@@ -320,8 +320,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.setupCSSVariables();
     }
 
-    // Update tooltip theme when theme property changes
-    if (changedProperties.has('theme')) {
+    // Update tooltip theme when tooltipTheme property changes
+    if (changedProperties.has('tooltipTheme')) {
       this.updateTooltipTheme();
       this.applyButtonStyles();
     }
@@ -384,11 +384,11 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // ==============================
   private updateTooltipTheme() {
     // Update tooltip tree styles based on the current theme
-    const selectedTheme = TOOLTIP_THEMES[this.theme] || TOOLTIP_THEMES.dark;
+    const selectedTheme = TOOLTIP_THEMES[this.tooltipTheme] || TOOLTIP_THEMES.dark;
     this.styles = { ...selectedTheme };
 
     // Update embedded button styles based on the current theme
-    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.theme] || EMBEDDED_TX_BUTTON_THEMES.dark;
+    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.tooltipTheme] || EMBEDDED_TX_BUTTON_THEMES.dark;
     this.buttonStyles = { ...selectedButtonTheme };
   }
 
@@ -744,9 +744,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.buttonStyles = embeddedButtonTheme;
       this.applyButtonStyles();
     }
-    // Handle theme updates
-    if (theme && theme !== this.theme) {
-      this.theme = theme as EmbeddedTxButtonTheme;
+    // Handle tooltip theme updates
+    if (theme && theme !== this.tooltipTheme) {
+      this.tooltipTheme = theme as EmbeddedTxButtonTheme;
       this.updateTooltipTheme();
     }
     this.setupCSSVariables();
@@ -865,7 +865,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
             .node=${tree}
             .depth=${0}
             .styles=${this.styles}
-            .theme=${this.theme}
+            .theme=${this.tooltipTheme}
             @tree-toggled=${this.handleTreeToggled}
           ></tooltip-tx-tree>
         </div>

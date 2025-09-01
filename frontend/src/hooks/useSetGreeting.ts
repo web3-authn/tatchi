@@ -84,7 +84,6 @@ export const useSetGreeting = (): SetGreetingHook => {
   // Auto-fetch greeting on mount with protection against React StrictMode double-mounting
   useEffect(() => {
     if (hasFetchedOnMount.current) {
-      console.log('Skipping duplicate mount fetch due to React StrictMode');
       return;
     }
 

@@ -33,7 +33,6 @@ import {
   IframeButtonMessagePayloads,
   IframeButtonMessage,
 } from '../common/iframe-messages'
-import { C } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 
 /**
  * Lit component that hosts the SecureTxConfirmButton iframe and manages all iframe communication.
@@ -70,9 +69,9 @@ export class IframeButtonHost extends LitElementWithProps {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
-    theme: {
+    tooltipTheme: {
       type: String,
-      attribute: 'theme'
+      attribute: 'tooltip-theme'
     },
     showLoading: {
       type: Boolean,
@@ -161,7 +160,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPosition;
-  declare theme: EmbeddedTxButtonTheme;
+  declare tooltipTheme: EmbeddedTxButtonTheme;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
   declare passkeyManagerContext: PasskeyManagerContext | null;
@@ -188,9 +187,9 @@ export class IframeButtonHost extends LitElementWithProps {
       width: '280px',
       height: '300px',
       position: 'top-center',
-      offset: '8px'
+      offset: '4px'
     };
-    this.theme = 'dark';
+    this.tooltipTheme = 'dark';
     this.showLoading = false;
     this.options = {};
     this.passkeyManagerContext = null;
@@ -280,7 +279,7 @@ export class IframeButtonHost extends LitElementWithProps {
       tooltipHeightPx: tooltipHeight,
       offsetPx: offset,
       position: this.tooltipPosition.position,
-      paddingPx: 8,
+      paddingPx: 0,
     });
   }
 
@@ -429,10 +428,10 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     const mergedButtonStyle = { ...this.buttonStyle, ...buttonSize };
     // Get theme styles for tooltip tree
-    const themeStyles = this.getThemeStyles(this.theme || 'dark');
+    const themeStyles = this.getThemeStyles(this.tooltipTheme || 'dark');
 
     // Get embedded button theme styles
-    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.theme || 'dark'];
+    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.tooltipTheme || 'dark'];
 
     this.postToIframe('SET_STYLE', {
       buttonStyle: mergedButtonStyle,
@@ -440,7 +439,7 @@ export class IframeButtonHost extends LitElementWithProps {
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles: themeStyles,
       embeddedButtonTheme: embeddedButtonTheme,
-      theme: this.theme,
+      theme: this.tooltipTheme,
     });
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the
@@ -602,11 +601,11 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   /**
-   * Update theme dynamically - called by React component when user changes theme preference
+   * Update tooltip theme dynamically - called by React component when user changes theme preference
    */
   updateTheme(newTheme: 'dark' | 'light'): void {
-    // Update the theme property
-    this.theme = newTheme as EmbeddedTxButtonTheme;
+    // Update the tooltipTheme property
+    this.tooltipTheme = newTheme as EmbeddedTxButtonTheme;
     // If iframe is already initialized, send theme update via postMessage
     if (this.iframeInitialized) {
       this.postStyleUpdateToIframe();
@@ -649,7 +648,7 @@ export class IframeButtonHost extends LitElementWithProps {
       const iframe = this.iframeRef.value;
       if (iframe) {
         const fallback = this.calculateIframeSize();
-        const size = computeExpandedIframeSizeFromGeometryPure({ geometry, fallback, paddingPx: 8 });
+        const size = computeExpandedIframeSizeFromGeometryPure({ geometry, fallback, paddingPx: 0 });
         iframe.style.width = `${size.width}px`;
         iframe.style.height = `${size.height}px`;
       }
@@ -741,7 +740,7 @@ export class IframeButtonHost extends LitElementWithProps {
           uiMode: 'embedded',
           behavior: 'autoProceed',
           autoProceedDelay: 0,
-          theme: this.theme
+          theme: this.tooltipTheme
         }
       });
 
