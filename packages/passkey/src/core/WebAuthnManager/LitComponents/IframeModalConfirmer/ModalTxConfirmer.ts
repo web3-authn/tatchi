@@ -1,8 +1,10 @@
-import { LitElement, html, css } from 'lit';
+import { html, css, type PropertyValues } from 'lit';
+import { LitElementWithProps } from '../LitElementWithProps';
 import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
 import { TransactionInputWasm, ActionArgsWasm } from '../../../types';
 import { formatArgs, formatDeposit, formatGas } from '../common/formatters';
+import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -21,18 +23,14 @@ export interface TxAction {
   args?: string;
   gas?: string;
   deposit?: string;
-  [key: string]: any;
+  [key: string]: string | number | boolean | null | undefined | object;
 }
-
-// Store active promise resolvers in a WeakMap to prevent memory leaks
-// This is used by the mount functions in ./index.ts
-export const activeResolvers = new WeakMap<HTMLElement, (value: boolean) => void>();
 
 /**
  * Modal transaction confirmation component with multiple display variants.
  * Built with Lit for automatic XSS protection and reactive updates.
  */
-export class ModalTxConfirmElement extends LitElement {
+export class ModalTxConfirmElement extends LitElementWithProps {
   // Component properties (automatically reactive)
   static properties = {
     mode: { type: String },
@@ -46,6 +44,8 @@ export class ModalTxConfirmElement extends LitElement {
     confirmText: { type: String },
     txSigningRequests: { type: Array },
     loading: { type: Boolean },
+    styles: { type: Object },
+    theme: { type: String, attribute: 'theme' },
     _isVisible: { type: Boolean, state: true },
     _isAnimating: { type: Boolean, state: true }
   };
@@ -61,6 +61,8 @@ export class ModalTxConfirmElement extends LitElement {
   confirmText = 'Confirm & Sign';
   txSigningRequests: TransactionInputWasm[] = [];
   loading = false;
+  styles?: ModalTxConfirmerStyles;
+  theme: ModalConfirmerTheme = 'dark';
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
   deferClose = false;
@@ -74,20 +76,9 @@ export class ModalTxConfirmElement extends LitElement {
 
   static styles = css`
     :host {
-      /* Style-guide variables */
-      --w3a-color-primary: #2A52BE;
-      --w3a-color-secondary: #6F8DDF;
-      --w3a-color-success: #10b981;
-      --w3a-color-warning: #f59e0b;
-      --w3a-color-error: #ef4444;
-      --w3a-color-background: #ffffff;
-      --w3a-color-surface: #f8fafc;
-      --w3a-color-border: #e2e8f0;
-      --w3a-color-text: #1e293b;
-      --w3a-color-text-secondary: #64748b;
-
-      --w3a-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      --w3a-font-size-sm: 0.875rem;
+      /* Default style-guide variables (can be overridden by applyStyles) */
+      --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --w3a-font-size-sm: 0.8rem;
       --w3a-font-size-base: 1rem;
       --w3a-font-size-lg: 1.125rem;
       --w3a-font-size-xl: 1.25rem;
@@ -102,8 +93,8 @@ export class ModalTxConfirmElement extends LitElement {
       --w3a-gap-4: 1rem;
       --w3a-gap-6: 1.5rem;
 
-      --w3a-shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-      --w3a-shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --w3a-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
+      --w3a-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.06);
 
       /* Component display */
       display: block;
@@ -115,41 +106,49 @@ export class ModalTxConfirmElement extends LitElement {
     }
 
     /* Reset and base styles */
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       box-sizing: border-box;
     }
 
     /* Container variants */
-    .container {
-      color: var(--w3a-color-text);
-    }
-
-    .container.modal {
+    .modal-backdrop {
       position: fixed;
       inset: 0;
       display: grid;
       place-items: center;
-      background: rgba(0, 0, 0, 0.5);
       z-index: 2147483647;
-      backdrop-filter: blur(2px);
-      animation: backdrop-enter 0ms ease-in-out;
+      background: var(--w3a-modal_modal-backdrop_color, rgba(0, 0, 0, 0.5));
+      backdrop-filter: var(--w3a-modal_modal-backdrop_filter, blur(2px));
+      animation: backdrop-enter 50ms ease-in-out;
+      will-change: opacity, backdrop-filter;
+    }
+
+    .modal-container {
+      color: var(--w3a-modal_modal-container_color, var(--w3a-color-text));
     }
 
     /* Animations */
     @keyframes backdrop-enter {
       from {
         opacity: 0;
-        backdrop-filter: blur(0px);
+        backdrop-filter: var(--w3a-modal_modal-backdrop-filter_from, blur(0px));
       }
       to {
         opacity: 1;
-        backdrop-filter: blur(2px);
+        backdrop-filter: var(--w3a-modal_modal-backdrop-filter_to, blur(2px));
       }
     }
 
-    .header {
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+
+    .action-header {
       margin: 0;
       font-size: var(--w3a-font-size-xl);
       line-height: 1.3;
@@ -160,9 +159,9 @@ export class ModalTxConfirmElement extends LitElement {
       z-index: 1;
     }
 
-    .grid {
+    .summary-grid {
       display: grid;
-      gap: 0.5rem;
+      gap: var(--w3a-gap-2);
       grid-template-columns: 1fr;
       margin-top: var(--w3a-gap-2);
       margin-bottom: var(--w3a-gap-2);
@@ -170,9 +169,9 @@ export class ModalTxConfirmElement extends LitElement {
       z-index: 1;
     }
 
-    .row {
+    .summary-row {
       display: grid;
-      grid-template-columns: 115px 1fr;
+      grid-template-columns: var(--w3a-modal_row_template-columns, 115px 1fr);
       align-items: center;
       gap: var(--w3a-gap-2);
       background: transparent;
@@ -182,16 +181,16 @@ export class ModalTxConfirmElement extends LitElement {
       overflow: hidden;
     }
 
-    .label {
+    .summary-label {
       color: var(--w3a-color-text-secondary);
       font-size: var(--w3a-font-size-sm);
-      font-weight: 500;
+      font-weight: var(--w3a-modal_label_font-weight, 500);
     }
 
-    .value {
+    .summary-value {
       color: var(--w3a-color-text);
       font-size: var(--w3a-font-size-sm);
-      font-weight: 500;
+      font-weight: var(--w3a-modal_value_font-weight, 500);
       word-break: break-word;
     }
 
@@ -203,62 +202,31 @@ export class ModalTxConfirmElement extends LitElement {
 
     /* Actions section */
     .actions-section {
-      margin: .75rem 0;
+      margin: var(--w3a-modal_actions_margin, .75rem 0);
       position: relative;
       z-index: 1;
+      animation: fadeIn 50ms ease-in-out forwards;
+      will-change: opacity;
     }
 
     /* Outer glass border wrapper around actions (double border design) */
     .action-outer {
-      background: var(--w3a-color-border);
-      backdrop-filter: blur(2px);
-      -webkit-backdrop-filter: blur(2px);
-      border: 8px solid rgba(255, 255, 255, 0.35);
-      border-radius: 24px;
+      background: var(--w3a-modal_action-outer_background, var(--w3a-color-border));
+      backdrop-filter: var(--w3a-modal_action-outer_backdrop-filter, blur(2px));
+      -webkit-backdrop-filter: var(--w3a-modal_action-outer_backdrop-filter, blur(2px));
+      border: var(--w3a-modal_action-outer_border, 8px solid rgba(255, 255, 255, 0.35));
+      border-radius: var(--w3a-modal_action-outer_border-radius, 1rem);
     }
 
     .action-list {
-      border: 1px solid transparent;
-      border-radius: 1rem;
+      border: var(--w3a-modal_action-list_border, 1px solid transparent);
+      border-radius: var(--w3a-modal_action-list_border-radius, var(--w3a-radius-lg));
       height: 100%;
-      padding: 1rem;
+      padding: var(--w3a-modal_action-list_padding, var(--w3a-gap-4));
       overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      box-shadow: var(--w3a-modal_action-list_box-shadow, var(--w3a-shadow-sm));
       position: relative;
-      background: var(--w3a-color-background);
-    }
-
-    /* Action list wrapper - style-guide animated border */
-    .gradient-border {
-      --border-angle: 0deg;
-      background: linear-gradient(#ffffff, #ffffff) padding-box,
-        conic-gradient(
-          from var(--border-angle),
-          rgba(0, 0, 0, 0.0) 0%,
-          rgba(0, 0, 0, 0.35) 10%,
-          rgba(0, 0, 0, 0.0) 20%,
-          rgba(0, 0, 0, 0.0) 100%
-        ) border-box;
-      animation: border-angle-rotate 4s infinite linear;
-    }
-
-    @property --border-angle {
-      syntax: "<angle>";
-      initial-value: 0deg;
-      inherits: false;
-    }
-
-    @keyframes border-angle-rotate {
-      from { --border-angle: 0deg; }
-      to { --border-angle: 360deg; }
-    }
-
-    .actions-title {
-      color: var(--w3a-color-text-secondary);
-      font-size: var(--w3a-font-size-sm);
-      font-weight: 600;
-      letter-spacing: 0.8px;
-      margin-bottom: var(--w3a-gap-3);
+      background: var(--w3a-modal_action-list_background, var(--w3a-color-background));
     }
 
     .action-item {
@@ -273,7 +241,7 @@ export class ModalTxConfirmElement extends LitElement {
 
     .action-row {
       display: grid;
-      grid-template-columns: 100px 1fr;
+      grid-template-columns: var(--w3a-modal_actionrow_template-columns, 100px 1fr);
       align-items: center;
       gap: var(--w3a-gap-2);
       padding: 0;
@@ -289,10 +257,12 @@ export class ModalTxConfirmElement extends LitElement {
     .action-label {
       font-family: var(--w3a-font-family);
       color: var(--w3a-color-text-secondary);
-      font-size: 0.75rem;
+      font-size: var(--w3a-font-size-sm);
       line-height: 1.5;
-      font-weight: 500;
+      font-weight: var(--w3a-modal_action-label_font-weight, 500);
       letter-spacing: 0.02em;
+      padding: var(--w3a-modal_action-label_padding, 2px 0px);
+      margin: var(--w3a-modal_action-label_margin, 0px);
     }
 
     .action-content {
@@ -302,30 +272,30 @@ export class ModalTxConfirmElement extends LitElement {
     }
 
     .action-content::-webkit-scrollbar {
-      width: 6px;
+      width: var(--w3a-modal_scrollbar_width, 6px);
     }
 
     .action-content::-webkit-scrollbar-track {
       background: var(--w3a-color-background);
-      border-radius: 3px;
+      border-radius: var(--w3a-radius-sm);
     }
 
     .action-content::-webkit-scrollbar-thumb {
       background: var(--w3a-color-border);
-      border-radius: 3px;
+      border-radius: var(--w3a-radius-sm);
     }
 
     .action-value {
       color: var(--w3a-color-text);
       word-break: break-word;
-      font-weight: 500;
-      font-size: 0.75rem;
+      font-weight: var(--w3a-modal_action-value_font-weight, 500);
+      font-size: var(--w3a-font-size-sm);
     }
 
     .action-subitem {
-      margin-bottom: 0.5rem;
-      padding: 0rem 0rem 0rem 1rem;
-      background: var(--w3a-color-background);
+      margin-bottom: var(--w3a-modal_action-subitem_margin-bottom, var(--w3a-gap-2));
+      padding: 0rem 0rem 0rem var(--w3a-modal_action-subitem_padding, var(--w3a-gap-4));
+      background: var(--w3a-modal_action-subitem_background, unset);
       position: relative;
     }
 
@@ -341,24 +311,25 @@ export class ModalTxConfirmElement extends LitElement {
 
     .code-block {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-      font-size: 0.75rem;
-      background: #f8fafc;
-      border: 1px solid #e0e0e0;
-      border-radius: var(--w3a-radius-md);
-      padding: 8px;
+      font-size: var(--w3a-modal_code-block_font-size, var(--w3a-font-size-sm));
+      background: var(--w3a-modal_code-block_background, var(--w3a-color-background));
+      border: 1px solid var(--w3a-modal_code-block_border-color, var(--w3a-color-border));
+      border-radius: var(--w3a-modal_code-block_border-radius, var(--w3a-radius-md));
+      padding: var(--w3a-modal_code-block_padding, var(--w3a-gap-2));
+      margin: var(--w3a-modal_code-block_margin, 4px 0px 0px 0px);
       white-space: pre;
       word-break: normal;
       overflow: auto;
       line-height: 1.4;
-      margin: 0.25rem 0rem 0rem 0rem;
-      min-height: calc(1.eem * 3);
-      max-height: 400px;
+      min-height: calc(1.4em * 3);
+      max-height: var(--w3a-modal_code-block_max-height);
       height: auto;
+      color: var(--w3a-modal_code-block_color, var(--w3a-color-text));
     }
 
     .method-name {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-      font-weight: 600;
+      font-weight: var(--w3a-modal_method-name_font-weight, 600);
       color: var(--w3a-color-primary);
     }
 
@@ -372,11 +343,6 @@ export class ModalTxConfirmElement extends LitElement {
       z-index: 1;
     }
 
-    .toast .buttons {
-      gap: .75rem;
-      margin-top: 1.5rem;
-    }
-
     .btn {
       background-color: var(--w3a-color-background);
       box-shadow: var(--w3a-shadow-sm);
@@ -385,16 +351,16 @@ export class ModalTxConfirmElement extends LitElement {
       border-radius: var(--w3a-radius-lg);
       justify-content: center;
       align-items: center;
-      height: 2.5rem;
+      height: var(--w3a-modal_btn_height, 2.5rem);
       padding: var(--w3a-gap-3);
       font-size: var(--w3a-font-size-base);
       display: flex;
       cursor: pointer;
       border: 1px solid var(--w3a-color-border);
       font-family: var(--w3a-font-family);
-      font-weight: 500;
+      font-weight: var(--w3a-modal_btn_font-weight, 500);
       transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
-      min-width: 100px;
+      min-width: var(--w3a-modal_btn_min-width, 100px);
       position: relative;
       overflow: hidden;
     }
@@ -406,7 +372,7 @@ export class ModalTxConfirmElement extends LitElement {
 
     .btn:active {
       background-color: var(--w3a-color-border);
-      transform: translateY(1px);
+      transform: var(--w3a-modal_btn-active_transform, translateY(1px));
     }
 
     .btn-cancel {
@@ -429,8 +395,8 @@ export class ModalTxConfirmElement extends LitElement {
     }
 
     .btn-confirm:hover {
-      background-color: #456CD6;
-      border-color: #456CD6;
+      background-color: var(--w3a-color-secondary);
+      border-color: var(--w3a-color-secondary);
     }
 
     .btn-confirm.warning {
@@ -453,60 +419,60 @@ export class ModalTxConfirmElement extends LitElement {
     .btn:focus-visible {
       outline: 2px solid var(--w3a-color-primary);
       outline-offset: 3px;
-      box-shadow: 0 0 0 3px rgba(42, 82, 190, 0.18);
+      box-shadow: var(--w3a-modal_btn-focus_box-shadow, 0 0 0 2px rgba(42, 82, 190, 0.12));
     }
 
     /* Responsive adjustments */
     @media (max-width: 640px) {
 
-      .header {
-        font-size: 22px;
-        margin-bottom: 1rem;
+      .action-header {
+        font-size: var(--w3a-font-size-lg);
+        margin-bottom: var(--w3a-gap-4);
       }
 
-      .row {
+      .summary-row {
         grid-template-columns: 1fr;
-        gap: .25rem;
-        padding: 0.75rem;
+        gap: var(--w3a-modal_responsive-row_gap, 0.25rem);
+        padding: var(--w3a-gap-3);
       }
 
-      .label {
-        font-size: 0.75em;
-        margin-bottom: 2px;
+      .summary-label {
+        font-size: var(--w3a-font-size-sm);
+        margin-bottom: var(--w3a-modal_responsive-label_margin-bottom, 2px);
       }
 
       .action-row {
         grid-template-columns: 1fr;
-        gap: .25rem;
-        padding: 0.5rem;
+        gap: var(--w3a-modal_responsive-action-row_gap, 0.25rem);
+        padding: var(--w3a-gap-2);
       }
 
       .buttons {
         flex-direction: column-reverse;
-        gap: .75rem;
+        gap: var(--w3a-gap-3);
       }
 
       .btn {
         width: 100%;
-        padding: 1rem 1.25rem;
+        padding: var(--w3a-gap-4) var(--w3a-gap-5);
       }
 
       .action-content {
-        font-size: 0.75em;
-        max-height: 100px;
+        font-size: var(--w3a-font-size-sm);
+        max-height: var(--w3a-modal_responsive-action-content_max-height, 100px);
       }
     }
 
     /* Loading indicator styles */
     .loading-indicator {
       display: inline-block;
-      width: 16px;
-      height: 16px;
+      width: var(--w3a-modal_loading_width, 16px);
+      height: var(--w3a-modal_loading_height, 16px);
       border: 2px solid var(--w3a-color-border);
       border-radius: 50%;
       border-top-color: var(--w3a-color-primary);
       animation: spin 1s ease-in-out infinite;
-      margin-right: 8px;
+      margin-right: var(--w3a-gap-2);
     }
 
     @keyframes spin {
@@ -531,16 +497,37 @@ export class ModalTxConfirmElement extends LitElement {
   connectedCallback() {
     super.connectedCallback();
     this._isVisible = true;
+    // Initialize styles based on theme
+    this.updateTheme();
+  }
+
+  updated(changedProperties: PropertyValues) {
+    super.updated(changedProperties);
+
+    // Update styles when theme changes
+    if (changedProperties.has('theme')) {
+      this.updateTheme();
+    }
+  }
+
+  private updateTheme() {
+    // Update styles based on the current theme
+    const selectedTheme = MODAL_CONFIRMER_THEMES[this.theme] || MODAL_CONFIRMER_THEMES.dark;
+    this.styles = { ...selectedTheme };
+    // Apply the styles immediately
+    this.applyStyles(this.styles);
+  }
+
+  protected getComponentPrefix(): string {
+    return 'modal';
+  }
+
+  protected applyStyles(styles: ModalTxConfirmerStyles): void {
+    super.applyStyles(styles, 'modal');
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
-    // Clean up if element is removed without user interaction
-    const resolve = activeResolvers.get(this);
-    if (resolve) {
-      resolve(false); // Default to cancel
-      activeResolvers.delete(this);
-    }
   }
 
   private _renderActionDetails(action: ActionArgsWasm) {
@@ -683,40 +670,25 @@ formatGas(action.gas)}</span>
   }
 
   render() {
-    const containerClasses = classMap({
-      container: true,
-      [this.mode]: true,
-    });
-
-    const contentClasses = classMap({
-      'content': true,
-      [this.variant]: this.variant !== 'default',
-    });
-
-    const confirmBtnClasses = classMap({
-      'btn': true,
-      'btn-confirm': true,
-      [this.variant]: this.variant !== 'default',
-    });
 
     const displayTotalAmount = !(this.totalAmount === '0' || this.totalAmount === '');
 
     return html`
-      <div class=${containerClasses} @click=${this._handleBackdropClick}>
-        <div class=${contentClasses} @click=${this._handleContentClick}>
+      <div class="modal-backdrop" @click=${this._handleBackdropClick}>
+        <div class="modal-container" @click=${this._handleContentClick}>
 
           <div class="actions-section">
             <div class="action-outer">
               <div class="action-list">
-                <h2 class="header">${this.title}</h2>
+                <h2 class="action-header">${this.title}</h2>
 
                 <!-- Transaction Summary Section -->
                 ${when(displayTotalAmount, () => html`
                   <div class="summary-section">
-                    <div class="grid">
-                      <div class="row">
-                        <div class="label">Total Sent</div>
-                        <div class="value">${formatDeposit(this.totalAmount)}</div>
+                    <div class="summary-grid">
+                      <div class="summary-row">
+                        <div class="summary-label">Total Sent</div>
+                        <div class="summary-value">${formatDeposit(this.totalAmount)}</div>
                       </div>
                     </div>
                   </div>
@@ -767,7 +739,7 @@ formatGas(action.gas)}</span>
                       ${this.cancelText}
                     </button>
                     <button
-                      class=${confirmBtnClasses}
+                      class="btn btn-confirm"
                       @click=${this._handleConfirm}
                     >
                       ${this.confirmText}
@@ -805,12 +777,7 @@ formatGas(action.gas)}</span>
   }
 
   private _resolveAndCleanup(confirmed: boolean) {
-    const resolve = activeResolvers.get(this);
-    if (resolve) {
-      resolve(confirmed);
-      activeResolvers.delete(this);
-      this.remove();
-    }
+    this.remove();
   }
 
   // Public method for two-phase close from host/bootstrap

@@ -1,9 +1,9 @@
 // External imports
-import { html, css } from 'lit';
+import { html, css, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInputWasm } from '../../../types/actions';
-import type { SignAndSendTransactionHooksOptions } from '../../../types/passkeyManager';
+import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
 import type { PasskeyManagerContext } from '../../../PasskeyManager';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
@@ -29,7 +29,7 @@ export class IframeModalHost extends LitElementWithProps {
   static properties = {
     nearAccountId: { type: String, attribute: 'near-account-id' },
     txSigningRequests: { type: Array },
-    theme: { type: Object },
+    theme: { type: String, attribute: 'theme' },
     showLoading: { type: Boolean, attribute: 'show-loading' },
     intentDigest: { type: String, attribute: 'intent-digest' },
     options: { type: Object },
@@ -49,12 +49,12 @@ export class IframeModalHost extends LitElementWithProps {
 
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
-  declare theme: Record<string, string> | undefined;
+  declare theme: 'dark' | 'light';
   declare showLoading: boolean;
   declare intentDigest: string | undefined;
   declare options: SignAndSendTransactionHooksOptions | undefined;
   declare passkeyManagerContext: PasskeyManagerContext | null;
-  onSuccess?: (result: unknown) => void;
+  onSuccess?: (result: ActionResult[] ) => void;
   onError?: (error: Error) => void;
   onCancel?: () => void;
 
@@ -62,7 +62,7 @@ export class IframeModalHost extends LitElementWithProps {
     super();
     this.nearAccountId = '';
     this.txSigningRequests = [];
-    this.theme = undefined;
+    this.theme = 'light';
     this.showLoading = false;
     this.intentDigest = undefined;
     this.options = {};
@@ -96,7 +96,7 @@ export class IframeModalHost extends LitElementWithProps {
   // ==============================
   // Lifecycle
   // ==============================
-  updated(changed: Map<string, unknown>) {
+  updated(changed: PropertyValues) {
     super.updated(changed);
     if (!this.iframeInitialized) {
       this.initializeIframe();
@@ -155,7 +155,7 @@ export class IframeModalHost extends LitElementWithProps {
   // ==============================
   // Data Updates
   // ==============================
-  private updateIframeViaPostMessage(changed: Map<string, unknown>) {
+  private updateIframeViaPostMessage(changed: PropertyValues) {
     if (!this.iframeRef.value?.contentWindow) return;
     // Always push latest tx data
     this.postToIframe('SET_TX_DATA', {
@@ -287,7 +287,7 @@ export class IframeModalHost extends LitElementWithProps {
           });
           this.onError?.(new Error('UI digest mismatch'));
         }
-      } catch (e: unknown) {
+      } catch (e) {
         confirmed = false;
         error = 'ui_digest_validation_failed';
         const err = e instanceof Error ? e : new Error(String(e));
