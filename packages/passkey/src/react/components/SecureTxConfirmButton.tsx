@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
-import { IFRAME_BUTTON_ID } from '../../core/types/components';
 import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
 import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
+import { IframeButtonWithTooltip } from '../lit-wrappers/IframeButtonWithTooltip';
 
 /**
  * React wrapper around the Lit `iframe-button` component.
@@ -15,6 +15,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   buttonHoverStyle?: React.CSSProperties;
   tooltipPosition?: TooltipPosition;
   theme?: EmbeddedTxButtonTheme;
+  lockTheme?: boolean;
 }> = ({
   nearAccountId,
   txSigningRequests,
@@ -30,6 +31,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     offset: '8px'
   },
   theme = 'dark',
+  lockTheme = false,
   // Behavioral props
   onCancel,
   onSuccess,
@@ -37,105 +39,45 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   showLoading,
 }) => {
 
-  const hostRef = React.useRef<any>(null);
   const { passkeyManager } = usePasskeyContext();
-  const prevTooltipPositionRef = React.useRef(tooltipPosition);
-  const [isComponentLoaded, setIsComponentLoaded] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Memoize passkey context for stable prop identity
+  const passkeyManagerContext = useMemo(() => passkeyManager.getContext(), [passkeyManager]);
+  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(theme);
 
-  // Load the component bundle on mount
+  // Uncontrolled mode: listen to user preference changes
   useEffect(() => {
-    let loadPromise: Promise<void> | null = null;
-
-    const loadEmbeddedComponent = () => {
-      // Check if the custom element is already defined
-      if (customElements.get(IFRAME_BUTTON_ID)) {
-        setIsComponentLoaded(true);
-        return Promise.resolve();
-      }
-
-      if (loadPromise) return loadPromise;
-
-      loadPromise = new Promise((resolve, reject) => {
-        // Dynamically load the host component bundle
-        const script = document.createElement('script');
-        script.type = 'module';
-        script.src = `/sdk/embedded/${IFRAME_BUTTON_ID}.js`;
-        script.onload = () => {
-          setIsComponentLoaded(true);
-          resolve();
-        };
-        script.onerror = () => {
-          const error = new Error('Failed to load embedded component bundle');
-          setLoadError(error.message);
-          reject(error);
-        };
-        document.head.appendChild(script);
-      });
-
-      return loadPromise;
+    if (lockTheme) return;
+    const handleThemeChange = (newTheme: 'dark' | 'light') => {
+      setCurrentTheme(newTheme as EmbeddedTxButtonTheme);
     };
+    // Subscribe to theme changes
+    const unsubscribe = passkeyManager.userPreferences.onThemeChange(handleThemeChange);
+    handleThemeChange(passkeyManager.userPreferences.getUserTheme());
+    return () => unsubscribe();
+  }, [passkeyManager, lockTheme]);
 
-    loadEmbeddedComponent()
-      .catch((err: Error) => {
-        console.error('Failed to load embedded component:', err);
-        setLoadError(err.message);
-      });
-  }, []);
+  // Controlled mode: sync with theme prop changes
+  useEffect(() => {
+    if (lockTheme) setCurrentTheme(theme);
+  }, [theme, lockTheme]);
 
-  // Update the host component when props change
-  React.useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-
-    // Check if tooltipStyle changed significantly (requires iframe re-render)
-    const tooltipPositionChanged = JSON.stringify(prevTooltipPositionRef.current) !== JSON.stringify(tooltipPosition);
-    prevTooltipPositionRef.current = tooltipPosition;
-
-    // Set properties on the Lit component using Lit setters
-    host.txSigningRequests = txSigningRequests;
-    host.buttonStyle = buttonStyle;
-    host.buttonHoverStyle = buttonHoverStyle;
-    host.tooltipPosition = tooltipPosition;
-    host.theme = theme; // Single theme controls both button and tooltip
-    host.options = options;
-    host.passkeyManagerContext = passkeyManager.getContext();
-
-    // Set event handlers (these don't trigger updates)
-    host.onSuccess = onSuccess;
-    host.onError = onError;
-    host.onCancel = onCancel;
-
-    // If tooltipStyle changed, force iframe re-initialization for proper sizing/positioning
-    if (tooltipPositionChanged && host.forceIframeReinitialize) {
-      console.debug('[SecureTxConfirmButton] Tooltip style changed, forcing iframe re-initialization');
-      host.forceIframeReinitialize();
-    }
-
-  }, [
-    txSigningRequests,
-    buttonStyle,
-    buttonHoverStyle,
-    tooltipPosition,
-    theme, // tooltipTheme is now derived from theme
-    options,
-    passkeyManager,
-    onSuccess,
-    onError,
-    onCancel
-  ]);
-
-  return React.createElement(IFRAME_BUTTON_ID, {
-    ref: hostRef,
-    key: IFRAME_BUTTON_ID, // Stable key to prevent re-creation
-    // Pass props as attributes - Lit will automatically handle property conversion
-    'near-account-id': nearAccountId,
-    'color': color,
-    'theme': theme, // Single theme controls both button and tooltip
-    'show-loading': showLoading,
-    // Complex objects still need to be set via properties in useEffect
-  });
+  return (
+    <IframeButtonWithTooltip
+      nearAccountId={nearAccountId}
+      txSigningRequests={txSigningRequests}
+      color={color}
+      buttonStyle={buttonStyle}
+      buttonHoverStyle={buttonHoverStyle}
+      tooltipPosition={tooltipPosition}
+      theme={currentTheme}
+      showLoading={!!showLoading}
+      options={options}
+      passkeyManagerContext={passkeyManagerContext}
+      onSuccess={onSuccess}
+      onError={onError}
+      onCancel={onCancel}
+    />
+  );
 };
 
 export default SecureTxConfirmButton;
-

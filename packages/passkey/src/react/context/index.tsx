@@ -103,7 +103,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
       globalConfig = finalConfig;
     } else {
-      console.debug('PasskeyProvider: Reusing existing PasskeyManager instance');
     }
 
     return globalPasskeyManager;
