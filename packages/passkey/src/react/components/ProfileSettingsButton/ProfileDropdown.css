@@ -20,7 +20,7 @@
   grid-template-rows: 1fr;
   grid-template-columns: 1fr;
   pointer-events: auto;
-  --stagger-base: 80ms;
+  --stagger-base: 40ms;
 }
 
 .w3a-profile-dropdown-morphed[data-state="closed"] {
@@ -59,7 +59,7 @@
 
 .w3a-profile-dropdown-morphed[data-state="open"] .w3a-dropdown-menu-item {
   animation: w3a-profile-menu-item-enter 240ms linear forwards;
-  animation-delay: calc(var(--stagger-base, 0ms) + var(--stagger-item-n, 0) * 40ms);
+  animation-delay: calc(var(--stagger-base, 0ms) + var(--stagger-item-n, 0) * 20ms);
 }
 
 /* Menu Item Animation Keyframes */

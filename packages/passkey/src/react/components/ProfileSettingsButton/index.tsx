@@ -97,6 +97,13 @@ export const ProfileSettingsButton: React.FC<ProfileButtonProps> = ({
     setCurrentConfirmConfig((prev: any) => prev ? { ...prev, autoProceedDelay: delay } : prev);
   };
 
+  const handleToggleTheme = () => {
+    if (!currentConfirmConfig) return;
+    const newTheme = currentConfirmConfig.theme === 'dark' ? 'light' : 'dark';
+    passkeyManager.setUserTheme(newTheme);
+    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, theme: newTheme } : prev);
+  };
+
   // Menu items configuration with context-aware handlers
   const MENU_ITEMS: MenuItem[] = useMemo(() => [
     {
@@ -205,6 +212,7 @@ export const ProfileSettingsButton: React.FC<ProfileButtonProps> = ({
           onToggleShowDetails={handleToggleShowDetails}
           onToggleSkipClick={handleToggleSkipClick}
           onSetDelay={handleSetDelay}
+          onToggleTheme={handleToggleTheme}
           transactionSettingsOpen={transactionSettingsOpen}
         />
       </div>

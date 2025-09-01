@@ -12,6 +12,7 @@ interface ProfileDropdownWithRefs extends ProfileDropdownProps {
   onToggleShowDetails?: () => void;
   onToggleSkipClick?: () => void;
   onSetDelay?: (delay: number) => void;
+  onToggleTheme?: () => void;
   transactionSettingsOpen?: boolean;
 }
 
@@ -29,6 +30,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
     onToggleShowDetails,
     onToggleSkipClick,
     onSetDelay,
+    onToggleTheme,
     transactionSettingsOpen = false,
   }, ref) => {
     // Only count transaction settings if it's actually rendered (when expanded)
@@ -68,6 +70,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
               onToggleShowDetails={onToggleShowDetails}
               onToggleSkipClick={onToggleSkipClick}
               onSetDelay={onSetDelay}
+              onToggleTheme={onToggleTheme}
               isOpen={transactionSettingsOpen}
               // Set CSS variable to calculate stagger delay in CSS stylesheet
               style={{ ['--stagger-item-n' as any]: menuItems.length }}

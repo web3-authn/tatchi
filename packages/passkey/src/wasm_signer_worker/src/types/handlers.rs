@@ -168,6 +168,10 @@ pub struct ConfirmationConfig {
     /// Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay)
     #[wasm_bindgen(getter_with_clone, js_name = "autoProceedDelay")]
     pub auto_proceed_delay: Option<u32>,
+
+    /// UI theme preference (dark/light)
+    #[wasm_bindgen(getter_with_clone)]
+    pub theme: Option<String>,
 }
 
 impl Default for ConfirmationConfig {
@@ -176,6 +180,7 @@ impl Default for ConfirmationConfig {
             ui_mode: ConfirmationUIMode::Modal,
             behavior: ConfirmationBehavior::RequireClick,
             auto_proceed_delay: Some(2000),
+            theme: Some("dark".to_string()),
         }
     }
 }

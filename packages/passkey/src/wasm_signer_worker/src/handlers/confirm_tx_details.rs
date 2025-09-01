@@ -449,6 +449,7 @@ pub async fn request_user_registration_confirmation(
             ui_mode: ConfirmationUIMode::Skip,
             behavior: ConfirmationBehavior::AutoProceed,
             auto_proceed_delay: Some(0),
+            theme: Some("dark".to_string()),
         },
         "isRegistration": true, // Flag to indicate this is registration flow
     });

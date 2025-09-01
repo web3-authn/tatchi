@@ -216,19 +216,20 @@ function validateAndParseRequest({ ctx, message }: {
  */
 async function renderUserConfirmUI({
   ctx,
+  data,
   confirmationConfig,
   transactionSummary,
-  data,
 }: {
   ctx: SignerWorkerManagerContext,
+  data: SecureConfirmData,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
-  data: SecureConfirmData,
 }): Promise<{
   confirmed: boolean;
   confirmHandle?: { element: any, close: (confirmed: boolean) => void };
   error?: string;
 }> {
+
   switch (confirmationConfig.uiMode) {
     case 'skip': {
       // Bypass UI entirely - automatically confirm

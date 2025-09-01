@@ -60,7 +60,6 @@ export function PasskeyLoginMenu() {
       return;
     }
 
-    console.log('Registering account:', targetAccountId);
     try {
       const result = await registerPasskey(targetAccountId, {
         useRelayer: useRelayer,
@@ -116,7 +115,6 @@ export function PasskeyLoginMenu() {
     try {
       const flow = startAccountRecoveryFlow({
         onEvent: async (event) => {
-          console.log('Recovery event:', event);
           if (
             event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
             && event.status === AccountRecoveryStatus.SUCCESS
@@ -144,7 +142,6 @@ export function PasskeyLoginMenu() {
   const onLogin = async () => {
     if (!targetAccountId) return;
 
-    console.log('Logging in with account:', targetAccountId);
     await loginPasskey(targetAccountId, {
       onEvent: (event) => {
         switch (event.phase) {

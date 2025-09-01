@@ -7,6 +7,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
   onToggleShowDetails,
   onToggleSkipClick,
   onSetDelay,
+  onToggleTheme,
   className,
   style,
   isOpen = true
@@ -54,6 +55,18 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 disabled={disableRequireClick}
               />
             </div>
+
+            {onToggleTheme && (
+              <div>
+                <Toggle
+                  checked={currentConfirmConfig?.theme === 'dark'}
+                  onChange={onToggleTheme}
+                  label="Dark mode"
+                  size="large"
+                  textPosition="left"
+                />
+              </div>
+            )}
 
             <div className="w3a-slider-root" style={{ opacity: disableDelaySlider ? 0.5 : 1, pointerEvents: disableDelaySlider ? 'none' : 'auto' }}>
               <div className="w3a-slider-container">

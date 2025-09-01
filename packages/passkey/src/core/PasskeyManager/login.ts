@@ -152,9 +152,6 @@ async function handleLoginUnlockVRF(
     const hasServerEncrypted = !!userData.serverEncryptedVrfKeypair;
     const relayerUrl = context.configs.relayer?.url;
     const useShamir3PassVRFKeyUnlock = hasServerEncrypted && !!relayerUrl;
-    console.log("hasServerEncrypted", hasServerEncrypted);
-    console.log("relayerUrl", relayerUrl);
-    console.log("useShamir3PassVRFKeyUnlock", useShamir3PassVRFKeyUnlock);
 
     if (useShamir3PassVRFKeyUnlock) {
       try {

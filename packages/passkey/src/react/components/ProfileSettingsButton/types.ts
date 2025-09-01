@@ -88,6 +88,7 @@ export interface TransactionSettingsSectionProps {
   onToggleShowDetails: () => void;
   onToggleSkipClick: () => void;
   onSetDelay: (delay: number) => void;
+  onToggleTheme?: () => void;
   className?: string;
   style?: React.CSSProperties;
   isOpen?: boolean;
