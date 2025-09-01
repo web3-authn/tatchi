@@ -1,52 +1,56 @@
-import type { TooltipTreeStyles } from '.';
+import type { ComponentStyles } from '../LitElementWithProps';
+import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '../base-styles';
 
 export type TooltipTheme = 'dark' | 'light';
+
+export interface TooltipTreeStyles extends ComponentStyles {
+
+  // Component-specific tree variables
+  host?: Record<string, string>;
+  root?: Record<string, string>;
+  treeChildren?: Record<string, string>;
+  details?: Record<string, string>;
+  summary?: Record<string, string>;
+  summaryRow?: Record<string, string>;
+  summaryRowHover?: Record<string, string>;
+  row?: Record<string, string>;
+  indent?: Record<string, string>;
+  label?: Record<string, string>;
+  chevron?: Record<string, string>;
+  fileRow?: Record<string, string>;
+  fileContent?: Record<string, string>;
+  folderChildren?: Record<string, string>;
+
+  // Highlighting styles for transaction details
+  highlightReceiverId?: Record<string, string>;
+  highlightMethodName?: Record<string, string>;
+
+  // Mobile responsive
+  rootMobile?: Record<string, string>;
+  treeChildrenMobile?: Record<string, string>;
+  folderChildrenMobile?: Record<string, string>;
+  rowMobile?: Record<string, string>;
+  fileContentMobile?: Record<string, string>;
+}
 
 // Preset theme definitions for tooltip tree styling - comprehensive design system
 export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
   dark: {
+    // Spread base colors from shared palette
+    ...DARK_THEME_COLORS,
+
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: '#f1f5f9',
-      backgroundColor: '#0f172a'
+      color: DARK_THEME_COLORS.colorText,
+      backgroundColor: DARK_THEME_COLORS.colorBackground
     },
-
-    // Core color variables
-    colorPrimary: '#3b82f6',
-    colorSecondary: '#6366f1',
-    colorSuccess: '#10b981',
-    colorWarning: '#f59e0b',
-    colorError: '#ef4444',
-    colorBackground: '#0f172a',
-    colorSurface: '#1e293b',
-    colorBorder: '#334155',
-    colorText: '#f1f5f9',
-    colorTextSecondary: '#94a3b8',
-
-    // Typography
-    fontSizeSm: '0.875rem',
-    fontSizeBase: '1rem',
-    fontSizeLg: '1.125rem',
-    fontSizeXl: '1.25rem',
-
-    // Spacing and layout
-    radiusSm: '0.375rem',
-    radiusMd: '0.5rem',
-    radiusLg: '0.75rem',
-    radiusXl: '1rem',
-    gap2: '0.5rem',
-    gap3: '0.75rem',
-    gap4: '1rem',
-    gap6: '1.5rem',
-    shadowSm: '0 1px 2px 0 rgb(0 0 0 / 0.25)',
-    shadowMd: '0 4px 6px -1px rgb(0 0 0 / 0.3)',
 
     // Component-specific tree variables
     root: {
-      background: '#1e293b',
-      color: '#f1f5f9',
+      background: DARK_THEME_COLORS.colorSurface,
+      color: DARK_THEME_COLORS.colorText,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.3)'
     },
     treeChildren: {
@@ -63,28 +67,28 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     summaryRow: {
       background: 'transparent',
       border: '1px solid transparent',
+      borderRadius: '0.75rem',
       padding: '',
     },
     summaryRowHover: {
-      background: '#334155',
-      borderColor: '#475569'
+      background: DARK_THEME_COLORS.colorBorder,
+      borderColor: DARK_THEME_COLORS.colorTextSecondary
     },
     row: {
-      color: '#f1f5f9',
+      color: DARK_THEME_COLORS.colorText,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: '#f1f5f9',
+      color: DARK_THEME_COLORS.colorText,
       fontSize: '0.875rem',
       padding: '2px 4px',
       gap: '4px',
       lineHeight: '1.5',
-      borderRadius: '1rem'
     },
     chevron: {
-      color: '#94a3b8',
+      color: DARK_THEME_COLORS.colorTextSecondary,
       width: '14px',
       height: '14px'
     },
@@ -93,28 +97,28 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: '#0f172a',
-      border: '1px solid #334155',
+      background: DARK_THEME_COLORS.colorBackground,
+      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
       borderRadius: '0.5rem',
-      color: '#e2e8f0',
+      color: DARK_THEME_COLORS.colorTextSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       padding: '0.75rem',
       boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.25)',
-      scrollbarTrackBackground: '#1e293b',
-      scrollbarThumbBackground: '#475569'
+      scrollbarTrackBackground: DARK_THEME_COLORS.colorSurface,
+      scrollbarThumbBackground: DARK_THEME_COLORS.colorTextSecondary
     },
     folderChildren: {
       padding: '0.5rem 0',
       marginLeft: '1rem'
     },
 
-    // Highlighting
+    // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
-      color: '#3b82f6',
+      color: DARK_THEME_COLORS.highlightReceiverId,
       fontWeight: '600'
     },
     highlightMethodName: {
-      color: '#06b6d4',
+      color: DARK_THEME_COLORS.highlightMethodName,
       fontWeight: '600'
     },
 
@@ -138,48 +142,21 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     }
   },
   light: {
+    // Spread base colors from shared palette
+    ...LIGHT_THEME_COLORS,
+
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: '#1e293b',
-      backgroundColor: '#ffffff'
+      color: LIGHT_THEME_COLORS.colorText,
+      backgroundColor: LIGHT_THEME_COLORS.colorBackground
     },
-
-    // Core color variables
-    colorPrimary: '#2563eb',
-    colorSecondary: '#4f46e5',
-    colorSuccess: '#059669',
-    colorWarning: '#d97706',
-    colorError: '#dc2626',
-    colorBackground: '#ffffff',
-    colorSurface: '#f8fafc',
-    colorBorder: '#e2e8f0',
-    colorText: '#1e293b',
-    colorTextSecondary: '#64748b',
-
-    // Typography
-    fontSizeSm: '0.875rem',
-    fontSizeBase: '1rem',
-    fontSizeLg: '1.125rem',
-    fontSizeXl: '1.25rem',
-
-    // Spacing and layout
-    radiusSm: '0.375rem',
-    radiusMd: '0.5rem',
-    radiusLg: '0.75rem',
-    radiusXl: '1rem',
-    gap2: '0.5rem',
-    gap3: '0.75rem',
-    gap4: '1rem',
-    gap6: '1.5rem',
-    shadowSm: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-    shadowMd: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
 
     // Component-specific tree variables
     root: {
-      background: '#ffffff',
-      color: '#1e293b',
+      background: LIGHT_THEME_COLORS.colorBackground,
+      color: LIGHT_THEME_COLORS.colorText,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
     },
     treeChildren: {
@@ -196,28 +173,28 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     summaryRow: {
       background: 'transparent',
       border: '1px solid transparent',
+      borderRadius: '0.75rem',
       padding: '0px',
     },
     summaryRowHover: {
-      background: '#f1f5f9',
-      borderColor: '#cbd5e1'
+      background: LIGHT_THEME_COLORS.colorSurface,
+      borderColor: LIGHT_THEME_COLORS.colorBorder
     },
     row: {
-      color: '#1e293b',
+      color: LIGHT_THEME_COLORS.colorText,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: '#1e293b',
+      color: LIGHT_THEME_COLORS.colorText,
       fontSize: '0.875rem',
       padding: '2px 4px',
       gap: '4px',
       lineHeight: '1.5',
-      borderRadius: '1rem'
     },
     chevron: {
-      color: '#64748b',
+      color: LIGHT_THEME_COLORS.colorTextSecondary,
       width: '14px',
       height: '14px'
     },
@@ -226,28 +203,28 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: '#f8fafc',
-      border: '1px solid #e2e8f0',
+      background: LIGHT_THEME_COLORS.colorSurface,
+      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
       borderRadius: '0.5rem',
-      color: '#1e293b',
+      color: LIGHT_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       padding: '0.75rem',
       boxShadow: '0 1px 2px 0 rgb(0 0 0 / 0.05)',
-      scrollbarTrackBackground: '#f8fafc',
-      scrollbarThumbBackground: '#cbd5e1'
+      scrollbarTrackBackground: LIGHT_THEME_COLORS.colorSurface,
+      scrollbarThumbBackground: LIGHT_THEME_COLORS.colorBorder
     },
     folderChildren: {
       padding: '0.5rem 0',
       marginLeft: '1rem'
     },
 
-    // Highlighting
+    // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
-      color: '#2563eb',
+      color: LIGHT_THEME_COLORS.highlightReceiverId,
       fontWeight: '600'
     },
     highlightMethodName: {
-      color: '#0891b2',
+      color: LIGHT_THEME_COLORS.highlightMethodName,
       fontWeight: '600'
     },
 

@@ -1,4 +1,4 @@
-import { TooltipTreeStyles } from '.';
+import { TooltipTreeStyles } from './tooltip-tree-themes';
 import type { ActionArgs, TransactionInput } from '../../../types/actions';
 import { formatArgs, formatGas, formatDeposit } from '../common/formatters';
 
@@ -208,10 +208,10 @@ export function buildTransactionNode(
   tx: TransactionInput,
   tIdx: number,
   totalTransactions: number,
-  tooltipTreeStyles?: TooltipTreeStyles
+  styles?: TooltipTreeStyles
 ): TreeNode {
 
-  const highlightMethodColor = tooltipTreeStyles?.highlightMethodName?.color;
+  const highlightMethodColor = styles?.highlightMethodName?.color;
   const actionFolders: TreeNode[] = tx.actions.map((action: ActionArgs, idx: number) =>
     buildActionNode(action, idx, highlightMethodColor)
   );
@@ -226,10 +226,10 @@ export function buildTransactionNode(
     label: label,
     type: 'folder',
     open: tIdx === 0,
-    ...(tooltipTreeStyles?.highlightReceiverId?.color && {
+    ...(styles?.highlightReceiverId?.color && {
       highlight: {
         type: 'receiverId' as const,
-        color: tooltipTreeStyles.highlightReceiverId.color
+        color: styles.highlightReceiverId.color
       }
     }),
     hideChevron: true,
@@ -241,12 +241,12 @@ export function buildTransactionNode(
 // a two-level tree: Transaction -> Action N -> subfields
 export function buildDisplayTreeFromTxPayloads(
   txSigningRequests: TransactionInput[],
-  tooltipTreeStyles?: TooltipTreeStyles
+  styles?: TooltipTreeStyles
 ): TreeNode {
 
   const totalTransactions = txSigningRequests.length;
   const txFolders: TreeNode[] = txSigningRequests.map((tx: TransactionInput, tIdx: number) =>
-    buildTransactionNode(tx, tIdx, totalTransactions, tooltipTreeStyles)
+    buildTransactionNode(tx, tIdx, totalTransactions, styles)
   );
 
   return {

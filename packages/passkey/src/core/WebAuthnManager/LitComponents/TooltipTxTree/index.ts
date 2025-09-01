@@ -2,71 +2,10 @@ import { html, css, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { TreeNode } from './tooltip-tree-utils';
+import type { TooltipTreeStyles } from './tooltip-tree-themes';
 
-export interface TooltipTreeStyles {
-  // Base design system variables
-  fontFamily?: string;
-  fontSize?: string;
-  color?: string;
-  backgroundColor?: string;
-
-  // Core color variables
-  colorPrimary?: string;
-  colorSecondary?: string;
-  colorSuccess?: string;
-  colorWarning?: string;
-  colorError?: string;
-  colorBackground?: string;
-  colorSurface?: string;
-  colorBorder?: string;
-  colorText?: string;
-  colorTextSecondary?: string;
-
-  // Typography
-  fontSizeSm?: string;
-  fontSizeBase?: string;
-  fontSizeLg?: string;
-  fontSizeXl?: string;
-
-  // Spacing and layout
-  radiusSm?: string;
-  radiusMd?: string;
-  radiusLg?: string;
-  radiusXl?: string;
-  gap2?: string;
-  gap3?: string;
-  gap4?: string;
-  gap6?: string;
-  shadowSm?: string;
-  shadowMd?: string;
-
-  // Component-specific tree variables
-  host?: Record<string, string>;
-  root?: Record<string, string>;
-  treeChildren?: Record<string, string>;
-  details?: Record<string, string>;
-  summary?: Record<string, string>;
-  summaryRow?: Record<string, string>;
-  summaryRowHover?: Record<string, string>;
-  row?: Record<string, string>;
-  indent?: Record<string, string>;
-  label?: Record<string, string>;
-  chevron?: Record<string, string>;
-  fileRow?: Record<string, string>;
-  fileContent?: Record<string, string>;
-  folderChildren?: Record<string, string>;
-
-  // Highlighting styles for transaction details
-  highlightReceiverId?: Record<string, string>;
-  highlightMethodName?: Record<string, string>;
-
-  // Mobile responsive
-  rootMobile?: Record<string, string>;
-  treeChildrenMobile?: Record<string, string>;
-  folderChildrenMobile?: Record<string, string>;
-  rowMobile?: Record<string, string>;
-  fileContentMobile?: Record<string, string>;
-}
+// Re-export for backward compatibility
+export type { TooltipTreeStyles } from './tooltip-tree-themes';
 
 /**
  * TooltipTxTree
@@ -106,56 +45,56 @@ export interface TooltipTreeStyles {
 export class TooltipTxTree extends LitElementWithProps {
 
   // Pure component contract:
-  // - Renders solely from inputs (node, depth, tooltipTreeStyles); holds no internal state
+  // - Renders solely from inputs (node, depth, styles); holds no internal state
   // - Complex inputs are passed via property binding, not attributes
   static properties = {
     // Explicitly disable attribute reflection for complex objects to ensure
-    // property binding (.node=..., .depth=..., .tooltipTreeStyles=...) is used and not coerced via attributes
+    // property binding (.node=..., .depth=..., .styles=...) is used and not coerced via attributes
     node: { attribute: false },
     // depth is driven by parent; keep attribute: false to avoid attr/property mismatch
     depth: { type: Number, attribute: false },
-    // tooltipTreeStyles accepts full CSS customization
-    tooltipTreeStyles: { attribute: false }
+    // styles accepts full CSS customization
+    styles: { attribute: false }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
   // Initializers can overwrite values set by the parent during element upgrade.
   node?: TreeNode | null;
   depth?: number;
-  tooltipTreeStyles?: TooltipTreeStyles;
+  styles?: TooltipTreeStyles;
 
   static styles = css`
     :host {
       display: block;
-      font-family: var(--w3a-tree-host-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-      font-size: var(--w3a-tree-host-font-size, 1rem);
-      color: var(--w3a-tree-host-color, #1e293b);
-      background-color: var(--w3a-tree-host-background-color, #ffffff);
+      font-family: var(--w3a-tree_host_font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      font-size: var(--w3a-tree_host_font-size, 1rem);
+      color: var(--w3a-tree_host_color, #1e293b);
+      background-color: var(--w3a-tree_host_background-color, #ffffff);
     }
 
     .tree-root {
-      background: var(--w3a-tree-root-background, #151833);
-      max-width: var(--w3a-tree-root-max-width, 600px);
-      margin: var(--w3a-tree-root-margin, 0 auto);
-      border-radius: var(--w3a-tree-root-border-radius, 12px);
-      border: var(--w3a-tree-root-border, none);
-      overflow: var(--w3a-tree-root-overflow, hidden);
-      width: var(--w3a-tree-root-width, auto);
-      height: var(--w3a-tree-root-height, auto);
-      padding: var(--w3a-tree-root-padding, 0);
+      background: var(--w3a-tree_root_background, #151833);
+      max-width: var(--w3a-tree_root_max-width, 600px);
+      margin: var(--w3a-tree_root_margin, 0 auto);
+      border-radius: var(--w3a-tree_root_border-radius, 12px);
+      border: var(--w3a-tree_root_border, none);
+      overflow: var(--w3a-tree_root_overflow, hidden);
+      width: var(--w3a-tree_root_width, auto);
+      height: var(--w3a-tree_root_height, auto);
+      padding: var(--w3a-tree_root_padding, 0);
     }
 
     .tree-children {
-      display: var(--w3a-tree-children-display, block);
-      padding: var(--w3a-tree-children-padding, 4px);
+      display: var(--w3a-tree_children_display, block);
+      padding: var(--w3a-tree_children_padding, 4px);
     }
 
     details {
-      margin: var(--w3a-tree-details-margin, 0);
-      padding: var(--w3a-tree-details-padding, 0);
-      border-radius: var(--w3a-tree-details-border-radius, 8px);
-      overflow: var(--w3a-tree-details-overflow, hidden);
-      background: var(--w3a-tree-details-background, transparent);
+      margin: var(--w3a-tree_details_margin, 0);
+      padding: var(--w3a-tree_details_padding, 0);
+      border-radius: var(--w3a-tree_details_border-radius, 8px);
+      overflow: var(--w3a-tree_details_overflow, hidden);
+      background: var(--w3a-tree_details_background, transparent);
     }
 
     /* Remove the default marker */
@@ -163,122 +102,122 @@ export class TooltipTxTree extends LitElementWithProps {
     summary { list-style: none; }
 
     .row {
-      display: var(--w3a-tree-row-display, grid);
-      grid-template-columns: var(--w3a-tree-row-grid-template-columns, var(--indent, 0) 1fr 0px);
-      align-items: var(--w3a-tree-row-align-items, center);
-      box-sizing: var(--w3a-tree-row-box-sizing, border-box);
-      width: var(--w3a-tree-row-width, 100%);
-      color: var(--w3a-tree-row-color, #e6e9f5);
-      background: var(--w3a-tree-row-background, transparent);
+      display: var(--w3a-tree_row_display, grid);
+      grid-template-columns: var(--w3a-tree_row_grid-template-columns, var(--indent, 0) 1fr 0px);
+      align-items: var(--w3a-tree_row_align-items, center);
+      box-sizing: var(--w3a-tree_row_box-sizing, border-box);
+      width: var(--w3a-tree_row_width, 100%);
+      color: var(--w3a-tree_row_color, #e6e9f5);
+      background: var(--w3a-tree_row_background, transparent);
     }
 
     .summary-row {
-      cursor: var(--w3a-tree-summary-cursor, pointer);
-      padding: var(--w3a-tree-summary-row-padding, 0px 1px);
-      margin-bottom: var(--w3a-tree-summary-margin-bottom, 1px);
-      border-radius: var(--w3a-tree-summary-border-radius, 1px);
-      transition: var(--w3a-tree-summary-transition, background 0.15s ease);
-      background: var(--w3a-tree-summary-background, transparent);
+      cursor: var(--w3a-tree_summary_cursor, pointer);
+      padding: var(--w3a-tree_summary-row_padding, 0px 1px);
+      margin-bottom: var(--w3a-tree_summary_margin-bottom, 1px);
+      border-radius: var(--w3a-tree_summary_border-radius, 1px);
+      transition: var(--w3a-tree_summary_transition, background 0.15s ease);
+      background: var(--w3a-tree_summary_background, transparent);
     }
 
     .summary-row:hover {
-      background: var(--w3a-tree-summary-row-hover-background, rgba(255, 255, 255, 0.06));
+      background: var(--w3a-tree_summary-row-hover_background, rgba(255, 255, 255, 0.06));
     }
 
     .indent {
-      width: var(--w3a-tree-indent-width, var(--indent, 0));
-      height: var(--w3a-tree-indent-height, 100%);
+      width: var(--w3a-tree_indent_width, var(--indent, 0));
+      height: var(--w3a-tree_indent_height, 100%);
     }
 
     .label {
-      display: var(--w3a-tree-label-display, inline-flex);
-      align-items: var(--w3a-tree-label-align-items, center);
-      gap: var(--w3a-tree-label-gap, 0px);
-      padding: var(--w3a-tree-label-padding, 0px);
-      min-width: var(--w3a-tree-label-min-width, 0);
-      white-space: var(--w3a-tree-label-white-space, nowrap);
-      overflow: var(--w3a-tree-label-overflow, hidden);
-      text-overflow: var(--w3a-tree-label-text-overflow, ellipsis);
-      font-size: var(--w3a-tree-label-font-size, 9px);
-      color: var(--w3a-tree-label-color, inherit);
-      font-weight: var(--w3a-tree-label-font-weight, inherit);
-      line-height: var(--w3a-tree-label-line-height, 1.2);
+      display: var(--w3a-tree_label_display, inline-flex);
+      align-items: var(--w3a-tree_label_align-items, center);
+      gap: var(--w3a-tree_label_gap, 0px);
+      padding: var(--w3a-tree_label_padding, 0px);
+      min-width: var(--w3a-tree_label_min-width, 0);
+      white-space: var(--w3a-tree_label_white-space, nowrap);
+      overflow: var(--w3a-tree_label_overflow, hidden);
+      text-overflow: var(--w3a-tree_label_text-overflow, ellipsis);
+      font-size: var(--w3a-tree_label_font-size, 9px);
+      color: var(--w3a-tree_label_color, inherit);
+      font-weight: var(--w3a-tree_label_font-weight, inherit);
+      line-height: var(--w3a-tree_label_line-height, 1.2);
     }
 
     .chevron {
-      display: var(--w3a-tree-chevron-display, inline-block);
-      width: var(--w3a-tree-chevron-width, 8px);
-      height: var(--w3a-tree-chevron-height, 8px);
-      transform: var(--w3a-tree-chevron-transform, rotate(0deg));
-      transition: var(--w3a-tree-chevron-transition, transform 0.12s ease);
-      opacity: var(--w3a-tree-chevron-opacity, 0.85);
-      color: var(--w3a-tree-chevron-color, currentColor);
-      overflow: var(--w3a-tree-chevron-overflow, visible);
+      display: var(--w3a-tree_chevron_display, inline-block);
+      width: var(--w3a-tree_chevron_width, 8px);
+      height: var(--w3a-tree_chevron_height, 8px);
+      transform: var(--w3a-tree_chevron_transform, rotate(0deg));
+      transition: var(--w3a-tree_chevron_transition, transform 0.12s ease);
+      opacity: var(--w3a-tree_chevron_opacity, 0.85);
+      color: var(--w3a-tree_chevron_color, currentColor);
+      overflow: var(--w3a-tree_chevron_overflow, visible);
     }
 
     details[open] > summary .chevron {
-      transform: var(--w3a-tree-chevron-open-transform, rotate(90deg));
+      transform: var(--w3a-tree_chevron-open_transform, rotate(90deg));
     }
 
     .file-row {
-      font-size: var(--w3a-tree-file-row-font-size, 9px);
-      background: var(--w3a-tree-file-row-background, transparent);
+      font-size: var(--w3a-tree_file-row_font-size, 9px);
+      background: var(--w3a-tree_file-row_background, transparent);
     }
 
     .file-content {
-      box-sizing: var(--w3a-tree-file-content-box-sizing, border-box);
-      margin: var(--w3a-tree-file-content-margin, 2px);
-      padding: var(--w3a-tree-file-content-padding, 2px);
-      border-radius: var(--w3a-tree-file-content-border-radius, 2px);
-      background: var(--w3a-tree-file-content-background, rgba(255, 255, 255, 0.06));
-      max-height: var(--w3a-tree-file-content-max-height, 120px);
-      overflow: var(--w3a-tree-file-content-overflow, auto);
-      color: var(--w3a-tree-file-content-color, #e2e8f0);
-      font-family: var(--w3a-tree-file-content-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
-      white-space: var(--w3a-tree-file-content-white-space, pre-wrap);
-      word-break: var(--w3a-tree-file-content-word-break, break-word);
-      line-height: var(--w3a-tree-file-content-line-height, 1.3);
-      font-size: var(--w3a-tree-file-content-font-size, 0.65rem);
-      box-shadow: var(--w3a-tree-file-content-box-shadow, var(--w3a-shadow-sm, 0 1px 2px 0 rgb(0 0 0 / 0.05)));
+      box-sizing: var(--w3a-tree_file-content_box-sizing, border-box);
+      margin: var(--w3a-tree_file-content_margin, 2px);
+      padding: var(--w3a-tree_file-content_padding, 2px);
+      border-radius: var(--w3a-tree_file-content_border-radius, 2px);
+      background: var(--w3a-tree_file-content_background, rgba(255, 255, 255, 0.06));
+      max-height: var(--w3a-tree_file-content_max-height, 120px);
+      overflow: var(--w3a-tree_file-content_overflow, auto);
+      color: var(--w3a-tree_file-content_color, #e2e8f0);
+      font-family: var(--w3a-tree_file-content_font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
+      white-space: var(--w3a-tree_file-content_white-space, pre-wrap);
+      word-break: var(--w3a-tree_file-content_word-break, break-word);
+      line-height: var(--w3a-tree_file-content_line-height, 1.3);
+      font-size: var(--w3a-tree_file-content_font-size, 0.65rem);
+      box-shadow: var(--w3a-tree_file-content_box-shadow, var(--w3a-shadow-sm, 0 2px 4px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.08)));
     }
 
     .file-content::-webkit-scrollbar {
-      width: var(--w3a-tree-file-content-scrollbar-width, 4px);
+      width: var(--w3a-tree_file-content_scrollbar-width, 4px);
     }
 
     .file-content::-webkit-scrollbar-track {
-      background: var(--w3a-tree-file-content-scrollbar-track-background, var(--w3a-color-surface, #f8fafc));
-      border-radius: var(--w3a-tree-file-content-scrollbar-track-border-radius, 2px);
+      background: var(--w3a-tree_file-content_scrollbar-track_background, var(--w3a-color-surface, #f8fafc));
+      border-radius: var(--w3a-tree_file-content_scrollbar-track_border-radius, 2px);
     }
 
     .file-content::-webkit-scrollbar-thumb {
-      background: var(--w3a-tree-file-content-scrollbar-thumb-background, var(--w3a-color-border, #e2e8f0));
-      border-radius: var(--w3a-tree-file-content-scrollbar-thumb-border-radius, 2px);
+      background: var(--w3a-tree_file-content_scrollbar-thumb_background, var(--w3a-color-border, #e2e8f0));
+      border-radius: var(--w3a-tree_file-content_scrollbar-thumb_border-radius, 2px);
     }
 
     .folder-children {
-      display: var(--w3a-tree-folder-children-display, block);
+      display: var(--w3a-tree_folder-children_display, block);
     }
 
     /* Highlighting styles for transaction details */
     .highlight-receiverId {
-      color: var(--w3a-tree-highlight-receiver-id-color, #ff6b6b) !important;
-      font-weight: var(--w3a-tree-highlight-receiver-id-font-weight, 600) !important;
-      background: var(--w3a-tree-highlight-receiver-id-background, transparent) !important;
-      text-decoration: var(--w3a-tree-highlight-receiver-id-text-decoration, none) !important;
-      padding: var(--w3a-tree-highlight-receiver-id-padding, 0) !important;
-      border-radius: var(--w3a-tree-highlight-receiver-id-border-radius, 0) !important;
-      box-shadow: var(--w3a-tree-highlight-receiver-id-box-shadow, none) !important;
+      color: var(--w3a-tree_highlight-receiver-id_color, #ff6b6b) !important;
+      font-weight: var(--w3a-tree_highlight-receiver-id_font-weight, 600) !important;
+      background: var(--w3a-tree_highlight-receiver-id_background, transparent) !important;
+      text-decoration: var(--w3a-tree_highlight-receiver-id_text-decoration, none) !important;
+      padding: var(--w3a-tree_highlight-receiver-id_padding, 0) !important;
+      border-radius: var(--w3a-tree_highlight-receiver-id_border-radius, 0) !important;
+      box-shadow: var(--w3a-tree_highlight-receiver-id_box-shadow, none) !important;
     }
 
     .highlight-methodName {
-      color: var(--w3a-tree-highlight-method-name-color, #4ecdc4) !important;
-      font-weight: var(--w3a-tree-highlight-method-name-font-weight, 600) !important;
-      background: var(--w3a-tree-highlight-method-name-background, transparent) !important;
-      text-decoration: var(--w3a-tree-highlight-method-name-text-decoration, none) !important;
-      padding: var(--w3a-tree-highlight-method-name-padding, 0) !important;
-      border-radius: var(--w3a-tree-highlight-method-name-border-radius, 0) !important;
-      box-shadow: var(--w3a-tree-highlight-method-name-box-shadow, none) !important;
+      color: var(--w3a-tree_highlight-method-name_color, #4ecdc4) !important;
+      font-weight: var(--w3a-tree_highlight-method-name_font-weight, 600) !important;
+      background: var(--w3a-tree_highlight-method-name_background, transparent) !important;
+      text-decoration: var(--w3a-tree_highlight-method-name_text-decoration, none) !important;
+      padding: var(--w3a-tree_highlight-method-name_padding, 0) !important;
+      border-radius: var(--w3a-tree_highlight-method-name_border-radius, 0) !important;
+      box-shadow: var(--w3a-tree_highlight-method-name_box-shadow, none) !important;
     }
   `;
 
@@ -287,40 +226,12 @@ export class TooltipTxTree extends LitElementWithProps {
     this.dispatchEvent(new CustomEvent('tree-toggled', { bubbles: true, composed: true }));
   }
 
-  private applyStyles(styles: TooltipTreeStyles): void {
-    if (!styles) return;
-
-    // Apply base design system variables to host element
-    const baseVars = [
-      'fontFamily', 'fontSize', 'color', 'backgroundColor',
-      'colorPrimary', 'colorSecondary', 'colorSuccess', 'colorWarning', 'colorError',
-      'colorBackground', 'colorSurface', 'colorBorder', 'colorText', 'colorTextSecondary',
-      'fontSizeSm', 'fontSizeBase', 'fontSizeLg', 'fontSizeXl',
-      'radiusSm', 'radiusMd', 'radiusLg', 'radiusXl',
-      'gap2', 'gap3', 'gap4', 'gap6',
-      'shadowSm', 'shadowMd'
-    ];
-
-    baseVars.forEach(varName => {
-      if (styles[varName as keyof TooltipTreeStyles]) {
-        const cssVar = `--w3a-${this.camelToKebab(varName)}`;
-        this.style.setProperty(cssVar, String(styles[varName as keyof TooltipTreeStyles]));
-      }
-    });
-
-    // Apply component-specific tree variables
-    Object.entries(styles).forEach(([section, sectionStyles]) => {
-      if (sectionStyles && typeof sectionStyles === 'object' && !baseVars.includes(section)) {
-        Object.entries(sectionStyles).forEach(([prop, value]) => {
-          const cssVar = `--w3a-tree-${this.camelToKebab(section)}-${this.camelToKebab(prop)}`;
-          this.style.setProperty(cssVar, String(value));
-        });
-      }
-    });
+  protected getComponentPrefix(): string {
+    return 'tree';
   }
 
-  private camelToKebab(str: string): string {
-    return str.replace(/([A-Z])/g, '-$1').toLowerCase();
+  protected applyStyles(styles: TooltipTreeStyles): void {
+    super.applyStyles(styles, 'tree');
   }
 
   private renderLabelWithSelectiveHighlight(
@@ -437,11 +348,6 @@ export class TooltipTxTree extends LitElementWithProps {
 
   render() {
     const depth = this.depth ?? 0;
-
-    // Apply styles if provided
-    if (this.tooltipTreeStyles) {
-      this.applyStyles(this.tooltipTreeStyles);
-    }
 
     if (!this.node || (this.node.type === 'folder' && !this.node.children?.length)) {
       return html``;
