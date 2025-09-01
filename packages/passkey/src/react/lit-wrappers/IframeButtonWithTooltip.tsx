@@ -17,7 +17,7 @@ export type IframeButtonProps = Omit<RawProps, 'buttonStyle' | 'buttonHoverStyle
   buttonHoverStyle?: React.CSSProperties;
 };
 
-const toStyleRecord = (style?: React.CSSProperties): Record<string, string | number> | undefined => {
+export const toStyleRecord = (style?: React.CSSProperties): Record<string, string | number> | undefined => {
   if (!style) return undefined;
   const out: Record<string, string | number> = {};
   Object.keys(style).forEach((k) => {

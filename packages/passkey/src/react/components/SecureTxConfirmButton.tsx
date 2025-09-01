@@ -14,7 +14,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
   tooltipPosition?: TooltipPosition;
-  theme?: EmbeddedTxButtonTheme;
+  tooltipTheme?: EmbeddedTxButtonTheme;
   lockTheme?: boolean;
 }> = ({
   nearAccountId,
@@ -28,9 +28,9 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     width: '360px',
     height: 'auto',
     position: 'top-center',
-    offset: '8px'
+    offset: '4px'
   },
-  theme = 'dark',
+  tooltipTheme = 'dark',
   lockTheme = false,
   // Behavioral props
   onCancel,
@@ -42,7 +42,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   const { passkeyManager } = usePasskeyContext();
   // Memoize passkey context for stable prop identity
   const passkeyManagerContext = useMemo(() => passkeyManager.getContext(), [passkeyManager]);
-  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(theme);
+  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(tooltipTheme);
 
   // Uncontrolled mode: listen to user preference changes
   useEffect(() => {
@@ -56,10 +56,10 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     return () => unsubscribe();
   }, [passkeyManager, lockTheme]);
 
-  // Controlled mode: sync with theme prop changes
+  // Controlled mode: sync with tooltipTheme prop changes
   useEffect(() => {
-    if (lockTheme) setCurrentTheme(theme);
-  }, [theme, lockTheme]);
+    if (lockTheme) setCurrentTheme(tooltipTheme);
+  }, [tooltipTheme, lockTheme]);
 
   return (
     <IframeButtonWithTooltip
@@ -69,7 +69,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
       buttonStyle={buttonStyle}
       buttonHoverStyle={buttonHoverStyle}
       tooltipPosition={tooltipPosition}
-      theme={currentTheme}
+      tooltipTheme={currentTheme}
       showLoading={!!showLoading}
       options={options}
       passkeyManagerContext={passkeyManagerContext}
