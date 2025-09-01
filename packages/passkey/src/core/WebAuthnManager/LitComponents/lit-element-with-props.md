@@ -35,11 +35,11 @@ The `upgradeProperty` pattern is the official Lit solution for handling pre-upgr
 upgradeProperty(prop: string) {
   if (this.hasOwnProperty(prop)) {
     // Get the current value that was set before upgrade
-    const value = (this as any)[prop];
+    const value = (this as Record<string, string | number | boolean | object | null | undefined>)[prop];
     // Delete the property so the class getter/setter takes over
-    delete (this as any)[prop];
+    delete (this as Record<string, string | number | boolean | object | null | undefined>)[prop];
     // Re-assign through the proper setter, triggering Lit's reactivity
-    (this as any)[prop] = value;
+    (this as Record<string, string | number | boolean | object | null | undefined>)[prop] = value;
   }
 }
 ```
@@ -67,15 +67,16 @@ export class LitElementWithProps extends LitElement {
    * @param prop - The property name to upgrade
    */
   private upgradeProperty(prop: string): void {
-    if (this.hasOwnProperty(prop)) {
+    if (Object.prototype.hasOwnProperty.call(this, prop)) {
       // Capture the value that was set before upgrade
-      const value = (this as any)[prop];
+      const selfRead = this as Record<string, string | number | boolean | object | null | undefined>;
+      const value = selfRead[prop];
 
       // Remove the property so the class getter/setter takes over
-      delete (this as any)[prop];
+      delete selfRead[prop];
 
       // Re-assign through the proper setter to trigger Lit's reactivity
-      (this as any)[prop] = value;
+      (this as Record<string, string | number | boolean | object | null | undefined>)[prop] = value;
 
       if (process.env.NODE_ENV !== 'production') {
         console.debug(`[LitElementWithProps] Upgraded property '${prop}' with value:`, value);

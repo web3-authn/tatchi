@@ -1,16 +1,17 @@
 // External imports
-import { html, css } from 'lit';
+import { html, css, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInput } from '../../../types/actions';
 import { toAccountId } from '../../../types/accountIds';
-import type { SignAndSendTransactionHooksOptions } from '../../../types/passkeyManager';
+import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
 import { signAndSendTransactionsInternal } from '../../../PasskeyManager/actions';
 import type { PasskeyManagerContext } from '../../../PasskeyManager';
 // Local imports
-import { LitElementWithProps } from '../LitElementWithProps';
+import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import type { TooltipTreeStyles } from '../TooltipTxTree';
 import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
+import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './embedded-tx-button-themes';
 import {
   EMBEDDED_SDK_BASE_PATH,
   EMBEDDED_TX_BUTTON_ID,
@@ -32,6 +33,7 @@ import {
   IframeButtonMessagePayloads,
   IframeButtonMessage,
 } from '../common/iframe-messages'
+import { C } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 
 /**
  * Lit component that hosts the SecureTxConfirmButton iframe and manages all iframe communication.
@@ -45,32 +47,32 @@ export class IframeButtonHost extends LitElementWithProps {
     txSigningRequests: {
       type: Array,
       // Always treat as changed so in-place mutations propagate to the iframe
-      hasChanged(_newVal: unknown, _oldVal: unknown) {
+      hasChanged(_newVal: TransactionInput[], _oldVal: TransactionInput[]) {
         return true;
       }
     },
     color: { type: String },
     buttonStyle: {
       type: Object,
-      hasChanged(newVal: unknown, oldVal: unknown) {
+      hasChanged(newVal: CSSProperties, oldVal: CSSProperties) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     buttonHoverStyle: {
       type: Object,
-      hasChanged(newVal: unknown, oldVal: unknown) {
+      hasChanged(newVal: CSSProperties, oldVal: CSSProperties) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     tooltipPosition: {
       type: Object,
-      hasChanged(newVal: unknown, oldVal: unknown) {
+      hasChanged(newVal: TooltipPosition, oldVal: TooltipPosition) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
-    tooltipTheme: {
+    theme: {
       type: String,
-      attribute: 'tooltip-theme'
+      attribute: 'theme'
     },
     showLoading: {
       type: Boolean,
@@ -78,13 +80,13 @@ export class IframeButtonHost extends LitElementWithProps {
     },
     options: {
       type: Object,
-      hasChanged(newVal: unknown, oldVal: unknown) {
+      hasChanged(newVal: SignAndSendTransactionHooksOptions, oldVal: SignAndSendTransactionHooksOptions) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
     passkeyManagerContext: {
       type: Object,
-      hasChanged(newVal: unknown, oldVal: unknown) {
+      hasChanged(newVal: PasskeyManagerContext | null, oldVal: PasskeyManagerContext | null) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
@@ -118,6 +120,9 @@ export class IframeButtonHost extends LitElementWithProps {
       cursor: pointer;
       z-index: 1001;
       /* This container should size to button dimensions and provide layout footprint */
+      background: var(--btn-background, var(--btn-color, #222));
+      border-radius: var(--btn-border-radius, 8px);
+      border: var(--btn-border, none);
       width: var(--button-width, 200px);
       height: var(--button-height, 48px);
       overflow: visible;
@@ -156,13 +161,13 @@ export class IframeButtonHost extends LitElementWithProps {
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPosition;
-  declare tooltipTheme: TooltipTheme;
+  declare theme: EmbeddedTxButtonTheme;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
   declare passkeyManagerContext: PasskeyManagerContext | null;
 
   // Event handlers (not reactive properties)
-  onSuccess?: (result: unknown) => void;
+  onSuccess?: (result: ActionResult[] ) => void;
   onError?: (error: Error) => void;
   onCancel?: () => void;
 
@@ -185,7 +190,7 @@ export class IframeButtonHost extends LitElementWithProps {
       position: 'top-center',
       offset: '8px'
     };
-    this.tooltipTheme = 'dark';
+    this.theme = 'dark';
     this.showLoading = false;
     this.options = {};
     this.passkeyManagerContext = null;
@@ -194,10 +199,17 @@ export class IframeButtonHost extends LitElementWithProps {
   connectedCallback() {
     super.connectedCallback();
     this.setupClipPathSupport();
+    // Apply button style CSS variables on initial connection
+    this.applyButtonStyle();
   }
 
-  updated(changedProperties: Map<string, unknown>) {
+  updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+
+    // Apply button style CSS variables when buttonStyle changes
+    if (changedProperties.has('buttonStyle')) {
+      this.applyButtonStyle();
+    }
 
     // Only initialize iframe once, then use postMessage for updates
     if (!this.iframeInitialized) {
@@ -214,6 +226,21 @@ export class IframeButtonHost extends LitElementWithProps {
     if (this.messageHandler) {
       window.removeEventListener('message', this.messageHandler);
       this.messageHandler = undefined;
+    }
+  }
+
+  private applyButtonStyle() {
+    if (!this.buttonStyle) return;
+
+    const style = this.style;
+    if (this.buttonStyle.background) {
+      style.setProperty('--btn-background', String(this.buttonStyle.background));
+    }
+    if (this.buttonStyle.borderRadius) {
+      style.setProperty('--btn-border-radius', String(this.buttonStyle.borderRadius));
+    }
+    if (this.buttonStyle.border) {
+      style.setProperty('--btn-border', String(this.buttonStyle.border));
     }
   }
 
@@ -336,7 +363,7 @@ export class IframeButtonHost extends LitElementWithProps {
   // ==============================
   // Sizing & Builders (continued)
   // ==============================
-  private updateIframeViaPostMessage(changedProperties: Map<string, unknown>) {
+  private updateIframeViaPostMessage(changedProperties: PropertyValues) {
     if (!this.iframeRef.value?.contentWindow) return;
 
     // Always push latest tx data; external apps may mutate arrays/objects in place
@@ -354,7 +381,7 @@ export class IframeButtonHost extends LitElementWithProps {
       changedProperties.has('buttonStyle') ||
       changedProperties.has('buttonHoverStyle') ||
       changedProperties.has('tooltipPosition') ||
-      changedProperties.has('tooltipTheme') ||
+      changedProperties.has('theme') ||
       changedProperties.has('color')
     ) {
       this.postStyleUpdateToIframe();
@@ -397,13 +424,17 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     const mergedButtonStyle = { ...this.buttonStyle, ...buttonSize };
     // Get theme styles for tooltip tree
-    const themeStyles = this.getThemeStyles(this.tooltipTheme || 'dark');
+    const themeStyles = this.getThemeStyles(this.theme || 'dark');
+
+    // Get embedded button theme styles
+    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.theme || 'dark'];
 
     this.postToIframe('SET_STYLE', {
       buttonStyle: mergedButtonStyle,
       buttonHoverStyle: this.buttonHoverStyle,
       tooltipPosition: this.tooltipPosition,
-      tooltipTreeStyles: themeStyles
+      tooltipTreeStyles: themeStyles,
+      embeddedButtonTheme: embeddedButtonTheme
     });
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the
@@ -655,7 +686,12 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   private async handleConfirm() {
-    if (!this.passkeyManagerContext || !this.nearAccountId || !this.txSigningRequests || this.txSigningRequests.length === 0) {
+    if (
+      !this.passkeyManagerContext ||
+      !this.nearAccountId ||
+      !this.txSigningRequests ||
+      this.txSigningRequests.length === 0
+    ) {
       this.onError?.(new Error('Missing required data for transaction'));
       return;
     }
@@ -683,7 +719,8 @@ export class IframeButtonHost extends LitElementWithProps {
         confirmationConfigOverride: {
           uiMode: 'embedded',
           behavior: 'autoProceed',
-          autoProceedDelay: 0
+          autoProceedDelay: 0,
+          theme: this.theme
         }
       });
 

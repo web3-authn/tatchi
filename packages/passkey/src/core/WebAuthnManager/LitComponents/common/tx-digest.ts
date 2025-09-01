@@ -4,7 +4,7 @@ import { ActionArgsWasm, TransactionInputWasm } from '@/core/types';
 import { base64UrlEncode } from '@/utils/base64';
 
 // Deterministic stringify by alphabetizing object keys recursively.
-export function alphabetizeStringify<T>(input: T): string {
+export function alphabetizeStringify(input: unknown): string {
   const normalizeValue = (value: unknown): unknown => {
     // Arrays: preserve order, normalize each element
     if (Array.isArray(value)) {

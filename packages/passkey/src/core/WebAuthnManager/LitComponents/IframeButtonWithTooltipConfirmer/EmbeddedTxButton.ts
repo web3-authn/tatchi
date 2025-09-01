@@ -1,11 +1,12 @@
 // External imports
-import { html, css } from 'lit';
+import { html, css, type PropertyValues } from 'lit';
 // SDK imports
 import { TransactionInput, TransactionInputWasm, isActionArgsWasm, toActionArgsWasm } from '../../../types/actions';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
 import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
+import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
 import { TooltipGeometry, TooltipPosition } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
 import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
@@ -26,7 +27,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     size: { type: Object },
     buttonStyle: { type: Object },
     buttonHoverStyle: { type: Object },
-    tooltipTreeStyles: { type: Object, attribute: false },
+    styles: { type: Object, attribute: false },
+    buttonStyles: { type: Object, attribute: false },
     theme: { type: String },
     tooltipVisible: { state: true },
     hideTimeout: { state: true }
@@ -48,8 +50,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   };
   buttonStyle: React.CSSProperties = {};
   buttonHoverStyle: React.CSSProperties = {};
-  theme: TooltipTheme = 'dark';
-  tooltipTreeStyles!: TooltipTreeStyles;
+  theme: EmbeddedTxButtonTheme = 'dark';
+  styles!: TooltipTreeStyles;
+  buttonStyles!: EmbeddedTxButtonStyles;
 
   // ==============================
   // Internal State & Observers
@@ -82,55 +85,56 @@ export class EmbeddedTxButton extends LitElementWithProps {
     /* Data attribute selectors correspond to HTML data attributes for type-safe element selection */
 
     :host {
-      display: block;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: transparent;
-      color: #333;
-      line-height: 1.6;
-      margin: 0;
-      padding: 0;
-      position: relative;
-      width: 100%;
-      height: 100%;
+      display: var(--w3a-embedded_host_display, block);
+      font-family: var(--w3a-embedded_host_font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--w3a-embedded_host_background, transparent);
+      color: var(--w3a-embedded_host_color, #333);
+      line-height: var(--w3a-embedded_host_line-height, 1.6);
+      margin: var(--w3a-embedded_host_margin, 0);
+      padding: var(--w3a-embedded_host_padding, 0);
+      position: var(--w3a-embedded_host_position, relative);
+      width: var(--w3a-embedded_host_width, 100%);
+      height: var(--w3a-embedded_host_height, 100%);
     }
 
     [data-embedded-confirm-container] {
-      position: relative;
-      display: inline-block;
-      z-index: 1001;
-      box-sizing: border-box;
-      overflow: visible;
-      pointer-events: auto;
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      position: var(--w3a-embedded_confirm-container_position, relative);
+      display: var(--w3a-embedded_confirm-container_display, inline-block);
+      z-index: var(--w3a-embedded_confirm-container_z-index, 1001);
+      box-sizing: var(--w3a-embedded_confirm-container_box-sizing, border-box);
+      overflow: var(--w3a-embedded_confirm-container_overflow, visible);
+      pointer-events: var(--w3a-embedded_confirm-container_pointer-events, auto);
+      position: var(--w3a-embedded_confirm-container_position-absolute, absolute);
+      top: var(--w3a-embedded_confirm-container_top, 50%);
+      left: var(--w3a-embedded_confirm-container_left, 50%);
+      transform: var(--w3a-embedded_confirm-container_transform, translate(-50%, -50%));
     }
 
     [data-embedded-btn] {
-      background: var(--btn-background, var(--btn-color, #222));
-      color: var(--btn-color-text, white);
-      border: var(--btn-border, none);
-      border-radius: var(--btn-border-radius, 8px);
-      padding: var(--btn-padding, 12px 24px);
-      font-size: var(--btn-font-size, 1rem);
-      font-weight: var(--btn-font-weight, 500);
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      width: var(--btn-width, 200px);
-      height: var(--btn-height, 48px);
-      box-sizing: border-box;
-      transition: all 0.2s ease;
-      margin: 0;
-      outline: none;
-      text-decoration: none;
-      font-family: inherit;
-     /* fadeIn as iframe pops in after page loads */
-      opacity: 0;
-      animation: fadeIn 0.1s ease forwards;
+      background: var(--w3a-embedded_btn_background-color, var(--btn-background, var(--btn-color, #222)));
+      color: var(--w3a-embedded_btn_color, var(--btn-color-text, white));
+      border: var(--w3a-embedded_btn_border, var(--btn-border, none));
+      border-radius: var(--w3a-embedded_btn_border-radius, var(--btn-border-radius, 8px));
+      padding: var(--w3a-embedded_btn_padding, var(--btn-padding, 12px 24px));
+      font-size: var(--w3a-embedded_btn_font-size, var(--btn-font-size, 1rem));
+      font-weight: var(--w3a-embedded_btn_font-weight, var(--btn-font-weight, 500));
+      cursor: var(--w3a-embedded_btn_cursor, pointer);
+      display: var(--w3a-embedded_btn_display, flex);
+      align-items: var(--w3a-embedded_btn_align-items, center);
+      justify-content: var(--w3a-embedded_btn_justify-content, center);
+      gap: var(--w3a-embedded_btn_gap, 8px);
+      width: var(--w3a-embedded_btn_width, var(--btn-width, 200px));
+      height: var(--w3a-embedded_btn_height, var(--btn-height, 48px));
+      box-sizing: var(--w3a-embedded_btn_box-sizing, border-box);
+      margin: var(--w3a-embedded_btn_margin, 0);
+      outline: var(--w3a-embedded_btn_outline, none);
+      text-decoration: var(--w3a-embedded_btn_text-decoration, none);
+      font-family: var(--w3a-embedded_btn_font-family, inherit);
+     /* fadeIn as iframe pops in after page loads, hydrating the button placeholder.
+      * placeholder is the same color and dimensions as the button */
+      opacity: var(--w3a-embedded_btn_opacity, 0);
+      will-change: var(--w3a-embedded_btn_will-change, opacity);
+      animation: var(--w3a-embedded_btn_animation, fadeIn 100ms ease forwards);
     }
 
     @keyframes fadeIn {
@@ -139,38 +143,49 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     [data-embedded-btn]:hover {
-      background: var(--btn-hover-background, var(--btn-color-hover, #5a6fd8));
-      color: var(--btn-hover-color, white);
-      border: var(--btn-hover-border, var(--btn-border, none));
-      border-radius: var(--btn-hover-border-radius, var(--btn-border-radius, 8px));
-      padding: var(--btn-hover-padding, var(--btn-padding, 12px 24px));
-      font-size: var(--btn-hover-font-size, var(--btn-font-size, 1rem));
-      font-weight: var(--btn-hover-font-weight, var(--btn-font-weight, 500));
+      background: var(--w3a-embedded_btn-hover_background-color, var(--btn-hover-background, var(--btn-color-hover, #5a6fd8)));
+      color: var(--w3a-embedded_btn-hover_color, var(--btn-hover-color, white));
+      border: var(--w3a-embedded_btn-hover_border, var(--btn-hover-border, var(--btn-border, none)));
+      border-radius: var(--w3a-embedded_btn-hover_border-radius, var(--btn-hover-border-radius, var(--btn-border-radius, 8px)));
+      padding: var(--w3a-embedded_btn-hover_padding, var(--btn-hover-padding, var(--btn-padding, 12px 24px)));
+      font-size: var(--w3a-embedded_btn-hover_font-size, var(--btn-hover-font-size, var(--btn-font-size, 1rem)));
+      font-weight: var(--w3a-embedded_btn-hover_font-weight, var(--btn-hover-font-weight, var(--btn-font-weight, 500)));
+      box-shadow: var(--w3a-embedded_btn-hover_box-shadow, var(--w3a-embedded_btn_box-shadow, var(--btn-box-shadow, none)));
+      transform: var(--w3a-embedded_btn-hover_transform, var(--btn-hover-transform, none));
+    }
+
+    [data-embedded-btn]:active {
+      background: var(--w3a-embedded_btn-active_background-color, var(--w3a-embedded_btn_background-color, var(--btn-background, var(--btn-color, #222))));
+      color: var(--w3a-embedded_btn-active_color, var(--w3a-embedded_btn_color, var(--btn-color-text, white)));
+      border: var(--w3a-embedded_btn-active_border, var(--w3a-embedded_btn_border, var(--btn-border, none)));
+      border-radius: var(--w3a-embedded_btn-active_border-radius, var(--btn-border-radius, var(--btn-border-radius, 8px)));
+      box-shadow: var(--w3a-embedded_btn-active_box-shadow, var(--w3a-embedded_btn_box-shadow, var(--btn-box-shadow, none)));
+      transform: var(--w3a-embedded_btn-active_transform, var(--btn-active-transform, none));
     }
 
     [data-embedded-btn]:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
+      opacity: var(--w3a-embedded_btn-disabled_opacity, 0.6);
+      cursor: var(--w3a-embedded_btn-disabled_cursor, not-allowed);
     }
 
     [data-loading] {
-      display: none;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
+      display: var(--w3a-embedded_loading_display, none);
+      align-items: var(--w3a-embedded_loading_align-items, center);
+      justify-content: var(--w3a-embedded_loading_justify-content, center);
+      gap: var(--w3a-embedded_loading_gap, 8px);
     }
 
     [data-loading][data-visible="true"] {
-      display: flex;
+      display: var(--w3a-embedded_loading-visible_display, flex);
     }
 
     [data-spinner] {
-      width: 16px;
-      height: 16px;
-      border: 2px solid rgba(255, 255, 255, 0.3);
-      border-top: 2px solid white;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
+      width: var(--w3a-embedded_spinner_width, 16px);
+      height: var(--w3a-embedded_spinner_height, 16px);
+      border: var(--w3a-embedded_spinner_border, 2px solid rgba(255, 255, 255, 0.3));
+      border-top: var(--w3a-embedded_spinner_border-top, 2px solid white);
+      border-radius: var(--w3a-embedded_spinner_border-radius, 50%);
+      animation: var(--w3a-embedded_spinner_animation, spin 1s linear infinite);
     }
 
     @keyframes spin {
@@ -180,23 +195,26 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     /* Use data attributes instead of classes for guaranteed sync */
     [data-tooltip-content] {
-      position: absolute;
-      box-sizing: border-box;
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(4px);
-      -webkit-backdrop-filter: blur(4px);
-      border: 1px solid #e2e8f0;
-      border-radius: 24px;
-      z-index: 1000;
-      opacity: 0;
-      visibility: hidden;
+      position: var(--w3a-embedded_tooltip-content_position, absolute);
+      box-sizing: var(--w3a-embedded_tooltip-content_box-sizing, border-box);
+      z-index: var(--w3a-embedded_tooltip-content_z-index, 1000);
+      opacity: var(--w3a-embedded_tooltip-content_opacity, 0);
+      visibility: var(--w3a-embedded_tooltip-content_visibility, hidden);
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
-      overflow-y: auto;
-      transition: all 0.1s ease;
-      min-width: 280px;
-      max-width: 320px;
-      width: var(--tooltip-width, 280px);
+      overflow-y: var(--w3a-embedded_tooltip-content_overflow-y, auto);
+      transition: var(--w3a-embedded_tooltip-content_transition, all 0.0s ease);
+      min-width: var(--w3a-embedded_tooltip-content_min-width, 280px);
+      max-width: var(--w3a-embedded_tooltip-content_max-width, 320px);
+      width: var(--w3a-embedded_tooltip-content_width, var(--tooltip-width, 280px));
+    }
+
+    .data-tooltip-content-root {
+      background: var(--w3a-embedded_data-tooltip-content-root_background, rgba(255, 255, 255, 0.95));
+      backdrop-filter: var(--w3a-embedded_data-tooltip-content-root_backdrop-filter, blur(4px));
+      -webkit-backdrop-filter: var(--w3a-embedded_data-tooltip-content-root_webkit-backdrop-filter, blur(4px));
+      border: var(--w3a-embedded_data-tooltip-content-root_border, 1px solid var(--w3a-embedded_data-tooltip-content-root_border-color, oklch(0.8 0 0)));
+      border-radius: var(--w3a-embedded_data-tooltip-content-root_border-radius, 24px);
     }
 
     /* Top positions: aligned with button corners */
@@ -255,37 +273,41 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     [data-tooltip-content][data-visible="true"] {
-      opacity: 1;
-      visibility: visible;
+      opacity: var(--w3a-embedded_tooltip-content-visible_opacity, 1);
+      visibility: var(--w3a-embedded_tooltip-content-visible_visibility, visible);
     }
 
     [data-tooltip-content][data-hiding="true"] {
-      transition-delay: 150ms;
+      transition-delay: var(--w3a-embedded_tooltip-content-hiding_transition-delay, 150ms);
     }
 
-    .tooltip-container {
-      position: relative;
-      border: 1px solid transparent;
-      border-radius: 16px;
-      margin: 8px;
-      height: calc(100% - 2px); /* 2px for border: top and bottom */
-      overflow: hidden;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    .tooltip-border-inner {
+      position: var(--w3a-embedded_tooltip-border-inner_position, relative);
+      border: var(--w3a-embedded_tooltip-border-inner_border, 1px solid transparent);
+      border-radius: var(--w3a-embedded_tooltip-border-inner_border-radius, 16px);
+      margin: var(--w3a-embedded_tooltip-border-inner_margin, 8px);
+      height: var(--w3a-embedded_tooltip-border-inner_height, calc(100% - 2px)); /* 2px for border: top and bottom */
+      overflow: var(--w3a-embedded_tooltip-border-inner_overflow, hidden);
+      box-shadow: var(--w3a-embedded_tooltip-border-inner_box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
+      background: var(--w3a-embedded_tooltip-border-inner_background, var(--w3a-color-surface));
+      backdrop-filter: var(--w3a-embedded_tooltip-border-inner_backdrop-filter, blur(12px));
+      WebkitBackdropFilter: var(--w3a-embedded_tooltip-border-inner_webkit-backdrop-filter, blur(12px));
     }
 
     .gradient-border {
       /* Thicker, subtle monochrome animated border */
       --border-angle: 0deg;
-      background: linear-gradient(#ffffff, #ffffff) padding-box,
+      background: var(--w3a-embedded_gradient-border_background, linear-gradient(#ffffff, #ffffff) padding-box,
         conic-gradient(
           from var(--border-angle),
           rgba(0, 0, 0, 0.1) 0%,
-          rgba(0, 0, 0, 0.5) 25%,
+          rgba(0, 0, 0, 0.6) 25%,
           rgba(0, 0, 0, 0.1) 50%,
-          rgba(0, 0, 0, 0.5) 75%,
+          rgba(0, 0, 0, 0.6) 75%,
           rgba(0, 0, 0, 0.1) 100%
-        ) border-box;
-      animation: border-angle-rotate 4s infinite linear;
+        ) border-box);
+      animation: var(--w3a-embedded_gradient-border_animation, border-angle-rotate 4s infinite linear);
+      will-change: var(--w3a-embedded_gradient-border_will-change, background);
     }
 
     @property --border-angle {
@@ -309,14 +331,15 @@ export class EmbeddedTxButton extends LitElementWithProps {
     // Bind selectors to shadow root, easier to querySelect elements with data-attributes
     this.selectors = new ElementSelectors(this.shadowRoot);
 
-    // Initialize tooltipTreeStyles based on theme
+    // Initialize styles based on theme
     this.updateTooltipTheme();
 
     // Browser doesn't know --border-angle is an animatable angle type,
     // so we need to register it globally.
     // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
     // not smoothly animating through the values in between.
-    if (!(window as any).borderAngleRegistered && CSS.registerProperty) {
+    const w = window as Window & { borderAngleRegistered?: boolean };
+    if (!w.borderAngleRegistered && CSS.registerProperty) {
       try {
         CSS.registerProperty({
           name: '--border-angle',
@@ -324,13 +347,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
           initialValue: '0deg',
           inherits: false
         });
-        (window as any).borderAngleRegistered = true;
+        w.borderAngleRegistered = true;
       } catch (e) {
         console.warn('[EmbeddedTxConfirm] Failed to register --border-angle:', e);
       }
     }
 
     this.setupCSSVariables();
+    this.applyButtonStyles();
   }
 
   firstUpdated() {
@@ -357,7 +381,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   }
 
-  updated(changedProperties: Map<string, any>) {
+  updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     // Update CSS variables when button styles change
     if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle') || changedProperties.has('color')) {
@@ -367,6 +391,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     // Update tooltip theme when theme property changes
     if (changedProperties.has('theme')) {
       this.updateTooltipTheme();
+      this.applyButtonStyles();
     }
 
     if (changedProperties.has('nearAccountId') || changedProperties.has('txSigningRequests')) {
@@ -426,9 +451,20 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // Theme & CSS Variables
   // ==============================
   private updateTooltipTheme() {
-    // Update tooltipTreeStyles based on the current theme
+    // Update tooltip tree styles based on the current theme
     const selectedTheme = TOOLTIP_THEMES[this.theme] || TOOLTIP_THEMES.dark;
-    this.tooltipTreeStyles = { ...selectedTheme };
+    this.styles = { ...selectedTheme };
+
+    // Update embedded button styles based on the current theme
+    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.theme] || EMBEDDED_TX_BUTTON_THEMES.dark;
+    this.buttonStyles = { ...selectedButtonTheme };
+  }
+
+  private applyButtonStyles() {
+    if (!this.buttonStyles) return;
+
+    // Use parent class applyStyles method for consistent naming and behavior
+    this.applyStyles(this.buttonStyles);
   }
 
   // ==============================
@@ -529,7 +565,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // ==============================
   // Parent origin for postMessage hardening (set by iframe bootstrap)
   private getTargetOrigin(): string {
-    return (window as any).__ETX_PARENT_ORIGIN || '*';
+    const w = window as Window & { __ETX_PARENT_ORIGIN?: string };
+    return w.__ETX_PARENT_ORIGIN || '*';
   }
 
   /**
@@ -761,12 +798,17 @@ export class EmbeddedTxButton extends LitElementWithProps {
   updateButtonStyles(
     buttonStyle: React.CSSProperties,
     buttonHoverStyle: React.CSSProperties,
-    tooltipPosition?: TooltipPosition
+    tooltipPosition?: TooltipPosition,
+    embeddedButtonTheme?: EmbeddedTxButtonStyles
   ) {
     this.buttonStyle = buttonStyle;
     this.buttonHoverStyle = buttonHoverStyle;
     if (tooltipPosition) {
       this.tooltip = tooltipPosition;
+    }
+    if (embeddedButtonTheme) {
+      this.buttonStyles = embeddedButtonTheme;
+      this.applyButtonStyles();
     }
     this.setupCSSVariables();
     this.requestUpdate();
@@ -835,7 +877,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // ==============================
   render() {
 
-    const tree = buildDisplayTreeFromTxPayloads(this.txSigningRequests, this.tooltipTreeStyles);
+    const tree = buildDisplayTreeFromTxPayloads(this.txSigningRequests, this.styles);
 
     return html`
       <!--
@@ -871,6 +913,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
         <!-- Tooltip content element - corresponds to [data-tooltip-content] CSS selector -->
         <div
           data-tooltip-content
+          class="data-tooltip-content-root"
           data-position=${this.tooltip.position}
           data-visible=${this.tooltipVisible}
           data-hiding=${this.isHiding}
@@ -880,17 +923,29 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          <div class="tooltip-container gradient-border">
+          <div class="tooltip-border-inner gradient-border">
             <tooltip-tx-tree
               .node=${tree}
               .depth=${0}
-              .tooltipTreeStyles=${this.tooltipTreeStyles}
+              .styles=${this.styles}
               @tree-toggled=${this.handleTreeToggled}
             ></tooltip-tx-tree>
           </div>
         </div>
       </div>
     `;
+  }
+
+  // ==============================
+  // Parent Class Overrides
+  // ==============================
+
+  protected getComponentPrefix(): string {
+    return 'embedded';
+  }
+
+  protected applyStyles(styles: EmbeddedTxButtonStyles): void {
+    super.applyStyles(styles, this.getComponentPrefix());
   }
 }
 

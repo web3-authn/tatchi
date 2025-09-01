@@ -1,6 +1,7 @@
 // Import types and components needed for mount functions
 import { TransactionInputWasm } from '../../types';
 import { IFRAME_MODAL_ID } from './IframeButtonWithTooltipConfirmer/tags';
+import type IframeModalHost from './IframeModalConfirmer/IframeModalHost';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 
@@ -42,18 +43,23 @@ export async function mountIframeModalHostWithHandle({
   summary,
   txSigningRequests,
   loading,
+  theme,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   loading?: boolean,
-}): Promise<{ element: any; close: (confirmed: boolean) => void }> {
+  theme?: 'dark' | 'light',
+}): Promise<{ element: IframeModalHost; close: (confirmed: boolean) => void }> {
   await ensureIframeModalDefined();
-  const el = document.createElement(IFRAME_MODAL_ID) as any;
-  el.nearAccountId = ctx.currentUserAccountId || '';
+  const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+  el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
-  el.intentDigest = summary?.fingerprint;
+  el.intentDigest = summary?.intentDigest;
   el.showLoading = !!loading;
+  if (theme) {
+    el.theme = theme;
+  }
   document.body.appendChild(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   return { element: el, close };
@@ -63,24 +69,30 @@ export async function awaitIframeModalDecisionWithHandle({
   ctx,
   summary,
   txSigningRequests,
+  theme,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
+  theme?: 'dark' | 'light',
 }): Promise<{
   confirmed: boolean;
-  handle: { element: any; close: (confirmed: boolean) => void }
+  handle: { element: IframeModalHost; close: (confirmed: boolean) => void }
 }> {
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
-    const el = document.createElement(IFRAME_MODAL_ID) as any;
-    el.nearAccountId = ctx.currentUserAccountId || '';
+    const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+    el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
-    el.intentDigest = summary?.fingerprint;
+    el.intentDigest = summary?.intentDigest;
+    if (theme) {
+      el.theme = theme;
+    }
 
-    const onConfirm = (e: any) => {
+    const onConfirm = (e: Event) => {
+      const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
       cleanup();
-      const ok = !!(e?.detail?.confirmed);
+      const ok = !!(ce?.detail?.confirmed);
       resolve({
         confirmed: ok,
         handle: {
@@ -101,12 +113,12 @@ export async function awaitIframeModalDecisionWithHandle({
     };
 
     const cleanup = () => {
-      try { el.removeEventListener('w3a:modal-confirm', onConfirm as any); } catch {}
-      try { el.removeEventListener('w3a:modal-cancel', onCancel as any); } catch {}
+      try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
+      try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
     };
 
-    el.addEventListener('w3a:modal-confirm', onConfirm as any);
-    el.addEventListener('w3a:modal-cancel', onCancel as any);
+    el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
+    el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
     document.body.appendChild(el);
   });
 }

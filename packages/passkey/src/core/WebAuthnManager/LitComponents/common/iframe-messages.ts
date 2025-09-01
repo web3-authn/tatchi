@@ -4,6 +4,7 @@ import { TransactionInputWasm } from "@/core/types";
 import type { TransactionInput } from "@/core/types/actions";
 import type { TooltipGeometry, TooltipPosition } from "../IframeButtonWithTooltipConfirmer/iframe-geometry";
 import { TooltipTreeStyles } from "../TooltipTxTree";
+import type { EmbeddedTxButtonStyles } from "../IframeButtonWithTooltipConfirmer/embedded-tx-button-themes";
 
 // =============================================================
 // == Common subset shared by both button and modal channels ===
@@ -21,7 +22,7 @@ export type IframeSharedMessageType =
   | 'IFRAME_UNHANDLED_REJECTION';
 
 // Base message envelope for strongly-typed type/payload pairs
-export interface IframeBaseMessage<TType extends string, TPayloads extends Record<TType, unknown>> {
+export interface IframeBaseMessage<TType extends string, TPayloads extends Record<TType, any>> {
   type: TType;
   payload?: TPayloads[TType];
 }
@@ -43,8 +44,14 @@ export type IframeModalMessageType =
 export interface IframeModalMessagePayloads {
   READY: undefined;
   ETX_DEFINED: undefined;
-  SET_INIT: { targetOrigin: string };
-  SET_TX_DATA: { nearAccountId: string; txSigningRequests: TransactionInputWasm[]; theme?: Record<string, string> };
+  SET_INIT: {
+    targetOrigin: string
+  };
+  SET_TX_DATA: {
+    nearAccountId: string;
+    txSigningRequests: TransactionInputWasm[];
+    theme?: 'dark' | 'light'
+  };
   SET_LOADING: boolean;
   REQUEST_UI_DIGEST: undefined;
   UI_INTENT_DIGEST: { ok: boolean; digest?: string; error?: string };
@@ -94,6 +101,7 @@ export interface IframeButtonMessagePayloads {
     buttonHoverStyle: Record<string, string | number>;
     tooltipPosition: TooltipPosition;
     tooltipTreeStyles?: TooltipTreeStyles;
+    embeddedButtonTheme?: EmbeddedTxButtonStyles;
   };
   CONFIRM: undefined;
   TOOLTIP_STATE: TooltipGeometry;
@@ -119,7 +127,7 @@ export function postToParent<T extends IframeButtonMessageType>(
   target?: string
 ): void;
 
-export function postToParent(type: string, payload?: unknown, target: string = '*') {
+export function postToParent(type: string, payload?: {}, target: string = '*') {
   try { window.parent.postMessage({ type, payload }, target); } catch {}
 }
 

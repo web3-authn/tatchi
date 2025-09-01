@@ -1,4 +1,5 @@
 export { IframeButtonHost } from './IframeButtonHost';
+export { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
 export type {
   TooltipPosition,
   TooltipPositionEnum,
