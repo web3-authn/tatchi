@@ -478,6 +478,12 @@ async fn sign_near_transactions_with_actions_impl(
         .as_ref()
         .ok_or_else(|| "Missing transaction context from confirmation".to_string())?;
 
+    // Prepare nonce sequencing: start from next_nonce and increment per transaction
+    let mut current_nonce: u64 = transaction_context
+        .next_nonce
+        .parse()
+        .map_err(|e| format!("Invalid nonce: {}", e))?;
+
     // Process each transaction
     let mut signed_transactions_wasm = Vec::new();
     let mut transaction_hashes = Vec::new();
@@ -514,13 +520,17 @@ async fn sign_near_transactions_with_actions_impl(
         let transaction = match build_transaction_with_actions(
             &tx_data.near_account_id,
             &tx_data.receiver_id,
-            transaction_context.next_nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
+            current_nonce,
             &bs58::decode(&transaction_context.tx_block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
             &signing_key,
             actions,
         ) {
             Ok(tx) => {
-                logs.push(format!("Transaction {}: Built successfully", index + 1));
+                logs.push(format!(
+                    "Transaction {}: Built successfully (nonce used: {})",
+                    index + 1,
+                    current_nonce
+                ));
                 tx
             }
             Err(e) => {
@@ -558,6 +568,9 @@ async fn sign_near_transactions_with_actions_impl(
 
         signed_transactions_wasm.push(signed_tx_wasm);
         transaction_hashes.push(transaction_hash);
+
+        // Increment nonce for the next transaction in the batch
+        current_nonce = current_nonce.saturating_add(1);
     }
 
     logs.push(format!("All {} transactions signed successfully", signed_transactions_wasm.len()));

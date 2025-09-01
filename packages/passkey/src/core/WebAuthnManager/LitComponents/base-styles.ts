@@ -124,12 +124,12 @@ export const DARK_THEME_COLORS = {
   colorButtonText: GUIDELINES_COLORS.darkButtonText,     // Button text
   colorDotPattern: GUIDELINES_COLORS.dotPattern,         // Dot pattern
 
-  // Semantic colors
-  colorPrimary: 'oklch(0.6 0.15 250)',       // Bright blue primary color for dark mode
-  colorSecondary: 'oklch(0.65 0.12 240)',    // Bright blue secondary color for dark mode
-  colorSuccess: 'oklch(0.7 0.15 140)',       // Bright green success color for dark mode
-  colorWarning: 'oklch(0.8 0.15 85)',        // Bright orange warning color for dark mode
-  colorError: 'oklch(0.65 0.2 15)',          // Bright red error color for dark mode
+  // Semantic colors - Using cobalt blue hues from style-guide-2.md
+  colorPrimary: 'oklch(0.55 0.18 240)',      // Base cobalt blue for dark mode
+  colorSecondary: 'oklch(0.65 0.14 240)',    // Lighter cobalt blue for dark mode
+  colorSuccess: 'oklch(0.55 0.18 140)',      // Consistent brightness green for dark mode
+  colorWarning: 'oklch(0.55 0.18 85)',       // Consistent brightness orange for dark mode
+  colorError: 'oklch(0.55 0.18 15)',         // Consistent brightness red for dark mode
 } as const;
 
 // Light Theme Colors - Using ONLY colors from Guidelines.md
@@ -152,10 +152,10 @@ export const LIGHT_THEME_COLORS = {
   colorButtonText: GUIDELINES_COLORS.lightButtonText,     // Button text
   colorDotPattern: GUIDELINES_COLORS.dotPattern,          // Dot pattern
 
-  // Semantic colors
-  colorPrimary: 'oklch(0.6 0.12 250)',       // Blue primary color - lighter
-  colorSecondary: 'oklch(0.7 0.1 240)',      // Blue secondary color - lighter
-  colorSuccess: 'oklch(0.75 0.12 140)',      // Green success color - lighter
-  colorWarning: 'oklch(0.8 0.13 85)',        // Orange warning color - lighter
-  colorError: 'oklch(0.65 0.18 15)',         // Red error color - lighter
+  // Semantic colors - Using deeper cobalt blue hues from style-guide-2.md
+  colorPrimary: 'oklch(0.45 0.18 240)',      // Deeper cobalt blue for light mode
+  colorSecondary: 'oklch(0.55 0.14 240)',    // Base cobalt blue for light mode
+  colorSuccess: 'oklch(0.45 0.18 140)',      // Consistent brightness green for light mode
+  colorWarning: 'oklch(0.45 0.18 85)',       // Consistent brightness orange for light mode
+  colorError: 'oklch(0.45 0.18 15)',         // Consistent brightness red for light mode
 } as const;
