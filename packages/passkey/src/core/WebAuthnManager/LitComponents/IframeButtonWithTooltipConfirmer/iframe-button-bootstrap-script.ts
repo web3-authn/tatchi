@@ -1,6 +1,13 @@
 import type { TooltipPosition } from './iframe-geometry';
-import type { IframeInitData } from '../common/iframe-messages'
+import type {
+  IframeButtonMessage,
+  IframeButtonMessagePayloads,
+  IframeButtonMessageType,
+  IframeInitData
+} from '../common/iframe-messages'
+import type { TooltipTreeStyles } from '../TooltipTxTree/tooltip-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
+import type { EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
 
 /**
  * Iframe Button Bootstrap Script (ESM)
@@ -18,19 +25,23 @@ declare global {
 
 // Notify parent that we're ready to receive HS1_INIT
 function notifyReady(): void {
-  try { window.parent.postMessage({ type: 'READY' }, '*'); } catch {}
+  try {
+    const message: IframeButtonMessage = { type: 'READY' };
+    window.parent.postMessage(message, '*');
+  } catch {}
 }
 
 // Forward iframe errors to parent for visibility
 function postError(kind: 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION', message: string): void {
   try {
     console.error('[IframeButtonBootstrap] error', kind, message);
-    window.parent.postMessage({ type: kind, payload: message }, PARENT_ORIGIN || '*');
+    const errorMessage: IframeButtonMessage = { type: kind, payload: message };
+    window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
   } catch {}
 }
 
 /** Apply HS1_INIT: element config + absolute positioning (before measure). */
-type EmbeddedTxButtonEl = HTMLElement & {
+interface EmbeddedTxButtonEl extends HTMLElement {
   color?: string;
   size?: { width: string | number; height: string | number };
   tooltip?: { width: string; height: string | 'auto'; position: string; offset: string };
@@ -46,7 +57,8 @@ type EmbeddedTxButtonEl = HTMLElement & {
   updateButtonStyles?: (
     buttonStyle: Record<string, string | number>,
     buttonHoverStyle: Record<string, string | number>,
-    tooltipPosition?: TooltipPosition
+    tooltipPosition?: TooltipPosition,
+    embeddedButtonTheme?: EmbeddedTxButtonStyles
   ) => void;
   sendInitialGeometry?: () => void;
   computeUiIntentDigest?: () => Promise<string>;
@@ -56,11 +68,13 @@ type EmbeddedTxButtonEl = HTMLElement & {
   buttonStyle?: Record<string, string | number>;
   buttonHoverStyle?: Record<string, string | number>;
   requestUpdate?: () => void;
-};
+}
+
+type EmbeddedTxButtonElType = HTMLElement & EmbeddedTxButtonEl;
 
 type InitPayload = IframeInitData & { tagName?: string; targetOrigin?: string };
 
-function applyInit(el: EmbeddedTxButtonEl, payload: InitPayload): void {
+function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
   // Apply basic styling and configuration
   el.color = payload.backgroundColor;
   el.size = payload.size;
@@ -77,7 +91,7 @@ function applyInit(el: EmbeddedTxButtonEl, payload: InitPayload): void {
     const MAX_RETRIES = 60; // ~1.2s at 20ms each
     const DELAY_MS = 20;
 
-    const tryApply = (retriesLeft: number) => {
+    const tryApply = (retriesLeft: number): void => {
       const c = el.shadowRoot?.querySelector('[data-embedded-confirm-container]') as HTMLElement | null;
       if (c) {
         // Position the button container absolutely at the specified coordinates
@@ -88,9 +102,11 @@ function applyInit(el: EmbeddedTxButtonEl, payload: InitPayload): void {
         // Force a reflow to ensure positioning is applied before any measurements
         c.offsetHeight;
         // Notify parent that positioning is complete
-        try {
-          window.parent.postMessage({ type: 'HS2_POSITIONED', payload: payload.buttonPosition }, PARENT_ORIGIN || '*');
-        } catch {}
+        const positionedMessage: IframeButtonMessage = {
+          type: 'HS2_POSITIONED',
+          payload: payload.buttonPosition
+        };
+        try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
         return;
       }
       if (retriesLeft <= 0) {
@@ -106,40 +122,37 @@ function applyInit(el: EmbeddedTxButtonEl, payload: InitPayload): void {
 
   // Notify when custom element is fully defined and ready
   if (window.customElements && window.customElements.whenDefined) {
-    const tag = (payload.tagName as string | undefined) || 'embedded-tx-button';
+    const tag = payload.tagName || 'embedded-tx-button';
     window.customElements.whenDefined(tag).then(() => {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;
-      try { window.parent.postMessage({ type: 'ETX_DEFINED' }, PARENT_ORIGIN || '*'); } catch {}
+      const definedMessage: IframeButtonMessage = { type: 'ETX_DEFINED' };
+      try { window.parent.postMessage(definedMessage, PARENT_ORIGIN || '*'); } catch {}
     });
   }
 }
 
 /**
- * Handles incoming messages from the parent window.
- * Processes various message types including the Initial Geometry Handshake messages.
+ * Type guards for iframe message payloads
  */
-type IncomingMessage = { type?: string; payload?: unknown };
-
-function isInitPayload(p: unknown): p is InitPayload {
-  if (typeof p !== 'object' || p === null) return false;
-  const obj = p as Record<string, unknown>;
-  return typeof obj.size === 'object' && typeof obj.tooltip === 'object' && typeof obj.buttonPosition === 'object';
+function isInitPayload(payload: unknown): payload is IframeInitData {
+  return typeof payload === 'object' && payload !== null;
 }
 
-function isSetTxDataPayload(p: unknown): p is { nearAccountId: string; txSigningRequests: TransactionInput[] } {
-  if (typeof p !== 'object' || p === null) return false;
-  const obj = p as Record<string, unknown>;
-  return typeof obj.nearAccountId === 'string' && Array.isArray(obj.txSigningRequests);
+function isSetTxDataPayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_TX_DATA'] {
+  return typeof payload === 'object' && payload !== null;
 }
 
-function isSetStylePayload(p: unknown): p is {
-  buttonStyle?: Record<string, string | number>;
-  buttonHoverStyle?: Record<string, string | number>;
-  tooltipPosition?: TooltipPosition;
-  tooltipTreeStyles?: unknown;
-} {
-  return typeof p === 'object' && p !== null;
+function isSetStylePayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_STYLE'] {
+  return typeof payload === 'object' && payload !== null;
+}
+
+function isSetLoadingPayload(payload: unknown): payload is boolean {
+  return typeof payload === 'boolean';
+}
+
+function isRequestUiDigestPayload(payload: unknown): payload is undefined {
+  return payload === undefined;
 }
 
 /**
@@ -147,9 +160,12 @@ function isSetStylePayload(p: unknown): p is {
  * Processes various message types including the Initial Geometry Handshake messages.
  * @param e The message event from the iframe
  */
-function onMessage(e: MessageEvent): void {
-  const { type, payload } = (e.data || {}) as IncomingMessage;
-  const el = document.getElementById('etx') as EmbeddedTxButtonEl | null;
+function onMessage(e: MessageEvent<IframeButtonMessage>): void {
+  const data = e.data;
+  if (!data || typeof data !== 'object' || !('type' in data)) return;
+
+  const { type, payload } = data as IframeButtonMessage;
+  const el = document.getElementById('etx') as EmbeddedTxButtonElType | null;
   if (!el) return;
 
   switch (type) {
@@ -169,7 +185,7 @@ function onMessage(e: MessageEvent): void {
 
     case 'SET_TX_DATA':
       // Update transaction data for display in the tooltip
-      if (isSetTxDataPayload(payload)) {
+      if (isSetTxDataPayload(payload) && payload) {
         if (el.updateProperties) {
           el.updateProperties({
             nearAccountId: payload.nearAccountId,
@@ -185,18 +201,26 @@ function onMessage(e: MessageEvent): void {
 
     case 'SET_LOADING':
       // Update loading state of the button
-      if (el.updateProperties) {
-        el.updateProperties({ loading: typeof payload === 'boolean' ? payload : !!payload });
-      } else {
-        el.loading = typeof payload === 'boolean' ? payload : !!payload;
+      if (isSetLoadingPayload(payload)) {
+        if (el.updateProperties) {
+          el.updateProperties({ loading: payload });
+        } else {
+          el.loading = payload;
+          if (el.requestUpdate) el.requestUpdate();
+        }
       }
       break;
 
     case 'SET_STYLE':
       // Update button styling and tooltip configuration
-      if (isSetStylePayload(payload)) {
+      if (isSetStylePayload(payload) && payload) {
         if (el.updateButtonStyles) {
-          el.updateButtonStyles(payload.buttonStyle || {}, payload.buttonHoverStyle || {}, payload.tooltipPosition || undefined);
+          el.updateButtonStyles(
+            payload.buttonStyle || {},
+            payload.buttonHoverStyle || {},
+            payload.tooltipPosition,
+            payload.embeddedButtonTheme
+          );
         } else {
           el.buttonStyle = payload.buttonStyle || {};
           el.buttonHoverStyle = payload.buttonHoverStyle || {};
@@ -204,28 +228,31 @@ function onMessage(e: MessageEvent): void {
             el.tooltipPosition = payload.tooltipPosition;
           }
         }
-        // Pass tooltip tree styles if available
-        const treeStyles = (payload as { tooltipTreeStyles?: unknown }).tooltipTreeStyles;
-        if (treeStyles && (el as unknown as { tooltipTreeStyles?: unknown }).tooltipTreeStyles !== treeStyles) {
-          (el as unknown as { tooltipTreeStyles?: unknown }).tooltipTreeStyles = treeStyles;
+        // Pass tooltip tree styles if available (maps to EmbeddedTxButton.styles)
+        if (payload.tooltipTreeStyles && (el as { styles?: TooltipTreeStyles }).styles !== payload.tooltipTreeStyles) {
+          (el as { styles?: TooltipTreeStyles }).styles = payload.tooltipTreeStyles;
           if (el.requestUpdate) el.requestUpdate();
         }
       }
       break;
 
     case 'REQUEST_UI_DIGEST': {
-      if (typeof el.computeUiIntentDigest === 'function') {
+      if (isRequestUiDigestPayload(payload) && typeof el.computeUiIntentDigest === 'function') {
         el.computeUiIntentDigest()
           .then((digest: string) => {
-            try {
-              window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: true, digest } }, PARENT_ORIGIN || '*');
-            } catch {}
+            const successMessage: IframeButtonMessage = {
+              type: 'UI_INTENT_DIGEST',
+              payload: { ok: true, digest }
+            };
+            try { window.parent.postMessage(successMessage, PARENT_ORIGIN || '*'); } catch {}
           })
           .catch((err: unknown) => {
-            try {
-              console.warn('[IframeButtonBootstrap] UI_INTENT_DIGEST error', err);
-              window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: false, error: String(err) } }, PARENT_ORIGIN || '*');
-            } catch {}
+            const errorMessage: IframeButtonMessage = {
+              type: 'UI_INTENT_DIGEST',
+              payload: { ok: false, error: String(err) }
+            };
+            console.warn('[IframeButtonBootstrap] UI_INTENT_DIGEST error', err);
+            try { window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*'); } catch {}
           });
       } else {
         throw new Error('UI intent digest computation not available in secure iframe');
@@ -240,10 +267,11 @@ window.addEventListener('message', onMessage);
 
 // Error handling for debugging geometry and positioning issues
 window.addEventListener('error', (e: ErrorEvent) => {
-  postError('IFRAME_ERROR', String(e?.message || e));
+  postError('IFRAME_ERROR', e.message || 'Unknown error');
 });
+
 window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
-  postError('IFRAME_UNHANDLED_REJECTION', String(e?.reason || ''));
+  postError('IFRAME_UNHANDLED_REJECTION', e.reason ? String(e.reason) : 'Unhandled promise rejection');
 });
 
 // STEP 0: announce readiness to the parent

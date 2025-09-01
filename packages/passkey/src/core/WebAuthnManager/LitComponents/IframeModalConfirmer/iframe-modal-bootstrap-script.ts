@@ -1,7 +1,11 @@
 import { toActionArgsWasm, isActionArgsWasm } from '@/core/types/actions';
 import type { ActionArgs } from '@/core/types/actions';
 import { TransactionInputWasm } from '@/core/types'
-import type { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
+import type {
+  IframeModalMessage,
+  IframeModalMessagePayloads,
+  IframeModalMessageType
+} from '../common/iframe-messages';
 import {
   computeUiIntentDigestFromTxs,
   orderActionForDigest
@@ -20,12 +24,17 @@ declare global {
 }
 
 function notifyReady(): void {
-  try { window.parent.postMessage({ type: 'READY' }, '*'); } catch {}
+  try {
+    const message: IframeModalMessage = { type: 'READY' };
+    window.parent.postMessage(message, '*');
+  } catch {}
 }
 
 function postError(kind: 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION', message: string): void {
   try {
-    window.parent.postMessage({ type: kind, payload: message }, PARENT_ORIGIN || '*');
+    console.error('[IframeModalBootstrap] error', kind, message);
+    const errorMessage: IframeModalMessage = { type: kind, payload: message };
+    window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
   } catch {}
 }
 
@@ -36,19 +45,22 @@ function whenDefined(tag: string): Promise<void> {
   return Promise.resolve();
 }
 
-type ModalElementShape = HTMLElement & {
+interface ModalElementShape extends HTMLElement {
   nearAccountId?: string;
-  txSigningRequests?: unknown[];
+  txSigningRequests?: TransactionInputWasm[];
+  theme?: string;
   loading?: boolean;
   deferClose?: boolean;
   requestUpdate?: () => void;
   close?: (confirmed: boolean) => void;
-};
+}
 
-function ensureElement(): ModalElementShape {
-  let el = document.getElementById('mtx') as ModalElementShape | null;
+type ModalElementType = HTMLElement & ModalElementShape;
+
+function ensureElement(): ModalElementType {
+  let el = document.getElementById('mtx') as ModalElementType | null;
   if (!el) {
-    el = document.createElement('passkey-modal-confirm') as ModalElementShape;
+    el = document.createElement('passkey-modal-confirm') as ModalElementType;
     el.id = 'mtx';
     document.body.appendChild(el);
   }
@@ -57,74 +69,74 @@ function ensureElement(): ModalElementShape {
   return el;
 }
 
-function applyTheme(el: HTMLElement, theme?: Record<string, string>) {
-  if (!theme) return;
-  try {
-    Object.entries(theme).forEach(([k, v]) => el.style.setProperty(k, String(v)));
-  } catch {}
+/**
+ * Type guards for iframe message payloads
+ */
+function isSetInitPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_INIT'] {
+  return typeof payload === 'object' && payload !== null;
 }
 
-type IncomingMessage = { type?: IframeModalMessageType; payload?: unknown };
-
-function isSetInitPayload(p: unknown): p is IframeModalMessagePayloads['SET_INIT'] {
-  if (typeof p !== 'object' || p === null) return false;
-  const obj = p as Record<string, unknown>;
-  return typeof obj.targetOrigin === 'string';
+function isSetTxDataPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_TX_DATA'] {
+  return typeof payload === 'object' && payload !== null;
 }
 
-function isSetTxDataPayload(p: unknown): p is IframeModalMessagePayloads['SET_TX_DATA'] {
-  if (typeof p !== 'object' || p === null) return false;
-  const obj = p as Record<string, unknown>;
-  const hasNear = typeof obj.nearAccountId === 'string';
-  const hasTxs = Array.isArray(obj.txSigningRequests);
-  const themeOk = obj.theme === undefined || typeof obj.theme === 'object';
-  return hasNear && hasTxs && themeOk;
+function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePayloads['CLOSE_MODAL'] {
+  return typeof payload === 'object' && payload !== null;
 }
 
-function isCloseModalPayload(p: unknown): p is IframeModalMessagePayloads['CLOSE_MODAL'] {
-  return typeof p === 'object' && p !== null && typeof (p as { confirmed?: unknown }).confirmed === 'boolean';
-}
-
-function isTxLike(x: unknown): x is { receiverId: string; actions: unknown[] } {
-  if (typeof x !== 'object' || x === null) return false;
+function issTransactionInput(x: unknown): x is { receiverId: string; actions: unknown[] } {
+  if (!x || typeof x !== 'object') return false;
   const obj = x as Record<string, unknown>;
   return typeof obj.receiverId === 'string' && Array.isArray(obj.actions);
 }
 
-function onMessage(e: MessageEvent): void {
-  const { type, payload } = (e.data || {}) as IncomingMessage;
+function isSetLoadingPayload(payload: unknown): payload is boolean {
+  return typeof payload === 'boolean';
+}
+
+function onMessage(e: MessageEvent<IframeModalMessage>): void {
+  const data = e.data;
+  if (!data || typeof data !== 'object' || !('type' in data)) return;
+
+  const { type, payload } = data as IframeModalMessage;
   const el = ensureElement();
   switch (type) {
     case 'SET_INIT': {
-      if (isSetInitPayload(payload)) {
-        PARENT_ORIGIN = String(payload.targetOrigin);
+      if (isSetInitPayload(payload) && payload) {
+        PARENT_ORIGIN = payload.targetOrigin;
         window.__MTX_PARENT_ORIGIN = PARENT_ORIGIN;
       }
       // Announce when element is defined
       whenDefined('passkey-modal-confirm').then(() => {
         if (MTX_DEFINED_POSTED) return;
         MTX_DEFINED_POSTED = true;
-        try { window.parent.postMessage({ type: 'ETX_DEFINED' }, PARENT_ORIGIN || '*'); } catch {}
+        const definedMessage: IframeModalMessage = { type: 'ETX_DEFINED' };
+        try { window.parent.postMessage(definedMessage, PARENT_ORIGIN || '*'); } catch {}
       });
       break;
     }
     case 'SET_TX_DATA': {
       // Set data properties on modal for rendering; digest will read from element on demand
-      if (isSetTxDataPayload(payload)) {
+      if (isSetTxDataPayload(payload) && payload) {
         el.nearAccountId = payload.nearAccountId;
-        el.txSigningRequests = Array.isArray(payload.txSigningRequests) ? payload.txSigningRequests : [];
-        applyTheme(el, payload.theme);
-        if (el.requestUpdate) el.requestUpdate();
+        el.txSigningRequests = payload.txSigningRequests;
+        if (payload.theme && typeof payload.theme === 'string') {
+          el.theme = payload.theme;
+        }
+        el.requestUpdate?.();
       }
       break;
     }
     case 'SET_LOADING': {
-      el.loading = typeof payload === 'boolean' ? payload : !!payload;
+      if (isSetLoadingPayload(payload)) {
+        el.loading = payload;
+        el.requestUpdate?.();
+      }
       break;
     }
     case 'CLOSE_MODAL': {
       try {
-        const confirmed = isCloseModalPayload(payload) ? !!payload.confirmed : !!(payload as { confirmed?: boolean } | undefined)?.confirmed;
+        const confirmed = isCloseModalPayload(payload) && payload ? payload.confirmed : false;
         el.close ? el.close(confirmed) : el.remove();
       } catch {}
       break;
@@ -134,7 +146,7 @@ function onMessage(e: MessageEvent): void {
         // Normalize actions to wasm shape if needed (supports both UI + wasm inputs)
         const raw = Array.isArray(el?.txSigningRequests) ? el.txSigningRequests : [];
         const txs = raw
-          .filter(isTxLike)
+          .filter(issTransactionInput)
           .map((tx) => ({
             receiverId: tx.receiverId,
             actions: tx.actions.map((a) => isActionArgsWasm(a) ? a : toActionArgsWasm(a as ActionArgs))
@@ -146,14 +158,32 @@ function onMessage(e: MessageEvent): void {
         }) as TransactionInputWasm);
 
         computeUiIntentDigestFromTxs(wasmShapedOrdered)
-          .then((digest) => {
-            try { window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: true, digest } }, PARENT_ORIGIN || '*'); } catch {}
+          .then((digest: string) => {
+            const successMessage: IframeModalMessage = {
+              type: 'UI_INTENT_DIGEST',
+              payload: { ok: true, digest }
+            };
+            try { window.parent.postMessage(successMessage, PARENT_ORIGIN || '*'); } catch {}
           })
-          .catch((err) => {
-            try { window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: false, error: String(err) } }, PARENT_ORIGIN || '*'); } catch {}
+          .catch((err: unknown) => {
+            const errorMessage: IframeModalMessage = {
+              type: 'UI_INTENT_DIGEST',
+              payload: { ok: false, error: String(err) }
+            };
+            try {
+              console.warn('[IframeModalBootstrap] UI_INTENT_DIGEST error', err);
+              window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
+            } catch {}
           });
-      } catch (err) {
-        try { window.parent.postMessage({ type: 'UI_INTENT_DIGEST', payload: { ok: false, error: String(err) } }, PARENT_ORIGIN || '*'); } catch {}
+      } catch (err: unknown) {
+        const errorMessage: IframeModalMessage = {
+          type: 'UI_INTENT_DIGEST',
+          payload: { ok: false, error: String(err) }
+        };
+        try {
+          console.warn('[IframeModalBootstrap] UI_INTENT_DIGEST error', err);
+          window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
+        } catch {}
       }
       break;
     }
@@ -161,17 +191,22 @@ function onMessage(e: MessageEvent): void {
 }
 
 // Proxy modal decision events to parent (composed+bubbling custom events)
-function hookDecisionEvents() {
-  const forward = (type: 'CONFIRM' | 'CANCEL') => {
-    try { window.parent.postMessage({ type }, PARENT_ORIGIN || '*'); } catch {}
+function hookDecisionEvents(): void {
+  const forward = (type: 'CONFIRM' | 'CANCEL'): void => {
+    const message: IframeModalMessage = { type };
+    try { window.parent.postMessage(message, PARENT_ORIGIN || '*'); } catch {}
   };
   document.addEventListener('w3a:confirm', () => forward('CONFIRM'));
   document.addEventListener('w3a:cancel', () => forward('CANCEL'));
 }
 
 window.addEventListener('message', onMessage);
-window.addEventListener('error', (e: ErrorEvent) => { postError('IFRAME_ERROR', String(e?.message || e)); });
-window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => { postError('IFRAME_UNHANDLED_REJECTION', String(e?.reason || '')); });
+window.addEventListener('error', (e: ErrorEvent) => {
+  postError('IFRAME_ERROR', e.message || 'Unknown error');
+});
+window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+  postError('IFRAME_UNHANDLED_REJECTION', e.reason ? String(e.reason) : 'Unhandled promise rejection');
+});
 
 hookDecisionEvents();
 notifyReady();
