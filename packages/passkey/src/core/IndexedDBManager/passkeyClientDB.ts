@@ -559,7 +559,7 @@ export class PasskeyClientDBManager {
     const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
 
     if (authenticators.length === 0) {
-      console.debug(`No authenticators found for user ${nearAccountId}`);
+      console.warn(`No authenticators found for user ${nearAccountId}`);
       return;
     }
 

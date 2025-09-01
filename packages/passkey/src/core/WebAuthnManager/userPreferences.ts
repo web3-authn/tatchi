@@ -4,7 +4,7 @@ import { IndexedDBManager, type IndexedDBEvent } from '../IndexedDBManager';
 
 
 export class UserPreferencesManager {
-
+  private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
 
@@ -14,6 +14,35 @@ export class UserPreferencesManager {
 
     // Subscribe to IndexedDB change events for automatic sync
     this.subscribeToIndexedDBChanges();
+  }
+
+  /**
+   * Register a callback for theme change events
+   */
+  onThemeChange(callback: (theme: 'dark' | 'light') => void): () => void {
+    this.themeChangeListeners.add(callback);
+    return () => {
+      this.themeChangeListeners.delete(callback);
+    };
+  }
+
+  /**
+   * Notify all registered listeners of theme changes
+   */
+  private notifyThemeChange(theme: 'dark' | 'light'): void {
+    if (this.themeChangeListeners.size === 0) {
+      console.warn(`[UserPreferencesManager]: No listeners registered, theme change will not propagate.`);
+      return;
+    }
+
+    let index = 0;
+    this.themeChangeListeners.forEach((listener) => {
+      index++;
+      try {
+        listener(theme);
+      } catch (error: any) {
+      }
+    });
   }
 
   private async initializeUserSettings(): Promise<void> {
@@ -36,7 +65,8 @@ export class UserPreferencesManager {
   }
 
   /**
-   * Handle IndexedDB change events
+   * Handle IndexedDB change events.
+   * @param event - The IndexedDBEvent: `user-updated`, `preferences-updated`, `user-deleted` to handle.
    */
   private async handleIndexedDBEvent(event: IndexedDBEvent): Promise<void> {
     try {
@@ -44,7 +74,6 @@ export class UserPreferencesManager {
         case 'preferences-updated':
           // Check if this affects the current user
           if (event.accountId === this.currentUserAccountId) {
-            console.debug('[WebAuthnManager]: Preferences updated for current user, reloading settings');
             await this.reloadUserSettings();
           }
           break;
@@ -52,7 +81,6 @@ export class UserPreferencesManager {
         case 'user-updated':
           // Check if this affects the current user
           if (event.accountId === this.currentUserAccountId) {
-            console.debug('[WebAuthnManager]: User data updated for current user, reloading settings');
             await this.reloadUserSettings();
           }
           break;
@@ -60,7 +88,6 @@ export class UserPreferencesManager {
         case 'user-deleted':
           // Check if the deleted user was the current user
           if (event.accountId === this.currentUserAccountId) {
-            console.debug('[WebAuthnManager]: Current user deleted, resetting to defaults');
             this.currentUserAccountId = undefined;
             this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
           }
@@ -84,6 +111,8 @@ export class UserPreferencesManager {
       this.unsubscribeFromIndexedDB();
       this.unsubscribeFromIndexedDB = undefined;
     }
+    // Clear all theme change listeners
+    this.themeChangeListeners.clear();
   }
 
   getCurrentUserAccountId(): AccountId {
@@ -107,22 +136,15 @@ export class UserPreferencesManager {
    * Load settings for a specific user
    */
   private async loadSettingsForUser(nearAccountId: AccountId): Promise<void> {
-    try {
-      const user = await IndexedDBManager.clientDB.getUser(nearAccountId);
-      if (user?.preferences?.confirmationConfig) {
-        this.confirmationConfig = {
-          ...DEFAULT_CONFIRMATION_CONFIG,
-          ...user.preferences.confirmationConfig
-        };
-        console.debug('[WebAuthnManager]: Loaded settings for user', nearAccountId);
-      } else {
-        // Reset to defaults if user has no preferences
-        this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
-        console.debug('[WebAuthnManager]: Using default settings for user', nearAccountId);
-      }
-    } catch (error) {
-      console.warn('[WebAuthnManager]: Error loading settings for user', nearAccountId, ':', error);
-      // Keep current settings on error
+    const user = await IndexedDBManager.clientDB.getUser(nearAccountId);
+    if (user?.preferences?.confirmationConfig) {
+      this.confirmationConfig = {
+        ...DEFAULT_CONFIRMATION_CONFIG,
+        ...user.preferences.confirmationConfig
+      };
+    } else {
+      // Reset to defaults if user has no preferences
+      this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
     }
   }
 
@@ -220,11 +242,14 @@ export class UserPreferencesManager {
         ...this.confirmationConfig,
         theme
       };
-      console.debug('[WebAuthnManager]: Saved user theme:', theme);
+      // Notify all listeners of theme change
+      this.notifyThemeChange(theme);
     } catch (error) {
-      console.warn('[WebAuthnManager]: Failed to save user theme:', error);
+      console.error('[UserPreferencesManager]: Failed to save user theme:', error);
     }
   }
-
 }
 
+// Create and export singleton instance
+const UserPreferencesInstance = new UserPreferencesManager();
+export default UserPreferencesInstance;

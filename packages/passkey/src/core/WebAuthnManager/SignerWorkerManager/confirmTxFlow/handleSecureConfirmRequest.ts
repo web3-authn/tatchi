@@ -93,7 +93,6 @@ export async function handlePromptUserConfirmInJsMainThread(
     confirmed: true,
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
-    _confirmHandle: { close: () => {} } // No-op since modal is already handled
   };
 
   // 7. Collect credentials using generated VRF challenge
@@ -120,7 +119,8 @@ export async function handlePromptUserConfirmInJsMainThread(
     decisionWithCredentials = {
       ...decision,
       confirmed: false,
-      error: isCancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials'
+      error: isCancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+      _confirmHandle: undefined,
     };
     touchIdSuccess = false;
   } finally {
@@ -409,8 +409,24 @@ function closeModalSafely(confirmHandle: any, confirmed: boolean): void {
  * Sends response to worker with consistent message format
  */
 function sendWorkerResponse(worker: Worker, responseData: any): void {
+  // Sanitize payload to ensure postMessage structured-clone safety
+  const sanitized = sanitizeForPostMessage(responseData);
   worker.postMessage({
     type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
-    data: responseData
+    data: sanitized
   });
+}
+
+function sanitizeForPostMessage(data: any): any {
+  if (data == null) return data;
+  if (typeof data !== 'object') return data;
+  // Drop private handles and any functions (non-cloneable)
+  const out: any = Array.isArray(data) ? [] : {};
+  for (const key of Object.keys(data)) {
+    if (key === '_confirmHandle') continue;
+    const value = (data as any)[key];
+    if (typeof value === 'function') continue;
+    out[key] = value;
+  }
+  return out;
 }

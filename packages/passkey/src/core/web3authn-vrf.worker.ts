@@ -22,8 +22,8 @@ import type {
  */
 
 // Resolve WASM URL using the centralized resolution strategy
-const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'VRF Worker');
-console.debug(`[VRF Worker] WASM URL resolved to: ${wasmUrl.href}`);
+const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'vrf-worker');
+console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 
 const { handle_message } = vrfWasmModule;
 
@@ -64,7 +64,6 @@ self.onmessage = async (event: MessageEvent) => {
 
 // Process queued messages once WASM is ready
 async function processQueuedMessages(): Promise<void> {
-  console.debug(`[vrf-worker] Processing ${messageQueue.length} queued messages`);
   const queuedMessages = [...messageQueue];
   messageQueue = [];
 
@@ -86,7 +85,6 @@ async function handleMessage(event: MessageEvent): Promise<void> {
 
   // If WASM is not ready, queue the message
   if (!wasmReady) {
-    console.debug(`[vrf-worker] WASM not ready, queueing message: ${data.type}`);
     messageQueue.push(event);
     return;
   }

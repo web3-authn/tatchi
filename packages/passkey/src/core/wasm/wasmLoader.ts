@@ -47,26 +47,26 @@ export interface WasmLoaderOptions {
 export function resolveWasmUrl(wasmFilename: string, workerName: string, customBaseUrl?: string): URL {
   // Priority 1: Custom base URL (for npm consumers with complex setups)
   if (customBaseUrl) {
-    console.debug(`[${workerName}] Using custom WASM base URL: ${customBaseUrl}`);
+    console.debug(`[wasmLoader: ${workerName}] Using custom WASM base URL: ${customBaseUrl}`);
     return new URL(wasmFilename, customBaseUrl);
   }
 
   // Priority 2: Environment variable (for build-time configuration)
   if (typeof process !== 'undefined' && process.env?.WASM_BASE_URL) {
-    console.debug(`[${workerName}] Using environment WASM base URL: ${process.env.WASM_BASE_URL}`);
+    console.debug(`[wasmLoader: ${workerName}] Using environment WASM base URL: ${process.env.WASM_BASE_URL}`);
     return new URL(wasmFilename, process.env.WASM_BASE_URL);
   }
 
   // Priority 3: Worker-specific environment variables
   const workerEnvVar = workerName.toUpperCase().replace(/[^A-Z]/g, '_') + '_WASM_BASE_URL';
   if (typeof process !== 'undefined' && process.env?.[workerEnvVar]) {
-    console.debug(`[${workerName}] Using worker-specific environment WASM base URL: ${process.env[workerEnvVar]}`);
+    console.debug(`[wasmLoader: ${workerName}] Using worker-specific environment WASM base URL: ${process.env[workerEnvVar]}`);
     return new URL(wasmFilename, process.env[workerEnvVar]);
   }
 
   // Priority 4: Worker global configuration (set by consuming application)
   if (typeof self !== 'undefined' && (self as any).WASM_BASE_URL) {
-    console.debug(`[${workerName}] Using global WASM base URL: ${(self as any).WASM_BASE_URL}`);
+    console.debug(`[wasmLoader: ${workerName}] Using global WASM base URL: ${(self as any).WASM_BASE_URL}`);
     return new URL(wasmFilename, (self as any).WASM_BASE_URL);
   }
 
@@ -75,7 +75,7 @@ export function resolveWasmUrl(wasmFilename: string, workerName: string, customB
   // - SDK building: rolldown puts worker + WASM in same dist/workers/ directory
   // - E2E tests: copy-sdk-assets.sh ensures they're co-located
   // - Simple npm usage: bundlers typically preserve relative relationships
-  console.debug(`[${workerName}] Using default relative WASM path`);
+  console.debug(`[wasmLoader: ${workerName}] Using default import.meta.url path: ${import.meta.url}`);
   return new URL(`./${wasmFilename}`, import.meta.url);
 }
 

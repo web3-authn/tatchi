@@ -11,6 +11,8 @@ import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
 import { UserPreferencesManager } from './userPreferences';
+import UserPreferencesInstance from './userPreferences';
+
 
 import {
   EncryptedVRFKeypair,
@@ -40,6 +42,7 @@ export class WebAuthnManager {
   private readonly signerWorkerManager: SignerWorkerManager;
   private readonly touchIdPrompt: TouchIdPrompt;
   private readonly userPreferencesManager: UserPreferencesManager;
+
   readonly passkeyManagerConfigs: PasskeyManagerConfigs;
 
   constructor(
@@ -55,15 +58,14 @@ export class WebAuthnManager {
       removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
     this.touchIdPrompt = new TouchIdPrompt();
-    this.userPreferencesManager = new UserPreferencesManager();
+    this.userPreferencesManager = UserPreferencesInstance;
     this.signerWorkerManager = new SignerWorkerManager(
       this.vrfWorkerManager,
       nearClient,
-      this.userPreferencesManager
+      UserPreferencesInstance
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
-    console.debug('WebAuthnManager: VRF worker will initialize on-demand');
   }
 
   getCredentials({ nearAccountId, challenge, authenticators }: {
@@ -794,43 +796,10 @@ export class WebAuthnManager {
   // ==============================
 
   /**
-   * Load user settings from IndexedDB
+   * Get user preferences manager
    */
-  async loadUserSettings(): Promise<void> {
-    return this.userPreferencesManager.loadUserSettings();
-  }
-
-  /**
-   * Save current user settings to IndexedDB
-   */
-  async saveUserSettings(): Promise<void> {
-    return this.userPreferencesManager.saveUserSettings();
-  }
-
-  /**
-   * Get user's theme preference
-   */
-  async getUserTheme(): Promise<'dark' | 'light' | null> {
-    return this.userPreferencesManager.getUserTheme();
-  }
-
-  /**
-   * Set user's theme preference
-   */
-  async setUserTheme(theme: 'dark' | 'light'): Promise<void> {
-    return this.userPreferencesManager.setUserTheme(theme);
-  }
-
-  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.userPreferencesManager.setConfirmBehavior(behavior);
-  }
-
-  setConfirmationConfig(config: ConfirmationConfig): void {
-    this.userPreferencesManager.setConfirmationConfig(config);
-  }
-
-  getConfirmationConfig(): ConfirmationConfig {
-    return this.userPreferencesManager.getConfirmationConfig();
+  getUserPreferences(): UserPreferencesManager {
+    return this.userPreferencesManager;
   }
 
   /**

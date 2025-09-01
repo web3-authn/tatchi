@@ -114,7 +114,6 @@ export class VrfWorkerManager {
     });
 
     const result = await this.initializationPromise;
-    console.debug('VRF Manager: Initialization completed successfully');
     return result;
   }
 
@@ -580,7 +579,6 @@ export class VrfWorkerManager {
       if (!pingResponse.success) {
         throw new Error(`VRF Web Worker PING failed: ${pingResponse.error}`);
       }
-      console.debug('VRF Manager: Web Worker communication verified');
       return;
     } catch (error: any) {
       console.warn(`️VRF Manager: testWebWorkerCommunication failed:`, error.message);

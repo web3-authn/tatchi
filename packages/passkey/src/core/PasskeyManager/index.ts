@@ -57,6 +57,7 @@ import {
   type SignNEP413MessageResult
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
+import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -86,6 +87,14 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
+  }
+
+  /**
+   * Direct access to user preferences manager for convenience
+   * Example: passkeyManager.userPreferences.onThemeChange(cb)
+   */
+  get userPreferences(): UserPreferencesManager {
+    return this.webAuthnManager.getUserPreferences();
   }
 
   getContext(): PasskeyManagerContext {
@@ -180,25 +189,25 @@ export class PasskeyManager {
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.webAuthnManager.setConfirmBehavior(behavior);
+    this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
   }
 
   /**
    * Set the unified confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
-    this.webAuthnManager.setConfirmationConfig(config);
+    this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
   }
 
   setUserTheme(theme: 'dark' | 'light'): void {
-    this.webAuthnManager.setUserTheme(theme);
+    this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
   /**
    * Get the current confirmation configuration
    */
   getConfirmationConfig(): ConfirmationConfig {
-    return this.webAuthnManager.getConfirmationConfig();
+    return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
   }
 
   async getRecentLogins(): Promise<{
