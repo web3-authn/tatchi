@@ -5,8 +5,8 @@ import { TransactionSettingsSection } from './TransactionSettingsSection';
 import type { ProfileDropdownProps } from './types';
 import './ProfileDropdown.css';
 
-interface ProfileDropdownWithRefs extends ProfileDropdownProps {
-  menuItemsRef: React.RefObject<(HTMLElement | null)[]>;
+interface ProfileDropdownWithRefs extends Omit<ProfileDropdownProps, 'menuItemsRef'> {
+  menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
   // Transaction settings props
   currentConfirmConfig?: any;
   onToggleShowDetails?: () => void;
@@ -32,6 +32,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
     onSetDelay,
     onToggleTheme,
     transactionSettingsOpen = false,
+    theme = 'dark',
   }, ref) => {
     // Only count transaction settings if it's actually rendered (when expanded)
     const hasTransactionSettings = transactionSettingsOpen && currentConfirmConfig && onToggleShowDetails && onToggleSkipClick && onSetDelay;
@@ -40,7 +41,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
     return (
       <div
         ref={ref}
-        className={`w3a-profile-dropdown-morphed`}
+        className={`w3a-profile-dropdown-morphed ${theme}`}
         data-state={isOpen ? 'open' : 'closed'}
       >
         <div className="w3a-profile-dropdown-menu">
@@ -72,6 +73,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
               onSetDelay={onSetDelay}
               onToggleTheme={onToggleTheme}
               isOpen={transactionSettingsOpen}
+              theme={theme}
               // Set CSS variable to calculate stagger delay in CSS stylesheet
               style={{ ['--stagger-item-n' as any]: menuItems.length }}
             />

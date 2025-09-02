@@ -10,7 +10,8 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
   onToggleTheme,
   className,
   style,
-  isOpen = true
+  isOpen = true,
+  theme = 'dark'
 }) => {
 
   const handleClick = (e: React.MouseEvent) => {
@@ -43,6 +44,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 label="Show details"
                 size="large"
                 textPosition="left"
+                theme={theme}
               />
             </div>
             <div style={{ opacity: disableRequireClick ? 0.5 : 1, pointerEvents: disableRequireClick ? 'none' : 'auto' }}>
@@ -53,6 +55,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 size="large"
                 textPosition="left"
                 disabled={disableRequireClick}
+                theme={theme}
               />
             </div>
 
@@ -64,6 +67,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   label="Dark mode"
                   size="large"
                   textPosition="left"
+                  theme={theme}
                 />
               </div>
             )}

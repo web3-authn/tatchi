@@ -20,9 +20,7 @@
   transform: translateX(-1rem);
 }
 
-.w3a-dropdown-menu-item:hover {
-  background-color: rgb(249, 250, 251);
-}
+.w3a-dropdown-menu-item:hover { background-color: var(--w3a-color-hover); }
 
 .w3a-dropdown-menu-item:disabled {
   cursor: not-allowed;
@@ -45,7 +43,7 @@
 .w3a-dropdown-menu-item-icon svg {
   width: 20px;
   height: 20px;
-  color: rgb(55, 65, 81);
+  color: var(--w3a-color-textSecondary);
 }
 
 .w3a-dropdown-menu-item-content {
@@ -53,24 +51,12 @@
   min-width: 0;
 }
 
-.w3a-dropdown-menu-item-label {
-  font-weight: 500;
-  color: rgb(17, 24, 39);
-  font-size: 14px;
-  margin: 0;
-}
+.w3a-dropdown-menu-item-label { font-weight: 500; color: var(--w3a-color-textPrimary); font-size: 14px; margin: 0; }
 
-.w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-label {
-  color: rgb(156, 163, 175);
-}
+.w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-label { color: var(--w3a-color-textMuted); }
 
-.w3a-dropdown-menu-item-description {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--w3a-text-dim);
-  margin: 0;
-}
+.w3a-dropdown-menu-item-description { font-size: 12px; font-weight: 500; color: var(--w3a-color-textMuted); margin: 2px 0 0 0; }
 
-.w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-description {
-  color: rgb(156, 163, 175);
-}
+.w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-description { color: var(--w3a-color-textMuted); }
+
+/* Dark mode handled by CSS variables at the scope boundary */

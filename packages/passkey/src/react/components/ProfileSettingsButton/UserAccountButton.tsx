@@ -11,9 +11,10 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
   onMouseEnter,
   onMouseLeave,
   nearExplorerBaseUrl,
+  theme = 'dark',
 }) => {
   return (
-    <div className="w3a-user-account-button-root">
+    <div className={`w3a-user-account-button-root ${theme}`}>
       <div
         className={`w3a-user-account-button-trigger ${isOpen ? 'open' : 'closed'}`}
         onClick={onClick}
@@ -32,6 +33,7 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
             fullAccountId={fullAccountId}
             isOpen={isOpen}
             nearExplorerBaseUrl={nearExplorerBaseUrl}
+            theme={theme}
           />
         </div>
       </div>
@@ -43,12 +45,14 @@ export const UserAccountId = ({
   username,
   fullAccountId,
   isOpen,
-  nearExplorerBaseUrl
+  nearExplorerBaseUrl,
+  theme = 'dark'
 }: {
   username: string;
   fullAccountId?: string;
   isOpen: boolean;
   nearExplorerBaseUrl?: string;
+  theme?: 'dark' | 'light';
 }) => {
   // Use the full account ID if provided, otherwise fall back to constructed version
   const displayAccountId = fullAccountId || `${username}`;

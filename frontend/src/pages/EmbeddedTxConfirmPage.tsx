@@ -27,7 +27,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   // Create transaction data for setting greeting
   const createGreetingAction = (): ActionArgs => {
     const newGreetingMessage = `${greetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
-
     return {
       type: ActionType.FunctionCall,
       methodName: 'set_greeting',
@@ -90,10 +89,25 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               <label className="test-embedded-section-label">Embedded Component:</label>
               <SecureTxConfirmButton
                 nearAccountId={loginState.nearAccountId!}
-                txSigningRequests={[{
-                  receiverId: WEBAUTHN_CONTRACT_ID,
-                  actions: [createGreetingAction()]
-                }]}
+                txSigningRequests={[
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [
+                      createGreetingAction(),
+                      {
+                        type: ActionType.Transfer,
+                        amount: '100000000000000000000' // 0.0001 NEAR
+                      }
+                    ]
+                  },
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [{
+                      type: ActionType.Transfer,
+                      amount: '200000000000000000000' // 0.0002 NEAR
+                    }]
+                  },
+                ]}
                 options={{
                   hooks: {
                     beforeCall: () => {

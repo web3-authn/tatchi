@@ -11,7 +11,7 @@
   grid-template-rows: 0fr;
   grid-template-columns: 1fr;
   transition: opacity 120ms linear, grid-template-rows 140ms cubic-bezier(0.16, 1, 0.3, 1);
-  border-top: 1px solid rgb(243, 244, 246);
+  border-top: 1px solid var(--w3a-color-borderPrimary);
 }
 
 .w3a-profile-dropdown-morphed[data-state="open"] {
@@ -87,7 +87,9 @@
 
 /* Logout menu item specific styling */
 .w3a-logout-menu-item {
-  border-top: 1px solid var(--w3a-border);
-  border-radius: 0px 0px 12px 12px;
+  border-top: 1px solid var(--w3a-color-borderPrimary);
+  border-radius: 0px 0px 28px 28px;
   margin-top: 8px;
 }
+
+/* Dark mode handled by CSS variables at the scope boundary */

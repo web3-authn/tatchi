@@ -1,4 +1,5 @@
 /* Shared Styles for Web3authUserProfile Component */
+
 * {
   box-sizing: border-box;
 }
@@ -13,13 +14,13 @@
 
 .w3a-profile-button-morphable {
   position: relative;
-  background-color: white;
-  border: 1px solid rgb(229, 231, 235);
-  border-radius: 12px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  background-color: var(--w3a-color-surfacePrimary);
+  border: 1px solid var(--w3a-color-borderPrimary);
+  border-radius: 28px;
+  box-shadow: var(--w3a-shadow-sm);
   font-size: 14px;
   font-weight: 500;
-  color: rgb(17, 24, 39);
+  color: var(--w3a-color-textPrimary);
   cursor: pointer;
   outline: none;
   overflow: visible;
@@ -28,32 +29,19 @@
   transform: scale(1);
 }
 
-.w3a-profile-button-morphable:hover {
-  border-color: rgb(209, 213, 219);
-}
+.w3a-profile-button-morphable:hover { border-color: var(--w3a-color-borderHover); }
 
-.w3a-profile-button-icon {
-  flex-shrink: 0;
-}
+.w3a-profile-button-icon { flex-shrink: 0; }
 
 .w3a-profile-button-icon svg {
   overflow: visible;
 }
 
-.w3a-profile-button-username {
-  white-space: nowrap;
-  overflow: hidden;
-  display: inline-block;
-}
+.w3a-profile-button-username { white-space: nowrap; overflow: hidden; display: inline-block; }
 
-.w3a-profile-button-icon {
-  color: #374151;
-}
+.w3a-profile-button-icon { color: var(--w3a-color-textSecondary); }
 
-.w3a-profile-button-username {
-  display: block;
-  color: #374151;
-}
+.w3a-profile-button-username { display: block; color: var(--w3a-color-textSecondary); }
 
 .w3a-profile-button-username.hidden {
   display: none;
@@ -71,15 +59,7 @@
   flex: 1;
 }
 
-.w3a-user-account--toggle-title {
-  font-weight: 500;
-  color: rgb(17, 24, 39);
-  font-size: 14px;
-  margin: 0;
-}
+.w3a-user-account--toggle-title { font-weight: 500; color: var(--w3a-color-textPrimary); font-size: 14px; margin: 0; }
 
-.w3a-user-account--toggle-description {
-  font-size: 14px;
-  color: rgb(107, 114, 128);
-  margin: 0;
-}
+.w3a-user-account--toggle-description { font-size: 14px; color: var(--w3a-color-textMuted); margin: 0; }
+

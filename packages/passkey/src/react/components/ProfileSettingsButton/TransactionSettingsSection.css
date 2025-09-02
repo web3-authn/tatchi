@@ -1,6 +1,6 @@
 /* Expander (TransactionSettingsSection) */
 .w3a-dropdown-tx-settings-root {
-  background-color: var(--w3a-surface-solid);
+  background-color: var(--w3a-color-surfacePrimary);
   transform-origin: top;
   display: grid;
   grid-template-rows: 0fr;
@@ -8,9 +8,9 @@
 }
 
 .w3a-dropdown-tx-settings-root.is-expanded {
-  border-top: 1px solid var(--w3a-border);
-  border-bottom: 1px solid var(--w3a-border);
-  background-color: var(--slate-grey-100);
+  border-top: 1px solid var(--w3a-color-borderPrimary);
+  border-bottom: 1px solid var(--w3a-color-borderPrimary);
+  background-color: var(--w3a-color-surfaceSecondary);
   grid-template-rows: 1fr;
 }
 
@@ -60,7 +60,7 @@
   width: 100%;
   height: 6px;
   border-radius: 3px;
-  background: var(--w3a-border);
+  background: var(--w3a-color-borderSecondary);
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -72,26 +72,27 @@
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--cobalt-primary);
+  background: var(--w3a-color-primary);
   cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--w3a-color-surfacePrimary);
+  box-shadow: var(--w3a-shadow-sm);
 }
 
 .w3a-slider::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: var(--cobalt-primary);
+  background: var(--w3a-color-primary);
   cursor: pointer;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  border: 2px solid var(--w3a-color-surfacePrimary);
+  box-shadow: var(--w3a-shadow-sm);
 }
 
 .w3a-slider-labels {
   display: flex;
   justify-content: space-between;
   font-size: 0.7rem;
-  color: var(--w3a-text-dim);
+  color: var(--w3a-color-textMuted);
 }
 
+/* Dark mode handled by CSS variables at the scope boundary */
