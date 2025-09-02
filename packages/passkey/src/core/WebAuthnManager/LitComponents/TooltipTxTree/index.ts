@@ -221,13 +221,14 @@ export class TooltipTxTree extends LitElementWithProps {
       --w3a-tree__connector__elbow-length: 10px;
     }
 
-    /* Vertical line for each row at the final indent column */
+    /* Vertical line for each row at the connector anchor inside the indent column */
     .folder-children .row .indent::before {
       content: '';
       position: absolute;
       top: 0;
-      left: auto;
-      right: 0;
+      /* Anchor can be overridden per row via --connector-indent; defaults to --indent */
+      left: var(--connector-indent, var(--indent, 0));
+      right: auto;
       width: var(--w3a-tree__connector__thickness);
       height: 100%;
       background: var(--w3a-tree__connector__color);
@@ -239,10 +240,28 @@ export class TooltipTxTree extends LitElementWithProps {
       position: absolute;
       top: 50%;
       height: var(--w3a-tree__connector__thickness);
-      width: var(--w3a-tree__connector__elbow-length);
-      left: auto;
-      right: calc(-1 * var(--w3a-tree__connector__elbow-length));
+      /* Span from the vertical anchor across remaining indent and into the label */
+      width: calc((var(--indent, 0) - var(--connector-indent, var(--indent, 0))) + var(--w3a-tree__connector__elbow-length));
+      left: var(--connector-indent, var(--indent, 0));
       background: var(--w3a-tree__connector__color);
+    }
+
+    /*
+     * For nested children (e.g., action args), clamp the connector anchor
+     * to the first-level indent so indent=2 rows draw at indent=1.
+     */
+    .folder-children .folder-children .row {
+      --connector-indent: 1rem;
+    }
+
+    /* Do not draw horizontal elbows for file content rows */
+    .folder-children .row.file-row .indent::after {
+      content: none;
+    }
+
+    /* If a row explicitly requests no elbow (e.g., displayNone=true), hide it */
+    .folder-children .row[data-no-elbow="true"] .indent::after {
+      content: none;
     }
 
     /*
@@ -449,20 +468,20 @@ export class TooltipTxTree extends LitElementWithProps {
 
   private renderLeaf(depth: number, node: TreeNode): TemplateResult | undefined {
 
-    const { open, hideChevron, displayNone, label, highlight, content } = node;
     const indent = `${Math.max(0, depth - 1)}rem`;
 
     // If content exists, render a collapsible details with the content
     if (typeof node.content === 'string' && node.content.length > 0) {
       return html`
-        <details class="tree-node file" ?open=${!!open}>
+        <details class="tree-node file" ?open=${!!node.open}>
           <summary class="row summary-row"
             style="--indent: ${indent}"
+            data-no-elbow="${!!node.displayNone}"
             @toggle=${this.handleToggle}
           >
             <span class="indent"></span>
             <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
-              ${!hideChevron ? html`
+              ${!node.hideChevron ? html`
                 <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                   <path fill="currentColor" d="M6 3l5 5-5 5z" />
                 </svg>
@@ -470,7 +489,7 @@ export class TooltipTxTree extends LitElementWithProps {
               ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, (node as any).highlightSpec) : ''}
             </span>
           </summary>
-          <div class="row file-row" style="--indent: ${indent}">
+          <div class="row file-row" style="--indent: ${indent}" data-no-elbow="${!!node.displayNone}">
             <span class="indent"></span>
             <div class="file-content">${node.content}</div>
           </div>
@@ -479,7 +498,7 @@ export class TooltipTxTree extends LitElementWithProps {
     }
     // Plain file row without content
     return html`
-      <div class="row file-row" style="--indent: ${indent}">
+      <div class="row file-row" style="--indent: ${indent}" data-no-elbow="${!!node.displayNone}">
         <span class="indent"></span>
         <span class="label"
           style="${node.displayNone ? 'display: none;' : ''}"
@@ -492,23 +511,24 @@ export class TooltipTxTree extends LitElementWithProps {
 
   private renderFolder(depth: number, node: TreeNode): TemplateResult | undefined {
 
-    const { label, displayNone, highlight, hideChevron, children: nodeChildren } = node;
+    const { children: nodeChildren } = node;
     const indent = `${Math.max(0, depth - 1)}rem`;
 
     return html`
-      <details class="tree-node folder" ?open=${!!open}>
+      <details class="tree-node folder" ?open=${!!node.open}>
         <summary class="row summary-row"
           style="--indent: ${indent}"
+          data-no-elbow="${!!node.displayNone}"
           @toggle=${this.handleToggle}
         >
           <span class="indent"></span>
           <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
-            ${!hideChevron ? html`
+            ${!node.hideChevron ? html`
               <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
               </svg>
             ` : ''}
-            ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, highlight, (node as any).highlightSpec) : ''}
+            ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, node.highlightSpec) : ''}
           </span>
         </summary>
         ${nodeChildren && nodeChildren.length > 0 ? html`

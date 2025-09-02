@@ -253,6 +253,12 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       scrollbarTrackBackground: LIGHT_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: LIGHT_THEME_COLORS.colorBorder
     },
+    // Slightly darker connector lines for light mode for better contrast
+    connector: {
+      color: LIGHT_THEME_COLORS.slate400,
+      thickness: '1px',
+      elbowLength: '10px'
+    },
     folderChildren: {
       padding: '0.5rem 0',
       marginLeft: '1rem'
