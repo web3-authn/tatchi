@@ -9,10 +9,10 @@ Pure presentational tree used inside the embedded tooltip. No internal state; re
 
 ## Styling (CSS variables)
 - TooltipTxTree maps `tooltipTreeStyles` onto CSS custom properties on the host.
-- Variable naming: `--w3a-tree_<section>_<property>` (both section and property are kebab-cased).
-- Example mapping: `{ fileContent: { background: '#f8fafc' } }` → `--w3a-tree_file-content_background`.
+- Variable naming: `--w3a-tree__<section>__<property>` (both section and property are kebab-cased).
+- Example mapping: `{ fileContent: { background: '#f8fafc' } }` → `--w3a-tree__file-content__background`.
 - Common sections: `root`, `details`, `summary`, `summaryRow`, `row`, `indent`, `label`, `chevron`, `fileContent`, `folderChildren`, `highlightReceiverId`, `highlightMethodName`.
-- Highlight classes applied to labels: `highlight-receiverId`, `highlight-methodName`; controlled by vars like `--w3a-tree_highlight-receiver-id_color`.
+- Highlight classes applied to labels: `highlight-receiverId`, `highlight-methodName`; controlled by vars like `--w3a-tree__highlight-receiver-id__color`.
 
 ## Transaction data → Tree mapping
 - TooltipTxTree expects a `TreeNode` model; it doesn’t parse transactions itself.

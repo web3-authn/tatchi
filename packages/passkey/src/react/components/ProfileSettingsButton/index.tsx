@@ -68,13 +68,33 @@ export const ProfileSettingsButton: React.FC<ProfileButtonProps> = ({
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
 
+  // Theme subscription state and logic
+  const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark');
+
+  // Uncontrolled mode: listen to user preference changes
+  useEffect(() => {
+    const handleThemeChange = (newTheme: 'dark' | 'light') => {
+      setCurrentTheme(newTheme);
+      // The confirmation config will be updated via the useEffect that depends on currentTheme
+    };
+
+    // Subscribe to theme changes
+    const unsubscribe = passkeyManager.userPreferences.onThemeChange(handleThemeChange);
+
+    // Initialize with current theme
+    handleThemeChange(passkeyManager.userPreferences.getUserTheme());
+
+    return () => unsubscribe();
+  }, [passkeyManager]);
+
   // Load confirmation config on mount
   useEffect(() => {
     try {
       const cfg = passkeyManager.getConfirmationConfig();
-      setCurrentConfirmConfig(cfg);
+      // Use the current theme from subscription instead of config
+      setCurrentConfirmConfig({ ...cfg, theme: currentTheme });
     } catch (_) {}
-  }, [passkeyManager]);
+  }, [passkeyManager, currentTheme]);
 
   // Handlers for transaction settings
   const handleToggleShowDetails = () => {
@@ -98,10 +118,9 @@ export const ProfileSettingsButton: React.FC<ProfileButtonProps> = ({
   };
 
   const handleToggleTheme = () => {
-    if (!currentConfirmConfig) return;
-    const newTheme = currentConfirmConfig.theme === 'dark' ? 'light' : 'dark';
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     passkeyManager.setUserTheme(newTheme);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, theme: newTheme } : prev);
+    // Note: The theme subscription will automatically update currentTheme and currentConfirmConfig
   };
 
   // Menu items configuration with context-aware handlers
@@ -208,7 +227,7 @@ export const ProfileSettingsButton: React.FC<ProfileButtonProps> = ({
           onClose={handleClose}
           menuItemsRef={refs.menuItemsRef}
           toggleColors={toggleColors}
-          currentConfirmConfig={currentConfirmConfig}
+          currentConfirmConfig={{ ...currentConfirmConfig, theme: currentTheme }}
           onToggleShowDetails={handleToggleShowDetails}
           onToggleSkipClick={handleToggleSkipClick}
           onSetDelay={handleSetDelay}

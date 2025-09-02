@@ -120,8 +120,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                 tooltipPosition={{
                   width: '360px',
                   height: 'auto',
-                  position: 'bottom-right',
-                  offset: '4px'
+                  position: 'bottom-left'
                 }}
                 tooltipTheme="light"
                 // tooltipTheme="dark"

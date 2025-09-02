@@ -66,20 +66,39 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     ...DARK_THEME_COLORS,
 
     // Base design system variables
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    fontSize: '1rem',
-    color: DARK_THEME_COLORS.colorText,
-    backgroundColor: DARK_THEME_COLORS.colorBackground,
-
-    // Component-specific modal variables
     host: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '1rem',
+      color: DARK_THEME_COLORS.colorText,
       backgroundColor: DARK_THEME_COLORS.colorBackground
     },
+
+    // Modal border containers (matching tooltip tree structure)
+    modalBorderOuter: {
+      background: 'transparent',
+      border: `1px solid transparent`,
+      borderRadius: '28px',
+      padding: '0.5rem',
+    },
+
+    // Main modal container - the glass-like container around the content
+    modalBorderInner: {
+      background: DARK_THEME_COLORS.grey600,
+      borderRadius: '24px',
+      border: `1px solid transparent`,
+      boxShadow: '0 4px 4px 0px rgba(2, 2, 2, 0.4)'
+    },
+
+    // Component-specific modal variables
+    modalContainer: {
+      padding: '0.5rem',
+      background: DARK_THEME_COLORS.grey700,
+      border: 'none',
+      color: DARK_THEME_COLORS.colorText,
+    },
+
     modalBackdrop: {
       background: 'rgba(0, 0, 0, 0.5)'
-    },
-    modalContainer: {
-      backgroundColor: DARK_THEME_COLORS.colorSurface
     },
     header: {
       color: DARK_THEME_COLORS.colorText
@@ -101,11 +120,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     actionsSection: {
       color: DARK_THEME_COLORS.colorText
-    },
-    actionOuter: {
-      border: `8px solid ${DARK_THEME_COLORS.grey900}`,
-      borderRadius: '1rem',
-      background: DARK_THEME_COLORS.colorBorder
     },
     actionList: {
       borderRadius: '8px',
@@ -156,18 +170,18 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btn: {
       backgroundColor: DARK_THEME_COLORS.colorSurface,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: DARK_THEME_COLORS.colorBorder
+      borderColor: 'transparent',
     },
     btnCancel: {
       backgroundColor: DARK_THEME_COLORS.grey700,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: DARK_THEME_COLORS.colorBorder
+      borderColor: 'transparent',
     },
     btnConfirm: {
       padding: '0.5rem',
       backgroundColor: DARK_THEME_COLORS.highlightReceiverId,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: DARK_THEME_COLORS.highlightReceiverId
+      borderColor: 'transparent',
     },
     loadingIndicator: {
       borderTopColor: DARK_THEME_COLORS.highlightReceiverId
@@ -208,20 +222,38 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     ...LIGHT_THEME_COLORS,
 
     // Base design system variables
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-    fontSize: '1rem',
-    color: LIGHT_THEME_COLORS.colorText,
-    backgroundColor: LIGHT_THEME_COLORS.colorBackground,
+    host: {
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '1rem',
+      color: LIGHT_THEME_COLORS.colorText,
+      backgroundColor: LIGHT_THEME_COLORS.colorBackground
+    },
+
+    // Modal border containers (matching tooltip tree structure)
+    modalBorderOuter: {
+      background: 'transparent',
+      border: `1px solid transparent`,
+      borderRadius: '28px',
+      padding: '0.5rem',
+    },
+
+    // Main modal container - the glass-like container around the content
+    modalBorderInner: {
+      background: LIGHT_THEME_COLORS.grey100,
+      borderRadius: '24px',
+      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
+      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+    },
 
     // Component-specific modal variables
-    host: {
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground
+    modalContainer: {
+      padding: '0.5rem',
+      background: LIGHT_THEME_COLORS.grey25,
+      border: 'none',
+      color: LIGHT_THEME_COLORS.colorText,
     },
     modalBackdrop: {
       background: 'rgba(0, 0, 0, 0.5)'
-    },
-    modalContainer: {
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground
     },
     header: {
       color: LIGHT_THEME_COLORS.colorText
@@ -243,11 +275,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     actionsSection: {
       color: LIGHT_THEME_COLORS.colorText
-    },
-    actionOuter: {
-      border: '8px solid rgba(107, 114, 128, 0.4)',
-      borderRadius: '1rem',
-      background: LIGHT_THEME_COLORS.colorBorder
     },
     actionList: {
       borderRadius: '8px',
@@ -298,17 +325,17 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btn: {
       backgroundColor: LIGHT_THEME_COLORS.colorBackground,
       color: LIGHT_THEME_COLORS.colorText,
-      borderColor: LIGHT_THEME_COLORS.colorBorder
+      borderColor: 'transparent',
     },
     btnCancel: {
       backgroundColor: LIGHT_THEME_COLORS.grey50,
       color: LIGHT_THEME_COLORS.colorText,
-      borderColor: LIGHT_THEME_COLORS.colorBorder
+      borderColor: 'transparent',
     },
     btnCancelHover: {
       backgroundColor: LIGHT_THEME_COLORS.grey75,
       color: LIGHT_THEME_COLORS.colorText,
-      borderColor: LIGHT_THEME_COLORS.colorBorder
+      borderColor: 'transparent',
     },
     btnConfirm: {
       padding: '0.5rem',

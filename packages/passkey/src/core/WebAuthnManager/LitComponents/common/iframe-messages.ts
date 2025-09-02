@@ -2,7 +2,7 @@
 
 import { TransactionInputWasm } from "@/core/types";
 import type { TransactionInput } from "@/core/types/actions";
-import type { TooltipGeometry, TooltipPosition } from "../IframeButtonWithTooltipConfirmer/iframe-geometry";
+import type { TooltipGeometry, TooltipPositionInternal } from "../IframeButtonWithTooltipConfirmer/iframe-geometry";
 import { TooltipTreeStyles } from "../TooltipTxTree";
 import type { EmbeddedTxButtonStyles } from "../IframeButtonWithTooltipConfirmer/embedded-tx-button-themes";
 
@@ -99,7 +99,7 @@ export interface IframeButtonMessagePayloads {
   SET_STYLE: {
     buttonStyle: Record<string, string | number>;
     buttonHoverStyle: Record<string, string | number>;
-    tooltipPosition: TooltipPosition;
+    tooltipPosition: TooltipPositionInternal;
     tooltipTreeStyles?: TooltipTreeStyles;
     embeddedButtonTheme?: EmbeddedTxButtonStyles;
     theme?: 'dark' | 'light'; // Add theme field for direct theme updates

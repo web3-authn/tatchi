@@ -112,9 +112,6 @@ export class LitElementWithProps extends LitElement {
           // New convention with double underscores
           const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
           this.style.setProperty(cssVarNew, String(value));
-          // Legacy convention (single underscores) kept for backward-compat while migrating CSS
-          const cssVarLegacy = `--w3a-${prefix}_${kebabSection}_${kebabProp}`;
-          this.style.setProperty(cssVarLegacy, String(value));
         });
       }
     });

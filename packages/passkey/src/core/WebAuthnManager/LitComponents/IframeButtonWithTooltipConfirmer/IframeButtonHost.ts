@@ -24,7 +24,7 @@ import {
   IframeClipPathGenerator,
   toPx,
   TooltipGeometry,
-  TooltipPosition,
+  TooltipPositionInternal,
   utilParsePx
 } from './iframe-geometry';
 import {
@@ -65,7 +65,7 @@ export class IframeButtonHost extends LitElementWithProps {
     },
     tooltipPosition: {
       type: Object,
-      hasChanged(newVal: TooltipPosition, oldVal: TooltipPosition) {
+      hasChanged(newVal: TooltipPositionInternal, oldVal: TooltipPositionInternal) {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
@@ -159,7 +159,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare color: string;
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
-  declare tooltipPosition: TooltipPosition;
+  declare tooltipPosition: TooltipPositionInternal;
   declare tooltipTheme: EmbeddedTxButtonTheme;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
@@ -187,7 +187,8 @@ export class IframeButtonHost extends LitElementWithProps {
       width: '280px',
       height: '300px',
       position: 'top-center',
-      offset: '4px'
+      offset: '6px',
+      boxPadding: '5px',
     };
     this.tooltipTheme = 'dark';
     this.showLoading = false;
@@ -382,7 +383,7 @@ export class IframeButtonHost extends LitElementWithProps {
       changedProperties.has('buttonStyle') ||
       changedProperties.has('buttonHoverStyle') ||
       changedProperties.has('tooltipPosition') ||
-      changedProperties.has('theme') ||
+      changedProperties.has('tooltipTheme') ||
       changedProperties.has('color')
     ) {
       this.postStyleUpdateToIframe();

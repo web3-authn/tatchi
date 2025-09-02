@@ -9,11 +9,17 @@ export type TooltipPositionEnum =
   | 'bottom-center'
   | 'bottom-right';
 
+// Public (external) tooltip position shape — no internal layout knobs
 export interface TooltipPosition {
   width: string;
   height: string;
   position: TooltipPositionEnum;
+}
+
+// Internal shape used by the SDK for layout calculations
+export interface TooltipPositionInternal extends TooltipPosition {
   offset: string;
+  boxPadding?: string; // e.g., '8px'
 }
 
 export interface Rectangle {

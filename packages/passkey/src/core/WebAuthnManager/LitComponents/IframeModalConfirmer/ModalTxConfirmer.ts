@@ -117,25 +117,55 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       display: grid;
       place-items: center;
       z-index: 2147483647;
-      background: var(--w3a-modal_modal-backdrop_color, rgba(0, 0, 0, 0.5));
-      backdrop-filter: var(--w3a-modal_modal-backdrop_filter, blur(2px));
+      background: var(--w3a-modal__modal-backdrop__color, rgba(0, 0, 0, 0.5));
+      backdrop-filter: var(--w3a-modal__modal-backdrop__filter, blur(2px));
       animation: backdrop-enter 50ms ease-in-out;
       will-change: opacity, backdrop-filter;
     }
 
+    .modal-border-outer {
+      position: relative;
+      background: var(--w3a-modal__modal-border-outer__background, rgba(255, 255, 255, 0.95));
+      border: var(--w3a-modal__modal-border-outer__border, 1px solid var(--w3a-modal__modal-border-outer__border-color, oklch(0.8 0 0)));
+      border-radius: var(--w3a-modal__modal-border-outer__border-radius, 24px);
+    }
+
+    .modal-border-inner {
+      position: var(--w3a-modal__modal-border-inner__position, relative);
+      border: var(--w3a-modal__modal-border-inner__border, 1px solid transparent);
+      border-radius: var(--w3a-modal__modal-border-inner__border-radius, 24px);
+      margin: var(--w3a-modal__modal-border-inner__margin, 0px);
+      padding: var(--w3a-modal__modal-border-inner__padding, 0px);
+      height: var(--w3a-modal__modal-border-inner__height, calc(100% - 2px));
+      overflow: var(--w3a-modal__modal-border-inner__overflow, hidden);
+      box-shadow: var(--w3a-modal__modal-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
+      background: var(--w3a-modal__modal-border-inner__background, var(--w3a-color-surface));
+      backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
+      -webkit-backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
+    }
+
     .modal-container {
-      color: var(--w3a-modal_modal-container_color, var(--w3a-color-text));
+      background: var(--w3a-modal__modal-container__background, #151833);
+      max-width: var(--w3a-modal__modal-container__max-width, 600px);
+      margin: var(--w3a-modal__modal-container__margin, 0 auto);
+      border-radius: var(--w3a-modal__modal-container__border-radius, 12px);
+      border: var(--w3a-modal__modal-container__border, none);
+      overflow: var(--w3a-modal__modal-container__overflow, hidden);
+      width: var(--w3a-modal__modal-container__width, auto);
+      height: var(--w3a-modal__modal-container__height, auto);
+      padding: var(--w3a-modal__modal-container__padding, 0);
+      color: var(--w3a-modal__modal-container__color, var(--w3a-color-text));
     }
 
     /* Animations */
     @keyframes backdrop-enter {
       from {
         opacity: 0;
-        backdrop-filter: var(--w3a-modal_modal-backdrop-filter_from, blur(0px));
+        backdrop-filter: var(--w3a-modal__modal-backdrop__filter-from, blur(0px));
       }
       to {
         opacity: 1;
-        backdrop-filter: var(--w3a-modal_modal-backdrop-filter_to, blur(2px));
+        backdrop-filter: var(--w3a-modal__modal-backdrop__filter-to, blur(2px));
       }
     }
 
@@ -171,7 +201,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .summary-row {
       display: grid;
-      grid-template-columns: var(--w3a-modal_row_template-columns, 115px 1fr);
+      grid-template-columns: var(--w3a-modal__row__template-columns, 115px 1fr);
       align-items: center;
       gap: var(--w3a-gap-2);
       background: transparent;
@@ -184,13 +214,13 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .summary-label {
       color: var(--w3a-color-text-secondary);
       font-size: var(--w3a-font-size-sm);
-      font-weight: var(--w3a-modal_label_font-weight, 500);
+      font-weight: var(--w3a-modal__label__font-weight, 500);
     }
 
     .summary-value {
       color: var(--w3a-color-text);
       font-size: var(--w3a-font-size-sm);
-      font-weight: var(--w3a-modal_value_font-weight, 500);
+      font-weight: var(--w3a-modal__value__font-weight, 500);
       word-break: break-word;
     }
 
@@ -202,31 +232,22 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     /* Actions section */
     .actions-section {
-      margin: var(--w3a-modal_actions_margin, .75rem 0);
+      margin: var(--w3a-modal__actions-section__margin, 0px);
       position: relative;
       z-index: 1;
       animation: fadeIn 50ms ease-in-out forwards;
       will-change: opacity;
     }
 
-    /* Outer glass border wrapper around actions (double border design) */
-    .action-outer {
-      background: var(--w3a-modal_action-outer_background, var(--w3a-color-border));
-      backdrop-filter: var(--w3a-modal_action-outer_backdrop-filter, blur(2px));
-      -webkit-backdrop-filter: var(--w3a-modal_action-outer_backdrop-filter, blur(2px));
-      border: var(--w3a-modal_action-outer_border, 8px solid rgba(255, 255, 255, 0.35));
-      border-radius: var(--w3a-modal_action-outer_border-radius, 1rem);
-    }
-
     .action-list {
-      border: var(--w3a-modal_action-list_border, 1px solid transparent);
-      border-radius: var(--w3a-modal_action-list_border-radius, var(--w3a-radius-lg));
+      border: var(--w3a-modal__action-list__border, 1px solid transparent);
+      border-radius: var(--w3a-modal__action-list__border-radius, 24px);
       height: 100%;
-      padding: var(--w3a-modal_action-list_padding, var(--w3a-gap-4));
+      padding: var(--w3a-modal__action-list__padding, var(--w3a-gap-4));
       overflow: hidden;
-      box-shadow: var(--w3a-modal_action-list_box-shadow, var(--w3a-shadow-sm));
+      box-shadow: var(--w3a-modal__action-list__box-shadow, var(--w3a-shadow-sm));
       position: relative;
-      background: var(--w3a-modal_action-list_background, var(--w3a-color-background));
+      background: var(--w3a-modal__action-list__background, var(--w3a-color-background));
     }
 
     .action-item {
@@ -241,7 +262,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .action-row {
       display: grid;
-      grid-template-columns: var(--w3a-modal_actionrow_template-columns, 100px 1fr);
+      grid-template-columns: var(--w3a-modal__action-row__template-columns, 100px 1fr);
       align-items: center;
       gap: var(--w3a-gap-2);
       padding: 0;
@@ -259,10 +280,10 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       color: var(--w3a-color-text-secondary);
       font-size: var(--w3a-font-size-sm);
       line-height: 1.5;
-      font-weight: var(--w3a-modal_action-label_font-weight, 500);
+      font-weight: var(--w3a-modal__action-label__font-weight, 500);
       letter-spacing: 0.02em;
-      padding: var(--w3a-modal_action-label_padding, 2px 0px);
-      margin: var(--w3a-modal_action-label_margin, 0px);
+      padding: var(--w3a-modal__action-label__padding, 2px 0px);
+      margin: var(--w3a-modal__action-label__margin, 0px);
     }
 
     .action-content {
@@ -272,7 +293,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .action-content::-webkit-scrollbar {
-      width: var(--w3a-modal_scrollbar_width, 6px);
+      width: var(--w3a-modal__action-content__scrollbar-width, 6px);
     }
 
     .action-content::-webkit-scrollbar-track {
@@ -288,14 +309,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .action-value {
       color: var(--w3a-color-text);
       word-break: break-word;
-      font-weight: var(--w3a-modal_action-value_font-weight, 500);
+      font-weight: var(--w3a-modal__action-value__font-weight, 500);
       font-size: var(--w3a-font-size-sm);
     }
 
     .action-subitem {
-      margin-bottom: var(--w3a-modal_action-subitem_margin-bottom, var(--w3a-gap-2));
-      padding: 0rem 0rem 0rem var(--w3a-modal_action-subitem_padding, var(--w3a-gap-4));
-      background: var(--w3a-modal_action-subitem_background, unset);
+      margin-bottom: var(--w3a-modal__action-subitem__margin-bottom, var(--w3a-gap-2));
+      padding: 0rem 0rem 0rem var(--w3a-modal__action-subitem__padding, var(--w3a-gap-4));
+      background: var(--w3a-modal__action-subitem__background, unset);
       position: relative;
     }
 
@@ -311,25 +332,25 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .code-block {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-      font-size: var(--w3a-modal_code-block_font-size, var(--w3a-font-size-sm));
-      background: var(--w3a-modal_code-block_background, var(--w3a-color-background));
-      border: 1px solid var(--w3a-modal_code-block_border-color, var(--w3a-color-border));
-      border-radius: var(--w3a-modal_code-block_border-radius, var(--w3a-radius-md));
-      padding: var(--w3a-modal_code-block_padding, var(--w3a-gap-2));
-      margin: var(--w3a-modal_code-block_margin, 4px 0px 0px 0px);
+      font-size: var(--w3a-modal__code-block__font-size, var(--w3a-font-size-sm));
+      background: var(--w3a-modal__code-block__background, var(--w3a-color-background));
+      border: 1px solid var(--w3a-modal__code-block__border-color, var(--w3a-color-border));
+      border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
+      padding: var(--w3a-modal__code-block__padding, var(--w3a-gap-2));
+      margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
       white-space: pre;
       word-break: normal;
       overflow: auto;
       line-height: 1.4;
       min-height: calc(1.4em * 3);
-      max-height: var(--w3a-modal_code-block_max-height);
+      max-height: var(--w3a-modal__code-block__max-height);
       height: auto;
-      color: var(--w3a-modal_code-block_color, var(--w3a-color-text));
+      color: var(--w3a-modal__code-block__color, var(--w3a-color-text));
     }
 
     .method-name {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-      font-weight: var(--w3a-modal_method-name_font-weight, 600);
+      font-weight: var(--w3a-modal__method-name__font-weight, 600);
       color: var(--w3a-color-primary);
     }
 
@@ -351,16 +372,16 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       border-radius: var(--w3a-radius-lg);
       justify-content: center;
       align-items: center;
-      height: var(--w3a-modal_btn_height, 2.5rem);
+      height: var(--w3a-modal__btn__height, 2.5rem);
       padding: var(--w3a-gap-3);
       font-size: var(--w3a-font-size-base);
       display: flex;
       cursor: pointer;
-      border: 1px solid var(--w3a-color-border);
+      border: none;
       font-family: var(--w3a-font-family);
-      font-weight: var(--w3a-modal_btn_font-weight, 500);
+      font-weight: var(--w3a-modal__btn__font-weight, 500);
       transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
-      min-width: var(--w3a-modal_btn_min-width, 100px);
+      min-width: var(--w3a-modal__btn__min-width, 100px);
       position: relative;
       overflow: hidden;
     }
@@ -372,43 +393,43 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .btn:active {
       background-color: var(--w3a-color-border);
-      transform: var(--w3a-modal_btn-active_transform, translateY(1px));
+      transform: var(--w3a-modal__btn__active-transform, translateY(1px));
     }
 
     .btn-cancel {
       box-shadow: none;
       color: var(--w3a-color-text);
       background-color: transparent;
-      border-color: var(--w3a-color-border);
+      border: none;
     }
 
     .btn-cancel:hover {
       color: var(--w3a-color-text);
       background-color: var(--w3a-color-surface);
-      border-color: var(--w3a-color-border);
+      border: none;
     }
 
     .btn-confirm {
       background-color: var(--w3a-color-primary);
       color: var(--w3a-color-background);
-      border-color: var(--w3a-color-primary);
+      border: none;
     }
 
     .btn-confirm:hover {
       background-color: var(--w3a-color-secondary);
-      border-color: var(--w3a-color-secondary);
+      border: none;
     }
 
     .btn-confirm.warning {
       background-color: var(--w3a-color-warning);
       color: var(--w3a-color-background);
-      border-color: var(--w3a-color-warning);
+      border: none;
     }
 
     .btn-confirm.danger {
       background-color: var(--w3a-color-error);
       color: var(--w3a-color-background);
-      border-color: var(--w3a-color-error);
+      border: none;
     }
 
     .btn-confirm.warning:hover,
@@ -419,7 +440,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .btn:focus-visible {
       outline: 2px solid var(--w3a-color-primary);
       outline-offset: 3px;
-      box-shadow: var(--w3a-modal_btn-focus_box-shadow, 0 0 0 2px rgba(42, 82, 190, 0.12));
+      box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 2px rgba(42, 82, 190, 0.12));
     }
 
     /* Responsive adjustments */
@@ -432,18 +453,18 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
       .summary-row {
         grid-template-columns: 1fr;
-        gap: var(--w3a-modal_responsive-row_gap, 0.25rem);
+        gap: var(--w3a-modal__responsive-row__gap, 0.25rem);
         padding: var(--w3a-gap-3);
       }
 
       .summary-label {
         font-size: var(--w3a-font-size-sm);
-        margin-bottom: var(--w3a-modal_responsive-label_margin-bottom, 2px);
+        margin-bottom: var(--w3a-modal__responsive-label__margin-bottom, 2px);
       }
 
       .action-row {
         grid-template-columns: 1fr;
-        gap: var(--w3a-modal_responsive-action-row_gap, 0.25rem);
+        gap: var(--w3a-modal__responsive-action-row__gap, 0.25rem);
         padding: var(--w3a-gap-2);
       }
 
@@ -459,15 +480,15 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
       .action-content {
         font-size: var(--w3a-font-size-sm);
-        max-height: var(--w3a-modal_responsive-action-content_max-height, 100px);
+        max-height: var(--w3a-modal__responsive-action-content__max-height, 100px);
       }
     }
 
     /* Loading indicator styles */
     .loading-indicator {
       display: inline-block;
-      width: var(--w3a-modal_loading_width, 16px);
-      height: var(--w3a-modal_loading_height, 16px);
+      width: var(--w3a-modal__loading-indicator__width, 16px);
+      height: var(--w3a-modal__loading-indicator__height, 16px);
       border: 2px solid var(--w3a-color-border);
       border-radius: 50%;
       border-top-color: var(--w3a-color-primary);
@@ -675,10 +696,10 @@ formatGas(action.gas)}</span>
 
     return html`
       <div class="modal-backdrop" @click=${this._handleBackdropClick}>
-        <div class="modal-container" @click=${this._handleContentClick}>
+        <div class="modal-border-outer" @click=${this._handleContentClick}>
+          <div class="modal-border-inner">
 
-          <div class="actions-section">
-            <div class="action-outer">
+            <div class="actions-section">
               <div class="action-list">
                 <h2 class="action-header">${this.title}</h2>
 
@@ -751,6 +772,7 @@ formatGas(action.gas)}</span>
           </div>
         </div>
       </div>
+    </div>
     `;
   }
 

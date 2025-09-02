@@ -7,7 +7,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
 import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
-import { TooltipGeometry, TooltipPosition } from './iframe-geometry';
+import { TooltipGeometry, TooltipPositionInternal } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
 import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
@@ -42,7 +42,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   color: string = '#667eea';
   buttonText: string = 'Sign Transaction';
   loading: boolean = false;
-  tooltip: TooltipPosition = {
+  tooltip: TooltipPositionInternal = {
     width: '360px',
     height: 'auto',
     position: 'top-center',
@@ -72,6 +72,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private tooltipResizeObserver?: ResizeObserver;
   private buttonResizeObserver?: ResizeObserver;
   private lastSentGeometryKey: string | null = null;
+  // Hover state latches used to prevent premature hides when moving between button and tooltip
+  private buttonHovering: boolean = false;
+  private tooltipHovering: boolean = false;
 
   // Type-safe element selectors bound to shadow root
   private selectors: ElementSelectors;
@@ -85,56 +88,56 @@ export class EmbeddedTxButton extends LitElementWithProps {
     /* Data attribute selectors correspond to HTML data attributes for type-safe element selection */
 
     :host {
-      display: var(--w3a-embedded_host_display, block);
-      font-family: var(--w3a-embedded_host_font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-      background: var(--w3a-embedded_host_background, transparent);
-      color: var(--w3a-embedded_host_color, #333);
-      line-height: var(--w3a-embedded_host_line-height, 1.6);
-      margin: var(--w3a-embedded_host_margin, 0);
-      padding: var(--w3a-embedded_host_padding, 0);
-      position: var(--w3a-embedded_host_position, relative);
-      width: var(--w3a-embedded_host_width, 100%);
-      height: var(--w3a-embedded_host_height, 100%);
+      display: var(--w3a-embedded__host__display, block);
+      font-family: var(--w3a-embedded__host__font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+      background: var(--w3a-embedded__host__background, transparent);
+      color: var(--w3a-embedded__host__color, #333);
+      line-height: var(--w3a-embedded__host__line-height, 1.6);
+      margin: var(--w3a-embedded__host__margin, 0);
+      padding: var(--w3a-embedded__host__padding, 0);
+      position: var(--w3a-embedded__host__position, relative);
+      width: var(--w3a-embedded__host__width, 100%);
+      height: var(--w3a-embedded__host__height, 100%);
     }
 
     [data-embedded-tx-button-root] {
-      position: var(--w3a-embedded_confirm-container_position, relative);
-      display: var(--w3a-embedded_confirm-container_display, inline-block);
-      z-index: var(--w3a-embedded_confirm-container_z-index, 1001);
-      box-sizing: var(--w3a-embedded_confirm-container_box-sizing, border-box);
-      overflow: var(--w3a-embedded_confirm-container_overflow, visible);
-      pointer-events: var(--w3a-embedded_confirm-container_pointer-events, auto);
-      position: var(--w3a-embedded_confirm-container_position-absolute, absolute);
-      top: var(--w3a-embedded_confirm-container_top, 50%);
-      left: var(--w3a-embedded_confirm-container_left, 50%);
-      transform: var(--w3a-embedded_confirm-container_transform, translate(-50%, -50%));
+      position: var(--w3a-embedded__confirm-container__position, relative);
+      display: var(--w3a-embedded__confirm-container__display, inline-block);
+      z-index: var(--w3a-embedded__confirm-container__z-index, 1001);
+      box-sizing: var(--w3a-embedded__confirm-container__box-sizing, border-box);
+      overflow: var(--w3a-embedded__confirm-container__overflow, visible);
+      pointer-events: var(--w3a-embedded__confirm-container__pointer-events, auto);
+      position: var(--w3a-embedded__confirm-container__position-absolute, absolute);
+      top: var(--w3a-embedded__confirm-container__top, 50%);
+      left: var(--w3a-embedded__confirm-container__left, 50%);
+      transform: var(--w3a-embedded__confirm-container__transform, translate(-50%, -50%));
     }
 
     [data-embedded-btn] {
-      background: var(--w3a-embedded_btn_background-color, var(--btn-background, var(--btn-color, #222)));
-      color: var(--w3a-embedded_btn_color, var(--btn-color-text, white));
-      border: var(--w3a-embedded_btn_border, var(--btn-border, none));
-      border-radius: var(--w3a-embedded_btn_border-radius, var(--btn-border-radius, 8px));
-      padding: var(--w3a-embedded_btn_padding, var(--btn-padding, 12px 24px));
-      font-size: var(--w3a-embedded_btn_font-size, var(--btn-font-size, 1rem));
-      font-weight: var(--w3a-embedded_btn_font-weight, var(--btn-font-weight, 500));
-      cursor: var(--w3a-embedded_btn_cursor, pointer);
-      display: var(--w3a-embedded_btn_display, flex);
-      align-items: var(--w3a-embedded_btn_align-items, center);
-      justify-content: var(--w3a-embedded_btn_justify-content, center);
-      gap: var(--w3a-embedded_btn_gap, 8px);
-      width: var(--w3a-embedded_btn_width, var(--btn-width, 200px));
-      height: var(--w3a-embedded_btn_height, var(--btn-height, 48px));
-      box-sizing: var(--w3a-embedded_btn_box-sizing, border-box);
-      margin: var(--w3a-embedded_btn_margin, 0);
-      outline: var(--w3a-embedded_btn_outline, none);
-      text-decoration: var(--w3a-embedded_btn_text-decoration, none);
-      font-family: var(--w3a-embedded_btn_font-family, inherit);
+      background: var(--w3a-embedded__btn__background-color, var(--btn-background, var(--btn-color, #222)));
+      color: var(--w3a-embedded__btn__color, var(--btn-color-text, white));
+      border: var(--w3a-embedded__btn__border, var(--btn-border, none));
+      border-radius: var(--w3a-embedded__btn__border-radius, var(--btn-border-radius, 8px));
+      padding: var(--w3a-embedded__btn__padding, var(--btn-padding, 12px 24px));
+      font-size: var(--w3a-embedded__btn__font-size, var(--btn-font-size, 1rem));
+      font-weight: var(--w3a-embedded__btn__font-weight, var(--btn-font-weight, 500));
+      cursor: var(--w3a-embedded__btn__cursor, pointer);
+      display: var(--w3a-embedded__btn__display, flex);
+      align-items: var(--w3a-embedded__btn__align-items, center);
+      justify-content: var(--w3a-embedded__btn__justify-content, center);
+      gap: var(--w3a-embedded__btn__gap, 8px);
+      width: var(--w3a-embedded__btn__width, var(--btn-width, 200px));
+      height: var(--w3a-embedded__btn__height, var(--btn-height, 48px));
+      box-sizing: var(--w3a-embedded__btn__box-sizing, border-box);
+      margin: var(--w3a-embedded__btn__margin, 0);
+      outline: var(--w3a-embedded__btn__outline, none);
+      text-decoration: var(--w3a-embedded__btn__text-decoration, none);
+      font-family: var(--w3a-embedded__btn__font-family, inherit);
      /* fadeIn as iframe pops in after page loads, hydrating the button placeholder.
       * placeholder is the same color and dimensions as the button */
-      opacity: var(--w3a-embedded_btn_opacity, 0);
-      will-change: var(--w3a-embedded_btn_will-change, opacity);
-      animation: var(--w3a-embedded_btn_animation, fadeIn 100ms ease forwards);
+      opacity: var(--w3a-embedded__btn__opacity, 0);
+      will-change: var(--w3a-embedded__btn__will-change, opacity);
+      animation: var(--w3a-embedded__btn__animation, fadeIn 100ms ease forwards);
     }
 
     @keyframes fadeIn {
@@ -143,49 +146,49 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     [data-embedded-btn]:hover {
-      background: var(--w3a-embedded_btn-hover_background-color, var(--btn-hover-background, var(--btn-color-hover, #5a6fd8)));
-      color: var(--w3a-embedded_btn-hover_color, var(--btn-hover-color, white));
-      border: var(--w3a-embedded_btn-hover_border, var(--btn-hover-border, var(--btn-border, none)));
-      border-radius: var(--w3a-embedded_btn-hover_border-radius, var(--btn-hover-border-radius, var(--btn-border-radius, 8px)));
-      padding: var(--w3a-embedded_btn-hover_padding, var(--btn-hover-padding, var(--btn-padding, 12px 24px)));
-      font-size: var(--w3a-embedded_btn-hover_font-size, var(--btn-hover-font-size, var(--btn-font-size, 1rem)));
-      font-weight: var(--w3a-embedded_btn-hover_font-weight, var(--btn-hover-font-weight, var(--btn-font-weight, 500)));
-      box-shadow: var(--w3a-embedded_btn-hover_box-shadow, var(--w3a-embedded_btn_box-shadow, var(--btn-box-shadow, none)));
-      transform: var(--w3a-embedded_btn-hover_transform, var(--btn-hover-transform, none));
+      background: var(--w3a-embedded__btn-hover__background-color, var(--btn-hover-background, var(--btn-color-hover, #5a6fd8)));
+      color: var(--w3a-embedded__btn-hover__color, var(--btn-hover-color, white));
+      border: var(--w3a-embedded__btn-hover__border, var(--btn-hover-border, var(--btn-border, none)));
+      border-radius: var(--w3a-embedded__btn-hover__border-radius, var(--btn-hover-border-radius, var(--btn-border-radius, 8px)));
+      padding: var(--w3a-embedded__btn-hover__padding, var(--btn-hover-padding, var(--btn-padding, 12px 24px)));
+      font-size: var(--w3a-embedded__btn-hover__font-size, var(--btn-hover-font-size, var(--btn-font-size, 1rem)));
+      font-weight: var(--w3a-embedded__btn-hover__font-weight, var(--btn-hover-font-weight, var(--btn-font-weight, 500)));
+      box-shadow: var(--w3a-embedded__btn-hover__box-shadow, var(--w3a-embedded__btn__box-shadow, var(--btn-box-shadow, none)));
+      transform: var(--w3a-embedded__btn-hover__transform, var(--btn-hover-transform, none));
     }
 
     [data-embedded-btn]:active {
-      background: var(--w3a-embedded_btn-active_background-color, var(--w3a-embedded_btn_background-color, var(--btn-background, var(--btn-color, #222))));
-      color: var(--w3a-embedded_btn-active_color, var(--w3a-embedded_btn_color, var(--btn-color-text, white)));
-      border: var(--w3a-embedded_btn-active_border, var(--w3a-embedded_btn_border, var(--btn-border, none)));
-      border-radius: var(--w3a-embedded_btn-active_border-radius, var(--btn-border-radius, var(--btn-border-radius, 8px)));
-      box-shadow: var(--w3a-embedded_btn-active_box-shadow, var(--w3a-embedded_btn_box-shadow, var(--btn-box-shadow, none)));
-      transform: var(--w3a-embedded_btn-active_transform, var(--btn-active-transform, none));
+      background: var(--w3a-embedded__btn-active__background-color, var(--w3a-embedded__btn__background-color, var(--btn-background, var(--btn-color, #222))));
+      color: var(--w3a-embedded__btn-active__color, var(--w3a-embedded__btn__color, var(--btn-color-text, white)));
+      border: var(--w3a-embedded__btn-active__border, var(--w3a-embedded__btn__border, var(--btn-border, none)));
+      border-radius: var(--w3a-embedded__btn-active__border-radius, var(--btn-border-radius, var(--btn-border-radius, 8px)));
+      box-shadow: var(--w3a-embedded__btn-active__box-shadow, var(--w3a-embedded__btn__box-shadow, var(--btn-box-shadow, none)));
+      transform: var(--w3a-embedded__btn-active__transform, var(--btn-active-transform, none));
     }
 
     [data-embedded-btn]:disabled {
-      opacity: var(--w3a-embedded_btn-disabled_opacity, 0.6);
-      cursor: var(--w3a-embedded_btn-disabled_cursor, not-allowed);
+      opacity: var(--w3a-embedded__btn-disabled__opacity, 0.6);
+      cursor: var(--w3a-embedded__btn-disabled__cursor, not-allowed);
     }
 
     [data-loading] {
-      display: var(--w3a-embedded_loading_display, none);
-      align-items: var(--w3a-embedded_loading_align-items, center);
-      justify-content: var(--w3a-embedded_loading_justify-content, center);
-      gap: var(--w3a-embedded_loading_gap, 8px);
+      display: var(--w3a-embedded__loading__display, none);
+      align-items: var(--w3a-embedded__loading__align-items, center);
+      justify-content: var(--w3a-embedded__loading__justify-content, center);
+      gap: var(--w3a-embedded__loading__gap, 8px);
     }
 
     [data-loading][data-visible="true"] {
-      display: var(--w3a-embedded_loading-visible_display, flex);
+      display: var(--w3a-embedded__loading-visible__display, flex);
     }
 
     [data-spinner] {
-      width: var(--w3a-embedded_spinner_width, 16px);
-      height: var(--w3a-embedded_spinner_height, 16px);
-      border: var(--w3a-embedded_spinner_border, 2px solid rgba(255, 255, 255, 0.3));
-      border-top: var(--w3a-embedded_spinner_border-top, 2px solid white);
-      border-radius: var(--w3a-embedded_spinner_border-radius, 50%);
-      animation: var(--w3a-embedded_spinner_animation, spin 1s linear infinite);
+      width: var(--w3a-embedded__spinner__width, 16px);
+      height: var(--w3a-embedded__spinner__height, 16px);
+      border: var(--w3a-embedded__spinner__border, 2px solid rgba(255, 255, 255, 0.3));
+      border-top: var(--w3a-embedded__spinner__border-top, 2px solid white);
+      border-radius: var(--w3a-embedded__spinner__border-radius, 50%);
+      animation: var(--w3a-embedded__spinner__animation, spin 1s linear infinite);
     }
 
     @keyframes spin {
@@ -195,38 +198,51 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     /* Use data attributes instead of classes for guaranteed sync */
     [data-tooltip-content] {
-      position: var(--w3a-embedded_tooltip-content_position, absolute);
-      box-sizing: var(--w3a-embedded_tooltip-content_box-sizing, border-box);
-      z-index: var(--w3a-embedded_tooltip-content_z-index, 1000);
-      opacity: var(--w3a-embedded_tooltip-content_opacity, 0);
-      visibility: var(--w3a-embedded_tooltip-content_visibility, hidden);
+      position: var(--w3a-embedded__tooltip-content__position, absolute);
+      box-sizing: var(--w3a-embedded__tooltip-content__box-sizing, border-box);
+      z-index: var(--w3a-embedded__tooltip-content__z-index, 1000);
+      opacity: var(--w3a-embedded__tooltip-content__opacity, 0);
+      visibility: var(--w3a-embedded__tooltip-content__visibility, hidden);
+      pointer-events: none; /* prevent overlay from stealing hover before interactive */
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
-      overflow-y: var(--w3a-embedded_tooltip-content_overflow-y, auto);
-      transition: var(--w3a-embedded_tooltip-content_transition, all 0.0s ease);
-      min-width: var(--w3a-embedded_tooltip-content_min-width, 280px);
-      max-width: var(--w3a-embedded_tooltip-content_max-width, 320px);
-      width: var(--w3a-embedded_tooltip-content_width, var(--tooltip-width, 280px));
+      overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
+      transition: var(--w3a-embedded__tooltip-content__transition, all 0.0s ease);
+      min-width: var(--w3a-embedded__tooltip-content__min-width, 280px);
+      max-width: var(--w3a-embedded__tooltip-content__max-width, 320px);
+      width: var(--w3a-embedded__tooltip-content__width, var(--tooltip-width, 280px));
+      /* Directional padding vars forwarded to tree host */
+      --w3a-tree__host__padding-top: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-bottom: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-left: 0px;
+      --w3a-tree__host__padding-right: 0px;
     }
 
     /* Top positions: aligned with button corners */
     [data-tooltip-content][data-position="top-left"] {
       bottom: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
-      margin-bottom: var(--tooltip-offset, 4px);
+      margin-bottom: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      /* Add shadow room on the outer side only */
+      --w3a-tree__host__padding-right: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-left: 0px;
     }
 
     [data-tooltip-content][data-position="top-center"] {
       bottom: 100%;
       left: 50%;
       transform: translateX(-50%);
-      margin-bottom: var(--tooltip-offset, 4px);
+      margin-bottom: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-left: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-right: var(--tooltip-box-padding, 0px);
     }
 
     [data-tooltip-content][data-position="top-right"] {
       bottom: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
-      margin-bottom: var(--tooltip-offset, 4px);
+      margin-bottom: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-left: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-right: 0px;
     }
 
     /* Side positions */
@@ -234,43 +250,54 @@ export class EmbeddedTxButton extends LitElementWithProps {
       right: 100%;
       top: 50%;
       transform: translateY(-50%);
-      margin-right: var(--tooltip-offset, 4px);
+      margin-right: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-left: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-right: 0px;
     }
 
     [data-tooltip-content][data-position="right"] {
       left: 100%;
       top: 50%;
       transform: translateY(-50%);
-      margin-left: var(--tooltip-offset, 4px);
+      margin-left: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-right: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-left: 0px;
     }
 
     /* Bottom positions: aligned with button corners */
     [data-tooltip-content][data-position="bottom-left"] {
       top: 100%;
       left: 0; /* Aligns tooltip's left edge with button's left edge */
-      margin-top: var(--tooltip-offset, 4px);
+      margin-top: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-right: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-left: 0px;
     }
 
     [data-tooltip-content][data-position="bottom-center"] {
       top: 100%;
       left: 50%;
       transform: translateX(-50%);
-      margin-top: var(--tooltip-offset, 4px);
+      margin-top: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-left: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-right: var(--tooltip-box-padding, 0px);
     }
 
     [data-tooltip-content][data-position="bottom-right"] {
       top: 100%;
       right: 0; /* Aligns tooltip's right edge with button's right edge */
-      margin-top: var(--tooltip-offset, 4px);
+      margin-top: calc(var(--tooltip-offset, 4px) - var(--tooltip-box-padding, 0px));
+      --w3a-tree__host__padding-left: var(--tooltip-box-padding, 0px);
+      --w3a-tree__host__padding-right: 0px;
     }
 
     [data-tooltip-content][data-visible="true"] {
-      opacity: var(--w3a-embedded_tooltip-content-visible_opacity, 1);
-      visibility: var(--w3a-embedded_tooltip-content-visible_visibility, visible);
+      opacity: var(--w3a-embedded__tooltip-content-visible__opacity, 1);
+      visibility: var(--w3a-embedded__tooltip-content-visible__visibility, visible);
+      pointer-events: auto; /* interactive only when visible */
     }
 
     [data-tooltip-content][data-hiding="true"] {
-      transition-delay: var(--w3a-embedded_tooltip-content-hiding_transition-delay, 150ms);
+      transition-delay: var(--w3a-embedded__tooltip-content-hiding__transition-delay, 150ms);
     }
   `;
 
@@ -362,6 +389,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.style.setProperty('--tooltip-width', this.tooltip.width);
     this.style.setProperty('--tooltip-height', this.tooltip.height);
     this.style.setProperty('--tooltip-offset', this.tooltip.offset);
+    // Set box padding for tooltip content and pass to tree via CSS cascade
+    const boxPadding = this.tooltip.boxPadding || '0px';
+    this.style.setProperty('--tooltip-box-padding', String(boxPadding));
 
     // Apply button styles as CSS custom properties
     if (this.buttonStyle) {
@@ -605,6 +635,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
     const tooltipElement = ElementSelectors.getTooltipContent(this.shadowRoot);
     if (!tooltipElement || this.tooltipVisible) return;
 
+    // If a hide was in progress, cancel it and reset state before showing again
+    this.cancelHide();
+    this.isHiding = false;
+
     this.tooltipVisible = true;
     // Allow content to expand naturally when visible
     try {
@@ -635,6 +669,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     const tooltipElement = this.selectors.getTooltipContent();
     if (!tooltipElement) return;
 
+    // If still hovering button or tooltip, do not hide
+    if (this.buttonHovering || this.tooltipHovering) return;
+
     // Enter hiding state and cancel any scheduled measurements/RAFs
     this.isHiding = true;
     if (this.measureTimeout) {
@@ -653,6 +690,12 @@ export class EmbeddedTxButton extends LitElementWithProps {
     tooltipElement.classList.add('hiding');
 
     this.hideTimeout = window.setTimeout(() => {
+      // Abort hide if hover returned during grace
+      if (this.buttonHovering || this.tooltipHovering) {
+        this.isHiding = false;
+        this.hideTimeout = null;
+        return;
+      }
       this.tooltipVisible = false;
       tooltipElement.classList.remove('show', 'hiding');
       tooltipElement.setAttribute('aria-hidden', 'true');
@@ -704,7 +747,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     loading: boolean;
     buttonStyle: React.CSSProperties;
     buttonHoverStyle: React.CSSProperties;
-    tooltipPosition: TooltipPosition;
+    tooltipPosition: TooltipPositionInternal;
     theme: TooltipTheme;
   }>) {
 
@@ -731,7 +774,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   updateButtonStyles(
     buttonStyle: React.CSSProperties,
     buttonHoverStyle: React.CSSProperties,
-    tooltipPosition?: TooltipPosition,
+    tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
     theme?: 'dark' | 'light'
   ) {
@@ -760,6 +803,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   }
 
   private handlePointerEnter() {
+    this.buttonHovering = true;
     // Notify parent immediately about button hover for pointer-events activation
     if (window.parent) {
       window.parent.postMessage({
@@ -772,6 +816,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   }
 
   private handlePointerLeave() {
+    this.buttonHovering = false;
     // Notify parent about button hover end
     if (window.parent) {
       window.parent.postMessage({
@@ -779,16 +824,21 @@ export class EmbeddedTxButton extends LitElementWithProps {
         payload: { hovering: false }
       }, this.getTargetOrigin());
     }
-
-    this.hideTooltip();
+    if (!this.tooltipHovering) {
+      this.hideTooltip();
+    }
   }
 
   private handleTooltipEnter() {
+    this.tooltipHovering = true;
     this.cancelHide();
   }
 
   private handleTooltipLeave() {
-    this.hideTooltip();
+    this.tooltipHovering = false;
+    if (!this.buttonHovering) {
+      this.hideTooltip();
+    }
   }
 
   // (UI digest is computed by the iframe bootstrap directly from txSigningRequests)

@@ -1,4 +1,4 @@
-import type { TooltipPosition } from './iframe-geometry';
+import type { TooltipPositionInternal } from './iframe-geometry';
 import type {
   IframeButtonMessage,
   IframeButtonMessagePayloads,
@@ -46,7 +46,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   color?: string;
   size?: { width: string | number; height: string | number };
   tooltip?: { width: string; height: string | 'auto'; position: string; offset: string };
-  tooltipPosition?: TooltipPosition; // fallback path uses this name
+  tooltipPosition?: TooltipPositionInternal; // fallback path uses this name
   tooltipTheme?: 'dark' | 'light';
   styles?: TooltipTreeStyles;
   updateProperties?: (props: Partial<{
@@ -55,12 +55,12 @@ interface EmbeddedTxButtonEl extends HTMLElement {
     loading: boolean;
     buttonStyle: Record<string, string | number>;
     buttonHoverStyle: Record<string, string | number>;
-    tooltipPosition: TooltipPosition;
+    tooltipPosition: TooltipPositionInternal;
   }>) => void;
   updateButtonStyles?: (
     buttonStyle: Record<string, string | number>,
     buttonHoverStyle: Record<string, string | number>,
-    tooltipPosition?: TooltipPosition,
+    tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
     theme?: 'dark' | 'light'
   ) => void;

@@ -8,6 +8,9 @@ importers:
 
   .:
     dependencies:
+      '@lit/react':
+        specifier: ^1.0.8
+        version: 1.0.8(@types/react@18.3.23)
       '@near-js/transactions':
         specifier: ^2.0.1
         version: 2.2.4(@near-js/crypto@2.2.4(@near-js/types@2.2.4)(@near-js/utils@2.2.4(@near-js/types@2.2.4)))(@near-js/types@2.2.4)(@near-js/utils@2.2.4(@near-js/types@2.2.4))
@@ -104,6 +107,11 @@ packages:
 
   '@lit-labs/ssr-dom-shim@1.4.0':
     resolution: {integrity: sha512-ficsEARKnmmW5njugNYKipTm4SFnbik7CXtoencDZzmzo/dQ+2Q0bgkzJuoJP20Aj0F+izzJjOqsnkd6F/o1bw==}
+
+  '@lit/react@1.0.8':
+    resolution: {integrity: sha512-p2+YcF+JE67SRX3mMlJ1TKCSTsgyOVdAwd/nxp3NuV1+Cb6MWALbN6nT7Ld4tpmYofcE5kcaSY1YBB9erY+6fw==}
+    peerDependencies:
+      '@types/react': 17 || 18 || 19
 
   '@lit/reactive-element@2.1.1':
     resolution: {integrity: sha512-N+dm5PAYdQ8e6UlywyyrgI2t++wFGXfHx+dSJ1oBrg6FAxUj40jId++EaRm80MKX5JnlH1sBsyZ5h0bcZKemCg==}
@@ -750,6 +758,10 @@ snapshots:
     optional: true
 
   '@lit-labs/ssr-dom-shim@1.4.0': {}
+
+  '@lit/react@1.0.8(@types/react@18.3.23)':
+    dependencies:
+      '@types/react': 18.3.23
 
   '@lit/reactive-element@2.1.1':
     dependencies:

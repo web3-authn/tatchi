@@ -1,9 +1,26 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { SecureTxConfirmButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
-import { TooltipPosition } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
+import { TooltipPosition, TooltipPositionInternal } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
 import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
-import { IframeButtonWithTooltip } from '../lit-wrappers/IframeButtonWithTooltip';
+import { createComponent } from '@lit/react';
+import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
+
+/**
+ * Converts a React CSSProperties object to a Record<string, string | number> for Lit components
+ * @param style
+ * @returns
+ */
+export const toStyleRecord = (style?: React.CSSProperties): Record<string, string | number> | undefined => {
+  if (!style) return undefined;
+  const out: Record<string, string | number> = {};
+  Object.keys(style).forEach((k) => {
+    const v = (style as any)[k];
+    if (v !== undefined && v !== null) out[k] = v as any;
+  });
+  return out;
+};
+
 
 /**
  * React wrapper around the Lit `iframe-button` component.
@@ -28,7 +45,6 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     width: '360px',
     height: 'auto',
     position: 'top-center',
-    offset: '4px'
   },
   tooltipTheme = 'dark',
   lockTheme = false,
@@ -61,14 +77,33 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
     if (lockTheme) setCurrentTheme(tooltipTheme);
   }, [tooltipTheme, lockTheme]);
 
+  // Inline Lit wrapper creation
+  const RawIframeButton = useMemo(() => createComponent({
+    react: React,
+    tagName: 'iframe-button',
+    elementClass: IframeButtonHost,
+    events: {}
+  }), []);
+
+  const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
+    width: tooltipPosition.width,
+    height: tooltipPosition.height,
+    position: tooltipPosition.position,
+    offset: '6px',
+    boxPadding: '5px',
+  }), [tooltipPosition.width, tooltipPosition.height, tooltipPosition.position]);
+  // NOTE: ensure offset >= boxPadding or tooltip's padding overlaps the button and makes
+  // it harder to click in some areas of the button.
+  // boxPadding is padding to ensure the tooltip has space for it's shadow
+
   return (
-    <IframeButtonWithTooltip
+    <RawIframeButton
       nearAccountId={nearAccountId}
       txSigningRequests={txSigningRequests}
       color={color}
-      buttonStyle={buttonStyle}
-      buttonHoverStyle={buttonHoverStyle}
-      tooltipPosition={tooltipPosition}
+      buttonStyle={toStyleRecord(buttonStyle)}
+      buttonHoverStyle={toStyleRecord(buttonHoverStyle)}
+      tooltipPosition={internalTooltipPosition}
       tooltipTheme={currentTheme}
       showLoading={!!showLoading}
       options={options}
