@@ -58,7 +58,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   fingerprint = '';
   title = 'Sign Transaction';
   cancelText = 'Cancel';
-  confirmText = 'Confirm & Sign';
+  confirmText = 'Confirm and Sign';
   txSigningRequests: TransactionInputWasm[] = [];
   loading = false;
   styles?: ModalTxConfirmerStyles;
@@ -101,8 +101,8 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       font-family: var(--w3a-font-family);
       font-size: var(--w3a-font-size-base);
       line-height: 1.5;
-      color: var(--w3a-color-text);
-      background-color: var(--w3a-color-background);
+      color: var(--w3a-modal__host__color);
+      background-color: var(--w3a-modal__host__background-color);
     }
 
     /* Reset and base styles */
@@ -139,7 +139,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       height: var(--w3a-modal__modal-border-inner__height, calc(100% - 2px));
       overflow: var(--w3a-modal__modal-border-inner__overflow, hidden);
       box-shadow: var(--w3a-modal__modal-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
-      background: var(--w3a-modal__modal-border-inner__background, var(--w3a-color-surface));
+      background: var(--w3a-modal__modal-border-inner__background);
       backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
       -webkit-backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
     }
@@ -154,7 +154,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       width: var(--w3a-modal__modal-container__width, auto);
       height: var(--w3a-modal__modal-container__height, auto);
       padding: var(--w3a-modal__modal-container__padding, 0);
-      color: var(--w3a-modal__modal-container__color, var(--w3a-color-text));
+      color: var(--w3a-modal__modal-container__color);
     }
 
     /* Animations */
@@ -183,7 +183,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       font-size: var(--w3a-font-size-xl);
       line-height: 1.3;
       font-weight: 600;
-      color: var(--w3a-color-text);
+      color: var(--w3a-modal__header__color);
       margin: 0;
       position: relative;
       z-index: 1;
@@ -212,13 +212,13 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .summary-label {
-      color: var(--w3a-color-text-secondary);
+      color: var(--w3a-modal__label__color);
       font-size: var(--w3a-font-size-sm);
       font-weight: var(--w3a-modal__label__font-weight, 500);
     }
 
     .summary-value {
-      color: var(--w3a-color-text);
+      color: var(--w3a-modal__value__color);
       font-size: var(--w3a-font-size-sm);
       font-weight: var(--w3a-modal__value__font-weight, 500);
       word-break: break-word;
@@ -247,7 +247,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       overflow: hidden;
       box-shadow: var(--w3a-modal__action-list__box-shadow, var(--w3a-shadow-sm));
       position: relative;
-      background: var(--w3a-modal__action-list__background, var(--w3a-color-background));
+      background: var(--w3a-modal__action-list__background);
     }
 
     .action-item {
@@ -277,7 +277,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .action-label {
       font-family: var(--w3a-font-family);
-      color: var(--w3a-color-text-secondary);
+      color: var(--w3a-modal__action-label__color);
       font-size: var(--w3a-font-size-sm);
       line-height: 1.5;
       font-weight: var(--w3a-modal__action-label__font-weight, 500);
@@ -297,17 +297,17 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .action-content::-webkit-scrollbar-track {
-      background: var(--w3a-color-background);
+      background: var(--w3a-modal__action-content-scrollbar-track__background);
       border-radius: var(--w3a-radius-sm);
     }
 
     .action-content::-webkit-scrollbar-thumb {
-      background: var(--w3a-color-border);
+      background: var(--w3a-modal__action-content-scrollbar-thumb__background);
       border-radius: var(--w3a-radius-sm);
     }
 
     .action-value {
-      color: var(--w3a-color-text);
+      color: var(--w3a-modal__action-value__color);
       word-break: break-word;
       font-weight: var(--w3a-modal__action-value__font-weight, 500);
       font-size: var(--w3a-font-size-sm);
@@ -327,14 +327,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .action-subheader {
       font-size: var(--w3a-font-size-sm);
       font-weight: 600;
-      color: var(--w3a-color-primary);
+      color: var(--w3a-modal__action-subheader__color);
     }
 
     .code-block {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
       font-size: var(--w3a-modal__code-block__font-size, var(--w3a-font-size-sm));
-      background: var(--w3a-modal__code-block__background, var(--w3a-color-background));
-      border: 1px solid var(--w3a-modal__code-block__border-color, var(--w3a-color-border));
+      background: var(--w3a-modal__code-block__background);
+      border: 1px solid var(--w3a-modal__code-block__border-color);
       border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
       padding: var(--w3a-modal__code-block__padding, var(--w3a-gap-2));
       margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
@@ -345,13 +345,13 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       min-height: calc(1.4em * 3);
       max-height: var(--w3a-modal__code-block__max-height);
       height: auto;
-      color: var(--w3a-modal__code-block__color, var(--w3a-color-text));
+      color: var(--w3a-modal__code-block__color);
     }
 
     .method-name {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
       font-weight: var(--w3a-modal__method-name__font-weight, 600);
-      color: var(--w3a-color-primary);
+      color: var(--w3a-modal__method-name__color);
     }
 
     /* Button styles */
@@ -365,9 +365,9 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .btn {
-      background-color: var(--w3a-color-background);
-      box-shadow: var(--w3a-shadow-sm);
-      color: var(--w3a-color-text);
+      background-color: var(--w3a-modal__btn__background-color);
+      box-shadow: var(--w3a-modal__btn__box-shadow, var(--w3a-shadow-sm));
+      color: var(--w3a-modal__btn__color);
       text-align: center;
       border-radius: var(--w3a-radius-lg);
       justify-content: center;
@@ -387,48 +387,48 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .btn:hover {
-      background-color: var(--w3a-color-surface);
-      box-shadow: var(--w3a-shadow-md);
+      background-color: var(--w3a-modal__btn-hover__background-color);
+      box-shadow: var(--w3a-modal__btn-hover__box-shadow, var(--w3a-shadow-md));
     }
 
     .btn:active {
-      background-color: var(--w3a-color-border);
+      background-color: var(--w3a-modal__btn-active__background-color);
       transform: var(--w3a-modal__btn__active-transform, translateY(1px));
     }
 
     .btn-cancel {
       box-shadow: none;
-      color: var(--w3a-color-text);
-      background-color: transparent;
+      color: var(--w3a-modal__btn-cancel__color);
+      background-color: var(--w3a-modal__btn-cancel__background-color, transparent);
       border: none;
     }
 
     .btn-cancel:hover {
-      color: var(--w3a-color-text);
-      background-color: var(--w3a-color-surface);
+      color: var(--w3a-modal__btn-cancel-hover__color);
+      background-color: var(--w3a-modal__btn-cancel-hover__background-color);
       border: none;
     }
 
     .btn-confirm {
-      background-color: var(--w3a-color-primary);
-      color: var(--w3a-color-background);
+      background-color: var(--w3a-modal__btn-confirm__background-color);
+      color: var(--w3a-modal__btn-confirm__color);
       border: none;
     }
 
     .btn-confirm:hover {
-      background-color: var(--w3a-color-secondary);
+      background-color: var(--w3a-modal__btn-confirm-hover__background-color);
       border: none;
     }
 
     .btn-confirm.warning {
-      background-color: var(--w3a-color-warning);
-      color: var(--w3a-color-background);
+      background-color: var(--w3a-modal__btn-confirm-warning__background-color);
+      color: var(--w3a-modal__btn-confirm-warning__color);
       border: none;
     }
 
     .btn-confirm.danger {
-      background-color: var(--w3a-color-error);
-      color: var(--w3a-color-background);
+      background-color: var(--w3a-modal__btn-confirm-danger__background-color);
+      color: var(--w3a-modal__btn-confirm-danger__color);
       border: none;
     }
 
@@ -438,9 +438,9 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .btn:focus-visible {
-      outline: 2px solid var(--w3a-color-primary);
+      outline: 2px solid var(--w3a-modal__btn__focus-outline-color);
       outline-offset: 3px;
-      box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 2px rgba(42, 82, 190, 0.12));
+      box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 3px oklch(0.55 0.18 240 / 0.12));
     }
 
     /* Responsive adjustments */
@@ -489,9 +489,9 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       display: inline-block;
       width: var(--w3a-modal__loading-indicator__width, 16px);
       height: var(--w3a-modal__loading-indicator__height, 16px);
-      border: 2px solid var(--w3a-color-border);
+      border: 2px solid var(--w3a-modal__loading-indicator__border-color);
       border-radius: 50%;
-      border-top-color: var(--w3a-color-primary);
+      border-top-color: var(--w3a-modal__loading-indicator__border-top-color);
       animation: spin 1s ease-in-out infinite;
       margin-right: var(--w3a-gap-2);
     }
@@ -507,11 +507,11 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     /* Fallback support for browsers without backdrop-filter */
     @supports not (backdrop-filter: blur(8px)) {
-      .row { background: var(--w3a-color-surface); }
-      .action-item { background: var(--w3a-color-background); }
-      .action-content { background: var(--w3a-color-surface); }
-      .btn { background: var(--w3a-color-background); }
-      .btn-confirm { background: var(--w3a-color-primary); }
+      .row { background: var(--w3a-modal__row__background); }
+      .action-item { background: var(--w3a-modal__action-item__background); }
+      .action-content { background: var(--w3a-modal__action-content__background); }
+      .btn { background: var(--w3a-modal__btn__background-color); }
+      .btn-confirm { background: var(--w3a-modal__btn-confirm__background-color); }
     }
   `;
 

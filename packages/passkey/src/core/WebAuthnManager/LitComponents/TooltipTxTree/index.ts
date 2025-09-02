@@ -141,16 +141,16 @@ export class TooltipTxTree extends LitElementWithProps {
 
     .summary-row {
       cursor: var(--w3a-tree__summary-row__cursor, pointer);
-      padding: var(--w3a-tree__summary-row__padding, 0px 1px);
-      margin-bottom: var(--w3a-tree__summary-row__margin-bottom, 1px);
-      border-radius: var(--w3a-tree__summary-row__border-radius, 1px);
+      padding: var(--w3a-tree__summary-row__padding, 0px 0px);
+      margin-bottom: var(--w3a-tree__summary-row__margin-bottom, 0px);
+      border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
       transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
       background: var(--w3a-tree__summary-row__background, transparent);
     }
 
-    .summary-row:hover {
-      background: var(--w3a-tree__summary-row-hover__background, rgba(255, 255, 255, 0.06));
-    }
+    // .summary-row:hover {
+    //   background: var(--w3a-tree__summary-row-hover__background, none);
+    // }
 
     .indent {
       width: var(--w3a-tree__indent__width, var(--indent, 0));
@@ -163,6 +163,8 @@ export class TooltipTxTree extends LitElementWithProps {
       gap: var(--w3a-tree__label__gap, 0px);
       padding: var(--w3a-tree__label__padding, 0px);
       min-width: var(--w3a-tree__label__min-width, 0);
+      max-width: var(--w3a-tree__label__max-width, 100%);
+      flex: var(--w3a-tree__label__flex, 1 1 auto);
       white-space: var(--w3a-tree__label__white-space, nowrap);
       overflow: var(--w3a-tree__label__overflow, hidden);
       text-overflow: var(--w3a-tree__label__text-overflow, ellipsis);
@@ -170,6 +172,20 @@ export class TooltipTxTree extends LitElementWithProps {
       color: var(--w3a-tree__label__color, inherit);
       font-weight: var(--w3a-tree__label__font-weight, inherit);
       line-height: var(--w3a-tree__label__line-height, 1.2);
+      border: var(--w3a-tree__label__border, none);
+      border-radius: var(--w3a-tree__label__border-radius, 0);
+    }
+
+    .label:hover {
+      background: var(--w3a-tree__summary-row-hover__background, rgba(255, 255, 255, 0.06));
+    }
+
+    /* Ensure nested spans (e.g., highlights) don't break ellipsis */
+    .label > * {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .chevron {
@@ -196,7 +212,7 @@ export class TooltipTxTree extends LitElementWithProps {
       box-sizing: var(--w3a-tree__file-content__box-sizing, border-box);
       margin: var(--w3a-tree__file-content__margin, 2px);
       padding: var(--w3a-tree__file-content__padding, 2px);
-      border-radius: var(--w3a-tree__file-content__border-radius, 2px);
+      border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
       background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
       max-height: var(--w3a-tree__file-content__max-height, 120px);
       overflow: var(--w3a-tree__file-content__overflow, auto);
@@ -246,6 +262,16 @@ export class TooltipTxTree extends LitElementWithProps {
       padding: var(--w3a-tree__highlight-method-name__padding, 0) !important;
       border-radius: var(--w3a-tree__highlight-method-name__border-radius, 0) !important;
       box-shadow: var(--w3a-tree__highlight-method-name__box-shadow, none) !important;
+    }
+
+    .highlight-amount {
+      color: var(--w3a-tree__highlight-amount__color, #4ecdc4) !important;
+      font-weight: var(--w3a-tree__highlight-amount__font-weight, 600) !important;
+      background: var(--w3a-tree__highlight-amount__background, transparent) !important;
+      text-decoration: var(--w3a-tree__highlight-amount__text-decoration, none) !important;
+      padding: var(--w3a-tree__highlight-amount__padding, 0) !important;
+      border-radius: var(--w3a-tree__highlight-amount__border-radius, 0) !important;
+      box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none) !important;
     }
   `;
 
@@ -298,30 +324,62 @@ export class TooltipTxTree extends LitElementWithProps {
 
   private renderLabelWithSelectiveHighlight(
     label: string,
-    highlight?: { type: 'receiverId' | 'methodName'; color: string }
+    highlight?: { type: 'receiverId' | 'methodName'; color: string },
+    highlightSpec?: import('./tooltip-tree-utils').HighlightSpec
   ): TemplateResult | string {
-    if (!highlight || !label) {
-      return label;
+    if (!label) return '';
+
+    if (highlightSpec) {
+      if ('transaction' in highlightSpec && highlightSpec.transaction === 'receiverId') {
+        const singleTxMatch = label.match(/^Transaction to (.+)$/);
+        if (singleTxMatch) {
+          const receiverId = singleTxMatch[1];
+          return html`Transaction to <span class="highlight-receiver-id">${receiverId}</span>`;
+        }
+        const multiTxMatch = label.match(/^Transaction\(\d+\) to (.+)$/);
+        if (multiTxMatch) {
+          const receiverId = multiTxMatch[1];
+          const prefix = label.substring(0, multiTxMatch.index! + multiTxMatch[0].length - multiTxMatch[1].length);
+          return html`${prefix}<span class="highlight-receiver-id">${receiverId}</span>`;
+        }
+      }
+
+      if ('actionType' in highlightSpec) {
+        const keys = new Set(highlightSpec.highlightKeys || []);
+        if (highlightSpec.actionType === 'FunctionCall') {
+          const match = label.match(/^Calling (.+) with (.+)$/);
+          if (match) {
+            const methodName = match[1];
+            const gas = match[2];
+            return html`Calling ${keys.has('methodName') ? html`<span class="highlight-method-name">${methodName}</span>` : methodName} with ${keys.has('gas') ? html`<span class="highlight-method-name">${gas}</span>` : gas}`;
+          }
+        }
+        if (highlightSpec.actionType === 'Transfer') {
+          const match = label.match(/^Transfer (.+)$/);
+          if (match) {
+            const amount = match[1];
+            return html`Transfer ${keys.has('amount') ? html`<span class="highlight-amount">${amount}</span>` : amount}`;
+          }
+        }
+      }
     }
 
+    // Legacy fallback
+    if (!highlight) return label;
     const highlightClass = `highlight-${this.camelToKebab(highlight.type)}`;
-
     switch (highlight.type) {
       case 'receiverId': {
-        // Handle single transaction: "Transaction to receiverId"
         const singleTxMatch = label.match(/^Transaction to (.+)$/);
         if (singleTxMatch) {
           const receiverId = singleTxMatch[1];
           return html`Transaction to <span class="${highlightClass}">${receiverId}</span>`;
         }
-        // Handle multiple transactions: "Transaction(index) to receiverId"
         const multiTxMatch = label.match(/^Transaction\(\d+\) to (.+)$/);
         if (multiTxMatch) {
           const receiverId = multiTxMatch[1];
           const prefix = label.substring(0, multiTxMatch.index! + multiTxMatch[0].length - multiTxMatch[1].length);
           return html`${prefix}<span class="${highlightClass}">${receiverId}</span>`;
         }
-        // Fallback for unrecognized patterns
         return html`<span class="${highlightClass}">${label}</span>`;
       }
       case 'methodName': {
@@ -331,7 +389,6 @@ export class TooltipTxTree extends LitElementWithProps {
           const gas = match[2];
           return html`Calling <span class="${highlightClass}">${methodName}</span> with <span class="${highlightClass}">${gas}</span>`;
         }
-        // Fallback for old format: "Calling methodName with"
         const fallbackMatch = label.match(/^Calling (.+) with$/);
         if (fallbackMatch) {
           const methodName = fallbackMatch[1];
@@ -339,10 +396,8 @@ export class TooltipTxTree extends LitElementWithProps {
         }
         return html`<span class="${highlightClass}">${label}</span>`;
       }
-      default: {
-        // Fallback: highlight the entire label if pattern doesn't match
+      default:
         return html`<span class="${highlightClass}">${label}</span>`;
-      }
     }
   }
 
@@ -354,8 +409,11 @@ export class TooltipTxTree extends LitElementWithProps {
     // If content exists, render a collapsible details with the content
     if (typeof node.content === 'string' && node.content.length > 0) {
       return html`
-        <details class="tree-node file" ?open=${!!open} @toggle=${this.handleToggle}>
-          <summary class="row summary-row" style="--indent: ${indent}; ${node.displayNone ? 'display: none;' : ''}">
+        <details class="tree-node file" ?open=${!!open}>
+          <summary class="row summary-row"
+            style="--indent: ${indent}"
+            @toggle=${this.handleToggle}
+          >
             <span class="indent"></span>
             <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
               ${!hideChevron ? html`
@@ -363,7 +421,7 @@ export class TooltipTxTree extends LitElementWithProps {
                   <path fill="currentColor" d="M6 3l5 5-5 5z" />
                 </svg>
               ` : ''}
-              ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight) : ''}
+              ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, (node as any).highlightSpec) : ''}
             </span>
           </summary>
           <div class="row file-row" style="--indent: ${indent}">
@@ -377,7 +435,11 @@ export class TooltipTxTree extends LitElementWithProps {
     return html`
       <div class="row file-row" style="--indent: ${indent}">
         <span class="indent"></span>
-        <span class="label" style="${node.displayNone ? 'display: none;' : ''}">${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight) : ''}</span>
+        <span class="label"
+          style="${node.displayNone ? 'display: none;' : ''}"
+        >
+          ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, (node as any).highlightSpec) : ''}
+        </span>
       </div>
     `;
   }
@@ -388,8 +450,11 @@ export class TooltipTxTree extends LitElementWithProps {
     const indent = `${Math.max(0, depth - 1)}rem`;
 
     return html`
-      <details class="tree-node folder" ?open=${!!open} @toggle=${this.handleToggle}>
-        <summary class="row summary-row" style="--indent: ${indent};${node.displayNone ? 'display: none;' : ''}">
+      <details class="tree-node folder" ?open=${!!open}>
+        <summary class="row summary-row"
+          style="--indent: ${indent}"
+          @toggle=${this.handleToggle}
+        >
           <span class="indent"></span>
           <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
             ${!hideChevron ? html`
@@ -397,7 +462,7 @@ export class TooltipTxTree extends LitElementWithProps {
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
               </svg>
             ` : ''}
-            ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, highlight) : ''}
+            ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, highlight, (node as any).highlightSpec) : ''}
           </span>
         </summary>
         ${nodeChildren && nodeChildren.length > 0 ? html`

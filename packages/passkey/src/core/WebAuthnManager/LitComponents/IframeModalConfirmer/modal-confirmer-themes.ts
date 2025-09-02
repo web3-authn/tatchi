@@ -31,6 +31,8 @@ export interface ModalTxConfirmerStyles extends ComponentStyles {
   methodName?: Record<string, string>;
   buttons?: Record<string, string>;
   btn?: Record<string, string>;
+  btnHover?: Record<string, string>;
+  btnConfirmHover?: Record<string, string>;
   btnCancel?: Record<string, string>;
   btnConfirm?: Record<string, string>;
   loadingIndicator?: Record<string, string>;
@@ -159,10 +161,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       margin: '4px 0px 4px 0px',
       background: DARK_THEME_COLORS.grey650,
       borderColor: DARK_THEME_COLORS.colorBorder,
-      color: DARK_THEME_COLORS.colorTextSecondary
+      color: DARK_THEME_COLORS.grey500
     },
     methodName: {
-      color: DARK_THEME_COLORS.mediumGray // Using medium gray from Guidelines.md for method names
+      color: DARK_THEME_COLORS.highlightMethodName
     },
     buttons: {
       background: 'transparent'
@@ -171,20 +173,26 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME_COLORS.colorSurface,
       color: DARK_THEME_COLORS.colorText,
       borderColor: 'transparent',
+      focusOutlineColor: DARK_THEME_COLORS.colorPrimary,
+      focusBoxShadow: '0 0 0 3px oklch(0.55 0.18 240 / 0.14)'
+    },
+    btnConfirmHover: {
+      backgroundColor: DARK_THEME_COLORS.blue300
     },
     btnCancel: {
-      backgroundColor: DARK_THEME_COLORS.grey700,
+      backgroundColor: 'transparent',
       color: DARK_THEME_COLORS.colorText,
       borderColor: 'transparent',
     },
     btnConfirm: {
       padding: '0.5rem',
-      backgroundColor: DARK_THEME_COLORS.highlightReceiverId,
+      backgroundColor: DARK_THEME_COLORS.blue400,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: 'transparent',
+      borderColor: DARK_THEME_COLORS.blue400,
     },
     loadingIndicator: {
-      borderTopColor: DARK_THEME_COLORS.highlightReceiverId
+      borderColor: DARK_THEME_COLORS.colorBorder,
+      borderTopColor: DARK_THEME_COLORS.colorPrimary
     },
 
     // Mobile responsive
@@ -313,11 +321,11 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       fontSize: '0.75rem',
       margin: '4px 0px 4px 0px',
       background: LIGHT_THEME_COLORS.grey100,
-      borderColor: LIGHT_THEME_COLORS.colorBorder,
-      color: LIGHT_THEME_COLORS.colorText
+      borderColor: LIGHT_THEME_COLORS.slate200,
+      color: LIGHT_THEME_COLORS.colorTextSecondary
     },
     methodName: {
-      color: LIGHT_THEME_COLORS.dotPattern // Using dot pattern color from Guidelines.md for method names
+      color: LIGHT_THEME_COLORS.highlightMethodName
     },
     buttons: {
       background: 'transparent'
@@ -326,9 +334,17 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: LIGHT_THEME_COLORS.colorBackground,
       color: LIGHT_THEME_COLORS.colorText,
       borderColor: 'transparent',
+      focusOutlineColor: LIGHT_THEME_COLORS.colorPrimary,
+      focusBoxShadow: '0 0 0 3px oklch(0.55 0.18 240 / 0.10)'
+    },
+    btnHover: {
+      boxShadow: 'none'
+    },
+    btnConfirmHover: {
+      backgroundColor: LIGHT_THEME_COLORS.blue300
     },
     btnCancel: {
-      backgroundColor: LIGHT_THEME_COLORS.grey50,
+      backgroundColor: 'transparent',
       color: LIGHT_THEME_COLORS.colorText,
       borderColor: 'transparent',
     },
@@ -339,12 +355,13 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     btnConfirm: {
       padding: '0.5rem',
-      backgroundColor: LIGHT_THEME_COLORS.colorPrimary,
-      color: LIGHT_THEME_COLORS.colorBackground, // Using background color for contrast on colored button
-      borderColor: LIGHT_THEME_COLORS.colorPrimary
+      backgroundColor: LIGHT_THEME_COLORS.blue400,
+      color: LIGHT_THEME_COLORS.colorBackground,
+      borderColor: LIGHT_THEME_COLORS.blue400
     },
     loadingIndicator: {
-      borderTopColor: LIGHT_THEME_COLORS.highlightReceiverId
+      borderColor: LIGHT_THEME_COLORS.colorBorder,
+      borderTopColor: LIGHT_THEME_COLORS.colorPrimary
     },
 
     // Mobile responsive

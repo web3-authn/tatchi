@@ -4,6 +4,11 @@ import { formatArgs, formatGas, formatDeposit } from '../common/formatters';
 
 export type TreeNodeType = 'folder' | 'file';
 
+// Structured highlight specification for labels
+export type HighlightSpec =
+  | { transaction: 'receiverId' }
+  | { actionType: 'FunctionCall' | 'Transfer' | string; highlightKeys: string[] };
+
 export interface TreeNode {
   /* Unique identifier for the tree node, used for React keys and DOM element IDs */
   id: string;
@@ -31,6 +36,8 @@ export interface TreeNode {
     type: 'receiverId' | 'methodName';
     color: string;
   };
+  /** Structured highlighting preferences for building labels */
+  highlightSpec?: HighlightSpec;
   /* Optional flag to hide the chevron icon for folder nodes.
    * When true, the expand/collapse chevron will not be rendered,
    * though the folder will still be expandable/collapsible.
@@ -53,7 +60,7 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
       label = `Calling ${action.methodName} with ${formatGas(action.gas)}`;
       break;
     case 'Transfer':
-      label = `Transferring ${formatDeposit(action.amount)} to`;
+      label = `Transfer ${formatDeposit(action.amount)}`;
       break;
     case 'CreateAccount':
       label = 'Creating Account';
@@ -62,7 +69,7 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
       label = 'Deleting Account';
       break;
     case 'Stake':
-      label = `Staking ${formatDeposit(action.stake)} to`;
+      label = `Staking ${formatDeposit(action.stake)}`;
       break;
     case 'AddKey':
       label = 'Adding Key';
@@ -184,6 +191,18 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
       }
     : {};
 
+  // Structured highlight spec per action type
+  const highlightSpec: HighlightSpec | undefined = (() => {
+    switch (action.type) {
+      case 'FunctionCall':
+        return { actionType: 'FunctionCall', highlightKeys: ['methodName'] };
+      case 'Transfer':
+        return { actionType: 'Transfer', highlightKeys: ['amount'] };
+      default:
+        return undefined;
+    }
+  })();
+
   return {
     id: `action-${idx}`,
     label,
@@ -191,6 +210,7 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
     open: true,
     hideChevron: true,
     ...functionCallHighlight,
+    ...(highlightSpec ? { highlightSpec } : {}),
     children: actionNodes
   } as TreeNode;
 }
@@ -221,13 +241,14 @@ export function buildTransactionNode(
     // Generate appropriate label based on whether there are multiple transactions
   const label = totalTransactions === 1
     ? `Transaction to ${tx.receiverId}`
-    : `Transaction(${tIdx}) to ${tx.receiverId}`;
+    : `Transaction(${tIdx + 1}) to ${tx.receiverId}`;
 
   return {
     id: `tx-${tIdx}`,
     label: label,
     type: 'folder',
     open: tIdx === 0,
+    highlightSpec: { transaction: 'receiverId' },
     ...(styles?.highlightReceiverId?.color && {
       highlight: {
         type: 'receiverId' as const,

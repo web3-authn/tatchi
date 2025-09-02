@@ -86,9 +86,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
     summaryRow: {
       background: 'transparent',
-      border: '1px solid transparent',
-      padding: '4px 16px',
-      borderRadius: '1rem',
     },
     summaryRowHover: {
       background: DARK_THEME_COLORS.colorBorder,
@@ -105,6 +102,13 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
+      border: '1px solid transparent',
+      padding: '4px 16px',
+      borderRadius: '1rem',
+    },
+    labelHover: {
+      background: DARK_THEME_COLORS.colorBorder,
+      borderColor: DARK_THEME_COLORS.colorTextSecondary,
     },
     chevron: {
       color: DARK_THEME_COLORS.colorTextSecondary,
@@ -120,7 +124,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       border: `1px solid none`,
       color: DARK_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      borderRadius: '0.5rem 0.5rem 1rem 0.5rem',
+      borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
       scrollbarTrackBackground: DARK_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: DARK_THEME_COLORS.colorTextSecondary
@@ -205,9 +209,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
     summaryRow: {
       background: 'transparent',
-      border: '1px solid transparent',
-      padding: '4px 16px',
-      borderRadius: '1rem',
     },
     summaryRowHover: {
       background: LIGHT_THEME_COLORS.grey75,
@@ -224,6 +225,13 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
+      border: '1px solid transparent',
+      padding: '4px 16px',
+      borderRadius: '1rem',
+    },
+    labelHover: {
+      background: LIGHT_THEME_COLORS.grey75,
+      borderColor: LIGHT_THEME_COLORS.colorBorder
     },
     chevron: {
       color: LIGHT_THEME_COLORS.colorTextSecondary,
@@ -239,7 +247,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
       color: LIGHT_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      borderRadius: '0.5rem 0.5rem 1rem 0.5rem',
+      borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
       scrollbarTrackBackground: LIGHT_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: LIGHT_THEME_COLORS.colorBorder

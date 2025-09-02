@@ -12,9 +12,30 @@ export function formatArgs(args?: string | Record<string, string>): string {
 export function formatDeposit(deposit?: string): string {
   if (!deposit || deposit === '0') return '0 NEAR';
   try {
-    const depositValue = BigInt(deposit);
-    const nearValue = Number(depositValue) / 1e24; // Convert yoctoNEAR to NEAR
-    return `${nearValue.toFixed(5)} NEAR`;
+    const yocto = BigInt(deposit);
+    const YOCTO_FACTOR = BigInt('1000000000000000000000000'); // 1e24
+
+    const whole = yocto / YOCTO_FACTOR;
+    const frac = yocto % YOCTO_FACTOR;
+
+    // Format up to 5 decimal places (as before), then trim trailing zeros
+    const maxDecimals = 5;
+    if (frac === BigInt(0)) {
+      return `${whole.toString()} NEAR`;
+    }
+
+    // Pad fractional to 24 digits, then take the first maxDecimals
+    const fracStrFull = frac.toString().padStart(24, '0');
+    let fracStr = fracStrFull.slice(0, maxDecimals);
+    // Trim trailing zeros
+    fracStr = fracStr.replace(/0+$/g, '');
+
+    // If trimming removed all digits, omit decimal part
+    if (fracStr.length === 0) {
+      return `${whole.toString()} NEAR`;
+    }
+
+    return `${whole.toString()}.${fracStr} NEAR`;
   } catch (e) {
     // If parsing fails, return original value
     return deposit;

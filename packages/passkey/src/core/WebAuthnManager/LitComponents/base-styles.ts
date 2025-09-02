@@ -167,8 +167,9 @@ export const DARK_THEME_COLORS = {
   colorDotPattern: GUIDELINES_COLORS.dotPattern,         // Dot pattern
 
   // Semantic colors - Using cobalt blue hues from style-guide-2.md
-  colorPrimary: 'oklch(0.55 0.18 240)',      // Base cobalt blue for dark mode
-  colorSecondary: 'oklch(0.65 0.14 240)',    // Lighter cobalt blue for dark mode
+  // Base (500) and hover (400) equivalents
+  colorPrimary: 'oklch(0.536 0.214 260.0)',  // Primary cobalt (blue400)
+  colorSecondary: 'oklch(0.65 0.14 240)',    // Hover cobalt (400)
   colorSuccess: 'oklch(0.55 0.18 140)',      // Consistent brightness green for dark mode
   colorWarning: 'oklch(0.55 0.18 85)',       // Consistent brightness orange for dark mode
   colorError: 'oklch(0.55 0.18 15)',         // Consistent brightness red for dark mode
@@ -195,9 +196,10 @@ export const LIGHT_THEME_COLORS = {
   colorButtonText: GUIDELINES_COLORS.lightButtonText,     // Button text
   colorDotPattern: GUIDELINES_COLORS.dotPattern,          // Dot pattern
 
-  // Semantic colors - Using deeper cobalt blue hues from style-guide-2.md
-  colorPrimary: 'oklch(0.45 0.18 240)',      // Deeper cobalt blue for light mode
-  colorSecondary: 'oklch(0.55 0.14 240)',    // Base cobalt blue for light mode
+  // Semantic colors - Using cobalt blue hues from style-guide-2.md
+  // Base (500) and hover (400) equivalents for light mode
+  colorPrimary: 'oklch(0.536 0.214 260.0)',  // Primary cobalt (blue400)
+  colorSecondary: 'oklch(0.65 0.14 240)',    // Hover cobalt (400)
   colorSuccess: 'oklch(0.45 0.18 140)',      // Consistent brightness green for light mode
   colorWarning: 'oklch(0.45 0.18 85)',       // Consistent brightness orange for light mode
   colorError: 'oklch(0.45 0.18 15)',         // Consistent brightness red for light mode
