@@ -130,6 +130,11 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       scrollbarTrackBackground: DARK_THEME_COLORS.colorSurface,
       scrollbarThumbBackground: DARK_THEME_COLORS.colorTextSecondary
     },
+    connector: {
+      color: DARK_THEME_COLORS.grey600,
+      thickness: '2px',
+      elbowLength: '10px'
+    },
     folderChildren: {
       padding: '0.5rem 0',
       marginLeft: '1rem'
@@ -255,8 +260,8 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     },
     // Slightly darker connector lines for light mode for better contrast
     connector: {
-      color: LIGHT_THEME_COLORS.slate400,
-      thickness: '1px',
+      color: LIGHT_THEME_COLORS.slate200,
+      thickness: '2px',
       elbowLength: '10px'
     },
     folderChildren: {

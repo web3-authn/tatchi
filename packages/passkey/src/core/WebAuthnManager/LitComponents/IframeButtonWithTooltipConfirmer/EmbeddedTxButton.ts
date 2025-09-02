@@ -208,8 +208,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       max-height: var(--tooltip-max-height, none);
       overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
       transition: var(--w3a-embedded__tooltip-content__transition, all 0.0s ease);
-      min-width: var(--w3a-embedded__tooltip-content__min-width, 280px);
-      max-width: var(--w3a-embedded__tooltip-content__max-width, 320px);
+      /* Allow external control via CSS vars; default to no cap so tooltipPosition.width fully applies */
+      min-width: var(--w3a-embedded__tooltip-content__min-width, 0px);
+      max-width: var(--w3a-embedded__tooltip-content__max-width, none);
       width: var(--w3a-embedded__tooltip-content__width, var(--tooltip-width, 280px));
       /* Directional padding vars forwarded to tree host */
       --w3a-tree__host__padding-top: var(--tooltip-box-padding, 0px);
