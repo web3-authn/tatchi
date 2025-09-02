@@ -45,8 +45,8 @@
   font-size: 1.5rem;
   color: var(--w3a-color-textSecondary);
   cursor: pointer;
-  padding: var(--w3a-gap-2);
-  border-radius: var(--w3a-radius-sm);
+  padding: var(--w3a-gap-4);
+  border-radius: var(--w3a-radius-lg);
   transition: all var(--w3a-fast) var(--w3a-ease);
   display: flex;
   align-items: center;

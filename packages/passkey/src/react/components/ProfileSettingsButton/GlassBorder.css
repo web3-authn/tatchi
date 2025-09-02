@@ -4,7 +4,7 @@
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
   border: 1px solid var(--w3a-color-borderPrimary);
-  border-radius: var(--w3a-radius-xl);
+  border-radius: 2rem;
   padding: var(--w3a-gap-2);
   max-width: 860px;
   width: 100%;
@@ -13,28 +13,35 @@
 }
 
 .w3a-glass-border-inner {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2rem;
+  padding: 2rem;
+  position: relative;
+}
+
+.w3a-glass-border-content {
   background: var(--w3a-color-surfacePrimary);
   border: 1px solid var(--w3a-color-borderPrimary);
-  border-radius: var(--w3a-radius-lg);
+  border-radius: 2rem;
   padding: 2rem;
-  box-shadow: var(--w3a-shadow-sm);
   position: relative;
 }
 
 .w3a-black-gradient-border {
   --border-angle: 0deg;
-  background: linear-gradient(var(--w3a-color-surfacePrimary), var(--w3a-color-surfacePrimary)) padding-box,
+  background: linear-gradient(transparent, transparent) padding-box,
     conic-gradient(
       from var(--border-angle),
-      var(--w3a-color-borderSecondary) 0%,
-      var(--w3a-color-borderPrimary) 10%,
-      var(--w3a-color-borderSecondary) 20%,
-      var(--w3a-color-borderSecondary) 100%
+      transparent 0%,
+      blue 10%,
+      blue 20%,
+      transparent 30%
+      transparent 100%
     ) border-box;
   border: 1px solid transparent;
-  border-radius: var(--w3a-radius-lg);
+  border-radius: 2rem;
   overflow: hidden;
-  box-shadow: var(--w3a-shadow-sm);
   position: relative;
   animation: border-angle-rotate 4s infinite linear;
 }

@@ -8,7 +8,6 @@ import type { MenuItem, ProfileButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { AccessKeysModal } from './AccessKeysModal';
 import './Web3AuthProfileButton.css';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
 import { ThemeProvider } from '../theme/ThemeProvider';
 import { ThemeScope } from '../theme/ThemeScope';
 import { useTheme } from '../theme/useTheme';
@@ -44,7 +43,7 @@ import { useTheme } from '../theme/useTheme';
  * }
  * ```
  */
-const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'defaultTheme' | 'onThemeChange' | 'tokens' | 'prefix'>> = ({
+const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   username: usernameProp,
   nearAccountId: nearAccountIdProp,
   onLogout: onLogout,
@@ -71,9 +70,6 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
   const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
-
-  // Theme via ThemeProvider context
-  const { theme: currentTheme, toggleTheme } = useTheme();
 
   // Load confirmation config on mount
   useEffect(() => {
@@ -107,7 +103,7 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
   const handleToggleTheme = () => {
     if (!currentConfirmConfig) return;
     const newTheme = currentConfirmConfig.theme === 'dark' ? 'light' : 'dark';
-    toggleTheme();
+    passkeyManager.setUserTheme(newTheme);
     setCurrentConfirmConfig((prev: any) => prev ? { ...prev, theme: newTheme } : prev);
   };
 
@@ -182,6 +178,9 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
     handleClose,
   } = useProfileState();
 
+  // Read current theme from ThemeProvider (falls back to system preference)
+  const { theme } = useTheme();
+
   // Handlers
   const handleLogout = () => {
     logout();
@@ -190,7 +189,7 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
   };
 
   return (
-    <ThemeScope className={`w3a-profile-button-container ${currentTheme}`}>
+    <div className={`w3a-profile-button-container`}>
       <div
         ref={refs.buttonRef}
         className={`w3a-profile-button-morphable ${isOpen ? 'open' : 'closed'}`}
@@ -202,7 +201,7 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
           isOpen={isOpen}
           onClick={handleToggle}
           nearExplorerBaseUrl={nearExplorerBaseUrl}
-          theme={currentTheme as EmbeddedTxButtonTheme}
+          theme={theme}
         />
 
         {/* Visible menu structure for actual interaction */}
@@ -222,7 +221,7 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
           onSetDelay={handleSetDelay}
           onToggleTheme={handleToggleTheme}
           transactionSettingsOpen={transactionSettingsOpen}
-          theme={currentTheme as EmbeddedTxButtonTheme}
+          theme={theme}
         />
       </div>
 
@@ -255,15 +254,16 @@ const ProfileSettingsButtonInner: React.FC<Omit<ProfileButtonProps, 'theme' | 'd
         isOpen={showAccessKeys}
         onClose={() => setShowAccessKeys(false)}
       />
-    </ThemeScope>
+    </div>
   );
 };
 
 export const ProfileSettingsButton: React.FC<ProfileButtonProps> = (props) => {
-  const { theme, defaultTheme, onThemeChange, tokens, prefix, ...rest } = props as any;
   return (
-    <ThemeProvider theme={theme as any} defaultTheme={defaultTheme as any} onThemeChange={onThemeChange as any} tokens={tokens as any} prefix={prefix}>
-      <ProfileSettingsButtonInner {...(rest as any)} />
+    <ThemeProvider>
+      <ThemeScope>
+        <ProfileSettingsButtonInner {...props} />
+      </ThemeScope>
     </ThemeProvider>
   );
 };

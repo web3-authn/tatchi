@@ -18,11 +18,13 @@ export const GlassBorder: React.FC<GlassBorderProps> = ({
 }) => {
   return (
     <div
-      className={`w3a-glass-border-root ${theme} ${className}`}
+      className={`w3a-glass-border-root ${theme} ${animated ? ' w3a-black-gradient-border' : ''}`}
       style={style}
     >
-      <div className={`w3a-glass-border-inner${animated ? ' w3a-black-gradient-border' : ''}`}>
-        {children}
+      <div className={`w3a-glass-border-inner`}>
+        <div className={`w3a-glass-border-content ${className}`}>
+          {children}
+        </div>
       </div>
     </div>
   );

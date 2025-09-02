@@ -3,6 +3,7 @@ import { usePasskeyContext } from '../../context';
 import { GlassBorder } from './GlassBorder';
 import './AccessKeysModal.css';
 import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
+import { useTheme } from '../theme/useTheme';
 
 interface AccessKeysModalProps {
   nearAccountId: string;
@@ -31,19 +32,7 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
   onClose
 }) => {
   const { passkeyManager } = usePasskeyContext();
-  const [currentTheme, setCurrentTheme] = useState<'dark' | 'light'>('dark');
-
-  useEffect(() => {
-    if (passkeyManager?.userPreferences) {
-      setCurrentTheme(passkeyManager.userPreferences.getUserTheme());
-
-      const unsubscribe = passkeyManager.userPreferences.onThemeChange((theme) => {
-        setCurrentTheme(theme);
-      });
-
-      return unsubscribe;
-    }
-  }, [passkeyManager]);
+  const { theme } = useTheme();
   const [accessKeys, setAccessKeys] = useState<AccessKeyInfoView[]>([
     {
       public_key: 'placeholder',
@@ -152,9 +141,9 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
   console.log(accessKeys);
 
   return (
-    <div className={`w3a-access-keys-modal-outer ${currentTheme}`} onClick={onClose}>
+    <div className={`w3a-access-keys-modal-outer`} onClick={onClose}>
       <div className="w3a-access-keys-modal-inner" onClick={(e) => e.stopPropagation()}>
-        <GlassBorder theme={currentTheme} animated={true}>
+        <GlassBorder theme={theme} animated={true}>
           <div className="w3a-access-keys-modal-header">
             <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
             <button className="w3a-access-keys-modal-close" onClick={onClose}>
