@@ -155,6 +155,7 @@ export class TooltipTxTree extends LitElementWithProps {
     .indent {
       width: var(--w3a-tree__indent__width, var(--indent, 0));
       height: var(--w3a-tree__indent__height, 100%);
+      position: var(--w3a-tree__indent__position, relative);
     }
 
     .label {
@@ -206,6 +207,51 @@ export class TooltipTxTree extends LitElementWithProps {
     .file-row {
       font-size: var(--w3a-tree__file-row__font-size, 9px);
       background: var(--w3a-tree__file-row__background, transparent);
+    }
+
+    /*
+     * Tree connector lines (├ and └) drawn using the indent column.
+     * These render a vertical line along the right edge of the indent area,
+     * plus a horizontal elbow into the label area. Works generically for
+     * both folder (Transaction/Action) and file rows.
+     */
+    :host {
+      --w3a-tree__connector__color: rgba(230, 233, 245, 0.25);
+      --w3a-tree__connector__thickness: 1px;
+      --w3a-tree__connector__elbow-length: 10px;
+    }
+
+    /* Vertical line for each row at the final indent column */
+    .folder-children .row .indent::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: auto;
+      right: 0;
+      width: var(--w3a-tree__connector__thickness);
+      height: 100%;
+      background: var(--w3a-tree__connector__color);
+    }
+
+    /* Horizontal elbow from the vertical line into the label */
+    .folder-children .row .indent::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      height: var(--w3a-tree__connector__thickness);
+      width: var(--w3a-tree__connector__elbow-length);
+      left: auto;
+      right: calc(-1 * var(--w3a-tree__connector__elbow-length));
+      background: var(--w3a-tree__connector__color);
+    }
+
+    /*
+     * For the last child in a folder, shorten the vertical segment so it
+     * stops at the elbow (renders └ instead of ├).
+     */
+    .folder-children > details:last-child > summary .indent::before,
+    .folder-children > .row:last-child .indent::before {
+      height: 50%;
     }
 
     .file-content {

@@ -100,11 +100,11 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
         }] : []),
         {
           id: `a${idx}-args`,
-          label: 'args:',
+          label: 'using data:',
           type: 'file',
           open: true,
           hideChevron: true,
-          displayNone: true, // hide "args:" row label
+          displayNone: false, // hide "args:" row label
           content: formatArgs(action.args)
         }
       ];

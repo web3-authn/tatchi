@@ -26,6 +26,7 @@ export interface TooltipTreeStyles extends ComponentStyles {
   fileRow?: Record<string, string>;
   fileContent?: Record<string, string>;
   folderChildren?: Record<string, string>;
+  connector?: Record<string, string>;
 
   // Highlighting styles for transaction details
   highlightReceiverId?: Record<string, string>;
