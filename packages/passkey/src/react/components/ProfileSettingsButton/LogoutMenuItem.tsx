@@ -22,7 +22,7 @@ export const LogoutMenuItem: React.FC<LogoutMenuItemProps> = memo(({
       </div>
       <div className="w3a-dropdown-menu-item-content">
         <div className="w3a-dropdown-menu-item-label">
-          Log out
+          Lock Wallet
         </div>
       </div>
     </button>

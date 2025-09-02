@@ -49,12 +49,12 @@
 }
 
 .w3a-user-account--avatar.shrunk svg {
-  transform: scale(0.9);
+  transform: scale(1.1);
   color: var(--w3a-color-textPrimary)
 }
 
 .w3a-user-account--avatar.expanded svg {
-  transform: scale(1);
+  transform: scale(1.1);
   color: var(--w3a-color-textSecondary) /* same as other MenuItem svg icons */
 }
 
@@ -63,34 +63,32 @@
   transition: transform 400ms ease;
 }
 
-.w3a-user-account--gear-icon.open {
-  animation: w3a-gearRotateIn 0.6s ease-out;
+.w3a-user-account--gear-icon path {
+  /* Normalize path length so dash animations are simple */
+  stroke: currentColor;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1; /* default empty; draws in on open */
   stroke-width: 1.5;
-  animation-fill-mode: forwards;
 }
 
-.w3a-user-account--gear-icon.closed {
-  stroke-width: 1.5;
-  animation: w3a-gearRotateOut 0.6s ease-out;
-  animation-fill-mode: forwards;
+.w3a-user-account--gear-icon.open path {
+  /* Draw the fingerprint when expanding/opening */
+  animation: w3a-fp-open 1.5s ease-out 0.1s both; /* 100ms delay + hold end */
 }
 
-@keyframes w3a-gearRotateIn {
-  from {
-    transform: rotate(0deg) scale(1);
-  }
-  to {
-    transform: rotate(360deg) scale(1.1);
-  }
+/* Animate when closing the menu: draw immediately, no delay */
+.w3a-user-account--gear-icon.closed path {
+  animation: w3a-fp-close 1.5s ease-out 0.1s both; /* 100ms delay */
 }
 
-@keyframes w3a-gearRotateOut {
-  from {
-    transform: rotate(360deg) scale(1.1);
-  }
-  to {
-    transform: rotate(0deg) scale(1);
-  }
+@keyframes w3a-fp-open {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes w3a-fp-close {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
 }
 
 .w3a-user-account--gear-icon:hover {

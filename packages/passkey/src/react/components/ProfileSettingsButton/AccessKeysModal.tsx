@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { usePasskeyContext } from '../../context';
-import { GlassBorder } from './GlassBorder';
+import { HaloBorder } from './HaloBorder';
 import './AccessKeysModal.css';
 import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
 import { useTheme } from '../theme/useTheme';
@@ -138,103 +138,83 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
 
   if (!isOpen) return null;
 
-  console.log(accessKeys);
-
   return (
     <div className={`w3a-access-keys-modal-outer`} onClick={onClose}>
-      <div className="w3a-access-keys-modal-inner" onClick={(e) => e.stopPropagation()}>
-        <GlassBorder theme={theme} animated={true}>
-          <div className="w3a-access-keys-modal-header">
-            <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
-            <button className="w3a-access-keys-modal-close" onClick={onClose}>
-              ✕
-            </button>
-          </div>
+      <HaloBorder theme={theme} animated={true} borderGap={8} borderWidth={4}>
+        <div className="w3a-access-keys-modal-header">
+          <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
+          <button className="w3a-access-keys-modal-close" onClick={onClose}>
+            ✕
+          </button>
+        </div>
 
-          <div className="w3a-access-keys-modal-content">
-            {error && (
-              <div className="w3a-access-keys-error">
-                <p>{error}</p>
-                <button onClick={loadAccessKeys} className="w3a-btn w3a-btn-primary">
-                  Try Again
-                </button>
-              </div>
-            )}
+        <div className="w3a-access-keys-modal-content">
+          {error && (
+            <div className="w3a-access-keys-error">
+              <p>{error}</p>
+              <button onClick={loadAccessKeys} className="w3a-btn w3a-btn-primary">
+                Try Again
+              </button>
+            </div>
+          )}
 
-            {!isLoading && !error && accessKeys.length === 0 && (
-              <div className="w3a-access-keys-empty">
-                <p>No access keys found.</p>
-              </div>
-            )}
+          {!isLoading && !error && accessKeys.length === 0 && (
+            <div className="w3a-access-keys-empty">
+              <p>No access keys found.</p>
+            </div>
+          )}
 
-            {!error && accessKeys.length > 0 && (
-              <div className="w3a-keys-list">
-                {accessKeys.map((key, index) => {
-                  const permissionType = getPermissionType(key.access_key.permission);
-                  const permissionDetails = getPermissionDetails(key.access_key.permission);
-                  return (
-                    <div key={index} className="w3a-key-item">
-                      <div className="w3a-key-content">
-                        <div className="w3a-key-details">
-                          <div className="w3a-key-header">
-                            {
-                              key.public_key === 'placeholder' ? (
-                                <div className="mono w3a-copyable-key">
-                                  <span style={{ opacity: 0 }}>
-                                    ........................................................
-                                  </span>
-                                </div>
-                              ) : (
-                                <div
-                                  className="mono w3a-copyable-key"
-                                  onClick={() => copyToClipboard(key.public_key, index)}
-                                  onMouseEnter={() => setTooltipVisible(index)}
-                                  onMouseLeave={() => setTooltipVisible(null)}
-                                  title="Click to copy"
-                                >
-                                  {key.public_key}
-                                  {tooltipVisible === index && (
-                                    <div className="w3a-copy-tooltip">Click to copy</div>
-                                  )}
-                                </div>
-                              )
-                            }
-                          </div>
-
-                          {/* {permissionDetails && (
-                            <>
-                              <p className="body">
-                                <strong>Allowance:</strong> {permissionDetails.allowance} yoctoNEAR
-                              </p>
-                              <p className="body">
-                                <strong>Receiver:</strong> {permissionDetails.receiverId}
-                              </p>
-                              {permissionDetails.methodNames.length > 0 && (
-                                <p className="body">
-                                  <strong>Methods:</strong> {permissionDetails.methodNames.join(', ')}
-                                </p>
-                              )}
-                            </>
-                          )} */}
+          {!error && accessKeys.length > 0 && (
+            <div className="w3a-keys-list">
+              {accessKeys.map((key, index) => {
+                const permissionType = getPermissionType(key.access_key.permission);
+                const permissionDetails = getPermissionDetails(key.access_key.permission);
+                return (
+                  <div key={index} className="w3a-key-item">
+                    <div className="w3a-key-content">
+                      <div className="w3a-key-details">
+                        <div className="w3a-key-header">
+                          {
+                            key.public_key === 'placeholder' ? (
+                              <div className="mono w3a-copyable-key">
+                                <span style={{ opacity: 0 }}>
+                                  ........................................................
+                                </span>
+                              </div>
+                            ) : (
+                              <div
+                                className="mono w3a-copyable-key"
+                                onClick={() => copyToClipboard(key.public_key, index)}
+                                onMouseEnter={() => setTooltipVisible(index)}
+                                onMouseLeave={() => setTooltipVisible(null)}
+                                title="Click to copy"
+                              >
+                                {key.public_key}
+                                {tooltipVisible === index && (
+                                  <div className="w3a-copy-tooltip">Click to copy</div>
+                                )}
+                              </div>
+                            )
+                          }
                         </div>
-
-                        {
-                          key.public_key !== 'placeholder' &&
-                          <div className="w3a-key-status">
-                            <span className={`w3a-status-badge ${copiedKeys.has(index) ? 'w3a-copied' : 'w3a-' + permissionType.toLowerCase().replace(' ', '-')}`}>
-                              {copiedKeys.has(index) ? 'Copied' : permissionType}
-                            </span>
-                          </div>
-                        }
                       </div>
+
+                      {
+                        key.public_key !== 'placeholder' &&
+                        <div className="w3a-key-status">
+                          <span className={`w3a-status-badge ${copiedKeys.has(index) ? 'w3a-copied' : 'w3a-' + permissionType.toLowerCase().replace(' ', '-')}`}>
+                            {copiedKeys.has(index) ? 'Copied' : permissionType}
+                          </span>
+                        </div>
+                      }
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </GlassBorder>
-      </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </HaloBorder>
     </div>
   );
 };

@@ -55,7 +55,10 @@
   height: 32px;
 }
 
-.w3a-access-keys-modal-close:hover { color: var(--w3a-color-textPrimary); background: var(--w3a-color-hover); }
+.w3a-access-keys-modal-close:hover {
+  color: var(--w3a-color-textPrimary);
+  background: var(--w3a-color-hover);
+}
 
 .w3a-access-keys-modal-content {
   flex: 1;

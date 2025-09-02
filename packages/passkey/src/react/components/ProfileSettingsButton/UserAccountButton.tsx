@@ -1,5 +1,6 @@
 
 import { Settings } from 'lucide-react';
+import TouchIcon from './TouchIcon';
 import type { UserAccountButtonProps } from './types';
 
 export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
@@ -23,10 +24,14 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
       >
         <div className="w3a-user-account--user-content">
           <div className={`w3a-user-account--avatar ${isOpen ? 'expanded' : 'shrunk'}`}>
-            <Settings
+            <TouchIcon
               className={`w3a-user-account--gear-icon ${isOpen ? 'open' : 'closed'}`}
               strokeWidth={1.4}
             />
+            {/* <Settings
+              className={`w3a-user-account--gear-icon ${isOpen ? 'open' : 'closed'}`}
+              strokeWidth={1.4}
+            /> */}
           </div>
           <UserAccountId
             username={username}
