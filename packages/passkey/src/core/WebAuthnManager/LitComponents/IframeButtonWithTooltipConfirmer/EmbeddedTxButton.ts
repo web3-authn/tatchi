@@ -25,10 +25,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     loading: { type: Boolean },
     tooltip: { type: Object },
     size: { type: Object },
-    buttonStyle: { type: Object },
-    buttonHoverStyle: { type: Object },
+    buttonSizing: { type: Object },
     styles: { type: Object, attribute: false },
-    buttonStyles: { type: Object, attribute: false },
+    embeddedButtonStyles: { type: Object, attribute: false },
     tooltipTheme: { type: String },
     tooltipVisible: { state: true },
     hideTimeout: { state: true }
@@ -48,11 +47,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
     position: 'top-center',
     offset: '4px'
   };
-  buttonStyle: React.CSSProperties = {};
-  buttonHoverStyle: React.CSSProperties = {};
+  buttonSizing: { width?: string | number; height?: string | number } = {};
   tooltipTheme: EmbeddedTxButtonTheme = 'dark';
   styles!: TooltipTreeStyles;
-  buttonStyles!: EmbeddedTxButtonStyles;
+  embeddedButtonStyles!: EmbeddedTxButtonStyles;
 
   // ==============================
   // Internal State & Observers
@@ -114,30 +112,27 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     [data-embedded-btn] {
-      background: var(--w3a-embedded__btn__background-color, var(--btn-background, var(--btn-color, #222)));
-      color: var(--w3a-embedded__btn__color, var(--btn-color-text, white));
-      border: var(--w3a-embedded__btn__border, var(--btn-border, none));
-      border-radius: var(--w3a-embedded__btn__border-radius, var(--btn-border-radius, 8px));
-      padding: var(--w3a-embedded__btn__padding, var(--btn-padding, 12px 24px));
-      font-size: var(--w3a-embedded__btn__font-size, var(--btn-font-size, 1rem));
-      font-weight: var(--w3a-embedded__btn__font-weight, var(--btn-font-weight, 500));
-      cursor: var(--w3a-embedded__btn__cursor, pointer);
-      display: var(--w3a-embedded__btn__display, flex);
-      align-items: var(--w3a-embedded__btn__align-items, center);
-      justify-content: var(--w3a-embedded__btn__justify-content, center);
-      gap: var(--w3a-embedded__btn__gap, 8px);
+      /* Transparent interactive shim; visuals are rendered by the host */
+      background: transparent !important;
+      color: transparent !important;
+      border: none !important;
+      border-radius: 0;
+      padding: 0;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
       width: var(--w3a-embedded__btn__width, var(--btn-width, 200px));
       height: var(--w3a-embedded__btn__height, var(--btn-height, 48px));
-      box-sizing: var(--w3a-embedded__btn__box-sizing, border-box);
-      margin: var(--w3a-embedded__btn__margin, 0);
-      outline: var(--w3a-embedded__btn__outline, none);
-      text-decoration: var(--w3a-embedded__btn__text-decoration, none);
-      font-family: var(--w3a-embedded__btn__font-family, inherit);
-     /* fadeIn as iframe pops in after page loads, hydrating the button placeholder.
-      * placeholder is the same color and dimensions as the button */
-      opacity: var(--w3a-embedded__btn__opacity, 0);
-      will-change: var(--w3a-embedded__btn__will-change, opacity);
-      animation: var(--w3a-embedded__btn__animation, fadeIn 100ms ease forwards);
+      box-sizing: border-box;
+      margin: 0;
+      outline: none;
+      text-decoration: none;
+      font-family: inherit;
+      opacity: 1;
+      will-change: auto;
+      animation: none;
     }
 
     @keyframes fadeIn {
@@ -145,42 +140,18 @@ export class EmbeddedTxButton extends LitElementWithProps {
       to { opacity: 1; }
     }
 
-    [data-embedded-btn]:hover {
-      background: var(--w3a-embedded__btn-hover__background-color, var(--btn-hover-background, var(--btn-color-hover, #5a6fd8)));
-      color: var(--w3a-embedded__btn-hover__color, var(--btn-hover-color, white));
-      border: var(--w3a-embedded__btn-hover__border, var(--btn-hover-border, var(--btn-border, none)));
-      border-radius: var(--w3a-embedded__btn-hover__border-radius, var(--btn-hover-border-radius, var(--btn-border-radius, 8px)));
-      padding: var(--w3a-embedded__btn-hover__padding, var(--btn-hover-padding, var(--btn-padding, 12px 24px)));
-      font-size: var(--w3a-embedded__btn-hover__font-size, var(--btn-hover-font-size, var(--btn-font-size, 1rem)));
-      font-weight: var(--w3a-embedded__btn-hover__font-weight, var(--btn-hover-font-weight, var(--btn-font-weight, 500)));
-      box-shadow: var(--w3a-embedded__btn-hover__box-shadow, var(--w3a-embedded__btn__box-shadow, var(--btn-box-shadow, none)));
-      transform: var(--w3a-embedded__btn-hover__transform, var(--btn-hover-transform, none));
-    }
+    [data-embedded-btn]:hover { background: transparent !important; color: transparent !important; }
 
-    [data-embedded-btn]:active {
-      background: var(--w3a-embedded__btn-active__background-color, var(--w3a-embedded__btn__background-color, var(--btn-background, var(--btn-color, #222))));
-      color: var(--w3a-embedded__btn-active__color, var(--w3a-embedded__btn__color, var(--btn-color-text, white)));
-      border: var(--w3a-embedded__btn-active__border, var(--w3a-embedded__btn__border, var(--btn-border, none)));
-      border-radius: var(--w3a-embedded__btn-active__border-radius, var(--btn-border-radius, var(--btn-border-radius, 8px)));
-      box-shadow: var(--w3a-embedded__btn-active__box-shadow, var(--w3a-embedded__btn__box-shadow, var(--btn-box-shadow, none)));
-      transform: var(--w3a-embedded__btn-active__transform, var(--btn-active-transform, none));
-    }
+    [data-embedded-btn]:active { background: transparent !important; color: transparent !important; }
 
     [data-embedded-btn]:disabled {
       opacity: var(--w3a-embedded__btn-disabled__opacity, 0.6);
       cursor: var(--w3a-embedded__btn-disabled__cursor, not-allowed);
     }
 
-    [data-loading] {
-      display: var(--w3a-embedded__loading__display, none);
-      align-items: var(--w3a-embedded__loading__align-items, center);
-      justify-content: var(--w3a-embedded__loading__justify-content, center);
-      gap: var(--w3a-embedded__loading__gap, 8px);
-    }
+    [data-loading] { display: none !important; }
 
-    [data-loading][data-visible="true"] {
-      display: var(--w3a-embedded__loading-visible__display, flex);
-    }
+    [data-loading][data-visible="true"] { display: none !important; }
 
     [data-spinner] {
       width: var(--w3a-embedded__spinner__width, 16px);
@@ -314,7 +285,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     // Initialize styles based on theme
     this.updateTooltipTheme();
     this.setupCSSVariables();
-    this.applyButtonStyles();
+    this.applyEmbeddedButtonStyles();
   }
 
   firstUpdated() {
@@ -344,14 +315,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     // Update CSS variables when button styles change
-    if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle') || changedProperties.has('color')) {
+    if (changedProperties.has('buttonSizing') || changedProperties.has('color')) {
       this.setupCSSVariables();
     }
 
     // Update tooltip theme when tooltipTheme property changes
     if (changedProperties.has('tooltipTheme')) {
       this.updateTooltipTheme();
-      this.applyButtonStyles();
+      this.applyEmbeddedButtonStyles();
     }
 
     if (changedProperties.has('nearAccountId') || changedProperties.has('txSigningRequests')) {
@@ -373,17 +344,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   }
 
   private setupCSSVariables() {
-    // Use buttonStyle.background or buttonStyle.backgroundColor if available, otherwise fall back to this.color
-    const buttonBackground = this.buttonStyle?.background || this.buttonStyle?.backgroundColor || this.color;
-    this.style.setProperty('--btn-color', String(buttonBackground));
-
-    // Use buttonHoverStyle.background or buttonHoverStyle.backgroundColor if available, otherwise fall back to button background + transparency
-    const hoverColor = this.buttonHoverStyle?.background || this.buttonHoverStyle?.backgroundColor || String(buttonBackground) + 'dd';
-    this.style.setProperty('--btn-color-hover', String(hoverColor));
-
-    // Use buttonStyle properties for width and height, with fallbacks
-    const buttonWidth = this.buttonStyle?.width || '200px';
-    const buttonHeight = this.buttonStyle?.height || '48px';
+    // Only propagate width/height/tooltip vars; visual styling is rendered by host
+    const buttonWidth = this.buttonSizing?.width || '200px';
+    const buttonHeight = this.buttonSizing?.height || '48px';
     this.style.setProperty('--btn-width', typeof buttonWidth === 'number' ? `${buttonWidth}px` : String(buttonWidth));
     this.style.setProperty('--btn-height', typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight));
 
@@ -393,21 +356,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
     // Set box padding for tooltip content and pass to tree via CSS cascade
     const boxPadding = this.tooltip.boxPadding || '0px';
     this.style.setProperty('--tooltip-box-padding', String(boxPadding));
-
-    // Apply button styles as CSS custom properties
-    if (this.buttonStyle) {
-      Object.entries(this.buttonStyle).forEach(([key, value]) => {
-        const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
-        this.style.setProperty(`--btn-${cssKey}`, String(value));
-      });
-    }
-
-    if (this.buttonHoverStyle) {
-      Object.entries(this.buttonHoverStyle).forEach(([key, value]) => {
-        const cssKey = key.replace(/([A-Z])/g, '-$1').toLowerCase();
-        this.style.setProperty(`--btn-hover-${cssKey}`, String(value));
-      });
-    }
   }
 
   // ==============================
@@ -420,15 +368,15 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     // Update embedded button styles based on the current theme
     const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.tooltipTheme] || EMBEDDED_TX_BUTTON_THEMES.dark;
-    this.buttonStyles = { ...selectedButtonTheme };
+    this.embeddedButtonStyles = { ...selectedButtonTheme };
   }
 
-  private applyButtonStyles() {
-    if (!this.buttonStyles) {
+  private applyEmbeddedButtonStyles() {
+    if (!this.embeddedButtonStyles) {
       return;
     }
     // Use parent class applyStyles method for consistent naming and behavior
-    this.applyStyles(this.buttonStyles);
+    this.applyStyles(this.embeddedButtonStyles);
   }
 
   // ==============================
@@ -561,8 +509,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     // Ensure button has correct dimensions before measuring
-    const expectedHeight = this.parsePixelValue(this.buttonStyle?.height || '48px');
-    const expectedWidth = this.parsePixelValue(this.buttonStyle?.width || '200px');
+    const expectedHeight = this.parsePixelValue(this.buttonSizing?.height || '48px');
+    const expectedWidth = this.parsePixelValue(this.buttonSizing?.width || '200px');
 
     // Force a reflow to ensure button dimensions are correct
     buttonElement.offsetHeight;
@@ -746,15 +694,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
     loading: boolean;
-    buttonStyle: React.CSSProperties;
-    buttonHoverStyle: React.CSSProperties;
+    buttonSizing: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
     theme: TooltipTheme;
   }>) {
 
     Object.assign(this, props);
     // Update CSS variables if button styles changed
-    if (props.buttonStyle || props.buttonHoverStyle) {
+    if (props.buttonSizing) {
       this.setupCSSVariables();
     }
     // Update tooltip theme if theme changed
@@ -773,21 +720,16 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
   // Method to handle SET_STYLE messages
   updateButtonStyles(
-    buttonStyle: React.CSSProperties,
-    buttonHoverStyle: React.CSSProperties,
+    buttonSizing: { width?: string | number; height?: string | number },
     tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
     theme?: 'dark' | 'light'
   ) {
-    this.buttonStyle = buttonStyle;
-    this.buttonHoverStyle = buttonHoverStyle;
+    this.buttonSizing = buttonSizing || {};
     if (tooltipPosition) {
       this.tooltip = tooltipPosition;
     }
-    if (embeddedButtonTheme) {
-      this.buttonStyles = embeddedButtonTheme;
-      this.applyButtonStyles();
-    }
+    // Ignore embeddedButtonTheme for embedded visuals
     // Handle tooltip theme updates
     if (theme && theme !== this.tooltipTheme) {
       this.tooltipTheme = theme as EmbeddedTxButtonTheme;
@@ -828,6 +770,26 @@ export class EmbeddedTxButton extends LitElementWithProps {
     if (!this.tooltipHovering) {
       this.hideTooltip();
     }
+  }
+
+  private handleFocus() {
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'BUTTON_FOCUS',
+        payload: { focused: true }
+      }, this.getTargetOrigin());
+    }
+    this.handlePointerEnter();
+  }
+
+  private handleBlur() {
+    if (window.parent) {
+      window.parent.postMessage({
+        type: 'BUTTON_FOCUS',
+        payload: { focused: false }
+      }, this.getTargetOrigin());
+    }
+    this.handlePointerLeave();
   }
 
   private handleTooltipEnter() {
@@ -884,8 +846,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @click=${this.handleConfirm}
           @pointerenter=${this.handlePointerEnter}
           @pointerleave=${this.handlePointerLeave}
-          @focus=${this.handlePointerEnter}
-          @blur=${this.handlePointerLeave}
+          @focus=${this.handleFocus}
+          @blur=${this.handleBlur}
           aria-describedby="tooltipContent"
           tabindex="0"
         >

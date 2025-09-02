@@ -53,13 +53,11 @@ interface EmbeddedTxButtonEl extends HTMLElement {
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
     loading: boolean;
-    buttonStyle: Record<string, string | number>;
-    buttonHoverStyle: Record<string, string | number>;
+    buttonSizing: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
   }>) => void;
   updateButtonStyles?: (
-    buttonStyle: Record<string, string | number>,
-    buttonHoverStyle: Record<string, string | number>,
+    buttonSizing: { width?: string | number; height?: string | number },
     tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
     theme?: 'dark' | 'light'
@@ -69,8 +67,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   nearAccountId?: string;
   txSigningRequests?: TransactionInput[];
   loading?: boolean;
-  buttonStyle?: Record<string, string | number>;
-  buttonHoverStyle?: Record<string, string | number>;
+  buttonSizing?: { width?: string | number; height?: string | number };
   requestUpdate?: () => void;
 }
 
@@ -220,15 +217,13 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
       if (isSetStylePayload(payload) && payload) {
         if (el.updateButtonStyles) {
           el.updateButtonStyles(
-            payload.buttonStyle || {},
-            payload.buttonHoverStyle || {},
+            payload.buttonSizing || ({} as any),
             payload.tooltipPosition,
             payload.embeddedButtonTheme,
             payload.theme
           );
         } else {
-          el.buttonStyle = payload.buttonStyle || {};
-          el.buttonHoverStyle = payload.buttonHoverStyle || {};
+          el.buttonSizing = payload.buttonSizing || ({} as any);
           if (payload.tooltipPosition) {
             el.tooltipPosition = payload.tooltipPosition;
           }

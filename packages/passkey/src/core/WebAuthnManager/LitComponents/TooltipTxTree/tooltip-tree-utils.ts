@@ -247,7 +247,7 @@ export function buildTransactionNode(
     id: `tx-${tIdx}`,
     label: label,
     type: 'folder',
-    open: tIdx === 0,
+    open: true, // all transactions folders are open by default
     highlightSpec: { transaction: 'receiverId' },
     ...(styles?.highlightReceiverId?.color && {
       highlight: {

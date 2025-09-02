@@ -85,7 +85,8 @@ export type IframeButtonMessageType =
   | 'HS5_GEOMETRY_RESULT'
   | 'SET_STYLE'
   | 'TOOLTIP_STATE'
-  | 'BUTTON_HOVER';
+  | 'BUTTON_HOVER'
+  | 'BUTTON_FOCUS';
 
 export interface IframeButtonMessagePayloads {
   READY: undefined;
@@ -97,16 +98,16 @@ export interface IframeButtonMessagePayloads {
   SET_TX_DATA: { nearAccountId: string; txSigningRequests: TransactionInput[] };
   SET_LOADING: boolean;
   SET_STYLE: {
-    buttonStyle: Record<string, string | number>;
-    buttonHoverStyle: Record<string, string | number>;
+    buttonSizing?: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
     tooltipTreeStyles?: TooltipTreeStyles;
     embeddedButtonTheme?: EmbeddedTxButtonStyles;
-    theme?: 'dark' | 'light'; // Add theme field for direct theme updates
+    theme?: 'dark' | 'light';
   };
   CONFIRM: undefined;
   TOOLTIP_STATE: TooltipGeometry;
   BUTTON_HOVER: { hovering: boolean };
+  BUTTON_FOCUS: { focused: boolean };
   REQUEST_UI_DIGEST: undefined;
   UI_INTENT_DIGEST: { ok: boolean; digest?: string; error?: string };
   IFRAME_ERROR: string;

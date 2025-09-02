@@ -1,6 +1,6 @@
 
 import type { ComponentStyles } from '../LitElementWithProps';
-import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '../base-styles';
+import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
 
 export type ModalConfirmerTheme = 'dark' | 'light';
 

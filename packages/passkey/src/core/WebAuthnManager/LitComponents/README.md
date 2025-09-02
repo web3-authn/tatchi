@@ -1,4 +1,50 @@
-# Lit Components: Editing Guide
+# WebAuthn Iframe Lit Components
+
+## What Are Iframe Lit Components?
+
+- Lit custom elements that render UI, but live inside a sandboxed iframe to avoid CSS/DOM interference and to enable precise clipping of interactive areas.
+- The iframe hosts a single root element (e.g., `<embedded-tx-button>`), which composes smaller components like the tooltip transaction tree.
+
+Key components:
+- Embedded Transaction Button: Iframe host + embedded element that shows a button and on hover displays a tooltip with transaction details.
+- TooltipTxTree: A tiny, dependency‑free tree component used to visualize transactions, actions, and arguments.
+
+## Initialization (Iframe Bootstrap Scripts)
+
+The parent page never directly manipulates DOM inside the iframe. Instead, it sends messages to a tiny bootstrap module that:
+- Loads the embedded element script inside the iframe.
+- Positions the embedded element precisely (before measuring geometry).
+- Performs an initial geometry handshake (HS1…HS5) so the parent can apply a clip‑path that only exposes the button/tooltip areas.
+
+Files:
+- `IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates.
+- `IframeModalConfirmer/iframe-modal-bootstrap-script.ts`: Same pattern for the modal variant.
+
+## Prop Flow and Data Updates
+
+Props and updates are delivered via `postMessage`:
+- Parent (host) Lit component builds an init payload and sends it to the iframe (HS1_INIT).
+- Subsequent changes (tx data, loading state, theme, tooltip position, button styles) are sent as typed messages (e.g., SET_TX_DATA, SET_STYLE).
+- The bootstrap receives these and calls methods on the embedded element (`updateProperties`, `updateButtonStyles`) or sets properties directly, then requests a render/update. The embedded element measures its tooltip and returns geometry back to the parent when needed.
+
+## Editing Components and Styles
+
+These components use a small base helper and a variable‑driven styling approach:
+- `LitElementWithProps.ts` handles the Lit upgrade race and exposes `applyStyles()` that maps JS objects to `--w3a-*` CSS variables.
+- Component themes (e.g., tooltip tree, modal) are plain objects applied through `applyStyles` so you can override any section without touching the component internals.
+
+For guidance on editing properties, style sections, and the CSS variable naming convention, see:
+- `./lit-element-with-props.md` – how properties are upgraded and how `applyStyles` maps section/key pairs to CSS vars.
+
+## Subcomponent Docs
+
+- Tooltip tree: `./TooltipTxTree/README.md`
+- Iframe button + tooltip confirmer: `./IframeButtonWithTooltipConfirmer/README.md`
+
+Tip: When changing dimensions (tooltip width/height or modal size), prefer updating the theme objects or the `tooltipPosition` prop so geometry and clip‑path remain aligned.
+
+
+## Lit Components: Editing Guide
 
 When renaming Lit component files, several files must be updated to maintain consistency across the build system. Follow this checklist:
 

@@ -51,6 +51,7 @@ export class IframeButtonHost extends LitElementWithProps {
       }
     },
     color: { type: String },
+    buttonText: { type: String },
     buttonStyle: {
       type: Object,
       hasChanged(newVal: CSSProperties, oldVal: CSSProperties) {
@@ -122,9 +123,43 @@ export class IframeButtonHost extends LitElementWithProps {
       background: var(--btn-background, var(--btn-color, #222));
       border-radius: var(--btn-border-radius, 8px);
       border: var(--btn-border, none);
+      box-shadow: var(--btn-box-shadow, none);
+      transition: var(--btn-transition, none);
       width: var(--button-width, 200px);
       height: var(--button-height, 48px);
       overflow: visible;
+    }
+
+    /* Host-driven hover/focus visuals (mirrored from iframe events) */
+    .iframe-button-host[data-hovered="true"] {
+      background: var(--btn-hover-background, var(--btn-background, var(--btn-color, #222)));
+      border: var(--btn-hover-border, var(--btn-border, none));
+      box-shadow: var(--btn-hover-box-shadow, var(--btn-box-shadow, none));
+      transform: var(--btn-hover-transform, none);
+      transition: var(--btn-transition, none);
+    }
+    .iframe-button-host[data-hovered="true"] .host-button-visual {
+      color: var(--btn-hover-color, var(--btn-color-text, #fff));
+    }
+    .iframe-button-host[data-focused="true"] {
+      /* Optional focus ring; override via custom CSS if desired */
+      box-shadow: var(--btn-focus-box-shadow, 0 0 0 2px rgba(0,0,0,0.25));
+    }
+
+    /* Visual label rendered by host beneath the iframe */
+    .host-button-visual {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: grid;
+      place-items: center;
+      pointer-events: none; /* allow iframe to capture events */
+      color: var(--btn-color-text, #fff);
+      font-size: var(--btn-font-size, 1rem);
+      font-weight: var(--btn-font-weight, 500);
+      user-select: none;
     }
 
     iframe {
@@ -150,6 +185,7 @@ export class IframeButtonHost extends LitElementWithProps {
   private clipPathSupported = false;
   private initialClipPathApplied = false;
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
+  private hostRef: Ref<HTMLDivElement> = createRef();
 
   // Reactive properties are automatically created by Lit from static properties
   // Don't declare them as instance properties, this overrides Lit's setters
@@ -157,6 +193,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare txSigningRequests: TransactionInput[];
 
   declare color: string;
+  declare buttonText: string;
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPositionInternal;
@@ -183,6 +220,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     this.buttonStyle = {};
     this.buttonHoverStyle = {};
+    this.buttonText = 'Sign Transaction';
     this.tooltipPosition = {
       width: '280px',
       height: '300px',
@@ -206,7 +244,7 @@ export class IframeButtonHost extends LitElementWithProps {
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
     // Apply button style CSS variables when buttonStyle changes
-    if (changedProperties.has('buttonStyle')) {
+    if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle')) {
       this.applyButtonStyle();
     }
 
@@ -241,6 +279,41 @@ export class IframeButtonHost extends LitElementWithProps {
     if (this.buttonStyle.border) {
       style.setProperty('--btn-border', String(this.buttonStyle.border));
     }
+    if ((this.buttonStyle as any).boxShadow) {
+      style.setProperty('--btn-box-shadow', String((this.buttonStyle as any).boxShadow));
+    }
+    if ((this.buttonStyle as any).transition) {
+      style.setProperty('--btn-transition', String((this.buttonStyle as any).transition));
+    }
+    if ((this.buttonStyle as any).color) {
+      style.setProperty('--btn-color-text', String((this.buttonStyle as any).color));
+    }
+    if ((this.buttonStyle as any).fontSize) {
+      style.setProperty('--btn-font-size', String((this.buttonStyle as any).fontSize));
+    }
+    if ((this.buttonStyle as any).fontWeight) {
+      style.setProperty('--btn-font-weight', String((this.buttonStyle as any).fontWeight));
+    }
+
+    // Map hover style to CSS vars; used by [data-hovered="true"] selectors
+    if (this.buttonHoverStyle) {
+      const h = this.buttonHoverStyle as any;
+      if (h.background || h.backgroundColor) {
+        style.setProperty('--btn-hover-background', String(h.background || h.backgroundColor));
+      }
+      if (h.color) {
+        style.setProperty('--btn-hover-color', String(h.color));
+      }
+      if (h.border) {
+        style.setProperty('--btn-hover-border', String(h.border));
+      }
+      if (h.boxShadow) {
+        style.setProperty('--btn-hover-box-shadow', String(h.boxShadow));
+      }
+      if (h.transform) {
+        style.setProperty('--btn-hover-transform', String(h.transform));
+      }
+    }
   }
 
   render() {
@@ -252,9 +325,10 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeSize = this.calculateIframeSize();
 
     return html`
-      <div class="iframe-button-host"
+      <div class="iframe-button-host" ${ref(this.hostRef)}
         style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
       >
+        <div class="host-button-visual"><slot>${this.buttonText}</slot></div>
         <iframe
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
@@ -427,7 +501,6 @@ export class IframeButtonHost extends LitElementWithProps {
       width: this.buttonStyle?.width || '200px',
       height: this.buttonStyle?.height || '48px'
     };
-    const mergedButtonStyle = { ...this.buttonStyle, ...buttonSize };
     // Get theme styles for tooltip tree
     const themeStyles = this.getThemeStyles(this.tooltipTheme || 'dark');
 
@@ -435,8 +508,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.tooltipTheme || 'dark'];
 
     this.postToIframe('SET_STYLE', {
-      buttonStyle: mergedButtonStyle,
-      buttonHoverStyle: this.buttonHoverStyle,
+      buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles: themeStyles,
       embeddedButtonTheme: embeddedButtonTheme,
@@ -485,6 +557,16 @@ export class IframeButtonHost extends LitElementWithProps {
           return;
         case 'BUTTON_HOVER':
           this.handleButtonHover(payload as IframeButtonMessagePayloads['BUTTON_HOVER']);
+          try {
+            const el = this.hostRef.value;
+            if (el) el.dataset.hovered = (payload as any)?.hovering ? 'true' : 'false';
+          } catch {}
+          return;
+        case 'BUTTON_FOCUS':
+          try {
+            const el = this.hostRef.value;
+            if (el) el.dataset.focused = (payload as any)?.focused ? 'true' : 'false';
+          } catch {}
           return;
         case 'UI_INTENT_DIGEST': {
           const p = payload as IframeButtonMessagePayloads['UI_INTENT_DIGEST'];
