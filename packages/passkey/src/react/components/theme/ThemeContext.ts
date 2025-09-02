@@ -1,5 +1,7 @@
 import React from 'react';
-import type { DesignTokens } from '../ProfileSettingsButton/types';
+import type { DesignTokens } from './design-tokens';
+import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
+import { createVars } from './utils';
 
 export type ThemeName = 'light' | 'dark';
 
@@ -16,8 +18,28 @@ export interface ThemeContextValue {
 
 export const ThemeContext = React.createContext<ThemeContextValue | null>(null);
 
-export const useThemeContext = () => {
+const noop = () => {};
+
+export const useThemeContext = (): ThemeContextValue => {
   const ctx = React.useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
-  return ctx;
+  if (ctx) return ctx;
+
+  // Fallback: allow components to work without an explicit ThemeProvider.
+  // Uses system preference to choose between light/dark and exposes no-op setters.
+  const prefersDark =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false;
+  const theme: ThemeName = prefersDark ? 'dark' : 'light';
+  const tokens: DesignTokens = theme === 'dark' ? DARK_TOKENS : LIGHT_TOKENS;
+  const vars = createVars(tokens, '--w3a');
+  return {
+    theme,
+    tokens,
+    isDark: theme === 'dark',
+    prefix: '--w3a',
+    toggleTheme: noop,
+    setTheme: noop as (t: ThemeName) => void,
+    vars,
+  };
 };

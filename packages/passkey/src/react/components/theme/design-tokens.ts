@@ -1,8 +1,73 @@
+
 // ============================================================================
-// UNIFIED DESIGN SYSTEM
+// DESIGN TOKENS TYPES
 // ============================================================================
 
-import type { DesignTokens } from '../ProfileSettingsButton/types';
+export interface DesignTokens {
+  colors: {
+    // Primary brand colors
+    primary: string;
+    primaryHover: string;
+    secondary: string;
+    accent: string;
+
+    // Text hierarchy
+    textPrimary: string;
+    textSecondary: string;
+    textMuted: string;
+
+    // Surface layers
+    surfacePrimary: string;
+    surfaceSecondary: string;
+    surfaceTertiary: string;
+
+    // Interactive states
+    hover: string;
+    active: string;
+    focus: string;
+
+    // Status colors
+    success: string;
+    warning: string;
+    error: string;
+    info: string;
+
+    // Border colors
+    borderPrimary: string;
+    borderSecondary: string;
+    borderHover: string;
+  };
+
+  spacing: {
+    xs: string;
+    sm: string;
+    md: string;
+    lg: string;
+    xl: string;
+  };
+
+  borderRadius: {
+    sm: string;
+    md: string;
+    lg: string;
+    xl: string;
+  };
+
+  shadows: {
+    sm: string;
+    md: string;
+    lg: string;
+    xl: string;
+  };
+}
+
+export interface UseThemeReturn {
+  theme: 'light' | 'dark';
+  tokens: DesignTokens;
+  isDark: boolean;
+  setTheme: (theme: 'light' | 'dark') => void;
+  toggleTheme: () => void;
+}
 
 // ============================================================================
 // BASE COLOR PALETTE
@@ -150,54 +215,49 @@ export const DARK_TOKENS: DesignTokens = {
   },
 };
 
-// ============================================================================
-// SOLARIZED DARK THEME TOKENS
-// ============================================================================
-export const SOLARIZED_DARK_TOKENS: DesignTokens = {
-  colors: {
-    // Primary brand colors (same as light for consistency)
-    primary: COLORS.blue.primary,
-    primaryHover: COLORS.blue.hover,
-    secondary: COLORS.gray[400],
-    accent: COLORS.blue.light,
 
-    // Text hierarchy (inverted)
-    textPrimary: 'oklch(1 0 0)',        // Pure white
-    textSecondary: COLORS.gray[300],     // Light gray
-    textMuted: COLORS.gray[500],         // Medium gray
-
-    // Surface layers (charcoal theme)
-    surfacePrimary: COLORS.gray[800],    // Dark charcoal
-    surfaceSecondary: COLORS.gray[750],  // Medium charcoal
-    surfaceTertiary: COLORS.gray[700],   // Light charcoal
-
-    // Interactive states
-    hover: COLORS.gray[700],
-    active: COLORS.gray[600],
-    focus: COLORS.blue.primary,
-
-    // Status colors (slightly adjusted for dark backgrounds)
-    success: COLORS.status.success,
-    warning: COLORS.status.warning,
-    error: COLORS.status.error,
-    info: COLORS.status.info,
-
-    // Border colors
-    borderPrimary: COLORS.gray[600],
-    borderSecondary: COLORS.gray[700],
-    borderHover: COLORS.gray[500],
-  },
-
-  // Same spacing, border radius, and shadows for consistency
-  spacing: LIGHT_TOKENS.spacing,
-  borderRadius: LIGHT_TOKENS.borderRadius,
-  shadows: {
-    sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
-    md: '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)',
-    lg: '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
-    xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
-  },
-};
+// // ============================================================================
+// // SOLARIZED DARK THEME TOKENS
+// // ============================================================================
+// export const SOLARIZED_DARK_TOKENS: DesignTokens = {
+//   colors: {
+//     // Primary brand colors (same as light for consistency)
+//     primary: COLORS.blue.primary,
+//     primaryHover: COLORS.blue.hover,
+//     secondary: COLORS.gray[400],
+//     accent: COLORS.blue.light,
+//     // Text hierarchy (inverted)
+//     textPrimary: 'oklch(1 0 0)',        // Pure white
+//     textSecondary: COLORS.gray[300],     // Light gray
+//     textMuted: COLORS.gray[500],         // Medium gray
+//     // Surface layers (charcoal theme)
+//     surfacePrimary: COLORS.gray[800],    // Dark charcoal
+//     surfaceSecondary: COLORS.gray[750],  // Medium charcoal
+//     surfaceTertiary: COLORS.gray[700],   // Light charcoal
+//     // Interactive states
+//     hover: COLORS.gray[700],
+//     active: COLORS.gray[600],
+//     focus: COLORS.blue.primary,
+//     // Status colors (slightly adjusted for dark backgrounds)
+//     success: COLORS.status.success,
+//     warning: COLORS.status.warning,
+//     error: COLORS.status.error,
+//     info: COLORS.status.info,
+//     // Border colors
+//     borderPrimary: COLORS.gray[600],
+//     borderSecondary: COLORS.gray[700],
+//     borderHover: COLORS.gray[500],
+//   },
+//   // Same spacing, border radius, and shadows for consistency
+//   spacing: LIGHT_TOKENS.spacing,
+//   borderRadius: LIGHT_TOKENS.borderRadius,
+//   shadows: {
+//     sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
+//     md: '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)',
+//     lg: '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
+//     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
+//   },
+// };
 
 // ============================================================================
 // CSS CUSTOM PROPERTY GENERATOR

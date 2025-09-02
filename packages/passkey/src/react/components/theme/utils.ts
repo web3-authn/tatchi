@@ -1,4 +1,4 @@
-import type { DesignTokens } from '../ProfileSettingsButton/types';
+import type { DesignTokens } from './design-tokens';
 
 export type PartialDeep<T> = {
   [K in keyof T]?: T[K] extends object ? PartialDeep<T[K]> : T[K];

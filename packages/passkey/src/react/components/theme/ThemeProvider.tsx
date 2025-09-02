@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePasskeyContext } from '../../context';
-import type { DesignTokens } from '../ProfileSettingsButton/types';
+import type { DesignTokens } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { ThemeContext, ThemeName } from './ThemeContext';
 import { createVars, mergeTokens, PartialDeep } from './utils';
