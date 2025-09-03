@@ -52,7 +52,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   updateProperties?: (props: Partial<{
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
-    loading: boolean;
+    loadingTouchIdPrompt: boolean;
     buttonSizing: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
   }>) => void;
@@ -66,7 +66,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   computeUiIntentDigest?: () => Promise<string>;
   nearAccountId?: string;
   txSigningRequests?: TransactionInput[];
-  loading?: boolean;
+  loadingTouchIdPrompt?: boolean;
   buttonSizing?: { width?: string | number; height?: string | number };
   requestUpdate?: () => void;
 }
@@ -204,9 +204,9 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
       // Update loading state of the button
       if (isSetLoadingPayload(payload)) {
         if (el.updateProperties) {
-          el.updateProperties({ loading: payload });
+          el.updateProperties({ loadingTouchIdPrompt: payload });
         } else {
-          el.loading = payload;
+          el.loadingTouchIdPrompt = payload;
           if (el.requestUpdate) el.requestUpdate();
         }
       }

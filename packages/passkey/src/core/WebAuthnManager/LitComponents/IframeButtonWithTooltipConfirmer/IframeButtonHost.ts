@@ -51,7 +51,8 @@ export class IframeButtonHost extends LitElementWithProps {
       }
     },
     color: { type: String },
-    buttonText: { type: String },
+    // Optional fallback text when no slotted content is provided
+    buttonTextElement: { type: String },
     buttonStyle: {
       type: Object,
       hasChanged(newVal: CSSProperties, oldVal: CSSProperties) {
@@ -92,8 +93,8 @@ export class IframeButtonHost extends LitElementWithProps {
     },
     // Event handlers
     onSuccess: { type: Object },
-    onError: { type: Object },
-    onCancel: { type: Object }
+    onCancel: { type: Object },
+    onLoadTouchIdPrompt: { type: Object }
   } as const;
 
   static styles = css`
@@ -193,7 +194,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare txSigningRequests: TransactionInput[];
 
   declare color: string;
-  declare buttonText: string;
+  declare buttonTextElement: string;
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPositionInternal;
@@ -204,8 +205,8 @@ export class IframeButtonHost extends LitElementWithProps {
 
   // Event handlers (not reactive properties)
   onSuccess?: (result: ActionResult[] ) => void;
-  onError?: (error: Error) => void;
   onCancel?: () => void;
+  onLoadTouchIdPrompt?: (loading: boolean) => void;
 
   // Message handler reference for proper cleanup
   private messageHandler?: (event: MessageEvent) => void;
@@ -220,7 +221,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     this.buttonStyle = {};
     this.buttonHoverStyle = {};
-    this.buttonText = 'Sign Transaction';
+    this.buttonTextElement = 'Sign Transaction';
     this.tooltipPosition = {
       width: '280px',
       height: '300px',
@@ -328,7 +329,7 @@ export class IframeButtonHost extends LitElementWithProps {
       <div class="iframe-button-host" ${ref(this.hostRef)}
         style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
       >
-        <div class="host-button-visual"><slot>${this.buttonText}</slot></div>
+        <div class="host-button-visual"><slot>${this.buttonTextElement}</slot></div>
         <iframe
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
@@ -451,6 +452,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     if (changedProperties.has('showLoading')) {
       this.postToIframe('SET_LOADING', this.showLoading);
+      try { this.onLoadTouchIdPrompt?.(!!this.showLoading); } catch {}
     }
 
     if (
@@ -795,16 +797,16 @@ export class IframeButtonHost extends LitElementWithProps {
       !this.txSigningRequests ||
       this.txSigningRequests.length === 0
     ) {
-      this.onError?.(new Error('Missing required data for transaction'));
+      const err = new Error('Missing required data for transaction');
+      this.options?.onError?.(err);
       return;
     }
 
     // Signal loading
     this.postToIframe('SET_LOADING', true);
+    this.onLoadTouchIdPrompt?.(true)
 
     try {
-      this.options?.hooks?.beforeCall?.();
-
       const txResults = await signAndSendTransactionsInternal({
         context: this.passkeyManagerContext,
         nearAccountId: toAccountId(this.nearAccountId),
@@ -826,17 +828,15 @@ export class IframeButtonHost extends LitElementWithProps {
           theme: this.tooltipTheme
         }
       });
-
-      this.options?.hooks?.afterCall?.(true, txResults);
       this.onSuccess?.(txResults);
 
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       this.options?.onError?.(error);
-      this.onError?.(error);
 
     } finally {
       this.postToIframe('SET_LOADING', false);
+      try { this.onLoadTouchIdPrompt?.(false); } catch {}
     }
   }
 }

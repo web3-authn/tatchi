@@ -39,6 +39,24 @@ export interface TooltipGeometry {
 }
 
 /**
+ * Rounding & pixel-snapping strategy
+ *
+ * DOM measurements from getBoundingClientRect() often contain fractional values
+ * (e.g., width: 200.4px). If these are rounded the wrong way, the iframe that
+ * hosts the embedded UI can end up undersized by up to 1px, which manifests as
+ * a faint scrollbar or a clipped tooltip.
+ *
+ * To avoid this, we follow these rules across the embedded tooltip flow:
+ * - Positions (x, y): Math.floor — never extend negative space; align to pixels.
+ * - Sizes (width, height): Math.ceil — never shrink rectangles; ensure fit.
+ *
+ * The embedded element applies this when constructing TooltipGeometry from
+ * DOMRects. See EmbeddedTxButton.ts (buildGeometry).
+ * On the host side, computeExpandedIframeSizeFromGeometryPure()
+ * already uses Math.ceil on the right/bottom edges as a second line of defense.
+ */
+
+/**
  * IframeClipPathGenerator creates precise clip-path polygons for button + tooltip unions.
  * Supports all 8 tooltip positions with optimized shape algorithms.
  */

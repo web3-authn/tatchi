@@ -21,8 +21,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     nearAccountId: { type: String },
     txSigningRequests: { type: Array },
     color: { type: String },
-    buttonText: { type: String },
-    loading: { type: Boolean },
+    loadingTouchIdPrompt: { type: Boolean },
     tooltip: { type: Object },
     size: { type: Object },
     buttonSizing: { type: Object },
@@ -39,8 +38,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   nearAccountId: string = '';
   txSigningRequests: TransactionInput[] = [];
   color: string = '#667eea';
-  buttonText: string = 'Sign Transaction';
-  loading: boolean = false;
+  loadingTouchIdPrompt: boolean = false;
   tooltip: TooltipPositionInternal = {
     width: '360px',
     height: 'auto',
@@ -432,20 +430,23 @@ export class EmbeddedTxButton extends LitElementWithProps {
     gap: number,
     visible: boolean
   ): TooltipGeometry {
-    const round = (n: number) => Math.round(n);
+    // Use floor for positions and ceil for sizes to avoid
+    // rounding down and creating 1px undersized iframes that scroll.
+    const floor = (n: number) => Math.floor(n);
+    const ceil = (n: number) => Math.ceil(n);
     return {
       button: {
-        x: round(buttonRect.left),
-        y: round(buttonRect.top),
-        width: round(buttonRect.width),
-        height: round(buttonRect.height),
+        x: floor(buttonRect.left),
+        y: floor(buttonRect.top),
+        width: ceil(buttonRect.width),
+        height: ceil(buttonRect.height),
         borderRadius: 8
       },
       tooltip: {
-        x: round(tooltipRect.left),
-        y: round(tooltipRect.top),
-        width: round(tooltipRect.width),
-        height: round(tooltipRect.height),
+        x: floor(tooltipRect.left),
+        y: floor(tooltipRect.top),
+        width: ceil(tooltipRect.width),
+        height: ceil(tooltipRect.height),
         borderRadius: 24
       },
       position: this.tooltip.position,
@@ -693,7 +694,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   updateProperties(props: Partial<{
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
-    loading: boolean;
+    loadingTouchIdPrompt: boolean;
     buttonSizing: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
     theme: TooltipTheme;
@@ -842,7 +843,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
         <!-- Button element - corresponds to [data-embedded-btn] CSS selector -->
         <button
           data-embedded-btn
-          ?disabled=${this.loading}
+          ?disabled=${this.loadingTouchIdPrompt}
           @click=${this.handleConfirm}
           @pointerenter=${this.handlePointerEnter}
           @pointerleave=${this.handlePointerLeave}
@@ -851,15 +852,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
           aria-describedby="tooltipContent"
           tabindex="0"
         >
-          <!-- Loading state element - corresponds to [data-loading] CSS selector -->
-          <span data-loading data-visible=${this.loading}>
-            <!-- Spinner element - corresponds to [data-spinner] CSS selector -->
-            <div data-spinner></div>
-            Processing...
-          </span>
-          <span style="display: ${this.loading ? 'none' : 'inline'}">
-            ${this.buttonText}
-          </span>
+          <!-- Invisible shim: visuals are rendered by host; no inner content needed -->
         </button>
 
         <!-- Tooltip content element - corresponds to [data-tooltip-content] CSS selector -->

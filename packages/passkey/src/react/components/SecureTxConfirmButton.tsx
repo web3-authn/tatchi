@@ -30,6 +30,8 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
+  /** Content shown inside the button; can be text or any element */
+  buttonTextElement?: React.ReactNode;
   tooltipPosition?: TooltipPosition;
   tooltipTheme?: EmbeddedTxButtonTheme;
   lockTheme?: boolean;
@@ -41,6 +43,7 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
   color = '#667eea',
   buttonStyle,
   buttonHoverStyle,
+  buttonTextElement,
   tooltipPosition = {
     width: '360px',
     height: 'auto',
@@ -111,7 +114,9 @@ export const SecureTxConfirmButton: React.FC<SecureTxConfirmButtonProps & {
       onSuccess={onSuccess}
       onError={onError}
       onCancel={onCancel}
-    />
+    >
+      {buttonTextElement}
+    </RawIframeButton>
   );
 };
 
