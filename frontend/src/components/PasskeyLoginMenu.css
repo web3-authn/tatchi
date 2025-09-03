@@ -1,35 +1,35 @@
 
 .passkey-content-area {
-  background: var(--w3a-surface-solid);
-  box-shadow: 0 2px 4px var(--w3a-shadow);
+  background: var(--fe-surface-solid);
+  box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
 }
 
 /* Header Section */
 .login-header {
-  margin: var(--w3a-gap-6);
-  margin-bottom: var(--w3a-gap-0);
-  padding-bottom: var(--w3a-gap-4);
-  border-bottom: 1px solid var(--w3a-border);
+  margin: var(--fe-gap-6);
+  margin-bottom: var(--fe-gap-0);
+  padding-bottom: var(--fe-gap-4);
+  border-bottom: 1px solid var(--fe-border);
   text-align: center;
 }
 
 .login-title {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--w3a-text);
-  margin: 0 0 var(--w3a-gap-2) 0;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
 }
 
 .login-caption {
   font-size: 0.9rem;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
   margin: 0;
 }
 
 /* Content Section */
 .login-content {
-  padding: var(--w3a-gap-6);
+  padding: var(--fe-gap-6);
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -40,13 +40,13 @@
 .security-warning {
   background: #fef3c7;
   border: 1px solid #f59e0b;
-  border-radius: var(--w3a-radius-sm);
-  padding: var(--w3a-gap-4);
-  margin-bottom: var(--w3a-gap-6);
+  border-radius: var(--fe-radius-sm);
+  padding: var(--fe-gap-4);
+  margin-bottom: var(--fe-gap-6);
 }
 
 .security-warning p {
-  margin: 0 0 var(--w3a-gap-2) 0;
+  margin: 0 0 var(--fe-gap-2) 0;
   font-size: 0.9rem;
   color: #92400e;
 }
@@ -63,9 +63,9 @@
 .passkey-auth-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-2);
-  margin-top: var(--w3a-gap-2);
-  margin-bottom: var(--w3a-gap-2);
+  gap: var(--fe-gap-2);
+  margin-top: var(--fe-gap-2);
+  margin-bottom: var(--fe-gap-2);
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -73,18 +73,18 @@
 
 /* Button System */
 .passkey-btn {
-  padding: var(--w3a-gap-3) var(--w3a-gap-4);
+  padding: var(--fe-gap-3) var(--fe-gap-4);
   border: none;
-  border-radius: var(--w3a-radius-sm);
+  border-radius: var(--fe-radius-sm);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--w3a-fast) var(--w3a-ease);
+  transition: all var(--fe-fast) var(--fe-ease);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--w3a-gap-2);
-  font-family: var(--w3a-font-sans);
+  gap: var(--fe-gap-2);
+  font-family: var(--fe-font-sans);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -133,8 +133,8 @@
 
 /* Link Device Section */
 .link-device-section {
-  margin-top: var(--w3a-gap-6);
-  border-top: 1px solid var(--w3a-border);
+  margin-top: var(--fe-gap-6);
+  border-top: 1px solid var(--fe-border);
 }
 
 /* Typography */
@@ -142,14 +142,14 @@
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--w3a-text);
-  margin-bottom: var(--w3a-gap-4);
+  color: var(--fe-text);
+  margin-bottom: var(--fe-gap-4);
 }
 
 .passkey-body {
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
 }
 
 .passkey-label {
@@ -157,14 +157,14 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
 }
 
 .passkey-mono {
-  font-family: var(--w3a-font-mono);
+  font-family: var(--fe-font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
-  color: var(--w3a-text);
+  color: var(--fe-text);
 }
 
 /* Focus Ring */
@@ -174,7 +174,7 @@
 
 .passkey-focus-ring:focus-visible {
   box-shadow: 0 0 0 3px var(--cobalt-focus);
-  border-color: var(--w3a-border-strong);
+  border-color: var(--fe-border-strong);
 }
 
 /* Responsive Design */
@@ -185,11 +185,11 @@
 
   .login-header,
   .login-content {
-    padding: var(--w3a-gap-4);
+    padding: var(--fe-gap-4);
   }
 
   .passkey-auth-buttons {
-    gap: var(--w3a-gap-2);
+    gap: var(--fe-gap-2);
   }
 }
 
@@ -218,7 +218,7 @@
   align-items: center;
   border: 1px solid transparent;
   border-radius: 12px;
-  background-color: var(--w3a-bg-dark-3);
+  background-color: var(--fe-bg-dark-3);
   transition: border-color 0.25s;
   width: 100%;
   box-sizing: border-box;
@@ -274,7 +274,7 @@
 
 @media (prefers-color-scheme: dark) {
   .username-input-container {
-    background-color: var(--w3a-bg-dark-3);
+    background-color: var(--fe-bg-dark-3);
   }
 
   .username-input {

@@ -8,7 +8,6 @@ import {
   AccountRecoveryStatus
 } from '@web3authn/passkey/react'
 
-import { Toggle } from './Toggle'
 import { usePostfixPosition } from '../hooks/usePostfixPosition'
 import { GlassBorder } from './GlassBorder'
 import './PasskeyLoginMenu.css'

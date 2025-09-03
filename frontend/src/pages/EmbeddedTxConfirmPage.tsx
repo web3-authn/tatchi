@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { usePasskeyContext } from '@web3authn/passkey/react';
-import { SecureTxConfirmButton, ActionType } from '@web3authn/passkey/react';
+import { TouchIdWithText, usePasskeyContext } from '@web3authn/passkey/react';
+import { SecureSendTxButton, ActionType } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import './EmbeddedTxConfirmPage.css';
@@ -87,7 +87,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
 
             <div className="test-embedded-section">
               <label className="test-embedded-section-label">Embedded Component:</label>
-              <SecureTxConfirmButton
+              <SecureSendTxButton
                 nearAccountId={loginState.nearAccountId!}
                 txSigningRequests={[
                   {
@@ -112,37 +112,39 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   hooks: {
                     beforeCall: () => {
                       // optional: add any per-call logging here
-                    }
+                    },
+                  },
+                  onError: (error) => {
+                    setError(`Transaction failed: ${error.message}`);
+                    setResult('');
                   }
                 }}
                 buttonStyle={{
                   background: '#0353A4', // cobalt-primary
-                  borderRadius: '12px',
+                  borderRadius: '24px',
                   border: 'none',
                   transition: 'all 0.3s ease',
-                  boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0px 1px 1px 2px rgba(0, 0, 0, 0.1)',
                   fontSize: '16px',
                   height: '44px',
                 }}
                 buttonHoverStyle={{
                   background: '#0466c8', // cobalt-primary-hover
-                }}
-                onSuccess={(result) => {
-                  setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
-                  setError('');
+                  boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
                 }}
                 tooltipPosition={{
-                  width: '360px',
+                  width: '330px',
                   height: 'auto',
                   position: 'bottom-left'
                 }}
                 tooltipTheme="light"
                 // tooltipTheme="dark"
-                onError={(error) => {
-                  setError(`Transaction failed: ${error.message}`);
-                  setResult('');
-                }}
+                buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
                 onCancel={handleCancel}
+                onSuccess={(result) => {
+                  setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
+                  setError('');
+                }}
               />
             </div>
 

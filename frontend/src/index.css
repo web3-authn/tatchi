@@ -14,28 +14,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Web3Authn Design System - Consolidated Variables */
-
-  /* Colors */
-  --w3a-bg: #ffffff;
-  --w3a-surface: rgba(255, 255, 255, 0.8);
-  --w3a-surface-solid: #ffffff;
-  --w3a-text: #1f2937;
-  --w3a-text-primary: #1f2937;
-  --w3a-text-secondary: #4a5568;
-  --w3a-text-dim: #4a5568;
-  --w3a-border: #e2e8f0;
-  --w3a-border-strong: #cbd5e0;
-  --w3a-shadow: rgba(0, 0, 0, 0.05);
-  --w3a-shadow-strong: rgba(0, 0, 0, 0.1);
-  --w3a-bg-secondary: #f8fafc;
-  --w3a-bg-tertiary: #f1f5f9;
-
-  /* Background Colors */
-  --w3a-bg-dark-1: #001233;
-  --w3a-bg-dark-2: #001845;
-  --w3a-bg-dark-3: #002855;
-
   /* Cobalt Blue Color Palette */
   --cobalt-primary: #0353A4;
   --cobalt-primary-hover: #0466C8;
@@ -58,47 +36,69 @@
   --slate-grey-800: #1e293b;
   --slate-grey-900: #0f172a;
 
+   /* Colors */
+  --fe-primary: #0353A4;
+  --fe-primary-hover: #0466C8;
+  --fe-bg: #ffffff;
+  --fe-surface: rgba(255, 255, 255, 0.8);
+  --fe-surface-solid: #ffffff;
+  --fe-text: #1f2937;
+  --fe-text-primary: #1f2937;
+  --fe-text-secondary: #4a5568;
+  --fe-text-dim: #4a5568;
+  --fe-border: #e2e8f0;
+  --fe-border-strong: #cbd5e0;
+  --fe-shadow: rgba(0, 0, 0, 0.05);
+  --fe-shadow-strong: rgba(0, 0, 0, 0.1);
+  --fe-bg-secondary: #f8fafc;
+  --fe-bg-tertiary: #f1f5f9;
+
+  /* Background Colors */
+  --fe-bg-dark-1: #001233;
+  --fe-bg-dark-2: #001845;
+  --fe-bg-dark-3: #002855;
+
   /* Typography */
-  --w3a-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --w3a-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --w3a-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --w3a-font-normal: 400;
-  --w3a-font-medium: 500;
-  --w3a-font-semibold: 600;
-  --w3a-font-bold: 700;
+  --fe-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fe-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --fe-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --fe-font-normal: 400;
+  --fe-font-medium: 500;
+  --fe-font-semibold: 600;
+  --fe-font-bold: 700;
 
   /* Text Sizes */
-  --w3a-text-xs: 0.75rem;
-  --w3a-text-sm: 0.875rem;
-  --w3a-text-base: 1rem;
-  --w3a-text-lg: 1.125rem;
-  --w3a-text-xl: 1.25rem;
-  --w3a-text-2xl: 1.5rem;
+  --fe-text-xs: 0.75rem;
+  --fe-text-sm: 0.875rem;
+  --fe-text-base: 1rem;
+  --fe-text-lg: 1.125rem;
+  --fe-text-xl: 1.25rem;
+  --fe-text-2xl: 1.5rem;
 
   /* Sizing & Spacing */
-  --w3a-radius-sm: 12px;
-  --w3a-radius: 24px;
-  --w3a-radius-lg: 32px;
-  --w3a-radius-xl: 40px;
-  --w3a-gap-1: 4px;
-  --w3a-gap-2: 8px;
-  --w3a-gap-3: 12px;
-  --w3a-gap-4: 16px;
-  --w3a-gap-6: 24px;
+  --fe-radius-sm: 12px;
+  --fe-radius: 24px;
+  --fe-radius-lg: 32px;
+  --fe-radius-xl: 40px;
+  --fe-gap-1: 4px;
+  --fe-gap-2: 8px;
+  --fe-gap-3: 12px;
+  --fe-gap-4: 16px;
+  --fe-gap-6: 24px;
 
   /* Motion */
-  --w3a-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
-  --w3a-fast: 200ms;
-  --w3a-med: 400ms;
+  --fe-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
+  --fe-fast: 200ms;
+  --fe-med: 400ms;
 }
 
 a {
   font-weight: 500;
-  color: var(--w3a-primary);
+  color: var(--fe-primary);
   text-decoration: inherit;
 }
 a:hover {
-  color: var(--w3a-primary-hover);
+  color: var(--fe-primary-hover);
 }
 
 body {
@@ -120,8 +120,8 @@ h1 {
 h2 {
   font-size: 2rem;
   font-weight: 700;
-  color: var(--w3a-text);
-  margin: 0 0 var(--w3a-gap-2) 0;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
 }
 
 h3 {

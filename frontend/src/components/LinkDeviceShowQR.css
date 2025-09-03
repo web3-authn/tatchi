@@ -1,32 +1,32 @@
 
 .link-device-content-area {
-  background: var(--w3a-surface-solid);
+  background: var(--fe-surface-solid);
   position: relative;
 }
 
 /* Header Section */
 .link-device-header {
-  padding: var(--w3a-gap-2);
-  border-bottom: 1px solid var(--w3a-border);
+  padding: var(--fe-gap-2);
+  border-bottom: 1px solid var(--fe-border);
   text-align: center;
 }
 
 .link-device-title {
   font-size: 1.25rem;
   font-weight: 700;
-  color: var(--w3a-text);
+  color: var(--fe-text);
   margin: 0;
 }
 
 .link-device-caption {
   font-size: 0.9rem;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
   margin: 0;
 }
 
 /* Content Section */
 .link-device-content {
-  padding: var(--w3a-gap-2) 0;
+  padding: var(--fe-gap-2) 0;
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -37,16 +37,16 @@
 .device-linking-section {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-4);
+  gap: var(--fe-gap-4);
 }
 
 /* Auth Buttons */
 .link-device-auth-buttons {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-2);
-  margin-top: var(--w3a-gap-2);
-  margin-bottom: var(--w3a-gap-2);
+  gap: var(--fe-gap-2);
+  margin-top: var(--fe-gap-2);
+  margin-bottom: var(--fe-gap-2);
   width: 100%;
   max-width: 100%;
   overflow: hidden;
@@ -55,18 +55,18 @@
 /* Button System */
 .link-device-btn {
   height: 44px;
-  padding: 0 var(--w3a-gap-4);
+  padding: 0 var(--fe-gap-4);
   border: none;
-  border-radius: var(--w3a-radius-sm);
+  border-radius: var(--fe-radius-sm);
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--w3a-fast) var(--w3a-ease);
+  transition: all var(--fe-fast) var(--fe-ease);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: var(--w3a-gap-2);
-  font-family: var(--w3a-font-sans);
+  gap: var(--fe-gap-2);
+  font-family: var(--fe-font-sans);
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
@@ -115,7 +115,7 @@
 /* Device Linking Help */
 .device-linking-help {
   font-size: 0.85rem;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
   line-height: 1.5;
   margin: 0;
   text-align: center;
@@ -125,7 +125,7 @@
 .device-linking-active {
   display: flex;
   flex-direction: column;
-  gap: var(--w3a-gap-4);
+  gap: var(--fe-gap-4);
   align-items: center;
   text-align: center;
 }
@@ -133,8 +133,8 @@
 .device-linking-active h4 {
   font-size: 1.125rem;
   font-weight: 600;
-  color: var(--w3a-text);
-  margin: 0 0 var(--w3a-gap-3) 0;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-3) 0;
 }
 
 /* QR Code Display */
@@ -142,26 +142,26 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--w3a-gap-3);
-  padding: var(--w3a-gap-4);
+  gap: var(--fe-gap-3);
+  padding: var(--fe-gap-4);
   background: #f8fafc;
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-sm);
-  margin-bottom: var(--w3a-gap-4);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  margin-bottom: var(--fe-gap-4);
 }
 
 .qr-code-display p {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--w3a-text);
+  color: var(--fe-text);
 }
 
 .qr-code-display img {
   max-width: 200px;
   height: auto;
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-sm);
-  box-shadow: 0 2px 4px var(--w3a-shadow);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 /* Typography */
@@ -169,14 +169,14 @@
   font-size: 1.125rem;
   font-weight: 600;
   line-height: 1.5;
-  color: var(--w3a-text);
-  margin-bottom: var(--w3a-gap-4);
+  color: var(--fe-text);
+  margin-bottom: var(--fe-gap-4);
 }
 
 .link-device-body {
   font-size: 0.9rem;
   line-height: 1.6;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
 }
 
 .link-device-label {
@@ -184,14 +184,14 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--w3a-text-dim);
+  color: var(--fe-text-dim);
 }
 
 .link-device-mono {
-  font-family: var(--w3a-font-mono);
+  font-family: var(--fe-font-mono);
   font-size: 0.8rem;
   line-height: 1.4;
-  color: var(--w3a-text);
+  color: var(--fe-text);
 }
 
 /* Focus Ring */
@@ -201,7 +201,7 @@
 
 .link-device-focus-ring:focus-visible {
   box-shadow: 0 0 0 3px var(--cobalt-focus);
-  border-color: var(--w3a-border-strong);
+  border-color: var(--fe-border-strong);
 }
 
 /* Responsive Design */
@@ -212,11 +212,11 @@
 
   .link-device-header,
   .link-device-content {
-    padding: var(--w3a-gap-4);
+    padding: var(--fe-gap-4);
   }
 
   .link-device-auth-buttons {
-    gap: var(--w3a-gap-2);
+    gap: var(--fe-gap-2);
   }
 
   .qr-code-display img {
