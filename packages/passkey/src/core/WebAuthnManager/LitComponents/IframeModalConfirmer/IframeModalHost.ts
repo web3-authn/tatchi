@@ -15,11 +15,12 @@ import {
 } from '../IframeButtonWithTooltipConfirmer/tags';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
 
-type MessageType = IframeModalMessageType | 'MODAL_IFRAME_BOOT' | 'MODAL_IFRAME_DOM_READY';
+type MessageType = IframeModalMessageType | 'MODAL_IFRAME_BOOT' | 'MODAL_IFRAME_DOM_READY' | 'MODAL_TIMEOUT';
 
 type MessagePayloads = IframeModalMessagePayloads & {
   MODAL_IFRAME_BOOT: undefined;
   MODAL_IFRAME_DOM_READY: undefined;
+  MODAL_TIMEOUT: string;
 };
 
 /**
@@ -218,6 +219,15 @@ export class IframeModalHost extends LitElementWithProps {
           // Two-phase: explicitly close inner modal
           this.postToIframe('CLOSE_MODAL', { confirmed: false });
           return;
+
+        case 'MODAL_TIMEOUT': {
+          const msg = typeof payload === 'string' && payload ? payload : 'Operation timed out';
+          // Stop any loading state and show error in child modal
+          try { this.showLoading = false; } catch {}
+          this.postToIframe('SET_LOADING', false);
+          this.postToIframe('SET_ERROR', msg);
+          return;
+        }
 
         case 'UI_INTENT_DIGEST': {
           const p = payload as MessagePayloads['UI_INTENT_DIGEST'];

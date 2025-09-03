@@ -141,7 +141,14 @@ export class SignerWorkerManager {
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        worker.terminate();
+        try {
+          worker.terminate();
+        } catch {}
+        // Notify any open modal host to transition to error state
+        try {
+          const seconds = Math.round(timeoutMs / 1000);
+          window.postMessage({ type: 'MODAL_TIMEOUT', payload: `Timed out after ${seconds}s, try again` }, '*');
+        } catch {}
         reject(new Error(`Worker operation timed out after ${timeoutMs}ms`));
       }, timeoutMs);
 

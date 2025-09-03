@@ -249,7 +249,14 @@ export const LIGHT_THEME_COLORS = {
   slate200: GREY_COLORS.slate200,
   slate300: GREY_COLORS.slate300,
 
+  red200: CHROMA_COLORS.red200,
+  red300: CHROMA_COLORS.red300,
+  red400: CHROMA_COLORS.red400,
+  red500: CHROMA_COLORS.red500,
+  red600: CHROMA_COLORS.red600,
+
   // Accent blues referenced
+  blue200: CHROMA_COLORS.blue200,
   blue300: CHROMA_COLORS.blue300,
   blue400: CHROMA_COLORS.blue400,
   blue500: CHROMA_COLORS.blue500,

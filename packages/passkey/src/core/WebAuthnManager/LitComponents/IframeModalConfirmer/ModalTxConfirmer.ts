@@ -44,6 +44,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     confirmText: { type: String },
     txSigningRequests: { type: Array },
     loading: { type: Boolean },
+    errorMessage: { type: String },
     styles: { type: Object },
     theme: { type: String, attribute: 'theme' },
     _isVisible: { type: Boolean, state: true },
@@ -61,6 +62,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   confirmText = 'Confirm and Sign';
   txSigningRequests: TransactionInputWasm[] = [];
   loading = false;
+  errorMessage: string | undefined = undefined;
   styles?: ModalTxConfirmerStyles;
   theme: ModalConfirmerTheme = 'dark';
   // When true, this element will NOT remove itself on confirm/cancel.
@@ -118,7 +120,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       place-items: center;
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop__color, rgba(0, 0, 0, 0.5));
-      backdrop-filter: var(--w3a-modal__modal-backdrop__filter, blur(2px));
+      backdrop-filter: var(--w3a-modal__modal-backdrop__filter, none);
       animation: backdrop-enter 50ms ease-in-out;
       will-change: opacity, backdrop-filter;
     }
@@ -132,7 +134,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .modal-border-inner {
       position: var(--w3a-modal__modal-border-inner__position, relative);
-      border: var(--w3a-modal__modal-border-inner__border, 1px solid transparent);
+      border: var(--w3a-modal__modal-border-inner__border, none);
       border-radius: var(--w3a-modal__modal-border-inner__border-radius, 24px);
       margin: var(--w3a-modal__modal-border-inner__margin, 0px);
       padding: var(--w3a-modal__modal-border-inner__padding, 0px);
@@ -140,8 +142,8 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       overflow: var(--w3a-modal__modal-border-inner__overflow, hidden);
       box-shadow: var(--w3a-modal__modal-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
       background: var(--w3a-modal__modal-border-inner__background);
-      backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
-      -webkit-backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, blur(12px));
+      backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, 0px);
+      -webkit-backdrop-filter: var(--w3a-modal__modal-border-inner__backdrop-filter, 0px);
     }
 
     .modal-container {
@@ -240,13 +242,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .action-list {
+      position: relative;
       border: var(--w3a-modal__action-list__border, 1px solid transparent);
       border-radius: var(--w3a-modal__action-list__border-radius, 24px);
-      height: 100%;
       padding: var(--w3a-modal__action-list__padding, var(--w3a-gap-4));
+      height: 100%;
+      min-width: var(--w3a-modal__action-list__min-width, 300px);
       overflow: hidden;
       box-shadow: var(--w3a-modal__action-list__box-shadow, var(--w3a-shadow-sm));
-      position: relative;
       background: var(--w3a-modal__action-list__background);
     }
 
@@ -372,6 +375,18 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       z-index: 1;
     }
 
+    .error-banner {
+      color: var(--w3a-modal__error__color, #ef4444);
+      background: var(--w3a-modal__error__background, transparent);
+      border: var(--w3a-modal__error__border, none);
+      border-radius: var(--w3a-modal__error__border-radius, 8px);
+      padding: var(--w3a-modal__error__padding, 6px 8px);
+      margin: var(--w3a-modal__error__margin, 0 0 12px 0);
+      font-size: var(--w3a-modal__error__font-size, 1rem);
+      text-align: var(--w3a-modal__error__text-align, center);
+      font-weight: 500;
+    }
+
     .btn {
       background-color: var(--w3a-modal__btn__background-color);
       box-shadow: var(--w3a-modal__btn__box-shadow, var(--w3a-shadow-sm));
@@ -426,6 +441,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .btn-confirm:hover {
       background-color: var(--w3a-modal__btn-confirm-hover__background-color);
       border: var(--w3a-modal__btn-confirm-hover__border, none);
+    }
+
+    .btn-danger {
+      background-color: var(--w3a-modal__btn-danger__background-color, oklch(0.66 0.180 19)); /* red500 */
+      color: var(--w3a-modal__btn-danger__color, #ffffff);
+    }
+    .btn-danger:hover {
+      background-color: var(--w3a-modal__btn-danger-hover__background-color, oklch(0.74 0.166 19)); /* red400 */
     }
 
     .btn:focus-visible {
@@ -732,6 +755,10 @@ formatGas(action.gas)}</span>
                   })}
                 `)}
 
+                ${this.errorMessage ? html`
+                  <div class="error-banner">${this.errorMessage}</div>
+                ` : ''}
+
                 <div class="buttons">
                   ${this.loading ? html`
                     <!-- Loading mode: show only cancel button with loading indicator -->
@@ -741,6 +768,14 @@ formatGas(action.gas)}</span>
                     >
                       <span class="loading-indicator"></span>
                       Signing
+                    </button>
+                  ` : this.errorMessage ? html`
+                    <!-- Error mode: show only Close button in soft red -->
+                    <button
+                      class="btn btn-danger"
+                      @click=${this._handleCancel}
+                    >
+                      Close
                     </button>
                   ` : html`
                     <!-- Normal mode: show both cancel and confirm buttons -->

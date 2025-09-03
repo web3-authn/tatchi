@@ -50,6 +50,7 @@ interface ModalElementShape extends HTMLElement {
   txSigningRequests?: TransactionInputWasm[];
   theme?: string;
   loading?: boolean;
+  errorMessage?: string;
   deferClose?: boolean;
   requestUpdate?: () => void;
   close?: (confirmed: boolean) => void;
@@ -132,6 +133,16 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         el.loading = payload;
         el.requestUpdate?.();
       }
+      break;
+    }
+    case 'SET_ERROR': {
+      try {
+        if (typeof payload === 'string') {
+          el.errorMessage = payload;
+          el.loading = false;
+          el.requestUpdate?.();
+        }
+      } catch {}
       break;
     }
     case 'CLOSE_MODAL': {

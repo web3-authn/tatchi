@@ -39,7 +39,8 @@ export type IframeModalMessageType =
   | IframeSharedMessageType
   | 'SET_INIT'
   | 'CANCEL'
-  | 'CLOSE_MODAL';
+  | 'CLOSE_MODAL'
+  | 'SET_ERROR';
 
 export interface IframeModalMessagePayloads {
   READY: undefined;
@@ -58,6 +59,7 @@ export interface IframeModalMessagePayloads {
   CONFIRM: undefined;
   CANCEL: undefined;
   CLOSE_MODAL: { confirmed: boolean };
+  SET_ERROR: string; // error message to display in modal
   IFRAME_ERROR: string;
   IFRAME_UNHANDLED_REJECTION: string;
 }
