@@ -16,20 +16,20 @@ export function deepMerge<T extends object, U extends object>(target: T, source:
   return out as T & U;
 }
 
-export function createVars(tokens: DesignTokens, prefix = '--w3a'): React.CSSProperties {
+export function createCSSVariables(tokens: DesignTokens, prefix = '--w3a'): React.CSSProperties {
   const vars: Record<string, string> = {};
 
   Object.entries(tokens.colors).forEach(([k, v]) => {
-    vars[`${prefix}-color-${k}`] = String(v);
+    vars[`${prefix}-colors-${k}`] = String(v);
   });
   Object.entries(tokens.spacing).forEach(([k, v]) => {
     vars[`${prefix}-spacing-${k}`] = String(v);
   });
   Object.entries(tokens.borderRadius).forEach(([k, v]) => {
-    vars[`${prefix}-radius-${k}`] = String(v);
+    vars[`${prefix}-border-radius-${k}`] = String(v);
   });
   Object.entries(tokens.shadows).forEach(([k, v]) => {
-    vars[`${prefix}-shadow-${k}`] = String(v);
+    vars[`${prefix}-shadows-${k}`] = String(v);
   });
 
   // React CSSProperties style: map to --custom-prop keys

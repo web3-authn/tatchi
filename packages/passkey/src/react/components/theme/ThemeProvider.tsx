@@ -3,7 +3,7 @@ import { usePasskeyContext } from '../../context';
 import type { DesignTokens } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { ThemeContext, ThemeName } from './ThemeContext';
-import { createVars, mergeTokens, PartialDeep } from './utils';
+import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
 
 export interface ThemeOverrides {
   light?: PartialDeep<DesignTokens>;
@@ -90,7 +90,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   }, [themeState, setTheme]);
 
   const tokensForTheme = themeState === 'dark' ? darkTokens : lightTokens;
-  const vars = React.useMemo(() => createVars(tokensForTheme, prefix), [tokensForTheme, prefix]);
+  const vars = React.useMemo(() => createCSSVariables(tokensForTheme, prefix), [tokensForTheme, prefix]);
 
   const value = React.useMemo(() => ({
     theme: themeState,

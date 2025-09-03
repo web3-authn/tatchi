@@ -1,3 +1,36 @@
+// Consolidate color sources to base-styles
+import {
+  CHROMA_COLORS,
+  GREY_COLORS,
+  GRADIENTS,
+  LIGHT_THEME_COLORS,
+  DARK_THEME_COLORS
+} from '@/base-styles';
+
+/**
+ * About these tokens and CSS variables
+ *
+ * DesignTokens is a JS/TS representation of theming primitives. We expose these
+ * runtime tokens to CSS via custom properties (aka CSS variables) so both Lit
+ * components and React styles can read the same values.
+ *
+ * Mapping rules (applied by ThemeProvider/ThemeScope via createCSSVariables):
+ * - colors:   --w3a-colors-<key>
+ *   e.g. tokens.colors.primary → --w3a-colors-primary
+ * - spacing:  --w3a-spacing-<key>
+ *   e.g. tokens.spacing.md     → --w3a-spacing-md
+ * - borderRadius:   --w3a-border-radius-<key>
+ *   e.g. tokens.borderRadius.lg→ --w3a-border-radius-lg
+ * - shadows:  --w3a-shadows-<key>
+ *   e.g. tokens.shadows.sm     → --w3a-shadow-sm
+ *
+ * Where they’re used:
+ * - ThemeScope injects variables inline on a boundary element; components
+ *   reference them with var(--w3a-colors-primary), etc.
+ * - Component-specific helpers (e.g., PROFILE_BUTTON_TOKENS, PROFILE_TOGGLE_TOKENS)
+ *   derive from LIGHT_TOKENS/DARK_TOKENS and are read by components directly
+ *   or mapped to CSS vars via their own applyStyles helpers.
+ */
 
 // ============================================================================
 // DESIGN TOKENS TYPES
@@ -36,6 +69,10 @@ export interface DesignTokens {
     borderPrimary: string;
     borderSecondary: string;
     borderHover: string;
+
+    // Background Gradients
+    backgroundGradientPrimary: string;
+    backgroundGradientSecondary: string;
   };
 
   spacing: {
@@ -70,77 +107,47 @@ export interface UseThemeReturn {
 }
 
 // ============================================================================
-// BASE COLOR PALETTE
-// ============================================================================
-const COLORS = {
-  // Core brand colors
-  blue: {
-    primary: 'oklch(0.536 0.214 260.0)',  // Updated cobalt blue
-    hover: 'oklch(0.464 0.185 260.0)',    // Darker blue for hover
-    light: 'oklch(0.7 0.15 260)',         // Lighter blue for accents
-  },
-
-  // Neutral grays (OKLCH for better perceptual uniformity)
-  gray: {
-    50:  'oklch(0.98 0.005 240)',   // Very light gray
-    100: 'oklch(0.95 0.01 240)',    // Light gray
-    200: 'oklch(0.9 0.015 240)',    // Lighter gray
-    300: 'oklch(0.8 0.02 240)',     // Light medium gray
-    400: 'oklch(0.7 0.025 240)',    // Medium gray
-    500: 'oklch(0.6 0.03 240)',     // Base gray
-    600: 'oklch(0.5 0.035 240)',    // Dark medium gray
-    650: 'oklch(0.45 0.0375 240)',  // Custom charcoal gray
-    700: 'oklch(0.4 0.04 240)',     // Darker gray
-    750: 'oklch(0.35 0.0425 240)',  // Custom charcoal gray
-    800: 'oklch(0.3 0.045 240)',    // Very dark gray
-    900: 'oklch(0.2 0.05 240)',     // Almost black
-  },
-
-  // Semantic colors
-  status: {
-    success: 'oklch(0.6 0.15 140)',   // Green
-    warning: 'oklch(0.7 0.12 85)',    // Orange
-    error: 'oklch(0.55 0.18 25)',     // Red
-    info: 'oklch(0.6 0.15 240)',      // Blue
-  }
-};
-
-// ============================================================================
 // LIGHT THEME TOKENS
 // ============================================================================
 export const LIGHT_TOKENS: DesignTokens = {
   colors: {
+    ...CHROMA_COLORS,
+
     // Primary brand colors
-    primary: COLORS.blue.primary,
-    primaryHover: COLORS.blue.hover,
-    secondary: COLORS.gray[600],
-    accent: COLORS.blue.light,
+    primary: CHROMA_COLORS.blue400,
+    primaryHover: CHROMA_COLORS.blue500,
+    secondary: GREY_COLORS.grey600,
+    accent: CHROMA_COLORS.blue300,
 
     // Text hierarchy
-    textPrimary: COLORS.gray[900],
-    textSecondary: COLORS.gray[700],
-    textMuted: COLORS.gray[500],
+    textPrimary: LIGHT_THEME_COLORS.colorText,
+    textSecondary: LIGHT_THEME_COLORS.colorTextSecondary,
+    textMuted: LIGHT_THEME_COLORS.colorTextMuted,
 
     // Surface layers
-    surfacePrimary: COLORS.gray[50],
-    surfaceSecondary: COLORS.gray[100],
-    surfaceTertiary: COLORS.gray[200],
+    surfacePrimary: LIGHT_THEME_COLORS.colorBackground,
+    surfaceSecondary: LIGHT_THEME_COLORS.colorSurface,
+    surfaceTertiary: LIGHT_THEME_COLORS.slate200,
 
     // Interactive states
-    hover: COLORS.gray[100],
-    active: COLORS.gray[200],
-    focus: COLORS.blue.primary,
+    hover: GREY_COLORS.grey100,
+    active: GREY_COLORS.grey200,
+    focus: CHROMA_COLORS.blue400,
 
     // Status colors
-    success: COLORS.status.success,
-    warning: COLORS.status.warning,
-    error: COLORS.status.error,
-    info: COLORS.status.info,
+    success: CHROMA_COLORS.blue300, // using blue as consolidated success tint
+    warning: CHROMA_COLORS.yellow400,
+    error: CHROMA_COLORS.red400,
+    info: CHROMA_COLORS.blue400,
 
     // Border colors
-    borderPrimary: COLORS.gray[300],
-    borderSecondary: COLORS.gray[200],
-    borderHover: COLORS.gray[400],
+    borderPrimary: LIGHT_THEME_COLORS.colorBorder,
+    borderSecondary: GREY_COLORS.grey300,
+    borderHover: GREY_COLORS.slate300,
+
+    // Background Gradients
+    backgroundGradientPrimary: GRADIENTS.blue,
+    backgroundGradientSecondary: GRADIENTS.blueWhite,
   },
 
   spacing: {
@@ -171,37 +178,43 @@ export const LIGHT_TOKENS: DesignTokens = {
 // ============================================================================
 export const DARK_TOKENS: DesignTokens = {
   colors: {
+    ...CHROMA_COLORS,
+
     // Primary brand colors (keep consistent with light)
-    primary: COLORS.blue.primary,
-    primaryHover: COLORS.blue.hover,
-    secondary: COLORS.gray[400],
-    accent: COLORS.blue.light,
+    primary: CHROMA_COLORS.blue400,
+    primaryHover: CHROMA_COLORS.blue500,
+    secondary: GREY_COLORS.grey400,
+    accent: CHROMA_COLORS.blue300,
 
     // Text hierarchy (dark palette)
-    textPrimary: 'oklch(0.95 0 0)',             // --w3a-profile-dark-text-primary
-    textSecondary: 'oklch(0.55 0 0)',           // --w3a-profile-dark-text-secondary
-    textMuted: 'oklch(0.55 0 0)',               // align with secondary in legacy vars
+    textPrimary: DARK_THEME_COLORS.colorText,
+    textSecondary: DARK_THEME_COLORS.colorTextSecondary,
+    textMuted: LIGHT_THEME_COLORS.colorTextMuted,
 
     // Surface layers (dark palette)
-    surfacePrimary: 'oklch(0.25 0.012 240)',    // --w3a-profile-dark-bg-primary (grey750)
-    surfaceSecondary: 'oklch(0.35 0.018 240)',  // tx expanded / general secondary (grey650)
-    surfaceTertiary: 'oklch(0.15 0.008 240)',   // menu hover (grey850)
+    surfacePrimary: DARK_THEME_COLORS.grey750,  // base-styles mapped value
+    surfaceSecondary: DARK_THEME_COLORS.grey650,
+    surfaceTertiary: DARK_THEME_COLORS.grey850,
 
     // Interactive states
-    hover: 'oklch(0.15 0.008 240)',             // --w3a-menu-dark-bg-hover
-    active: 'oklch(0.35 0.018 240)',            // slightly elevated/darker surface
-    focus: COLORS.blue.primary,
+    hover: DARK_THEME_COLORS.grey850,
+    active: DARK_THEME_COLORS.grey650,
+    focus: CHROMA_COLORS.blue400,
 
     // Status colors (unchanged)
-    success: COLORS.status.success,
-    warning: COLORS.status.warning,
-    error: COLORS.status.error,
-    info: COLORS.status.info,
+    success: CHROMA_COLORS.blue300,
+    warning: CHROMA_COLORS.yellow400,
+    error: CHROMA_COLORS.red400,
+    info: CHROMA_COLORS.blue400,
 
     // Border colors (dark palette)
-    borderPrimary: 'oklch(0.35 0.018 240)',     // --w3a-profile-dark-border-primary (grey650)
-    borderSecondary: 'oklch(0.25 0.012 240)',   // grey750
-    borderHover: 'oklch(0.25 0.012 240)',       // --w3a-profile-dark-border-hover
+    borderPrimary: DARK_THEME_COLORS.grey650,
+    borderSecondary: DARK_THEME_COLORS.grey750,
+    borderHover: DARK_THEME_COLORS.grey750,
+
+    // Background Gradients
+    backgroundGradientPrimary: GRADIENTS.blue,
+    backgroundGradientSecondary: GRADIENTS.blueWhite,
   },
 
   // Same spacing, border radius, and shadows for consistency
@@ -216,48 +229,8 @@ export const DARK_TOKENS: DesignTokens = {
 };
 
 
-// // ============================================================================
-// // SOLARIZED DARK THEME TOKENS
-// // ============================================================================
-// export const SOLARIZED_DARK_TOKENS: DesignTokens = {
-//   colors: {
-//     // Primary brand colors (same as light for consistency)
-//     primary: COLORS.blue.primary,
-//     primaryHover: COLORS.blue.hover,
-//     secondary: COLORS.gray[400],
-//     accent: COLORS.blue.light,
-//     // Text hierarchy (inverted)
-//     textPrimary: 'oklch(1 0 0)',        // Pure white
-//     textSecondary: COLORS.gray[300],     // Light gray
-//     textMuted: COLORS.gray[500],         // Medium gray
-//     // Surface layers (charcoal theme)
-//     surfacePrimary: COLORS.gray[800],    // Dark charcoal
-//     surfaceSecondary: COLORS.gray[750],  // Medium charcoal
-//     surfaceTertiary: COLORS.gray[700],   // Light charcoal
-//     // Interactive states
-//     hover: COLORS.gray[700],
-//     active: COLORS.gray[600],
-//     focus: COLORS.blue.primary,
-//     // Status colors (slightly adjusted for dark backgrounds)
-//     success: COLORS.status.success,
-//     warning: COLORS.status.warning,
-//     error: COLORS.status.error,
-//     info: COLORS.status.info,
-//     // Border colors
-//     borderPrimary: COLORS.gray[600],
-//     borderSecondary: COLORS.gray[700],
-//     borderHover: COLORS.gray[500],
-//   },
-//   // Same spacing, border radius, and shadows for consistency
-//   spacing: LIGHT_TOKENS.spacing,
-//   borderRadius: LIGHT_TOKENS.borderRadius,
-//   shadows: {
-//     sm: '0 1px 2px 0 rgba(0, 0, 0, 0.3)',
-//     md: '0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3)',
-//     lg: '0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3)',
-//     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
-//   },
-// };
+// (Archived) Alternative theme sketches removed for clarity; LIGHT_TOKENS and
+// DARK_TOKENS plus component-specific overrides are the single source of truth.
 
 // ============================================================================
 // CSS CUSTOM PROPERTY GENERATOR
@@ -271,7 +244,8 @@ export function generateThemeCSS(tokens: DesignTokens, prefix = '--w3a'): string
 
   // Colors
   Object.entries(tokens.colors).forEach(([key, value]) => {
-    cssVars.push(`${prefix}-color-${key}: ${value};`);
+    // Naming (plural): --w3a-colors-<key>
+    cssVars.push(`${prefix}-colors-${key}: ${value};`);
   });
 
   // Spacing
@@ -281,12 +255,14 @@ export function generateThemeCSS(tokens: DesignTokens, prefix = '--w3a'): string
 
   // Border radius
   Object.entries(tokens.borderRadius).forEach(([key, value]) => {
-    cssVars.push(`${prefix}-radius-${key}: ${value};`);
+    // Naming (hyphenated): --w3a-border-radius-<key>
+    cssVars.push(`${prefix}-border-radius-${key}: ${value};`);
   });
 
   // Shadows
   Object.entries(tokens.shadows).forEach(([key, value]) => {
-    cssVars.push(`${prefix}-shadow-${key}: ${value};`);
+    // Naming (plural): --w3a-shadows-<key>
+    cssVars.push(`${prefix}-shadows-${key}: ${value};`);
   });
 
   return `:root {\n  ${cssVars.join('\n  ')}\n}`;
@@ -304,8 +280,8 @@ export const PROFILE_BUTTON_TOKENS = {
     colors: {
       ...LIGHT_TOKENS.colors,
       // Profile button specific overrides
-      surfacePrimary: COLORS.gray[50],
-      borderPrimary: COLORS.gray[200],
+      surfacePrimary: GREY_COLORS.grey50,
+      borderPrimary: GREY_COLORS.grey200,
     }
   },
   dark: {
@@ -313,32 +289,51 @@ export const PROFILE_BUTTON_TOKENS = {
     colors: {
       ...DARK_TOKENS.colors,
       // Profile button specific overrides
-      surfacePrimary: COLORS.gray[750],  // Charcoal
-      borderPrimary: COLORS.gray[650],
+      surfacePrimary: GREY_COLORS.grey750,  // Charcoal
+      borderPrimary: GREY_COLORS.grey650,
     }
   }
 };
 
-/**
- * Modal specific tokens
- */
-export const MODAL_TOKENS = {
+// ============================================================================
+// PROFILE TOGGLE TOKENS
+// ============================================================================
+export interface ToggleColorTokens {
+  activeBackground: string;
+  activeShadow: string;
+  inactiveBackground: string;
+  inactiveShadow: string;
+  disabledBackground: string;
+  disabledCircle: string;
+  textColor: string;
+  disabledTextColor: string;
+  circleColor: string;
+}
+
+export const PROFILE_TOGGLE_TOKENS: { light: ToggleColorTokens; dark: ToggleColorTokens } = {
   light: {
-    ...LIGHT_TOKENS,
-    colors: {
-      ...LIGHT_TOKENS.colors,
-      // Glass effect for modals
-      surfacePrimary: 'rgba(255, 255, 255, 0.95)',
-      surfaceSecondary: 'rgba(255, 255, 255, 0.9)',
-    }
+    activeBackground: GRADIENTS.blue,
+    activeShadow: LIGHT_TOKENS.shadows.md,
+    // Slightly darker off state in light mode
+    inactiveBackground: LIGHT_TOKENS.colors.borderHover,
+    inactiveShadow: LIGHT_TOKENS.shadows.sm,
+    disabledBackground: LIGHT_TOKENS.colors.borderSecondary,
+    disabledCircle: 'transparent', // Transparent knob when disabled
+    textColor: LIGHT_TOKENS.colors.textPrimary,
+    disabledTextColor: LIGHT_TOKENS.colors.textMuted,
+    // Slightly greyer knob in light mode (instead of pure white)
+    circleColor: GREY_COLORS.grey100,
   },
   dark: {
-    ...DARK_TOKENS,
-    colors: {
-      ...DARK_TOKENS.colors,
-      // Glass effect for dark modals
-      surfacePrimary: COLORS.gray[750],
-      surfaceSecondary: COLORS.gray[700],
-    }
+    activeBackground: GRADIENTS.blue,
+    activeShadow: DARK_TOKENS.shadows.md,
+    inactiveBackground: DARK_TOKENS.colors.borderHover,
+    inactiveShadow: DARK_TOKENS.shadows.sm,
+    disabledBackground: DARK_TOKENS.colors.borderSecondary,
+    disabledCircle: 'transparent', // Transparent knob when disabled
+    textColor: DARK_TOKENS.colors.textPrimary,
+    disabledTextColor: DARK_TOKENS.colors.textSecondary,
+    // Slightly lighter knob in dark mode for better visibility
+    circleColor: DARK_TOKENS.colors.surfaceSecondary,
   }
 };

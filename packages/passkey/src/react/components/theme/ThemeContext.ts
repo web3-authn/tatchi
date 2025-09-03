@@ -1,7 +1,7 @@
 import React from 'react';
 import type { DesignTokens } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
-import { createVars } from './utils';
+import { createCSSVariables } from './utils';
 
 export type ThemeName = 'light' | 'dark';
 
@@ -32,7 +32,7 @@ export const useThemeContext = (): ThemeContextValue => {
       : false;
   const theme: ThemeName = prefersDark ? 'dark' : 'light';
   const tokens: DesignTokens = theme === 'dark' ? DARK_TOKENS : LIGHT_TOKENS;
-  const vars = createVars(tokens, '--w3a');
+  const vars = createCSSVariables(tokens, '--w3a');
   return {
     theme,
     tokens,

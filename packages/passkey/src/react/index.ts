@@ -49,7 +49,9 @@ export { ProfileSettingsButton } from './components/ProfileSettingsButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
-export { SecureTxConfirmButton } from './components/SecureTxConfirmButton';
+export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
+// Small SVG utility icon used in examples
+export { default as TouchIcon } from './components/ProfileSettingsButton/TouchIcon';
 
 // === TYPES ===
 export type {
@@ -82,7 +84,7 @@ export type {
   UseRelayerOptions,
   UseRelayerReturn,
   // Embedded transaction confirmation
-  SecureTxConfirmButtonProps,
+  SecureSendTxButtonProps as SecureTxConfirmButtonProps,
 } from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===
