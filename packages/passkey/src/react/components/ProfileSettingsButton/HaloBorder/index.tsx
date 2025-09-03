@@ -1,5 +1,4 @@
-import React from 'react';
-import './HaloBorder.css';
+import React, { useEffect, useRef } from 'react';
 
 /**
  * HaloBorder
@@ -22,8 +21,13 @@ interface HaloBorderProps {
   animated?: boolean;
   style?: React.CSSProperties;
   theme?: 'dark' | 'light';
-  borderGap?: number; // Gap between ring and content
-  borderWidth?: number; // Thickness of the rotating ring
+  ringGap?: number; // Gap between ring and content
+  ringWidth?: number; // Thickness of the rotating ring
+  ringBorderRadius?: string; // Border radius of the rotating arc
+  ringBorderShadow?: string; // Box shadow of the rotating ring
+  padding?: string; // Padding of the container
+  innerPadding?: string; // Inner border padding of the container
+  innerBackground?: string; // Inner background color of the container
 }
 
 export const HaloBorder: React.FC<HaloBorderProps> = ({
@@ -32,31 +36,103 @@ export const HaloBorder: React.FC<HaloBorderProps> = ({
   animated = false,
   style = {},
   theme = 'light',
-  borderGap = 8,
-  borderWidth = 2
+  ringGap = 4,
+  ringWidth = 2,
+  ringBorderRadius = '2rem',
+  ringBorderShadow,
+  padding,
+  innerPadding = '2rem',
+  innerBackground = 'var(--w3a-colors-surfacePrimary)',
 }) => {
+  // Compose inline-only styles and optional JS-driven animation
+  const paddingOverride = padding ? padding : `${ringGap + ringWidth}px`;
+  const haloRootStyle: React.CSSProperties = {
+    background: 'transparent',
+    borderRadius: '2rem',
+    padding: 0,
+    maxWidth: '860px',
+    boxSizing: 'border-box',
+    width: 'fit-content',
+    height: 'fit-content',
+    boxShadow: ringBorderShadow,
+    ...style,
+  };
+
+  const haloInnerStyle: React.CSSProperties = {
+    background: 'transparent',
+    border: '1px solid transparent',
+    borderRadius: '2rem',
+    padding: paddingOverride,
+    position: 'relative',
+  };
+
+  const containerStyle: React.CSSProperties = {
+    position: 'relative',
+    borderRadius: '2rem',
+    overflow: 'visible',
+  };
+
+  const contentStyle: React.CSSProperties = {
+    background: innerBackground,
+    borderRadius: ringBorderRadius,
+    padding: innerPadding,
+    position: 'relative',
+    zIndex: 2,
+  };
+
+  const ringRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!animated || !ringRef.current) return;
+
+    let rafId: number;
+    const start = performance.now();
+    const durationMs = 1150; // match previous CSS animation: 1.15s linear
+    const step = (now: number) => {
+      const elapsed = now - start;
+      const progress = (elapsed % durationMs) / durationMs; // 0..1
+      const angle = progress * 360; // degrees
+      if (ringRef.current) {
+        ringRef.current.style.background = `conic-gradient(from ${angle}deg, transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%)`;
+      }
+      rafId = requestAnimationFrame(step);
+    };
+    rafId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(rafId);
+  }, [animated]);
+
+  const ringInsetPx = `-${ringGap + ringWidth}px`;
+  const ringStyle = {
+    position: 'absolute' as const,
+    top: ringInsetPx,
+    right: ringInsetPx,
+    bottom: ringInsetPx,
+    left: ringInsetPx,
+    borderRadius: `calc(${ringBorderRadius} + ${ringGap}px + ${ringWidth}px)`,
+    pointerEvents: 'none' as const,
+    zIndex: 3,
+    background: 'conic-gradient(from 0deg, transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%)',
+    padding: `${ringWidth}px`,
+    WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
+    WebkitMaskComposite: 'xor',
+    maskComposite: 'exclude',
+  } as React.CSSProperties & {
+    WebkitMaskComposite?: any;
+    WebkitMask?: any;
+    maskComposite?: any;
+  };
+
   return (
-    <div
-      className={`w3a-halo-border-root ${theme}`}
-      style={style}
-    >
-      <div className="w3a-halo-border-inner">
+    <div className={`w3a-halo-border-root ${theme}`} style={haloRootStyle}>
+      <div className="w3a-halo-border-inner" style={haloInnerStyle}>
         {animated ? (
-          // Animated border using pseudo-elements
-          <div
-            className="w3a-rotating-border-container"
-            style={{
-              '--ring-gap': `${borderGap}px`,
-              '--ring-width': `${borderWidth}px`
-            } as React.CSSProperties & { '--ring-gap': string; '--ring-width': string }}
-          >
-            <div className={`w3a-halo-border-content ${className}`}>
+          <div style={containerStyle}>
+            <div ref={ringRef} style={ringStyle} />
+            <div className={`w3a-halo-border-content ${className}`} style={contentStyle}>
               {children}
             </div>
           </div>
         ) : (
-          // Non-animated version
-          <div className={`w3a-halo-border-content ${className}`}>
+          <div className={`w3a-halo-border-content ${className}`} style={contentStyle}>
             {children}
           </div>
         )}

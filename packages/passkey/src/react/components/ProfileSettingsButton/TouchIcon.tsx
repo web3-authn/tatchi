@@ -1,12 +1,13 @@
 
 
 import React from 'react';
+import './TouchIcon.css';
 
 interface TouchIconProps {
   className?: string;
   strokeWidth?: number;
-  width?: string;
-  height?: string;
+  width?: number;
+  height?: number;
   style?: React.CSSProperties;
 }
 
@@ -20,8 +21,8 @@ const TouchIcon: React.FC<TouchIconProps> = ({
   <svg
     className={`${className || ''}`}
     style={{ ...style }}
-    width={width || "24"}
-    height={height || "24"}
+    width={width || 24}
+    height={height || 24}
     viewBox="0 0 24 24"
     fill="none"
     xmlns="http://www.w3.org/2000/svg"

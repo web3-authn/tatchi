@@ -4,6 +4,7 @@ import { HaloBorder } from './HaloBorder';
 import './AccessKeysModal.css';
 import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
 import { useTheme } from '../theme/useTheme';
+import PasskeyHaloLoading from './PasskeyHaloLoading';
 
 interface AccessKeysModalProps {
   nearAccountId: string;
@@ -138,21 +139,61 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
-    <div className={`w3a-access-keys-modal-outer`} onClick={onClose}>
-      <HaloBorder theme={theme} animated={true} borderGap={8} borderWidth={4}>
-        <div className="w3a-access-keys-modal-header">
-          <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
-          <button className="w3a-access-keys-modal-close" onClick={onClose}>
-            ✕
-          </button>
-        </div>
+  // Prevent any events from bubbling up to parent components
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  };
 
-        <div className="w3a-access-keys-modal-content">
+  const handleModalContentClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Don't call onClose here - we want to keep the modal open
+  };
+
+  return (
+    <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
+      onClick={handleBackdropClick}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
+    >
+      <HaloBorder theme={theme} animated={true} ringGap={8} ringWidth={4}>
+        <div className="w3a-access-keys-modal-content"
+          onClick={handleModalContentClick}
+          onMouseDown={(e) => e.stopPropagation()}
+          onMouseUp={(e) => e.stopPropagation()}
+        >
+          <div className="w3a-access-keys-modal-header">
+            <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
+            <button className="w3a-access-keys-modal-close"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
+            >
+              ✕
+            </button>
+          </div>
+
+          <PasskeyHaloLoading
+            style={{
+              display: 'grid',
+              placeItems: 'center',
+            }}
+            height={48}
+            width={48}
+          />
+
           {error && (
             <div className="w3a-access-keys-error">
               <p>{error}</p>
-              <button onClick={loadAccessKeys} className="w3a-btn w3a-btn-primary">
+              <button onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                loadAccessKeys();
+              }} className="w3a-btn w3a-btn-primary">
                 Try Again
               </button>
             </div>
@@ -184,7 +225,10 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
                             ) : (
                               <div
                                 className="mono w3a-copyable-key"
-                                onClick={() => copyToClipboard(key.public_key, index)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  copyToClipboard(key.public_key, index);
+                                }}
                                 onMouseEnter={() => setTooltipVisible(index)}
                                 onMouseLeave={() => setTooltipVisible(null)}
                                 title="Click to copy"
@@ -214,6 +258,7 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
             </div>
           )}
         </div>
+
       </HaloBorder>
     </div>
   );

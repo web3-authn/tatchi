@@ -2,26 +2,28 @@
 .w3a-halo-border-root {
   background: transparent;
   border-radius: 2rem;
-  padding: var(--w3a-gap-2);
+  padding: 0px;
   max-width: 860px;
-  width: 100%;
   box-sizing: border-box;
-  box-shadow: 2px 6px 10px var(--w3a-halo-border-shadow);
+  box-shadow: var(--w3a-halo__border-shadow, none);
+  /* width: 100%; */
+  width: fit-content;
+  height: fit-content;
 }
 
 .w3a-halo-border-inner {
   background: transparent;
   border: 1px solid transparent;
   border-radius: 2rem;
-  padding: 2rem;
+  padding: var(--w3a-halo__padding, 1rem);
   position: relative;
 }
 
 .w3a-halo-border-content {
-  background: var(--w3a-color-surfacePrimary);
-  border: 1px solid var(--w3a-color-borderPrimary);
-  border-radius: 2rem;
-  padding: 2rem;
+  background: var(--w3a-halo__inner-background, var(--w3a-colors-surfacePrimary));
+  /* border: 1px solid var(--w3a-colors-borderPrimary); */
+  border-radius: var(--w3a-halo__ring-border-radius, 2rem);
+  padding: var(--w3a-halo__inner-padding, 2rem);
   position: relative;
   z-index: 2; /* keep content above the ring */
 }
@@ -35,8 +37,13 @@
 
 /*
   Rotating floating ring using a conic-gradient + mask.
-  - --ring-gap   : distance between the content edge and the ring
-  - --ring-width : thickness of the ring
+  - --w3a-halo__ring-gap   : distance between the content edge and the ring
+  - --w3a-halo__ring-width : thickness of the ring
+  - --w3a-halo__ring-border-radius : border radius of the rotating arc
+  - --w3a-halo__border-shadow : box shadow of the rotating ring
+  - --w3a-halo__padding : outer padding of the container
+  - --w3a-halo__inner-padding : inner border padding of the container
+  - --w3a-halo__inner-background : inner background color of the container
 
   Technique:
   The ::before pseudo-element is inset by the gap, then we use a mask with
@@ -46,8 +53,8 @@
   content: '';
   position: absolute;
   /* Extend outside the box so the ring is OUTSIDE */
-  inset: calc(-1 * (var(--ring-gap, 8px) + var(--ring-width, 2px)));
-  border-radius: calc(2rem + var(--ring-gap, 8px) + var(--ring-width, 2px));
+  inset: calc(-1 * (var(--w3a-halo__ring-gap, 8px) + var(--w3a-halo__ring-width, 2px)));
+  border-radius: calc(var(--w3a-halo__ring-border-radius) + var(--w3a-halo__ring-gap, 8px) + var(--w3a-halo__ring-width, 2px));
   pointer-events: none;
   z-index: 3; /* sit above content so it's visible */
 
@@ -61,7 +68,7 @@
   );
 
   /* Keep only the padding area = ring width */
-  padding: var(--ring-width, 2px);
+  padding: var(--w3a-halo__ring-width, 2px);
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
