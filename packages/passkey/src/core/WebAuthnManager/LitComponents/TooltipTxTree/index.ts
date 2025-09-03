@@ -3,7 +3,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { TreeNode } from './tooltip-tree-utils';
 import type { TooltipTreeStyles } from './tooltip-tree-themes';
-
+import { formatGas, formatDeposit } from '../common/formatters';
 // Re-export for backward compatibility
 export type { TooltipTreeStyles } from './tooltip-tree-themes';
 
@@ -92,7 +92,7 @@ export class TooltipTxTree extends LitElementWithProps {
       border-radius: var(--w3a-tree__tooltip-border-inner__border-radius, 24px);
       margin: var(--w3a-tree__tooltip-border-inner__margin, 0px);
       padding: var(--w3a-tree__tooltip-border-inner__padding, 0px);
-      height: var(--w3a-tree__tooltip-border-inner__height, calc(100% - 2px));
+      height: var(--w3a-tree__tooltip-border-inner__height, auto);
       overflow: var(--w3a-tree__tooltip-border-inner__overflow, hidden);
       box-shadow: var(--w3a-tree__tooltip-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
       background: var(--w3a-tree__tooltip-border-inner__background, var(--w3a-color-surface));
@@ -175,6 +175,15 @@ export class TooltipTxTree extends LitElementWithProps {
       line-height: var(--w3a-tree__label__line-height, 1.2);
       border: var(--w3a-tree__label__border, none);
       border-radius: var(--w3a-tree__label__border-radius, 0);
+      /* Optional WebKit gradient text support (controlled via CSS vars) */
+      -webkit-background-clip: var(--w3a-tree__label__webkit-background-clip, initial);
+      -webkit-text-fill-color: var(--w3a-tree__label__webkit-text-fill-color, currentColor);
+    }
+
+    /* Force gradient text when explicitly requested */
+    .label.gradient-text {
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
     }
 
     .label:hover {
@@ -246,6 +255,7 @@ export class TooltipTxTree extends LitElementWithProps {
       background: var(--w3a-tree__connector__color);
     }
 
+
     /*
      * For nested children (e.g., action args), clamp the connector anchor
      * to the first-level indent so indent=2 rows draw at indent=1.
@@ -286,8 +296,12 @@ export class TooltipTxTree extends LitElementWithProps {
       white-space: var(--w3a-tree__file-content__white-space, pre-wrap);
       word-break: var(--w3a-tree__file-content__word-break, break-word);
       line-height: var(--w3a-tree__file-content__line-height, 1.3);
-      font-size: var(--w3a-tree__file-content__font-size, 0.65rem);
+      font-size: var(--w3a-tree__file-content__font-size, 0.7rem);
       box-shadow: var(--w3a-tree__file-content__box-shadow, none);
+      /* pretty print JSON and text wrap */
+      white-space: pre;
+      text-wrap: auto;
+      word-break: var(--w3a-tree__file-content__word-break, break-word);
     }
 
     .file-content::-webkit-scrollbar {
@@ -310,33 +324,42 @@ export class TooltipTxTree extends LitElementWithProps {
 
     /* Highlighting styles for transaction details */
     .highlight-receiver-id {
-      color: var(--w3a-tree__highlight-receiver-id__color, #ff6b6b) !important;
-      font-weight: var(--w3a-tree__highlight-receiver-id__font-weight, 600) !important;
-      background: var(--w3a-tree__highlight-receiver-id__background, transparent) !important;
-      text-decoration: var(--w3a-tree__highlight-receiver-id__text-decoration, none) !important;
-      padding: var(--w3a-tree__highlight-receiver-id__padding, 0) !important;
-      border-radius: var(--w3a-tree__highlight-receiver-id__border-radius, 0) !important;
-      box-shadow: var(--w3a-tree__highlight-receiver-id__box-shadow, none) !important;
+      color: var(--w3a-tree__highlight-receiver-id__color, #ff6b6b);
+      background: var(--w3a-tree__highlight-receiver-id__background, transparent);
+      -webkit-background-clip: var(--w3a-tree__highlight-receiver-id__background-clip, none);
+      -webkit-text-fill-color: var(--w3a-tree__highlight-receiver-id__text-fill-color, none);
+
+      font-weight: var(--w3a-tree__highlight-receiver-id__font-weight, 600);
+      text-decoration: var(--w3a-tree__highlight-receiver-id__text-decoration, none);
+      padding: var(--w3a-tree__highlight-receiver-id__padding, 0);
+      border-radius: var(--w3a-tree__highlight-receiver-id__border-radius, 0);
+      box-shadow: var(--w3a-tree__highlight-receiver-id__box-shadow, none);
     }
 
     .highlight-method-name {
-      color: var(--w3a-tree__highlight-method-name__color, #4ecdc4) !important;
-      font-weight: var(--w3a-tree__highlight-method-name__font-weight, 600) !important;
-      background: var(--w3a-tree__highlight-method-name__background, transparent) !important;
-      text-decoration: var(--w3a-tree__highlight-method-name__text-decoration, none) !important;
-      padding: var(--w3a-tree__highlight-method-name__padding, 0) !important;
-      border-radius: var(--w3a-tree__highlight-method-name__border-radius, 0) !important;
-      box-shadow: var(--w3a-tree__highlight-method-name__box-shadow, none) !important;
+      color: var(--w3a-tree__highlight-method-name__color, #4ecdc4);
+      background: var(--w3a-tree__highlight-method-name__background, transparent);
+      -webkit-background-clip: var(--w3a-tree__highlight-method-name__background-clip, none);
+      -webkit-text-fill-color: var(--w3a-tree__highlight-method-name__text-fill-color, none);
+
+      font-weight: var(--w3a-tree__highlight-method-name__font-weight, 600);
+      text-decoration: var(--w3a-tree__highlight-method-name__text-decoration, none);
+      padding: var(--w3a-tree__highlight-method-name__padding, 0);
+      border-radius: var(--w3a-tree__highlight-method-name__border-radius, 0);
+      box-shadow: var(--w3a-tree__highlight-method-name__box-shadow, none);
     }
 
     .highlight-amount {
-      color: var(--w3a-tree__highlight-amount__color, #4ecdc4) !important;
-      font-weight: var(--w3a-tree__highlight-amount__font-weight, 600) !important;
-      background: var(--w3a-tree__highlight-amount__background, transparent) !important;
-      text-decoration: var(--w3a-tree__highlight-amount__text-decoration, none) !important;
-      padding: var(--w3a-tree__highlight-amount__padding, 0) !important;
-      border-radius: var(--w3a-tree__highlight-amount__border-radius, 0) !important;
-      box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none) !important;
+      color: var(--w3a-tree__highlight-amount__color, #4ecdc4);
+      background: var(--w3a-tree__highlight-amount__background, transparent);
+      -webkit-background-clip: var(--w3a-tree__highlight-amount__background-clip, none);
+      -webkit-text-fill-color: var(--w3a-tree__highlight-amount__text-fill-color, none);
+
+      font-weight: var(--w3a-tree__highlight-amount__font-weight, 600);
+      text-decoration: var(--w3a-tree__highlight-amount__text-decoration, none);
+      padding: var(--w3a-tree__highlight-amount__padding, 0);
+      border-radius: var(--w3a-tree__highlight-amount__border-radius, 0);
+      box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none);
     }
   `;
 
@@ -387,83 +410,51 @@ export class TooltipTxTree extends LitElementWithProps {
     }
   }
 
-  private renderLabelWithSelectiveHighlight(
-    label: string,
-    highlight?: { type: 'receiverId' | 'methodName'; color: string },
-    highlightSpec?: import('./tooltip-tree-utils').HighlightSpec
-  ): TemplateResult | string {
-    if (!label) return '';
-
-    if (highlightSpec) {
-      if ('transaction' in highlightSpec && highlightSpec.transaction === 'receiverId') {
-        const singleTxMatch = label.match(/^Transaction to (.+)$/);
-        if (singleTxMatch) {
-          const receiverId = singleTxMatch[1];
-          return html`Transaction to <span class="highlight-receiver-id">${receiverId}</span>`;
+  private renderLabelWithSelectiveHighlight(treeNode: TreeNode): TemplateResult | string {
+    // Action-level labels (with inline highlights)
+    if (treeNode.action) {
+      const a = treeNode.action;
+      switch (a.type) {
+        case 'FunctionCall': {
+          const method = a.methodName;
+          const gasStr = formatGas(a.gas);
+          return html`Calling <span class="highlight-method-name">${method}</span>${gasStr ? html` with ${gasStr}` : ''}`;
         }
-        const multiTxMatch = label.match(/^Transaction\(\d+\) to (.+)$/);
-        if (multiTxMatch) {
-          const receiverId = multiTxMatch[1];
-          const prefix = label.substring(0, multiTxMatch.index! + multiTxMatch[0].length - multiTxMatch[1].length);
-          return html`${prefix}<span class="highlight-receiver-id">${receiverId}</span>`;
+        case 'Transfer': {
+          const amount = formatDeposit(a.amount);
+          return html`Transfer <span class="highlight-amount">${amount}</span>`;
         }
-      }
-
-      if ('actionType' in highlightSpec) {
-        const keys = new Set(highlightSpec.highlightKeys || []);
-        if (highlightSpec.actionType === 'FunctionCall') {
-          const match = label.match(/^Calling (.+) with (.+)$/);
-          if (match) {
-            const methodName = match[1];
-            const gas = match[2];
-            return html`Calling ${keys.has('methodName') ? html`<span class="highlight-method-name">${methodName}</span>` : methodName} with ${keys.has('gas') ? html`<span class="highlight-method-name">${gas}</span>` : gas}`;
-          }
-        }
-        if (highlightSpec.actionType === 'Transfer') {
-          const match = label.match(/^Transfer (.+)$/);
-          if (match) {
-            const amount = match[1];
-            return html`Transfer ${keys.has('amount') ? html`<span class="highlight-amount">${amount}</span>` : amount}`;
-          }
+        case 'CreateAccount':
+          return 'Creating Account';
+        case 'DeleteAccount':
+          return 'Deleting Account';
+        case 'Stake':
+          return `Staking ${formatDeposit(a.stake)}`;
+        case 'AddKey':
+          return 'Adding Key';
+        case 'DeleteKey':
+          return 'Deleting Key';
+        case 'DeployContract':
+          return 'Deploying Contract';
+        default: {
+          const idxText = typeof treeNode.actionIndex === 'number' ? ` ${treeNode.actionIndex + 1}` : '';
+          const typeText = a.type || 'Unknown';
+          return `Action ${idxText}: ${typeText}`;
         }
       }
     }
 
-    // Legacy fallback
-    if (!highlight) return label;
-    const highlightClass = `highlight-${this.camelToKebab(highlight.type)}`;
-    switch (highlight.type) {
-      case 'receiverId': {
-        const singleTxMatch = label.match(/^Transaction to (.+)$/);
-        if (singleTxMatch) {
-          const receiverId = singleTxMatch[1];
-          return html`Transaction to <span class="${highlightClass}">${receiverId}</span>`;
-        }
-        const multiTxMatch = label.match(/^Transaction\(\d+\) to (.+)$/);
-        if (multiTxMatch) {
-          const receiverId = multiTxMatch[1];
-          const prefix = label.substring(0, multiTxMatch.index! + multiTxMatch[0].length - multiTxMatch[1].length);
-          return html`${prefix}<span class="${highlightClass}">${receiverId}</span>`;
-        }
-        return html`<span class="${highlightClass}">${label}</span>`;
-      }
-      case 'methodName': {
-        const match = label.match(/^Calling (.+) with (.+)$/);
-        if (match) {
-          const methodName = match[1];
-          const gas = match[2];
-          return html`Calling <span class="${highlightClass}">${methodName}</span> with <span class="${highlightClass}">${gas}</span>`;
-        }
-        const fallbackMatch = label.match(/^Calling (.+) with$/);
-        if (fallbackMatch) {
-          const methodName = fallbackMatch[1];
-          return html`Calling <span class="${highlightClass}">${methodName}</span> with`;
-        }
-        return html`<span class="${highlightClass}">${label}</span>`;
-      }
-      default:
-        return html`<span class="${highlightClass}">${label}</span>`;
+    // Transaction-level labels (with inline receiver highlight)
+    if (treeNode.transaction) {
+      const total = treeNode.totalTransactions ?? 1;
+      const idx = treeNode.transactionIndex ?? 0;
+      const prefix = total > 1 ? `Transaction ${idx + 1}: to ` : 'Transaction to ';
+      const receiverId = treeNode.transaction.receiverId;
+      return html`${prefix}<span class="highlight-receiver-id">${receiverId}</span>`;
     }
+
+    // Fallback to plain label for non-action, non-transaction nodes
+    return treeNode.label || '';
   }
 
   private renderLeaf(depth: number, node: TreeNode): TemplateResult | undefined {
@@ -486,10 +477,13 @@ export class TooltipTxTree extends LitElementWithProps {
                   <path fill="currentColor" d="M6 3l5 5-5 5z" />
                 </svg>
               ` : ''}
-              ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, (node as any).highlightSpec) : ''}
+              ${this.renderLabelWithSelectiveHighlight(node)}
             </span>
           </summary>
-          <div class="row file-row" style="--indent: ${indent}" data-no-elbow="${!!node.displayNone}">
+          <div class="row file-row"
+            style="--indent: ${indent}"
+            data-no-elbow="${!!node.displayNone}"
+          >
             <span class="indent"></span>
             <div class="file-content">${node.content}</div>
           </div>
@@ -498,12 +492,15 @@ export class TooltipTxTree extends LitElementWithProps {
     }
     // Plain file row without content
     return html`
-      <div class="row file-row" style="--indent: ${indent}" data-no-elbow="${!!node.displayNone}">
+      <div class="row file-row"
+        style="--indent: ${indent}"
+        data-no-elbow="${!!node.displayNone}"
+      >
         <span class="indent"></span>
         <span class="label"
           style="${node.displayNone ? 'display: none;' : ''}"
         >
-          ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, (node as any).highlightSpec) : ''}
+          ${this.renderLabelWithSelectiveHighlight(node)}
         </span>
       </div>
     `;
@@ -528,7 +525,7 @@ export class TooltipTxTree extends LitElementWithProps {
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
               </svg>
             ` : ''}
-            ${node.label ? this.renderLabelWithSelectiveHighlight(node.label, node.highlight, node.highlightSpec) : ''}
+            ${this.renderLabelWithSelectiveHighlight(node)}
           </span>
         </summary>
         ${nodeChildren && nodeChildren.length > 0 ? html`
@@ -547,14 +544,12 @@ export class TooltipTxTree extends LitElementWithProps {
   }
 
   render() {
-    const depth = this.depth ?? 0;
-
     if (!this.node || (this.node.type === 'folder' && !this.node.children?.length)) {
       return html``;
     }
 
+    let depth = this.depth ?? 0;
     let content: TemplateResult | undefined;
-
     if (depth === 0) {
       // Render only the children as top-level entries
       content = html`

@@ -143,11 +143,15 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
       color: DARK_THEME_COLORS.highlightReceiverId,
-      fontWeight: '600'
+      fontWeight: '600',
     },
     highlightMethodName: {
       color: DARK_THEME_COLORS.highlightMethodName,
-      fontWeight: '600'
+      fontWeight: '600',
+    },
+    highlightAmount: {
+      color: DARK_THEME_COLORS.highlightAmount,
+      fontWeight: '600',
     },
 
     // Mobile responsive
@@ -272,11 +276,15 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
       color: LIGHT_THEME_COLORS.highlightReceiverId,
-      fontWeight: '600'
+      fontWeight: '600',
     },
     highlightMethodName: {
       color: LIGHT_THEME_COLORS.highlightMethodName,
-      fontWeight: '600'
+      fontWeight: '600',
+    },
+    highlightAmount: {
+      color: LIGHT_THEME_COLORS.highlightAmount,
+      fontWeight: '600',
     },
 
     // Mobile responsive

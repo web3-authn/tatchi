@@ -136,7 +136,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       border-radius: var(--w3a-modal__modal-border-inner__border-radius, 24px);
       margin: var(--w3a-modal__modal-border-inner__margin, 0px);
       padding: var(--w3a-modal__modal-border-inner__padding, 0px);
-      height: var(--w3a-modal__modal-border-inner__height, calc(100% - 2px));
+      height: var(--w3a-modal__modal-border-inner__height, auto);
       overflow: var(--w3a-modal__modal-border-inner__overflow, hidden);
       box-shadow: var(--w3a-modal__modal-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
       background: var(--w3a-modal__modal-border-inner__background);
@@ -331,21 +331,29 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .code-block {
+      background: var(--w3a-modal__code-block__background);
+      border: var(--w3a-modal__code-block__border, 1px solid transparent);
+      border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
+      /* dimensions */
+      margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
+      padding: var(--w3a-modal__code-block__padding, var(--w3a-gap-2));
+      min-height: calc(1.4em * 3);
+      max-height: var(--w3a-modal__code-block__max-height, 400px);
+      height: auto;
+      max-width: var(--w3a-modal__code-block__max-width, 800px);
+      overflow: auto;
+      /* text styles */
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
       font-size: var(--w3a-modal__code-block__font-size, var(--w3a-font-size-sm));
-      background: var(--w3a-modal__code-block__background);
-      border: 1px solid var(--w3a-modal__code-block__border-color);
-      border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
-      padding: var(--w3a-modal__code-block__padding, var(--w3a-gap-2));
-      margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
-      white-space: pre;
-      word-break: normal;
-      overflow: auto;
-      line-height: 1.4;
-      min-height: calc(1.4em * 3);
-      max-height: var(--w3a-modal__code-block__max-height);
-      height: auto;
       color: var(--w3a-modal__code-block__color);
+      line-height: 1.4;
+      /* pretty print JSON and text wrap */
+      white-space: pre;
+      text-wrap: auto;
+      word-break: var(--w3a-modal__code-block__word-break, break-word);
+      /* Ensure resize handle is visible and functional */
+      resize: vertical;
+      box-sizing: border-box;
     }
 
     .method-name {
@@ -388,7 +396,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .btn:hover {
       background-color: var(--w3a-modal__btn-hover__background-color);
-      box-shadow: var(--w3a-modal__btn-hover__box-shadow, var(--w3a-shadow-md));
+      box-shadow: var(--w3a-modal__btn-hover__box-shadow, none);
     }
 
     .btn:active {
@@ -406,7 +414,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .btn-cancel:hover {
       color: var(--w3a-modal__btn-cancel-hover__color);
       background-color: var(--w3a-modal__btn-cancel-hover__background-color);
-      border: none;
+      border: var(--w3a-modal__btn-cancel-hover__border, none);
     }
 
     .btn-confirm {
@@ -417,24 +425,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .btn-confirm:hover {
       background-color: var(--w3a-modal__btn-confirm-hover__background-color);
-      border: none;
-    }
-
-    .btn-confirm.warning {
-      background-color: var(--w3a-modal__btn-confirm-warning__background-color);
-      color: var(--w3a-modal__btn-confirm-warning__color);
-      border: none;
-    }
-
-    .btn-confirm.danger {
-      background-color: var(--w3a-modal__btn-confirm-danger__background-color);
-      color: var(--w3a-modal__btn-confirm-danger__color);
-      border: none;
-    }
-
-    .btn-confirm.warning:hover,
-    .btn-confirm.danger:hover {
-      opacity: 0.9;
+      border: var(--w3a-modal__btn-confirm-hover__border, none);
     }
 
     .btn:focus-visible {

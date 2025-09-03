@@ -127,7 +127,7 @@ export class IframeModalHost extends LitElementWithProps {
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <style>html,body{margin:0;padding:0;background:transparent}</style>
-          <script>try{ parent && parent.postMessage({ type: 'MODAL_IFRAME_BOOT' }, '*'); }catch(e){}</script>
+          <script>try{ parent && parent.postMessage({ type: 'MODAL_IFRAME_BOOT' }, '*'); } catch(e) {}</script>
           <script type="module" src="${base}${modalBundle}"></script>
           <script type="module" src="${base}${iframeBootstrap}"></script>
         </head>

@@ -7,6 +7,18 @@ Pure presentational tree used inside the embedded tooltip. No internal state; re
 - depth: Number (0 for top-level rendering inside tooltip).
 - tooltipTreeStyles: `TooltipTreeStyles` object with per-section CSS overrides.
 
+## CSS Variable Mapping
+- TooltipTxTree maps `tooltipTreeStyles` onto CSS custom properties on the host.
+- Variable naming: `--w3a-tree__<section>__<property>` (both section and property are kebab-cased).
+
+Examples
+- `{ fileContent: { background: '#f8fafc' } }` → sets `--w3a-tree__file-content__background`.
+- `{ label: { color: 'oklch(0.53 0.02 240)' } }` → sets `--w3a-tree__label__color`.
+
+Notes
+- All sections and properties are converted to kebab-case before being applied.
+- These CSS variables are consumed inside the component stylesheet to style rows, labels, highlights, etc.
+
 ## Styling (CSS variables)
 - TooltipTxTree maps `tooltipTreeStyles` onto CSS custom properties on the host.
 - Variable naming: `--w3a-tree__<section>__<property>` (both section and property are kebab-cased).

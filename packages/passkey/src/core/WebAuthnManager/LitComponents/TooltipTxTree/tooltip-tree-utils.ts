@@ -1,6 +1,6 @@
 import { TooltipTreeStyles } from './tooltip-tree-themes';
 import type { ActionArgs, TransactionInput } from '../../../types/actions';
-import { formatArgs, formatGas, formatDeposit } from '../common/formatters';
+import { formatArgs, formatDeposit } from '../common/formatters';
 
 export type TreeNodeType = 'folder' | 'file';
 
@@ -48,52 +48,38 @@ export interface TreeNode {
    * but the content will still be visible.
    */
   displayNone?: boolean;
+
+  /**
+   * For action folder nodes, attach the underlying ActionArgs so the
+   * renderer can construct the label and apply selective highlights.
+   */
+  action?: ActionArgs;
+  /**
+   * The index of this action within its transaction, for display purposes.
+   */
+  actionIndex?: number;
+  /** Transaction data for transaction-level folder nodes */
+  transaction?: TransactionInput;
+  /** Index of this transaction in the list */
+  transactionIndex?: number;
+  /** Total count of transactions in the request */
+  totalTransactions?: number;
 }
 
 // Builds a TreeNode for a single action
-function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameColor?: string): TreeNode {
-
-  // Generate user-friendly labels for each action type
-  let label: string;
-  switch (action.type) {
-    case 'FunctionCall':
-      label = `Calling ${action.methodName} with ${formatGas(action.gas)}`;
-      break;
-    case 'Transfer':
-      label = `Transfer ${formatDeposit(action.amount)}`;
-      break;
-    case 'CreateAccount':
-      label = 'Creating Account';
-      break;
-    case 'DeleteAccount':
-      label = 'Deleting Account';
-      break;
-    case 'Stake':
-      label = `Staking ${formatDeposit(action.stake)}`;
-      break;
-    case 'AddKey':
-      label = 'Adding Key';
-      break;
-    case 'DeleteKey':
-      label = 'Deleting Key';
-      break;
-    case 'DeployContract':
-      label = 'Deploying Contract';
-      break;
-    default:
-      label = `Action ${idx + 1}: ${action.type}`;
-  }
+function buildActionNode(action: ActionArgs, idx: number): TreeNode {
 
   let actionNodes: TreeNode[];
 
   switch (action.type) {
     case 'FunctionCall':
+      let showDeposit = action.deposit && action.deposit !== '0';
       actionNodes = [
         // Skip showing gas for FunctionCall, we show it in the label
         // { id: `a${idx}-gas`, label: `gas: ${formatGas(action.gas)}`, type: 'file' },
         //
         // Only show deposit if it's not 0
-        ...(action.deposit && action.deposit !== '0' ? [{
+        ...(showDeposit ? [{
           id: `a${idx}-deposit`,
           label: `deposit: ${formatDeposit(action.deposit)}`,
           type: 'file' as const
@@ -111,9 +97,7 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
       break;
 
     case 'Transfer':
-      actionNodes = [
-        // Transfers don't have gas property, show basic info
-      ];
+      actionNodes = []; // Transfers don't have gas property
       break;
 
     case 'CreateAccount':
@@ -167,50 +151,33 @@ function buildActionNode(action: ActionArgs, idx: number, highlightMethodNameCol
       // Unknown action - show raw data
       let raw = '';
       try { raw = JSON.stringify(action, null, 2); } catch { raw = String(action); }
-      actionNodes = [{
-        id: `a${idx}-action`,
-        label: `Action: ${action.type || 'Unknown'}`,
-        type: 'file'
-      }, {
-        id: `a${idx}-raw`,
-        label: 'Raw Data',
-        type: 'file',
-        open: false,
-        content: raw
-      }];
+      actionNodes = [
+        {
+          id: `a${idx}-action`,
+          label: `Action: ${action.type || 'Unknown'}`,
+          type: 'file'
+        },
+        {
+          id: `a${idx}-raw`,
+          label: 'Raw Data',
+          type: 'file',
+          open: false,
+          content: raw
+        }
+      ];
       break;
   }
 
-  // Conditionally add highlight for FunctionCall method names
-  const functionCallHighlight = action.type === 'FunctionCall' && highlightMethodNameColor
-    ? {
-        highlight: {
-          type: 'methodName' as const,
-          color: highlightMethodNameColor
-        }
-      }
-    : {};
-
-  // Structured highlight spec per action type
-  const highlightSpec: HighlightSpec | undefined = (() => {
-    switch (action.type) {
-      case 'FunctionCall':
-        return { actionType: 'FunctionCall', highlightKeys: ['methodName'] };
-      case 'Transfer':
-        return { actionType: 'Transfer', highlightKeys: ['amount'] };
-      default:
-        return undefined;
-    }
-  })();
-
   return {
     id: `action-${idx}`,
-    label,
+    // Label is now computed at render time from action data
+    label: '',
     type: 'folder',
     open: true,
     hideChevron: true,
-    ...functionCallHighlight,
-    ...(highlightSpec ? { highlightSpec } : {}),
+    // Attach action data for the renderer
+    action,
+    actionIndex: idx,
     children: actionNodes
   } as TreeNode;
 }
@@ -233,29 +200,20 @@ export function buildTransactionNode(
   styles?: TooltipTreeStyles
 ): TreeNode {
 
-  const highlightMethodColor = styles?.highlightMethodName?.color;
   const actionFolders: TreeNode[] = tx.actions.map((action: ActionArgs, idx: number) =>
-    buildActionNode(action, idx, highlightMethodColor)
+    buildActionNode(action, idx)
   );
-
-    // Generate appropriate label based on whether there are multiple transactions
-  const label = totalTransactions === 1
-    ? `Transaction to ${tx.receiverId}`
-    : `Transaction(${tIdx + 1}) to ${tx.receiverId}`;
 
   return {
     id: `tx-${tIdx}`,
-    label: label,
+    // Label is computed at render time; keep empty string here
+    label: '',
     type: 'folder',
     open: true, // all transactions folders are open by default
-    highlightSpec: { transaction: 'receiverId' },
-    ...(styles?.highlightReceiverId?.color && {
-      highlight: {
-        type: 'receiverId' as const,
-        color: styles.highlightReceiverId.color
-      }
-    }),
     hideChevron: true,
+    transaction: tx,
+    transactionIndex: tIdx,
+    totalTransactions,
     children: [...actionFolders]
   };
 }

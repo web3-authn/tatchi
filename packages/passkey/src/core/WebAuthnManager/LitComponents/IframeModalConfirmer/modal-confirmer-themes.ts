@@ -160,8 +160,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       fontSize: '0.75rem',
       margin: '4px 0px 4px 0px',
       background: DARK_THEME_COLORS.grey650,
-      borderColor: DARK_THEME_COLORS.colorBorder,
-      color: DARK_THEME_COLORS.grey500
+      color: DARK_THEME_COLORS.grey350
     },
     methodName: {
       color: DARK_THEME_COLORS.highlightMethodName
@@ -174,21 +173,23 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME_COLORS.colorText,
       borderColor: 'transparent',
       focusOutlineColor: DARK_THEME_COLORS.colorPrimary,
-      focusBoxShadow: '0 0 0 3px oklch(0.55 0.18 240 / 0.14)'
     },
     btnConfirmHover: {
-      backgroundColor: DARK_THEME_COLORS.blue300
+      backgroundColor: DARK_THEME_COLORS.blue500
     },
     btnCancel: {
       backgroundColor: 'transparent',
       color: DARK_THEME_COLORS.colorText,
       borderColor: 'transparent',
     },
+    btnCancelHover: {
+      backgroundColor: DARK_THEME_COLORS.grey700,
+    },
     btnConfirm: {
       padding: '0.5rem',
-      backgroundColor: DARK_THEME_COLORS.blue400,
+      backgroundColor: DARK_THEME_COLORS.blue600,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: DARK_THEME_COLORS.blue400,
+      borderColor: DARK_THEME_COLORS.blue600,
     },
     loadingIndicator: {
       borderColor: DARK_THEME_COLORS.colorBorder,
@@ -321,7 +322,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       fontSize: '0.75rem',
       margin: '4px 0px 4px 0px',
       background: LIGHT_THEME_COLORS.grey100,
-      borderColor: LIGHT_THEME_COLORS.slate200,
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },
     methodName: {
@@ -335,13 +335,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME_COLORS.colorText,
       borderColor: 'transparent',
       focusOutlineColor: LIGHT_THEME_COLORS.colorPrimary,
-      focusBoxShadow: '0 0 0 3px oklch(0.55 0.18 240 / 0.10)'
     },
     btnHover: {
       boxShadow: 'none'
     },
     btnConfirmHover: {
-      backgroundColor: LIGHT_THEME_COLORS.blue300
+      backgroundColor: LIGHT_THEME_COLORS.blue500
     },
     btnCancel: {
       backgroundColor: 'transparent',
@@ -349,15 +348,13 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderColor: 'transparent',
     },
     btnCancelHover: {
-      backgroundColor: LIGHT_THEME_COLORS.grey75,
-      color: LIGHT_THEME_COLORS.colorText,
-      borderColor: 'transparent',
+      backgroundColor: LIGHT_THEME_COLORS.grey100,
     },
     btnConfirm: {
       padding: '0.5rem',
-      backgroundColor: LIGHT_THEME_COLORS.blue400,
+      bakgroundColor: LIGHT_THEME_COLORS.blue600,
       color: LIGHT_THEME_COLORS.colorBackground,
-      borderColor: LIGHT_THEME_COLORS.blue400
+      borderColor: LIGHT_THEME_COLORS.blue600
     },
     loadingIndicator: {
       borderColor: LIGHT_THEME_COLORS.colorBorder,
