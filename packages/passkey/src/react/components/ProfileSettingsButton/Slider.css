@@ -1,0 +1,120 @@
+/* Slider styles used inside the expander */
+.w3a-slider-root {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5rem;
+  align-items: flex-end;
+}
+
+.w3a-slider-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.w3a-slider-container .form-label {
+  text-align: right;
+}
+
+.w3a-slider {
+  width: 100%;
+  height: 4px;
+  border-radius: 4px;
+  /* Default gradient (light fallback) */
+  background: linear-gradient(30deg, var(--w3a-colors-primary) 0%, var(--w3a-colors-success, var(--w3a-colors-borderSecondary)) 100%);
+  border: none;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* WebKit track to ensure consistent border/gradient */
+.w3a-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 4px;
+  background: inherit;
+  border: none;
+}
+
+/* Firefox track */
+.w3a-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 4px;
+  background: inherit;
+  border: none;
+}
+
+/* Theme-specific gradients */
+.w3a-slider.theme-light {
+  background: var(--w3a-colors-backgroundGradientPrimary);
+}
+.w3a-slider.theme-dark {
+  background: var(--w3a-colors-backgroundGradientSecondary);
+}
+.w3a-slider.theme-light::-webkit-slider-runnable-track,
+.w3a-slider.theme-dark::-webkit-slider-runnable-track {
+  background: inherit;
+}
+.w3a-slider.theme-light::-moz-range-track,
+.w3a-slider.theme-dark::-moz-range-track {
+  background: inherit;
+}
+
+.w3a-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* Knob uses darker background than its border */
+  background: var(--w3a-colors-borderSecondary);
+  cursor: pointer;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  box-shadow: var(--w3a-shadows-sm);
+  /* Center the thumb vertically over the track */
+  margin-top: -7px;
+}
+
+.w3a-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  /* Knob uses darker background than its border */
+  background: var(--w3a-colors-borderSecondary);
+  cursor: pointer;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  box-shadow: var(--w3a-shadows-sm);
+  /* Center the thumb vertically over the track */
+  margin-top: -7px;
+}
+
+/* Disabled state: remove primary color emphasis */
+.w3a-slider:disabled {
+  background: var(--w3a-colors-borderSecondary);
+}
+.w3a-slider:disabled::-webkit-slider-runnable-track {
+  background: var(--w3a-colors-borderSecondary);
+}
+.w3a-slider:disabled::-moz-range-track {
+  background: var(--w3a-colors-borderSecondary);
+}
+.w3a-slider:disabled::-webkit-slider-thumb {
+  background: var(--w3a-colors-borderSecondary);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.w3a-slider:disabled::-moz-range-thumb {
+  background: var(--w3a-colors-borderSecondary);
+  border-color: var(--w3a-colors-borderSecondary);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.w3a-slider-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--w3a-colors-textMuted);
+}

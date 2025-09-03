@@ -1,31 +1,4 @@
-
-
-// Color constants for easy customization
-const LIGHT_TOGGLE_COLORS = {
-  activeBackground: '#2A52BE',
-  activeShadow: 'rgba(22, 22, 22, 0.3)',
-  inactiveBackground: '#d1d5db', // gray-300
-  inactiveShadow: 'rgba(0, 0, 0, 0.1)',
-  disabledBackground: '#e5e5e5',
-  disabledCircle: '#cccccc',
-  textColor: '#333333',
-  disabledTextColor: '#999999',
-  circleColor: 'white',
-};
-
-const DARK_TOGGLE_COLORS = {
-  activeBackground: 'oklch(0.536 0.214 260.0)', // cobalt primary - blue400
-  activeShadow: 'rgba(42, 82, 190, 0.3)',
-  inactiveBackground: 'oklch(0.25 0.012 240)', // grey750 from GREY_COLORS
-  inactiveShadow: 'rgba(0, 0, 0, 0.2)',
-  disabledBackground: 'oklch(0.35 0.018 240)', // grey650 - charcoal
-  disabledCircle: 'oklch(0.35 0.018 240)', // grey650 from GREY_COLORS
-  textColor: 'oklch(1 0 0)', // darkText from GUIDELINES_COLORS
-  disabledTextColor: 'oklch(0.53 0 0)', // darkTextSecondary from GUIDELINES_COLORS
-  circleColor: 'oklch(0.15 0.008 240)', // grey850 from GREY_COLORS
-};
-
-const TOGGLE_COLORS = LIGHT_TOGGLE_COLORS;
+import { PROFILE_TOGGLE_TOKENS } from '../theme/design-tokens';
 
 export interface ToggleColorProps {
   activeBackground?: string;
@@ -70,7 +43,7 @@ export const Toggle: React.FC<ToggleProps> = ({
   const isTextOnLeft = textPosition === 'left';
 
   // Use theme-appropriate colors if no custom colors provided
-  const themeColors = colors || (theme === 'dark' ? DARK_TOGGLE_COLORS : LIGHT_TOGGLE_COLORS);
+  const themeColors = colors || (theme === 'dark' ? PROFILE_TOGGLE_TOKENS.dark : PROFILE_TOGGLE_TOKENS.light);
 
   return (
     <div className={`${className}`}>
@@ -98,7 +71,7 @@ export const Toggle: React.FC<ToggleProps> = ({
           ...(isLarge && {
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: 'var(--w3a-spacing-sm)'
           })
         }}
       >
@@ -121,22 +94,19 @@ export const Toggle: React.FC<ToggleProps> = ({
             display: 'inline-block',
             width: isLarge ? '44px' : '32px',
             height: isLarge ? '24px' : '16px',
-            backgroundColor: disabled
-              ? themeColors.disabledBackground
+            // Support gradients when active by assigning to 'background'
+            ...(disabled
+              ? { backgroundColor: themeColors.disabledBackground }
               : checked
-                ? themeColors.activeBackground
-                : themeColors.inactiveBackground,
-            borderRadius: isLarge ? '12px' : '8px',
+                ? { background: themeColors.activeBackground as any }
+                : { backgroundColor: themeColors.inactiveBackground }
+            ),
+            borderRadius: isLarge ? 'var(--w3a-border-radius-lg)' : 'var(--w3a-border-radius-md)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
             cursor: disabled ? 'not-allowed' : 'pointer',
             transform: disabled ? 'scale(1)' : checked ? 'scale(1.02)' : 'scale(1)',
-            boxShadow: disabled
-              ? 'none'
-              : checked
-                ? `0 2px 8px ${themeColors.activeShadow}`
-                : `0 1px 3px ${themeColors.inactiveShadow}`,
             ...(isLarge && {
-              [isTextOnLeft ? 'marginLeft' : 'marginRight']: '12px'
+              [isTextOnLeft ? 'marginLeft' : 'marginRight']: 'var(--w3a-spacing-sm)'
             })
           }}
         >
@@ -156,11 +126,6 @@ export const Toggle: React.FC<ToggleProps> = ({
                   ? `translateX(${isLarge ? '20px' : '15px'}) scale(1.1)`
                   : 'translateX(0px) scale(1)',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: disabled
-                ? 'none'
-                : checked
-                  ? '0 3px 12px rgba(0, 0, 0, 0.3)'
-                  : '0 1px 2px rgba(0, 0, 0, 0.2)'
             }}
           />
         </span>
@@ -170,8 +135,8 @@ export const Toggle: React.FC<ToggleProps> = ({
           style={{
             fontWeight: '500',
             fontSize: isLarge ? '14px' : '0.8rem',
-            color: disabled ? themeColors.disabledTextColor : themeColors.textColor,
-            [isTextOnLeft ? 'marginRight' : 'marginLeft']: isLarge ? '0' : '8px',
+            color: disabled ? themeColors.disabledBackground : themeColors.textColor,
+            [isTextOnLeft ? 'marginRight' : 'marginLeft']: isLarge ? '0' : 'var(--w3a-spacing-sm)',
             display: 'flex',
             alignItems: 'center',
             height: isLarge ? '24px' : '16px',

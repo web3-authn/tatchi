@@ -17,7 +17,10 @@
   width: fit-content;
 }
 
-.w3a-user-account-button-trigger:hover { color: var(--w3a-color-textPrimary); transition: color 0.1s ease; }
+.w3a-user-account-button-trigger:hover {
+  color: var(--w3a-colors-textPrimary);
+  transition: color 0.1s ease;
+}
 
 .w3a-user-account-button-trigger:hover .w3a-profile-button-icon,
 .w3a-user-account-button-trigger:hover .w3a-profile-button-username {
@@ -50,50 +53,15 @@
 
 .w3a-user-account--avatar.shrunk svg {
   transform: scale(1.1);
-  color: var(--w3a-color-textPrimary)
+  color: var(--w3a-colors-textPrimary)
 }
 
 .w3a-user-account--avatar.expanded svg {
   transform: scale(1.1);
-  color: var(--w3a-color-textSecondary) /* same as other MenuItem svg icons */
+  color: var(--w3a-colors-textSecondary) /* same as other MenuItem svg icons */
 }
 
-/* Gear icon animation for AvatarIcon */
-.w3a-user-account--gear-icon {
-  transition: transform 400ms ease;
-}
-
-.w3a-user-account--gear-icon path {
-  /* Normalize path length so dash animations are simple */
-  stroke: currentColor;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1; /* default empty; draws in on open */
-  stroke-width: 1.5;
-}
-
-.w3a-user-account--gear-icon.open path {
-  /* Draw the fingerprint when expanding/opening */
-  animation: w3a-fp-open 1.5s ease-out 0.1s both; /* 100ms delay + hold end */
-}
-
-/* Animate when closing the menu: draw immediately, no delay */
-.w3a-user-account--gear-icon.closed path {
-  animation: w3a-fp-close 1.5s ease-out 0.1s both; /* 100ms delay */
-}
-
-@keyframes w3a-fp-open {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes w3a-fp-close {
-  from { stroke-dashoffset: 1; }
-  to { stroke-dashoffset: 0; }
-}
-
-.w3a-user-account--gear-icon:hover {
-  transform: rotate(180deg) scale(1.2);
-}
+/* TouchIcon styles were moved to TouchIcon.css */
 
 /* User Details States */
 .w3a-user-account--user-details .w3a-user-account--account-id.hidden {
@@ -153,7 +121,7 @@
   width: 40px;
   height: 40px;
   margin-right: 4px;
-  background: var(--w3a-color-surfaceSecondary);
+  background: var(--w3a-colors-surfaceSecondary);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -162,7 +130,7 @@
 
 .w3a-user-account--username {
   font-weight: 500;
-  color: var(--w3a-color-textPrimary);
+  color: var(--w3a-colors-textPrimary);
   font-size: 14px;
   margin: 0;
   margin-top: 0;
@@ -170,13 +138,13 @@
 
 .w3a-user-account--account-id {
   font-size: 0.7rem;
-  color: var(--w3a-color-textMuted);
+  color: var(--w3a-colors-textMuted);
   margin: 0;
   text-decoration: none;
   transition: color 0.1s ease, opacity 0.1s ease, transform 0s ease; cursor: pointer;
 }
 
 .w3a-user-account--account-id:hover {
-  color: var(--w3a-color-textPrimary);
+  color: var(--w3a-colors-textPrimary);
   text-decoration: underline;
 }

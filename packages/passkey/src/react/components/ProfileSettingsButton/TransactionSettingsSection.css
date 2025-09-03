@@ -1,6 +1,6 @@
 /* Expander (TransactionSettingsSection) */
 .w3a-dropdown-tx-settings-root {
-  background-color: var(--w3a-color-surfacePrimary);
+  background-color: var(--w3a-colors-surfaceSecondary);
   transform-origin: top;
   display: grid;
   grid-template-rows: 0fr;
@@ -8,9 +8,9 @@
 }
 
 .w3a-dropdown-tx-settings-root.is-expanded {
-  border-top: 1px solid var(--w3a-color-borderPrimary);
-  border-bottom: 1px solid var(--w3a-color-borderPrimary);
-  background-color: var(--w3a-color-surfaceSecondary);
+  border-top: 1px solid var(--w3a-colors-borderPrimary);
+  border-bottom: 1px solid var(--w3a-colors-borderPrimary);
+  background-color: var(--w3a-colors-surfaceSecondary);
   grid-template-rows: 1fr;
 }
 
@@ -35,64 +35,3 @@
   opacity: 1;
   transform: translateY(0);
 }
-
-/* Slider styles used inside the expander */
-.w3a-slider-root {
-  display: flex;
-  flex-direction: row;
-  gap: 0.5rem;
-  align-items: flex-end;
-}
-
-.w3a-slider-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
-.w3a-slider-container .form-label {
-  text-align: right;
-}
-
-.w3a-slider {
-  width: 100%;
-  height: 6px;
-  border-radius: 3px;
-  background: var(--w3a-color-borderSecondary);
-  outline: none;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.w3a-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--w3a-color-primary);
-  cursor: pointer;
-  border: 2px solid var(--w3a-color-surfacePrimary);
-  box-shadow: var(--w3a-shadow-sm);
-}
-
-.w3a-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--w3a-color-primary);
-  cursor: pointer;
-  border: 2px solid var(--w3a-color-surfacePrimary);
-  box-shadow: var(--w3a-shadow-sm);
-}
-
-.w3a-slider-labels {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.7rem;
-  color: var(--w3a-color-textMuted);
-}
-
-/* Dark mode handled by CSS variables at the scope boundary */

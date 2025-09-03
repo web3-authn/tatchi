@@ -1,5 +1,6 @@
 import React from 'react';
 import { Toggle } from './Toggle';
+import { Slider } from './Slider';
 import type { TransactionSettingsSectionProps } from './types';
 
 export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProps> = ({
@@ -37,28 +38,6 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
             flexDirection: 'column',
             gap: 8
           }}>
-            <div>
-              <Toggle
-                checked={currentConfirmConfig?.uiMode === 'modal'}
-                onChange={onToggleShowDetails}
-                label="Show details"
-                size="large"
-                textPosition="left"
-                theme={theme}
-              />
-            </div>
-            <div style={{ opacity: disableRequireClick ? 0.5 : 1, pointerEvents: disableRequireClick ? 'none' : 'auto' }}>
-              <Toggle
-                checked={currentConfirmConfig?.behavior === 'autoProceed'}
-                onChange={onToggleSkipClick}
-                label="Skip click"
-                size="large"
-                textPosition="left"
-                disabled={disableRequireClick}
-                theme={theme}
-              />
-            </div>
-
             {onToggleTheme && (
               <div>
                 <Toggle
@@ -71,24 +50,37 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 />
               </div>
             )}
-
-            <div className="w3a-slider-root" style={{ opacity: disableDelaySlider ? 0.5 : 1, pointerEvents: disableDelaySlider ? 'none' : 'auto' }}>
-              <div className="w3a-slider-container">
-                <input
-                  disabled={disableDelaySlider}
-                  type="range"
-                  min={0}
-                  max={6}
-                  step={1}
-                  value={Math.round((currentConfirmConfig?.autoProceedDelay ?? 1000) / 500)}
-                  onChange={(e) => onSetDelay(parseInt(e.target.value) * 500)}
-                  className="w3a-slider"
-                />
-                <div className="w3a-slider-labels">
-                  <span>0s</span><span>0.5s</span><span>1s</span><span>1.5s</span><span>2s</span><span>2.5s</span><span>3s</span>
-                </div>
-              </div>
+            <Toggle
+              checked={currentConfirmConfig?.uiMode === 'modal'}
+              onChange={onToggleShowDetails}
+              label="Show confirm modal"
+              size="large"
+              textPosition="left"
+              theme={theme}
+            />
+            <div style={{
+              opacity: disableRequireClick ? 0.4 : 1,
+              pointerEvents: disableRequireClick ? 'none' : 'auto'
+            }}>
+              <Toggle
+                checked={currentConfirmConfig?.behavior === 'autoProceed'}
+                onChange={onToggleSkipClick}
+                label="Auto-skip modal"
+                size="large"
+                textPosition="left"
+                disabled={disableRequireClick}
+                theme={theme}
+              />
             </div>
+            <Slider
+              disabled={disableDelaySlider}
+              min={0}
+              max={6}
+              step={1}
+              value={Math.round((currentConfirmConfig?.autoProceedDelay ?? 1000) / 500)}
+              onChange={(v) => onSetDelay(v * 500)}
+              theme={theme}
+            />
           </div>
         </div>
       </div>
