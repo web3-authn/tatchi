@@ -141,9 +141,9 @@ export const LIGHT_TOKENS: DesignTokens = {
     info: CHROMA_COLORS.blue400,
 
     // Border colors
-    borderPrimary: LIGHT_THEME_COLORS.colorBorder,
+    borderPrimary: LIGHT_THEME_COLORS.slate300,
     borderSecondary: GREY_COLORS.grey300,
-    borderHover: GREY_COLORS.slate300,
+    borderHover: GREY_COLORS.slate350,
 
     // Background Gradients
     backgroundGradientPrimary: GRADIENTS.blue,

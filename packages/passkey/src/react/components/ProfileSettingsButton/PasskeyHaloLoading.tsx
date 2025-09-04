@@ -1,5 +1,6 @@
 import TouchIcon from "./TouchIcon"
 import { HaloBorder } from "./HaloBorder"
+import LitHaloBorder from "../LitHaloBorder"
 import { useTheme } from "../theme/useTheme";
 
 interface PasskeyHaloLoadingProps {
@@ -20,7 +21,7 @@ export const PasskeyHaloLoading: React.FC<PasskeyHaloLoadingProps> = ({
   const { theme } = useTheme();
   return (
     <div className={`w3a-passkey-loading-root ${theme} ${className}`} style={style}>
-      <HaloBorder
+      <LitHaloBorder
         theme={theme}
         animated={true}
         ringGap={4}
@@ -28,6 +29,11 @@ export const PasskeyHaloLoading: React.FC<PasskeyHaloLoadingProps> = ({
         ringBorderRadius="1.5rem"
         innerPadding={`${innerPadding}px`}
         innerBackground="var(--w3a-colors-surfaceSecondary)"
+        ringBackground={
+          theme === 'dark'
+          ? `transparent 0%, var(--w3a-colors-green400) 10%, var(--w3a-colors-green500) 25%, transparent 35%`
+          : `transparent 0%, var(--w3a-colors-blue400) 10%, var(--w3a-colors-blue500) 25%, transparent 35%`
+        }
       >
         <div
           className="w3a-passkey-loading-touch-icon-container"
@@ -50,7 +56,7 @@ export const PasskeyHaloLoading: React.FC<PasskeyHaloLoadingProps> = ({
             }}
           />
         </div>
-      </HaloBorder>
+      </LitHaloBorder>
     </div>
   )
 }

@@ -52,6 +52,11 @@ export { QRCodeScanner } from './components/QRCodeScanner';
 export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
 // Small SVG utility icon used in examples
 export { default as TouchIcon } from './components/ProfileSettingsButton/TouchIcon';
+// Lit component wrappers
+export { LitHaloBorder } from './components/LitHaloBorder';
+export { LitPasskeyHaloLoading } from './components/LitPasskeyHaloLoading';
+export type { LitHaloBorderProps } from './components/LitHaloBorder';
+export type { LitPasskeyHaloLoadingProps } from './components/LitPasskeyHaloLoading';
 
 // === TYPES ===
 export type {

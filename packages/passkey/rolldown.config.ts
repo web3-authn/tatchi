@@ -233,5 +233,21 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
+  },
+  // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
+  {
+    input: {
+      'halo-border': 'src/core/WebAuthnManager/LitComponents/HaloBorder/index.ts',
+      'passkey-halo-loading': 'src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
+    },
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: '[name].js',
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
+    },
   }
 ]);

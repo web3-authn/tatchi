@@ -5,26 +5,12 @@ import './AccessKeysModal.css';
 import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
 import { useTheme } from '../theme/useTheme';
 import PasskeyHaloLoading from './PasskeyHaloLoading';
+import LitPasskeyHaloLoading from '../LitPasskeyHaloLoading';
 
 interface AccessKeysModalProps {
   nearAccountId: string;
   isOpen: boolean;
   onClose: () => void;
-}
-
-interface AccessKey {
-  public_key: string;
-  access_key: {
-    nonce: number;
-    permission: {
-      FunctionCall?: {
-        allowance: string;
-        receiver_id: string;
-        method_names: string[];
-      };
-      FullAccess?: {};
-    };
-  };
 }
 
 export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({

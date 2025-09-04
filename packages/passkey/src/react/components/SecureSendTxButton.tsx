@@ -1,10 +1,19 @@
-import React, { useState, useEffect, useMemo, isValidElement, cloneElement } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  isValidElement,
+  cloneElement
+} from 'react';
+import { createComponent } from '@lit/react';
+import {
+  TooltipPosition,
+  TooltipPositionInternal
+} from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
+import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
+import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
-import { TooltipPosition, TooltipPositionInternal } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
-import { createComponent } from '@lit/react';
-import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import TouchIcon from '../components/ProfileSettingsButton/TouchIcon';
 
 
