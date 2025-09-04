@@ -72,7 +72,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: DARK_THEME_COLORS.grey750,
+      background: DARK_THEME_COLORS.colorSurface,
       border: 'none',
       color: DARK_THEME_COLORS.colorText,
     },
@@ -203,7 +203,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: LIGHT_THEME_COLORS.slate25,
+      background: LIGHT_THEME_COLORS.colorBackground,
       border: 'none',
       color: LIGHT_THEME_COLORS.colorText,
     },
@@ -253,7 +253,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: LIGHT_THEME_COLORS.grey75,
+      background: LIGHT_THEME_COLORS.slate100,
       border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
       color: LIGHT_THEME_COLORS.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',

@@ -85,7 +85,7 @@ export class LitElementWithProps extends LitElement {
 
     const prefix = componentPrefix || this.getComponentPrefix();
 
-    // Apply base design system variables to host element
+    // 1) Apply base design tokens (legacy predictable list)
     const baseVars = [
       'fontFamily', 'fontSize', 'color', 'backgroundColor',
       'colorPrimary', 'colorSecondary', 'colorSuccess', 'colorWarning', 'colorError',
@@ -95,11 +95,19 @@ export class LitElementWithProps extends LitElement {
       'gap2', 'gap3', 'gap4', 'gap6',
       'shadowSm', 'shadowMd'
     ];
+    baseVars.forEach((varName) => {
+      const v = styles[varName as keyof ComponentStyles];
+      if (typeof v === 'string') {
+        this.style.setProperty(`--w3a-${this.camelToKebab(varName)}`, v);
+      }
+    });
 
-    baseVars.forEach(varName => {
-      if (styles[varName as keyof ComponentStyles]) {
-        const cssVar = `--w3a-${this.camelToKebab(varName)}`;
-        this.style.setProperty(cssVar, String(styles[varName as keyof ComponentStyles]));
+    // 2) Promote any other top-level string values to host CSS vars automatically.
+    // This ensures all palette keys from base-styles (e.g., DARK_THEME_COLORS) become available
+    // as --w3a-<kebab-name> without maintaining a static allowlist.
+    Object.entries(styles).forEach(([key, value]) => {
+      if (typeof value === 'string') {
+        this.style.setProperty(`--w3a-${this.camelToKebab(key)}`, value);
       }
     });
 

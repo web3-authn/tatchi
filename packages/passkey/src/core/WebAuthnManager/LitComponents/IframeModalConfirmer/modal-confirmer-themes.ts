@@ -1,4 +1,5 @@
 
+import { D } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 import type { ComponentStyles } from '../LitElementWithProps';
 import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
 
@@ -86,8 +87,8 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     // Main modal container - the glass-like container around the content
     modalBorderInner: {
       background: DARK_THEME_COLORS.grey600,
-      borderRadius: '24px',
-      border: `1px solid ${DARK_THEME_COLORS.grey600}`,
+      borderRadius: '2rem',
+      border: `4px solid ${DARK_THEME_COLORS.colorBorder}`,
       boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)'
     },
 
@@ -145,8 +146,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME_COLORS.colorTextSecondary
     },
     actionContent: {
-      padding: '0.5rem 0rem',
-      color: DARK_THEME_COLORS.colorText
+      padding: '0.5rem',
+      color: DARK_THEME_COLORS.colorText,
+      background: DARK_THEME_COLORS.grey700,
+      maxHeight: '40vh',
     },
     actionValue: {
       color: DARK_THEME_COLORS.colorText
@@ -202,6 +205,32 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderTopColor: DARK_THEME_COLORS.colorPrimary
     },
 
+    // PasskeyHaloLoading CSS variables
+    passkeyHaloLoading: {
+      innerBackground: DARK_THEME_COLORS.grey650,
+      innerPadding: '6px',
+      ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.green400} 10%, ${LIGHT_THEME_COLORS.green500} 25%, transparent 35%`
+    },
+    passkeyHaloLoadingIconContainer: {
+      backgroundColor: DARK_THEME_COLORS.grey750,
+    },
+    passkeyHaloLoadingTouchIcon: {
+      color: DARK_THEME_COLORS.colorTextSecondary,
+      margin: '0.75rem',
+      strokeWidth: '5',
+    },
+
+    hero: {
+    },
+    heroContainer: {
+      height: '44px',
+    },
+
+    errorBanner: {
+      color: DARK_THEME_COLORS.red600,
+      fontSize: '0.9rem',
+    },
+
     // Mobile responsive
     containerMobile: {
       background: 'rgba(0, 0, 0, 0.5)'
@@ -255,8 +284,8 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     // Main modal container - the glass-like container around the content
     modalBorderInner: {
       background: LIGHT_THEME_COLORS.grey100,
-      borderRadius: '24px',
-      border: `1px solid ${LIGHT_THEME_COLORS.slate200}`,
+      borderRadius: '2rem',
+      border: `4px solid ${LIGHT_THEME_COLORS.colorBorder}`,
       boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)'
     },
 
@@ -313,8 +342,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },
     actionContent: {
-      padding: '0.5rem 0rem',
-      color: LIGHT_THEME_COLORS.colorText
+      padding: '0.5rem',
+      color: LIGHT_THEME_COLORS.colorText,
+      background: LIGHT_THEME_COLORS.grey100,
+      maxHeight: '40vh',
     },
     actionValue: {
       color: LIGHT_THEME_COLORS.colorText
@@ -327,7 +358,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     codeBlock: {
       fontSize: '0.75rem',
       margin: '4px 0px 4px 0px',
-      background: LIGHT_THEME_COLORS.grey100,
+      background: LIGHT_THEME_COLORS.slate150,
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },
     methodName: {
@@ -371,6 +402,32 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     loadingIndicator: {
       borderColor: LIGHT_THEME_COLORS.colorBorder,
       borderTopColor: LIGHT_THEME_COLORS.colorPrimary
+    },
+
+    // PasskeyHaloLoading CSS variables
+    passkeyHaloLoading: {
+      innerBackground: LIGHT_THEME_COLORS.grey150,
+      innerPadding: '6px',
+      ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.blue300} 10%, ${LIGHT_THEME_COLORS.blue400} 25%, transparent 35%`
+    },
+    passkeyHaloLoadingIconContainer: {
+      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
+    },
+    passkeyHaloLoadingTouchIcon: {
+      color: LIGHT_THEME_COLORS.colorTextMuted,
+      margin: '0.75rem',
+      strokeWidth: '5',
+    },
+
+    hero: {
+    },
+    heroContainer: {
+      height: '44px',
+    },
+
+    errorBanner: {
+      color: LIGHT_THEME_COLORS.red500,
+      fontSize: '0.9rem',
     },
 
     // Mobile responsive

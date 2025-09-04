@@ -5,6 +5,15 @@ import { when } from 'lit/directives/when.js';
 import { TransactionInputWasm, ActionArgsWasm } from '../../../types';
 import { formatArgs, formatDeposit, formatGas } from '../common/formatters';
 import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
+// Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
+import HaloBorderElement from '../HaloBorder';
+import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
+if (!customElements.get('w3a-halo-border')) {
+  try { customElements.define('w3a-halo-border', HaloBorderElement); } catch {}
+}
+if (!customElements.get('w3a-passkey-halo-loading')) {
+  try { customElements.define('w3a-passkey-halo-loading', PasskeyHaloLoadingElement); } catch {}
+}
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -78,6 +87,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
   static styles = css`
     :host {
+
       /* Default style-guide variables (can be overridden by applyStyles) */
       --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       --w3a-font-size-sm: 0.8rem;
@@ -85,7 +95,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       --w3a-font-size-lg: 1.125rem;
       --w3a-font-size-xl: 1.25rem;
 
-      --w3a-radius-sm: 0.375rem;
       --w3a-radius-md: 0.5rem;
       --w3a-radius-lg: 0.75rem;
       --w3a-radius-xl: 1rem;
@@ -93,18 +102,19 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       --w3a-gap-2: 0.5rem;
       --w3a-gap-3: 0.75rem;
       --w3a-gap-4: 1rem;
-      --w3a-gap-6: 1.5rem;
-
-      --w3a-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 1px 1px rgba(0, 0, 0, 0.04);
-      --w3a-shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.06);
 
       /* Component display */
       display: block;
-      font-family: var(--w3a-font-family);
-      font-size: var(--w3a-font-size-base);
+
+      /* Prefer component-scoped host vars with global fallbacks */
+      font-family: var(--w3a-modal__host__font-family, var(--w3a-font-family));
+      font-size: var(--w3a-modal__host__font-size, var(--w3a-font-size-base));
       line-height: 1.5;
-      color: var(--w3a-modal__host__color);
-      background-color: var(--w3a-modal__host__background-color);
+      color: var(--w3a-modal__host__color, var(--w3a-color-text));
+      background-color: var(--w3a-modal__host__background-color, var(--w3a-color-background));
+
+      scrollbar-width: thin;
+      scrollbar-color: rgba(25, 25, 25, 0.2);
     }
 
     /* Reset and base styles */
@@ -117,11 +127,13 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       position: fixed;
       inset: 0;
       display: grid;
-      place-items: center;
+      justify-content: center;
+      padding-top: 5.5rem; /* Space for TouchID prompt */
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop__color, rgba(0, 0, 0, 0.5));
       backdrop-filter: var(--w3a-modal__modal-backdrop__filter, none);
-      animation: backdrop-enter 50ms ease-in-out;
+
+      animation: backdrop-enter 100ms ease-in-out;
       will-change: opacity, backdrop-filter;
     }
 
@@ -167,7 +179,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       }
       to {
         opacity: 1;
-        backdrop-filter: var(--w3a-modal__modal-backdrop__filter-to, blur(2px));
+        backdrop-filter: var(--w3a-modal__modal-backdrop__filter-to, blur(4px));
       }
     }
 
@@ -180,17 +192,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       }
     }
 
-    .action-header {
-      margin: 0;
-      font-size: var(--w3a-font-size-xl);
-      line-height: 1.3;
-      font-weight: 600;
-      color: var(--w3a-modal__header__color);
-      margin: 0;
-      position: relative;
-      z-index: 1;
-    }
-
     .summary-grid {
       display: grid;
       gap: var(--w3a-gap-2);
@@ -199,6 +200,31 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       margin-bottom: var(--w3a-gap-2);
       position: relative;
       z-index: 1;
+    }
+
+    /* Hero section with halo and headings */
+    .hero {
+      display: grid;
+      justify-items: center;
+      align-items: center;
+      gap: var(--w3a-gap-2);
+      padding: var(--w3a-modal__hero__padding, 2rem 0rem 1rem 0rem);
+    }
+    .hero-container {
+      height: var(--w3a-modal__hero-container__height, 40px);
+    }
+    .hero-heading {
+      margin: 0;
+      font-size: var(--w3a-font-size-lg);
+      font-weight: 600;
+      color: var(--w3a-modal__header__color);
+      text-align: center;
+    }
+    .hero-subheading {
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--w3a-modal__label__color);
+      text-align: center;
     }
 
     .summary-row {
@@ -237,8 +263,9 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       margin: var(--w3a-modal__actions-section__margin, 0px);
       position: relative;
       z-index: 1;
-      animation: fadeIn 50ms ease-in-out forwards;
+      animation: fadeIn 100ms ease-in-out forwards;
       will-change: opacity;
+      min-width: 360px;
     }
 
     .action-list {
@@ -249,7 +276,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       height: 100%;
       min-width: var(--w3a-modal__action-list__min-width, 300px);
       overflow: hidden;
-      box-shadow: var(--w3a-modal__action-list__box-shadow, var(--w3a-shadow-sm));
+      box-shadow: var(--w3a-modal__action-list__box-shadow, none);
       background: var(--w3a-modal__action-list__background);
     }
 
@@ -290,9 +317,15 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .action-content {
-      padding: 0.25rem 0rem 0rem 0rem;
+      padding: var(--w3a-modal__action-content__padding, 0.5rem);
       font-size: var(--w3a-font-size-sm);
       line-height: 1.4;
+
+      max-height: var(--w3a-modal__action-content__max-height, 50vh);
+      overflow: scroll;
+      scrollbar-width: thin;
+      background: var(--w3a-modal__action-content__background, #242628);
+      border-radius: 12px;
     }
 
     .action-content::-webkit-scrollbar {
@@ -301,12 +334,12 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .action-content::-webkit-scrollbar-track {
       background: var(--w3a-modal__action-content-scrollbar-track__background);
-      border-radius: var(--w3a-radius-sm);
+      border-radius: var(--w3a-radius-md);
     }
 
     .action-content::-webkit-scrollbar-thumb {
       background: var(--w3a-modal__action-content-scrollbar-thumb__background);
-      border-radius: var(--w3a-radius-sm);
+      border-radius: var(--w3a-radius-md);
     }
 
     .action-value {
@@ -370,26 +403,21 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       display: flex;
       gap: var(--w3a-gap-3);
       justify-content: flex-end;
-      margin-top: var(--w3a-gap-2);
+      margin-top: var(--w3a-gap-3);
       position: relative;
       z-index: 1;
     }
 
     .error-banner {
-      color: var(--w3a-modal__error__color, #ef4444);
-      background: var(--w3a-modal__error__background, transparent);
-      border: var(--w3a-modal__error__border, none);
-      border-radius: var(--w3a-modal__error__border-radius, 8px);
-      padding: var(--w3a-modal__error__padding, 6px 8px);
-      margin: var(--w3a-modal__error__margin, 0 0 12px 0);
-      font-size: var(--w3a-modal__error__font-size, 1rem);
-      text-align: var(--w3a-modal__error__text-align, center);
+      color: var(--w3a-modal__error-banner__color, #ef4444);
+      font-size: var(--w3a-modal__error-banner__font-size, 0.9rem);
+      text-align: var(--w3a-modal__error-banner__text-align, center);
       font-weight: 500;
     }
 
     .btn {
       background-color: var(--w3a-modal__btn__background-color);
-      box-shadow: var(--w3a-modal__btn__box-shadow, var(--w3a-shadow-sm));
+      box-shadow: var(--w3a-modal__btn__box-shadow, none);
       color: var(--w3a-modal__btn__color);
       text-align: center;
       border-radius: var(--w3a-radius-lg);
@@ -459,11 +487,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     /* Responsive adjustments */
     @media (max-width: 640px) {
-
-      .action-header {
-        font-size: var(--w3a-font-size-lg);
-        margin-bottom: var(--w3a-gap-4);
-      }
 
       .summary-row {
         grid-template-columns: 1fr;
@@ -548,7 +571,17 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   private updateTheme() {
     // Update styles based on the current theme
     const selectedTheme = MODAL_CONFIRMER_THEMES[this.theme] || MODAL_CONFIRMER_THEMES.dark;
-    this.styles = { ...selectedTheme };
+    const host = (selectedTheme as any)?.host || {};
+    // Promote essential host values to base variables so global tokens are populated
+    this.styles = {
+      ...selectedTheme,
+      // Base-level tokens expected by CSS: --w3a-font-family, --w3a-font-size-base,
+      // and optional color/background fallbacks
+      fontFamily: host.fontFamily,
+      fontSizeBase: host.fontSize,
+      color: host.color,
+      backgroundColor: host.backgroundColor,
+    };
     // Apply the styles immediately
     this.applyStyles(this.styles);
   }
@@ -715,7 +748,29 @@ formatGas(action.gas)}</span>
 
             <div class="actions-section">
               <div class="action-list">
-                <h2 class="action-header">${this.title}</h2>
+                <div class="hero">
+                  <w3a-passkey-halo-loading
+                    .theme=${this.theme}
+                    .animated=${!this.errorMessage ? true : false}
+                    .ringGap=${4}
+                    .ringWidth=${4}
+                    .ringBorderRadius=${'1.5rem'}
+                    .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
+                    .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
+                    .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
+                    .height=${60}
+                    .width=${60}
+                  ></w3a-passkey-halo-loading>
+
+                  <div class="hero-container">
+                    <h2 class="hero-heading">Check your transaction details</h2>
+                    ${!this.errorMessage
+                      ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
+                      : html`<div class="error-banner">${this.errorMessage}</div>`
+                    }
+                  </div>
+
+                </div>
 
                 <!-- Transaction Summary Section -->
                 ${when(displayTotalAmount, () => html`
@@ -754,10 +809,6 @@ formatGas(action.gas)}</span>
                     `;
                   })}
                 `)}
-
-                ${this.errorMessage ? html`
-                  <div class="error-banner">${this.errorMessage}</div>
-                ` : ''}
 
                 <div class="buttons">
                   ${this.loading ? html`

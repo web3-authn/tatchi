@@ -25,25 +25,25 @@ export const CHROMA_COLORS = {
   yellow950: 'oklch(0.22 0.036 95)',   // darkest
 
   // Blue color scale from lightest to darkest
-  blue50: 'oklch(0.97 0.040 264)',   // lightest
-  blue100: 'oklch(0.95 0.062 264)',
-  blue150: 'oklch(0.93 0.074 264)',
-  blue200: 'oklch(0.90 0.086 264)',
-  blue250: 'oklch(0.87 0.100 264)',
-  blue300: 'oklch(0.82 0.130 264)',
-  blue350: 'oklch(0.78 0.150 264)',
-  blue400: 'oklch(0.74 0.166 264)',
-  blue450: 'oklch(0.70 0.174 264)',
-  blue500: 'oklch(0.66 0.180 264)',
-  blue550: 'oklch(0.62 0.176 264)',
-  blue600: 'oklch(0.56 0.158 264)',
-  blue650: 'oklch(0.52 0.138 264)',
-  blue700: 'oklch(0.46 0.108 264)',
-  blue750: 'oklch(0.42 0.088 264)',
-  blue800: 'oklch(0.36 0.065 264)',
-  blue850: 'oklch(0.32 0.056 264)',
-  blue900: 'oklch(0.26 0.050 264)',
-  blue950: 'oklch(0.22 0.040 264)',  // darkest
+  blue50: 'oklch(0.97 0.040 255)',   // lightest
+  blue100: 'oklch(0.95 0.062 255)',
+  blue150: 'oklch(0.93 0.074 255)',
+  blue200: 'oklch(0.90 0.086 255)',
+  blue250: 'oklch(0.87 0.100 255)',
+  blue300: 'oklch(0.82 0.130 255)',
+  blue350: 'oklch(0.78 0.150 255)',
+  blue400: 'oklch(0.74 0.166 255)',
+  blue450: 'oklch(0.70 0.174 255)',
+  blue500: 'oklch(0.66 0.180 255)',
+  blue550: 'oklch(0.62 0.176 255)',
+  blue600: 'oklch(0.56 0.158 255)',
+  blue650: 'oklch(0.52 0.138 255)',
+  blue700: 'oklch(0.46 0.108 255)',
+  blue750: 'oklch(0.42 0.088 255)',
+  blue800: 'oklch(0.36 0.065 255)',
+  blue850: 'oklch(0.32 0.056 255)',
+  blue900: 'oklch(0.26 0.050 255)',
+  blue950: 'oklch(0.22 0.040 255)',  // darkest
 
   // Red color scale from lightest to darkest
   red50: 'oklch(0.97 0.040 19)',    // lightest
@@ -88,25 +88,25 @@ export const CHROMA_COLORS = {
   violet950: 'oklch(0.22 0.038 305)',   // darkest
 
   // Green color scale from lightest to darkest
-  green50: 'oklch(0.97 0.040 142)',    // lightest
-  green100: 'oklch(0.95 0.062 142)',
-  green150: 'oklch(0.93 0.074 142)',
-  green200: 'oklch(0.90 0.086 142)',
-  green250: 'oklch(0.87 0.100 142)',
-  green300: 'oklch(0.82 0.130 142)',
-  green350: 'oklch(0.78 0.150 142)',
-  green400: 'oklch(0.74 0.166 142)',
-  green450: 'oklch(0.70 0.174 142)',
-  green500: 'oklch(0.66 0.180 142)',
-  green550: 'oklch(0.62 0.176 142)',
-  green600: 'oklch(0.56 0.158 142)',
-  green650: 'oklch(0.52 0.138 142)',
-  green700: 'oklch(0.46 0.108 142)',
-  green750: 'oklch(0.42 0.088 142)',
-  green800: 'oklch(0.36 0.065 142)',
-  green850: 'oklch(0.32 0.056 142)',
-  green900: 'oklch(0.26 0.050 142)',
-  green950: 'oklch(0.22 0.040 142)',   // darkest
+  green50: 'oklch(0.97 0.040 170)',    // lightest
+  green100: 'oklch(0.95 0.062 170)',
+  green150: 'oklch(0.93 0.074 170)',
+  green200: 'oklch(0.90 0.086 170)',
+  green250: 'oklch(0.87 0.100 170)',
+  green300: 'oklch(0.82 0.130 170)',
+  green350: 'oklch(0.78 0.150 170)',
+  green400: 'oklch(0.74 0.166 170)',
+  green450: 'oklch(0.70 0.174 170)',
+  green500: 'oklch(0.66 0.180 170)',
+  green550: 'oklch(0.62 0.176 170)',
+  green600: 'oklch(0.56 0.158 170)',
+  green650: 'oklch(0.52 0.138 170)',
+  green700: 'oklch(0.46 0.108 170)',
+  green750: 'oklch(0.42 0.088 170)',
+  green800: 'oklch(0.36 0.065 170)',
+  green850: 'oklch(0.32 0.056 170)',
+  green900: 'oklch(0.26 0.050 170)',
+  green950: 'oklch(0.22 0.040 170)',   // darkest
 } as const;
 
 // Comprehensive grey color palette with multiple variations
@@ -175,13 +175,12 @@ export const GREY_COLORS = {
 } as const;
 
 export const GRADIENTS = {
-  blue: `linear-gradient(45deg, ${CHROMA_COLORS.blue350} 0%, ${CHROMA_COLORS.blue450} 50%)`,
-  red: `linear-gradient(45deg, ${CHROMA_COLORS.red300} 0%, ${CHROMA_COLORS.red400} 50%)`,
-  green: `linear-gradient(45deg, ${CHROMA_COLORS.green350} 0%, ${CHROMA_COLORS.green450} 50%)`,
-  yellow: `linear-gradient(45deg, ${CHROMA_COLORS.yellow250} 0%, ${CHROMA_COLORS.yellow350} 50%)`,
+  blue: `linear-gradient(45deg, ${CHROMA_COLORS.blue300} 0%, ${CHROMA_COLORS.blue500} 50%)`,
+  red: `linear-gradient(45deg, ${CHROMA_COLORS.red300} 0%, ${CHROMA_COLORS.red500} 50%)`,
+  green: `linear-gradient(45deg, ${CHROMA_COLORS.green300} 0%, ${CHROMA_COLORS.green500} 50%)`,
+  yellow: `linear-gradient(45deg, ${CHROMA_COLORS.yellow300} 0%, ${CHROMA_COLORS.yellow500} 50%)`,
   peach: 'linear-gradient(90deg, hsla(24, 100%, 83%, 1) 0%, hsla(341, 91%, 68%, 1) 100%)',
   aqua: 'linear-gradient(90deg, hsla(145, 83%, 74%, 1) 0%, hsla(204, 77%, 76%, 1) 100%)',
-  metal: 'linear-gradient(90deg, hsla(208, 33%, 21%, 1) 0%, hsla(211, 36%, 46%, 1) 100%)',
   blueWhite: 'linear-gradient(90deg, hsla(213, 62%, 45%, 1) 0%, hsla(203, 89%, 71%, 1) 50%, hsla(0, 0%, 96%, 1) 100%)'
 } as const;
 
@@ -190,25 +189,42 @@ export const DARK_THEME_COLORS = {
   ...GREY_COLORS,
 
   // Core colors used by components
-  colorBackground: GREY_COLORS.grey900,
-  colorSurface: GREY_COLORS.grey850,
-  colorBorder: GREY_COLORS.grey800,
-  colorText: GREY_COLORS.grey25,
+  colorBackground: GREY_COLORS.grey800,
+  colorSurface: GREY_COLORS.grey750,
+  colorBorder: GREY_COLORS.grey700,
+  colorText: GREY_COLORS.grey75,
   colorTextSecondary: GREY_COLORS.grey500,
   colorTextMuted: GREY_COLORS.grey650,
 
-  // Specific neutrals referenced
+  grey25: GREY_COLORS.grey25,
+  grey50: GREY_COLORS.grey50,
+  grey75: GREY_COLORS.grey75,
+  grey100: GREY_COLORS.grey100,
+  grey200: GREY_COLORS.grey200,
+  grey300: GREY_COLORS.grey300,
+  grey400: GREY_COLORS.grey400,
   grey500: GREY_COLORS.grey500,
   grey600: GREY_COLORS.grey600,
   grey650: GREY_COLORS.grey650,
   grey700: GREY_COLORS.grey700,
   grey750: GREY_COLORS.grey750,
 
-  // Accent blues referenced
+  red200: CHROMA_COLORS.red200,
+  red300: CHROMA_COLORS.red300,
+  red400: CHROMA_COLORS.red400,
+  red500: CHROMA_COLORS.red500,
+  red600: CHROMA_COLORS.red600,
+
   blue300: CHROMA_COLORS.blue300,
   blue400: CHROMA_COLORS.blue400,
   blue500: CHROMA_COLORS.blue500,
   blue600: CHROMA_COLORS.blue600,
+
+  green200: CHROMA_COLORS.green200,
+  green300: CHROMA_COLORS.green300,
+  green400: CHROMA_COLORS.green400,
+  green500: CHROMA_COLORS.green500,
+  green600: CHROMA_COLORS.green600,
 
   // Highlights
   highlightReceiverId: CHROMA_COLORS.blue400,
@@ -229,20 +245,26 @@ export const LIGHT_THEME_COLORS = {
   ...GREY_COLORS,
 
   // Core colors used by components
-  colorBackground: GREY_COLORS.grey75,
-  colorSurface: GREY_COLORS.grey100,
+  colorBackground: GREY_COLORS.grey50,
+  colorSurface: GREY_COLORS.grey150,
   colorBorder: GREY_COLORS.grey200,
   colorText: GREY_COLORS.grey975,
   colorTextSecondary: GREY_COLORS.grey500,
   colorTextMuted: GREY_COLORS.grey350,
 
-  // Specific neutrals referenced
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
   grey75: GREY_COLORS.grey75,
   grey100: GREY_COLORS.grey100,
+  grey200: GREY_COLORS.grey200,
+  grey300: GREY_COLORS.grey300,
+  grey400: GREY_COLORS.grey400,
+  grey500: GREY_COLORS.grey500,
+  grey600: GREY_COLORS.grey600,
+  grey650: GREY_COLORS.grey650,
+  grey700: GREY_COLORS.grey700,
+  grey750: GREY_COLORS.grey750,
 
-  // Slate variants referenced
   slate25: GREY_COLORS.slate25,
   slate100: GREY_COLORS.slate100,
   slate150: GREY_COLORS.slate150,
@@ -255,12 +277,17 @@ export const LIGHT_THEME_COLORS = {
   red500: CHROMA_COLORS.red500,
   red600: CHROMA_COLORS.red600,
 
-  // Accent blues referenced
   blue200: CHROMA_COLORS.blue200,
   blue300: CHROMA_COLORS.blue300,
   blue400: CHROMA_COLORS.blue400,
   blue500: CHROMA_COLORS.blue500,
   blue600: CHROMA_COLORS.blue600,
+
+  green200: CHROMA_COLORS.green200,
+  green300: CHROMA_COLORS.green300,
+  green400: CHROMA_COLORS.green400,
+  green500: CHROMA_COLORS.green500,
+  green600: CHROMA_COLORS.green600,
 
   // Highlighw3a-status-badge w3a-full-accesss
   highlightReceiverId: CHROMA_COLORS.blue500,
