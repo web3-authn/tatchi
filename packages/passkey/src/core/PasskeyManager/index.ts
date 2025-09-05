@@ -148,7 +148,7 @@ export class PasskeyManager {
     options?: LoginHooksOptions
   ): Promise<LoginResult> {
     // Set current user for settings persistence
-    this.webAuthnManager.setCurrentUser(toAccountId(nearAccountId));
+    await this.webAuthnManager.setCurrentUser(toAccountId(nearAccountId));
     // Set as last user for future sessions
     await this.webAuthnManager.setLastUser(toAccountId(nearAccountId));
     return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);

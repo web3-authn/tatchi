@@ -10,7 +10,7 @@ import type {
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DEVICE_LINKING_CONFIG } from '../../config.js';
-import { executeDeviceLinkingContractCalls, getNonceBlockHashAndHeight } from '../rpcCalls';
+import { executeDeviceLinkingContractCalls } from '../rpcCalls';
 
 /**
  * Device1 (original device): Link device using pre-scanned QR data
@@ -69,11 +69,7 @@ export async function linkDeviceWithQRCode(
       nextNonce,
       txBlockHeight,
       txBlockHash
-    } = await getNonceBlockHashAndHeight({
-      nearClient: context.nearClient,
-      nearPublicKeyStr: nearPublicKeyStr,
-      nearAccountId: device1AccountId
-    });
+    } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
     const nextNextNonce = (BigInt(nextNonce) + BigInt(1)).toString();
     const nextNextNextNonce = (BigInt(nextNonce) + BigInt(2)).toString();
 

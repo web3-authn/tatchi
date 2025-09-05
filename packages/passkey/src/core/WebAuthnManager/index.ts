@@ -12,6 +12,8 @@ import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
 import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';
+import { NonceManager } from '../nonceManager';
+import NonceManagerInstance from '../nonceManager';
 
 
 import {
@@ -42,8 +44,16 @@ export class WebAuthnManager {
   private readonly signerWorkerManager: SignerWorkerManager;
   private readonly touchIdPrompt: TouchIdPrompt;
   private readonly userPreferencesManager: UserPreferencesManager;
+  private readonly nonceManager: NonceManager;
 
   readonly passkeyManagerConfigs: PasskeyManagerConfigs;
+
+  /**
+   * Public getter for NonceManager instance
+   */
+  getNonceManager(): NonceManager {
+    return this.nonceManager;
+  }
 
   constructor(
     passkeyManagerConfigs: PasskeyManagerConfigs,
@@ -59,10 +69,12 @@ export class WebAuthnManager {
     });
     this.touchIdPrompt = new TouchIdPrompt();
     this.userPreferencesManager = UserPreferencesInstance;
+    this.nonceManager = NonceManagerInstance;
     this.signerWorkerManager = new SignerWorkerManager(
       this.vrfWorkerManager,
       nearClient,
-      UserPreferencesInstance
+      UserPreferencesInstance,
+      NonceManagerInstance
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
@@ -283,8 +295,14 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.setLastUser(nearAccountId, deviceNumber);
   }
 
-  setCurrentUser(nearAccountId: AccountId): void {
+  async setCurrentUser(nearAccountId: AccountId): Promise<void> {
     this.userPreferencesManager.setCurrentUser(nearAccountId);
+
+    // Also initialize NonceManager with user data
+    const userData = await IndexedDBManager.clientDB.getLastUser();
+    if (userData && userData.clientNearPublicKey) {
+      this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+    }
   }
 
   async registerUser(storeUserData: StoreUserDataInput): Promise<ClientUserData> {
@@ -808,6 +826,9 @@ export class WebAuthnManager {
   destroy(): void {
     if (this.userPreferencesManager) {
       this.userPreferencesManager.destroy();
+    }
+    if (this.nonceManager) {
+      this.nonceManager.clear();
     }
   }
 

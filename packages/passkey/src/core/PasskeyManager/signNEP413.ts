@@ -2,7 +2,6 @@ import type { PasskeyManagerContext } from './index';
 import type { BaseHooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
-import { getNonceBlockHashAndHeight } from '../rpcCalls';
 
 /**
  * NEP-413 message signing parameters
@@ -85,11 +84,11 @@ export async function signNEP413Message(args: {
     }
 
     // Generate a random 32-byte nonce for NEP-413 signing
-    const { nextNonce, txBlockHash, txBlockHeight } = await getNonceBlockHashAndHeight({
-      nearClient: nearClient,
-      nearAccountId: nearAccountId,
-      nearPublicKeyStr: userData.clientNearPublicKey
-    });
+    const {
+      nextNonce,
+      txBlockHash,
+      txBlockHeight
+    } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(nearClient);
 
     // Get credential for NEP-413 signing
     const vrfChallenge = await webAuthnManager.generateVrfChallenge({

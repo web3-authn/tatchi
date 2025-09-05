@@ -14,7 +14,8 @@ import {
 } from './types';
 import { TransactionContext } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
-import { getNonceBlockHashAndHeight } from '../../../rpcCalls';
+import { fetchNonceBlockHashAndHeight } from '../../../rpcCalls';
+import type { NonceManager } from '../../../nonceManager';
 import { awaitIframeModalDecisionWithHandle, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 
@@ -40,29 +41,10 @@ export async function handlePromptUserConfirmInJsMainThread(
     transactionSummary
   } = validateAndParseRequest({ ctx, message });
 
-  // 2. Start NEAR RPC calls and modal display in parallel
-  const [userConfirmResult, nearRpcResult] = await Promise.all([
-    // Modal display (fast)
-    renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data }),
-    // NEAR RPC calls (slow, but parallel)
-    performNearRpcCalls(ctx, data)
-  ]);
+  // 2. Perform NEAR RPC calls first (needed for VRF challenge)
+  const nearRpcResult = await performNearRpcCalls(ctx, data);
 
-  const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
-
-  // 3. If user rejected (confirmed === false), exit early
-  if (!confirmed) {
-    closeModalSafely(confirmHandle, false);
-    sendWorkerResponse(worker, {
-      requestId: data.requestId,
-      intentDigest: data.intentDigest,
-      confirmed: false,
-      error: uiError
-    });
-    return;
-  }
-
-  // 4. If NEAR RPC failed, return error
+  // 3. If NEAR RPC failed, return error
   if (nearRpcResult.error || !nearRpcResult.transactionContext) {
     sendWorkerResponse(worker, {
       requestId: data.requestId,
@@ -75,7 +57,7 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   const transactionContext = nearRpcResult.transactionContext;
 
-  // 5. Generate VRF challenge with NEAR data
+  // 4. Generate VRF challenge with NEAR data
   if (!ctx.vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available in context');
   }
@@ -86,7 +68,23 @@ export async function handlePromptUserConfirmInJsMainThread(
     blockHash: transactionContext.txBlockHash,
   });
 
-  // 6. Create decision with generated data
+  // 5. Render user confirmation UI with VRF challenge
+  const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data, vrfChallenge });
+  const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
+
+  // 6. If user rejected (confirmed === false), exit early
+  if (!confirmed) {
+    closeModalSafely(confirmHandle, false);
+    sendWorkerResponse(worker, {
+      requestId: data.requestId,
+      intentDigest: data.intentDigest,
+      confirmed: false,
+      error: uiError
+    });
+    return;
+  }
+
+  // 7. Create decision with generated data
   const decision: SecureConfirmDecision = {
     requestId: data.requestId,
     intentDigest: data.intentDigest,
@@ -95,7 +93,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     transactionContext: transactionContext, // Generated here
   };
 
-  // 7. Collect credentials using generated VRF challenge
+  // 8. Collect credentials using generated VRF challenge
   let decisionWithCredentials: SecureConfirmDecision;
   let touchIdSuccess = false;
 
@@ -128,12 +126,13 @@ export async function handlePromptUserConfirmInJsMainThread(
     closeModalSafely(confirmHandle, touchIdSuccess);
   }
 
-  // 8. Send confirmation response back to wasm-signer-worker
+  // 9. Send confirmation response back to wasm-signer-worker
   sendWorkerResponse(worker, decisionWithCredentials);
 }
 
 /**
  * Performs NEAR RPC call to get nonce, block hash and height
+ * Uses NonceManager if available, otherwise falls back to direct RPC calls
  */
 async function performNearRpcCalls(
   ctx: SignerWorkerManagerContext,
@@ -145,13 +144,29 @@ async function performNearRpcCalls(
 }> {
   try {
     const nearAccountId = data.rpcCall.nearAccountId;
+
+    // Use NonceManager's smart caching method
+    try {
+      const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
+      console.log("Using NonceManager smart caching");
+      return {
+        transactionContext,
+        error: undefined,
+        details: undefined
+      };
+    } catch (error) {
+      console.warn("NonceManager failed, falling back to direct fetch:", error);
+    }
+
+    // Fallback: Fetch data directly if NonceManager fails
+    console.log("NonceManager failed, fetching directly");
     const nearClient = ctx.nearClient;
     const userData = await ctx.indexedDB.clientDB.getUser(toAccountId(nearAccountId));
     const nearPublicKeyStr = userData?.clientNearPublicKey;
     if (!nearPublicKeyStr) {
       throw new Error('Client NEAR public key not found in user data');
     }
-    const transactionContext = await getNonceBlockHashAndHeight({
+    const transactionContext = await fetchNonceBlockHashAndHeight({
       nearClient,
       nearPublicKeyStr,
       nearAccountId: toAccountId(data.rpcCall.nearAccountId)
@@ -219,11 +234,13 @@ async function renderUserConfirmUI({
   data,
   confirmationConfig,
   transactionSummary,
+  vrfChallenge,
 }: {
   ctx: SignerWorkerManagerContext,
   data: SecureConfirmData,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
+  vrfChallenge?: any;
 }): Promise<{
   confirmed: boolean;
   confirmHandle?: { element: any, close: (confirmed: boolean) => void };
@@ -274,6 +291,7 @@ async function renderUserConfirmUI({
           ctx,
           summary: transactionSummary,
           txSigningRequests: data.tx_signing_requests,
+          vrfChallenge: vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme
         });
@@ -288,6 +306,7 @@ async function renderUserConfirmUI({
           ctx,
           summary: transactionSummary,
           txSigningRequests: data.tx_signing_requests,
+          vrfChallenge: vrfChallenge,
           theme: confirmationConfig.theme
         });
         return { confirmed, confirmHandle: handle };
@@ -300,6 +319,7 @@ async function renderUserConfirmUI({
         ctx,
         summary: transactionSummary,
         txSigningRequests: data.tx_signing_requests,
+        vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme
       });

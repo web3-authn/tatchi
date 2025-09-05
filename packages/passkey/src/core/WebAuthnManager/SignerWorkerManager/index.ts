@@ -42,6 +42,7 @@ import {
 } from './confirmTxFlow';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
+import { NonceManager } from '../../nonceManager';
 
 
 export interface SignerWorkerManagerContext {
@@ -50,6 +51,7 @@ export interface SignerWorkerManagerContext {
   indexedDB: UnifiedIndexedDBManager;
   vrfWorkerManager?: VrfWorkerManager;
   userPreferencesManager: UserPreferencesManager;
+  nonceManager: NonceManager;
   sendMessage: <T extends WorkerRequestType>(args: {
     message: {
       type: T;
@@ -73,17 +75,20 @@ export class SignerWorkerManager {
   private vrfWorkerManager: VrfWorkerManager;
   private nearClient: NearClient;
   private userPreferencesManager: UserPreferencesManager;
+  private nonceManager: NonceManager;
 
   constructor(
     vrfWorkerManager: VrfWorkerManager,
     nearClient: NearClient,
-    userPreferencesManager: UserPreferencesManager
+    userPreferencesManager: UserPreferencesManager,
+    nonceManager: NonceManager
   ) {
     this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt();
     this.vrfWorkerManager = vrfWorkerManager;
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
+    this.nonceManager = nonceManager;
   }
 
   private getContext(): SignerWorkerManagerContext {
@@ -94,6 +99,7 @@ export class SignerWorkerManager {
       vrfWorkerManager: this.vrfWorkerManager,
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
+      nonceManager: this.nonceManager,
     };
   }
 
@@ -127,6 +133,112 @@ export class SignerWorkerManager {
    * @param params.timeoutMs - Optional timeout in milliseconds.
    * @returns Promise resolving to the worker response for the request.
    */
+  private workerPool: Worker[] = [];
+  private readonly MAX_WORKER_POOL_SIZE = 3; // Increased for security model
+
+  private getWorkerFromPool(): Worker {
+    if (this.workerPool.length > 0) {
+      return this.workerPool.pop()!;
+    }
+    return this.createSecureWorker();
+  }
+
+  private terminateAndReplaceWorker(worker: Worker): void {
+    // Always terminate workers to clear memory
+    worker.terminate();
+    // Asynchronously create a replacement worker for the pool
+    this.createReplacementWorker();
+  }
+
+  private async createReplacementWorker(): Promise<void> {
+    try {
+      const worker = this.createSecureWorker();
+
+      // Simple health check
+      const healthPromise = new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('Health check timeout')), 5000);
+
+        const onMessage = (event: MessageEvent) => {
+          if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+            worker.removeEventListener('message', onMessage);
+            clearTimeout(timeout);
+            resolve();
+          }
+        };
+
+        worker.addEventListener('message', onMessage);
+        worker.onerror = () => {
+          worker.removeEventListener('message', onMessage);
+          clearTimeout(timeout);
+          reject(new Error('Worker error during health check'));
+        };
+      });
+
+      await healthPromise;
+
+      if (this.workerPool.length < this.MAX_WORKER_POOL_SIZE) {
+        this.workerPool.push(worker);
+      } else {
+        worker.terminate();
+      }
+    } catch (error) {
+      console.warn('SignerWorkerManager: Failed to create replacement worker:', error);
+    }
+  }
+
+  /**
+   * Pre-warm worker pool by creating and initializing workers in advance
+   * This reduces latency for the first transaction by having workers ready
+   */
+  async preWarmWorkerPool(): Promise<void> {
+    const promises: Promise<void>[] = [];
+
+    for (let i = 0; i < this.MAX_WORKER_POOL_SIZE; i++) {
+      promises.push(
+        new Promise<void>((resolve, reject) => {
+          try {
+            const worker = this.createSecureWorker();
+
+            // Set up one-time ready handler
+            const onReady = (event: MessageEvent) => {
+              if (event.data?.type === 'WORKER_READY' || event.data?.ready) {
+                worker.removeEventListener('message', onReady);
+                this.terminateAndReplaceWorker(worker);
+                resolve();
+              }
+            };
+
+            worker.addEventListener('message', onReady);
+
+            // Set up error handler
+            worker.onerror = (error) => {
+              worker.removeEventListener('message', onReady);
+              console.error(`WebAuthnManager: Worker ${i + 1} pre-warm failed:`, error);
+              reject(error);
+            };
+
+            // Timeout after 5 seconds
+            setTimeout(() => {
+              worker.removeEventListener('message', onReady);
+              console.warn(`WebAuthnManager: Worker ${i + 1} pre-warm timeout`);
+              reject(new Error('Pre-warm timeout'));
+            }, 5000);
+
+          } catch (error) {
+            console.error(`WebAuthnManager: Failed to create worker ${i + 1}:`, error);
+            reject(error);
+          }
+        })
+      );
+    }
+
+    try {
+      await Promise.allSettled(promises);
+    } catch (error) {
+      console.warn('WebAuthnManager: Some workers failed to pre-warm:', error);
+    }
+  }
+
   private async sendMessage<T extends WorkerRequestType>({
     message,
     onEvent,
@@ -137,12 +249,12 @@ export class SignerWorkerManager {
     timeoutMs?: number;
   }): Promise<WorkerResponseForRequest<T>> {
 
-    const worker = this.createSecureWorker();
+    const worker = this.getWorkerFromPool();
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
-          worker.terminate();
+          this.terminateAndReplaceWorker(worker);
         } catch {}
         // Notify any open modal host to transition to error state
         try {
@@ -183,7 +295,7 @@ export class SignerWorkerManager {
           // Handle errors using WASM-generated enum
           if (isWorkerError(response)) {
             clearTimeout(timeoutId);
-            worker.terminate();
+            this.terminateAndReplaceWorker(worker);
             const errorResponse = response as WorkerErrorResponse;
             console.error('Worker error response:', errorResponse);
             reject(new Error(errorResponse.payload.error));
@@ -193,7 +305,7 @@ export class SignerWorkerManager {
           // Handle successful completion types using strong typing
           if (isWorkerSuccess(response)) {
             clearTimeout(timeoutId);
-            worker.terminate();
+            this.terminateAndReplaceWorker(worker);
             resolve(response as WorkerResponseForRequest<T>);
             return;
           }
@@ -210,7 +322,7 @@ export class SignerWorkerManager {
           // Check if it's a generic Error object
           if (response && typeof response === 'object' && 'message' in response && 'stack' in response) {
             clearTimeout(timeoutId);
-            worker.terminate();
+            this.terminateAndReplaceWorker(worker);
             console.error('Worker sent generic Error object:', response);
             reject(new Error(`Worker sent generic error: ${(response as Error).message}`));
             return;
@@ -218,11 +330,11 @@ export class SignerWorkerManager {
 
           // Unknown response format
           clearTimeout(timeoutId);
-          worker.terminate();
+          this.terminateAndReplaceWorker(worker);
           reject(new Error(`Unknown worker response format: ${JSON.stringify(response)}`));
         } catch (error) {
           clearTimeout(timeoutId);
-          worker.terminate();
+          this.terminateAndReplaceWorker(worker);
           console.error('Error processing worker message:', error);
           reject(new Error(`Worker message processing error: ${error instanceof Error ? error.message : String(error)}`));
         }
@@ -230,7 +342,7 @@ export class SignerWorkerManager {
 
       worker.onerror = (event) => {
         clearTimeout(timeoutId);
-        worker.terminate();
+        this.terminateAndReplaceWorker(worker);
         const errorMessage = event.error?.message || event.message || 'Unknown worker error';
         console.error('Worker error details (progress):', {
           message: errorMessage,

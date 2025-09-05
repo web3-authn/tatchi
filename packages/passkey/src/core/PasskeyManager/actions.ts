@@ -14,7 +14,6 @@ import type { PasskeyManagerContext } from './index';
 import type { NearClient, SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
-import { getNonceBlockHashAndHeight } from '../rpcCalls';
 
 //////////////////////////////
 // === PUBLIC API ===
@@ -226,6 +225,14 @@ export async function executeActionInternal({
 
   try {
     await options?.hooks?.beforeCall?.();
+
+    // Pre-warm NonceManager with fresh transaction context data
+    try {
+      await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
+    } catch (error) {
+      console.warn('[executeAction]: Failed to pre-warm NonceManager:', error);
+      // Continue execution - NonceManager will fall back to direct RPC calls if needed
+    }
 
     const signedTxs = await signTransactionsWithActionsInternal({
       context,

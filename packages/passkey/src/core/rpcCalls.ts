@@ -322,7 +322,7 @@ export async function syncAuthenticatorsContractCall(
   }
 }
 
-export async function getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {
+export async function fetchNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId }: {
   nearClient: NearClient,
   nearPublicKeyStr: string,
   nearAccountId: AccountId

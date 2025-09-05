@@ -29,7 +29,9 @@ const external = [
   'near-api-js',
 
   // Other common packages
-  'tslib'
+  'tslib',
+  // UI libs used by React components should be provided by the app bundler
+  'lucide-react'
 ];
 
 // External dependencies for embedded components.

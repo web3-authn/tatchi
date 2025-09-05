@@ -4,7 +4,6 @@ import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { generateBootstrapVrfChallenge } from './registration';
-import { getNonceBlockHashAndHeight } from '../rpcCalls';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
@@ -772,11 +771,7 @@ export class LinkDeviceFlow {
         const {
           nextNonce,
           txBlockHash,
-        } = await getNonceBlockHashAndHeight({
-          nearClient: this.context.nearClient,
-          nearPublicKeyStr: this.session.nearPublicKey, // Use temp key for nonce info
-          nearAccountId: realAccountId
-        });
+        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
 
         await this.executeKeySwapTransaction(
           nearKeyResultStep1.publicKey,
@@ -788,11 +783,7 @@ export class LinkDeviceFlow {
         const {
           nextNonce: newKeyNonce,
           txBlockHash: newTxBlockHash,
-        } = await getNonceBlockHashAndHeight({
-          nearClient: this.context.nearClient,
-          nearPublicKeyStr: nearKeyResultStep1.publicKey, // Use NEW key for its actual nonce
-          nearAccountId: realAccountId
-        });
+        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
         console.log("Key Replacement Transaction Block Hash retrieved.");
         console.log("NewKey's actual nonce >>>> newKeyNonce", newKeyNonce);
 
