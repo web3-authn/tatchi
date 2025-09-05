@@ -30,6 +30,9 @@ export const Navbar: React.FC = () => {
         <Link to="/modal">
           Modal Demo
         </Link>
+        <Link to="/signup2">
+          Signup 2
+        </Link>
       </div>
 
       {
