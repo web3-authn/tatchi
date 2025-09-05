@@ -60,10 +60,14 @@ interface EmbeddedTxButtonEl extends HTMLElement {
     buttonSizing: { width?: string | number; height?: string | number },
     tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
-    theme?: 'dark' | 'light'
+    theme?: 'dark' | 'light',
+    activationMode?: 'tap' | 'press'
   ) => void;
   sendInitialGeometry?: () => void;
   computeUiIntentDigest?: () => Promise<string>;
+  // Optional methods surfaced by the custom element
+  showTooltip?: () => void;
+  hideTooltip?: () => void;
   nearAccountId?: string;
   txSigningRequests?: TransactionInput[];
   loadingTouchIdPrompt?: boolean;
@@ -220,12 +224,16 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
             payload.buttonSizing || ({} as any),
             payload.tooltipPosition,
             payload.embeddedButtonTheme,
-            payload.theme
+            payload.theme,
+            payload.activationMode
           );
         } else {
           el.buttonSizing = payload.buttonSizing || ({} as any);
           if (payload.tooltipPosition) {
             el.tooltipPosition = payload.tooltipPosition;
+          }
+          if (payload.activationMode && 'activationMode' in el) {
+            (el as any).activationMode = payload.activationMode;
           }
         }
 
@@ -242,6 +250,17 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
         }
       }
       break;
+
+    case 'SET_TOOLTIP_VISIBILITY': {
+      if (typeof payload === 'boolean') {
+        if (payload) {
+          el.showTooltip?.();
+        } else {
+          el.hideTooltip?.();
+        }
+      }
+      break;
+    }
 
     case 'REQUEST_UI_DIGEST': {
       if (isRequestUiDigestPayload(payload) && typeof el.computeUiIntentDigest === 'function') {

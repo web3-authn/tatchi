@@ -29,7 +29,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     embeddedButtonStyles: { type: Object, attribute: false },
     tooltipTheme: { type: String },
     tooltipVisible: { state: true },
-    hideTimeout: { state: true }
+    hideTimeout: { state: true },
+    activationMode: { type: String }
   } as const;
 
   // ==============================
@@ -49,6 +50,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   tooltipTheme: EmbeddedTxButtonTheme = 'dark';
   styles!: TooltipTreeStyles;
   embeddedButtonStyles!: EmbeddedTxButtonStyles;
+  activationMode: 'tap' | 'press' = 'tap';
 
   // ==============================
   // Internal State & Observers
@@ -71,6 +73,15 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // Hover state latches used to prevent premature hides when moving between button and tooltip
   private buttonHovering: boolean = false;
   private tooltipHovering: boolean = false;
+  private pressTimer: number | null = null;
+  private pressFired: boolean = false;
+  private pressStartX: number = 0;
+  private pressStartY: number = 0;
+  private suppressClickUntil: number = 0;
+
+  // Mobile/coarse-pointer UX helpers
+  private isCoarsePointer: boolean = false;
+  private mqlCoarse?: MediaQueryList;
 
   // Type-safe element selectors bound to shadow root
   private selectors: ElementSelectors;
@@ -131,6 +142,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
       opacity: 1;
       will-change: auto;
       animation: none;
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
     }
 
     @keyframes fadeIn {
@@ -187,6 +202,37 @@ export class EmbeddedTxButton extends LitElementWithProps {
       --w3a-tree__host__padding-left: 0px;
       --w3a-tree__host__padding-right: 0px;
     }
+
+    /* Optional mobile header within tooltip for coarse pointers */
+    [data-tooltip-header] {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 12px;
+      position: sticky;
+      top: 0;
+      background: inherit;
+      z-index: 1;
+      border-bottom: 1px solid transparent;
+    }
+    [data-tooltip-title] {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: inherit;
+    }
+    [data-close-btn] {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      line-height: 1;
+      padding: 6px 8px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    [data-close-btn]:hover { background: rgba(255,255,255,0.08); }
 
     /* Top positions: aligned with button corners */
     [data-tooltip-content][data-position="top-left"] {
@@ -269,6 +315,29 @@ export class EmbeddedTxButton extends LitElementWithProps {
     [data-tooltip-content][data-hiding="true"] {
       transition-delay: var(--w3a-embedded__tooltip-content-hiding__transition-delay, 150ms);
     }
+
+    /* Mobile bottom-sheet layout when coarse pointer detected */
+    [data-tooltip-content][data-mobile-sheet="true"] {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      right: auto;
+      top: auto;
+      bottom: max(8px, env(safe-area-inset-bottom));
+      margin: 0;
+      width: min(640px, calc(100vw - 16px));
+      max-height: min(70vh, 560px);
+      height: auto;
+      border-radius: 16px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      /* Increase tap targets */
+      --w3a-tree__label__font-size: 0.95rem;
+      --w3a-tree__chevron__width: 14px;
+      --w3a-tree__chevron__height: 14px;
+      --w3a-tree__summary-row__padding: 6px 8px;
+      --w3a-tree__file-content__font-size: 0.85rem;
+      --w3a-tree__file-content__max-height: 40vh;
+    }
   `;
 
   // ==============================
@@ -284,6 +353,24 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.updateTooltipTheme();
     this.setupCSSVariables();
     this.applyEmbeddedButtonStyles();
+
+    // Detect coarse pointer environments (mobile/tablets) to adapt interactions
+    try {
+      this.isCoarsePointer = window.matchMedia('(pointer: coarse), (hover: none)').matches;
+      // Keep in sync if device characteristics change (rare but safe)
+      this.mqlCoarse = window.matchMedia('(pointer: coarse), (hover: none)');
+      this.mqlCoarse.addEventListener?.('change', (e) => {
+        this.isCoarsePointer = e.matches;
+        this.requestUpdate();
+      });
+      // Default to press-to-preview on coarse pointers (can be overridden via SET_STYLE)
+      if (this.isCoarsePointer) {
+        this.activationMode = 'press';
+      }
+    } catch {}
+
+    // Close with Escape for accessibility
+    window.addEventListener('keydown', this.handleKeyDown, { passive: true });
   }
 
   firstUpdated() {
@@ -339,6 +426,11 @@ export class EmbeddedTxButton extends LitElementWithProps {
     super.disconnectedCallback();
     try { this.tooltipResizeObserver?.disconnect(); } catch {}
     try { this.buttonResizeObserver?.disconnect(); } catch {}
+    try { window.removeEventListener('keydown', this.handleKeyDown as any); } catch {}
+    if (this.pressTimer) {
+      try { clearTimeout(this.pressTimer); } catch {}
+      this.pressTimer = null;
+    }
   }
 
   private setupCSSVariables() {
@@ -606,6 +698,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.hideTimeout = null;
     }
 
+    // Move focus to close button for accessibility on mobile
+    try {
+      if (this.isCoarsePointer) {
+        const closeBtn = tooltipElement.querySelector('[data-close-btn]') as HTMLButtonElement | null;
+        closeBtn?.focus?.();
+      }
+    } catch {}
+
     // Measure after showing, wait for render and one frame
     await this.updateComplete;
     await new Promise(requestAnimationFrame);
@@ -724,7 +824,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     buttonSizing: { width?: string | number; height?: string | number },
     tooltipPosition?: TooltipPositionInternal,
     embeddedButtonTheme?: EmbeddedTxButtonStyles,
-    theme?: 'dark' | 'light'
+    theme?: 'dark' | 'light',
+    activationMode?: 'tap' | 'press'
   ) {
     this.buttonSizing = buttonSizing || {};
     if (tooltipPosition) {
@@ -736,6 +837,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.tooltipTheme = theme as EmbeddedTxButtonTheme;
       this.updateTooltipTheme();
     }
+    if (activationMode) {
+      this.activationMode = activationMode;
+    }
     this.setupCSSVariables();
     this.requestUpdate();
   }
@@ -743,6 +847,78 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private handleConfirm() {
     if (window.parent) {
       window.parent.postMessage({ type: 'CONFIRM' }, this.getTargetOrigin());
+    }
+  }
+
+  // Click handler that adapts for mobile: first tap shows tooltip, second tap confirms
+  private handleClick(ev: Event) {
+    if (this.isCoarsePointer) {
+      if (this.activationMode === 'press') {
+        // If a long-press just opened the tooltip, suppress the click
+        if (Date.now() < this.suppressClickUntil) {
+          ev.preventDefault();
+          ev.stopPropagation();
+          return;
+        }
+        // In press mode, simple tap confirms directly
+        this.handleConfirm();
+        return;
+      } else {
+        if (!this.tooltipVisible) {
+          // Tap-to-toggle mode: first tap shows details
+          ev.preventDefault();
+          ev.stopPropagation();
+          this.showTooltip();
+          return;
+        }
+        // Tooltip visible: confirm
+        this.handleConfirm();
+        return;
+      }
+    }
+    // Desktop/precise pointer: default behavior -> confirm
+    this.handleConfirm();
+  }
+
+  // Long press detection for mobile "deep press" to show tooltip
+  private handlePointerDown = (ev: PointerEvent) => {
+    if (!this.isCoarsePointer || this.activationMode !== 'press') return;
+    if (ev.pointerType !== 'touch') return;
+    try { (ev.target as HTMLElement)?.setPointerCapture?.(ev.pointerId); } catch {}
+    this.pressFired = false;
+    this.pressStartX = ev.clientX;
+    this.pressStartY = ev.clientY;
+    if (this.pressTimer) window.clearTimeout(this.pressTimer);
+    this.pressTimer = window.setTimeout(() => {
+      this.pressFired = true;
+      this.suppressClickUntil = Date.now() + 600; // ignore click synthesized after long-press
+      this.showTooltip();
+    }, 350);
+  }
+
+  private handlePointerMove = (ev: PointerEvent) => {
+    if (!this.isCoarsePointer || this.activationMode !== 'press') return;
+    if (this.pressTimer == null) return;
+    const dx = Math.abs(ev.clientX - this.pressStartX);
+    const dy = Math.abs(ev.clientY - this.pressStartY);
+    if (dx > 10 || dy > 10) {
+      window.clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+    }
+  }
+
+  private handlePointerUp = (_ev: PointerEvent) => {
+    if (!this.isCoarsePointer || this.activationMode !== 'press') return;
+    if (this.pressTimer) {
+      window.clearTimeout(this.pressTimer);
+      this.pressTimer = null;
+    }
+  }
+
+  private handlePointerCancel = (_ev: PointerEvent) => {
+    if (this.pressTimer) {
+      window.clearTimeout(this.pressTimer);
+      this.pressTimer = null;
     }
   }
 
@@ -805,6 +981,12 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
   }
 
+  private handleKeyDown = (ev: KeyboardEvent) => {
+    if (ev.key === 'Escape' && this.tooltipVisible) {
+      this.hideTooltip();
+    }
+  }
+
   // (UI digest is computed by the iframe bootstrap directly from txSigningRequests)
   // Compute digest from UI txs converted to wasm-shape (receiverId + snake_case actions)
   // This matches the worker/main-thread tx_signing_requests structure used for digest checks.
@@ -844,12 +1026,18 @@ export class EmbeddedTxButton extends LitElementWithProps {
         <button
           data-embedded-btn
           ?disabled=${this.loadingTouchIdPrompt}
-          @click=${this.handleConfirm}
+          @click=${this.handleClick}
+          @pointerdown=${this.handlePointerDown}
+          @pointermove=${this.handlePointerMove}
+          @pointerup=${this.handlePointerUp}
+          @pointercancel=${this.handlePointerCancel}
           @pointerenter=${this.handlePointerEnter}
           @pointerleave=${this.handlePointerLeave}
           @focus=${this.handleFocus}
           @blur=${this.handleBlur}
           aria-describedby="tooltipContent"
+          aria-haspopup=${this.isCoarsePointer ? 'dialog' : 'true'}
+          aria-expanded=${this.tooltipVisible}
           tabindex="0"
         >
           <!-- Invisible shim: visuals are rendered by host; no inner content needed -->
@@ -861,12 +1049,20 @@ export class EmbeddedTxButton extends LitElementWithProps {
           data-position=${this.tooltip.position}
           data-visible=${this.tooltipVisible}
           data-hiding=${this.isHiding}
+          data-mobile-sheet=${this.isCoarsePointer}
           id="tooltipContent"
-          role="tooltip"
+          role=${this.isCoarsePointer ? 'dialog' : 'tooltip'}
+          aria-modal=${this.isCoarsePointer ? 'true' : 'false'}
           aria-hidden="true"
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
+          ${this.isCoarsePointer ? html`
+            <div data-tooltip-header>
+              <span data-tooltip-title>Transaction Details</span>
+              <button data-close-btn @click=${() => this.hideTooltip()} aria-label="Close details">✕</button>
+            </div>
+          ` : ''}
           <tooltip-tx-tree
             .node=${tree}
             .depth=${0}

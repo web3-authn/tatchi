@@ -215,6 +215,13 @@ export const DARK_THEME_COLORS = {
   red500: CHROMA_COLORS.red500,
   red600: CHROMA_COLORS.red600,
 
+  yellow200: CHROMA_COLORS.yellow200,
+  yellow300: CHROMA_COLORS.yellow300,
+  yellow400: CHROMA_COLORS.yellow400,
+  yellow500: CHROMA_COLORS.yellow500,
+  yellow600: CHROMA_COLORS.yellow600,
+
+  blue200: CHROMA_COLORS.blue200,
   blue300: CHROMA_COLORS.blue300,
   blue400: CHROMA_COLORS.blue400,
   blue500: CHROMA_COLORS.blue500,
@@ -276,6 +283,12 @@ export const LIGHT_THEME_COLORS = {
   red400: CHROMA_COLORS.red400,
   red500: CHROMA_COLORS.red500,
   red600: CHROMA_COLORS.red600,
+
+  yellow200: CHROMA_COLORS.yellow200,
+  yellow300: CHROMA_COLORS.yellow300,
+  yellow400: CHROMA_COLORS.yellow400,
+  yellow500: CHROMA_COLORS.yellow500,
+  yellow600: CHROMA_COLORS.yellow600,
 
   blue200: CHROMA_COLORS.blue200,
   blue300: CHROMA_COLORS.blue300,

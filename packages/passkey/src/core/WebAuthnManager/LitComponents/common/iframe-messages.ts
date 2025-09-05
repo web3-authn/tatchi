@@ -87,6 +87,7 @@ export type IframeButtonMessageType =
   | 'HS3_GEOMETRY_REQUEST'
   | 'HS5_GEOMETRY_RESULT'
   | 'SET_STYLE'
+  | 'SET_TOOLTIP_VISIBILITY'
   | 'TOOLTIP_STATE'
   | 'BUTTON_HOVER'
   | 'BUTTON_FOCUS';
@@ -110,7 +111,9 @@ export interface IframeButtonMessagePayloads {
     tooltipTreeStyles?: TooltipTreeStyles;
     embeddedButtonTheme?: EmbeddedTxButtonStyles;
     theme?: 'dark' | 'light';
+    activationMode?: 'tap' | 'press';
   };
+  SET_TOOLTIP_VISIBILITY: boolean;
   CONFIRM: undefined;
   TOOLTIP_STATE: TooltipGeometry;
   BUTTON_HOVER: { hovering: boolean };

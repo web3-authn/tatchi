@@ -19,8 +19,6 @@ export interface ModalTxConfirmerStyles extends ComponentStyles {
   txSection?: Record<string, string>;
   actionOuter?: Record<string, string>;
   txList?: Record<string, string>;
-  gradientBorder?: Record<string, string>;
-  actionsTitle?: Record<string, string>;
   actionItem?: Record<string, string>;
   actionRow?: Record<string, string>;
   actionLabel?: Record<string, string>;
@@ -76,10 +74,14 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME_COLORS.colorBackground
     },
 
-    // Main modal container - the glass-like container around the content
+    // Main modal container
     modalBackdropBlur: {
-      background: 'rgba(0, 0, 0, 0.5)',
-      backdropFilter: 'blur(2px)',
+      background: 'oklch(0.2 0.01 240 / 0.4)', // grey800 with alpha 0.8
+      backdropFilter: 'blur(0px)',
+      animation: 'none',
+      willChange: 'none',
+      // animation: 'backdrop-opacity 32ms ease-in',
+      // willChange: 'opacity',
     },
     modalBackdrop: {
       padding: '0.5rem',
@@ -87,7 +89,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME_COLORS.colorText,
     },
     modalContainerRoot: {
-      border: `2px solid ${DARK_THEME_COLORS.colorBorder}`,
+      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
       boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: DARK_THEME_COLORS.grey750,
     },
@@ -96,10 +98,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderBottom: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
     },
     padlockIcon: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME_COLORS.blue500,
     },
     blockHeightIcon: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME_COLORS.blue500,
     },
     domainText: {
       color: DARK_THEME_COLORS.colorTextSecondary,
@@ -133,9 +135,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderRadius: '8px',
       padding: '1rem',
     },
-    gradientBorder: {
-      background: `linear-gradient(${DARK_THEME_COLORS.colorSurface}, ${DARK_THEME_COLORS.colorSurface}) padding-box, conic-gradient(from var(--border-angle), rgba(0, 0, 0, 0.0) 0%, rgba(0, 0, 0, 0.35) 10%, rgba(0, 0, 0, 0.0) 20%, rgba(0, 0, 0, 0.0) 100%) border-box`
-    },
     actionsTitle: {
       color: DARK_THEME_COLORS.colorTextSecondary
     },
@@ -165,7 +164,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     codeBlock: {
       fontSize: '0.75rem',
-      margin: '4px 0px 4px 0px',
+      margin: '4px 0px 0px 0px',
       background: DARK_THEME_COLORS.grey650,
       color: DARK_THEME_COLORS.grey350
     },
@@ -214,6 +213,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       innerBackground: DARK_THEME_COLORS.grey650,
       innerPadding: '6px',
       ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.green400} 10%, ${LIGHT_THEME_COLORS.green500} 25%, transparent 35%`
+      // ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.yellow200} 10%, ${LIGHT_THEME_COLORS.yellow300} 25%, transparent 35%`
     },
     passkeyHaloLoadingIconContainer: {
       backgroundColor: DARK_THEME_COLORS.grey750,
@@ -277,10 +277,14 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: LIGHT_THEME_COLORS.colorBackground
     },
 
-    // Main modal container - the glass-like container around the content
+    // Main modal container
     modalBackdropBlur: {
-      background: 'rgba(0, 0, 0, 0.5)',
-      backdropFilter: 'blur(2px)',
+      background: 'oklch(0.2 0.01 240 / 0.4)', // grey800 with alpha 0.8
+      backdropFilter: 'blur(0px)',
+      animation: 'none',
+      willChange: 'none',
+      // animation: 'backdrop-opacity 32ms ease-in',
+      // willChange: 'opacity',
     },
     modalBackdrop: {
       padding: '0.5rem',
@@ -289,7 +293,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME_COLORS.colorText,
     },
     modalContainerRoot: {
-      border: `2px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
       boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: DARK_THEME_COLORS.grey100,
     },
@@ -298,10 +302,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderBottom: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
     },
     padlockIcon: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME_COLORS.blue500,
     },
     blockHeightIcon: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME_COLORS.blue500,
     },
     domainText: {
       color: LIGHT_THEME_COLORS.colorTextSecondary,
@@ -336,9 +340,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       padding: '1rem',
       background: LIGHT_THEME_COLORS.grey50
     },
-    gradientBorder: {
-      background: `linear-gradient(${LIGHT_THEME_COLORS.colorBackground}, ${LIGHT_THEME_COLORS.colorBackground}) padding-box, conic-gradient(from var(--border-angle), rgba(0, 0, 0, 0.0) 0%, rgba(0, 0, 0, 0.35) 10%, rgba(0, 0, 0, 0.0) 20%, rgba(0, 0, 0, 0.0) 100%) border-box`
-    },
     actionsTitle: {
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },
@@ -368,7 +369,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     codeBlock: {
       fontSize: '0.75rem',
-      margin: '4px 0px 4px 0px',
+      margin: '4px 0px 0px 0px',
       background: LIGHT_THEME_COLORS.slate150,
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },

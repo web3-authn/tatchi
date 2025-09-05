@@ -131,10 +131,10 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       display: grid;
       justify-content: center;
       z-index: 2147483647;
-      background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.7));
-      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(2px));
-      animation: backdrop-opacity 50ms ease-out, backdrop-blur 200ms ease-out forwards;
-      will-change: opacity, backdrop-filter;
+      background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
+      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(12px));
+      animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in);
+      will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }
 
     @keyframes backdrop-opacity {
@@ -169,36 +169,31 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       overflow: var(--w3a-modal__modal-container-root__overflow, hidden);
       box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
       background: var(--w3a-modal__modal-container-root__background);
-    }
-
-    @keyframes backdrop-blur {
-      from {
-        backdrop-filter: var(--w3a-modal__modal-backdrop-blur__filter-from, blur(0px));
-      }
-      to {
-        backdrop-filter: var(--w3a-modal__modal-backdrop-blur__filter-to, blur(2px));
-      }
+      animation: fadeIn 32ms ease-in;
+      will-change: opacity, transform;
     }
 
     @keyframes fadeIn {
       from {
         opacity: 0;
-        transform: scale(0.95);
+        transform: translateY(10px) scale(0.95);
       }
       to {
         opacity: 1;
-        transform: scale(1);
+        transform: translateY(0px) scale(1);
       }
     }
 
     .rpid-wrapper {
+      margin-top: 2px;
       border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
     }
     .rpid {
-      padding: 4px 1rem;
       display: flex;
       align-items: center;
       gap: 6px;
+      padding: 4px 1.25rem;
+      margin-top: 2px;
       font-size: 0.7rem;
       color: var(--w3a-modal__label__color);
       font-weight: 400;
@@ -240,7 +235,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       justify-items: center;
       align-items: center;
       gap: var(--w3a-gap-2);
-      padding: var(--w3a-modal__hero__padding, 2rem 0rem 1rem 0rem);
+      padding: var(--w3a-modal__hero__padding, 2rem 0rem 2rem 0rem);
     }
     .hero-container {
       height: var(--w3a-modal__hero-container__height, 40px);
@@ -301,8 +296,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       margin: var(--w3a-modal__tx-section__margin, 0px);
       position: relative;
       z-index: 1;
-      animation: fadeIn 50ms ease-out forwards;
-      will-change: opacity, transform;
     }
 
     .tx-list {

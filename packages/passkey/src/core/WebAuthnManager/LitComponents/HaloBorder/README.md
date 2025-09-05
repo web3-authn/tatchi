@@ -50,6 +50,7 @@ HaloBorder (custom element: `w3a-halo-border`) supports:
 
 - `animated?: boolean` — enable/disable rotation.
 - `theme?: 'light' | 'dark'` — applied as a class on the wrapper for theme tokens.
+- `durationMs?: number` — animation duration in milliseconds (default 1150ms).
 - `ringGap?: number` — distance between content and halo (default 4px).
 - `ringWidth?: number` — thickness of the halo band (default 2px).
 - `ringBorderRadius?: string` — radius of the arc path (default `2rem`).
@@ -70,6 +71,7 @@ HTML (plain Web Component):
 ```html
 <w3a-halo-border
   animated
+  duration-ms="800"
   ring-gap="8"
   ring-width="4"
   ring-border-radius="1.5rem"
@@ -89,6 +91,7 @@ import { LitHaloBorder, LitPasskeyHaloLoading } from '@web3authn/passkey/src/rea
 <LitHaloBorder
   animated
   theme="light"
+  durationMs={800}
   ringGap={8}
   ringWidth={4}
   ringBorderRadius="1.5rem"
@@ -100,6 +103,7 @@ import { LitHaloBorder, LitPasskeyHaloLoading } from '@web3authn/passkey/src/rea
 <LitPasskeyHaloLoading
   animated
   theme="dark"
+  durationMs={1200}
   ringGap={6}
   ringWidth={3}
   innerPadding="8px"

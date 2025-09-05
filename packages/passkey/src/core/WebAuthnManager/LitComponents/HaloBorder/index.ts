@@ -9,6 +9,7 @@ export class HaloBorderElement extends LitElementWithProps {
   static properties = {
     animated: { type: Boolean },
     theme: { type: String },
+    durationMs: { type: Number, attribute: 'duration-ms' },
     ringGap: { type: Number, attribute: 'ring-gap' },
     ringWidth: { type: Number, attribute: 'ring-width' },
     ringBorderRadius: { type: String, attribute: 'ring-border-radius' },
@@ -21,6 +22,7 @@ export class HaloBorderElement extends LitElementWithProps {
 
   declare animated?: boolean;
   declare theme?: HaloTheme;
+  declare durationMs?: number;
   declare ringGap?: number;
   declare ringWidth?: number;
   declare ringBorderRadius?: string;
@@ -59,7 +61,7 @@ export class HaloBorderElement extends LitElementWithProps {
     if (!this.animated || !this.ringRef.value) return;
     if (this.rafId !== null) return; // already animating
 
-    const durationMs = 1150;
+    const durationMs = this.durationMs ?? 1150;
     const step = (now: number) => {
       if (this.startTs === 0) this.startTs = now;
       const elapsed = now - this.startTs;

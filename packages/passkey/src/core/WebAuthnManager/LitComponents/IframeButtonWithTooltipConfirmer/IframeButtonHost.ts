@@ -187,6 +187,20 @@ export class IframeButtonHost extends LitElementWithProps {
   private initialClipPathApplied = false;
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private hostRef: Ref<HTMLDivElement> = createRef();
+  private tooltipVisible: boolean = false;
+  private onDocPointerDown = (ev: PointerEvent) => {
+    // Click-away to close tooltip when visible
+    if (!this.tooltipVisible) return;
+    const hostEl = this.hostRef.value;
+    if (!hostEl) return;
+    const target = ev.target as Node | null;
+    if (target && hostEl.contains(target)) {
+      // Click occurred inside the host/iframe area; ignore
+      return;
+    }
+    // Hide tooltip in iframe
+    this.postToIframe('SET_TOOLTIP_VISIBILITY', false);
+  };
 
   // Reactive properties are automatically created by Lit from static properties
   // Don't declare them as instance properties, this overrides Lit's setters
@@ -265,6 +279,7 @@ export class IframeButtonHost extends LitElementWithProps {
       window.removeEventListener('message', this.messageHandler);
       this.messageHandler = undefined;
     }
+    try { document.removeEventListener('pointerdown', this.onDocPointerDown, true); } catch {}
   }
 
   private applyButtonStyle() {
@@ -718,6 +733,14 @@ export class IframeButtonHost extends LitElementWithProps {
    */
   private handleTooltipState(geometry: TooltipGeometry) {
     this.currentGeometry = geometry;
+    const wasVisible = this.tooltipVisible;
+    this.tooltipVisible = !!geometry.visible;
+    // Manage global click-away listener when visibility changes
+    if (!wasVisible && this.tooltipVisible) {
+      document.addEventListener('pointerdown', this.onDocPointerDown, true);
+    } else if (wasVisible && !this.tooltipVisible) {
+      document.removeEventListener('pointerdown', this.onDocPointerDown, true);
+    }
     // Apply appropriate clip-path based on visibility state
     if (!geometry.visible) {
       this.applyButtonOnlyClipPath();
