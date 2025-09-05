@@ -1,6 +1,6 @@
 import { toActionArgsWasm, isActionArgsWasm } from '@/core/types/actions';
 import type { ActionArgs } from '@/core/types/actions';
-import { TransactionInputWasm } from '@/core/types'
+import { TransactionInputWasm, VRFChallenge } from '@/core/types'
 import type {
   IframeModalMessage,
   IframeModalMessagePayloads,
@@ -48,6 +48,7 @@ function whenDefined(tag: string): Promise<void> {
 interface ModalElementShape extends HTMLElement {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
+  vrfChallenge?: VRFChallenge;
   theme?: string;
   loading?: boolean;
   errorMessage?: string;
@@ -78,7 +79,9 @@ function isSetInitPayload(payload: unknown): payload is IframeModalMessagePayloa
 }
 
 function isSetTxDataPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_TX_DATA'] {
-  return typeof payload === 'object' && payload !== null;
+  return typeof payload === 'object' && payload !== null &&
+    typeof (payload as any).nearAccountId === 'string' &&
+    Array.isArray((payload as any).txSigningRequests);
 }
 
 function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePayloads['CLOSE_MODAL'] {
@@ -121,6 +124,9 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
       if (isSetTxDataPayload(payload) && payload) {
         el.nearAccountId = payload.nearAccountId;
         el.txSigningRequests = payload.txSigningRequests;
+        if (payload.vrfChallenge) {
+          el.vrfChallenge = payload.vrfChallenge;
+        }
         if (payload.theme && typeof payload.theme === 'string') {
           el.theme = payload.theme;
         }

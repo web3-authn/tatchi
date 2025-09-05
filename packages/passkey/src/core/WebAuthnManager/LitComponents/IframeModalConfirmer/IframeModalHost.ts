@@ -5,6 +5,7 @@ import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import type { TransactionInputWasm } from '../../../types/actions';
 import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
 import type { PasskeyManagerContext } from '../../../PasskeyManager';
+import type { VRFChallenge } from '../../../types/vrf-worker';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import {
@@ -30,6 +31,7 @@ export class IframeModalHost extends LitElementWithProps {
   static properties = {
     nearAccountId: { type: String, attribute: 'near-account-id' },
     txSigningRequests: { type: Array },
+    vrfChallenge: { type: Object },
     theme: { type: String, attribute: 'theme' },
     showLoading: { type: Boolean, attribute: 'show-loading' },
     intentDigest: { type: String, attribute: 'intent-digest' },
@@ -50,6 +52,7 @@ export class IframeModalHost extends LitElementWithProps {
 
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
+  declare vrfChallenge?: VRFChallenge;
   declare theme: 'dark' | 'light';
   declare showLoading: boolean;
   declare intentDigest: string | undefined;
@@ -63,6 +66,7 @@ export class IframeModalHost extends LitElementWithProps {
     super();
     this.nearAccountId = '';
     this.txSigningRequests = [];
+    this.vrfChallenge = undefined;
     this.theme = 'light';
     this.showLoading = false;
     this.intentDigest = undefined;
@@ -162,6 +166,7 @@ export class IframeModalHost extends LitElementWithProps {
     this.postToIframe('SET_TX_DATA', {
       nearAccountId: this.nearAccountId,
       txSigningRequests: this.txSigningRequests,
+      vrfChallenge: this.vrfChallenge,
       theme: this.theme
     });
     if (changed.has('showLoading')) {
@@ -199,6 +204,7 @@ export class IframeModalHost extends LitElementWithProps {
           this.postToIframe('SET_TX_DATA', {
             nearAccountId: this.nearAccountId,
             txSigningRequests: this.txSigningRequests,
+            vrfChallenge: this.vrfChallenge,
             theme: this.theme
           });
           this.postToIframe('SET_LOADING', this.showLoading);

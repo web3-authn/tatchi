@@ -1,6 +1,6 @@
 // Shared message types and helpers for iframe host/child communication
 
-import { TransactionInputWasm } from "@/core/types";
+import { TransactionInputWasm, VRFChallenge } from "@/core/types";
 import type { TransactionInput } from "@/core/types/actions";
 import type { TooltipGeometry, TooltipPositionInternal } from "../IframeButtonWithTooltipConfirmer/iframe-geometry";
 import { TooltipTreeStyles } from "../TooltipTxTree";
@@ -51,6 +51,7 @@ export interface IframeModalMessagePayloads {
   SET_TX_DATA: {
     nearAccountId: string;
     txSigningRequests: TransactionInputWasm[];
+    vrfChallenge?: VRFChallenge;
     theme?: 'dark' | 'light'
   };
   SET_LOADING: boolean;
@@ -97,7 +98,11 @@ export interface IframeButtonMessagePayloads {
   HS2_POSITIONED: { x: number; y: number };
   HS3_GEOMETRY_REQUEST: undefined;
   HS5_GEOMETRY_RESULT: TooltipGeometry;
-  SET_TX_DATA: { nearAccountId: string; txSigningRequests: TransactionInput[] };
+  SET_TX_DATA: {
+    nearAccountId: string;
+    txSigningRequests: TransactionInput[];
+    vrfChallenge?: VRFChallenge
+  };
   SET_LOADING: boolean;
   SET_STYLE: {
     buttonSizing?: { width?: string | number; height?: string | number };

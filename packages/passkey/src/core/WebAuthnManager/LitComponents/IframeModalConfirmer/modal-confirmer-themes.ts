@@ -16,9 +16,9 @@ export interface ModalTxConfirmerStyles extends ComponentStyles {
   label?: Record<string, string>;
   value?: Record<string, string>;
   summarySection?: Record<string, string>;
-  actionsSection?: Record<string, string>;
+  txSection?: Record<string, string>;
   actionOuter?: Record<string, string>;
-  actionList?: Record<string, string>;
+  txList?: Record<string, string>;
   gradientBorder?: Record<string, string>;
   actionsTitle?: Record<string, string>;
   actionItem?: Record<string, string>;
@@ -76,33 +76,38 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME_COLORS.colorBackground
     },
 
-    // Modal border containers (matching tooltip tree structure)
-    modalBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
     // Main modal container - the glass-like container around the content
-    modalBorderInner: {
-      background: DARK_THEME_COLORS.grey600,
-      borderRadius: '2rem',
-      border: `4px solid ${DARK_THEME_COLORS.colorBorder}`,
-      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)'
+    modalBackdropBlur: {
+      background: 'rgba(0, 0, 0, 0.5)',
+      backdropFilter: 'blur(2px)',
     },
-
-    // Component-specific modal variables
-    modalContainer: {
+    modalBackdrop: {
       padding: '0.5rem',
-      background: DARK_THEME_COLORS.grey700,
       border: 'none',
       color: DARK_THEME_COLORS.colorText,
     },
-
-    modalBackdrop: {
-      background: 'rgba(0, 0, 0, 0.5)'
+    modalContainerRoot: {
+      border: `2px solid ${DARK_THEME_COLORS.colorBorder}`,
+      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
+      background: DARK_THEME_COLORS.grey750,
     },
+
+    rpidWrapper: {
+      borderBottom: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+    },
+    padlockIcon: {
+      color: DARK_THEME_COLORS.colorTextSecondary,
+    },
+    blockHeightIcon: {
+      color: DARK_THEME_COLORS.colorTextSecondary,
+    },
+    domainText: {
+      color: DARK_THEME_COLORS.colorTextSecondary,
+    },
+    securityDetails: {
+      color: DARK_THEME_COLORS.colorTextSecondary,
+    },
+
     header: {
       color: DARK_THEME_COLORS.colorText
     },
@@ -121,13 +126,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     summarySection: {
       color: DARK_THEME_COLORS.colorText
     },
-    actionsSection: {
+    txSection: {
       color: DARK_THEME_COLORS.colorText
     },
-    actionList: {
+    txList: {
       borderRadius: '8px',
       padding: '1rem',
-      background: DARK_THEME_COLORS.grey750
     },
     gradientBorder: {
       background: `linear-gradient(${DARK_THEME_COLORS.colorSurface}, ${DARK_THEME_COLORS.colorSurface}) padding-box, conic-gradient(from var(--border-angle), rgba(0, 0, 0, 0.0) 0%, rgba(0, 0, 0, 0.35) 10%, rgba(0, 0, 0, 0.0) 20%, rgba(0, 0, 0, 0.0) 100%) border-box`
@@ -273,32 +277,39 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: LIGHT_THEME_COLORS.colorBackground
     },
 
-    // Modal border containers (matching tooltip tree structure)
-    modalBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
     // Main modal container - the glass-like container around the content
-    modalBorderInner: {
-      background: LIGHT_THEME_COLORS.grey100,
-      borderRadius: '2rem',
-      border: `4px solid ${LIGHT_THEME_COLORS.colorBorder}`,
-      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)'
+    modalBackdropBlur: {
+      background: 'rgba(0, 0, 0, 0.5)',
+      backdropFilter: 'blur(2px)',
     },
-
-    // Component-specific modal variables
-    modalContainer: {
+    modalBackdrop: {
       padding: '0.5rem',
       background: LIGHT_THEME_COLORS.grey25,
       border: 'none',
       color: LIGHT_THEME_COLORS.colorText,
     },
-    modalBackdrop: {
-      background: 'rgba(0, 0, 0, 0.5)'
+    modalContainerRoot: {
+      border: `2px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
+      background: DARK_THEME_COLORS.grey100,
     },
+
+    rpidWrapper: {
+      borderBottom: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+    },
+    padlockIcon: {
+      color: LIGHT_THEME_COLORS.colorTextSecondary,
+    },
+    blockHeightIcon: {
+      color: LIGHT_THEME_COLORS.colorTextSecondary,
+    },
+    domainText: {
+      color: LIGHT_THEME_COLORS.colorTextSecondary,
+    },
+    securityDetails: {
+      color: LIGHT_THEME_COLORS.colorTextSecondary,
+    },
+
     header: {
       color: LIGHT_THEME_COLORS.colorText
     },
@@ -317,10 +328,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     summarySection: {
       color: LIGHT_THEME_COLORS.colorText
     },
-    actionsSection: {
+    txSection: {
       color: LIGHT_THEME_COLORS.colorText
     },
-    actionList: {
+    txList: {
       borderRadius: '8px',
       padding: '1rem',
       background: LIGHT_THEME_COLORS.grey50

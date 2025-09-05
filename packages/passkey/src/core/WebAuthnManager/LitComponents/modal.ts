@@ -1,5 +1,5 @@
 // Import types and components needed for mount functions
-import { TransactionInputWasm } from '../../types';
+import { TransactionInputWasm, VRFChallenge } from '../../types';
 import { IFRAME_MODAL_ID } from './IframeButtonWithTooltipConfirmer/tags';
 import type IframeModalHost from './IframeModalConfirmer/IframeModalHost';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
@@ -42,12 +42,14 @@ export async function mountIframeModalHostWithHandle({
   ctx,
   summary,
   txSigningRequests,
+  vrfChallenge,
   loading,
   theme,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
   loading?: boolean,
   theme?: 'dark' | 'light',
 }): Promise<{ element: IframeModalHost; close: (confirmed: boolean) => void }> {
@@ -56,6 +58,9 @@ export async function mountIframeModalHostWithHandle({
   el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
   el.intentDigest = summary?.intentDigest;
+  if (vrfChallenge) {
+    el.vrfChallenge = vrfChallenge;
+  }
   el.showLoading = !!loading;
   if (theme) {
     el.theme = theme;
@@ -69,11 +74,13 @@ export async function awaitIframeModalDecisionWithHandle({
   ctx,
   summary,
   txSigningRequests,
+  vrfChallenge,
   theme,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
   theme?: 'dark' | 'light',
 }): Promise<{
   confirmed: boolean;
@@ -85,6 +92,9 @@ export async function awaitIframeModalDecisionWithHandle({
     el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;
+    if (vrfChallenge) {
+      el.vrfChallenge = vrfChallenge;
+    }
     if (theme) {
       el.theme = theme;
     }
