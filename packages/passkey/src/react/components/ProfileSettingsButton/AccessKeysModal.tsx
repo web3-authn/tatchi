@@ -144,7 +144,7 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
       onMouseDown={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
     >
-      <HaloBorder theme={theme} animated={true} ringGap={8} ringWidth={4}>
+      <HaloBorder theme={theme} animated={false} ringGap={8} ringWidth={4}>
         <div className="w3a-access-keys-modal-content"
           onClick={handleModalContentClick}
           onMouseDown={(e) => e.stopPropagation()}
@@ -162,15 +162,6 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
               ✕
             </button>
           </div>
-
-          <PasskeyHaloLoading
-            style={{
-              display: 'grid',
-              placeItems: 'center',
-            }}
-            height={48}
-            width={48}
-          />
 
           {error && (
             <div className="w3a-access-keys-error">

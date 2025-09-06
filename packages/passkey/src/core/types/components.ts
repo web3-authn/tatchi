@@ -1,4 +1,4 @@
 export {
-  EMBEDDED_TX_BUTTON_ID,
+  BUTTON_WITH_TOOLTIP_ID,
   IFRAME_BUTTON_ID
 } from '../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/tags';

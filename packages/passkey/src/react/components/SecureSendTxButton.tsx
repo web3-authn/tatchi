@@ -10,7 +10,7 @@ import {
   TooltipPosition,
   TooltipPositionInternal
 } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
+import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
@@ -61,7 +61,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   /** Content shown inside the button; can be text or any element */
   buttonTextElement?: React.ReactNode;
   tooltipPosition?: TooltipPosition;
-  tooltipTheme?: EmbeddedTxButtonTheme;
+  TxTreeTheme?: EmbeddedTxButtonTheme;
   lockTheme?: boolean;
 }> = ({
   nearAccountId,
@@ -81,14 +81,14 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
     height: 'auto',
     position: 'top-center',
   },
-  tooltipTheme = 'dark',
+  TxTreeTheme = 'dark',
   lockTheme = false,
 }) => {
 
   const { passkeyManager } = usePasskeyContext();
   // Memoize passkey context for stable prop identity
   const passkeyManagerContext = useMemo(() => passkeyManager.getContext(), [passkeyManager]);
-  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(tooltipTheme);
+  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(TxTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
   // Uncontrolled mode: listen to user preference changes
@@ -103,10 +103,10 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
     return () => unsubscribe();
   }, [passkeyManager, lockTheme]);
 
-  // Controlled mode: sync with tooltipTheme prop changes
+  // Controlled mode: sync with TxTreeTheme prop changes
   useEffect(() => {
-    if (lockTheme) setCurrentTheme(tooltipTheme);
-  }, [tooltipTheme, lockTheme]);
+    if (lockTheme) setCurrentTheme(TxTreeTheme);
+  }, [TxTreeTheme, lockTheme]);
 
   // Inline Lit wrapper creation
   const RawIframeButton = useMemo(() => createComponent({
@@ -167,7 +167,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
       buttonStyle={toStyleRecord(buttonStyle)}
       buttonHoverStyle={toStyleRecord(buttonHoverStyle)}
       tooltipPosition={internalTooltipPosition}
-      tooltipTheme={currentTheme}
+      TxTreeTheme={currentTheme}
     >
       {content}
     </RawIframeButton>

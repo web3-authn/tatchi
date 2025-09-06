@@ -286,3 +286,112 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
       throw new Error(`Unsupported action type: ${(actionArgsWasm as any).action_type}`);
   }
 }
+
+// === CONVERSIONS: WASM -> JS ACTIONS ===
+
+/**
+ * Convert a single ActionArgsWasm (snake_case, stringified fields) to ActionArgs (camelCase, typed fields)
+ */
+export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
+  switch (a.action_type) {
+    case ActionType.FunctionCall: {
+      let parsedArgs: Record<string, any> = {};
+      try {
+        parsedArgs = a.args ? JSON.parse(a.args) : {};
+      } catch {
+        // leave as empty object if parsing fails
+        parsedArgs = {};
+      }
+      return {
+        type: ActionType.FunctionCall,
+        methodName: a.method_name,
+        args: parsedArgs,
+        gas: a.gas,
+        deposit: a.deposit
+      };
+    }
+    case ActionType.Transfer:
+      return {
+        type: ActionType.Transfer,
+        amount: a.deposit
+      };
+    case ActionType.CreateAccount:
+      return {
+        type: ActionType.CreateAccount
+      };
+    case ActionType.DeployContract: {
+      // Represent code as Uint8Array for consistency
+      const codeBytes = Array.isArray(a.code) ? new Uint8Array(a.code) : new Uint8Array();
+      return {
+        type: ActionType.DeployContract,
+        code: codeBytes
+      };
+    }
+    case ActionType.Stake:
+      return {
+        type: ActionType.Stake,
+        stake: a.stake,
+        publicKey: a.public_key
+      };
+    case ActionType.AddKey: {
+      // access_key is a JSON string of { nonce, permission: { FullAccess: {} } | { FunctionCall: {...} } }
+      let accessKey: any;
+      try {
+        accessKey = JSON.parse(a.access_key);
+      } catch {
+        accessKey = { nonce: 0, permission: { FullAccess: {} } };
+      }
+      // Normalize permission back to SDK shape
+      const permission: any = accessKey?.permission;
+      let normalizedPermission: 'FullAccess' | { FunctionCall: { allowance?: string; receiverId?: string; methodNames?: string[] } } = 'FullAccess';
+      if (permission && typeof permission === 'object') {
+        if ('FullAccess' in permission) {
+          normalizedPermission = 'FullAccess';
+        } else if ('FunctionCall' in permission) {
+          const fc = permission.FunctionCall || {};
+          normalizedPermission = {
+            FunctionCall: {
+              allowance: fc.allowance,
+              receiverId: fc.receiver_id ?? fc.receiverId,
+              methodNames: fc.method_names ?? fc.methodNames
+            }
+          };
+        }
+      }
+      return {
+        type: ActionType.AddKey,
+        publicKey: a.public_key,
+        accessKey: {
+          nonce: typeof accessKey?.nonce === 'number' ? accessKey.nonce : 0,
+          permission: normalizedPermission
+        }
+      };
+    }
+    case ActionType.DeleteKey:
+      return {
+        type: ActionType.DeleteKey,
+        publicKey: a.public_key
+      };
+    case ActionType.DeleteAccount:
+      return {
+        type: ActionType.DeleteAccount,
+        beneficiaryId: a.beneficiary_id
+      };
+    default:
+      // Exhaustive guard
+      throw new Error(`Unsupported wasm action_type: ${(a as any)?.action_type}`);
+  }
+}
+
+/** Convert a TransactionInputWasm structure to TransactionInput */
+export function fromTransactionInputWasm(tx: TransactionInputWasm): TransactionInput {
+  return {
+    receiverId: tx.receiverId,
+    actions: tx.actions.map(fromActionArgsWasm)
+  };
+}
+
+/** Convert an array of TransactionInputWasm to TransactionInput[] */
+export function fromTransactionInputsWasm(txs: TransactionInputWasm[]): TransactionInput[] {
+  return (txs || []).map(fromTransactionInputWasm);
+}

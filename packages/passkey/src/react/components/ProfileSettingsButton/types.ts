@@ -1,6 +1,6 @@
 import type { ToggleColorProps } from './Toggle';
 import type { DeviceLinkingSSEEvent, LinkDeviceResult } from '@/index';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/embedded-tx-button-themes';
+import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
 
 export interface ProfileDimensions {
   width: number;

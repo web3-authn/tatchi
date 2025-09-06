@@ -192,13 +192,13 @@ export default defineConfig([
       }
     ]
   },
-  // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
+  // Button-with-Tooltip component - bundles Lit for iframe usage
   {
-    input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/EmbeddedTxButton.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/ButtonWithTooltip.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'embedded-tx-button.js'
+      entryFileNames: 'button-with-tooltip.js'
     },
     external: embeddedExternal,
     resolve: {

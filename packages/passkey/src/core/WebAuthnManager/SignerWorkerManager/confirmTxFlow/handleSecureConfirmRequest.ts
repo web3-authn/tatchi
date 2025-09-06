@@ -143,40 +143,14 @@ async function performNearRpcCalls(
   details?: string;
 }> {
   try {
-    const nearAccountId = data.rpcCall.nearAccountId;
-
     // Use NonceManager's smart caching method
-    try {
-      const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
-      console.log("Using NonceManager smart caching");
-      return {
-        transactionContext,
-        error: undefined,
-        details: undefined
-      };
-    } catch (error) {
-      console.warn("NonceManager failed, falling back to direct fetch:", error);
-    }
-
-    // Fallback: Fetch data directly if NonceManager fails
-    console.log("NonceManager failed, fetching directly");
-    const nearClient = ctx.nearClient;
-    const userData = await ctx.indexedDB.clientDB.getUser(toAccountId(nearAccountId));
-    const nearPublicKeyStr = userData?.clientNearPublicKey;
-    if (!nearPublicKeyStr) {
-      throw new Error('Client NEAR public key not found in user data');
-    }
-    const transactionContext = await fetchNonceBlockHashAndHeight({
-      nearClient,
-      nearPublicKeyStr,
-      nearAccountId: toAccountId(data.rpcCall.nearAccountId)
-    });
-    console.log("finished fetching tx context")
+    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
+    console.log("Using NonceManager smart caching");
     return {
       transactionContext,
       error: undefined,
       details: undefined
-    }
+    };
   } catch (error) {
     return {
       transactionContext: null,
