@@ -684,11 +684,11 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   private _updateTxTreeWidth() {
     try {
       const w = window.innerWidth || 0;
-      // Use CSS math to avoid overflow on very small screens
-      let next: string | number = 'min(500px, 100%)';
+      // Breakpoints: 360 / 380 / 400
+      let next: string | number = 'min(400px, 100%)';
       if (w <= 640) next = 'min(360px, 100%)';
-      else if (w <= 1024) next = 'min(400px, 100%)';
-      else next = 'min(500px, 100%)';
+      else if (w <= 1024) next = 'min(380px, 100%)';
+      else next = 'min(400px, 100%)';
       if (this._txTreeWidth !== next) {
         this._txTreeWidth = next;
         this.requestUpdate();

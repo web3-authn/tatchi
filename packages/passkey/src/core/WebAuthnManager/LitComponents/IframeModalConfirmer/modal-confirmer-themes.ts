@@ -1,6 +1,6 @@
 
 import type { ComponentStyles } from '../LitElementWithProps';
-import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
+import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
 
 export type ModalConfirmerTheme = 'dark' | 'light';
 
@@ -63,14 +63,14 @@ export interface ModalTxConfirmerStyles extends ComponentStyles {
 export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirmerStyles> = {
   dark: {
     // Spread base colors from shared palette
-    ...DARK_THEME_COLORS,
+    ...DARK_THEME,
 
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: DARK_THEME_COLORS.colorText,
-      backgroundColor: DARK_THEME_COLORS.colorBackground
+      color: DARK_THEME.colorText,
+      backgroundColor: DARK_THEME.colorBackground
     },
 
     // Main modal container
@@ -85,11 +85,11 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     modalBackdrop: {
       padding: '0.5rem',
       border: 'none',
-      color: DARK_THEME_COLORS.colorText,
+      color: DARK_THEME.colorText,
     },
     modalContainerRoot: {
-      // background: DARK_THEME_COLORS.grey750,
-      // border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+      // background: DARK_THEME.grey750,
+      // border: `1px solid ${DARK_THEME.colorBorder}`,
       // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: 'none',
       border: 'none',
@@ -102,128 +102,128 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     cardBackgroundBorder: {
       borderRadius: '2rem',
-      background: DARK_THEME_COLORS.colorBackground,
-      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+      background: DARK_THEME.colorBackground,
+      border: `1px solid ${DARK_THEME.colorBorder}`,
     },
 
     rpidWrapper: {
     },
     padlockIcon: {
-      color: DARK_THEME_COLORS.blue500,
+      color: DARK_THEME.blue500,
     },
     blockHeightIcon: {
-      color: DARK_THEME_COLORS.blue500,
+      color: DARK_THEME.blue500,
     },
     domainText: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME.colorTextSecondary,
     },
     securityDetails: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME.colorTextSecondary,
     },
 
     header: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     grid: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     row: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     label: {
-      color: DARK_THEME_COLORS.colorTextSecondary
+      color: DARK_THEME.colorTextSecondary
     },
     value: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     summarySection: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     actionsTitle: {
-      color: DARK_THEME_COLORS.colorTextSecondary
+      color: DARK_THEME.colorTextSecondary
     },
     actionItem: {
-      background: DARK_THEME_COLORS.colorSurface
+      background: DARK_THEME.colorSurface
     },
     actionRow: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     actionLabel: {
       padding: '2px 0px',
-      color: DARK_THEME_COLORS.colorTextSecondary
+      color: DARK_THEME.colorTextSecondary
     },
     actionContent: {
       padding: '0.5rem',
-      color: DARK_THEME_COLORS.colorText,
-      background: DARK_THEME_COLORS.grey700,
+      color: DARK_THEME.colorText,
+      background: DARK_THEME.grey700,
       maxHeight: '50vh',
     },
     actionValue: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     actionSubitem: {
     },
     actionSubheader: {
-      color: DARK_THEME_COLORS.highlightReceiverId
+      color: DARK_THEME.highlightReceiverId
     },
     codeBlock: {
       fontSize: '0.75rem',
       margin: '4px 0px 0px 0px',
-      background: DARK_THEME_COLORS.grey650,
-      color: DARK_THEME_COLORS.grey350
+      background: DARK_THEME.grey650,
+      color: DARK_THEME.grey350
     },
     methodName: {
-      color: DARK_THEME_COLORS.highlightMethodName
+      color: DARK_THEME.highlightMethodName
     },
     buttons: {
       background: 'transparent'
     },
     btn: {
-      backgroundColor: DARK_THEME_COLORS.colorSurface,
-      color: DARK_THEME_COLORS.colorText,
-      focusOutlineColor: DARK_THEME_COLORS.colorPrimary,
+      backgroundColor: DARK_THEME.colorSurface,
+      color: DARK_THEME.colorText,
+      focusOutlineColor: DARK_THEME.colorPrimary,
     },
     btnConfirm: {
       padding: '0.5rem',
-      backgroundColor: DARK_THEME_COLORS.blue600,
-      color: DARK_THEME_COLORS.colorText,
-      border: `1px solid ${DARK_THEME_COLORS.blue400}`,
+      backgroundColor: DARK_THEME.blue600,
+      color: DARK_THEME.colorText,
+      border: `1px solid ${DARK_THEME.blue400}`,
     },
     btnConfirmHover: {
-      backgroundColor: DARK_THEME_COLORS.blue500
+      backgroundColor: DARK_THEME.blue500
     },
     btnCancel: {
-      color: DARK_THEME_COLORS.colorText,
-      backgroundColor: DARK_THEME_COLORS.colorBackground,
-      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+      color: DARK_THEME.colorText,
+      backgroundColor: DARK_THEME.colorBackground,
+      border: `1px solid ${DARK_THEME.colorBorder}`,
     },
     btnCancelHover: {
-      backgroundColor: DARK_THEME_COLORS.grey700,
+      backgroundColor: DARK_THEME.grey700,
     },
     btnDanger: {
-      backgroundColor: DARK_THEME_COLORS.red600,
-      border: `1px solid ${DARK_THEME_COLORS.red500}`,
+      backgroundColor: DARK_THEME.red600,
+      border: `1px solid ${DARK_THEME.red500}`,
     },
     btnDangerHover: {
-      backgroundColor: DARK_THEME_COLORS.red500,
+      backgroundColor: DARK_THEME.red500,
     },
     loadingIndicator: {
-      borderColor: DARK_THEME_COLORS.colorBorder,
-      borderTopColor: DARK_THEME_COLORS.colorPrimary
+      borderColor: DARK_THEME.colorBorder,
+      borderTopColor: DARK_THEME.colorPrimary
     },
 
     // PasskeyHaloLoading CSS variables
     passkeyHaloLoading: {
-      innerBackground: DARK_THEME_COLORS.grey650,
+      innerBackground: DARK_THEME.grey650,
       innerPadding: '6px',
-      ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.green400} 10%, ${LIGHT_THEME_COLORS.green500} 25%, transparent 35%`
-      // ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.yellow200} 10%, ${LIGHT_THEME_COLORS.yellow300} 25%, transparent 35%`
+      ringBackground: `transparent 0%, ${LIGHT_THEME.green400} 10%, ${LIGHT_THEME.green500} 25%, transparent 35%`
+      // ringBackground: `transparent 0%, ${LIGHT_THEME.yellow200} 10%, ${LIGHT_THEME.yellow300} 25%, transparent 35%`
     },
     passkeyHaloLoadingIconContainer: {
-      backgroundColor: DARK_THEME_COLORS.grey750,
+      backgroundColor: DARK_THEME.grey750,
     },
     passkeyHaloLoadingTouchIcon: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME.colorTextSecondary,
       margin: '0.75rem',
       strokeWidth: '5',
     },
@@ -231,17 +231,17 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     hero: {
     },
     heroHeading: {
-      color: LIGHT_THEME_COLORS.grey100,
+      color: LIGHT_THEME.grey100,
     },
     heroSubheading: {
-      color: LIGHT_THEME_COLORS.grey400,
+      color: LIGHT_THEME.grey400,
     },
     heroContainer: {
       minHeight: '48px',
     },
 
     errorBanner: {
-      color: DARK_THEME_COLORS.red600,
+      color: DARK_THEME.red600,
       fontSize: '0.9rem',
     },
 
@@ -250,41 +250,41 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'rgba(0, 0, 0, 0.5)'
     },
     headerMobile: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     rowMobile: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     actionRowMobile: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     actionContentMobile: {
-      color: DARK_THEME_COLORS.colorText
+      color: DARK_THEME.colorText
     },
     buttonsMobile: {
       background: 'transparent'
     },
     btnMobile: {
-      backgroundColor: DARK_THEME_COLORS.colorSurface,
-      color: DARK_THEME_COLORS.colorText
+      backgroundColor: DARK_THEME.colorSurface,
+      color: DARK_THEME.colorText
     },
     actionContentScrollbarTrack: {
-      background: DARK_THEME_COLORS.colorSurface
+      background: DARK_THEME.colorSurface
     },
     actionContentScrollbarThumb: {
-      background: DARK_THEME_COLORS.colorTextSecondary
+      background: DARK_THEME.colorTextSecondary
     }
   },
   light: {
     // Spread base colors from shared palette
-    ...LIGHT_THEME_COLORS,
+    ...LIGHT_THEME,
 
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: LIGHT_THEME_COLORS.colorText,
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground
+      color: LIGHT_THEME.colorText,
+      backgroundColor: LIGHT_THEME.colorBackground
     },
 
     // Main modal container
@@ -298,13 +298,13 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     modalBackdrop: {
       padding: '0.5rem',
-      background: LIGHT_THEME_COLORS.grey25,
+      background: LIGHT_THEME.grey25,
       border: 'none',
-      color: LIGHT_THEME_COLORS.colorText,
+      color: LIGHT_THEME.colorText,
     },
     modalContainerRoot: {
-      // background: DARK_THEME_COLORS.grey100,
-      // border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      // background: DARK_THEME.grey100,
+      // border: `1px solid ${LIGHT_THEME.colorBorder}`,
       // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: 'none',
       border: 'none',
@@ -317,131 +317,131 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       borderRadius: '2rem',
     },
     cardBackgroundBorder: {
-      background: LIGHT_THEME_COLORS.colorBackground,
-      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      background: LIGHT_THEME.colorBackground,
+      border: `1px solid ${LIGHT_THEME.colorBorder}`,
     },
 
     rpidWrapper: {
     },
     padlockIcon: {
-      color: DARK_THEME_COLORS.blue500,
+      color: DARK_THEME.blue500,
     },
     blockHeightIcon: {
-      color: DARK_THEME_COLORS.blue500,
+      color: DARK_THEME.blue500,
     },
     domainText: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary,
+      color: LIGHT_THEME.colorTextSecondary,
     },
     securityDetails: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary,
+      color: LIGHT_THEME.colorTextSecondary,
     },
 
     header: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     grid: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     row: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     label: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary
+      color: LIGHT_THEME.colorTextSecondary
     },
     value: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     summarySection: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     actionsTitle: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary
+      color: LIGHT_THEME.colorTextSecondary
     },
     actionItem: {
-      background: LIGHT_THEME_COLORS.colorBackground
+      background: LIGHT_THEME.colorBackground
     },
     actionRow: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     actionLabel: {
       padding: '2px 0px',
-      color: LIGHT_THEME_COLORS.colorTextSecondary
+      color: LIGHT_THEME.colorTextSecondary
     },
     actionContent: {
       padding: '0.5rem',
-      color: LIGHT_THEME_COLORS.colorText,
-      background: LIGHT_THEME_COLORS.grey100,
+      color: LIGHT_THEME.colorText,
+      background: LIGHT_THEME.grey100,
       maxHeight: '50vh',
     },
     actionValue: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     actionSubitem: {
     },
     actionSubheader: {
-      color: LIGHT_THEME_COLORS.highlightReceiverId
+      color: LIGHT_THEME.highlightReceiverId
     },
     codeBlock: {
       fontSize: '0.75rem',
       margin: '4px 0px 0px 0px',
-      background: LIGHT_THEME_COLORS.slate150,
-      color: LIGHT_THEME_COLORS.colorTextSecondary
+      background: LIGHT_THEME.slate150,
+      color: LIGHT_THEME.colorTextSecondary
     },
     methodName: {
-      color: LIGHT_THEME_COLORS.highlightMethodName
+      color: LIGHT_THEME.highlightMethodName
     },
     buttons: {
       background: 'transparent'
     },
     btn: {
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
-      color: LIGHT_THEME_COLORS.colorText,
-      focusOutlineColor: LIGHT_THEME_COLORS.colorPrimary,
+      backgroundColor: LIGHT_THEME.colorBackground,
+      color: LIGHT_THEME.colorText,
+      focusOutlineColor: LIGHT_THEME.colorPrimary,
     },
     btnHover: {
       boxShadow: 'none'
     },
     btnConfirm: {
       padding: '0.5rem',
-      bakgroundColor: LIGHT_THEME_COLORS.blue600,
-      color: LIGHT_THEME_COLORS.colorBackground,
-      border: `1px solid ${LIGHT_THEME_COLORS.blue400}`,
+      bakgroundColor: LIGHT_THEME.blue600,
+      color: LIGHT_THEME.colorBackground,
+      border: `1px solid ${LIGHT_THEME.blue400}`,
     },
     btnConfirmHover: {
-      backgroundColor: DARK_THEME_COLORS.blue500
+      backgroundColor: DARK_THEME.blue500
     },
     btnCancel: {
-      color: LIGHT_THEME_COLORS.colorText,
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
-      borderColor: LIGHT_THEME_COLORS.colorBorder,
-      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      color: LIGHT_THEME.colorText,
+      backgroundColor: LIGHT_THEME.colorBackground,
+      borderColor: LIGHT_THEME.colorBorder,
+      border: `1px solid ${LIGHT_THEME.colorBorder}`,
     },
     btnCancelHover: {
-      backgroundColor: LIGHT_THEME_COLORS.grey100,
+      backgroundColor: LIGHT_THEME.grey100,
     },
     btnDanger: {
-      backgroundColor: LIGHT_THEME_COLORS.red600,
-      border: `1px solid ${LIGHT_THEME_COLORS.red500}`,
+      backgroundColor: LIGHT_THEME.red600,
+      border: `1px solid ${LIGHT_THEME.red500}`,
     },
     btnDangerHover: {
-      backgroundColor: LIGHT_THEME_COLORS.red500,
+      backgroundColor: LIGHT_THEME.red500,
     },
     loadingIndicator: {
-      borderColor: LIGHT_THEME_COLORS.colorBorder,
-      borderTopColor: LIGHT_THEME_COLORS.colorPrimary
+      borderColor: LIGHT_THEME.colorBorder,
+      borderTopColor: LIGHT_THEME.colorPrimary
     },
 
     // PasskeyHaloLoading CSS variables
     passkeyHaloLoading: {
-      innerBackground: LIGHT_THEME_COLORS.grey150,
+      innerBackground: LIGHT_THEME.grey150,
       innerPadding: '6px',
-      ringBackground: `transparent 0%, ${LIGHT_THEME_COLORS.blue300} 10%, ${LIGHT_THEME_COLORS.blue400} 25%, transparent 35%`
+      ringBackground: `transparent 0%, ${LIGHT_THEME.blue300} 10%, ${LIGHT_THEME.blue400} 25%, transparent 35%`
     },
     passkeyHaloLoadingIconContainer: {
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
+      backgroundColor: LIGHT_THEME.colorBackground,
     },
     passkeyHaloLoadingTouchIcon: {
-      color: LIGHT_THEME_COLORS.colorTextMuted,
+      color: LIGHT_THEME.colorTextMuted,
       margin: '0.75rem',
       strokeWidth: '5',
     },
@@ -449,17 +449,17 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     hero: {
     },
     heroHeading: {
-      color: LIGHT_THEME_COLORS.grey100,
+      color: LIGHT_THEME.grey100,
     },
     heroSubheading: {
-      color: LIGHT_THEME_COLORS.grey400,
+      color: LIGHT_THEME.grey400,
     },
     heroContainer: {
       minHeight: '48px',
     },
 
     errorBanner: {
-      color: LIGHT_THEME_COLORS.red500,
+      color: LIGHT_THEME.red500,
       fontSize: '0.9rem',
     },
 
@@ -468,29 +468,29 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'rgba(0, 0, 0, 0.5)'
     },
     headerMobile: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     rowMobile: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     actionRowMobile: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     actionContentMobile: {
-      color: LIGHT_THEME_COLORS.colorText
+      color: LIGHT_THEME.colorText
     },
     buttonsMobile: {
       background: 'transparent'
     },
     btnMobile: {
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
-      color: LIGHT_THEME_COLORS.colorText
+      backgroundColor: LIGHT_THEME.colorBackground,
+      color: LIGHT_THEME.colorText
     },
     actionContentScrollbarTrack: {
-      background: LIGHT_THEME_COLORS.colorSurface
+      background: LIGHT_THEME.colorSurface
     },
     actionContentScrollbarThumb: {
-      background: LIGHT_THEME_COLORS.colorBorder
+      background: LIGHT_THEME.colorBorder
     }
   }
 };

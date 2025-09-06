@@ -185,7 +185,7 @@ export const GRADIENTS = {
 } as const;
 
 // Dark Theme Colors - Using ONLY colors from Guidelines.md
-export const DARK_THEME_COLORS = {
+export const DARK_THEME = {
   ...GREY_COLORS,
 
   // Core colors used by components
@@ -248,7 +248,7 @@ export const DARK_THEME_COLORS = {
 } as const;
 
 // Light Theme Colors - Using ONLY colors from Guidelines.md
-export const LIGHT_THEME_COLORS = {
+export const LIGHT_THEME = {
   ...GREY_COLORS,
 
   // Core colors used by components

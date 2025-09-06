@@ -71,7 +71,7 @@ export class IframeButtonHost extends LitElementWithProps {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
-    TxTreeTheme: {
+    txTreeTheme: {
       type: String,
       attribute: 'tooltip-theme'
     },
@@ -212,7 +212,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPositionInternal;
-  declare TxTreeTheme: EmbeddedTxButtonTheme;
+  declare txTreeTheme: EmbeddedTxButtonTheme;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
   declare passkeyManagerContext: PasskeyManagerContext | null;
@@ -243,7 +243,7 @@ export class IframeButtonHost extends LitElementWithProps {
       offset: '6px',
       boxPadding: '5px',
     };
-    this.TxTreeTheme = 'dark';
+    this.txTreeTheme = 'dark';
     this.showLoading = false;
     this.options = {};
     this.passkeyManagerContext = null;
@@ -474,7 +474,7 @@ export class IframeButtonHost extends LitElementWithProps {
       changedProperties.has('buttonStyle') ||
       changedProperties.has('buttonHoverStyle') ||
       changedProperties.has('tooltipPosition') ||
-      changedProperties.has('TxTreeTheme') ||
+      changedProperties.has('txTreeTheme') ||
       changedProperties.has('color')
     ) {
       this.postStyleUpdateToIframe();
@@ -519,17 +519,17 @@ export class IframeButtonHost extends LitElementWithProps {
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree
-    const themeStyles = this.getThemeStyles(this.TxTreeTheme || 'dark');
+    const themeStyles = this.getThemeStyles(this.txTreeTheme || 'dark');
 
     // Get embedded button theme styles
-    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.TxTreeTheme || 'dark'];
+    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.txTreeTheme || 'dark'];
 
     this.postToIframe('SET_STYLE', {
       buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles: themeStyles,
       embeddedButtonTheme: embeddedButtonTheme,
-      theme: this.TxTreeTheme,
+      theme: this.txTreeTheme,
     });
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the
@@ -704,8 +704,8 @@ export class IframeButtonHost extends LitElementWithProps {
    * Update tooltip theme dynamically - called by React component when user changes theme preference
    */
   updateTheme(newTheme: 'dark' | 'light'): void {
-    // Update the TxTreeTheme property
-    this.TxTreeTheme = newTheme as EmbeddedTxButtonTheme;
+    // Update the txTreeTheme property
+    this.txTreeTheme = newTheme as EmbeddedTxButtonTheme;
     // If iframe is already initialized, send theme update via postMessage
     if (this.iframeInitialized) {
       this.postStyleUpdateToIframe();
@@ -848,7 +848,7 @@ export class IframeButtonHost extends LitElementWithProps {
           uiMode: 'embedded',
           behavior: 'autoProceed',
           autoProceedDelay: 0,
-          theme: this.TxTreeTheme
+          theme: this.txTreeTheme
         }
       });
       this.onSuccess?.(txResults);

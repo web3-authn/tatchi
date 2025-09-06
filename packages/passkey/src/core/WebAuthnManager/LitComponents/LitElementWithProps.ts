@@ -103,7 +103,7 @@ export class LitElementWithProps extends LitElement {
     });
 
     // 2) Promote any other top-level string values to host CSS vars automatically.
-    // This ensures all palette keys from base-styles (e.g., DARK_THEME_COLORS) become available
+    // This ensures all palette keys from base-styles (e.g., DARK_THEME) become available
     // as --w3a-<kebab-name> without maintaining a static allowlist.
     Object.entries(styles).forEach(([key, value]) => {
       if (typeof value === 'string') {

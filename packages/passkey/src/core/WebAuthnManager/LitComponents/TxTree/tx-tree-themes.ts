@@ -1,5 +1,5 @@
 import type { ComponentStyles } from '../LitElementWithProps';
-import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
+import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
 
 export type TxTreeTheme = 'dark' | 'light';
 
@@ -44,14 +44,14 @@ export interface TxTreeStyles extends ComponentStyles {
 export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
   dark: {
     // Spread base colors from shared palette
-    ...DARK_THEME_COLORS,
+    ...DARK_THEME,
 
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: DARK_THEME_COLORS.colorText,
-      backgroundColor: DARK_THEME_COLORS.colorBackground
+      color: DARK_THEME.colorText,
+      backgroundColor: DARK_THEME.colorBackground
     },
 
     tooltipBorderOuter: {
@@ -71,9 +71,9 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: DARK_THEME_COLORS.colorBackground,
+      background: DARK_THEME.colorBackground,
       border: 'none',
-      color: DARK_THEME_COLORS.colorText,
+      color: DARK_THEME.colorText,
     },
     tooltipTreeChildren: {
     },
@@ -88,17 +88,17 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: DARK_THEME_COLORS.colorSurface,
-      borderColor: DARK_THEME_COLORS.colorTextSecondary,
+      background: DARK_THEME.colorSurface,
+      borderColor: DARK_THEME.colorTextSecondary,
     },
     row: {
-      color: DARK_THEME_COLORS.colorText,
+      color: DARK_THEME.colorText,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: DARK_THEME_COLORS.colorText,
+      color: DARK_THEME.colorText,
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
@@ -107,11 +107,11 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       borderRadius: '1rem',
     },
     labelHover: {
-      background: DARK_THEME_COLORS.colorBorder,
-      borderColor: DARK_THEME_COLORS.colorTextSecondary,
+      background: DARK_THEME.colorBorder,
+      borderColor: DARK_THEME.colorTextSecondary,
     },
     chevron: {
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME.colorTextSecondary,
       width: '14px',
       height: '14px'
     },
@@ -120,17 +120,17 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: DARK_THEME_COLORS.colorSurface,
+      background: DARK_THEME.colorSurface,
       border: `1px solid none`,
-      color: DARK_THEME_COLORS.colorTextSecondary,
+      color: DARK_THEME.colorTextSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
-      scrollbarTrackBackground: DARK_THEME_COLORS.colorSurface,
-      scrollbarThumbBackground: DARK_THEME_COLORS.colorTextSecondary
+      scrollbarTrackBackground: DARK_THEME.colorSurface,
+      scrollbarThumbBackground: DARK_THEME.colorTextSecondary
     },
     connector: {
-      color: DARK_THEME_COLORS.grey600,
+      color: DARK_THEME.grey600,
       thickness: '2px',
       elbowLength: '10px'
     },
@@ -141,15 +141,15 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
 
     // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
-      color: DARK_THEME_COLORS.highlightReceiverId,
+      color: DARK_THEME.highlightReceiverId,
       fontWeight: '600',
     },
     highlightMethodName: {
-      color: DARK_THEME_COLORS.highlightMethodName,
+      color: DARK_THEME.highlightMethodName,
       fontWeight: '600',
     },
     highlightAmount: {
-      color: DARK_THEME_COLORS.highlightAmount,
+      color: DARK_THEME.highlightAmount,
       fontWeight: '600',
     },
 
@@ -174,14 +174,14 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
   },
   light: {
     // Spread base colors from shared palette
-    ...LIGHT_THEME_COLORS,
+    ...LIGHT_THEME,
 
     // Base design system variables
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: LIGHT_THEME_COLORS.colorText,
-      backgroundColor: LIGHT_THEME_COLORS.colorBackground
+      color: LIGHT_THEME.colorText,
+      backgroundColor: LIGHT_THEME.colorBackground
     },
 
     tooltipBorderOuter: {
@@ -194,16 +194,16 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     // Main tooltip container - the glass-like container around the content
     tooltipBorderInner: {
       borderRadius: '24px',
-      border: `1px solid ${LIGHT_THEME_COLORS.slate300}`,
+      border: `1px solid ${LIGHT_THEME.slate300}`,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
     },
 
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: LIGHT_THEME_COLORS.colorBackground,
+      background: LIGHT_THEME.colorBackground,
       border: 'none',
-      color: LIGHT_THEME_COLORS.colorText,
+      color: LIGHT_THEME.colorText,
     },
     tooltipTreeChildren: {
 
@@ -219,17 +219,17 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: LIGHT_THEME_COLORS.slate100,
-      borderColor: LIGHT_THEME_COLORS.colorBorder
+      background: LIGHT_THEME.slate100,
+      borderColor: LIGHT_THEME.colorBorder
     },
     row: {
-      color: LIGHT_THEME_COLORS.colorText,
+      color: LIGHT_THEME.colorText,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: LIGHT_THEME_COLORS.colorText,
+      color: LIGHT_THEME.colorText,
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
@@ -238,11 +238,11 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       borderRadius: '1rem',
     },
     labelHover: {
-      background: LIGHT_THEME_COLORS.grey75,
-      borderColor: LIGHT_THEME_COLORS.colorBorder
+      background: LIGHT_THEME.grey75,
+      borderColor: LIGHT_THEME.colorBorder
     },
     chevron: {
-      color: LIGHT_THEME_COLORS.colorTextSecondary,
+      color: LIGHT_THEME.colorTextSecondary,
       width: '14px',
       height: '14px'
     },
@@ -251,18 +251,18 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: LIGHT_THEME_COLORS.slate100,
-      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
-      color: LIGHT_THEME_COLORS.colorText,
+      background: LIGHT_THEME.slate100,
+      border: `1px solid ${LIGHT_THEME.colorBorder}`,
+      color: LIGHT_THEME.colorText,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
-      scrollbarTrackBackground: LIGHT_THEME_COLORS.colorSurface,
-      scrollbarThumbBackground: LIGHT_THEME_COLORS.colorBorder
+      scrollbarTrackBackground: LIGHT_THEME.colorSurface,
+      scrollbarThumbBackground: LIGHT_THEME.colorBorder
     },
     // Slightly darker connector lines for light mode for better contrast
     connector: {
-      color: LIGHT_THEME_COLORS.slate200,
+      color: LIGHT_THEME.slate200,
       thickness: '2px',
       elbowLength: '10px'
     },
@@ -273,15 +273,15 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
 
     // Highlighting - using unified color scheme from base colors
     highlightReceiverId: {
-      color: LIGHT_THEME_COLORS.highlightReceiverId,
+      color: LIGHT_THEME.highlightReceiverId,
       fontWeight: '600',
     },
     highlightMethodName: {
-      color: LIGHT_THEME_COLORS.highlightMethodName,
+      color: LIGHT_THEME.highlightMethodName,
       fontWeight: '600',
     },
     highlightAmount: {
-      color: LIGHT_THEME_COLORS.highlightAmount,
+      color: LIGHT_THEME.highlightAmount,
       fontWeight: '600',
     },
 
