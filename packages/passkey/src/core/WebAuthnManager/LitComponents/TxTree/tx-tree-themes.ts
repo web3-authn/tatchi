@@ -65,7 +65,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     tooltipBorderInner: {
       borderRadius: '24px',
       border: `1px solid transparent`,
-      boxShadow: '0 4px 4px 0px rgba(2, 2, 2, 0.4)'
+      boxShadow: '0 1px 3px 0px rgba(5, 5, 5, 0.4)'
     },
 
     // Component-specific tree variables

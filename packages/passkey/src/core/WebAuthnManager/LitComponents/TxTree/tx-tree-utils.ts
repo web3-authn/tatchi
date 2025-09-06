@@ -49,7 +49,7 @@ export interface TreeNode {
    * When true, the label will be set to display: none,
    * but the content will still be visible.
    */
-  displayNone?: boolean;
+  hideLabel?: boolean;
 
   /**
    * For action folder nodes, attach the underlying ActionArgs so the
@@ -75,7 +75,6 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
 
   switch (action.type) {
     case 'FunctionCall':
-      let showDeposit = action.deposit && action.deposit !== '0';
       actionNodes = [
         // Skip showing gas for FunctionCall, we show it in the label
         // { id: `a${idx}-gas`, label: `gas: ${formatGas(action.gas)}`, type: 'file' },
@@ -85,7 +84,7 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
           type: 'file',
           open: true,
           hideChevron: true,
-          displayNone: true, // hide "args:" row label
+          hideLabel: true, // hide "args:" row label
           content: formatArgs(action.args)
         }
       ];
@@ -104,10 +103,11 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
       actionNodes = [
         {
           id: `a${idx}-code-size`,
-          label: 'Contract code',
+          label: 'contract code:',
           type: 'file',
+          open: false,
           hideChevron: true,
-          displayNone: true, // hide "args:" row label
+          hideLabel: true, // hide "contract code:" row label
           content: formatArgs(code.toString())
         }
       ];
@@ -115,7 +115,13 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
 
     case 'Stake':
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `validator: ${shortenPubkey(action.publicKey)}` , type: 'file', copyValue: action.publicKey }
+        {
+          id: `a${idx}-publicKey`,
+          label: `validator: ${shortenPubkey(action.publicKey)}`,
+          type: 'file',
+          open: true,
+          copyValue: action.publicKey
+        }
       ];
       break;
 
@@ -131,20 +137,42 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
         permissions = 'Unknown';
       }
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `key: ${shortenPubkey(action.publicKey)}`, type: 'file', copyValue: action.publicKey },
-        { id: `a${idx}-permissions`, label: `permissions: ${permissions}`, type: 'file' }
+        {
+          id: `a${idx}-publicKey`,
+          label: `key: ${shortenPubkey(action.publicKey)}`,
+          open: false,
+          type: 'file',
+          copyValue: action.publicKey
+        },
+        {
+          id: `a${idx}-permissions`,
+          label: `permissions: ${permissions}`,
+          open: false,
+          type: 'file'
+        }
       ];
       break;
 
     case 'DeleteKey':
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `key: ${shortenPubkey(action.publicKey)}`, type: 'file', copyValue: action.publicKey }
+        {
+          id: `a${idx}-publicKey`,
+          label: `key: ${shortenPubkey(action.publicKey)}`,
+          open: false,
+          type: 'file',
+          copyValue: action.publicKey
+        }
       ];
       break;
 
     case 'DeleteAccount':
       actionNodes = [
-        { id: `a${idx}-beneficiaryId`, label: `beneficiary: ${action.beneficiaryId}`, type: 'file' }
+        {
+          id: `a${idx}-beneficiaryId`,
+          label: `sending balance to: ${action.beneficiaryId}`,
+          open: false,
+          type: 'file'
+        }
       ];
       break;
 
@@ -156,6 +184,7 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
         {
           id: `a${idx}-action`,
           label: `Action: ${action.type || 'Unknown'}`,
+          open: false,
           type: 'file'
         },
         {

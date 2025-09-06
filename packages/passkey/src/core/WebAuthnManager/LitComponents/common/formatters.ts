@@ -64,7 +64,7 @@ export function shortenPubkey(
   opts: { prefix?: number; suffix?: number } = {}
 ): string {
   if (!pk || typeof pk !== 'string') return '';
-  const { prefix = 10, suffix = 6 } = opts;
+  const { prefix = 12, suffix = 6 } = opts;
   if (pk.length <= prefix + suffix + 3) return pk; // +3 for '...'
   const head = pk.slice(0, prefix);
   const tail = pk.slice(-suffix);

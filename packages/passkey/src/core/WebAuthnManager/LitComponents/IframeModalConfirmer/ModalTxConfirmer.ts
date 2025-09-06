@@ -134,7 +134,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       justify-content: center;
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
-      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(12px));
+      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(8px));
       animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in);
       will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }
@@ -206,14 +206,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .rpid-wrapper {
-      margin-top: 2px;
+      // margin-top: 2px;
       border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
     }
     .rpid {
       display: flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 1.25rem;
+      // padding: 4px 1.25rem;
       margin-top: 2px;
       font-size: 0.7rem;
       color: var(--w3a-modal__label__color);
@@ -255,7 +255,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       justify-items: center;
       align-items: center;
       gap: 1rem;
-      padding: var(--w3a-modal__hero__padding, 1rem);
+      padding: var(--w3a-modal__hero__padding, 0rem 0.5rem);
       position: relative;
       display: flex;
     }
@@ -300,7 +300,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       gap: var(--w3a-gap-2);
       background: transparent;
       border-radius: 0;
-      transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+      transition: all 100ms cubic-bezier(0.2, 0.6, 0.2, 1);
       position: relative;
       overflow: hidden;
     }
@@ -676,149 +676,8 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     super.disconnectedCallback();
   }
 
-  private _renderActionDetails(action: ActionArgsWasm) {
-    if (action.action_type === 'CreateAccount') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Create Account</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'DeployContract') {
-      const code = action.code;
-      const sizeLabel = (() => {
-        if (!code) return '0 bytes';
-        if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
-        if (Array.isArray(code)) return `${code.length} bytes`;
-        return 'unknown';
-      })();
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Deploy Contract</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Code Size</div>
-          <div class="action-value">${sizeLabel}</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'FunctionCall') {
-      return html`
-        ${when(action.deposit && action.deposit !== '0', () => {
-          return html`
-            <div class="action-row">
-              <div class="action-label">Deposit</div>
-              <div class="action-value">${formatDeposit(action.deposit)}</div>
-            </div>
-          `
-        })}
-        ${when(action.args, () => {
-          return html`
-            <div class="action-label">Calling <span class="method-name">${action.method_name}</span> using <span class="method-name">${
-formatGas(action.gas)}</span>
-            </div>
-            <pre class="code-block"><code>${formatArgs(action.args)}</code></pre>
-          `;
-        })}
-      `;
-    }
-    if (action.action_type === 'Transfer') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Transfer</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Amount</div>
-          <div class="action-value">${formatDeposit(action.deposit)}</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'Stake') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Stake</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${action.public_key || ''}</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Amount</div>
-          <div class="action-value">${formatDeposit(action.stake || '')}</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'AddKey') {
-      const accessKey = JSON.parse(action.access_key);
-      const permissions = 'FullAccess' in Object.keys(accessKey.permission)
-        ? 'Full Access'
-        : 'Function Call';
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Add Key</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${action.public_key || ''}</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Access Key</div>
-          <div class="action-value">${permissions}</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'DeleteKey') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Delete Key</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Public Key</div>
-          <div class="action-value">${action.public_key || ''}</div>
-        </div>
-      `;
-    }
-    if (action.action_type === 'DeleteAccount') {
-      return html`
-        <div class="action-row">
-          <div class="action-label">Action</div>
-          <div class="action-value">Delete Account</div>
-        </div>
-        <div class="action-row">
-          <div class="action-label">Beneficiary</div>
-          <div class="action-value">${action.beneficiary_id || ''}</div>
-        </div>
-      `;
-    }
-    // Fallback: show raw JSON for unknown/extended actions
-    let raw = '';
-    try {
-      raw = JSON.stringify(action, null, 2);
-    } catch {
-      raw = String(action);
-    }
-    return html`
-      <div class="action-row">
-        <div class="action-label">Action</div>
-        <div class="action-value">Unknown</div>
-      </div>
-      <div class="action-row">
-        <div class="action-label">Data</div>
-        <div class="action-value"><pre class="code-block"><code>${raw}</code></pre></div>
-      </div>
-    `;
-  }
-
   render() {
-
     const displayTotalAmount = (this.totalAmount === '0' || this.totalAmount === '');
-
     return html`
       <!-- Separate backdrop layer for independent animation -->
       <div class="modal-backdrop-blur" @click=${this._handleBackdropClick}></div>
@@ -826,46 +685,7 @@ formatGas(action.gas)}</span>
       <div class="modal-backdrop" @click=${this._handleContentClick}>
         <div class="modal-container-root">
 
-          <div class="responsive-card card-background-border">
-            <div class="rpid-wrapper">
-              <div class="rpid">
-                <div class="secure-indicator">
-                  <svg xmlns="http://www.w3.org/2000/svg"
-                    class="padlock-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                  ${this.vrfChallenge?.rpId
-                    ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
-                    : ''}
-                </div>
-                <span class="security-details">
-                  <svg xmlns="http://www.w3.org/2000/svg"
-                    class="block-height-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
-                    <path d="m3.3 7 8.7 5 8.7-5"/>
-                    <path d="M12 22V12"/>
-                  </svg>
-                  ${this.vrfChallenge?.rpId
-                    ? html`block ${this.vrfChallenge.blockHeight}`
-                    : ''}
-                </span>
-              </div>
-            </div>
+          <div class="responsive-card">
             <div class="hero">
               <w3a-passkey-halo-loading
                 .theme=${this.theme}
@@ -876,15 +696,56 @@ formatGas(action.gas)}</span>
                 .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
                 .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
                 .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
-                .height=${60}
-                .width=${60}
+                .height=${40}
+                .width=${40}
               ></w3a-passkey-halo-loading>
               <div class="hero-container">
-                <h2 class="hero-heading">Check your transaction details</h2>
+                <!-- Hero heading -->
+                <h2 class="hero-heading">Check the transaction details</h2>
                 ${!this.errorMessage
                   ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
                   : html`<div class="error-banner">${this.errorMessage}</div>`
                 }
+                <!-- RpID Section -->
+                <div class="rpid-wrapper">
+                  <div class="rpid">
+                    <div class="secure-indicator">
+                      <svg xmlns="http://www.w3.org/2000/svg"
+                        class="padlock-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      ${this.vrfChallenge?.rpId
+                        ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
+                        : ''}
+                    </div>
+                    <span class="security-details">
+                      <svg xmlns="http://www.w3.org/2000/svg"
+                        class="block-height-icon"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+                        <path d="m3.3 7 8.7 5 8.7-5"/>
+                        <path d="M12 22V12"/>
+                      </svg>
+                      ${this.vrfChallenge?.rpId
+                        ? html`block ${this.vrfChallenge.blockHeight}`
+                        : ''}
+                    </span>
+                  </div>
+                </div>
               </div>
               <!-- Transaction Summary Section -->
               <!-- ${when(displayTotalAmount, () => html`

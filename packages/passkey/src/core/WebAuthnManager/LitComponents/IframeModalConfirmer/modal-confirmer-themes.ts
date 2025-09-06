@@ -108,7 +108,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
 
     rpidWrapper: {
-      borderBottom: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+      // borderBottom: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
     },
     padlockIcon: {
       color: DARK_THEME_COLORS.blue500,
@@ -409,6 +409,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     btnCancel: {
       color: LIGHT_THEME_COLORS.colorText,
+      backgroundColor: LIGHT_THEME_COLORS.colorBackground,
       borderColor: LIGHT_THEME_COLORS.colorBorder,
       border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
     },

@@ -109,9 +109,22 @@ export class TxTree extends LitElementWithProps {
       border-radius: var(--w3a-tree__tooltip-tree-root__border-radius, 12px);
       border: var(--w3a-tree__tooltip-tree-root__border, none);
       overflow: var(--w3a-tree__tooltip-tree-root__overflow, hidden);
-      width: var(--w3a-tree__tooltip-tree-root__width, auto);
+      width: var(--w3a-tree__tooltip-tree-root__width, 100%);
+      /* Keep layout width stable when vertical scrollbar appears/disappears */
+      scrollbar-gutter: var(--w3a-tree__tooltip-tree-root__scrollbar-gutter, stable);
+      /* Visual width animation via mask (no layout reflow) */
+      --tree-mask-right: 0px;
+      clip-path: inset(0 var(--tree-mask-right) 0 0 round 0);
+      transition: clip-path var(--w3a-tree__width-anim__duration, 160ms) cubic-bezier(0.2, 0.6, 0.2, 1);
+      will-change: clip-path;
       height: var(--w3a-tree__tooltip-tree-root__height, auto);
       padding: var(--w3a-tree__tooltip-tree-root__padding, 0);
+    }
+    @supports not (clip-path: inset(0 0 0 0)) {
+      .tooltip-tree-root { transition: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .tooltip-tree-root { transition: none; }
     }
 
     .tooltip-tree-children {
@@ -226,7 +239,7 @@ export class TxTree extends LitElementWithProps {
       padding: var(--w3a-tree__copy-badge__padding, 2px 6px);
       cursor: pointer;
       user-select: none;
-      transition: color 120ms ease, background 120ms ease;
+      transition: color 100ms ease, background 100ms ease;
     }
     .copy-badge:hover {
       background: var(--w3a-tree__copy-badge-hover__background, rgba(255,255,255,0.06));
@@ -309,7 +322,7 @@ export class TxTree extends LitElementWithProps {
       content: none;
     }
 
-    /* If a row explicitly requests no elbow (e.g., displayNone=true), hide it */
+    /* If a row explicitly requests no elbow (e.g., hideLabel=true), hide it */
     .folder-children .row[data-no-elbow="true"] .indent::after {
       content: none;
     }
@@ -421,6 +434,7 @@ export class TxTree extends LitElementWithProps {
   // Track which node IDs have recently been copied
   private _copied: Set<string> = new Set();
   private _copyTimers: Map<string, number> = new Map();
+  private _animating: WeakSet<HTMLDetailsElement> = new WeakSet();
 
   private isCopied(id: string): boolean {
     return this._copied.has(id);
@@ -464,6 +478,119 @@ export class TxTree extends LitElementWithProps {
   private handleToggle() {
     // Notify parents that layout may have changed so they can re-measure
     this.dispatchEvent(new CustomEvent('tree-toggled', { bubbles: true, composed: true }));
+  }
+
+  /**
+   * Intercept summary clicks to run height animations for open/close.
+   * Keeps native semantics by toggling details.open at the appropriate time.
+   */
+  private onSummaryClick = (e: Event) => {
+    // Prevent native toggle so we can animate first
+    e.preventDefault();
+    e.stopPropagation();
+
+    const summary = e.currentTarget as HTMLElement | null;
+    if (!summary) return;
+
+    const details = summary.closest('details') as HTMLDetailsElement | null;
+    if (!details || this._animating.has(details)) return;
+
+    // Find the collapsible body (folder children or file row content)
+    const body = details.querySelector(':scope > .folder-children, :scope > .row.file-row') as HTMLElement | null;
+    // If no body, fall back to instant toggle + event
+    if (!body) {
+      details.open = !details.open;
+      this.handleToggle();
+      return;
+    }
+
+    // Respect reduced motion
+    const reduceMotion = (() => {
+      try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+    })();
+
+    if (reduceMotion) {
+      details.open = !details.open;
+      this.handleToggle();
+      return;
+    }
+
+    if (!details.open) {
+      this.animateOpen(details, body);
+    } else {
+      this.animateClose(details, body);
+    }
+  }
+
+  private animateOpen(details: HTMLDetailsElement, body: HTMLElement) {
+    this._animating.add(details);
+    const root = this.renderRoot.querySelector('.tooltip-tree-root') as HTMLElement | null;
+    // Start with a slight mask to visually expand width as content opens
+    try { root?.style.setProperty('--tree-mask-right', '16px'); } catch {}
+    // Prepare for animation
+    body.style.overflow = 'hidden';
+    body.style.height = '0px';
+
+    // Make content renderable for measuring
+    details.open = true;
+
+    requestAnimationFrame(() => {
+      const target = `${body.scrollHeight}px`;
+      // Transition only height (overrides any CSS max-height transition)
+      body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
+      body.style.height = target;
+      // Unmask during the open
+      try { root?.style.setProperty('--tree-mask-right', '0px'); } catch {}
+
+      const onEnd = (ev: TransitionEvent) => {
+        if (ev.propertyName !== 'height') return;
+        body.removeEventListener('transitionend', onEnd);
+        // Cleanup to allow natural layout when fully expanded
+        body.style.transition = '';
+        body.style.height = 'auto';
+        body.style.overflow = '';
+        this._animating.delete(details);
+        // Notify parent for re-measure
+        this.handleToggle();
+      };
+      body.addEventListener('transitionend', onEnd);
+    });
+  }
+
+  private animateClose(details: HTMLDetailsElement, body: HTMLElement) {
+    this._animating.add(details);
+    const root = this.renderRoot.querySelector('.tooltip-tree-root') as HTMLElement | null;
+    // Start from current full height
+    const start = `${body.scrollHeight}px`;
+    body.style.overflow = 'hidden';
+    body.style.height = start;
+
+    // Ensure starting height is applied before shrinking
+    body.offsetHeight;
+
+    requestAnimationFrame(() => {
+      body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
+      body.style.height = '0px';
+      // Apply a slight mask to right edge to suggest width collapse without reflow
+      try { root?.style.setProperty('--tree-mask-right', '16px'); } catch {}
+
+      const onEnd = (ev: TransitionEvent) => {
+        if (ev.propertyName !== 'height') return;
+        body.removeEventListener('transitionend', onEnd);
+        // Close after the animation so content doesn't disappear instantly
+        details.open = false;
+        // Cleanup inline styles
+        body.style.transition = '';
+        body.style.height = '';
+        body.style.overflow = '';
+        this._animating.delete(details);
+        // Reset visual mask after close completes
+        try { root?.style.setProperty('--tree-mask-right', '0px'); } catch {}
+        // Notify parent for re-measure
+        this.handleToggle();
+      };
+      body.addEventListener('transitionend', onEnd);
+    });
   }
 
   protected getComponentPrefix(): string {
@@ -528,8 +655,9 @@ export class TxTree extends LitElementWithProps {
         case 'CreateAccount':
           return 'Creating Account';
         case 'DeleteAccount':
-          let beneficiaryId = formatDeposit(a.beneficiaryId);
-          return html`Deleting Account, sending balance to <span class="highlight-amount">${beneficiaryId}</span>`;
+          // let beneficiaryId = formatDeposit(a.beneficiaryId);
+          // return html`Deleting Account, sending balance to <span class="highlight-amount">${beneficiaryId}</span>`;
+          return 'Deleting Account';
         case 'Stake':
           return `Staking ${formatDeposit(a.stake)}`;
         case 'AddKey':
@@ -622,11 +750,11 @@ export class TxTree extends LitElementWithProps {
         <details class="tree-node file" ?open=${!!node.open}>
           <summary class="row summary-row"
             style="--indent: ${indent}"
-            data-no-elbow="${!!node.displayNone}"
-            @toggle=${this.handleToggle}
+            data-no-elbow="${!!node.hideLabel}"
+            @click=${this.onSummaryClick}
           >
             <span class="indent"></span>
-          <span class="label label-action-node" style="${node.displayNone ? 'display: none;' : ''}">
+          <span class="label label-action-node" style="${node.hideLabel ? 'display: none;' : ''}">
             ${!node.hideChevron ? html`
               <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
@@ -646,7 +774,7 @@ export class TxTree extends LitElementWithProps {
           </summary>
           <div class="row file-row"
             style="--indent: ${indent}"
-            data-no-elbow="${!!node.displayNone}"
+            data-no-elbow="${!!node.hideLabel}"
           >
             <span class="indent"></span>
             <div class="file-content">${node.content}</div>
@@ -658,11 +786,11 @@ export class TxTree extends LitElementWithProps {
     return html`
       <div class="row file-row"
         style="--indent: ${indent}"
-        data-no-elbow="${!!node.displayNone}"
+        data-no-elbow="${!!node.hideLabel}"
       >
         <span class="indent"></span>
         <span class="label label-action-node"
-          style="${node.displayNone ? 'display: none;' : ''}"
+          style="${node.hideLabel ? 'display: none;' : ''}"
         >
           <span class="label-text" title=${this.computePlainLabel(node)}>
             ${this.renderLabelWithSelectiveHighlight(node)}
@@ -688,11 +816,11 @@ export class TxTree extends LitElementWithProps {
       <details class="tree-node folder" ?open=${!!node.open}>
         <summary class="row summary-row"
           style="--indent: ${indent}"
-          data-no-elbow="${!!node.displayNone}"
-          @toggle=${this.handleToggle}
+          data-no-elbow="${!!node.hideLabel}"
+          @click=${this.onSummaryClick}
         >
           <span class="indent"></span>
-          <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
+          <span class="label" style="${node.hideLabel ? 'display: none;' : ''}">
             ${!node.hideChevron ? html`
               <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
