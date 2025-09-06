@@ -86,6 +86,8 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
   private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
+  private _txTreeWidth?: string | number;
+  private _onResize = () => this._updateTxTreeWidth();
 
   // Closed Shadow DOM for security
   static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
@@ -268,14 +270,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .hero-heading {
       margin: 0;
       font-size: var(--w3a-font-size-lg);
-      font-weight: 600;
-      color: var(--w3a-modal__header__color);
+      font-weight: 500;
+      color: var(--w3a-modal__hero-heading__color);
       text-align: start;
     }
     .hero-subheading {
       margin: 0;
       font-size: 0.9rem;
-      color: var(--w3a-modal__label__color);
+      color: var(--w3a-modal__hero-subheading__color);
       text-align: start;
     }
 
@@ -295,7 +297,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
     .summary-row {
       display: grid;
-      grid-template-columns: var(--w3a-modal__row__template-columns, 115px 1fr);
+      grid-template-columns: 115px 1fr;
       align-items: center;
       gap: var(--w3a-gap-2);
       background: transparent;
@@ -305,14 +307,14 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       overflow: hidden;
     }
     .summary-label {
-      color: var(--w3a-modal__label__color);
+      color: var(--w3a-modal__summary-label__color);
       font-size: var(--w3a-font-size-sm);
-      font-weight: var(--w3a-modal__label__font-weight, 500);
+      font-weight: 500;
     }
     .summary-value {
       color: var(--w3a-modal__value__color);
       font-size: var(--w3a-font-size-sm);
-      font-weight: var(--w3a-modal__value__font-weight, 500);
+      font-weight: 500;
       word-break: break-word;
     }
 
@@ -330,7 +332,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .action-row {
       display: grid;
-      grid-template-columns: var(--w3a-modal__action-row__template-columns, 100px 1fr);
+      grid-template-columns: var(--w3a-modal__action-row__grid-template-columns, 100px 1fr);
       align-items: center;
       gap: var(--w3a-gap-2);
       padding: 0;
@@ -630,13 +632,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
   `;
 
-  connectedCallback() {
-    super.connectedCallback();
-    this._isVisible = true;
-    // Initialize styles based on theme
-    this.updateTheme();
-  }
-
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
 
@@ -673,7 +668,34 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   }
 
   disconnectedCallback() {
+    try { window.removeEventListener('resize', this._onResize as any); } catch {}
     super.disconnectedCallback();
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this._isVisible = true;
+    // Initialize styles based on theme
+    this.updateTheme();
+    this._updateTxTreeWidth();
+    try { window.addEventListener('resize', this._onResize, { passive: true } as any); } catch {}
+  }
+
+  private _updateTxTreeWidth() {
+    try {
+      const w = window.innerWidth || 0;
+      // Use CSS math to avoid overflow on very small screens
+      let next: string | number = 'min(500px, 100%)';
+      if (w <= 640) next = 'min(360px, 100%)';
+      else if (w <= 1024) next = 'min(400px, 100%)';
+      else next = 'min(500px, 100%)';
+      if (this._txTreeWidth !== next) {
+        this._txTreeWidth = next;
+        this.requestUpdate();
+      }
+    } catch {
+      // no-op in non-browser contexts
+    }
   }
 
   render() {
@@ -701,7 +723,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
               ></w3a-passkey-halo-loading>
               <div class="hero-container">
                 <!-- Hero heading -->
-                <h2 class="hero-heading">Check the transaction details</h2>
+                <h2 class="hero-heading">Check transaction details</h2>
                 ${!this.errorMessage
                   ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
                   : html`<div class="error-banner">${this.errorMessage}</div>`
@@ -772,6 +794,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
                   .depth=${0}
                   .styles=${TX_TREE_THEMES[this.theme]}
                   .theme=${this.theme}
+                  .width=${this._txTreeWidth}
                   .class=${'modal-scroll'}
                 ></tx-tree>`;
             })}

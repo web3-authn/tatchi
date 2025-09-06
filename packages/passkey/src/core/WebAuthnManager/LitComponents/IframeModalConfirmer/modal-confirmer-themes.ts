@@ -1,5 +1,4 @@
 
-import { D } from 'node_modules/@near-js/transactions/lib/esm/actions-D9yOaLEz';
 import type { ComponentStyles } from '../LitElementWithProps';
 import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
 
@@ -108,7 +107,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
 
     rpidWrapper: {
-      // borderBottom: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
     },
     padlockIcon: {
       color: DARK_THEME_COLORS.blue500,
@@ -232,6 +230,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     hero: {
     },
+    heroHeading: {
+      color: LIGHT_THEME_COLORS.grey100,
+    },
+    heroSubheading: {
+      color: LIGHT_THEME_COLORS.grey400,
+    },
     heroContainer: {
       minHeight: '48px',
     },
@@ -318,7 +322,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
 
     rpidWrapper: {
-      borderBottom: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
     },
     padlockIcon: {
       color: DARK_THEME_COLORS.blue500,
@@ -444,6 +447,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
 
     hero: {
+    },
+    heroHeading: {
+      color: LIGHT_THEME_COLORS.grey100,
+    },
+    heroSubheading: {
+      color: LIGHT_THEME_COLORS.grey400,
     },
     heroContainer: {
       minHeight: '48px',

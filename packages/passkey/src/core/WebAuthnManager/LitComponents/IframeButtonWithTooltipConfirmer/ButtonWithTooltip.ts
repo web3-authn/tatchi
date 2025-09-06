@@ -191,8 +191,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
       overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
-      /* Keep layout width stable when vertical scrollbar appears/disappears */
-      scrollbar-gutter: var(--w3a-embedded__tooltip-content__scrollbar-gutter, stable);
       transition: var(--w3a-embedded__tooltip-content__transition, all 0.0s ease);
       /* Allow external control via CSS vars; default to no cap so tooltipPosition.width fully applies */
       min-width: var(--w3a-embedded__tooltip-content__min-width, 0px);
@@ -203,8 +201,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       --w3a-tree__host__padding-bottom: var(--tooltip-box-padding, 0px);
       --w3a-tree__host__padding-left: 0px;
       --w3a-tree__host__padding-right: 0px;
-      /* Keep TxTree root at tooltip width while visible to prevent width snaps */
-      --w3a-tree__tooltip-tree-root__width: var(--tooltip-width, 280px);
     }
 
     /* Optional mobile header within tooltip for coarse pointers */

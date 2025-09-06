@@ -144,99 +144,96 @@ export const AccessKeysModal: React.FC<AccessKeysModalProps> = ({
       onMouseDown={(e) => e.stopPropagation()}
       onMouseUp={(e) => e.stopPropagation()}
     >
-      <HaloBorder theme={theme} animated={false} ringGap={8} ringWidth={4}>
-        <div className="w3a-access-keys-modal-content"
-          onClick={handleModalContentClick}
-          onMouseDown={(e) => e.stopPropagation()}
-          onMouseUp={(e) => e.stopPropagation()}
-        >
-          <div className="w3a-access-keys-modal-header">
-            <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
-            <button className="w3a-access-keys-modal-close"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onClose();
-              }}
-            >
-              ✕
-            </button>
-          </div>
-
-          {error && (
-            <div className="w3a-access-keys-error">
-              <p>{error}</p>
-              <button onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                loadAccessKeys();
-              }} className="w3a-btn w3a-btn-primary">
-                Try Again
-              </button>
-            </div>
-          )}
-
-          {!isLoading && !error && accessKeys.length === 0 && (
-            <div className="w3a-access-keys-empty">
-              <p>No access keys found.</p>
-            </div>
-          )}
-
-          {!error && accessKeys.length > 0 && (
-            <div className="w3a-keys-list">
-              {accessKeys.map((key, index) => {
-                const permissionType = getPermissionType(key.access_key.permission);
-                const permissionDetails = getPermissionDetails(key.access_key.permission);
-                return (
-                  <div key={index} className="w3a-key-item">
-                    <div className="w3a-key-content">
-                      <div className="w3a-key-details">
-                        <div className="w3a-key-header">
-                          {
-                            key.public_key === 'placeholder' ? (
-                              <div className="mono w3a-copyable-key">
-                                <span style={{ opacity: 0 }}>
-                                  ........................................................
-                                </span>
-                              </div>
-                            ) : (
-                              <div
-                                className="mono w3a-copyable-key"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  copyToClipboard(key.public_key, index);
-                                }}
-                                onMouseEnter={() => setTooltipVisible(index)}
-                                onMouseLeave={() => setTooltipVisible(null)}
-                                title="Click to copy"
-                              >
-                                {key.public_key}
-                                {tooltipVisible === index && (
-                                  <div className="w3a-copy-tooltip">Click to copy</div>
-                                )}
-                              </div>
-                            )
-                          }
-                        </div>
-                      </div>
-
-                      {
-                        key.public_key !== 'placeholder' &&
-                        <div className="w3a-key-status">
-                          <span className={`w3a-status-badge ${copiedKeys.has(index) ? 'w3a-copied' : 'w3a-' + permissionType.toLowerCase().replace(' ', '-')}`}>
-                            {copiedKeys.has(index) ? 'Copied' : permissionType}
-                          </span>
-                        </div>
-                      }
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+      <div className="w3a-access-keys-modal-content"
+        onClick={handleModalContentClick}
+        onMouseDown={(e) => e.stopPropagation()}
+        onMouseUp={(e) => e.stopPropagation()}
+      >
+        <div className="w3a-access-keys-modal-header">
+          <h2 className="w3a-access-keys-modal-title">Access Keys</h2>
+          <button className="w3a-access-keys-modal-close"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+          >
+            ✕
+          </button>
         </div>
 
-      </HaloBorder>
+        {error && (
+          <div className="w3a-access-keys-error">
+            <p>{error}</p>
+            <button onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              loadAccessKeys();
+            }} className="w3a-btn w3a-btn-primary">
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {!isLoading && !error && accessKeys.length === 0 && (
+          <div className="w3a-access-keys-empty">
+            <p>No access keys found.</p>
+          </div>
+        )}
+
+        {!error && accessKeys.length > 0 && (
+          <div className="w3a-keys-list">
+            {accessKeys.map((key, index) => {
+              const permissionType = getPermissionType(key.access_key.permission);
+              const permissionDetails = getPermissionDetails(key.access_key.permission);
+              return (
+                <div key={index} className="w3a-key-item">
+                  <div className="w3a-key-content">
+                    <div className="w3a-key-details">
+                      <div className="w3a-key-header">
+                        {
+                          key.public_key === 'placeholder' ? (
+                            <div className="mono w3a-copyable-key">
+                              <span style={{ opacity: 0 }}>
+                                ........................................................
+                              </span>
+                            </div>
+                          ) : (
+                            <div
+                              className="mono w3a-copyable-key"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                copyToClipboard(key.public_key, index);
+                              }}
+                              onMouseEnter={() => setTooltipVisible(index)}
+                              onMouseLeave={() => setTooltipVisible(null)}
+                              title="Click to copy"
+                            >
+                              {key.public_key}
+                              {tooltipVisible === index && (
+                                <div className="w3a-copy-tooltip">Click to copy</div>
+                              )}
+                            </div>
+                          )
+                        }
+                      </div>
+                    </div>
+
+                    {
+                      key.public_key !== 'placeholder' &&
+                      <div className="w3a-key-status">
+                        <span className={`w3a-status-badge ${copiedKeys.has(index) ? 'w3a-copied' : 'w3a-' + permissionType.toLowerCase().replace(' ', '-')}`}>
+                          {copiedKeys.has(index) ? 'Copied' : permissionType}
+                        </span>
+                      </div>
+                    }
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

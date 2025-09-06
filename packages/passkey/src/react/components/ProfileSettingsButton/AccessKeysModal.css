@@ -29,11 +29,12 @@
 .w3a-access-keys-modal-content {
   display: flex;
   flex-direction: column;
-  flex: 1;
   padding: 1rem;
   overflow: visible;
   min-height: 200px;
   max-width: 480px;
+  background: var(--w3a-colors-surfacePrimary);
+  border-radius: 2rem;
 }
 
 .w3a-access-keys-modal-close {

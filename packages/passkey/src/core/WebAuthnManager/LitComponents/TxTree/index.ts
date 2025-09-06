@@ -109,19 +109,9 @@ export class TxTree extends LitElementWithProps {
       border-radius: var(--w3a-tree__tooltip-tree-root__border-radius, 12px);
       border: var(--w3a-tree__tooltip-tree-root__border, none);
       overflow: var(--w3a-tree__tooltip-tree-root__overflow, hidden);
-      width: var(--w3a-tree__tooltip-tree-root__width, 100%);
-      /* Keep layout width stable when vertical scrollbar appears/disappears */
-      scrollbar-gutter: var(--w3a-tree__tooltip-tree-root__scrollbar-gutter, stable);
-      /* Visual width animation via mask (no layout reflow) */
-      --tree-mask-right: 0px;
-      clip-path: inset(0 var(--tree-mask-right) 0 0 round 0);
-      transition: clip-path var(--w3a-tree__width-anim__duration, 160ms) cubic-bezier(0.2, 0.6, 0.2, 1);
-      will-change: clip-path;
+      width: var(--w3a-tree__tooltip-tree-root__width, auto);
       height: var(--w3a-tree__tooltip-tree-root__height, auto);
       padding: var(--w3a-tree__tooltip-tree-root__padding, 0);
-    }
-    @supports not (clip-path: inset(0 0 0 0)) {
-      .tooltip-tree-root { transition: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .tooltip-tree-root { transition: none; }
@@ -355,6 +345,7 @@ export class TxTree extends LitElementWithProps {
       border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
       background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
       max-height: var(--w3a-tree__file-content__max-height, 120px);
+      max-width: var(--w3a-tree__file-content__max-width, 345px);
       overflow: var(--w3a-tree__file-content__overflow, auto);
       color: var(--w3a-tree__file-content__color, #e2e8f0);
       font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
@@ -524,33 +515,22 @@ export class TxTree extends LitElementWithProps {
 
   private animateOpen(details: HTMLDetailsElement, body: HTMLElement) {
     this._animating.add(details);
-    const root = this.renderRoot.querySelector('.tooltip-tree-root') as HTMLElement | null;
-    // Start with a slight mask to visually expand width as content opens
-    try { root?.style.setProperty('--tree-mask-right', '16px'); } catch {}
-    // Prepare for animation
     body.style.overflow = 'hidden';
     body.style.height = '0px';
-
-    // Make content renderable for measuring
     details.open = true;
 
     requestAnimationFrame(() => {
       const target = `${body.scrollHeight}px`;
-      // Transition only height (overrides any CSS max-height transition)
       body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
       body.style.height = target;
-      // Unmask during the open
-      try { root?.style.setProperty('--tree-mask-right', '0px'); } catch {}
 
       const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName !== 'height') return;
+        if (ev.propertyName != 'height') return;
         body.removeEventListener('transitionend', onEnd);
-        // Cleanup to allow natural layout when fully expanded
         body.style.transition = '';
         body.style.height = 'auto';
         body.style.overflow = '';
         this._animating.delete(details);
-        // Notify parent for re-measure
         this.handleToggle();
       };
       body.addEventListener('transitionend', onEnd);
@@ -559,34 +539,21 @@ export class TxTree extends LitElementWithProps {
 
   private animateClose(details: HTMLDetailsElement, body: HTMLElement) {
     this._animating.add(details);
-    const root = this.renderRoot.querySelector('.tooltip-tree-root') as HTMLElement | null;
-    // Start from current full height
     const start = `${body.scrollHeight}px`;
     body.style.overflow = 'hidden';
     body.style.height = start;
-
-    // Ensure starting height is applied before shrinking
     body.offsetHeight;
-
     requestAnimationFrame(() => {
       body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
       body.style.height = '0px';
-      // Apply a slight mask to right edge to suggest width collapse without reflow
-      try { root?.style.setProperty('--tree-mask-right', '16px'); } catch {}
-
       const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName !== 'height') return;
+        if (ev.propertyName != 'height') return;
         body.removeEventListener('transitionend', onEnd);
-        // Close after the animation so content doesn't disappear instantly
         details.open = false;
-        // Cleanup inline styles
         body.style.transition = '';
         body.style.height = '';
         body.style.overflow = '';
         this._animating.delete(details);
-        // Reset visual mask after close completes
-        try { root?.style.setProperty('--tree-mask-right', '0px'); } catch {}
-        // Notify parent for re-measure
         this.handleToggle();
       };
       body.addEventListener('transitionend', onEnd);
