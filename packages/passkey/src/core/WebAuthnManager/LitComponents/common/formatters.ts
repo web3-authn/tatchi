@@ -47,9 +47,36 @@ export function formatGas(gas?: string): string {
   try {
     const gasValue = BigInt(gas);
     const tgas = gasValue / BigInt('1000000000000'); // Convert to Tgas (divide by 10^12)
-    return `${tgas}Tgas`;
+    return `${tgas} Tgas`;
   } catch (e) {
     // If parsing fails, return original value
     return gas;
   }
+}
+
+/**
+ * Shorten a long public key or identifier by keeping a head and tail
+ * and replacing the middle with an ellipsis.
+ * Example: ed25519:ABCDEFGH...WXYZ12
+ */
+export function shortenPubkey(
+  pk?: string,
+  opts: { prefix?: number; suffix?: number } = {}
+): string {
+  if (!pk || typeof pk !== 'string') return '';
+  const { prefix = 10, suffix = 6 } = opts;
+  if (pk.length <= prefix + suffix + 3) return pk; // +3 for '...'
+  const head = pk.slice(0, prefix);
+  const tail = pk.slice(-suffix);
+  return `${head}...${tail}`;
+}
+
+
+// Helper function for calculating code size
+export function formatCodeSize(code: Uint8Array | string): string {
+  if (!code) return '0 bytes';
+  if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
+  if (Array.isArray(code)) return `${code.length} bytes`;
+  if (typeof code === 'string') return `${code.length} bytes`;
+  return 'unknown';
 }

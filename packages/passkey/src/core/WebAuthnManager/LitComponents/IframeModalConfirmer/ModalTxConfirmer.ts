@@ -1,20 +1,19 @@
 import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
-import { classMap } from 'lit/directives/class-map.js';
 import { when } from 'lit/directives/when.js';
+
 import { TransactionInputWasm, ActionArgsWasm } from '../../../types';
+import { fromTransactionInputsWasm } from '../../../types/actions';
+import type { VRFChallenge } from '../../../types/vrf-worker';
+
+import TxTree from '../TxTree';
+import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
+import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
 import { formatArgs, formatDeposit, formatGas } from '../common/formatters';
 import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
-import type { VRFChallenge } from '../../../types/vrf-worker';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
 import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
-if (!customElements.get('w3a-halo-border')) {
-  try { customElements.define('w3a-halo-border', HaloBorderElement); } catch {}
-}
-if (!customElements.get('w3a-passkey-halo-loading')) {
-  try { customElements.define('w3a-passkey-halo-loading', PasskeyHaloLoadingElement); } catch {}
-}
 
 export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
 export type ConfirmVariant = 'default' | 'warning' | 'danger';
@@ -84,6 +83,9 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   // Internal state
   private _isVisible = false;
   private _isAnimating = false;
+  // Keep essential custom elements from being tree-shaken
+  private _ensureTreeDefinition = TxTree;
+  private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
 
   // Closed Shadow DOM for security
   static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
@@ -160,9 +162,11 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .modal-container-root {
+      display: grid;
+      gap: 0.5rem;
       position: var(--w3a-modal__modal-container-root__position, relative);
       border: var(--w3a-modal__modal-container-root__border, none);
-      border-radius: var(--w3a-modal__modal-container-root__border-radius, 1.5rem);
+      border-radius: var(--w3a-modal__modal-container-root__border-radius, 0rem);
       margin: var(--w3a-modal__modal-container-root__margin, 0px);
       padding: var(--w3a-modal__modal-container-root__padding, 0px);
       height: var(--w3a-modal__modal-container-root__height, auto);
@@ -176,12 +180,29 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     @keyframes fadeIn {
       from {
         opacity: 0;
-        transform: translateY(10px) scale(0.95);
+        transform: translateY(20px) scale(0.95);
       }
       to {
         opacity: 1;
         transform: translateY(0px) scale(1);
       }
+    }
+
+    .responsive-card {
+      position: relative;
+      min-width: 420px;
+      max-width: 600px;
+      overflow: visible;
+      border-radius: 2rem;
+      z-index: 1;
+      padding: var(--w3a-modal__responsive-card__padding, 0rem);
+      margin: var(--w3a-modal__responsive-card__margin, 0px);
+    }
+    .card-background-border {
+      border-radius: var(--w3a-modal__card-background-border-radius, 2rem);
+      background: var(--w3a-modal__card-background-border__background, oklch(0.25 0.012 240));
+      border: var(--w3a-modal__card-background-border__border, 1px solid var(--w3a-slate600));
+      margin: var(--w3a-modal__card-background-border__margin, 0px);
     }
 
     .rpid-wrapper {
@@ -198,7 +219,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       color: var(--w3a-modal__label__color);
       font-weight: 400;
     }
-
     .secure-indicator {
       position: relative;
       display: flex;
@@ -234,24 +254,29 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       display: grid;
       justify-items: center;
       align-items: center;
-      gap: var(--w3a-gap-2);
-      padding: var(--w3a-modal__hero__padding, 2rem 0rem 2rem 0rem);
+      gap: 1rem;
+      padding: var(--w3a-modal__hero__padding, 1rem);
+      position: relative;
+      display: flex;
     }
     .hero-container {
-      height: var(--w3a-modal__hero-container__height, 40px);
+      min-height: var(--w3a-modal__hero-container__min-height, none);
+      display: grid;
+      align-items: flex-start;
+      margin-right: 1rem;
     }
     .hero-heading {
       margin: 0;
       font-size: var(--w3a-font-size-lg);
       font-weight: 600;
       color: var(--w3a-modal__header__color);
-      text-align: center;
+      text-align: start;
     }
     .hero-subheading {
       margin: 0;
       font-size: 0.9rem;
       color: var(--w3a-modal__label__color);
-      text-align: center;
+      text-align: start;
     }
 
     /* Summary section */
@@ -292,25 +317,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     /* Transactions section */
-    .tx-section {
-      margin: var(--w3a-modal__tx-section__margin, 0px);
-      position: relative;
-      z-index: 1;
-    }
-
-    .tx-list {
-      position: relative;
-      border: var(--w3a-modal__tx-list__border, 1px solid transparent);
-      border-radius: var(--w3a-modal__tx-list__border-radius, 24px);
-      padding: var(--w3a-modal__tx-list__padding, var(--w3a-gap-4));
-      height: 100%;
-      width: 100%;
-      min-width: var(--w3a-modal__tx-list__min-width, 420px);
-      max-width: var(--w3a-modal__tx-list__max-width, 600px);
-      overflow: hidden;
-      box-shadow: var(--w3a-modal__tx-list__box-shadow, none);
-      background: var(--w3a-modal__tx-list__background);
-    }
 
     .action-item {
       margin-bottom: var(--w3a-gap-2);
@@ -436,18 +442,18 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     /* Button styles */
     .buttons {
-      display: flex;
-      gap: var(--w3a-gap-3);
-      justify-content: flex-end;
-      margin-top: var(--w3a-gap-3);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.5rem;
       position: relative;
       z-index: 1;
+      align-items: stretch;
     }
 
     .error-banner {
       color: var(--w3a-modal__error-banner__color, #ef4444);
       font-size: var(--w3a-modal__error-banner__font-size, 0.9rem);
-      text-align: var(--w3a-modal__error-banner__text-align, center);
+      text-align: var(--w3a-modal__error-banner__text-align, start);
       font-weight: 500;
     }
 
@@ -456,21 +462,30 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       box-shadow: var(--w3a-modal__btn__box-shadow, none);
       color: var(--w3a-modal__btn__color);
       text-align: center;
-      border-radius: var(--w3a-radius-lg);
+      border-radius: 2rem;
+      margin-right: 1px;
       justify-content: center;
       align-items: center;
-      height: var(--w3a-modal__btn__height, 2.5rem);
+      height: 48px;
+      width: 100%;
       padding: var(--w3a-gap-3);
       font-size: var(--w3a-font-size-base);
-      display: flex;
+      display: inline-flex;
       cursor: pointer;
       border: none;
       font-family: var(--w3a-font-family);
       font-weight: var(--w3a-modal__btn__font-weight, 500);
-      transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
-      min-width: var(--w3a-modal__btn__min-width, 100px);
+      min-width: 0;
       position: relative;
       overflow: hidden;
+      /* Smooth press-down and release animation */
+      transition:
+        transform var(--w3a-modal__btn__transition-transform, 120ms cubic-bezier(0.2, 0.6, 0.2, 1)),
+        background-color 120ms ease-out,
+        box-shadow 120ms ease-out;
+      transform-origin: center;
+      will-change: transform;
+      -webkit-tap-highlight-color: transparent;
     }
 
     .btn:hover {
@@ -480,26 +495,27 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     .btn:active {
       background-color: var(--w3a-modal__btn-active__background-color);
-      transform: var(--w3a-modal__btn__active-transform, translateY(1px));
+      /* Default to a subtle scale-down on press; overridable via CSS var */
+      transform: var(--w3a-modal__btn__active-transform, scale(0.98));
     }
 
     .btn-cancel {
       box-shadow: none;
-      color: var(--w3a-modal__btn-cancel__color);
-      background-color: var(--w3a-modal__btn-cancel__background-color, transparent);
-      border: none;
+      color: var(--w3a-modal__btn-cancel__color, var(--w3a-color-text));
+      background-color: var(--w3a-modal__btn-cancel__background-color, var(--w3a-color-surface));
+      border: var(--w3a-modal__btn-cancel__border, none);
     }
 
     .btn-cancel:hover {
-      color: var(--w3a-modal__btn-cancel-hover__color);
-      background-color: var(--w3a-modal__btn-cancel-hover__background-color);
+      color: var(--w3a-modal__btn-cancel-hover__color, var(--w3a-color-text));
+      background-color: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-color-border));
       border: var(--w3a-modal__btn-cancel-hover__border, none);
     }
 
     .btn-confirm {
       background-color: var(--w3a-modal__btn-confirm__background-color);
       color: var(--w3a-modal__btn-confirm__color);
-      border: none;
+      border: var(--w3a-modal__btn-confirm__border, none);
     }
 
     .btn-confirm:hover {
@@ -510,6 +526,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     .btn-danger {
       background-color: var(--w3a-modal__btn-danger__background-color, oklch(0.66 0.180 19)); /* red500 */
       color: var(--w3a-modal__btn-danger__color, #ffffff);
+      border: var(--w3a-modal__btn-danger__border, none);
     }
     .btn-danger:hover {
       background-color: var(--w3a-modal__btn-danger-hover__background-color, oklch(0.74 0.166 19)); /* red400 */
@@ -521,11 +538,17 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 3px oklch(0.55 0.18 240 / 0.12));
     }
 
+    /* Single-button alignment (place single button in right column) */
+    .buttons.single .btn {
+      grid-column: 2 / 3;
+      justify-self: end;
+    }
+
     /* Responsive adjustments */
     @media (max-width: 640px) {
-      .tx-list {
-        min-width: var(--w3a-modal__mobile__tx-list__min-width, 320px);
-        max-width: var(--w3a-modal__mobile__tx-list__max-width, 100vw - 2rem);
+      .responsive-card {
+        min-width: var(--w3a-modal__mobile__responsive-card__min-width, 320px);
+        max-width: var(--w3a-modal__mobile__responsive-card__max-width, 100vw - 1rem);
       }
 
       .summary-row {
@@ -546,8 +569,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
       }
 
       .buttons {
-        flex-direction: column-reverse;
-        gap: var(--w3a-gap-3);
+        display: flex;
       }
 
       .btn {
@@ -563,17 +585,17 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
     /* Tablet adjustments */
     @media (min-width: 641px) and (max-width: 1024px) {
-      .tx-list {
-        min-width: var(--w3a-modal__tablet__tx-list__min-width, 400px);
-        max-width: var(--w3a-modal__tablet__tx-list__max-width, 500px);
+      .responsive-card {
+        min-width: var(--w3a-modal__tablet__responsive-card__min-width, 400px);
+        max-width: var(--w3a-modal__tablet__responsive-card__max-width, 500px);
       }
     }
 
     /* Large desktop adjustments */
     @media (min-width: 1025px) {
-      .tx-list {
-        min-width: var(--w3a-modal__desktop__tx-list__min-width, 420px);
-        max-width: var(--w3a-modal__desktop__tx-list__max-width, 600px);
+      .responsive-card {
+        min-width: var(--w3a-modal__desktop__responsive-card__min-width, 420px);
+        max-width: var(--w3a-modal__desktop__responsive-card__max-width, 600px);
       }
     }
 
@@ -795,7 +817,7 @@ formatGas(action.gas)}</span>
 
   render() {
 
-    const displayTotalAmount = !(this.totalAmount === '0' || this.totalAmount === '');
+    const displayTotalAmount = (this.totalAmount === '0' || this.totalAmount === '');
 
     return html`
       <!-- Separate backdrop layer for independent animation -->
@@ -804,7 +826,7 @@ formatGas(action.gas)}</span>
       <div class="modal-backdrop" @click=${this._handleContentClick}>
         <div class="modal-container-root">
 
-          ${this.vrfChallenge?.rpId ? html`
+          <div class="responsive-card card-background-border">
             <div class="rpid-wrapper">
               <div class="rpid">
                 <div class="secure-indicator">
@@ -820,7 +842,9 @@ formatGas(action.gas)}</span>
                     <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
                     <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
-                  <span class="domain-text">${this.vrfChallenge.rpId}</span>
+                  ${this.vrfChallenge?.rpId
+                    ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
+                    : ''}
                 </div>
                 <span class="security-details">
                   <svg xmlns="http://www.w3.org/2000/svg"
@@ -836,39 +860,34 @@ formatGas(action.gas)}</span>
                     <path d="m3.3 7 8.7 5 8.7-5"/>
                     <path d="M12 22V12"/>
                   </svg>
-                  block ${this.vrfChallenge.blockHeight}
+                  ${this.vrfChallenge?.rpId
+                    ? html`block ${this.vrfChallenge.blockHeight}`
+                    : ''}
                 </span>
               </div>
             </div>
-          ` : ''}
-
-          <div class="tx-section">
-            <div class="tx-list">
-
-              <div class="hero">
-                <w3a-passkey-halo-loading
-                  .theme=${this.theme}
-                  .animated=${!this.errorMessage ? true : false}
-                  .ringGap=${4}
-                  .ringWidth=${4}
-                  .ringBorderRadius=${'1.5rem'}
-                  .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
-                  .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
-                  .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
-                  .height=${60}
-                  .width=${60}
-                ></w3a-passkey-halo-loading>
-                <div class="hero-container">
-                  <h2 class="hero-heading">Check your transaction details</h2>
-                  ${!this.errorMessage
-                    ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
-                    : html`<div class="error-banner">${this.errorMessage}</div>`
-                  }
-                </div>
+            <div class="hero">
+              <w3a-passkey-halo-loading
+                .theme=${this.theme}
+                .animated=${!this.errorMessage ? true : false}
+                .ringGap=${4}
+                .ringWidth=${4}
+                .ringBorderRadius=${'1.5rem'}
+                .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
+                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
+                .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
+                .height=${60}
+                .width=${60}
+              ></w3a-passkey-halo-loading>
+              <div class="hero-container">
+                <h2 class="hero-heading">Check your transaction details</h2>
+                ${!this.errorMessage
+                  ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
+                  : html`<div class="error-banner">${this.errorMessage}</div>`
+                }
               </div>
-
               <!-- Transaction Summary Section -->
-              ${when(displayTotalAmount, () => html`
+              <!-- ${when(displayTotalAmount, () => html`
                 <div class="summary-section">
                   <div class="summary-grid">
                     <div class="summary-row">
@@ -877,76 +896,62 @@ formatGas(action.gas)}</span>
                     </div>
                   </div>
                 </div>
-              `)}
-
-              <!-- TxSigningRequests Section -->
-              ${when(this.txSigningRequests.length > 0, () => html`
-                ${this.txSigningRequests.map((tx, txIndex) => {
-                  // Parse actions from the transaction payload (supports string or already-parsed array)
-                  let actions: ActionArgsWasm[] = tx.actions;
-
-                  // Determine if we need minimum height based on transaction/action count
-                  const totalTransactions = this.txSigningRequests.length;
-                  const totalActions = this.txSigningRequests.reduce((sum, tx) => sum + tx.actions.length, 0);
-                  const needsMinHeight = totalTransactions > 2 || (totalTransactions === 1 && actions.length > 2);
-
-                  return html`
-                    <div class="action-item">
-                      <div class="action-content ${needsMinHeight ? 'action-content-min-height' : ''}">
-                        <!-- Transaction Receiver (only show for first action) -->
-                        ${actions.length > 0 ? html`
-                          <div class="action-subheader">
-                            <div class="action-label">Transaction(${txIndex + 1}) to <span class="method-name">${tx.receiverId}</span></div>
-                          </div>
-                        ` : ''}
-                        <!-- Actions for this transaction -->
-                        ${actions.map((action, actionIndex) => html`
-                          <div class="action-subitem">
-                            ${this._renderActionDetails(action)}
-                          </div>
-                        `)}
-                      </div>
-                    </div>
-                  `;
-                })}
-              `)}
-
-              <div class="buttons">
-                ${this.loading ? html`
-                  <!-- Loading mode: show only cancel button with loading indicator -->
-                  <button
-                    class="btn btn-cancel loading"
-                    @click=${this._handleCancel}
-                  >
-                    <span class="loading-indicator"></span>
-                    Signing
-                  </button>
-                ` : this.errorMessage ? html`
-                  <!-- Error mode: show only Close button in soft red -->
-                  <button
-                    class="btn btn-danger"
-                    @click=${this._handleCancel}
-                  >
-                    Close
-                  </button>
-                ` : html`
-                  <!-- Normal mode: show both cancel and confirm buttons -->
-                  <button
-                    class="btn btn-cancel"
-                    @click=${this._handleCancel}
-                  >
-                    ${this.cancelText}
-                  </button>
-                  <button
-                    class="btn btn-confirm"
-                    @click=${this._handleConfirm}
-                  >
-                    ${this.confirmText}
-                  </button>
-                `}
-              </div>
-
+              `)} -->
             </div>
+          </div>
+
+          <div class="responsive-card">
+            <!-- Tx Tree Section -->
+            ${when(this.txSigningRequests.length > 0, () => {
+              const jsTxs = fromTransactionInputsWasm(this.txSigningRequests);
+              const tree = buildDisplayTreeFromTxPayloads(jsTxs, TX_TREE_THEMES[this.theme]);
+              return html`
+                <tx-tree
+                  .node=${tree}
+                  .depth=${0}
+                  .styles=${TX_TREE_THEMES[this.theme]}
+                  .theme=${this.theme}
+                  .class=${'modal-scroll'}
+                ></tx-tree>`;
+            })}
+          </div>
+
+          <div class="responsive-card">
+            <div class="buttons ${this.loading || this.errorMessage ? 'single' : ''}">
+              ${this.loading ? html`
+                <!-- Loading mode: show only cancel button with loading indicator -->
+                <button
+                  class="btn btn-cancel loading"
+                  @click=${this._handleCancel}
+                >
+                  <span class="loading-indicator"></span>
+                  Signing
+                </button>
+              ` : this.errorMessage ? html`
+                <!-- Error mode: show only Close button in soft red -->
+                <button
+                  class="btn btn-danger"
+                  @click=${this._handleCancel}
+                >
+                  Close
+                </button>
+              ` : html`
+                <!-- Normal mode: show both cancel and confirm buttons -->
+                <button
+                  class="btn btn-cancel"
+                  @click=${this._handleCancel}
+                >
+                  ${this.cancelText}
+                </button>
+                <button
+                  class="btn btn-confirm"
+                  @click=${this._handleConfirm}
+                >
+                  ${this.confirmText}
+                </button>
+              `}
+            </div>
+
           </div>
         </div>
       </div>

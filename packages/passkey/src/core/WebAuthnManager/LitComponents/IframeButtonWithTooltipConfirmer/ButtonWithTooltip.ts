@@ -4,12 +4,12 @@ import { html, css, type PropertyValues } from 'lit';
 import { TransactionInput, TransactionInputWasm, isActionArgsWasm, toActionArgsWasm } from '../../../types/actions';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
-import TooltipTxTree, { type TooltipTreeStyles } from '../TooltipTxTree';
-import { TOOLTIP_THEMES, type TooltipTheme } from '../TooltipTxTree/tooltip-tree-themes';
-import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
+import TxTree, { type TxTreeStyles } from '../TxTree';
+import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
+import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { TooltipGeometry, TooltipPositionInternal } from './iframe-geometry';
-import { buildDisplayTreeFromTxPayloads } from '../TooltipTxTree/tooltip-tree-utils';
-import { EMBEDDED_TX_BUTTON_ID, ElementSelectors } from './tags';
+import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
+import { BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from './tags';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
 
 /**
@@ -27,7 +27,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     buttonSizing: { type: Object },
     styles: { type: Object, attribute: false },
     embeddedButtonStyles: { type: Object, attribute: false },
-    tooltipTheme: { type: String },
+    TxTreeTheme: { type: String },
     tooltipVisible: { state: true },
     hideTimeout: { state: true },
     activationMode: { type: String }
@@ -47,8 +47,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
     offset: '4px'
   };
   buttonSizing: { width?: string | number; height?: string | number } = {};
-  tooltipTheme: EmbeddedTxButtonTheme = 'dark';
-  styles!: TooltipTreeStyles;
+  TxTreeTheme: EmbeddedTxButtonTheme = 'dark';
+  styles!: TxTreeStyles;
   embeddedButtonStyles!: EmbeddedTxButtonStyles;
   activationMode: 'tap' | 'press' = 'tap';
 
@@ -64,8 +64,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private measureTimeout: number | null = null;
   private treeRaf1: number | null = null;
   private treeRaf2: number | null = null;
-  // Ensure TooltipTxTree is retained in the bundle, and not tree-shaken out
-  private _ensureTreeDefinition = TooltipTxTree;
+  // Ensure TxTree is retained in the bundle, and not tree-shaken out
+  private _ensureTreeDefinition = TxTree;
   // Observers and dedupe state
   private tooltipResizeObserver?: ResizeObserver;
   private buttonResizeObserver?: ResizeObserver;
@@ -350,7 +350,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.selectors = new ElementSelectors(this.shadowRoot);
 
     // Initialize styles based on theme
-    this.updateTooltipTheme();
+    this.updateTxTreeTheme();
     this.setupCSSVariables();
     this.applyEmbeddedButtonStyles();
 
@@ -404,9 +404,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       this.setupCSSVariables();
     }
 
-    // Update tooltip theme when tooltipTheme property changes
-    if (changedProperties.has('tooltipTheme')) {
-      this.updateTooltipTheme();
+    // Update tooltip theme when TxTreeTheme property changes
+    if (changedProperties.has('TxTreeTheme')) {
+      this.updateTxTreeTheme();
       this.applyEmbeddedButtonStyles();
     }
 
@@ -451,13 +451,13 @@ export class EmbeddedTxButton extends LitElementWithProps {
   // ==============================
   // Theme & CSS Variables
   // ==============================
-  private updateTooltipTheme() {
+  private updateTxTreeTheme() {
     // Update tooltip tree styles based on the current theme
-    const selectedTheme = TOOLTIP_THEMES[this.tooltipTheme] || TOOLTIP_THEMES.dark;
+    const selectedTheme = TX_TREE_THEMES[this.TxTreeTheme] || TX_TREE_THEMES.dark;
     this.styles = { ...selectedTheme };
 
     // Update embedded button styles based on the current theme
-    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.tooltipTheme] || EMBEDDED_TX_BUTTON_THEMES.dark;
+    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.TxTreeTheme] || EMBEDDED_TX_BUTTON_THEMES.dark;
     this.embeddedButtonStyles = { ...selectedButtonTheme };
   }
 
@@ -797,7 +797,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     loadingTouchIdPrompt: boolean;
     buttonSizing: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
-    theme: TooltipTheme;
+    theme: TxTreeTheme;
   }>) {
 
     Object.assign(this, props);
@@ -807,7 +807,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
     // Update tooltip theme if theme changed
     if (props.theme) {
-      this.updateTooltipTheme();
+      this.updateTxTreeTheme();
     }
     // Force a re-render to update tooltip content
     this.requestUpdate();
@@ -833,9 +833,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
     // Ignore embeddedButtonTheme for embedded visuals
     // Handle tooltip theme updates
-    if (theme && theme !== this.tooltipTheme) {
-      this.tooltipTheme = theme as EmbeddedTxButtonTheme;
-      this.updateTooltipTheme();
+    if (theme && theme !== this.TxTreeTheme) {
+      this.TxTreeTheme = theme as EmbeddedTxButtonTheme;
+      this.updateTxTreeTheme();
     }
     if (activationMode) {
       this.activationMode = activationMode;
@@ -1063,13 +1063,13 @@ export class EmbeddedTxButton extends LitElementWithProps {
               <button data-close-btn @click=${() => this.hideTooltip()} aria-label="Close details">✕</button>
             </div>
           ` : ''}
-          <tooltip-tx-tree
+          <tx-tree
             .node=${tree}
             .depth=${0}
             .styles=${this.styles}
-            .theme=${this.tooltipTheme}
+            .theme=${this.TxTreeTheme}
             @tree-toggled=${this.handleTreeToggled}
-          ></tooltip-tx-tree>
+          ></tx-tree>
         </div>
       </div>
     `;
@@ -1089,7 +1089,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 }
 
 // Define the custom element
-customElements.define(EMBEDDED_TX_BUTTON_ID, EmbeddedTxButton);
+customElements.define(BUTTON_WITH_TOOLTIP_ID, EmbeddedTxButton);
 
 // Export default only to avoid name collision with React wrapper export
 export default EmbeddedTxButton;

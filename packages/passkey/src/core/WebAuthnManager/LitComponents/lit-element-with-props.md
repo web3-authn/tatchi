@@ -19,7 +19,7 @@ When working with Lit components, there's a critical timing issue known as the "
 
 ```typescript
 // This can fail silently:
-const el = document.createElement('tooltip-tx-tree');
+const el = document.createElement('tx-tree');
 el.node = complexTreeData;           // Set before upgrade
 document.body.appendChild(el);       // Triggers upgrade
 // el.node might now be undefined or default value!
@@ -134,7 +134,7 @@ interface TreeStyles {
 }
 
 // Just extend LitElementWithProps instead of LitElement - that's it!
-export class TooltipTxTree extends LitElementWithProps {
+export class TxTree extends LitElementWithProps {
   static styles = css`
     :host {
       display: block;
@@ -163,11 +163,11 @@ export class TooltipTxTree extends LitElementWithProps {
       <div class="tree-node" style="${this.getNodeStyles()}">
         <span class="label">${this.node.label}</span>
         ${this.node.children?.map(child => html`
-          <tooltip-tx-tree
+          <tx-tree
             .node=${child}
             .styles=${this.styles}
             .depth=${this.depth + 1}>
-          </tooltip-tx-tree>
+          </tx-tree>
         `)}
       </div>
     `;
@@ -185,5 +185,5 @@ export class TooltipTxTree extends LitElementWithProps {
 }
 
 // Register the custom element
-customElements.define('tooltip-tx-tree', TooltipTxTree);
+customElements.define('tx-tree', TxTree);
 ```

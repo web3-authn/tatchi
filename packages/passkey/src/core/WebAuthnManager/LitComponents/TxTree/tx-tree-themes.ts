@@ -1,9 +1,9 @@
 import type { ComponentStyles } from '../LitElementWithProps';
 import { DARK_THEME_COLORS, LIGHT_THEME_COLORS } from '@/base-styles';
 
-export type TooltipTheme = 'dark' | 'light';
+export type TxTreeTheme = 'dark' | 'light';
 
-export interface TooltipTreeStyles extends ComponentStyles {
+export interface TxTreeStyles extends ComponentStyles {
 
   // Component-specific tree variables
   host?: Record<string, string>;
@@ -41,7 +41,7 @@ export interface TooltipTreeStyles extends ComponentStyles {
 }
 
 // Preset theme definitions for tooltip tree styling - comprehensive design system
-export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
+export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
   dark: {
     // Spread base colors from shared palette
     ...DARK_THEME_COLORS,
@@ -63,7 +63,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
 
     // Main tooltip container - the glass-like container around the content
     tooltipBorderInner: {
-      background: DARK_THEME_COLORS.grey600,
       borderRadius: '24px',
       border: `1px solid transparent`,
       boxShadow: '0 4px 4px 0px rgba(2, 2, 2, 0.4)'
@@ -72,7 +71,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: DARK_THEME_COLORS.colorSurface,
+      background: DARK_THEME_COLORS.colorBackground,
       border: 'none',
       color: DARK_THEME_COLORS.colorText,
     },
@@ -89,7 +88,7 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: DARK_THEME_COLORS.colorBorder,
+      background: DARK_THEME_COLORS.colorSurface,
       borderColor: DARK_THEME_COLORS.colorTextSecondary,
     },
     row: {
@@ -121,9 +120,9 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: DARK_THEME_COLORS.grey600,
+      background: DARK_THEME_COLORS.colorSurface,
       border: `1px solid none`,
-      color: DARK_THEME_COLORS.colorText,
+      color: DARK_THEME_COLORS.colorTextSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
@@ -194,7 +193,6 @@ export const TOOLTIP_THEMES: Record<TooltipTheme, TooltipTreeStyles> = {
 
     // Main tooltip container - the glass-like container around the content
     tooltipBorderInner: {
-      background: LIGHT_THEME_COLORS.slate150,
       borderRadius: '24px',
       border: `1px solid ${LIGHT_THEME_COLORS.slate300}`,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'

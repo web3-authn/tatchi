@@ -7,7 +7,7 @@
 
 Key components:
 - Embedded Transaction Button: Iframe host + embedded element that shows a button and on hover displays a tooltip with transaction details.
-- TooltipTxTree: A tiny, dependency‑free tree component used to visualize transactions, actions, and arguments.
+- TxTree: A tiny, dependency‑free tree component used to visualize transactions, actions, and arguments.
 
 ## Initialization (Iframe Bootstrap Scripts)
 

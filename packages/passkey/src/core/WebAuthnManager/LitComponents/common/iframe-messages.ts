@@ -3,8 +3,8 @@
 import { TransactionInputWasm, VRFChallenge } from "@/core/types";
 import type { TransactionInput } from "@/core/types/actions";
 import type { TooltipGeometry, TooltipPositionInternal } from "../IframeButtonWithTooltipConfirmer/iframe-geometry";
-import { TooltipTreeStyles } from "../TooltipTxTree";
-import type { EmbeddedTxButtonStyles } from "../IframeButtonWithTooltipConfirmer/embedded-tx-button-themes";
+import { TxTreeStyles } from "../TxTree";
+import type { EmbeddedTxButtonStyles } from "../IframeButtonWithTooltipConfirmer/button-with-tooltip-themes";
 
 // =============================================================
 // == Common subset shared by both button and modal channels ===
@@ -108,7 +108,7 @@ export interface IframeButtonMessagePayloads {
   SET_STYLE: {
     buttonSizing?: { width?: string | number; height?: string | number };
     tooltipPosition: TooltipPositionInternal;
-    tooltipTreeStyles?: TooltipTreeStyles;
+    tooltipTreeStyles?: TxTreeStyles;
     embeddedButtonTheme?: EmbeddedTxButtonStyles;
     theme?: 'dark' | 'light';
     activationMode?: 'tap' | 'press';

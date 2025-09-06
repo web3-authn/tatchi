@@ -7,7 +7,7 @@ The SecureTxConfirmButton is a Lit-based web component for secure transaction co
 - **EmbeddedTxButton.ts**: Handles direct DOM-embedded confirmations.
 - **IframeButtonHost.ts**: Manages iframe-based confirmations with styling via IframeClipPathGenerator.
 - **Iframe clip-path (in `iframe-geometry.ts`)**: `IframeClipPathGenerator` generates CSS clip-paths for iframe visual integration.
-- **TooltipTxTree.ts**: Displays transaction tree tooltips on interaction.
+- **TxTree.ts**: Displays transaction tree tooltips on interaction.
 
 ## DOM Structure Visualization
 
@@ -34,7 +34,7 @@ Below is an ASCII art depiction of how the components are layered within the Sec
 |   | EmbeddedTxButton.ts   | |
 |   +-----------------------+ |
 |   +-----------------------+ |
-|   | TooltipTxTree.ts      | |
+|   | TxTree.ts             | |
 |   | (tx tree data)        | |
 |   +-----------------------+ |
 |   </iframe>                 |
@@ -44,7 +44,7 @@ Below is an ASCII art depiction of how the components are layered within the Sec
 ```
 
 ### Key Notes:
-- **Layering**: IframeButtonHost renders as a direct DOM element under the root. Inside its div, an iframe contains EmbeddedTxButton for confirmations and TooltipTxTree for transaction details.
+- **Layering**: IframeButtonHost renders as a direct DOM element under the root. Inside its div, an iframe contains EmbeddedTxButton for confirmations and TxTree for transaction details.
 - **Clipping**: IframeClipPathGenerator clips a path in the iframe for handling pointer events for showing the tooltip
 - **Interactions**: The iframe isolates content; tooltips and buttons interact within this secure container, with clip-paths applied for styling via IframeClipPathGenerator.
 

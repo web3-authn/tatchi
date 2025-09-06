@@ -76,12 +76,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     // Main modal container
     modalBackdropBlur: {
-      background: 'oklch(0.2 0.01 240 / 0.4)', // grey800 with alpha 0.8
-      backdropFilter: 'blur(0px)',
-      animation: 'none',
-      willChange: 'none',
-      // animation: 'backdrop-opacity 32ms ease-in',
-      // willChange: 'opacity',
+      background: 'oklch(0.2 0.01 240 / 0.8)', // grey800 with alpha 0.8
+      // backdropFilter: 'blur(0px)',
+      // animation: 'none',
+      // willChange: 'none',
+      animation: 'backdrop-opacity 32ms ease-in',
+      willChange: 'opacity',
     },
     modalBackdrop: {
       padding: '0.5rem',
@@ -89,9 +89,22 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME_COLORS.colorText,
     },
     modalContainerRoot: {
+      // background: DARK_THEME_COLORS.grey750,
+      // border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
+      // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
+      background: 'none',
+      border: 'none',
+      boxShadow: 'none',
+      margin: '1rem 0 0 0',
+    },
+    responsiveCard: {
+      padding: '0rem',
+      margin: '0px',
+    },
+    cardBackgroundBorder: {
+      borderRadius: '2rem',
+      background: DARK_THEME_COLORS.colorBackground,
       border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
-      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
-      background: DARK_THEME_COLORS.grey750,
     },
 
     rpidWrapper: {
@@ -128,13 +141,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     summarySection: {
       color: DARK_THEME_COLORS.colorText
     },
-    txSection: {
-      color: DARK_THEME_COLORS.colorText
-    },
-    txList: {
-      borderRadius: '8px',
-      padding: '1rem',
-    },
     actionsTitle: {
       color: DARK_THEME_COLORS.colorTextSecondary
     },
@@ -152,7 +158,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       padding: '0.5rem',
       color: DARK_THEME_COLORS.colorText,
       background: DARK_THEME_COLORS.grey700,
-      maxHeight: '40vh',
+      maxHeight: '50vh',
     },
     actionValue: {
       color: DARK_THEME_COLORS.colorText
@@ -177,31 +183,31 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btn: {
       backgroundColor: DARK_THEME_COLORS.colorSurface,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: 'transparent',
       focusOutlineColor: DARK_THEME_COLORS.colorPrimary,
     },
     btnConfirm: {
       padding: '0.5rem',
       backgroundColor: DARK_THEME_COLORS.blue600,
       color: DARK_THEME_COLORS.colorText,
-      borderColor: DARK_THEME_COLORS.blue600,
+      border: `1px solid ${DARK_THEME_COLORS.blue400}`,
     },
     btnConfirmHover: {
       backgroundColor: DARK_THEME_COLORS.blue500
     },
     btnCancel: {
-      backgroundColor: 'transparent',
       color: DARK_THEME_COLORS.colorText,
-      borderColor: 'transparent',
+      backgroundColor: DARK_THEME_COLORS.colorBackground,
+      border: `1px solid ${DARK_THEME_COLORS.colorBorder}`,
     },
     btnCancelHover: {
       backgroundColor: DARK_THEME_COLORS.grey700,
     },
     btnDanger: {
-      backgroundColor: LIGHT_THEME_COLORS.red600,
+      backgroundColor: DARK_THEME_COLORS.red600,
+      border: `1px solid ${DARK_THEME_COLORS.red500}`,
     },
     btnDangerHover: {
-      backgroundColor: LIGHT_THEME_COLORS.red500,
+      backgroundColor: DARK_THEME_COLORS.red500,
     },
     loadingIndicator: {
       borderColor: DARK_THEME_COLORS.colorBorder,
@@ -227,7 +233,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     hero: {
     },
     heroContainer: {
-      height: '44px',
+      minHeight: '48px',
     },
 
     errorBanner: {
@@ -279,12 +285,12 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     // Main modal container
     modalBackdropBlur: {
-      background: 'oklch(0.2 0.01 240 / 0.4)', // grey800 with alpha 0.8
-      backdropFilter: 'blur(0px)',
-      animation: 'none',
-      willChange: 'none',
-      // animation: 'backdrop-opacity 32ms ease-in',
-      // willChange: 'opacity',
+      background: 'oklch(0.2 0.01 240 / 0.8)', // grey800 with alpha 0.8
+      // backdropFilter: 'blur(0px)',
+      // animation: 'none',
+      // willChange: 'none',
+      animation: 'backdrop-opacity 32ms ease-in',
+      willChange: 'opacity',
     },
     modalBackdrop: {
       padding: '0.5rem',
@@ -293,9 +299,22 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME_COLORS.colorText,
     },
     modalContainerRoot: {
+      // background: DARK_THEME_COLORS.grey100,
+      // border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
+      // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
+      background: 'none',
+      border: 'none',
+      boxShadow: 'none',
+      margin: '1rem 0 0 0',
+    },
+    responsiveCard: {
+      padding: '0rem',
+      margin: '0px',
+      borderRadius: '2rem',
+    },
+    cardBackgroundBorder: {
+      background: LIGHT_THEME_COLORS.colorBackground,
       border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
-      boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
-      background: DARK_THEME_COLORS.grey100,
     },
 
     rpidWrapper: {
@@ -332,14 +351,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     summarySection: {
       color: LIGHT_THEME_COLORS.colorText
     },
-    txSection: {
-      color: LIGHT_THEME_COLORS.colorText
-    },
-    txList: {
-      borderRadius: '8px',
-      padding: '1rem',
-      background: LIGHT_THEME_COLORS.grey50
-    },
     actionsTitle: {
       color: LIGHT_THEME_COLORS.colorTextSecondary
     },
@@ -357,7 +368,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       padding: '0.5rem',
       color: LIGHT_THEME_COLORS.colorText,
       background: LIGHT_THEME_COLORS.grey100,
-      maxHeight: '40vh',
+      maxHeight: '50vh',
     },
     actionValue: {
       color: LIGHT_THEME_COLORS.colorText
@@ -382,7 +393,6 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btn: {
       backgroundColor: LIGHT_THEME_COLORS.colorBackground,
       color: LIGHT_THEME_COLORS.colorText,
-      borderColor: 'transparent',
       focusOutlineColor: LIGHT_THEME_COLORS.colorPrimary,
     },
     btnHover: {
@@ -392,21 +402,22 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       padding: '0.5rem',
       bakgroundColor: LIGHT_THEME_COLORS.blue600,
       color: LIGHT_THEME_COLORS.colorBackground,
-      borderColor: LIGHT_THEME_COLORS.blue600
+      border: `1px solid ${LIGHT_THEME_COLORS.blue400}`,
     },
     btnConfirmHover: {
-      backgroundColor: LIGHT_THEME_COLORS.blue500
+      backgroundColor: DARK_THEME_COLORS.blue500
     },
     btnCancel: {
-      backgroundColor: 'transparent',
       color: LIGHT_THEME_COLORS.colorText,
-      borderColor: 'transparent',
+      borderColor: LIGHT_THEME_COLORS.colorBorder,
+      border: `1px solid ${LIGHT_THEME_COLORS.colorBorder}`,
     },
     btnCancelHover: {
       backgroundColor: LIGHT_THEME_COLORS.grey100,
     },
     btnDanger: {
       backgroundColor: LIGHT_THEME_COLORS.red600,
+      border: `1px solid ${LIGHT_THEME_COLORS.red500}`,
     },
     btnDangerHover: {
       backgroundColor: LIGHT_THEME_COLORS.red500,
@@ -434,7 +445,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     hero: {
     },
     heroContainer: {
-      height: '44px',
+      minHeight: '48px',
     },
 
     errorBanner: {

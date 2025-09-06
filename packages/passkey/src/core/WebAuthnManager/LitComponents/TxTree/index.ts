@@ -1,18 +1,18 @@
 import { html, css, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
-import type { TreeNode } from './tooltip-tree-utils';
-import type { TooltipTreeStyles } from './tooltip-tree-themes';
-import { formatGas, formatDeposit } from '../common/formatters';
+import type { TreeNode } from './tx-tree-utils';
+import type { TxTreeStyles } from './tx-tree-themes';
+import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
 // Re-export for backward compatibility
-export type { TooltipTreeStyles } from './tooltip-tree-themes';
+export type { TxTreeStyles } from './tx-tree-themes';
 
 /**
- * TooltipTxTree
+ * TxTree
  * A small, dependency-free Lit component that renders a tree-like UI suitable for tooltips.
  *
  * Usage:
- *   <tooltip-tx-tree .node=${node} depth="0"></tooltip-tx-tree>
+ *   <tx-tree .node=${node} depth="0"></tx-tree>
  *
  * Mapping note: txSigningRequests (TransactionInput[]) → TreeNode structure
  * Example (single FunctionCall):
@@ -42,7 +42,7 @@ export type { TooltipTreeStyles } from './tooltip-tree-themes';
  *   ]
  * }
  */
-export class TooltipTxTree extends LitElementWithProps {
+export class TxTree extends LitElementWithProps {
 
   // Pure component contract:
   // - Renders solely from inputs (node, depth, styles); holds no internal state
@@ -62,8 +62,10 @@ export class TooltipTxTree extends LitElementWithProps {
   // Initializers can overwrite values set by the parent during element upgrade.
   node?: TreeNode | null;
   depth?: number;
-  styles?: TooltipTreeStyles;
+  styles?: TxTreeStyles;
   theme?: 'dark' | 'light';
+  // Optional class applied to the root container (depth=0 only)
+  class?: string;
 
   static styles = css`
     :host {
@@ -137,6 +139,8 @@ export class TooltipTxTree extends LitElementWithProps {
       width: var(--w3a-tree__row__width, 100%);
       color: var(--w3a-tree__row__color, #e6e9f5);
       background: var(--w3a-tree__row__background, transparent);
+      /* Provide explicit vertical spacing so connector lines can extend into it */
+      margin-bottom: var(--w3a-tree__row__gap, 0px);
     }
 
     .summary-row {
@@ -147,10 +151,6 @@ export class TooltipTxTree extends LitElementWithProps {
       transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
       background: var(--w3a-tree__summary-row__background, transparent);
     }
-
-    // .summary-row:hover {
-    //   background: var(--w3a-tree__summary-row-hover__background, none);
-    // }
 
     .indent {
       width: var(--w3a-tree__indent__width, var(--indent, 0));
@@ -180,6 +180,23 @@ export class TooltipTxTree extends LitElementWithProps {
       -webkit-text-fill-color: var(--w3a-tree__label__webkit-text-fill-color, currentColor);
     }
 
+    /* Inner wrapper to guarantee ellipsis when label contains text + spans */
+    .label-text {
+      display: inline-flex;
+      flex: 1 1 auto;
+      min-width: 0;
+      max-width: 100%;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    /* Smaller, secondary-colored font for action-node labels (leaf rows) */
+    .label.label-action-node {
+      font-size: var(--w3a-tree__label-action-node__font-size, 0.8rem);
+      color: var(--w3a-color-text-secondary, #94a3b8);
+    }
+
     /* Force gradient text when explicitly requested */
     .label.gradient-text {
       -webkit-background-clip: text;
@@ -190,12 +207,34 @@ export class TooltipTxTree extends LitElementWithProps {
       background: var(--w3a-tree__summary-row-hover__background, rgba(255, 255, 255, 0.06));
     }
 
-    /* Ensure nested spans (e.g., highlights) don't break ellipsis */
-    .label > * {
+    /* Ensure nested spans (e.g., highlights) inside label-text can shrink */
+    .label-text > * {
       min-width: 0;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+
+    /* Copy badge */
+    .copy-badge {
+      margin-left: auto;
+      font-size: 0.7em;
+      color: var(--w3a-tree__copy-badge__color, var(--w3a-color-text-secondary));
+      background: var(--w3a-tree__copy-badge__background, transparent);
+      border: var(--w3a-tree__copy-badge__border, 1px solid transparent);
+      border-radius: var(--w3a-tree__copy-badge__border-radius, 8px);
+      padding: var(--w3a-tree__copy-badge__padding, 2px 6px);
+      cursor: pointer;
+      user-select: none;
+      transition: color 120ms ease, background 120ms ease;
+    }
+    .copy-badge:hover {
+      background: var(--w3a-tree__copy-badge-hover__background, rgba(255,255,255,0.06));
+      color: var(--w3a-tree__copy-badge-hover__color, var(--w3a-color-primary));
+    }
+    .copy-badge[data-copied="true"] {
+      color: var(--w3a-tree__copy-badge-copied__color, var(--w3a-color-text));
+      background: var(--w3a-tree__copy-badge-copied__background, rgba(255,255,255,0.06));
     }
 
     .chevron {
@@ -239,7 +278,8 @@ export class TooltipTxTree extends LitElementWithProps {
       left: var(--connector-indent, var(--indent, 0));
       right: auto;
       width: var(--w3a-tree__connector__thickness);
-      height: 100%;
+      /* Extend the vertical connector into the next row's gap so lines appear continuous */
+      height: calc(100% + var(--w3a-tree__row__gap, 0px));
       background: var(--w3a-tree__connector__color);
     }
 
@@ -278,9 +318,21 @@ export class TooltipTxTree extends LitElementWithProps {
      * For the last child in a folder, shorten the vertical segment so it
      * stops at the elbow (renders └ instead of ├).
      */
-    .folder-children > details:last-child > summary .indent::before,
-    .folder-children > .row:last-child .indent::before {
-      height: 50%;
+    .folder-children > details:last-child > summary .indent::before {
+      /* For the last child, stop at the elbow (midline),
+         but still bridge any row gap below to avoid visual truncation */
+      height: calc(50% + var(--w3a-tree__row__gap, 0px));
+    }
+
+    /* Top-level Transactions have no connector lines */
+
+    /*
+     * Do not draw connector lines for nodes under the last Action of each Transaction
+     * (i.e., the actionNodes under that last Action folder)
+     */
+    .tooltip-tree-children > details > .folder-children > details:last-child .folder-children .row .indent::before,
+    .tooltip-tree-children > details > .folder-children > details:last-child .folder-children .row .indent::after {
+      content: none;
     }
 
     .file-content {
@@ -328,6 +380,7 @@ export class TooltipTxTree extends LitElementWithProps {
       background: var(--w3a-tree__highlight-receiver-id__background, transparent);
       -webkit-background-clip: var(--w3a-tree__highlight-receiver-id__background-clip, none);
       -webkit-text-fill-color: var(--w3a-tree__highlight-receiver-id__text-fill-color, none);
+      margin: 0px 4px;
 
       font-weight: var(--w3a-tree__highlight-receiver-id__font-weight, 600);
       text-decoration: var(--w3a-tree__highlight-receiver-id__text-decoration, none);
@@ -341,6 +394,7 @@ export class TooltipTxTree extends LitElementWithProps {
       background: var(--w3a-tree__highlight-method-name__background, transparent);
       -webkit-background-clip: var(--w3a-tree__highlight-method-name__background-clip, none);
       -webkit-text-fill-color: var(--w3a-tree__highlight-method-name__text-fill-color, none);
+      margin: 0px 4px;
 
       font-weight: var(--w3a-tree__highlight-method-name__font-weight, 600);
       text-decoration: var(--w3a-tree__highlight-method-name__text-decoration, none);
@@ -354,6 +408,7 @@ export class TooltipTxTree extends LitElementWithProps {
       background: var(--w3a-tree__highlight-amount__background, transparent);
       -webkit-background-clip: var(--w3a-tree__highlight-amount__background-clip, none);
       -webkit-text-fill-color: var(--w3a-tree__highlight-amount__text-fill-color, none);
+      margin: 0px 4px;
 
       font-weight: var(--w3a-tree__highlight-amount__font-weight, 600);
       text-decoration: var(--w3a-tree__highlight-amount__text-decoration, none);
@@ -362,6 +417,49 @@ export class TooltipTxTree extends LitElementWithProps {
       box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none);
     }
   `;
+
+  // Track which node IDs have recently been copied
+  private _copied: Set<string> = new Set();
+  private _copyTimers: Map<string, number> = new Map();
+
+  private isCopied(id: string): boolean {
+    return this._copied.has(id);
+  }
+
+  private async handleCopyClick(e: Event, node: TreeNode) {
+    e.stopPropagation();
+    const value = (node as any)?.copyValue as string | undefined;
+    if (!value) return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); } catch {}
+        try { document.body.removeChild(ta); } catch {}
+      }
+      // Mark as copied for 2 seconds
+      this._copied.add(node.id);
+      this.requestUpdate();
+      const existing = this._copyTimers.get(node.id);
+      if (existing) {
+        window.clearTimeout(existing);
+      }
+      const timer = window.setTimeout(() => {
+        this._copied.delete(node.id);
+        this._copyTimers.delete(node.id);
+        this.requestUpdate();
+      }, 2000);
+      this._copyTimers.set(node.id, timer);
+    } catch {
+      // Swallow errors silently
+    }
+  }
 
   private handleToggle() {
     // Notify parents that layout may have changed so they can re-measure
@@ -372,7 +470,7 @@ export class TooltipTxTree extends LitElementWithProps {
     return 'tree';
   }
 
-  protected applyStyles(styles: TooltipTreeStyles): void {
+  protected applyStyles(styles: TxTreeStyles): void {
     super.applyStyles(styles, 'tree');
   }
 
@@ -405,7 +503,7 @@ export class TooltipTxTree extends LitElementWithProps {
         });
         w.borderAngleRegistered = true;
       } catch (e) {
-        console.warn('[TooltipTxTree] Failed to register --border-angle:', e);
+        console.warn('[TxTree] Failed to register --border-angle:', e);
       }
     }
   }
@@ -416,26 +514,34 @@ export class TooltipTxTree extends LitElementWithProps {
       const a = treeNode.action;
       switch (a.type) {
         case 'FunctionCall': {
-          const method = a.methodName;
-          const gasStr = formatGas(a.gas);
-          return html`Calling <span class="highlight-method-name">${method}</span>${gasStr ? html` with ${gasStr}` : ''}`;
+          let method = a.methodName;
+          let gasStr = formatGas(a.gas);
+          let depositStr = formatDeposit(a.deposit);
+          return html`Calling <span class="highlight-method-name">${method}</span>
+              ${depositStr !== '0 NEAR' ? html` with <span class="highlight-method-name">${depositStr}</span>` : ''}
+              ${gasStr ? html` using <span class="highlight-method-name">${gasStr}</span>` : ''}`;
         }
         case 'Transfer': {
-          const amount = formatDeposit(a.amount);
+          let amount = formatDeposit(a.amount);
           return html`Transfer <span class="highlight-amount">${amount}</span>`;
         }
         case 'CreateAccount':
           return 'Creating Account';
         case 'DeleteAccount':
-          return 'Deleting Account';
+          let beneficiaryId = formatDeposit(a.beneficiaryId);
+          return html`Deleting Account, sending balance to <span class="highlight-amount">${beneficiaryId}</span>`;
         case 'Stake':
           return `Staking ${formatDeposit(a.stake)}`;
         case 'AddKey':
-          return 'Adding Key';
+          let ak = a.accessKey;
+          // let accessKeyObj = typeof ak === 'string' ? JSON.parse(ak) : ak;
+          // let permission = accessKeyObj.permission === 'FullAccess' ? 'Full Access' : 'Function Call';
+          return `Adding Key`;
         case 'DeleteKey':
-          return 'Deleting Key';
+          return `Deleting Key`;
         case 'DeployContract':
-          return 'Deploying Contract';
+          const codeSize = formatCodeSize(a.code);
+          return `Deploying Contract of size ${codeSize}`;
         default: {
           const idxText = typeof treeNode.actionIndex === 'number' ? ` ${treeNode.actionIndex + 1}` : '';
           const typeText = a.type || 'Unknown';
@@ -457,6 +563,55 @@ export class TooltipTxTree extends LitElementWithProps {
     return treeNode.label || '';
   }
 
+  /**
+   * Compute a plain-text version of the label for use in the title tooltip.
+   * Mirrors renderLabelWithSelectiveHighlight but without inline HTML/spans.
+   */
+  private computePlainLabel(treeNode: TreeNode): string {
+    // Action-level labels
+    if (treeNode.action) {
+      const a = treeNode.action as any;
+      switch (a.type) {
+        case 'FunctionCall': {
+          const method = a.methodName;
+          const gasStr = formatGas(a.gas);
+          const depositStr = formatDeposit(a.deposit);
+          return `Calling ${method} with ${depositStr} using ${gasStr}`;
+        }
+        case 'Transfer':
+          return `Transfer ${formatDeposit(a.amount)}`;
+        case 'CreateAccount':
+          return 'Creating Account';
+        case 'DeleteAccount':
+          return 'Deleting Account';
+        case 'Stake':
+          return `Staking ${formatDeposit(a.stake)}`;
+        case 'AddKey':
+          return 'Adding Key';
+        case 'DeleteKey':
+          return 'Deleting Key';
+        case 'DeployContract':
+          return 'Deploying Contract';
+        default: {
+          const idxText = typeof treeNode.actionIndex === 'number' ? ` ${treeNode.actionIndex + 1}` : '';
+          const typeText = a.type || 'Unknown';
+          return `Action${idxText}: ${typeText}`;
+        }
+      }
+    }
+
+    // Transaction-level labels
+    if (treeNode.transaction) {
+      const total = treeNode.totalTransactions ?? 1;
+      const idx = treeNode.transactionIndex ?? 0;
+      const prefix = total > 1 ? `Transaction ${idx + 1}: to ` : 'Transaction to ';
+      const receiverId = treeNode.transaction.receiverId;
+      return `${prefix}${receiverId}`;
+    }
+
+    return treeNode.label || '';
+  }
+
   private renderLeaf(depth: number, node: TreeNode): TemplateResult | undefined {
 
     const indent = `${Math.max(0, depth - 1)}rem`;
@@ -471,14 +626,23 @@ export class TooltipTxTree extends LitElementWithProps {
             @toggle=${this.handleToggle}
           >
             <span class="indent"></span>
-            <span class="label" style="${node.displayNone ? 'display: none;' : ''}">
-              ${!node.hideChevron ? html`
-                <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
-                  <path fill="currentColor" d="M6 3l5 5-5 5z" />
-                </svg>
-              ` : ''}
+          <span class="label label-action-node" style="${node.displayNone ? 'display: none;' : ''}">
+            ${!node.hideChevron ? html`
+              <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
+                <path fill="currentColor" d="M6 3l5 5-5 5z" />
+              </svg>
+            ` : ''}
+            <span class="label-text" title=${this.computePlainLabel(node)}>
               ${this.renderLabelWithSelectiveHighlight(node)}
             </span>
+            ${node.copyValue ? html`
+              <span class="copy-badge"
+                data-copied=${this.isCopied(node.id)}
+                @click=${(e: Event) => this.handleCopyClick(e, node)}
+                title=${this.isCopied(node.id) ? 'Copied' : 'Copy'}
+              >${this.isCopied(node.id) ? 'copied' : 'copy'}</span>
+            ` : ''}
+          </span>
           </summary>
           <div class="row file-row"
             style="--indent: ${indent}"
@@ -497,10 +661,19 @@ export class TooltipTxTree extends LitElementWithProps {
         data-no-elbow="${!!node.displayNone}"
       >
         <span class="indent"></span>
-        <span class="label"
+        <span class="label label-action-node"
           style="${node.displayNone ? 'display: none;' : ''}"
         >
-          ${this.renderLabelWithSelectiveHighlight(node)}
+          <span class="label-text" title=${this.computePlainLabel(node)}>
+            ${this.renderLabelWithSelectiveHighlight(node)}
+          </span>
+          ${node.copyValue ? html`
+            <span class="copy-badge"
+              data-copied=${this.isCopied(node.id)}
+              @click=${(e: Event) => this.handleCopyClick(e, node)}
+              title=${this.isCopied(node.id) ? 'Copied' : 'Copy'}
+            >${this.isCopied(node.id) ? 'copied' : 'copy'}</span>
+          ` : ''}
         </span>
       </div>
     `;
@@ -525,7 +698,9 @@ export class TooltipTxTree extends LitElementWithProps {
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
               </svg>
             ` : ''}
-            ${this.renderLabelWithSelectiveHighlight(node)}
+            <span class="label-text" title=${this.computePlainLabel(node)}>
+              ${this.renderLabelWithSelectiveHighlight(node)}
+            </span>
           </span>
         </summary>
         ${nodeChildren && nodeChildren.length > 0 ? html`
@@ -551,11 +726,13 @@ export class TooltipTxTree extends LitElementWithProps {
     let depth = this.depth ?? 0;
     let content: TemplateResult | undefined;
     if (depth === 0) {
+      const extraClass = this.class ? ` ${this.class}` : '';
+      const rootStyle = this.class ? 'overflow:auto;max-height:40vh;' : '';
       // Render only the children as top-level entries
       content = html`
         <div class="tooltip-border-outer">
           <div class="tooltip-border-inner">
-            <div class="tooltip-tree-root">
+            <div class="tooltip-tree-root${extraClass}" style="${rootStyle}">
               <div class="tooltip-tree-children">
                 ${repeat(
                   Array.isArray(this.node.children) ? this.node.children : [],
@@ -577,6 +754,6 @@ export class TooltipTxTree extends LitElementWithProps {
   }
 }
 
-customElements.define('tooltip-tx-tree', TooltipTxTree);
+customElements.define('tx-tree', TxTree);
 
-export default TooltipTxTree;
+export default TxTree;

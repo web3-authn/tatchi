@@ -1,10 +1,9 @@
 
 // Lit component tag names
 // These are rendered as web components:
-// e.g. <iframe-button></iframe-button>, <embedded-tx-button>, etc;
+// e.g. <iframe-button></iframe-button>, <button-with-tooltip>, etc;
 export const IFRAME_BUTTON_ID = 'iframe-button';
-export const EMBEDDED_TX_BUTTON_ID = 'embedded-tx-button';
-export const EMBEDDED_TX_BUTTON_ROOT_CLASS = 'embedded-tx-button-root';
+export const BUTTON_WITH_TOOLTIP_ID = 'button-with-tooltip';
 
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
 export const EMBEDDED_SDK_BASE_PATH = '/sdk/embedded/';
@@ -30,7 +29,7 @@ export const CSS_CLASSES = {
   SPINNER: 'spinner',
 } as const;
 
-// Type-safe selector functions using data attributes - corresponds to CSS selectors in EmbeddedTxButton.ts
+// Type-safe selector functions using data attributes - corresponds to CSS selectors in ButtonWithTooltip.ts
 export const SELECTORS = {
   EMBEDDED_CONFIRM_CONTAINER: `[data-embedded-tx-button-root]`, // CSS: [data-embedded-tx-button-root]
   EMBEDDED_BTN: `[data-embedded-btn]`, // CSS: [data-embedded-btn]

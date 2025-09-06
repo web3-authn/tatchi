@@ -1,6 +1,6 @@
-import { TooltipTreeStyles } from './tooltip-tree-themes';
+import { TxTreeStyles } from './tx-tree-themes';
 import type { ActionArgs, TransactionInput } from '../../../types/actions';
-import { formatArgs, formatDeposit } from '../common/formatters';
+import { formatArgs, formatDeposit, shortenPubkey, formatCodeSize } from '../common/formatters';
 
 export type TreeNodeType = 'folder' | 'file';
 
@@ -29,6 +29,8 @@ export interface TreeNode {
    * The tree structure is built recursively through this property.
    */
   children?: TreeNode[];
+  /** Optional value that can be copied to clipboard when the row is clicked */
+  copyValue?: string;
   /**
    * Optional highlighting information for special nodes
    */
@@ -77,13 +79,6 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
       actionNodes = [
         // Skip showing gas for FunctionCall, we show it in the label
         // { id: `a${idx}-gas`, label: `gas: ${formatGas(action.gas)}`, type: 'file' },
-        //
-        // Only show deposit if it's not 0
-        ...(showDeposit ? [{
-          id: `a${idx}-deposit`,
-          label: `deposit: ${formatDeposit(action.deposit)}`,
-          type: 'file' as const
-        }] : []),
         {
           id: `a${idx}-args`,
           label: 'using args:',
@@ -106,15 +101,21 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
 
     case 'DeployContract':
       const code = action.code;
-      const codeSize = calculateCodeSize(code);
       actionNodes = [
-        { id: `a${idx}-code-size`, label: `Code size: ${codeSize}`, type: 'file' }
+        {
+          id: `a${idx}-code-size`,
+          label: 'Contract code',
+          type: 'file',
+          hideChevron: true,
+          displayNone: true, // hide "args:" row label
+          content: formatArgs(code.toString())
+        }
       ];
       break;
 
     case 'Stake':
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `Validator: ${action.publicKey}`, type: 'file' }
+        { id: `a${idx}-publicKey`, label: `validator: ${shortenPubkey(action.publicKey)}` , type: 'file', copyValue: action.publicKey }
       ];
       break;
 
@@ -123,27 +124,27 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
       let permissions = '';
       try {
         const accessKeyObj = typeof ak === 'string' ? JSON.parse(ak) : ak;
-        permissions = 'FullAccess' in accessKeyObj.permission
+        permissions = accessKeyObj.permission === 'FullAccess'
           ? 'Full Access'
           : 'Function Call';
       } catch {
         permissions = 'Unknown';
       }
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `Key: ${action.publicKey}`, type: 'file' },
-        { id: `a${idx}-permissions`, label: `Permissions: ${permissions}`, type: 'file' }
+        { id: `a${idx}-publicKey`, label: `key: ${shortenPubkey(action.publicKey)}`, type: 'file', copyValue: action.publicKey },
+        { id: `a${idx}-permissions`, label: `permissions: ${permissions}`, type: 'file' }
       ];
       break;
 
     case 'DeleteKey':
       actionNodes = [
-        { id: `a${idx}-publicKey`, label: `Key: ${action.publicKey}`, type: 'file' }
+        { id: `a${idx}-publicKey`, label: `key: ${shortenPubkey(action.publicKey)}`, type: 'file', copyValue: action.publicKey }
       ];
       break;
 
     case 'DeleteAccount':
       actionNodes = [
-        { id: `a${idx}-beneficiaryId`, label: `Beneficiary: ${action.beneficiaryId}`, type: 'file' }
+        { id: `a${idx}-beneficiaryId`, label: `beneficiary: ${action.beneficiaryId}`, type: 'file' }
       ];
       break;
 
@@ -182,22 +183,13 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
   } as TreeNode;
 }
 
-// Helper function for calculating code size
-function calculateCodeSize(code: Uint8Array | string): string {
-  if (!code) return '0 bytes';
-  if (code instanceof Uint8Array) return `${code.byteLength} bytes`;
-  if (Array.isArray(code)) return `${code.length} bytes`;
-  if (typeof code === 'string') return `${code.length} bytes`;
-  return 'unknown';
-}
-
 // Pure builder that converts a TransactionInput into a TreeNode transaction tree
 // Label format: "Transaction to receiverId" for single tx, "Transaction(index) to receiverId" for multiple txs
 export function buildTransactionNode(
   tx: TransactionInput,
   tIdx: number,
   totalTransactions: number,
-  styles?: TooltipTreeStyles
+  styles?: TxTreeStyles
 ): TreeNode {
 
   const actionFolders: TreeNode[] = tx.actions.map((action: ActionArgs, idx: number) =>
@@ -222,7 +214,7 @@ export function buildTransactionNode(
 // a two-level tree: Transaction -> Action N -> subfields
 export function buildDisplayTreeFromTxPayloads(
   txSigningRequests: TransactionInput[],
-  styles?: TooltipTreeStyles
+  styles?: TxTreeStyles
 ): TreeNode {
 
   const totalTransactions = txSigningRequests.length;

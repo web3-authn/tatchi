@@ -5,10 +5,10 @@ import type {
   IframeButtonMessageType,
   IframeInitData
 } from '../common/iframe-messages'
-import type { TooltipTreeStyles } from '../TooltipTxTree/tooltip-tree-themes';
+import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
-import type { EmbeddedTxButtonStyles } from './embedded-tx-button-themes';
-import { EMBEDDED_TX_BUTTON_ID, SELECTORS } from './tags';
+import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
+import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from './tags';
 
 /**
  * Iframe Button Bootstrap Script (ESM)
@@ -48,7 +48,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   tooltip?: { width: string; height: string | 'auto'; position: string; offset: string };
   tooltipPosition?: TooltipPositionInternal; // fallback path uses this name
   tooltipTheme?: 'dark' | 'light';
-  styles?: TooltipTreeStyles;
+  styles?: TxTreeStyles;
   updateProperties?: (props: Partial<{
     nearAccountId: string;
     txSigningRequests: TransactionInput[];
@@ -127,7 +127,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
 
   // Notify when custom element is fully defined and ready
   if (window.customElements && window.customElements.whenDefined) {
-    const tag = payload.tagName || EMBEDDED_TX_BUTTON_ID;
+    const tag = payload.tagName || BUTTON_WITH_TOOLTIP_ID;
     window.customElements.whenDefined(tag).then(() => {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;
