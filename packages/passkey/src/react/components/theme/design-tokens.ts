@@ -3,8 +3,8 @@ import {
   CHROMA_COLORS,
   GREY_COLORS,
   GRADIENTS,
-  LIGHT_THEME_COLORS,
-  DARK_THEME_COLORS
+  LIGHT_THEME,
+  DARK_THEME
 } from '@/base-styles';
 
 /**
@@ -50,9 +50,10 @@ export interface DesignTokens {
     textMuted: string;
 
     // Surface layers
-    surfacePrimary: string;
-    surfaceSecondary: string;
-    surfaceTertiary: string;
+    colorBackground: string;
+    colorSurface: string;
+    colorSurface2: string;
+    colorBorder: string;
 
     // Interactive states
     hover: string;
@@ -73,6 +74,66 @@ export interface DesignTokens {
     // Background Gradients
     backgroundGradientPrimary: string;
     backgroundGradientSecondary: string;
+
+    // Grey variations
+    grey25: string;
+    grey50: string;
+    grey75: string;
+    grey100: string;
+    grey200: string;
+    grey300: string;
+    grey400: string;
+    grey500: string;
+    grey600: string;
+    grey650: string;
+    grey700: string;
+    grey750: string;
+    grey800: string;
+    grey850: string;
+    grey900: string;
+    grey950: string;
+
+    // Slate variations
+    slate25: string;
+    slate100: string;
+    slate150: string;
+    slate200: string;
+    slate300: string;
+
+    // Chroma colors (already included via spread)
+    red200: string;
+    red300: string;
+    red400: string;
+    red500: string;
+    red600: string;
+    yellow200: string;
+    yellow300: string;
+    yellow400: string;
+    yellow500: string;
+    yellow600: string;
+    blue200: string;
+    blue300: string;
+    blue400: string;
+    blue500: string;
+    blue600: string;
+    green200: string;
+    green300: string;
+    green400: string;
+    green500: string;
+    green600: string;
+
+    // Highlights
+    highlightReceiverId: string;
+    highlightMethodName: string;
+    highlightAmount: string;
+    highlightReceiverIdBackground: string;
+    highlightMethodNameBackground: string;
+    highlightAmountBackground: string;
+
+    // Misc
+    colorPrimary: string;
+    gradientPeach: string;
+    gradientAqua: string;
   };
 
   spacing: {
@@ -120,14 +181,15 @@ export const LIGHT_TOKENS: DesignTokens = {
     accent: CHROMA_COLORS.blue300,
 
     // Text hierarchy
-    textPrimary: LIGHT_THEME_COLORS.colorText,
-    textSecondary: LIGHT_THEME_COLORS.colorTextSecondary,
-    textMuted: LIGHT_THEME_COLORS.colorTextMuted,
+    textPrimary: LIGHT_THEME.textPrimary,
+    textSecondary: LIGHT_THEME.textSecondary,
+    textMuted: LIGHT_THEME.textMuted,
 
-    // Surface layers
-    surfacePrimary: LIGHT_THEME_COLORS.colorBackground,
-    surfaceSecondary: LIGHT_THEME_COLORS.colorSurface,
-    surfaceTertiary: LIGHT_THEME_COLORS.slate200,
+    // Core colors
+    colorBackground: LIGHT_THEME.colorBackground,
+    colorSurface: LIGHT_THEME.colorSurface,
+    colorSurface2: LIGHT_THEME.colorSurface2,
+    colorBorder: LIGHT_THEME.colorBorder,
 
     // Interactive states
     hover: GREY_COLORS.grey100,
@@ -141,13 +203,53 @@ export const LIGHT_TOKENS: DesignTokens = {
     info: CHROMA_COLORS.blue400,
 
     // Border colors
-    borderPrimary: LIGHT_THEME_COLORS.slate300,
+    borderPrimary: LIGHT_THEME.slate300,
     borderSecondary: GREY_COLORS.grey300,
     borderHover: GREY_COLORS.slate350,
 
     // Background Gradients
     backgroundGradientPrimary: GRADIENTS.blue,
     backgroundGradientSecondary: GRADIENTS.blueWhite,
+
+    // Grey variations
+    grey25: LIGHT_THEME.grey25,
+    grey50: LIGHT_THEME.grey50,
+    grey75: LIGHT_THEME.grey75,
+    grey100: LIGHT_THEME.grey100,
+    grey200: LIGHT_THEME.grey200,
+    grey300: LIGHT_THEME.grey300,
+    grey400: LIGHT_THEME.grey400,
+    grey500: LIGHT_THEME.grey500,
+    grey600: LIGHT_THEME.grey600,
+    grey650: LIGHT_THEME.grey650,
+    grey700: LIGHT_THEME.grey700,
+    grey750: LIGHT_THEME.grey750,
+    grey800: DARK_THEME.grey800,
+    grey850: DARK_THEME.grey850,
+    grey900: DARK_THEME.grey900,
+    grey950: DARK_THEME.grey950,
+
+    // Slate variations
+    slate25: LIGHT_THEME.slate25,
+    slate100: LIGHT_THEME.slate100,
+    slate150: LIGHT_THEME.slate150,
+    slate200: LIGHT_THEME.slate200,
+    slate300: LIGHT_THEME.slate300,
+
+    // Chroma colors (already included via ...CHROMA_COLORS)
+
+    // Highlights
+    highlightReceiverId: LIGHT_THEME.highlightReceiverId,
+    highlightMethodName: LIGHT_THEME.highlightMethodName,
+    highlightAmount: LIGHT_THEME.highlightAmount,
+    highlightReceiverIdBackground: LIGHT_THEME.highlightReceiverIdBackground,
+    highlightMethodNameBackground: LIGHT_THEME.highlightMethodNameBackground,
+    highlightAmountBackground: LIGHT_THEME.highlightAmountBackground,
+
+    // Misc
+    colorPrimary: LIGHT_THEME.colorPrimary,
+    gradientPeach: LIGHT_THEME.gradientPeach,
+    gradientAqua: LIGHT_THEME.gradientAqua,
   },
 
   spacing: {
@@ -187,18 +289,18 @@ export const DARK_TOKENS: DesignTokens = {
     accent: CHROMA_COLORS.blue300,
 
     // Text hierarchy (dark palette)
-    textPrimary: DARK_THEME_COLORS.colorText,
-    textSecondary: DARK_THEME_COLORS.colorTextSecondary,
-    textMuted: LIGHT_THEME_COLORS.colorTextMuted,
+    textPrimary: DARK_THEME.textPrimary,
+    textSecondary: DARK_THEME.textSecondary,
+    textMuted: DARK_THEME.textMuted,
 
-    // Surface layers (dark palette)
-    surfacePrimary: DARK_THEME_COLORS.grey750,  // base-styles mapped value
-    surfaceSecondary: DARK_THEME_COLORS.grey650,
-    surfaceTertiary: DARK_THEME_COLORS.grey850,
+    colorBackground: DARK_THEME.colorBackground,
+    colorSurface: DARK_THEME.colorSurface,
+    colorSurface2: DARK_THEME.colorSurface2,
+    colorBorder: DARK_THEME.colorBorder,
 
     // Interactive states
-    hover: DARK_THEME_COLORS.grey850,
-    active: DARK_THEME_COLORS.grey650,
+    hover: DARK_THEME.grey850,
+    active: DARK_THEME.grey650,
     focus: CHROMA_COLORS.blue400,
 
     // Status colors (unchanged)
@@ -208,13 +310,51 @@ export const DARK_TOKENS: DesignTokens = {
     info: CHROMA_COLORS.blue400,
 
     // Border colors (dark palette)
-    borderPrimary: DARK_THEME_COLORS.grey650,
-    borderSecondary: DARK_THEME_COLORS.grey750,
-    borderHover: DARK_THEME_COLORS.grey750,
+    borderPrimary: DARK_THEME.grey650,
+    borderSecondary: DARK_THEME.grey750,
+    borderHover: DARK_THEME.grey750,
 
     // Background Gradients
     backgroundGradientPrimary: GRADIENTS.blue,
     backgroundGradientSecondary: GRADIENTS.blueWhite,
+
+    // Grey variations
+    grey25: DARK_THEME.grey25,
+    grey50: DARK_THEME.grey50,
+    grey75: DARK_THEME.grey75,
+    grey100: DARK_THEME.grey100,
+    grey200: DARK_THEME.grey200,
+    grey300: DARK_THEME.grey300,
+    grey400: DARK_THEME.grey400,
+    grey500: DARK_THEME.grey500,
+    grey600: DARK_THEME.grey600,
+    grey650: DARK_THEME.grey650,
+    grey700: DARK_THEME.grey700,
+    grey750: DARK_THEME.grey750,
+    grey800: DARK_THEME.grey800,
+    grey850: DARK_THEME.grey850,
+    grey900: DARK_THEME.grey900,
+    grey950: DARK_THEME.grey950,
+
+    // Slate variations
+    slate25: DARK_THEME.slate25,
+    slate100: DARK_THEME.slate100,
+    slate150: DARK_THEME.slate150,
+    slate200: DARK_THEME.slate200,
+    slate300: DARK_THEME.slate300,
+
+    // Highlights
+    highlightReceiverId: DARK_THEME.highlightReceiverId,
+    highlightMethodName: DARK_THEME.highlightMethodName,
+    highlightAmount: DARK_THEME.highlightAmount,
+    highlightReceiverIdBackground: DARK_THEME.highlightReceiverIdBackground,
+    highlightMethodNameBackground: DARK_THEME.highlightMethodNameBackground,
+    highlightAmountBackground: DARK_THEME.highlightAmountBackground,
+
+    // Misc
+    colorPrimary: DARK_THEME.colorPrimary,
+    gradientPeach: DARK_THEME.gradientPeach,
+    gradientAqua: DARK_THEME.gradientAqua,
   },
 
   // Same spacing, border radius, and shadows for consistency
@@ -280,17 +420,12 @@ export const PROFILE_BUTTON_TOKENS = {
     colors: {
       ...LIGHT_TOKENS.colors,
       // Profile button specific overrides
-      surfacePrimary: GREY_COLORS.grey50,
-      borderPrimary: GREY_COLORS.grey200,
     }
   },
   dark: {
     ...DARK_TOKENS,
     colors: {
       ...DARK_TOKENS.colors,
-      // Profile button specific overrides
-      surfacePrimary: GREY_COLORS.grey750,  // Charcoal
-      borderPrimary: GREY_COLORS.grey650,
     }
   }
 };
@@ -334,6 +469,6 @@ export const PROFILE_TOGGLE_TOKENS: { light: ToggleColorTokens; dark: ToggleColo
     textColor: DARK_TOKENS.colors.textPrimary,
     disabledTextColor: DARK_TOKENS.colors.textSecondary,
     // Slightly lighter knob in dark mode for better visibility
-    circleColor: DARK_TOKENS.colors.surfaceSecondary,
+    circleColor: DARK_TOKENS.colors.grey800,
   }
 };

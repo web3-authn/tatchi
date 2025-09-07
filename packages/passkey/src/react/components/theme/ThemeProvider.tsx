@@ -1,9 +1,89 @@
 import React from 'react';
 import { usePasskeyContext } from '../../context';
-import type { DesignTokens } from './design-tokens';
+import type { DesignTokens, UseThemeReturn } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
-import { ThemeContext, ThemeName } from './ThemeContext';
 import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
+
+// Consolidated theme context, hook, scope, and provider in one file to reduce confusion.
+// External API: ThemeProvider, useTheme, ThemeScope, ThemeName
+
+export type ThemeName = 'light' | 'dark';
+
+interface ThemeContextValue {
+  theme: ThemeName;
+  tokens: DesignTokens;
+  isDark: boolean;
+  prefix: string;
+  toggleTheme: () => void;
+  setTheme: (t: ThemeName) => void;
+  // Precomputed CSS variables for convenience
+  vars: React.CSSProperties;
+}
+
+const ThemeContext = React.createContext<ThemeContextValue | null>(null);
+
+const noop = () => {};
+
+// Internal: safe context read with sensible fallback when no provider is present
+export const useThemeContext = (): ThemeContextValue => {
+  const ctx = React.useContext(ThemeContext);
+  if (ctx) return ctx;
+
+  const prefersDark =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)').matches
+      : false;
+  const theme: ThemeName = prefersDark ? 'dark' : 'light';
+  const tokens: DesignTokens = theme === 'dark' ? DARK_TOKENS : LIGHT_TOKENS;
+  const vars = createCSSVariables(tokens, '--w3a');
+  return {
+    theme,
+    tokens,
+    isDark: theme === 'dark',
+    prefix: '--w3a',
+    toggleTheme: noop,
+    setTheme: noop as (t: ThemeName) => void,
+    vars,
+  };
+};
+
+// Public: simple hook used by components
+export function useTheme(): UseThemeReturn {
+  const ctx = useThemeContext();
+  return React.useMemo(() => ({
+    theme: ctx.theme,
+    tokens: ctx.tokens,
+    isDark: ctx.isDark,
+    toggleTheme: ctx.toggleTheme,
+    setTheme: ctx.setTheme,
+  }), [ctx.theme, ctx.tokens, ctx.isDark, ctx.toggleTheme, ctx.setTheme]);
+}
+
+// Public: boundary element that applies CSS variables and data attribute
+export interface ThemeScopeProps {
+  as?: keyof JSX.IntrinsicElements;
+  className?: string;
+  style?: React.CSSProperties;
+  dataAttr?: string; // attribute to mark theme on boundary
+  children?: React.ReactNode;
+}
+
+export const ThemeScope: React.FC<ThemeScopeProps> = ({
+  as = 'div',
+  className,
+  style,
+  dataAttr = 'data-w3a-theme',
+  children,
+}) => {
+  const { theme, vars } = useThemeContext();
+  const Comp: any = as;
+  const attrs: any = { [dataAttr]: theme };
+  return (
+    <Comp className={className} style={{ ...vars, ...style }} {...attrs}>
+      {children}
+    </Comp>
+  );
+};
 
 export interface ThemeOverrides {
   light?: PartialDeep<DesignTokens>;
@@ -24,6 +104,25 @@ function getSystemPrefersDark(): boolean {
   return window.matchMedia('(prefers-color-scheme: dark)').matches;
 }
 
+const THEME_STORAGE_KEY = 'w3a_theme';
+
+function safeLoadStoredTheme(): ThemeName | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const v = window.localStorage?.getItem?.(THEME_STORAGE_KEY);
+    return v === 'light' || v === 'dark' ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeStoreTheme(t: ThemeName) {
+  try {
+    if (typeof window === 'undefined') return;
+    window.localStorage?.setItem?.(THEME_STORAGE_KEY, t);
+  } catch {}
+}
+
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   theme: themeProp,
@@ -32,7 +131,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   tokens,
   prefix = '--w3a',
 }) => {
-  const { passkeyManager } = usePasskeyContext();
+  // Make passkey context optional - ThemeProvider can work without it
+  let passkeyManager;
+  try {
+    ({ passkeyManager } = usePasskeyContext());
+  } catch {
+    // ThemeProvider can work without PasskeyProvider
+    passkeyManager = null;
+  }
   const isControlled = themeProp !== undefined && themeProp !== null;
 
   const baseLight = React.useMemo(() => LIGHT_TOKENS, []);
@@ -58,6 +164,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       const t = passkeyManager?.userPreferences?.getUserTheme?.();
       if (t === 'light' || t === 'dark') return t;
     } catch {}
+    const stored = safeLoadStoredTheme();
+    if (stored) return stored;
     return defaultTheme || (getSystemPrefersDark() ? 'dark' : 'light');
   });
 
@@ -70,8 +178,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   // Subscribe to manager updates if uncontrolled
   React.useEffect(() => {
-    if (isControlled) return;
-    const up = passkeyManager?.userPreferences;
+    if (isControlled || !passkeyManager) return;
+    const up = passkeyManager.userPreferences;
     if (!up?.onThemeChange) return;
     const unsub = up.onThemeChange((t: ThemeName) => setThemeState(t));
     return () => {
@@ -81,7 +189,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   const setTheme = React.useCallback((t: ThemeName) => {
     if (!isControlled) setThemeState(t);
-    try { passkeyManager?.userPreferences?.setUserTheme?.(t); } catch {}
+    try {
+      const didPersistToProfile = !!passkeyManager?.userPreferences?.setUserTheme?.(t);
+      if (!didPersistToProfile) safeStoreTheme(t);
+    } catch {
+      // If persisting to profile fails (e.g., logged out), keep local storage updated
+      safeStoreTheme(t);
+    }
     onThemeChange?.(t);
   }, [isControlled, onThemeChange, passkeyManager]);
 
@@ -102,9 +216,5 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     vars,
   }), [themeState, tokensForTheme, prefix, toggleTheme, setTheme, vars]);
 
-  return (
-    <ThemeContext.Provider value={value}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };
