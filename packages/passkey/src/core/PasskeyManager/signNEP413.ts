@@ -2,7 +2,6 @@ import type { PasskeyManagerContext } from './index';
 import type { BaseHooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
-import { getNonceBlockHashAndHeight } from './actions';
 
 /**
  * NEP-413 message signing parameters
@@ -51,13 +50,14 @@ export interface SignNEP413MessageResult {
  * @param options - Action options for event handling
  * @returns Promise resolving to signing result
  */
-export async function signNEP413Message(
+export async function signNEP413Message(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   params: SignNEP413MessageParams,
   options?: BaseHooksOptions
-): Promise<SignNEP413MessageResult> {
+}): Promise<SignNEP413MessageResult> {
 
+  const { context, nearAccountId, params, options } = args;
   const { nearClient, webAuthnManager } = context;
 
   try {
@@ -84,11 +84,11 @@ export async function signNEP413Message(
     }
 
     // Generate a random 32-byte nonce for NEP-413 signing
-    const { nextNonce, txBlockHash, txBlockHeight } = await getNonceBlockHashAndHeight({
-      nearClient: nearClient,
-      nearAccountId: nearAccountId,
-      nearPublicKeyStr: userData.clientNearPublicKey
-    });
+    const {
+      nextNonce,
+      txBlockHash,
+      txBlockHeight
+    } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(nearClient);
 
     // Get credential for NEP-413 signing
     const vrfChallenge = await webAuthnManager.generateVrfChallenge({
@@ -99,7 +99,7 @@ export async function signNEP413Message(
     });
     const credential = await context.webAuthnManager.getCredentials({
       nearAccountId,
-      challenge: vrfChallenge.outputAs32Bytes(),
+      challenge: vrfChallenge,
       authenticators,
     });
 

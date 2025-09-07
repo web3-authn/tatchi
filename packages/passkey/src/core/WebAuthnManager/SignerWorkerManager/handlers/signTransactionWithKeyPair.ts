@@ -1,6 +1,6 @@
 
 import { SignedTransaction } from '../../../NearClient';
-import { type ActionParams, validateActionParams } from '../../../types/actions';
+import { type ActionArgsWasm, validateActionArgsWasm } from '../../../types/actions';
 import {
   WorkerRequestType,
   WorkerResponseType,
@@ -27,7 +27,7 @@ export async function signTransactionWithKeyPair({
   receiverId: string;
   nonce: string;
   blockHash: string;
-  actions: ActionParams[];
+  actions: ActionArgsWasm[];
 }): Promise<{
   signedTransaction: SignedTransaction;
   logs?: string[];
@@ -38,7 +38,7 @@ export async function signTransactionWithKeyPair({
     // Validate actions
     actions.forEach((action, index) => {
       try {
-        validateActionParams(action);
+        validateActionArgsWasm(action);
       } catch (error) {
         throw new Error(`Action ${index} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }

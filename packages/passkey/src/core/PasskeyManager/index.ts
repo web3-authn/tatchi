@@ -1,7 +1,12 @@
 import { WebAuthnManager } from '../WebAuthnManager';
 import { registerPasskey } from './registration';
 import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
-import { executeAction } from './actions';
+import {
+  executeAction,
+  signTransactionsWithActions,
+  sendTransaction,
+  signAndSendTransactions,
+} from './actions';
 import { recoverAccount, AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import {
   MinimalNearClient,
@@ -20,11 +25,19 @@ import type {
   ActionResult,
   LoginState,
   AccountRecoveryHooksOptions,
+  VerifyAndSignTransactionResult,
+  SignAndSendTransactionHooksOptions,
+  SendTransactionHooksOptions,
 } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { ActionType, type ActionArgs } from '../types/actions';
+import {
+  ActionType,
+  type ActionArgs,
+  type TransactionInput
+} from '../types/actions';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -44,6 +57,7 @@ import {
   type SignNEP413MessageResult
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
+import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -71,8 +85,16 @@ export class PasskeyManager {
     this.configs = configs;
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
-    this.webAuthnManager = new WebAuthnManager(configs);
+    this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
+  }
+
+  /**
+   * Direct access to user preferences manager for convenience
+   * Example: passkeyManager.userPreferences.onThemeChange(cb)
+   */
+  get userPreferences(): UserPreferencesManager {
+    return this.webAuthnManager.getUserPreferences();
   }
 
   getContext(): PasskeyManagerContext {
@@ -126,7 +148,9 @@ export class PasskeyManager {
     options?: LoginHooksOptions
   ): Promise<LoginResult> {
     // Set current user for settings persistence
-    this.webAuthnManager.setCurrentUser(nearAccountId);
+    await this.webAuthnManager.setCurrentUser(toAccountId(nearAccountId));
+    // Set as last user for future sessions
+    await this.webAuthnManager.setLastUser(toAccountId(nearAccountId));
     return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
   }
 
@@ -165,21 +189,35 @@ export class PasskeyManager {
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.webAuthnManager.setConfirmBehavior(behavior);
+    this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
   }
 
   /**
    * Set the unified confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
-    this.webAuthnManager.setConfirmationConfig(config);
+    this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
+  }
+
+  setUserTheme(theme: 'dark' | 'light'): void {
+    this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
   /**
    * Get the current confirmation configuration
    */
   getConfirmationConfig(): ConfirmationConfig {
-    return this.webAuthnManager.getConfirmationConfig();
+    return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
+  }
+
+  /**
+   * Prefetch latest block height/hash (and nonce if context missing) to reduce
+   * perceived latency when the user initiates a signing flow.
+   */
+  async prefetchBlockheight(): Promise<void> {
+    try {
+      await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient);
+    } catch {}
   }
 
   async getRecentLogins(): Promise<{
@@ -246,12 +284,199 @@ export class PasskeyManager {
    * });
    * ```
    */
-  async executeAction(
+  async executeAction(args: {
     nearAccountId: string,
+    receiverId: string,
     actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
-  ): Promise<ActionResult> {
-    return executeAction(this.getContext(), toAccountId(nearAccountId), actionArgs, options);
+  }): Promise<ActionResult> {
+    return executeAction({
+      context: this.getContext(),
+      nearAccountId: toAccountId(args.nearAccountId),
+      receiverId: toAccountId(args.receiverId),
+      actionArgs: args.actionArgs,
+      options: args.options
+    });
+  }
+
+  /**
+   * Sign and send multiple transactions with actions
+   * This method signs transactions with actions and sends them to the network
+   *
+   * @param nearAccountId - NEAR account ID to sign and send transactions with
+   * @param transactionInputs - Transaction inputs to sign and send
+   * @param options - Sign and send transaction options
+   * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
+   * - onError: (error: Error) => void - Optional error callback
+   * - hooks: OperationHooks - Optional operation hooks
+   * - waitUntil: TxExecutionStatus - Optional waitUntil status
+   * - executeSequentially: boolean - Wait for each transaction to finish before sending the next (default: true)
+   * @returns Promise resolving to action results
+   *
+   * @example
+   * ```typescript
+   * // Sign and send multiple transactions in a batch
+   * const results = await passkeyManager.signAndSendTransactions('alice.near', {
+   *   transactions: [
+   *     {
+   *       receiverId: 'bob.near',
+   *       actions: [{
+   *         action_type: ActionType.Transfer,
+   *         deposit: '1000000000000000000000000'
+   *       }],
+   *     },
+   *     {
+   *       receiverId: 'contract.near',
+   *       actions: [{
+   *         action_type: ActionType.FunctionCall,
+   *         method_name: 'log_transfer',
+   *         args: JSON.stringify({ recipient: 'bob.near' }),
+   *         gas: '30000000000000',
+   *         deposit: '0'
+   *       }],
+   *     }
+   *   ],
+   *   options: {
+   *     onEvent: (event) => console.log('Signing and sending progress:', event)
+   *     executeSequentially: true
+   *   }
+   * });
+   * ```
+   */
+  async signAndSendTransactions({
+    nearAccountId,
+    transactions,
+    options = { executeSequentially: true }
+  }: {
+    nearAccountId: string,
+    transactions: TransactionInput[],
+    options?: SignAndSendTransactionHooksOptions,
+  }): Promise<ActionResult[]> {
+    return signAndSendTransactions({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      transactionInputs: transactions,
+      options
+    }).then(txResults => {
+      const txIds = txResults.map(txResult => txResult.transactionId).join(', ');
+      options?.onEvent?.({
+        step: 9,
+        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+        status: ActionStatus.SUCCESS,
+        message: `All transactions sent: ${txIds}`
+      });
+      return txResults;
+    });
+  }
+
+  /**
+   * Batch sign transactions (with actions), allows you to sign transactions
+   * to different receivers with a single TouchID prompt.
+   * This method does not broadcast transactions, use sendTransaction() to do that.
+   *
+   * This method fetches the current nonce and increments it for the next N transactions,
+   * so you do not need to manually increment the nonce for each transaction.
+   *
+   * @param nearAccountId - NEAR account ID to sign transactions with
+   * @param params - Transaction signing parameters
+   * - @param params.transactions: Array of transaction objects with nearAccountId, receiverId, actions, and nonce
+   * - @param params.onEvent: Optional progress event callback
+   * @returns Promise resolving to signed transaction results
+   *
+   * @example
+   * ```typescript
+   * // Sign a single transaction
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [{
+   *     receiverId: 'bob.near',
+   *     actions: [{
+   *       action_type: ActionType.Transfer,
+   *       deposit: '1000000000000000000000000'
+   *     }],
+   *   }],
+   *   onEvent: (event) => console.log('Signing progress:', event)
+   * });
+   *
+   * // Sign multiple transactions in a batch
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [
+   *     {
+   *       receiverId: 'bob.near',
+   *       actions: [{
+   *         action_type: ActionType.Transfer,
+   *         deposit: '1000000000000000000000000'
+   *       }],
+   *     },
+   *     {
+   *       receiverId: 'contract.near',
+   *       actions: [{
+   *         action_type: ActionType.FunctionCall,
+   *         method_name: 'log_transfer',
+   *         args: JSON.stringify({ recipient: 'bob.near' }),
+   *         gas: '30000000000000',
+   *         deposit: '0'
+   *       }],
+   *     }
+   *   ]
+   * });
+   * ```
+   */
+  async signTransactionsWithActions({ nearAccountId, transactions, options }: {
+    nearAccountId: string,
+    transactions: TransactionInput[],
+    options?: ActionHooksOptions
+  }): Promise<VerifyAndSignTransactionResult[]> {
+    return signTransactionsWithActions({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      transactionInputs: transactions,
+      options
+    });
+  }
+
+  /**
+   * Send a signed transaction to the NEAR network
+   * This method broadcasts a previously signed transaction and waits for execution
+   *
+   * @param signedTransaction - The signed transaction to broadcast
+   * @param waitUntil - The execution status to wait for (defaults to FINAL)
+   * @returns Promise resolving to the transaction execution outcome
+   *
+   * @example
+   * ```typescript
+   * // Sign a transaction first
+   * const signedTransactions = await passkeyManager.signTransactionsWithActions('alice.near', {
+   *   transactions: [{
+   *     receiverId: 'bob.near',
+   *     actions: [{
+   *       action_type: ActionType.Transfer,
+   *       deposit: '1000000000000000000000000'
+   *     }],
+   *   }]
+   * });
+   *
+   * // Then broadcast it
+   * const result = await passkeyManager.sendTransaction(
+   *   signedTransactions[0].signedTransaction,
+   *   TxExecutionStatus.FINAL
+   * );
+   * console.log('Transaction ID:', result.transaction_outcome?.id);
+   * ```
+   */
+  async sendTransaction({ signedTransaction, options }: {
+    signedTransaction: SignedTransaction,
+    options?: SendTransactionHooksOptions
+  }): Promise<ActionResult> {
+    return sendTransaction({ context: this.getContext(), signedTransaction, options })
+    .then(txResult => {
+      options?.onEvent?.({
+        step: 9,
+        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
+        status: ActionStatus.SUCCESS,
+        message: `Transaction ${txResult.transactionId} broadcasted`
+      });
+      return txResult;
+    });
   }
 
   ///////////////////////////////////////
@@ -295,12 +520,17 @@ export class PasskeyManager {
    * }
    * ```
    */
-  async signNEP413Message(
+  async signNEP413Message(args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
     options?: BaseHooksOptions
-  ): Promise<SignNEP413MessageResult> {
-    return signNEP413Message(this.getContext(), toAccountId(nearAccountId), params, options);
+  }): Promise<SignNEP413MessageResult> {
+    return signNEP413Message({
+      context: this.getContext(),
+      nearAccountId: toAccountId(args.nearAccountId),
+      params: args.params,
+      options: args.options
+    });
   }
 
   ///////////////////////////////////////
@@ -538,13 +768,16 @@ export class PasskeyManager {
     }
 
     // Use the executeAction method with DeleteKey action
-    return this.executeAction(accountId, {
-      type: ActionType.DeleteKey,
+    return this.executeAction({
+      nearAccountId: accountId,
       receiverId: accountId,
-      publicKey: publicKeyToDelete
-    }, options);
+      actionArgs: {
+        type: ActionType.DeleteKey,
+        publicKey: publicKeyToDelete
+      },
+      options: options
+    });
   }
-
 
 }
 

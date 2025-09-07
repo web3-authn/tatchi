@@ -3,13 +3,18 @@ import {
   type ClientUserData,
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
-import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
+import { PasskeyClientDBManager, StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkeyClientDB';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
 import { TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
+import { UserPreferencesManager } from './userPreferences';
+import UserPreferencesInstance from './userPreferences';
+import { NonceManager } from '../nonceManager';
+import NonceManagerInstance from '../nonceManager';
+
 
 import {
   EncryptedVRFKeypair,
@@ -17,12 +22,12 @@ import {
   VRFInputData,
   VRFChallenge
 } from '../types/vrf-worker';
-import type { ActionParams } from '../types/actions';
+import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
 import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import type { ConfirmationConfig } from '../types/signer-worker';
+import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 
 
 /**
@@ -38,27 +43,46 @@ export class WebAuthnManager {
   private readonly vrfWorkerManager: VrfWorkerManager;
   private readonly signerWorkerManager: SignerWorkerManager;
   private readonly touchIdPrompt: TouchIdPrompt;
-  readonly configs: PasskeyManagerConfigs;
+  private readonly userPreferencesManager: UserPreferencesManager;
+  private readonly nonceManager: NonceManager;
 
-  constructor(configs: PasskeyManagerConfigs) {
+  readonly passkeyManagerConfigs: PasskeyManagerConfigs;
+
+  /**
+   * Public getter for NonceManager instance
+   */
+  getNonceManager(): NonceManager {
+    return this.nonceManager;
+  }
+
+  constructor(
+    passkeyManagerConfigs: PasskeyManagerConfigs,
+    nearClient: NearClient
+  ) {
+    const { vrfWorkerConfigs } = passkeyManagerConfigs;
     // Group VRF worker configuration into a single object
     this.vrfWorkerManager = new VrfWorkerManager({
-      shamirPB64u: configs.vrfWorkerConfigs?.shamir3pass?.p,
-      relayServerUrl: configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl,
-      applyServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
-      removeServerLockRoute: configs.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+      shamirPB64u: vrfWorkerConfigs?.shamir3pass?.p,
+      relayServerUrl: vrfWorkerConfigs?.shamir3pass?.relayServerUrl,
+      applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+      removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
-    this.signerWorkerManager = new SignerWorkerManager();
     this.touchIdPrompt = new TouchIdPrompt();
-    this.configs = configs;
-
+    this.userPreferencesManager = UserPreferencesInstance;
+    this.nonceManager = NonceManagerInstance;
+    this.signerWorkerManager = new SignerWorkerManager(
+      this.vrfWorkerManager,
+      nearClient,
+      UserPreferencesInstance,
+      NonceManagerInstance
+    );
+    this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
-    console.debug('WebAuthnManager: Constructor complete, VRF worker will initialize on-demand');
   }
 
   getCredentials({ nearAccountId, challenge, authenticators }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
     authenticators: ClientAuthenticatorData[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
@@ -246,34 +270,6 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.getUser(nearAccountId);
   }
 
-  /**
-   * Set the current user for settings persistence
-   */
-  setCurrentUser(accountId: string): void {
-    this.signerWorkerManager.setCurrentUser(accountId);
-  }
-
-  /**
-   * Set confirmation behavior setting for the current user
-   */
-  setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    this.signerWorkerManager.setConfirmBehavior(behavior);
-  }
-
-  /**
-   * Set the unified confirmation configuration
-   */
-  setConfirmationConfig(config: ConfirmationConfig): void {
-    this.signerWorkerManager.setConfirmationConfig(config);
-  }
-
-  /**
-   * Get the current confirmation configuration
-   */
-  getConfirmationConfig(): ConfirmationConfig {
-    return this.signerWorkerManager.getConfirmationConfig();
-  }
-
   async getAllUserData(): Promise<ClientUserData[]> {
     return await IndexedDBManager.clientDB.getAllUsers();
   }
@@ -288,6 +284,25 @@ export class WebAuthnManager {
 
   async updateLastLogin(nearAccountId: AccountId): Promise<void> {
     return await IndexedDBManager.clientDB.updateLastLogin(nearAccountId);
+  }
+
+  /**
+   * Set the last logged-in user
+   * @param nearAccountId - The account ID of the user
+   * @param deviceNumber - The device number (defaults to 1)
+   */
+  async setLastUser(nearAccountId: AccountId, deviceNumber: number = 1): Promise<void> {
+    return await IndexedDBManager.clientDB.setLastUser(nearAccountId, deviceNumber);
+  }
+
+  async setCurrentUser(nearAccountId: AccountId): Promise<void> {
+    this.userPreferencesManager.setCurrentUser(nearAccountId);
+
+    // Also initialize NonceManager with user data
+    const userData = await IndexedDBManager.clientDB.getLastUser();
+    if (userData && userData.clientNearPublicKey) {
+      this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+    }
   }
 
   async registerUser(storeUserData: StoreUserDataInput): Promise<ClientUserData> {
@@ -448,15 +463,7 @@ export class WebAuthnManager {
   }
 
   /**
-   * Export private key using PRF-based decryption
-   * Requires TouchId
-   *
-   * SECURITY MODEL: Local random challenge is sufficient for private key export because:
-   * - User must possess physical authenticator device
-   * - Device enforces biometric/PIN verification before PRF access
-   * - No network communication or replay attack surface
-   * - Challenge only needs to be random to prevent pre-computation
-   * - Security comes from device possession + biometrics, not challenge validation
+   * Export private key using PRF-based decryption. Requires TouchId
    */
   async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<{
     accountId: string,
@@ -499,36 +506,24 @@ export class WebAuthnManager {
    * Automatically verifies the authentication with the web3authn contract.
    *
    * @param transactions - Transaction payload containing:
-   *   - nearAccountId: NEAR account ID performing the transaction
    *   - receiverId: NEAR account ID receiving the transaction
    *   - actions: Array of NEAR actions to execute
-   *   - nonce: Transaction nonce
-   * @param blockHashBytes: Recent block hash for transaction freshness
-   * @param contractId: Web3Authn contract ID for verification
-   * @param vrfChallenge: VRF challenge used in authentication
-   * @param credential: WebAuthn credential from TouchID prompt
+   * @param rpcCall: RpcCallPayload containing:
+   *   - contractId: Web3Authn contract ID for verification
+   *   - nearRpcUrl: NEAR RPC endpoint URL
+   *   - nearAccountId: NEAR account ID performing the transaction
+   * @param confirmationConfigOverride: Optional confirmation configuration override
+   * @param onEvent: Optional callback for progress updates during signing
    * @param onEvent - Optional callback for progress updates during signing
    */
   async signTransactionsWithActions({
     transactions,
-    blockHash,
-    contractId,
-    vrfChallenge,
-    nearRpcUrl,
-    onEvent,
+    rpcCall,
     confirmationConfigOverride,
+    onEvent,
   }: {
-    transactions: Array<{
-      nearAccountId: AccountId;
-      receiverId: string;
-      actions: ActionParams[];
-      nonce: string;
-    }>,
-    // Common parameters for all transactions
-    blockHash: string,
-    contractId: string,
-    vrfChallenge: VRFChallenge,
-    nearRpcUrl: string,
+    transactions: TransactionInputWasm[],
+    rpcCall: RpcCallPayload,
     confirmationConfigOverride?: ConfirmationConfig,
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<VerifyAndSignTransactionResult[]> {
@@ -536,17 +531,12 @@ export class WebAuthnManager {
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');
     }
-    return await this.signerWorkerManager.signTransactionsWithActions(
-      {
-        transactions,
-        blockHash,
-        contractId,
-        vrfChallenge,
-        nearRpcUrl,
-        confirmationConfigOverride,
-        onEvent,
-      },
-    );
+    return await this.signerWorkerManager.signTransactionsWithActions({
+      transactions,
+      rpcCall,
+      confirmationConfigOverride,
+      onEvent,
+    });
   }
 
   async signNEP413Message(payload: {
@@ -585,7 +575,7 @@ export class WebAuthnManager {
     }
   }
 
-  // === COSE OPERATIONS (Delegated to WebAuthnWorkers) ===
+  // === COSE OPERATIONS ===
 
   /**
    * Extract COSE public key from WebAuthn attestation object using WASM worker
@@ -608,7 +598,7 @@ export class WebAuthnManager {
     contractId: string,
     credential: PublicKeyCredential,
     vrfChallenge: VRFChallenge,
-    authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
+    authenticatorOptions?: AuthenticatorOptions;
     onEvent?: (update: onProgressEvents) => void
   }): Promise<{
     success: boolean;
@@ -624,7 +614,7 @@ export class WebAuthnManager {
       vrfChallenge,
       authenticatorOptions,
       onEvent,
-      nearRpcUrl: this.configs.nearRpcUrl,
+      nearRpcUrl: this.passkeyManagerConfigs.nearRpcUrl,
     });
   }
 
@@ -676,7 +666,7 @@ export class WebAuthnManager {
         deviceNumber, // Pass device number for multi-device support
         authenticatorOptions, // Pass authenticator options
         onEvent,
-        nearRpcUrl: this.configs.nearRpcUrl,
+        nearRpcUrl: this.passkeyManagerConfigs.nearRpcUrl,
       });
 
       console.debug("On-chain registration completed:", registrationResult);
@@ -755,12 +745,9 @@ export class WebAuthnManager {
     }
   }
 
-  async generateRegistrationCredentials({
-    nearAccountId,
-    challenge,
-  }: {
+  async generateRegistrationCredentials({ nearAccountId, challenge }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.generateRegistrationCredentials({ nearAccountId, challenge });
   }
@@ -771,7 +758,7 @@ export class WebAuthnManager {
     deviceNumber,
   }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>;
+    challenge: VRFChallenge;
     deviceNumber: number;
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({ nearAccountId, challenge, deviceNumber });
@@ -783,7 +770,7 @@ export class WebAuthnManager {
     credentialIds,
   }: {
     nearAccountId: AccountId;
-    challenge: Uint8Array<ArrayBuffer>,
+    challenge: VRFChallenge,
     credentialIds: string[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentialsForRecovery({ nearAccountId, challenge, credentialIds });
@@ -807,7 +794,7 @@ export class WebAuthnManager {
     receiverId: string;
     nonce: string;
     blockHash: string;
-    actions: ActionParams[];
+    actions: ActionArgsWasm[];
   }): Promise<{
     signedTransaction: SignedTransaction;
     logs?: string[];
@@ -820,6 +807,29 @@ export class WebAuthnManager {
       blockHash,
       actions
     });
+  }
+
+  // ==============================
+  // USER SETTINGS
+  // ==============================
+
+  /**
+   * Get user preferences manager
+   */
+  getUserPreferences(): UserPreferencesManager {
+    return this.userPreferencesManager;
+  }
+
+  /**
+   * Clean up resources
+   */
+  destroy(): void {
+    if (this.userPreferencesManager) {
+      this.userPreferencesManager.destroy();
+    }
+    if (this.nonceManager) {
+      this.nonceManager.clear();
+    }
   }
 
 }

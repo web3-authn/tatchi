@@ -1,16 +1,17 @@
 
 import { SignedTransaction } from '../../../NearClient';
-import { type ActionParams, validateActionParams } from '../../../types/actions';
+import { TransactionInputWasm, validateActionArgsWasm } from '../../../types/actions';
 import type { onProgressEvents } from '../../../types/passkeyManager';
 import {
   WorkerRequestType,
+  TransactionPayload,
+  ConfirmationConfig,
   isSignTransactionsWithActionsSuccess,
 } from '../../../types/signer-worker';
-import { VRFChallenge } from '../../../types/vrf-worker';
 import { AccountId } from "../../../types/accountIds";
-import { ConfirmationConfig } from '../../../types/signer-worker';
 import { SignerWorkerManagerContext } from '..';
-
+import { RpcCallPayload } from '../../../types/signer-worker';
+import { toAccountId } from '../../../types/accountIds';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -19,24 +20,13 @@ import { SignerWorkerManagerContext } from '..';
 export async function signTransactionsWithActions({
   ctx,
   transactions,
-  blockHash,
-  contractId,
-  vrfChallenge,
-  nearRpcUrl,
+  rpcCall,
   onEvent,
   confirmationConfigOverride
 }: {
   ctx: SignerWorkerManagerContext,
-  transactions: Array<{
-    nearAccountId: AccountId;
-    receiverId: string;
-    actions: ActionParams[];
-    nonce: string;
-  }>;
-  blockHash: string;
-  contractId: string;
-  vrfChallenge: VRFChallenge;
-  nearRpcUrl: string;
+  transactions: TransactionInputWasm[],
+  rpcCall: RpcCallPayload;
   onEvent?: (update: onProgressEvents) => void;
   confirmationConfigOverride?: ConfirmationConfig;
 }): Promise<Array<{
@@ -51,30 +41,23 @@ export async function signTransactionsWithActions({
       throw new Error('No transactions provided for batch signing');
     }
 
+    // Extract nearAccountId from rpcCall
+    const nearAccountId = rpcCall.nearAccountId;
+
     // Validate all actions in all payloads
     transactions.forEach((txPayload, txIndex) => {
       txPayload.actions.forEach((action, actionIndex) => {
         try {
-          validateActionParams(action);
+          validateActionArgsWasm(action);
         } catch (error) {
           throw new Error(`Transaction ${txIndex}, Action ${actionIndex} validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       });
     });
 
-    // All transactions should use the same account for signing
-    const nearAccountId = transactions[0].nearAccountId;
-
-    // Verify all payloads use the same account
-    for (const tx of transactions) {
-      if (tx.nearAccountId !== nearAccountId) {
-        throw new Error('All transactions must be signed by the same account');
-      }
-    }
-
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }
@@ -82,38 +65,28 @@ export async function signTransactionsWithActions({
     // Credentials and PRF outputs are collected during user confirmation handshake
 
     // Create transaction signing requests
-    const txSigningRequests = transactions.map(tx => ({
-      nearAccountId: tx.nearAccountId,
+    // NOTE: nonce and blockHash are computed in confirmation flow, not here
+    const txSigningRequests: TransactionPayload[] = transactions.map(tx => ({
+      nearAccountId: rpcCall.nearAccountId,
       receiverId: tx.receiverId,
-      actions: JSON.stringify(tx.actions),
-      nonce: tx.nonce,
-      blockHash: blockHash
+      actions: JSON.stringify(tx.actions)
     }));
+
+    const confirmationConfig = confirmationConfigOverride
+      || ctx.userPreferencesManager.getConfirmationConfig();
 
     // Send batch signing request to WASM worker
     const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
-          verification: {
-            contractId: contractId,
-            nearRpcUrl: nearRpcUrl,
-            vrfChallenge: vrfChallenge,
-          },
+          rpcCall: rpcCall,
           decryption: {
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
             encryptedPrivateKeyIv: encryptedKeyData.iv
           },
           txSigningRequests: txSigningRequests,
-          confirmationConfig: confirmationConfigOverride ? {
-            uiMode: confirmationConfigOverride.uiMode,
-            behavior: confirmationConfigOverride.behavior,
-            autoProceedDelay: confirmationConfigOverride.autoProceedDelay,
-          } : {
-            uiMode: ctx.confirmationConfig.uiMode,
-            behavior: ctx.confirmationConfig.behavior,
-            autoProceedDelay: ctx.confirmationConfig.autoProceedDelay,
-          }
+          confirmationConfig: confirmationConfig
         }
       },
       onEvent
@@ -137,14 +110,13 @@ export async function signTransactionsWithActions({
       if (!signedTx || !signedTx.transaction || !signedTx.signature) {
         throw new Error(`Incomplete signed transaction data received for transaction ${index + 1}`);
       }
-
       return {
         signedTransaction: new SignedTransaction({
           transaction: signedTx.transaction,
           signature: signedTx.signature,
           borsh_bytes: Array.from(signedTx.borshBytes || [])
         }),
-        nearAccountId: transactions[index].nearAccountId,
+        nearAccountId: toAccountId(nearAccountId),
         logs: response.payload.logs
       };
     });

@@ -1,7 +1,6 @@
 
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../../config";
 import { SignedTransaction, type NearClient } from '../../../NearClient';
-import { getNonceBlockHashAndHeight } from "../../../PasskeyManager/actions";
 import { WorkerRequestType, isSignVerifyAndRegisterUserSuccess } from '../../../types/signer-worker';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
 import { VRFChallenge } from '../../../types/vrf-worker';
@@ -52,7 +51,7 @@ export async function signVerifyAndRegisterUser({
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const encryptedKeyData = await ctx.nearKeysDB.getEncryptedKey(nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }
@@ -62,7 +61,7 @@ export async function signVerifyAndRegisterUser({
       nextNonce,
       txBlockHash,
       txBlockHeight,
-    } = await getNonceBlockHashAndHeight({ nearClient, nearPublicKeyStr, nearAccountId });
+    } = await ctx.nonceManager.getNonceBlockHashAndHeight(nearClient);
 
     // Step 2: Execute registration transaction via WASM
     // Credentials will be collected during the confirmation flow

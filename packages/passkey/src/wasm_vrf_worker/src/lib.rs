@@ -60,7 +60,7 @@ pub fn main() {
     console_error_panic_hook::set_once();
     // Initialize logger with the configured log level
     wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
-    info!("VRF WASM Worker starting up...");
+    debug!("VRF WASM Worker starting up...");
     debug!("Logging system initialized with level: {:?}", config::CURRENT_LOG_LEVEL);
 }
 

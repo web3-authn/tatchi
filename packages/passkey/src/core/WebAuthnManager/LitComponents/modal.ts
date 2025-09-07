@@ -1,145 +1,134 @@
 // Import types and components needed for mount functions
-import {
-  ModalTxConfirmElement,
-  TransactionPayload,
-  activeResolvers,
-  type ConfirmRenderMode,
-  type ConfirmVariant,
-  type SecureTxSummary,
-  type TxAction
-} from './ModalTxConfirmElement';
+import { TransactionInputWasm, VRFChallenge } from '../../types';
+import { IFRAME_MODAL_ID } from './IframeButtonWithTooltipConfirmer/tags';
+import type IframeModalHost from './IframeModalConfirmer/IframeModalHost';
+import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
+import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 
-// Granular exports for ModalTxConfirmElement
-export {
-  ModalTxConfirmElement,
-  activeResolvers
-} from './ModalTxConfirmElement';
-
+export { ModalTxConfirmElement } from './IframeModalConfirmer/ModalTxConfirmer';
 export type {
   ConfirmRenderMode,
   ConfirmVariant,
   SecureTxSummary,
   TxAction,
-  TransactionPayload
-} from './ModalTxConfirmElement';
+} from './IframeModalConfirmer/ModalTxConfirmer';
 
-/**
- * Mounts a modal transaction confirmation dialog using Lit and closed Shadow DOM.
- * Returns a promise that resolves to true if confirmed, false if cancelled.
- */
-export function mountModalTxConfirm(opts: {
-  container?: HTMLElement | null;
-  summary: SecureTxSummary;
-  txSigningRequests?: TransactionPayload[];
-  mode?: ConfirmRenderMode;
-  variant?: ConfirmVariant;
-  title?: string;
-  cancelText?: string;
-  confirmText?: string;
-  theme?: Record<string, string>;
-}): Promise<boolean> {
-  return new Promise((resolve) => {
-    const attachRoot = opts.container ?? document.body;
+// ========= Iframe Modal helpers =========
 
-    // Remove any existing instance
-    const existing = attachRoot.querySelector('passkey-modal-confirm');
+export async function ensureIframeModalDefined(): Promise<void> {
+  if (customElements.get(IFRAME_MODAL_ID)) return;
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(`script[data-w3a="${IFRAME_MODAL_ID}"]`) as HTMLScriptElement | null;
     if (existing) {
-      existing.remove();
+      existing.addEventListener('load', () => resolve(), { once: true });
+      existing.addEventListener('error', (e) => reject(e), { once: true });
+      return;
     }
-
-    // Create new Lit element
-    const element = new ModalTxConfirmElement();
-
-    // Store the resolver in WeakMap
-    activeResolvers.set(element, resolve);
-
-    // Set properties (Lit automatically handles reactivity)
-      element.mode = opts.mode ?? 'modal';
-  element.variant = opts.variant ?? 'default';
-  element.totalAmount = opts.summary?.totalAmount ?? '';
-    element.method = opts.summary?.method ?? '';
-    element.fingerprint = opts.summary?.fingerprint ?? '';
-    element.title = opts.title ?? 'Confirm Transaction';
-    element.cancelText = opts.cancelText ?? 'Cancel';
-    element.confirmText = opts.confirmText ?? 'Confirm & Sign';
-
-    if (opts.txSigningRequests) {
-      element.txSigningRequests = opts.txSigningRequests;
-    }
-
-    // Apply custom theme if provided
-    if (opts.theme) {
-      Object.entries(opts.theme).forEach(([k, v]) => {
-        element.style.setProperty(k, v);
-      });
-    }
-
-    // Append to DOM - this triggers Lit's lifecycle
-    attachRoot.appendChild(element);
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.async = true;
+    script.dataset.w3a = IFRAME_MODAL_ID;
+    script.src = `/sdk/embedded/${IFRAME_MODAL_ID}.js`;
+    script.onload = () => resolve();
+    script.onerror = (e) => {
+      console.error('[LitComponents/modal] Failed to load iframe modal host bundle');
+      reject(e);
+    };
+    document.head.appendChild(script);
   });
 }
 
-/**
- * Mounts a modal confirmation UI and returns a handle to programmatically close it.
- * Does not return a Promise; caller is responsible for calling close(confirmed) when appropriate.
- *
- * Used in signerWorkerManager.ts to programmatically close the confirmation dialog
- * after TouchID prompt succeeds.
- */
-export function mountModalTxConfirmWithHandle(opts: {
-  container?: HTMLElement | null;
-  summary: SecureTxSummary;
-  txSigningRequests?: TransactionPayload[];
-  mode?: ConfirmRenderMode;
-  variant?: ConfirmVariant;
-  title?: string;
-  cancelText?: string;
-  confirmText?: string;
-  theme?: Record<string, string>;
-  loading?: boolean;
-}): { element: ModalTxConfirmElement; close: (confirmed: boolean) => void } {
-  const attachRoot = opts.container ?? document.body;
-
-  const existing = attachRoot.querySelector('passkey-confirm');
-  if (existing) {
-    existing.remove();
+export async function mountIframeModalHostWithHandle({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  loading,
+  theme,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  loading?: boolean,
+  theme?: 'dark' | 'light',
+}): Promise<{ element: IframeModalHost; close: (confirmed: boolean) => void }> {
+  await ensureIframeModalDefined();
+  const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+  el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+  el.txSigningRequests = txSigningRequests || [];
+  el.intentDigest = summary?.intentDigest;
+  if (vrfChallenge) {
+    el.vrfChallenge = vrfChallenge;
   }
-
-  const element = new ModalTxConfirmElement();
-  // Store a no-op resolver by default; will be replaced if consumer also calls mountModalTxConfirm
-  activeResolvers.set(element as unknown as HTMLElement, () => {});
-
-  element.mode = opts.mode ?? 'modal';
-  element.variant = opts.variant ?? 'default';
-  element.totalAmount = opts.summary?.totalAmount ?? '';
-  element.method = opts.summary?.method ?? '';
-  element.fingerprint = opts.summary?.fingerprint ?? '';
-  element.title = opts.title ?? 'Confirm Transaction';
-  element.cancelText = opts.cancelText ?? 'Cancel';
-  element.confirmText = opts.confirmText ?? 'Confirm & Sign';
-  element.loading = opts.loading ?? false;
-
-  // Handle transaction signing requests (preferred) or legacy actions
-  if (opts.txSigningRequests) {
-    element.txSigningRequests = opts.txSigningRequests;
+  el.showLoading = !!loading;
+  if (theme) {
+    el.theme = theme;
   }
+  document.body.appendChild(el);
+  const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
+  return { element: el, close };
+}
 
-  if (opts.theme) {
-    Object.entries(opts.theme).forEach(([k, v]) => {
-      element.style.setProperty(k, v);
-    });
-  }
-
-  attachRoot.appendChild(element);
-
-  const close = (confirmed: boolean) => {
-    const resolve = activeResolvers.get(element as unknown as HTMLElement);
-    if (resolve) {
-      try { resolve(confirmed); } catch {}
-      activeResolvers.delete(element as unknown as HTMLElement);
+export async function awaitIframeModalDecisionWithHandle({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  theme,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  theme?: 'dark' | 'light',
+}): Promise<{
+  confirmed: boolean;
+  handle: { element: IframeModalHost; close: (confirmed: boolean) => void }
+}> {
+  await ensureIframeModalDefined();
+  return new Promise((resolve) => {
+    const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+    el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+    el.txSigningRequests = txSigningRequests || [];
+    el.intentDigest = summary?.intentDigest;
+    if (vrfChallenge) {
+      el.vrfChallenge = vrfChallenge;
     }
-    element.remove();
-  };
+    if (theme) {
+      el.theme = theme;
+    }
 
-  return { element, close };
+    const onConfirm = (e: Event) => {
+      const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
+      cleanup();
+      const ok = !!(ce?.detail?.confirmed);
+      resolve({
+        confirmed: ok,
+        handle: {
+          element: el,
+          close: (_confirmed: boolean) => { try { el.remove(); } catch {} }
+        }
+      });
+    };
+    const onCancel = () => {
+      cleanup();
+      resolve({
+        confirmed: false,
+        handle: {
+          element: el,
+          close: (_confirmed: boolean) => { try { el.remove(); } catch {} }
+        }
+      });
+    };
+
+    const cleanup = () => {
+      try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
+      try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
+    };
+
+    el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
+    el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
+    document.body.appendChild(el);
+  });
 }

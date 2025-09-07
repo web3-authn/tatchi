@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { usePasskeyContext } from '@web3authn/passkey/react';
-import { EmbeddedTxConfirm, ActionType } from '@web3authn/passkey/react';
+import { TouchIdWithText, usePasskeyContext } from '@web3authn/passkey/react';
+import { SecureSendTxButton, ActionType } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import './EmbeddedTxConfirmPage.css';
@@ -27,10 +27,8 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   // Create transaction data for setting greeting
   const createGreetingAction = (): ActionArgs => {
     const newGreetingMessage = `${greetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
-
     return {
       type: ActionType.FunctionCall,
-      receiverId: WEBAUTHN_CONTRACT_ID,
       methodName: 'set_greeting',
       args: { greeting: newGreetingMessage },
       gas: '30000000000000',
@@ -87,45 +85,66 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="embedded-tx-component-section">
-              <label className="embedded-tx-component-label">Embedded Component:</label>
-              <EmbeddedTxConfirm
+            <div className="test-embedded-section">
+              <label className="test-embedded-section-label">Embedded Component:</label>
+              <SecureSendTxButton
                 nearAccountId={loginState.nearAccountId!}
-                actionArgs={createGreetingAction()}
-                actionOptions={{
+                txSigningRequests={[
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [
+                      createGreetingAction(),
+                      {
+                        type: ActionType.Transfer,
+                        amount: '100000000000000000000' // 0.0001 NEAR
+                      }
+                    ]
+                  },
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [{
+                      type: ActionType.Transfer,
+                      amount: '200000000000000000000' // 0.0002 NEAR
+                    }]
+                  },
+                ]}
+                options={{
                   hooks: {
                     beforeCall: () => {
                       // optional: add any per-call logging here
-                    }
+                    },
+                  },
+                  onError: (error) => {
+                    setError(`Transaction failed: ${error.message}`);
+                    setResult('');
                   }
                 }}
                 buttonStyle={{
                   background: '#0353A4', // cobalt-primary
-                  borderRadius: '12px',
+                  borderRadius: '24px',
                   border: 'none',
                   transition: 'all 0.3s ease',
-                  boxShadow: '0px 1px 2px 0px rgba(0, 0, 0, 0.05)',
+                  boxShadow: '0px 1px 1px 2px rgba(0, 0, 0, 0.1)',
                   fontSize: '16px',
                   height: '44px',
                 }}
                 buttonHoverStyle={{
                   background: '#0466c8', // cobalt-primary-hover
+                  boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
                 }}
+                tooltipPosition={{
+                  width: '330px',
+                  height: 'auto',
+                  position: 'bottom-left'
+                }}
+                txTreeTheme="light"
+                // txTreeTheme="dark"
+                buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
+                onCancel={handleCancel}
                 onSuccess={(result) => {
                   setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
                   setError('');
                 }}
-                tooltipStyle={{
-                  width: '300px',
-                  height: '300px',
-                  position: 'bottom-left',
-                  offset: '8px'
-                }}
-                onError={(error) => {
-                  setError(`Transaction failed: ${error.message}`);
-                  setResult('');
-                }}
-                onCancel={handleCancel}
               />
             </div>
 

@@ -70,10 +70,46 @@ impl Default for AuthenticatorOptions {
 // *                                                                            *
 // ******************************************************************************
 
-// === VERIFICATION TYPE (consolidated) ===
+// === RPC CALL PAYLOAD TYPE ===
+
+/// RPC call parameters for NEAR operations and VRF generation
+/// Used to pass essential parameters for background operations
+#[wasm_bindgen]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RpcCallPayload {
+    #[wasm_bindgen(getter_with_clone, js_name = "contractId")]
+    pub contract_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
+    pub near_rpc_url: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "nearAccountId")]
+    pub near_account_id: String,
+}
+
+// === TRANSACTION CONTEXT TYPE ===
+
+/// Transaction context containing NEAR blockchain data
+/// Computed in the main thread confirmation flow
+#[wasm_bindgen]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransactionContext {
+    #[wasm_bindgen(getter_with_clone, js_name = "nearPublicKeyStr")]
+    pub near_public_key_str: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "nextNonce")]
+    pub next_nonce: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "txBlockHeight")]
+    pub tx_block_height: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "txBlockHash")]
+    pub tx_block_hash: String,
+}
+
+// === VERIFICATION TYPE (deprecated - use RpcCallPayload) ===
 
 /// Consolidated verification type for all flows.
 /// Credentials are collected during the confirmation flow via the main thread.
+/// DEPRECATED: Use RpcCallPayload instead
+#[deprecated(note = "Use RpcCallPayload instead")]
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,6 +168,10 @@ pub struct ConfirmationConfig {
     /// Delay in milliseconds before auto-proceeding (only used with autoProceedWithDelay)
     #[wasm_bindgen(getter_with_clone, js_name = "autoProceedDelay")]
     pub auto_proceed_delay: Option<u32>,
+
+    /// UI theme preference (dark/light)
+    #[wasm_bindgen(getter_with_clone)]
+    pub theme: Option<String>,
 }
 
 impl Default for ConfirmationConfig {
@@ -140,6 +180,7 @@ impl Default for ConfirmationConfig {
             ui_mode: ConfirmationUIMode::Modal,
             behavior: ConfirmationBehavior::RequireClick,
             auto_proceed_delay: Some(2000),
+            theme: Some("dark".to_string()),
         }
     }
 }

@@ -6,7 +6,8 @@ export { PasskeyNearKeysDBManager } from './passkeyNearKeysDB';
 export type {
   ClientUserData,
   UserPreferences,
-  ClientAuthenticatorData
+  ClientAuthenticatorData,
+  IndexedDBEvent
 } from './passkeyClientDB';
 
 export type {
@@ -47,7 +48,6 @@ export class UnifiedIndexedDBManager {
     }
 
     try {
-      console.debug('Initializing IndexedDB databases...');
       // Initialize both databases by calling a simple operation
       // This will trigger the getDB() method in both managers and ensure databases are created
       await Promise.all([
@@ -56,7 +56,6 @@ export class UnifiedIndexedDBManager {
       ]);
 
       this._initialized = true;
-      console.debug('IndexedDB databases initialized successfully - passkeyClientDB and passkeyNearKeysDB ready');
     } catch (error) {
       console.warn('Failed to initialize IndexedDB databases:', error);
       // Don't throw - allow the SDK to continue working, databases will be initialized on first use

@@ -1,7 +1,17 @@
 /* React Component Styles for @web3authn/passkey */
 
 /* Import ProfileSettingsButton styles */
+@import './components/ProfileSettingsButton/AccessKeysModal.css';
+@import './components/ProfileSettingsButton/MenuItem.css';
+@import './components/ProfileSettingsButton/ProfileDropdown.css';
+@import './components/ProfileSettingsButton/Slider.css';
+@import './components/ProfileSettingsButton/TouchIcon.css';
+@import './components/ProfileSettingsButton/TransactionSettingsSection.css';
+@import './components/ProfileSettingsButton/UserAccountButton.css';
 @import './components/ProfileSettingsButton/Web3AuthProfileButton.css';
 
-/* Import QRCodeScanner styles */
+@import './components/PasskeyAuthMenu/PasskeyAuthMenu.css';
+
+/* Import QR Code Scanner styles */
 @import './components/QRCodeScanner.css';
+@import './components/ShowQRCode.css';

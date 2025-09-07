@@ -44,8 +44,10 @@ WORKER_WASM_SIGNER_WASM="wasm_signer_worker_bg.wasm"
 
 # Critical files to check for build freshness
 CRITICAL_FILES=(
-    "src/core/WebAuthnManager/vrfWorkerManager.ts"
-    "src/core/WebAuthnManager/signerWorkerManager.ts"
+    "src/core/WebAuthnManager/VrfWorkerManager/index.ts"
+    "src/core/WebAuthnManager/SignerWorkerManager/index.ts"
+    "src/core/WebAuthnManager/SignerWorkerManager/handlers"
+    "src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow"
     "src/core/WebAuthnManager/index.ts"
     "src/core/PasskeyManager/index.ts"
     "src/core/PasskeyManager/actions.ts"

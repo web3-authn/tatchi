@@ -99,11 +99,10 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
 
     if (!globalPasskeyManager || configChanged) {
-      console.log('PasskeyProvider: Creating new PasskeyManager instance with config:', finalConfig);
+      console.debug('PasskeyProvider: Creating new PasskeyManager instance with config:', finalConfig);
       globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
       globalConfig = finalConfig;
     } else {
-      console.debug('PasskeyProvider: Reusing existing PasskeyManager instance');
     }
 
     return globalPasskeyManager;
@@ -149,7 +148,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Simple logout that only manages React state
   const logout = useCallback(async () => {
     try {
-      console.log("SDK LOGOUT");
       // Clear VRF session when user logs out
       await passkeyManager.logoutAndClearVrfSession();
     } catch (error) {
@@ -164,7 +162,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     }));
   }, [passkeyManager]);
 
-  const loginPasskey = async (nearAccountId: string, options: LoginHooksOptions) => {
+  const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
     const result: LoginResult = await passkeyManager.loginPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -179,24 +177,19 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearAccountId: event.nearAccountId || null,
             nearPublicKey: event.clientNearPublicKey || null,
           }));
-
-          console.log('Login completed - VRF status:', {
-            vrfActive: currentLoginState.vrfActive,
-            isLoggedIn: isVRFLoggedIn
-          });
         }
-        options.onEvent?.(event);
+        options?.onEvent?.(event);
       },
       onError: (error) => {
         logout();
-        options.onError?.(error);
+        options?.onError?.(error);
       }
     });
 
     return result
   }
 
-  const registerPasskey = async (nearAccountId: string, options: RegistrationHooksOptions) => {
+  const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
     const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -211,19 +204,12 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearAccountId: nearAccountId,
             nearPublicKey: currentLoginState.publicKey || null,
           }));
-
-          console.log('Registration completed - VRF status:', {
-            vrfActive: currentLoginState.vrfActive,
-            isLoggedIn: isVRFLoggedIn,
-            nearAccountId: nearAccountId,
-            publicKey: currentLoginState.publicKey
-          });
         }
-        options.onEvent?.(event);
+        options?.onEvent?.(event);
       },
       onError: (error) => {
         logout();
-        options.onError?.(error);
+        options?.onError?.(error);
       }
     });
 
@@ -245,12 +231,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       onEvent: (event) => {
         // Call original event handler
         options?.onEvent?.(event);
-
-        console.log('Device linking event received:', { phase: event.phase, status: event.status, message: event.message });
-
         // Update React state when auto-login completes successfully
         if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === 'success') {
-          console.log('Device linking auto-login completed - refreshing login state...');
           // Refresh login state to update React context after successful auto-login
           refreshLoginState()
         }
@@ -258,20 +240,30 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     });
   }
 
-  const executeAction = async (
+  const executeAction = async (args: {
     nearAccountId: string,
+    receiverId: string,
     actionArgs: ActionArgs,
     options?: ActionHooksOptions
-  ) => {
-    return await passkeyManager.executeAction(nearAccountId, actionArgs, options);
+  }) => {
+    return await passkeyManager.executeAction({
+      nearAccountId: args.nearAccountId,
+      receiverId: args.receiverId,
+      actionArgs: args.actionArgs,
+      options: args.options
+    });
   }
 
-  const signNEP413Message = async (
+  const signNEP413Message = async (args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
     options?: BaseHooksOptions
-  ) => {
-    return await passkeyManager.signNEP413Message(nearAccountId, params, options);
+  }) => {
+    return await passkeyManager.signNEP413Message({
+      nearAccountId: args.nearAccountId,
+      params: args.params,
+      options: args.options
+    });
   }
 
   // Function to manually refresh login state
@@ -289,14 +281,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
           nearPublicKey: loginState.publicKey,
           isLoggedIn: isVRFLoggedIn  // Only logged in if VRF is active
         }));
-
-        console.log('Refreshed login state:', {
-          nearAccountId: loginState.nearAccountId,
-          publicKey: loginState.publicKey,
-          isLoggedIn: isVRFLoggedIn,
-          vrfActive: loginState.vrfActive,
-          hasUserData: !!loginState.userData
-        });
       }
     } catch (error) {
       console.error('Error refreshing login state:', error);
@@ -344,6 +328,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     // Confirmation configuration functions
     setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),
     setConfirmationConfig: (config: any) => passkeyManager.setConfirmationConfig(config),
+    setUserTheme: (theme: 'dark' | 'light') => passkeyManager.setUserTheme(theme),
     getConfirmationConfig: () => passkeyManager.getConfirmationConfig(),
 
     // Account management functions

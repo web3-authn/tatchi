@@ -11,8 +11,8 @@ import { RefreshIcon } from './icons/RefreshIcon';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
-  CERULEAN_BLUE,
-  NEAR_EXPLORER_BASE_URL
+  NEAR_EXPLORER_BASE_URL,
+  COBALT_BLUE
 } from '../config';
 import './GreetingMenu.css';
 
@@ -53,7 +53,6 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
     const actionToExecute: FunctionCallAction = {
       type: ActionType.FunctionCall,
-      receiverId: WEBAUTHN_CONTRACT_ID,
       methodName: 'set_greeting',
       args: { greeting: newGreetingMessage },
       gas: "30000000000000",
@@ -62,56 +61,61 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
     onTransactionUpdate(null); // Clear previous transaction details
 
-    await passkeyManager.executeAction(nearAccountId!, actionToExecute, {
-      onEvent: (event) => {
-        switch (event.phase) {
-          case ActionPhase.STEP_1_PREPARATION:
-            toast.loading('Processing transaction...', { id: 'action' });
-            break;
-          case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-            toast.loading(event.message, { id: 'action' });
-            break;
-          case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-            toast.loading(event.message, { id: 'action' });
-            break;
-          case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-          case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-            toast.loading(event.message, { id: 'action' });
-            break;
-          case ActionPhase.STEP_8_BROADCASTING:
-            toast.success('Sending Transaction', { id: 'action' });
-            break;
-          case ActionPhase.STEP_9_ACTION_COMPLETE:
-            toast.success('Transaction completed successfully!', { id: 'action' });
-            break;
-          case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:
-            toast.error(`Transaction failed: ${event.error}`, { id: 'action' });
-            break;
-        }
-      },
-      waitUntil: TxExecutionStatus.FINAL,
-      hooks: {
-        afterCall: (success: boolean, result?: any) => {
-          if (success && result?.transactionId) {
-            const txId = result.transactionId;
-            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-
-            // Reset greeting input on any successful transaction
-            setGreetingInput("");
-            // Transaction executed successfully - fetch the updated greeting
-            fetchGreeting();
-
-            onTransactionUpdate({
-              id: txId,
-              link: txLink,
-              message: newGreetingMessage
-            });
-          } else if (success) {
-            onTransactionUpdate({ id: 'N/A', link: '#', message: 'Success, no TxID in response' });
-          } else {
-            onTransactionUpdate({ id: 'N/A', link: '#', message: `Failed: ${result?.error || 'Unknown error'}` });
+    await passkeyManager.executeAction({
+      nearAccountId: nearAccountId!,
+      receiverId: WEBAUTHN_CONTRACT_ID,
+      actionArgs: actionToExecute,
+      options: {
+        onEvent: (event) => {
+          switch (event.phase) {
+            case ActionPhase.STEP_1_PREPARATION:
+              toast.loading(event.message, { id: 'action' });
+              break;
+            case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+              toast.loading(event.message, { id: 'action' });
+              break;
+            case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+              toast.loading(event.message, { id: 'action' });
+              break;
+            case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+            case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+              toast.loading(event.message, { id: 'action' });
+              break;
+            case ActionPhase.STEP_8_BROADCASTING:
+              toast.success(event.message, { id: 'action' });
+              break;
+            case ActionPhase.STEP_9_ACTION_COMPLETE:
+              toast.success(event.message, { id: 'action' });
+              break;
+            case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:
+              toast.error(`Transaction failed: ${event.error}`, { id: 'action' });
+              break;
           }
-        }
+        },
+        waitUntil: TxExecutionStatus.FINAL,
+        hooks: {
+          afterCall: (success: boolean, result?: any) => {
+            if (success && result?.transactionId) {
+              const txId = result.transactionId;
+              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+
+              // Reset greeting input on any successful transaction
+              setGreetingInput("");
+              // Transaction executed successfully - fetch the updated greeting
+              fetchGreeting();
+
+              onTransactionUpdate({
+                id: txId,
+                link: txLink,
+                message: newGreetingMessage
+              });
+            } else if (success) {
+              onTransactionUpdate({ id: 'N/A', link: '#', message: 'Success, no TxID in response' });
+            } else {
+              onTransactionUpdate({ id: 'N/A', link: '#', message: `Failed: ${result?.error || 'Unknown error'}` });
+            }
+          }
+        },
       }
     });
   }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting, onTransactionUpdate]);
@@ -145,67 +149,72 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
     const transferAction: TransferAction = {
       type: ActionType.Transfer,
-      receiverId: recipient,
       amount: yoctoAmount,
     };
 
     onTransactionUpdate(null); // Clear previous transaction details
 
-    await passkeyManager.executeAction(nearAccountId!, transferAction, {
-      onEvent: (event) => {
-        switch (event.phase) {
-          case ActionPhase.STEP_1_PREPARATION:
-            toast.loading('Processing NEAR transfer...', { id: 'transfer' });
-            break;
-          case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-            toast.loading(event.message, { id: 'transfer' });
-            break;
-          case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-            toast.loading(event.message, { id: 'transfer' });
-            break;
-          case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-          case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-            toast.loading(event.message, { id: 'transfer' });
-            break;
-          case ActionPhase.STEP_8_BROADCASTING:
-            toast.success(`Successfully sent ${amount} NEAR to ${recipient}!`, { id: 'transfer' });
-            break;
-          case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:
-            toast.error(`Transfer failed: ${event.error}`, { id: 'transfer' });
-            break;
-        }
-      },
-      hooks: {
-        afterCall: (success: boolean, result?: any) => {
-          if (success) {
-            // Reset transfer inputs on successful transaction
-            setTransferRecipient("web3-authn-v5.testnet");
-            setTransferAmount("");
+    await passkeyManager.executeAction({
+      nearAccountId: nearAccountId!,
+      receiverId: recipient,
+      actionArgs: transferAction,
+      options: {
+        onEvent: (event) => {
+          switch (event.phase) {
+            case ActionPhase.STEP_1_PREPARATION:
+              toast.loading('Processing NEAR transfer...', { id: 'transfer' });
+              break;
+            case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+              toast.loading(event.message, { id: 'transfer' });
+              break;
+            case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+              toast.loading(event.message, { id: 'transfer' });
+              break;
+            case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+            case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+              toast.loading(event.message, { id: 'transfer' });
+              break;
+            case ActionPhase.STEP_8_BROADCASTING:
+              toast.success(`Successfully sent ${amount} NEAR to ${recipient}!`, { id: 'transfer' });
+              break;
+            case ActionPhase.ACTION_ERROR || ActionPhase.WASM_ERROR:
+              toast.error(`Transfer failed: ${event.error}`, { id: 'transfer' });
+              break;
           }
+        },
+        hooks: {
+          afterCall: (success: boolean, result?: any) => {
+            if (success) {
+              // Reset transfer inputs on successful transaction
+              setTransferRecipient("web3-authn-v5.testnet");
+              setTransferAmount("");
+            }
 
-          if (success && result?.transactionId) {
-            const txId = result.transactionId;
-            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+            if (success && result?.transactionId) {
+              const txId = result.transactionId;
+              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
 
-            onTransactionUpdate({
-              id: txId,
-              link: txLink,
-              message: `Successfully sent ${amount} NEAR to ${recipient}`
-            });
-          } else if (success) {
-            onTransactionUpdate({
-              id: 'N/A',
-              link: '#',
-              message: `Transfer successful: ${amount} NEAR to ${recipient}`
-            });
-          } else {
-            onTransactionUpdate({
-              id: 'N/A',
-              link: '#',
-              message: `Transfer failed: ${result?.error || 'Unknown error'}`
-            });
+              onTransactionUpdate({
+                id: txId,
+                link: txLink,
+                message: `Successfully sent ${amount} NEAR to ${recipient}`
+              });
+            } else if (success) {
+              onTransactionUpdate({
+                id: 'N/A',
+                link: '#',
+                message: `Transfer successful: ${amount} NEAR to ${recipient}`
+              });
+            } else {
+              onTransactionUpdate({
+                id: 'N/A',
+                link: '#',
+                message: `Transfer failed: ${result?.error || 'Unknown error'}`
+              });
+            }
           }
-        }
+        },
+        waitUntil: TxExecutionStatus.FINAL,
       }
     });
   }, [transferRecipient, transferAmount, isLoggedIn, nearAccountId, passkeyManager, onTransactionUpdate]);
@@ -240,7 +249,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               title="Refresh Greeting"
               className="refresh-icon-button"
             >
-              <RefreshIcon size={22} color={CERULEAN_BLUE}/>
+              <RefreshIcon size={22} color={COBALT_BLUE}/>
             </button>
             <p><strong>{onchainGreeting || "..."}</strong></p>
           </div>

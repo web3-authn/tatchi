@@ -29,10 +29,14 @@ const external = [
   'near-api-js',
 
   // Other common packages
-  'tslib'
+  'tslib',
+  // UI libs used by React components should be provided by the app bundler
+  'lucide-react'
 ];
 
-// External dependencies for embedded component (excludes Lit to bundle it)
+// External dependencies for embedded components.
+// IMPORTANT: Externalize Lit so the host app's bundler (e.g., Vite) serves a consistent copy.
+// Bundling Lit into /sdk/embedded caused internal node_modules paths and ESM export mismatches.
 const embeddedExternal = [
   // React dependencies
   'react',
@@ -188,30 +192,64 @@ export default defineConfig([
       }
     ]
   },
-  // Embedded Transaction Confirmation Button component - bundles Lit for iframe usage
+  // Button-with-Tooltip component - bundles Lit for iframe usage
   {
-    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxButton.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/ButtonWithTooltip.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'embedded-tx-confirm.js'
+      entryFileNames: 'button-with-tooltip.js'
     },
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
     },
   },
-  // Embedded Transaction Confirmation Iframe Host component - new Lit-based host
+  // Modal Transaction Confirm element bundle for iframe usage
   {
-    input: 'src/core/WebAuthnManager/LitComponents/EmbeddedTxConfirm/EmbeddedTxIframe.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/modal.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'embedded-tx-confirm-host.js'
+      entryFileNames: 'modal-tx-confirm.js'
     },
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
+    },
+  },
+  // Embedded Transaction Confirmation Iframe Host component + Modal Host
+  {
+    input: {
+      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
+      'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
+      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
+      'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
+    },
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: '[name].js'
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig
+    },
+  },
+  // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
+  {
+    input: {
+      'halo-border': 'src/core/WebAuthnManager/LitComponents/HaloBorder/index.ts',
+      'passkey-halo-loading': 'src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
+    },
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: '[name].js',
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
     },
   }
 ]);

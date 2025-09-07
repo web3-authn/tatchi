@@ -1,15 +1,16 @@
 import { ClientAuthenticatorData } from '../IndexedDBManager';
 import { base64Decode, base64UrlDecode } from '../../utils/encoders';
+import { outputAs32Bytes, VRFChallenge } from '../types/vrf-worker';
 
 export interface RegisterCredentialsArgs {
   nearAccountId: string,    // NEAR account ID for PRF salts and keypair derivation (always base account)
-  challenge: Uint8Array<ArrayBuffer>,
+  challenge: VRFChallenge,
   deviceNumber?: number, // Optional device number for device-specific user ID (0, 1, 2, etc.)
 }
 
 export interface AuthenticateCredentialsArgs {
   nearAccountId: string,
-  challenge: Uint8Array<ArrayBuffer>,
+  challenge: VRFChallenge,
   authenticators: ClientAuthenticatorData[],
 }
 
@@ -71,7 +72,7 @@ export class TouchIdPrompt {
 
     const credential = await navigator.credentials.get({
       publicKey: {
-        challenge,
+        challenge: outputAs32Bytes(challenge),
         rpId: window.location.hostname,
         allowCredentials: authenticators.map(auth => ({
           id: base64UrlDecode(auth.credentialId),
@@ -105,19 +106,15 @@ export class TouchIdPrompt {
    * @param credentialIds - Array of credential IDs from contract lookup
    * @returns WebAuthn credential with PRF output
    */
-  async getCredentialsForRecovery({
-    nearAccountId,
-    challenge,
-    credentialIds
-  }: {
+  async getCredentialsForRecovery({ nearAccountId, challenge, credentialIds }: {
     nearAccountId: string,
-    challenge: Uint8Array<ArrayBuffer>,
+    challenge: VRFChallenge,
     credentialIds: string[]
   }): Promise<PublicKeyCredential> {
 
     const credential = await navigator.credentials.get({
       publicKey: {
-        challenge,
+        challenge: outputAs32Bytes(challenge),
         rpId: window.location.hostname,
         allowCredentials: credentialIds.map(credentialId => ({
           id: base64UrlDecode(credentialId),
@@ -150,12 +147,9 @@ export class TouchIdPrompt {
    * @param challenge - Random challenge bytes for the registration ceremony
    * @returns Credential with PRF output
    */
-  async generateRegistrationCredentials({
-    nearAccountId,
-    challenge
-  }: {
+  async generateRegistrationCredentials({ nearAccountId, challenge }: {
     nearAccountId: string,
-    challenge: Uint8Array<ArrayBuffer>
+    challenge: VRFChallenge
   }): Promise<PublicKeyCredential> {
     return this.generateRegistrationCredentialsInternal({
       nearAccountId: nearAccountId,
@@ -196,7 +190,7 @@ export class TouchIdPrompt {
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
     const credential = await navigator.credentials.create({
       publicKey: {
-        challenge,
+        challenge: outputAs32Bytes(challenge),
         rp: {
           name: 'WebAuthn VRF Passkey',
           id: window.location.hostname

@@ -42,14 +42,37 @@ export { useDeviceLinking } from './hooks/useDeviceLinking';
 export type { UseDeviceLinkingOptions, UseDeviceLinkingReturn } from './hooks/useDeviceLinking';
 export { useQRFileUpload } from './hooks/useQRFileUpload';
 export type { UseQRFileUploadOptions, UseQRFileUploadReturn } from './hooks/useQRFileUpload';
+export { usePostfixPosition } from './components/PasskeyAuthMenu/usePostfixPosition';
+export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/usePostfixPosition';
 export { TxExecutionStatus } from '../core/types/actions';
 
 // === REACT COMPONENTS ===
 export { ProfileSettingsButton } from './components/ProfileSettingsButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
+// Show QR Code for device linking
+export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
-export { EmbeddedTxConfirm } from './components/EmbeddedTxConfirm';
+export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
+// Sign Up / Sign In menu
+export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
+// Small SVG utility icon used in examples
+export { default as TouchIcon } from './components/ProfileSettingsButton/TouchIcon';
+export { default as QRCodeIcon } from './components/QRCodeIcon';
+// Lit component wrappers
+export {
+  LitHaloBorder,
+  type LitHaloBorderProps
+} from './components/LitHaloBorder';
+export {
+  LitPasskeyHaloLoading,
+  type LitPasskeyHaloLoadingProps
+} from './components/LitPasskeyHaloLoading';
+
+// Theme components
+export { ThemeProvider, ThemeScope, useTheme } from './components/theme';
+export type { UseThemeReturn } from './components/theme';
+export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 
 // === TYPES ===
 export type {
@@ -82,7 +105,7 @@ export type {
   UseRelayerOptions,
   UseRelayerReturn,
   // Embedded transaction confirmation
-  EmbeddedTxConfirmProps,
+  SecureSendTxButtonProps as SecureTxConfirmButtonProps,
 } from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===
@@ -107,15 +130,15 @@ export {
 export type {
   ProfileDimensions,
   ProfileAnimationConfig,
-  ProfileMenuItem,
+  MenuItem,
   ProfileButtonProps,
-  ProfileTriggerProps,
+  UserAccountButtonProps,
   ProfileDropdownProps,
-  ProfileMenuItemProps,
-  ProfileLogoutSectionProps,
+  MenuItemProps,
+  LogoutMenuItemProps,
   ProfileRelayerToggleSectionProps,
   ProfileStateRefs,
-  ProfileCalculationParams,
+  DeviceLinkingScannerParams,
   ToggleColorProps,
 } from './components/ProfileSettingsButton/types';
 

@@ -1,18 +1,15 @@
-
-
-// Color constants for easy customization
-const TOGGLE_COLORS = {
-  activeBackground: '#2A52BE',
-  activeShadow: 'rgba(22, 22, 22, 0.3)',
-  inactiveBackground: '#d1d5db', // gray-300
-  inactiveShadow: 'rgba(0, 0, 0, 0.1)',
-};
+import { PROFILE_TOGGLE_TOKENS } from '../theme/design-tokens';
 
 export interface ToggleColorProps {
   activeBackground?: string;
   activeShadow?: string;
   inactiveBackground?: string;
   inactiveShadow?: string;
+  disabledBackground?: string;
+  disabledCircle?: string;
+  textColor?: string;
+  disabledTextColor?: string;
+  circleColor?: string;
 }
 
 interface ToggleProps {
@@ -25,6 +22,8 @@ interface ToggleProps {
   size?: 'small' | 'large';
   textPosition?: 'left' | 'right';
   colors?: ToggleColorProps;
+  disabled?: boolean;
+  theme?: 'dark' | 'light';
 }
 
 export const Toggle: React.FC<ToggleProps> = ({
@@ -36,10 +35,15 @@ export const Toggle: React.FC<ToggleProps> = ({
   className = '',
   size = 'small',
   textPosition = 'left',
-  colors = TOGGLE_COLORS,
+  colors,
+  disabled = false,
+  theme = 'light',
 }) => {
   const isLarge = size === 'large';
   const isTextOnLeft = textPosition === 'left';
+
+  // Use theme-appropriate colors if no custom colors provided
+  const themeColors = colors || (theme === 'dark' ? PROFILE_TOGGLE_TOKENS.dark : PROFILE_TOGGLE_TOKENS.light);
 
   return (
     <div className={`${className}`}>
@@ -59,23 +63,24 @@ export const Toggle: React.FC<ToggleProps> = ({
         {...(tooltip && showTooltip && { 'data-tooltip': tooltip })}
         style={{
           position: 'relative',
-          cursor: 'pointer',
+          cursor: disabled ? 'not-allowed' : 'pointer',
           userSelect: 'none',
           fontWeight: '500',
-          color: '#333333',
+          color: disabled ? themeColors.disabledTextColor : themeColors.textColor,
           flexDirection: isTextOnLeft ? 'row-reverse' : 'row',
           ...(isLarge && {
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: 'var(--w3a-spacing-sm)'
           })
         }}
       >
         <input
           type="checkbox"
           checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
+          onChange={(e) => !disabled && onChange(e.target.checked)}
           className="toggle-checkbox"
+          disabled={disabled}
           style={{
             opacity: 0,
             position: 'absolute',
@@ -89,14 +94,19 @@ export const Toggle: React.FC<ToggleProps> = ({
             display: 'inline-block',
             width: isLarge ? '44px' : '32px',
             height: isLarge ? '24px' : '16px',
-            backgroundColor: checked ? colors.activeBackground : colors.inactiveBackground,
-            borderRadius: isLarge ? '12px' : '8px',
+            // Support gradients when active by assigning to 'background'
+            ...(disabled
+              ? { backgroundColor: themeColors.disabledBackground }
+              : checked
+                ? { background: themeColors.activeBackground as any }
+                : { backgroundColor: themeColors.inactiveBackground }
+            ),
+            borderRadius: isLarge ? 'var(--w3a-border-radius-lg)' : 'var(--w3a-border-radius-md)',
             transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            cursor: 'pointer',
-            transform: checked ? 'scale(1.02)' : 'scale(1)',
-            boxShadow: checked ? `0 2px 8px ${colors.activeShadow}` : `0 1px 3px ${colors.inactiveShadow}`,
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            transform: disabled ? 'scale(1)' : checked ? 'scale(1.02)' : 'scale(1)',
             ...(isLarge && {
-              [isTextOnLeft ? 'marginLeft' : 'marginRight']: '12px'
+              [isTextOnLeft ? 'marginLeft' : 'marginRight']: 'var(--w3a-spacing-sm)'
             })
           }}
         >
@@ -108,15 +118,14 @@ export const Toggle: React.FC<ToggleProps> = ({
               width: isLarge ? '18px' : '12px',
               left: isLarge ? '3px' : '2px',
               bottom: isLarge ? '3px' : '2px',
-              backgroundColor: 'white',
+              backgroundColor: disabled ? themeColors.disabledCircle : themeColors.circleColor,
               borderRadius: '50%',
-              transform: checked
-                ? `translateX(${isLarge ? '20px' : '15px'}) scale(1.1)`
-                : 'translateX(0px) scale(1)',
+              transform: disabled
+                ? 'translateX(0px) scale(1)'
+                : checked
+                  ? `translateX(${isLarge ? '20px' : '15px'}) scale(1.1)`
+                  : 'translateX(0px) scale(1)',
               transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: checked
-                ? '0 3px 12px rgba(0, 0, 0, 0.3)'
-                : '0 1px 2px rgba(0, 0, 0, 0.2)'
             }}
           />
         </span>
@@ -126,8 +135,8 @@ export const Toggle: React.FC<ToggleProps> = ({
           style={{
             fontWeight: '500',
             fontSize: isLarge ? '14px' : '0.8rem',
-            color: '#333333',
-            [isTextOnLeft ? 'marginRight' : 'marginLeft']: isLarge ? '0' : '8px',
+            color: disabled ? themeColors.disabledBackground : themeColors.textColor,
+            [isTextOnLeft ? 'marginRight' : 'marginLeft']: isLarge ? '0' : 'var(--w3a-spacing-sm)',
             display: 'flex',
             alignItems: 'center',
             height: isLarge ? '24px' : '16px',

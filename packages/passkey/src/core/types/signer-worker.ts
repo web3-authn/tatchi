@@ -9,7 +9,17 @@ export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums direc
 import { StripFree } from ".";
 import type { onProgressEvents } from "./passkeyManager";
 
-export type TransactionPayload = wasmModule.TransactionPayload;
+export type TransactionPayload = StripFree<wasmModule.TransactionPayload>;
+export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
+/**
+ * RPC call parameters for NEAR operations and VRF generation
+ * Used to pass essential parameters for background operations
+ * export interface RpcCallPayload {
+ *    contractId: string;    // Web3Authn contract ID for verification
+ *    nearRpcUrl: string;    // NEAR RPC endpoint URL
+ *    nearAccountId: string; // Account ID for VRF challenge generation
+ * }
+ */
 
 // === WORKER REQUEST TYPE MAPPING ===
 // Define the complete type mapping for each worker request
@@ -77,6 +87,7 @@ export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.S
     uiMode: ConfirmationUIMode;
     behavior: ConfirmationBehavior;
     autoProceedDelay?: number;
+    theme?: 'dark' | 'light';
   };
 };
 export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
@@ -131,8 +142,16 @@ export interface ConfirmationConfig {
   behavior: ConfirmationBehavior;
   /** Delay in milliseconds before auto-proceeding (only used with autoProceed) */
   autoProceedDelay?: number;
+  /** Theme for the confirmation UI: 'dark' | 'light' */
+  theme: 'dark' | 'light';
 }
 
+export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
+  uiMode: 'modal',
+  behavior: 'autoProceed',
+  autoProceedDelay: 1000,
+  theme: 'dark',
+};
 
 // WASM enum types for confirmation configuration
 export type WasmConfirmationUIMode = wasmModule.ConfirmationUIMode;

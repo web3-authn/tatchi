@@ -1,7 +1,6 @@
 import type { PasskeyManagerContext } from './index';
 import { validateNearAccountId } from '../../utils/validation';
 import { getLoginState } from './login';
-import { getNonceBlockHashAndHeight } from './actions';
 import type { VRFInputData } from '../types/vrf-worker';
 import type {
   DeviceLinkingQRData,
@@ -70,11 +69,7 @@ export async function linkDeviceWithQRCode(
       nextNonce,
       txBlockHeight,
       txBlockHash
-    } = await getNonceBlockHashAndHeight({
-      nearClient: context.nearClient,
-      nearPublicKeyStr: nearPublicKeyStr,
-      nearAccountId: device1AccountId
-    });
+    } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
     const nextNextNonce = (BigInt(nextNonce) + BigInt(1)).toString();
     const nextNextNextNonce = (BigInt(nextNonce) + BigInt(2)).toString();
 

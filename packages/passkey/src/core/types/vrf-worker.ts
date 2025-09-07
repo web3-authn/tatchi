@@ -23,9 +23,9 @@ export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
   | WasmShamir3PassClientDecryptVrfKeypairRequest;
 
 import { AccountId } from "./accountIds";
-import { base64UrlDecode } from "../../utils/encoders";
+import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders";
 
-export class VRFChallenge {
+export interface VRFChallenge {
   vrfInput: string;
   vrfOutput: string;
   vrfProof: string;
@@ -34,60 +34,88 @@ export class VRFChallenge {
   rpId: string;
   blockHeight: string;
   blockHash: string;
+}
 
-  constructor(vrfChallengeData: {
-    vrfInput: string;
-    vrfOutput: string;
-    vrfProof: string;
-    vrfPublicKey: string;
-    userId: string;
-    rpId: string;
-    blockHeight: string;
-    blockHash: string;
-  }) {
-    if (!vrfChallengeData.vrfInput || typeof vrfChallengeData.vrfInput !== 'string') {
-      throw new Error('vrfInput must be a non-empty string');
-    }
-    if (!vrfChallengeData.vrfOutput || typeof vrfChallengeData.vrfOutput !== 'string') {
-      throw new Error('vrfOutput must be a non-empty string');
-    }
-    if (!vrfChallengeData.vrfProof || typeof vrfChallengeData.vrfProof !== 'string') {
-      throw new Error('vrfProof must be a non-empty string');
-    }
-    if (!vrfChallengeData.vrfPublicKey || typeof vrfChallengeData.vrfPublicKey !== 'string') {
-      throw new Error('vrfPublicKey must be a non-empty string');
-    }
-    if (!vrfChallengeData.userId || typeof vrfChallengeData.userId !== 'string') {
-      throw new Error('userId must be a non-empty string');
-    }
-    if (!vrfChallengeData.rpId || typeof vrfChallengeData.rpId !== 'string') {
-      throw new Error('rpId must be a non-empty string');
-    }
-    if (!vrfChallengeData.blockHeight || typeof vrfChallengeData.blockHeight !== 'string') {
-      throw new Error('blockHeight must be a non-empty string');
-    }
-    if (!vrfChallengeData.blockHash || typeof vrfChallengeData.blockHash !== 'string') {
-      throw new Error('blockHash must be a non-empty string');
-    }
+/**
+ * Decode VRF output and use first 32 bytes as WebAuthn challenge
+ * @param vrfChallenge - VRF challenge object
+ * @returns 32-byte Uint8Array
+ */
+export function outputAs32Bytes(vrfChallenge: VRFChallenge): Uint8Array {
+  let vrfOutputBytes = base64UrlDecode(vrfChallenge.vrfOutput);
+  return vrfOutputBytes.slice(0, 32);
+}
 
-    this.vrfInput = vrfChallengeData.vrfInput;
-    this.vrfOutput = vrfChallengeData.vrfOutput;
-    this.vrfProof = vrfChallengeData.vrfProof;
-    this.vrfPublicKey = vrfChallengeData.vrfPublicKey;
-    this.userId = vrfChallengeData.userId;
-    this.rpId = vrfChallengeData.rpId;
-    this.blockHeight = vrfChallengeData.blockHeight;
-    this.blockHash = vrfChallengeData.blockHash;
+/**
+ * Validate and create a VRFChallenge object
+ * @param vrfChallengeData - The challenge data to validate
+ * @returns VRFChallenge object
+ */
+export function validateVRFChallenge(vrfChallengeData: {
+  vrfInput: string;
+  vrfOutput: string;
+  vrfProof: string;
+  vrfPublicKey: string;
+  userId: string;
+  rpId: string;
+  blockHeight: string;
+  blockHash: string;
+}): VRFChallenge {
+  if (!vrfChallengeData.vrfInput || typeof vrfChallengeData.vrfInput !== 'string') {
+    throw new Error('vrfInput must be a non-empty string');
+  }
+  if (!vrfChallengeData.vrfOutput || typeof vrfChallengeData.vrfOutput !== 'string') {
+    throw new Error('vrfOutput must be a non-empty string');
+  }
+  if (!vrfChallengeData.vrfProof || typeof vrfChallengeData.vrfProof !== 'string') {
+    throw new Error('vrfProof must be a non-empty string');
+  }
+  if (!vrfChallengeData.vrfPublicKey || typeof vrfChallengeData.vrfPublicKey !== 'string') {
+    throw new Error('vrfPublicKey must be a non-empty string');
+  }
+  if (!vrfChallengeData.userId || typeof vrfChallengeData.userId !== 'string') {
+    throw new Error('userId must be a non-empty string');
+  }
+  if (!vrfChallengeData.rpId || typeof vrfChallengeData.rpId !== 'string') {
+    throw new Error('rpId must be a non-empty string');
+  }
+  if (!vrfChallengeData.blockHeight || typeof vrfChallengeData.blockHeight !== 'string') {
+    throw new Error('blockHeight must be a non-empty string');
+  }
+  if (!vrfChallengeData.blockHash || typeof vrfChallengeData.blockHash !== 'string') {
+    throw new Error('blockHash must be a non-empty string');
   }
 
-  /**
-   * Decode VRF output and use first 32 bytes as WebAuthn challenge
-   * @returns 32-byte Uint8Array
-   */
-  outputAs32Bytes(): Uint8Array {
-    let vrfOutputBytes = base64UrlDecode(this.vrfOutput);
-    return vrfOutputBytes.slice(0, 32);
-  }
+  return {
+    vrfInput: vrfChallengeData.vrfInput,
+    vrfOutput: vrfChallengeData.vrfOutput,
+    vrfProof: vrfChallengeData.vrfProof,
+    vrfPublicKey: vrfChallengeData.vrfPublicKey,
+    userId: vrfChallengeData.userId,
+    rpId: vrfChallengeData.rpId,
+    blockHeight: vrfChallengeData.blockHeight,
+    blockHash: vrfChallengeData.blockHash,
+  };
+}
+
+/**
+ * Create a random VRF challenge
+ * @returns Partial<VRFChallenge> with vrfOutput set, but other fields are undefined
+ * This is used for local operations that don't require a VRF verification
+ */
+export function createRandomVRFChallenge(): Partial<VRFChallenge> {
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const vrfOutput = base64UrlEncode(challenge);
+  return {
+    vrfOutput: vrfOutput,
+    vrfInput: undefined,
+    vrfProof: undefined,
+    vrfPublicKey: undefined,
+    userId: undefined,
+    rpId: undefined,
+    blockHeight: undefined,
+    blockHash: undefined,
+  };
 }
 
 export interface VrfWorkerManagerConfig {

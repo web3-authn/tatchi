@@ -22,8 +22,8 @@ import type {
  */
 
 // Resolve WASM URL using the centralized resolution strategy
-const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'VRF Worker');
-console.debug(`[VRF Worker] WASM URL resolved to: ${wasmUrl.href}`);
+const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'vrf-worker');
+console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 
 const { handle_message } = vrfWasmModule;
 
@@ -39,10 +39,7 @@ let messageQueue: MessageEvent[] = [];
  */
 async function initializeWasmModule(): Promise<void> {
   try {
-    console.debug('[vrf-worker] Starting WASM module initialization...');
     await init(); // init function now handles loading WASM
-    console.debug('[vrf-worker] WASM module initialized successfully');
-
     // Mark WASM as ready and process any queued messages
     wasmReady = true;
     await processQueuedMessages();
@@ -67,7 +64,6 @@ self.onmessage = async (event: MessageEvent) => {
 
 // Process queued messages once WASM is ready
 async function processQueuedMessages(): Promise<void> {
-  console.debug(`[vrf-worker] Processing ${messageQueue.length} queued messages`);
   const queuedMessages = [...messageQueue];
   messageQueue = [];
 
@@ -89,25 +85,17 @@ async function handleMessage(event: MessageEvent): Promise<void> {
 
   // If WASM is not ready, queue the message
   if (!wasmReady) {
-    console.debug(`[vrf-worker] WASM not ready, queueing message: ${data.type}`);
     messageQueue.push(event);
     return;
   }
 
   try {
-    console.debug(`[vrf-worker] Processing message: ${data.type}`);
-
     // Call WASM handle_message with JavaScript object (async)
     const response = await handle_message(data) as VRFWorkerResponse;
-
-    console.debug(`[vrf-worker] WASM response: success=${response.success}`);
-
     // Send response back to main thread
     self.postMessage(response);
-
   } catch (error: unknown) {
     console.error(`[vrf-worker] Message handling error for ${data.type}:`, error);
-
     // Send error response
     const errorResponse = createErrorResponse(data?.id, error);
     self.postMessage(errorResponse);
@@ -146,7 +134,7 @@ function createErrorResponse(
 // === GLOBAL ERROR MONITORING ===
 
 self.onerror = (error) => {
-  console.error('[vrf-worker] Global error:', error);
+  console.error('[vrf-worker] error:', error);
 };
 
 self.onunhandledrejection = (event) => {

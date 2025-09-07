@@ -58,11 +58,13 @@ graph TD
 
 **Option E (Account Provided):**
 ```typescript
+import { outputAs32Bytes } from '../types/vrf-worker';
+
 // Generate proper NEAR keypair immediately
 const vrfChallenge = await generateBootstrapVrfChallenge(context, accountId);
 const credential = await webAuthnManager.touchIdPrompt.generateRegistrationCredentials({
   nearAccountId: accountId,
-  challenge: vrfChallenge.outputAs32Bytes(),
+  challenge: vrfChallenge,
 });
 const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncrypt({
   credential,
@@ -85,7 +87,7 @@ session.tempPrivateKey = tempNearKeyResult.privateKey;
 const vrfChallenge = await webAuthnManager.generateVrfChallenge(vrfInputData);
 const credential = await webAuthnManager.touchIdPrompt.getCredentials({
   nearAccountId: device1AccountId,
-  challenge: vrfChallenge.outputAs32Bytes(),
+  challenge: vrfChallenge,
   authenticators,
 });
 
@@ -146,7 +148,7 @@ if (linkingResult && Array.isArray(linkingResult) && linkingResult.length >= 2) 
 const vrfChallenge = await generateBootstrapVrfChallenge(context, realAccountId);
 const credential = await webAuthnManager.touchIdPrompt.generateRegistrationCredentials({
   nearAccountId: realAccountId,
-  challenge: vrfChallenge.outputAs32Bytes(),
+  challenge: vrfChallenge,
 });
 
 // Re-derive NEAR keypair with proper account-specific salt

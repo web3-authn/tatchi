@@ -58,7 +58,7 @@ pub use confirm_tx_details::{
     request_user_confirmation_with_config,
     generate_request_id,
     create_transaction_summary,
-    compute_intent_digest
+    compute_intent_digest_from_js_inputs
 };
 
 // Confirmation configuration types (from types module)

@@ -126,7 +126,7 @@ impl RegistrationInfoStruct {
 pub async fn handle_sign_verify_and_register_user(
     request: SignVerifyAndRegisterUserRequest
 ) -> Result<RegistrationResult, String> {
-    let mut logs = Vec::new();
+    let logs = Vec::new();
 
     let vrf_challenge = request.verification.vrf_challenge
         .as_ref().ok_or_else(|| "Missing vrfChallenge in verification".to_string())?;
@@ -139,7 +139,7 @@ pub async fn handle_sign_verify_and_register_user(
         Some("{}"),
     );
 
-    let confirmation_result = request_user_registration_confirmation(&request, &mut logs).await
+    let confirmation_result = request_user_registration_confirmation(&request).await
         .map_err(|e| format!("Registration confirmation failed: {}", e))?;
 
     if !confirmation_result.confirmed {
@@ -186,7 +186,7 @@ pub async fn handle_sign_verify_and_register_user(
     send_progress_message(
         ProgressMessageType::RegistrationProgress,
         ProgressStep::ContractVerification,
-        "Starting dual VRF user registration process...",
+        "Starting Web3Authn account registration...",
         Some("{\"step\": 2, \"total\": 4}"),
     );
 

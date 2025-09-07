@@ -1,41 +1,54 @@
 import { forwardRef } from 'react';
-import { ProfileMenuItem } from './ProfileMenuItem';
-import { ProfileRelayerToggleSection } from './ProfileRelayerToggleSection';
-import { ProfileLogoutSection } from './ProfileLogoutSection';
+import { MenuItem } from './MenuItem';
+import { LogoutMenuItem } from './LogoutMenuItem';
+import { TransactionSettingsSection } from './TransactionSettingsSection';
 import type { ProfileDropdownProps } from './types';
+import './ProfileDropdown.css';
 
-interface AnimationState {
-  containerAnimationClass: string;
-  dropdownAnimationClass: string;
-  menuItemAnimationClass: string;
-}
-
-interface AnimationStyles {
-  containerStyle: React.CSSProperties;
-  dropdownStyle: React.CSSProperties;
-  getMenuItemStyle: (index: number, totalItems?: number) => React.CSSProperties;
-}
-
-interface ProfileDropdownWithRefs extends ProfileDropdownProps {
-  menuItemsRef: React.RefObject<(HTMLElement | null)[]>;
-  animationState?: AnimationState;
-  animationStyles?: AnimationStyles;
+interface ProfileDropdownWithRefs extends Omit<ProfileDropdownProps, 'menuItemsRef'> {
+  menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
+  // Transaction settings props
+  currentConfirmConfig?: any;
+  onToggleShowDetails?: () => void;
+  onToggleSkipClick?: () => void;
+  onSetDelay?: (delay: number) => void;
+  onToggleTheme?: () => void;
+  transactionSettingsOpen?: boolean;
 }
 
 export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRefs>(
-  ({ isOpen, menuItems, useRelayer, onRelayerChange, onLogout, onClose, menuItemsRef, toggleColors, animationState, animationStyles }, ref) => {
-    const totalItems = menuItems.length + 2; // menuItems + relayer toggle + logout
+  ({
+    isOpen,
+    menuItems,
+    useRelayer,
+    onRelayerChange,
+    onLogout,
+    onClose,
+    menuItemsRef,
+    toggleColors,
+    currentConfirmConfig,
+    onToggleShowDetails,
+    onToggleSkipClick,
+    onSetDelay,
+    onToggleTheme,
+    transactionSettingsOpen = false,
+    theme = 'dark',
+  }, ref) => {
+    // Only count transaction settings if it's actually rendered (when expanded)
+    const hasTransactionSettings = transactionSettingsOpen && currentConfirmConfig && onToggleShowDetails && onToggleSkipClick && onSetDelay;
+    const totalItems = menuItems.length + (hasTransactionSettings ? 3 : 2); // menuItems + (transaction settings if expanded) + relayer toggle + logout
 
     return (
       <div
         ref={ref}
-        className={`web3authn-profile-dropdown-morphed ${isOpen ? 'visible' : 'hidden'} ${animationState?.dropdownAnimationClass || ''}`}
-        style={animationStyles?.dropdownStyle}
+        className={`w3a-profile-dropdown-morphed ${theme}`}
+        data-state={isOpen ? 'open' : 'closed'}
       >
-        <div className="web3authn-profile-dropdown-menu">
+        <div className="w3a-profile-dropdown-menu">
+
           {/* Menu Items */}
           {menuItems.map((item, index) => (
-            <ProfileMenuItem
+            <MenuItem
               key={index}
               ref={(el) => {
                 if (menuItemsRef.current) {
@@ -45,40 +58,36 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
               item={item}
               index={index}
               onClose={onClose}
-              className={animationState?.menuItemAnimationClass}
-              style={animationStyles?.getMenuItemStyle(index, totalItems)}
+              className=""
+              // Set CSS variable to calculate stagger delay in CSS stylesheet
+              style={{ ['--stagger-item-n' as any]: index }}
             />
           ))}
 
-          {/* Relayer Toggle Section */}
-          <ProfileRelayerToggleSection
-            ref={(el: any) => {
-              if (menuItemsRef.current) {
-                menuItemsRef.current[menuItems.length + 1] = el;
-              }
-            }}
-            useRelayer={useRelayer}
-            onRelayerChange={onRelayerChange}
-            toggleColors={toggleColors}
-            className={animationState?.menuItemAnimationClass}
-            style={animationStyles?.getMenuItemStyle(menuItems.length, totalItems)}
-          />
+          {/* Transaction Settings Section - Always render with animation */}
+          {currentConfirmConfig && onToggleShowDetails && onToggleSkipClick && onSetDelay && (
+            <TransactionSettingsSection
+              currentConfirmConfig={currentConfirmConfig}
+              onToggleShowDetails={onToggleShowDetails}
+              onToggleSkipClick={onToggleSkipClick}
+              onSetDelay={onSetDelay}
+              onToggleTheme={onToggleTheme}
+              isOpen={transactionSettingsOpen}
+              theme={theme}
+              // Set CSS variable to calculate stagger delay in CSS stylesheet
+              style={{ ['--stagger-item-n' as any]: menuItems.length }}
+            />
+          )}
 
           {/* Logout Section */}
-          <ProfileLogoutSection
-            ref={(el: any) => {
-              if (menuItemsRef.current) {
-                menuItemsRef.current[menuItems.length + 2] = el;
-              }
-            }}
+          <LogoutMenuItem
             onLogout={onLogout}
-            className={animationState?.menuItemAnimationClass}
-            style={animationStyles?.getMenuItemStyle(menuItems.length + 1, totalItems)}
+            className="w3a-logout-menu-item"
+            // Set CSS variable to calculate stagger delay in CSS stylesheet
+            style={{ ['--stagger-item-n' as any]: hasTransactionSettings ? menuItems.length + 1 : menuItems.length }}
           />
         </div>
       </div>
     );
   }
 );
-
-ProfileDropdown.displayName = 'ProfileDropdown';

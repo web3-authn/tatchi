@@ -1,0 +1,150 @@
+/* UserAccountButton Component Styles */
+
+.w3a-user-account-button-root {
+  width: fit-content;
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.w3a-user-account-button-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 4px 12px 4px 4px;
+  border-radius: 6px;
+  width: fit-content;
+}
+
+.w3a-user-account-button-trigger:hover {
+  color: var(--w3a-colors-textPrimary);
+  transition: color 0.1s ease;
+}
+
+.w3a-user-account-button-trigger:hover .w3a-profile-button-icon,
+.w3a-user-account-button-trigger:hover .w3a-profile-button-username {
+  color: inherit;
+}
+
+.w3a-user-account-button-trigger:hover svg {
+  color: inherit;
+}
+
+/* Profile Button Trigger States */
+.w3a-user-account-button-trigger.closed .w3a-user-account--user-content {
+  gap: 0px;
+}
+
+.w3a-user-account-button-trigger.open .w3a-user-account--user-content {
+  gap: 4px;
+  padding: 8px 12px 8px 8px;
+  width: 100%;
+}
+
+/* Avatar States and CSS animations */
+.w3a-user-account--avatar.shrunk {
+  transform: scale(0.8);
+}
+
+.w3a-user-account--avatar.expanded {
+  transform: scale(1);
+}
+
+.w3a-user-account--avatar.shrunk svg {
+  transform: scale(1.1);
+  color: var(--w3a-colors-textPrimary)
+}
+
+.w3a-user-account--avatar.expanded svg {
+  transform: scale(1.1);
+  color: var(--w3a-colors-textSecondary) /* same as other MenuItem svg icons */
+}
+
+/* TouchIcon styles were moved to TouchIcon.css */
+
+/* User Details States */
+.w3a-user-account--user-details .w3a-user-account--account-id.hidden {
+  position: absolute;
+  opacity: 0;
+  transform: scale(0.7);
+  max-height: 0;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  transition: opacity 0s ease, transform 0s ease, max-height 0s ease;
+}
+
+.w3a-user-account--user-details .w3a-user-account--account-id.visible {
+  opacity: 1;
+  display: block;
+  transform: scale(1);
+  max-height: 2rem;
+  margin: -0.2rem 0 0 0;
+  padding: 0;
+  transition: opacity 0.2s ease 0.2s, transform 0s ease 0s, max-height 0s;
+}
+
+/* Username is always visible */
+.w3a-user-account--user-details .w3a-user-account--username {
+  display: block;
+  transition: margin-top 0.2s ease;
+}
+
+/* Username margin animation based on open/closed state */
+.w3a-user-account-button-trigger.closed .w3a-user-account--username {
+  margin-top: 0rem;
+}
+
+.w3a-user-account-button-trigger.open .w3a-user-account--username {
+  margin-top: 0rem;
+}
+
+/* User details container is always visible to show username */
+.w3a-user-account--user-details {
+  display: block;
+  transform: translateY(0);
+  transition: transform 100ms linear;
+  flex: 1;
+}
+
+.w3a-user-account--user-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: gap 0.1s ease;
+}
+
+.w3a-user-account--avatar {
+  width: 40px;
+  height: 40px;
+  margin-right: 4px;
+  background: var(--w3a-colors-colorSurface);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.w3a-user-account--username {
+  font-weight: 500;
+  color: var(--w3a-colors-textPrimary);
+  font-size: 14px;
+  margin: 0;
+  margin-top: 0;
+}
+
+.w3a-user-account--account-id {
+  font-size: 0.7rem;
+  color: var(--w3a-colors-textSecondary);
+  margin: 0;
+  text-decoration: none;
+  transition: color 0.1s ease, opacity 0.1s ease, transform 0s ease; cursor: pointer;
+}
+
+.w3a-user-account--account-id:hover {
+  color: var(--w3a-colors-textPrimary);
+  text-decoration: underline;
+}

@@ -75,7 +75,8 @@
   "homepage": "https://github.com/web3-authn",
   "peerDependencies": {
     "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react-dom": ">=16.8.0",
+    "react-hot-toast": ">=2.0.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -86,11 +87,13 @@
     }
   },
   "dependencies": {
+    "@lit/react": "^1.0.8",
     "@near-js/transactions": "^2.0.1",
     "@near-js/types": "^2.0.1",
     "@types/qrcode": "^1.5.5",
     "jsqr": "^1.4.0",
     "lit": "^3.3.1",
+    "lucide-react": "^0.541.0",
     "qrcode": "^1.5.4",
     "tslib": "^2.8.1"
   },
@@ -111,6 +114,7 @@
     "js-sha256": "^0.11.1",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.5.2",
     "rolldown": "^1.0.0-beta.27",
     "rollup-plugin-css-only": "^4.5.2",
     "typescript": "^5.8.3"

@@ -1,4 +1,6 @@
 import type { ToggleColorProps } from './Toggle';
+import type { DeviceLinkingSSEEvent, LinkDeviceResult } from '@/index';
+import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
 
 export interface ProfileDimensions {
   width: number;
@@ -11,22 +13,35 @@ export interface ProfileAnimationConfig {
   ease: string;
 }
 
-export interface ProfileMenuItem {
+export interface MenuItem {
   icon: React.ReactNode;
   label: string;
   description: string;
   disabled: boolean;
   onClick?: () => void;
+  // When true, clicking this item will NOT close the dropdown
+  keepOpenOnClick?: boolean;
+}
+
+export interface DeviceLinkingScannerParams {
+  onDeviceLinked?: (result: LinkDeviceResult) => void;
+  onError?: (error: Error) => void;
+  onClose?: () => void;
+  onEvent?: (event: DeviceLinkingSSEEvent) => void;
+  fundingAmount?: string;
 }
 
 export interface ProfileButtonProps {
-  username: string | null;
-  nearAccountId?: string;
+  nearAccountId: string;
+  username?: string | null;
   onLogout?: () => void;
   toggleColors?: ToggleColorProps;
+  nearExplorerBaseUrl?: string;
+  // QR Code Scanner parameters
+  deviceLinkingScannerParams?: DeviceLinkingScannerParams;
 }
 
-export interface ProfileTriggerProps {
+export interface UserAccountButtonProps {
   username: string;
   fullAccountId?: string;
   isOpen: boolean;
@@ -34,27 +49,37 @@ export interface ProfileTriggerProps {
   isHovered?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
+  nearExplorerBaseUrl?: string;
+  theme?: EmbeddedTxButtonTheme;
 }
 
 export interface ProfileDropdownProps {
   isOpen: boolean;
-  menuItems: ProfileMenuItem[];
+  menuItems: MenuItem[];
   useRelayer: boolean;
   onRelayerChange: (value: boolean) => void;
   onLogout: () => void;
   onClose: () => void;
   toggleColors?: ToggleColorProps;
+  theme?: EmbeddedTxButtonTheme;
+  currentConfirmConfig?: any;
+  onToggleShowDetails?: () => void;
+  onToggleSkipClick?: () => void;
+  onSetDelay?: (delay: number) => void;
+  onToggleTheme?: () => void;
+  transactionSettingsOpen?: boolean;
+  menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
 }
 
-export interface ProfileMenuItemProps {
-  item: ProfileMenuItem;
+export interface MenuItemProps {
+  item: MenuItem;
   index: number;
   onClose: () => void;
   className?: string;
   style?: React.CSSProperties;
 }
 
-export interface ProfileLogoutSectionProps {
+export interface LogoutMenuItemProps {
   onLogout: () => void;
   className?: string;
   style?: React.CSSProperties;
@@ -68,21 +93,22 @@ export interface ProfileRelayerToggleSectionProps {
   style?: React.CSSProperties;
 }
 
+export interface TransactionSettingsSectionProps {
+  currentConfirmConfig: any;
+  onToggleShowDetails: () => void;
+  onToggleSkipClick: () => void;
+  onSetDelay: (delay: number) => void;
+  onToggleTheme?: () => void;
+  className?: string;
+  style?: React.CSSProperties;
+  isOpen?: boolean;
+  theme?: EmbeddedTxButtonTheme;
+}
+
 export interface ProfileStateRefs {
   buttonRef: React.RefObject<HTMLDivElement>;
   dropdownRef: React.RefObject<HTMLDivElement>;
   menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
 }
 
-export interface ProfileCalculationParams {
-  accountName: string;
-  numMenuItems: number;
-  profileButtonHeight: number;
-  menuItemHeight: number;
-  toggleSectionHeight: number;
-  logoutSectionHeight: number;
-  bottomBuffer: number;
-}
-
-// Re-export for convenience
 export type { ToggleColorProps };

@@ -11,10 +11,11 @@ import type {
   LinkDeviceFlow,
   LinkDeviceResult,
   SignNEP413MessageParams,
-  SignNEP413MessageResult
+  SignNEP413MessageResult,
+  PasskeyManagerContext,
 } from '../core/PasskeyManager';
+import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
-import type { AccountId } from '../core/types/accountIds';
 import type { ActionArgs } from '../core/types/actions';
 import type {
   StartDeviceLinkingOptionsDevice2,
@@ -30,9 +31,11 @@ import type {
   LoginStatus,
   ActionPhase,
   ActionStatus,
+  ActionResult,
   AccountRecoveryHooksOptions,
-  ActionResult
+  SignAndSendTransactionHooksOptions,
 } from '../core/types/passkeyManager';
+import type { EventCallback, ActionSSEEvent } from '../core/types/passkeyManager';
 import type { AccessKeyList } from '../core/NearClient';
 
 // Type-safe event handler for device linking events
@@ -159,19 +162,24 @@ export interface PasskeyContextType {
   ////////////////////////////
 
   // Registration and login functions
-  registerPasskey: (nearAccountId: string, options: RegistrationHooksOptions) => Promise<RegistrationResult>;
-  loginPasskey: (nearAccountId: string, options: LoginHooksOptions) => Promise<LoginResult>;
+  registerPasskey: (nearAccountId: string, options?: RegistrationHooksOptions) => Promise<RegistrationResult>;
+  loginPasskey: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginResult>;
   logout: () => void;
 
   // Execute actions
-  executeAction: (
-    nearAccountId: string,
-    actionArgs: ActionArgs,
-    options?: ActionHooksOptions
-  ) => Promise<ActionResult>;
+  executeAction: (args: {
+    nearAccountId: string;
+    receiverId: string;
+    actionArgs: ActionArgs;
+    options?: ActionHooksOptions;
+  }) => Promise<ActionResult>;
 
   // NEP-413 message signing
-  signNEP413Message: (nearAccountId: string, params: SignNEP413MessageParams, options?: BaseHooksOptions) => Promise<SignNEP413MessageResult>;
+  signNEP413Message: (args: {
+    nearAccountId: string;
+    params: SignNEP413MessageParams;
+    options?: BaseHooksOptions;
+  }) => Promise<SignNEP413MessageResult>;
 
   // Account recovery functions
   startAccountRecoveryFlow: (options: AccountRecoveryHooksOptions) => AccountRecoveryFlow;
@@ -204,6 +212,7 @@ export interface PasskeyContextType {
   setConfirmBehavior: (behavior: ConfirmationBehavior) => void;
   setConfirmationConfig: (config: ConfirmationConfig) => void;
   getConfirmationConfig: () => ConfirmationConfig;
+  setUserTheme: (theme: 'dark' | 'light') => void;
 
   // Account management functions
   viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;
@@ -248,39 +257,20 @@ export type {
   ScanAndLinkDeviceOptionsDevice1,
 } from '../core/types/linkDevice';
 
-// === EMBEDDED TRANSACTION CONFIRMATION TYPES ===
-export interface EmbeddedTxConfirmProps {
+// === Secure Send Transaction Button type ===
+export interface SecureSendTxButtonProps {
   /** NEAR account ID */
   nearAccountId: string;
-  /** Action arguments (single action or array of actions) */
-  actionArgs: ActionArgs | ActionArgs[];
-  /** Component title */
-  title?: string;
-  /** Cancel button text */
-  cancelText?: string;
-  /** Confirm button text */
-  confirmText?: string;
-  /** Visual variant */
-  variant?: 'default' | 'warning' | 'danger';
-  /** Optional action hook options passed into executeAction */
-  actionOptions?: ActionHooksOptions;
+  /** Transaction payloads to sign */
+  txSigningRequests: TransactionInput[];
+  /** Optional hook options passed into signAndSendTransactions */
+  options?: SignAndSendTransactionHooksOptions;
   /** Callback when user cancels */
   onCancel?: () => void;
-  /** Loading state */
-  loading?: boolean;
-  /** Iframe height */
-  height?: string | number;
-  /** Iframe width */
-  width?: string | number;
-  /** Sandbox attributes for the iframe */
-  sandbox?: string;
-  /** Whether to show loading state during processing */
-  showLoading?: boolean;
+  /** Callback for SSE-style action events */
+  onEvent?: EventCallback<ActionSSEEvent>;
   /** Callback when transaction is successfully signed */
   onSuccess?: (result: any) => void;
-  /** Callback when transaction fails */
-  onError?: (error: Error) => void;
-  /** Whether to auto-execute the transaction (default: true) */
-  autoExecute?: boolean;
+  /** Notifies when Touch ID prompt loads/unloads */
+  onLoadTouchIdPrompt?: (loading: boolean) => void;
 }
-

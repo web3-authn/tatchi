@@ -101,10 +101,10 @@ export async function deriveNearKeypairAndEncrypt({
       timestamp: Date.now()
     };
 
-    await ctx.nearKeysDB.storeEncryptedKey(keyData);
+    await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
 
     // Verify storage
-    const verified = await ctx.nearKeysDB.verifyKeyStorage(nearAccountId);
+    const verified = await ctx.indexedDB.nearKeysDB.verifyKeyStorage(nearAccountId);
     if (!verified) {
       throw new Error('Key storage verification failed');
     }

@@ -35,19 +35,16 @@ export const useSetGreeting = (): SetGreetingHook => {
 
     // Global concurrent protection
     if (globalFetchInProgress) {
-      console.log('Greeting fetch already in progress globally');
       return { success: false, error: 'Already fetching globally' };
     }
 
     // Rate limiting protection
     if (now - lastGlobalFetchTime < MIN_FETCH_INTERVAL) {
-      console.log('Rate limited - too soon since last fetch');
       return { success: false, error: 'Rate limited' };
     }
 
     // Instance-level concurrent protection
     if (isCurrentlyFetching.current) {
-      console.log('Greeting fetch already in progress for this instance');
       return { success: false, error: 'Already fetching' };
     }
 
@@ -65,7 +62,6 @@ export const useSetGreeting = (): SetGreetingHook => {
       });
 
       const greeting = result;
-      console.log('✅ Greeting fetched successfully:', greeting);
       setOnchainGreeting(greeting);
 
       return { success: true, greeting };
@@ -88,7 +84,6 @@ export const useSetGreeting = (): SetGreetingHook => {
   // Auto-fetch greeting on mount with protection against React StrictMode double-mounting
   useEffect(() => {
     if (hasFetchedOnMount.current) {
-      console.log('Skipping duplicate mount fetch due to React StrictMode');
       return;
     }
 

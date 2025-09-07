@@ -4,13 +4,17 @@ import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { generateBootstrapVrfChallenge } from './registration';
-import { getNonceBlockHashAndHeight } from './actions';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
-import { ActionType, type ActionParams } from '../types/actions';
+import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import {
+  VRFChallenge,
+  outputAs32Bytes,
+  type EncryptedVRFKeypair,
+  type ServerEncryptedVrfKeypair
+} from '../types/vrf-worker';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 
 import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
@@ -109,7 +113,7 @@ export class LinkDeviceFlow {
         // Note: Device number will be determined later when Device1 creates the mapping
         const credential = await this.context.webAuthnManager.generateRegistrationCredentials({
           nearAccountId: accountId,
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Derive NEAR keypair with proper account-specific salt
@@ -350,7 +354,7 @@ export class LinkDeviceFlow {
     try {
       const linkingResult = await getDeviceLinkingAccountContractCall(
         this.context.nearClient,
-        this.context.webAuthnManager.configs.contractId,
+        this.context.configs.contractId,
         this.session.nearPublicKey
       );
 
@@ -728,7 +732,7 @@ export class LinkDeviceFlow {
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use account ID for consistent PRF salts across devices
           deviceNumber: deviceNumber!, // Use device number discovered from contract during polling
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Store credential and challenge in session for later cleanup
@@ -767,11 +771,7 @@ export class LinkDeviceFlow {
         const {
           nextNonce,
           txBlockHash,
-        } = await getNonceBlockHashAndHeight({
-          nearClient: this.context.nearClient,
-          nearPublicKeyStr: this.session.nearPublicKey, // Use temp key for nonce info
-          nearAccountId: realAccountId
-        });
+        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
 
         await this.executeKeySwapTransaction(
           nearKeyResultStep1.publicKey,
@@ -783,11 +783,7 @@ export class LinkDeviceFlow {
         const {
           nextNonce: newKeyNonce,
           txBlockHash: newTxBlockHash,
-        } = await getNonceBlockHashAndHeight({
-          nearClient: this.context.nearClient,
-          nearPublicKeyStr: nearKeyResultStep1.publicKey, // Use NEW key for its actual nonce
-          nearAccountId: realAccountId
-        });
+        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
         console.log("Key Replacement Transaction Block Hash retrieved.");
         console.log("NewKey's actual nonce >>>> newKeyNonce", newKeyNonce);
 
@@ -797,7 +793,7 @@ export class LinkDeviceFlow {
           credential: credential,
           options: {
             vrfChallenge: vrfChallenge,
-            contractId: this.context.webAuthnManager.configs.contractId,
+            contractId: this.context.configs.contractId,
             nonce: newKeyNonce, // Use NEW key's actual nonce for the registration transaction
             blockHash: newTxBlockHash,
             // Pass the deterministic VRF public key for contract call
@@ -855,7 +851,7 @@ export class LinkDeviceFlow {
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use base account ID for consistent PRF salts across devices
           deviceNumber: deviceNumber!, // Use device number discovered during polling
-          challenge: vrfChallenge.outputAs32Bytes(),
+          challenge: vrfChallenge,
         });
 
         // Store regenerated credential and challenge in session
@@ -912,7 +908,7 @@ export class LinkDeviceFlow {
       console.log(`   - New key: ${newPublicKey}`);
 
       // Build actions: AddKey new + DeleteKey old
-      const actions: ActionParams[] = [
+      const actions: ActionArgsWasm[] = [
         {
           action_type: ActionType.AddKey,
           public_key: newPublicKey,

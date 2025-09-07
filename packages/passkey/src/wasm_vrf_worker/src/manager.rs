@@ -1,4 +1,4 @@
-use log::{info, debug};
+use log::{info, debug, warn};
 use js_sys::Date;
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
@@ -69,14 +69,13 @@ impl VRFKeyManager {
             Some(p) => match Shamir3Pass::new(p) {
                 Ok(sp) => sp,
                 Err(e) => {
-                    info!("Failed to create Shamir3Pass with provided p: {:?}, using default", e);
+                    warn!("Failed to create Shamir3Pass with provided p: {:?}, using default", e);
                     Shamir3Pass::new_default()
                 }
             },
             None => Shamir3Pass::new_default(),
         };
 
-        info!("VRFKeyManager ready (no user session active)");
         Self {
             vrf_keypair: None,
             session_active: false,
@@ -121,7 +120,6 @@ impl VRFKeyManager {
         self.session_active = true;
         self.session_start_time = Date::now();
 
-        info!("VRF keypair generated and stored in memory");
         let mut result = GenerateVrfKeypairBootstrapResponse {
             vrf_public_key: vrf_public_key_b64,
             vrf_challenge_data: None,
@@ -146,9 +144,8 @@ impl VRFKeyManager {
         expected_public_key: String,
         prf_key: Vec<u8>,
     ) -> VrfResult<EncryptedVrfKeypairResponse> {
-        info!("Encrypting VRF keypair with PRF output");
         debug!(
-            "Expected public key: {}...",
+            "Encrypting VRF keypair with PRF output. Expected public key: {}...",
             &expected_public_key[..DISPLAY_TRUNCATE_LENGTH.min(expected_public_key.len())]
         );
 
@@ -174,9 +171,7 @@ impl VRFKeyManager {
             vrf_public_key,
             encrypted_vrf_keypair
         ) = self.encrypt_vrf_keypair_data(vrf_keypair, &prf_key)?;
-
-        info!("VRF keypair encrypted with PRF output");
-        debug!("VRF keypair ready for persistent storage");
+        debug!("VRF keypair encrypted with PRF output");
 
         Ok(EncryptedVrfKeypairResponse {
             vrf_public_key,
@@ -190,8 +185,7 @@ impl VRFKeyManager {
         encrypted_vrf_keypair: EncryptedVRFKeypair,
         prf_key: Vec<u8>,
     ) -> VrfResult<()> {
-        info!("Unlocking VRF keypair for {}", near_account_id);
-
+        debug!("Unlocking VRF keypair for {}", near_account_id);
         // Clear any existing keypair (automatic zeroization via ZeroizeOnDrop)
         self.vrf_keypair.take();
 
@@ -203,7 +197,7 @@ impl VRFKeyManager {
         self.session_active = true;
         self.session_start_time = Date::now();
 
-        info!("VRF keypair unlocked successfully");
+        debug!("VRF keypair unlocked successfully");
         Ok(())
     }
 
@@ -213,7 +207,7 @@ impl VRFKeyManager {
         near_account_id: String,
         keypair_data: VRFKeypairData,
     ) -> VrfResult<()> {
-        info!("Loading plaintext VRF keypair for {}", near_account_id);
+        info!("Loading VRF keypair for {}", near_account_id);
         // Clear any existing keypair
         self.vrf_keypair.take();
         // Reconstruct ECVRFKeyPair from stored bytes
@@ -221,7 +215,6 @@ impl VRFKeyManager {
         self.vrf_keypair = Some(SecureVRFKeyPair::new(keypair));
         self.session_active = true;
         self.session_start_time = Date::now();
-        info!("Plaintext VRF keypair loaded into memory");
         Ok(())
     }
 
@@ -280,7 +273,6 @@ impl VRFKeyManager {
             block_hash: base64_url_encode(&block_hash_bytes),
         };
 
-        info!("VRF challenge generated successfully using provided keypair");
         Ok(result)
     }
 
@@ -362,7 +354,7 @@ impl VRFKeyManager {
         self.vrf_keypair = Some(SecureVRFKeyPair::new(vrf_keypair));
         self.session_active = true;
         self.session_start_time = js_sys::Date::now();
-        info!("VRF keypair stored in memory for future operations");
+        debug!("VRF keypair stored in memory for future operations");
     }
 
     // === PRIVATE HELPER METHODS ===

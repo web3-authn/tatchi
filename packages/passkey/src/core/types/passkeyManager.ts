@@ -1,4 +1,4 @@
-import { TxExecutionStatus } from "@near-js/types";
+import { FinalExecutionOutcome, TxExecutionStatus } from "@near-js/types";
 import type { EncryptedVRFKeypair } from './vrf-worker';
 import { AccountId } from "./accountIds";
 import { SignedTransaction } from "../NearClient";
@@ -103,7 +103,7 @@ export interface OperationHooks {
   beforeCall?: () => void | Promise<void>;
   afterCall?: (
     success: boolean,
-    result?: ActionResult | LoginResult | RegistrationResult | Error
+    result?: ActionResult[] | LoginResult | RegistrationResult | Error
   ) => void | Promise<void>;
 }
 
@@ -317,8 +317,6 @@ export interface ActionEventStep9 extends BaseActionSSEEvent {
   data?: any;
 }
 
-
-
 export interface ActionEventError extends BaseActionSSEEvent {
   step: 0;
   phase: ActionPhase.ACTION_ERROR;
@@ -491,6 +489,28 @@ export interface ActionHooksOptions {
   waitUntil?: TxExecutionStatus;
 }
 
+export interface SignAndSendTransactionHooksOptions {
+  onEvent?: EventCallback<ActionSSEEvent>;
+  onError?: (error: Error) => void;
+  hooks?: OperationHooks;
+  waitUntil?: TxExecutionStatus;
+  executeSequentially?: boolean; // wait for each transaction to finish before sending the next
+}
+
+export interface SignTransactionHooksOptions {
+  onEvent?: EventCallback<ActionSSEEvent>;
+  onError?: (error: Error) => void;
+  hooks?: Omit<OperationHooks, 'afterCall'>;
+  waitUntil?: TxExecutionStatus;
+}
+
+export interface SendTransactionHooksOptions {
+  onEvent?: EventCallback<ActionSSEEvent>;
+  onError?: (error: Error) => void;
+  hooks?: Omit<OperationHooks, 'beforeCall'>;
+  waitUntil?: TxExecutionStatus;
+}
+
 export interface AccountRecoveryHooksOptions {
   onEvent?: EventCallback<AccountRecoverySSEEvent>;
   onError?: (error: Error) => void;
@@ -540,7 +560,7 @@ export interface ActionResult {
   success: boolean;
   error?: string;
   transactionId?: string;
-  result?: any;
+  result?: FinalExecutionOutcome;
 }
 
 export interface VerifyAndSignTransactionResult {

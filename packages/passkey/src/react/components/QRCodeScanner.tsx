@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -6,7 +6,7 @@ import type {
 } from '@/index';
 import { useQRCamera, QRScanMode } from '../hooks/useQRCamera';
 import { useDeviceLinking } from '../hooks/useDeviceLinking';
-import { useQRFileUpload } from '../hooks/useQRFileUpload';
+import { ThemeScope } from './theme';
 
 /**
  * QR Code Scanner Component for Device Linking
@@ -46,7 +46,6 @@ export interface QRCodeScannerProps {
   className?: string;
   style?: React.CSSProperties;
   showCamera?: boolean;
-  showFileUpload?: boolean;
 }
 
 export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
@@ -61,10 +60,8 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
   className,
   style,
   showCamera = true,
-  showFileUpload = false,
 }) => {
 
-  // Initialize device linking hook
   const { linkDevice } = useDeviceLinking({
     onDeviceLinked,
     onError,
@@ -83,190 +80,158 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     cameraId
   });
 
-  const fileUpload = useQRFileUpload({
-    onQRDetected: async (qrData: DeviceLinkingQRData) => {
-      onQRCodeScanned?.(qrData);
-      await linkDevice(qrData, QRScanMode.FILE);
-    },
-    onError
-  });
+  const [isVideoReady, setIsVideoReady] = useState(false);
 
-  // Handle close with camera cleanup
+  // Reset video ready state when modal opens so we can re-fade
+  useEffect(() => {
+    if (isOpen) {
+      setIsVideoReady(false);
+    }
+  }, [isOpen]);
+
+  // Camera Cleanup Point 1: User-initiated close
   const handleClose = useCallback(() => {
     qrCamera.stopScanning();
     onClose?.();
-  }, [qrCamera.stopScanning, onClose]);
+  }, [qrCamera.stopScanning, qrCamera.isScanning, qrCamera.videoRef, onClose]);
 
-  // Enhanced file upload that stops camera first
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
-    // Stop camera scanning first to avoid conflicts
-    if (qrCamera.isScanning) {
+  // Camera Cleanup Point 2: Component unmount
+  useEffect(() => {
+    return () => {
+      if (qrCamera.isScanning) {
+        qrCamera.stopScanning();
+      }
+    };
+  }, []);
+
+  // Camera Cleanup Point 3: Modal state changes (isOpen prop)
+  useEffect(() => {
+    if (!isOpen && qrCamera.isScanning) {
       qrCamera.stopScanning();
     }
+  }, [isOpen, qrCamera.isScanning, qrCamera.stopScanning, qrCamera.videoRef]);
 
-    // Reset any camera errors
-    qrCamera.setError(null);
+  // Camera Cleanup Point 4: ESC key handling
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        handleClose();
+      }
+    };
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+    }
 
-    // Handle the file upload
-    await fileUpload.handleFileUpload(event);
-  }, [qrCamera, fileUpload.handleFileUpload]);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, handleClose]);
 
-  // Don't render if not open
-  if (!isOpen) return null;
-
-  // Determine processing state from camera or file upload
-  const isProcessing = qrCamera.isProcessing || fileUpload.isProcessing;
+  // Early return for closed state to prevent unnecessary rendering when modal is closed
+  // Note: Camera cleanup is handled by useEffect() above, not by conditional rendering
+  if (!isOpen) {
+    return null;
+  }
 
   if (qrCamera.error) {
     return (
-      <div className="qr-scanner-error-container">
-        <div className="qr-scanner-error-message">
-          <p>{qrCamera.error}</p>
-          <button
-            onClick={() => qrCamera.setError(null)}
-            className="qr-scanner-error-button"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={handleClose}
-            className="qr-scanner-error-button"
-          >
-            Close
-          </button>
+      <ThemeScope>
+        <div className="qr-scanner-error-container">
+          <div className="qr-scanner-error-message">
+            <p>{qrCamera.error}</p>
+            <button
+              onClick={() => qrCamera.setError(null)}
+              className="qr-scanner-error-button"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={handleClose}
+              className="qr-scanner-error-button"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
+      </ThemeScope>
     )
   }
 
   return (
-    <div className={`qr-scanner-modal ${className || ''}`} style={style}>
-      {/* Camera Scanner Section */}
-      {showCamera
-        && (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
-        && (
-        <div className="qr-scanner-camera-section">
-          {/* Camera Feed */}
-          <div className="qr-scanner-camera-container">
-            <video
-              ref={qrCamera.videoRef}
-              className="qr-scanner-video"
-              style={{
-                transform: qrCamera.isFrontCamera ? 'scaleX(-1)' : 'none'
-              }}
-              playsInline
-              autoPlay
-              muted
-            />
-            <canvas
-              ref={qrCamera.canvasRef}
-              className="qr-scanner-canvas"
-            />
+    <ThemeScope>
+      <div className={`qr-scanner-modal ${className || ''}`} style={style}>
+        <div className="qr-scanner-panel">
+          {/* Camera Scanner Section */}
+          {showCamera
+            && (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
+            && (
+            <div className="qr-scanner-camera-section">
+              {/* Camera Feed */}
+              <div className="qr-scanner-camera-container">
+                <video
+                  ref={qrCamera.videoRef}
+                  className={`qr-scanner-video${isVideoReady ? ' is-ready' : ''}`}
+                  style={{
+                    transform: qrCamera.isFrontCamera ? 'scaleX(-1)' : 'none'
+                  }}
+                  playsInline
+                  autoPlay
+                  muted
+                  onCanPlay={() => setIsVideoReady(true)}
+                  onLoadedData={() => setIsVideoReady(true)}
+                />
+                <canvas
+                  ref={qrCamera.canvasRef}
+                  className="qr-scanner-canvas"
+                />
 
-            {/* Scanner Overlay */}
-            <div className="qr-scanner-overlay">
-              <div className="qr-scanner-box">
-                <div className="qr-scanner-corner-top-left" />
-                <div className="qr-scanner-corner-top-right" />
-                <div className="qr-scanner-corner-bottom-left" />
-                <div className="qr-scanner-corner-bottom-right" />
+                {/* Scanner Overlay */}
+                <div className="qr-scanner-overlay">
+                  <div className="qr-scanner-box">
+                    <div className="qr-scanner-corner-top-left" />
+                    <div className="qr-scanner-corner-top-right" />
+                    <div className="qr-scanner-corner-bottom-left" />
+                    <div className="qr-scanner-corner-bottom-right" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Instructions */}
-          <div className="qr-scanner-instructions">
-            <p>Position the QR code within the frame</p>
-            <p className="qr-scanner-sub-instruction">
-              {isProcessing
-                ? 'Processing QR code...'
-                : 'The camera will automatically scan when a QR code is detected'
-              }
-            </p>
-            {qrCamera.isScanning && (
-              <p className="qr-scanner-sub-instruction qr-scanner-sub-instruction--small">
-                Scanning...
-              </p>
-            )}
-          </div>
+              {/* Instructions */}
+              <div className="qr-scanner-instructions">
+                <p>Position the QR code within the frame</p>
+                {qrCamera.isScanning && (
+                  <p className="qr-scanner-sub-instruction qr-scanner-sub-instruction--small">
+                    Scanning...
+                  </p>
+                )}
+              </div>
 
-          {/* Camera Controls */}
-          {qrCamera.cameras.length > 1 && (
-            <div className="qr-scanner-camera-controls">
-              <select
-                value={qrCamera.selectedCamera}
-                onChange={(e) => qrCamera.handleCameraChange(e.target.value)}
-                className="qr-scanner-camera-selector"
-              >
-                {qrCamera.cameras.map(camera => (
-                  <option key={camera.deviceId} value={camera.deviceId}>
-                    {camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
-                  </option>
-                ))}
-              </select>
+              {/* Camera Controls */}
+              {qrCamera.cameras.length > 1 && (
+                <div className="qr-scanner-camera-controls">
+                  <select
+                    value={qrCamera.selectedCamera}
+                    onChange={(e) => qrCamera.handleCameraChange(e.target.value)}
+                    className="qr-scanner-camera-selector"
+                  >
+                    {qrCamera.cameras.map(camera => (
+                      <option key={camera.deviceId} value={camera.deviceId}>
+                        {camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
 
-      {/* File Upload Section */}
-      {!showCamera && showFileUpload && (
-        <div className="qr-scanner-file-section">
-          <div className="qr-scanner-instructions">
-            <p>Upload QR Code Image</p>
-            <p className="qr-scanner-sub-instruction">
-              Click the upload button below to select a QR code image from your device
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Mode Controls */}
-      {(showCamera || showFileUpload) && (
-        <div className="qr-scanner-mode-controls">
-          {showCamera && (
-            <button
-              onClick={() => qrCamera.setScanMode(QRScanMode.CAMERA)}
-              className={
-                (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
-                  ? 'qr-scanner-mode-button--active'
-                  : 'qr-scanner-mode-button'
-              }
-            >
-              Camera
-            </button>
-          )}
-          {showFileUpload && (
-            <button
-              onClick={() => {
-                qrCamera.setScanMode(QRScanMode.FILE);
-                fileUpload.fileInputRef.current?.click();
-              }}
-              className="qr-scanner-mode-button"
-              disabled={isProcessing}
-            >
-              Upload
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Hidden File Input */}
-      {showFileUpload && (
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleFileUpload}
-          ref={fileUpload.fileInputRef}
-          style={{ display: 'none' }}
-        />
-      )}
-
-      {/* Close Button */}
-      <button onClick={handleClose} className="qr-scanner-close">
-        ✕
-      </button>
-    </div>
+        {/* Close Button */}
+        <button onClick={handleClose} className="qr-scanner-close">
+          ✕
+        </button>
+      </div>
+    </ThemeScope>
   );
 };
 

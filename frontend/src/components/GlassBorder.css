@@ -2,24 +2,25 @@
 
 /* Translucent outer shell wrapping solid content */
 .glass-border-root {
+  box-sizing: border-box;
   background: transparent;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-xl);
-  padding: var(--w3a-gap-2);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-xl);
+  padding: var(--fe-gap-2);
   max-width: 860px;
   width: 100%;
-  box-shadow: 2px 6px 10px var(--w3a-shadow-strong);
-  /* box-shadow: 0 1px 3px var(--w3a-shadow-strong); */
+  box-shadow: 2px 6px 10px var(--fe-shadow-strong);
 }
 
 .glass-border-inner {
-  background: var(--w3a-surface-solid);
-  border: 1px solid var(--w3a-border);
-  border-radius: var(--w3a-radius-lg);
+  box-sizing: border-box;
+  background: var(--fe-surface-solid);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
   padding: 2rem;
-  box-shadow: 0 2px 4px var(--w3a-shadow);
+  box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
 }
 
@@ -34,9 +35,9 @@
       rgba(0, 0, 0, 0.0) 100%
     ) border-box;
   border: 1px solid transparent;
-  border-radius: var(--w3a-radius-lg);
+  border-radius: var(--fe-radius-lg);
   overflow: hidden;
-  box-shadow: 0 2px 4px var(--w3a-shadow);
+  box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
   animation: border-angle-rotate 4s infinite linear;
 }

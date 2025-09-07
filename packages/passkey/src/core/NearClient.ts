@@ -269,7 +269,6 @@ export class MinimalNearClient implements NearClient {
 
     try {
       const parsed = JSON.parse(resultString);
-      console.log('callFunction: Successfully parsed JSON:', parsed);
       return parsed as T;
     } catch (parseError) {
       console.warn('Failed to parse result as JSON, returning as string:', parseError);
