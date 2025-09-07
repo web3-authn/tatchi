@@ -189,12 +189,15 @@ export const DARK_THEME = {
   ...GREY_COLORS,
 
   // Core colors used by components
+
+  textPrimary: GREY_COLORS.grey75,
+  textSecondary: GREY_COLORS.grey500,
+  textMuted: GREY_COLORS.grey650,
+
   colorBackground: GREY_COLORS.grey800,
   colorSurface: GREY_COLORS.grey750,
+  colorSurface2: GREY_COLORS.slate700,
   colorBorder: GREY_COLORS.grey700,
-  colorText: GREY_COLORS.grey75,
-  colorTextSecondary: GREY_COLORS.grey500,
-  colorTextMuted: GREY_COLORS.grey650,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
@@ -252,12 +255,14 @@ export const LIGHT_THEME = {
   ...GREY_COLORS,
 
   // Core colors used by components
+  textPrimary: GREY_COLORS.grey975,
+  textSecondary: GREY_COLORS.grey500,
+  textMuted: GREY_COLORS.grey350,
+
   colorBackground: GREY_COLORS.grey50,
   colorSurface: GREY_COLORS.grey150,
+  colorSurface2: GREY_COLORS.slate150,
   colorBorder: GREY_COLORS.grey200,
-  colorText: GREY_COLORS.grey975,
-  colorTextSecondary: GREY_COLORS.grey500,
-  colorTextMuted: GREY_COLORS.grey350,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,

@@ -723,11 +723,10 @@ export class ModalTxConfirmElement extends LitElementWithProps {
               ></w3a-passkey-halo-loading>
               <div class="hero-container">
                 <!-- Hero heading -->
-                <h2 class="hero-heading">Check transaction details</h2>
-                ${!this.errorMessage
-                  ? html`<div class="hero-subheading">Then sign with your Passkey</div>`
-                  : html`<div class="error-banner">${this.errorMessage}</div>`
-                }
+                <h2 class="hero-heading">Sign transaction with Passkey</h2>
+                ${this.errorMessage
+                  ? html`<div class="error-banner">${this.errorMessage}</div>`
+                  : ''}
                 <!-- RpID Section -->
                 <div class="rpid-wrapper">
                   <div class="rpid">

@@ -89,7 +89,7 @@ export class LitElementWithProps extends LitElement {
     const baseVars = [
       'fontFamily', 'fontSize', 'color', 'backgroundColor',
       'colorPrimary', 'colorSecondary', 'colorSuccess', 'colorWarning', 'colorError',
-      'colorBackground', 'colorSurface', 'colorBorder', 'colorText', 'colorTextSecondary',
+      'colorBackground', 'colorSurface', 'colorBorder', 'textPrimary', 'textSecondary',
       'fontSizeSm', 'fontSizeBase', 'fontSizeLg', 'fontSizeXl',
       'radiusSm', 'radiusMd', 'radiusLg', 'radiusXl',
       'gap2', 'gap3', 'gap4', 'gap6',
@@ -152,8 +152,8 @@ export interface ComponentStyles extends CSSProperties{
   colorBackground?: string;
   colorSurface?: string;
   colorBorder?: string;
-  colorText?: string;
-  colorTextSecondary?: string;
+  textPrimary?: string;
+  textSecondary?: string;
 
   // Typography
   fontSizeSm?: string;

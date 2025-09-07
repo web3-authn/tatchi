@@ -345,11 +345,12 @@ export class TxTree extends LitElementWithProps {
       border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
       background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
       max-height: var(--w3a-tree__file-content__max-height, 120px);
-      /* Allow horizontal resizing within the grid track */
-      resize: var(--w3a-tree__file-content__resize, horizontal);
-      min-width: var(--w3a-tree__file-content__min-width, 160px);
-      width: var(--w3a-tree__file-content__width, 100%);
-      max-width: var(--w3a-tree__file-content__max-width, 100%);
+      /* Allow vertical resizing by user drag */
+      resize: var(--w3a-tree__file-content__resize, vertical);
+      min-height: var(--w3a-tree__file-content__min-height, 60px);
+      /* Ensure file content obeys the provided TxTree width */
+      width: var(--w3a-tree__file-content__width, auto);
+      max-width: var(--w3a-tree__tooltip-tree-root__width, 345px);
       overflow: var(--w3a-tree__file-content__overflow, auto);
       color: var(--w3a-tree__file-content__color, #e2e8f0);
       font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);

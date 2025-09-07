@@ -69,7 +69,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       backgroundColor: DARK_THEME.colorBackground
     },
 
@@ -85,7 +85,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     modalBackdrop: {
       padding: '0.5rem',
       border: 'none',
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
     },
     modalContainerRoot: {
       // background: DARK_THEME.grey750,
@@ -115,51 +115,51 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME.blue500,
     },
     domainText: {
-      color: DARK_THEME.colorTextSecondary,
+      color: DARK_THEME.textSecondary,
     },
     securityDetails: {
-      color: DARK_THEME.colorTextSecondary,
+      color: DARK_THEME.textSecondary,
     },
 
     header: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     grid: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     row: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     label: {
-      color: DARK_THEME.colorTextSecondary
+      color: DARK_THEME.textSecondary
     },
     value: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     summarySection: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionsTitle: {
-      color: DARK_THEME.colorTextSecondary
+      color: DARK_THEME.textSecondary
     },
     actionItem: {
       background: DARK_THEME.colorSurface
     },
     actionRow: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionLabel: {
       padding: '2px 0px',
-      color: DARK_THEME.colorTextSecondary
+      color: DARK_THEME.textSecondary
     },
     actionContent: {
       padding: '0.5rem',
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       background: DARK_THEME.grey700,
       maxHeight: '50vh',
     },
     actionValue: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionSubitem: {
     },
@@ -180,20 +180,20 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     btn: {
       backgroundColor: DARK_THEME.colorSurface,
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       focusOutlineColor: DARK_THEME.colorPrimary,
     },
     btnConfirm: {
       padding: '0.5rem',
       backgroundColor: DARK_THEME.blue600,
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       border: `1px solid ${DARK_THEME.blue400}`,
     },
     btnConfirmHover: {
       backgroundColor: DARK_THEME.blue500
     },
     btnCancel: {
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       backgroundColor: DARK_THEME.colorBackground,
       border: `1px solid ${DARK_THEME.colorBorder}`,
     },
@@ -223,7 +223,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME.grey750,
     },
     passkeyHaloLoadingTouchIcon: {
-      color: DARK_THEME.colorTextSecondary,
+      color: DARK_THEME.textSecondary,
       margin: '0.75rem',
       strokeWidth: '5',
     },
@@ -250,29 +250,29 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'rgba(0, 0, 0, 0.5)'
     },
     headerMobile: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     rowMobile: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionRowMobile: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionContentMobile: {
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     buttonsMobile: {
       background: 'transparent'
     },
     btnMobile: {
       backgroundColor: DARK_THEME.colorSurface,
-      color: DARK_THEME.colorText
+      color: DARK_THEME.textPrimary
     },
     actionContentScrollbarTrack: {
       background: DARK_THEME.colorSurface
     },
     actionContentScrollbarThumb: {
-      background: DARK_THEME.colorTextSecondary
+      background: DARK_THEME.textSecondary
     }
   },
   light: {
@@ -283,7 +283,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       backgroundColor: LIGHT_THEME.colorBackground
     },
 
@@ -300,7 +300,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       padding: '0.5rem',
       background: LIGHT_THEME.grey25,
       border: 'none',
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
     },
     modalContainerRoot: {
       // background: DARK_THEME.grey100,
@@ -330,51 +330,51 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME.blue500,
     },
     domainText: {
-      color: LIGHT_THEME.colorTextSecondary,
+      color: LIGHT_THEME.textSecondary,
     },
     securityDetails: {
-      color: LIGHT_THEME.colorTextSecondary,
+      color: LIGHT_THEME.textSecondary,
     },
 
     header: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     grid: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     row: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     label: {
-      color: LIGHT_THEME.colorTextSecondary
+      color: LIGHT_THEME.textSecondary
     },
     value: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     summarySection: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionsTitle: {
-      color: LIGHT_THEME.colorTextSecondary
+      color: LIGHT_THEME.textSecondary
     },
     actionItem: {
       background: LIGHT_THEME.colorBackground
     },
     actionRow: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionLabel: {
       padding: '2px 0px',
-      color: LIGHT_THEME.colorTextSecondary
+      color: LIGHT_THEME.textSecondary
     },
     actionContent: {
       padding: '0.5rem',
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       background: LIGHT_THEME.grey100,
       maxHeight: '50vh',
     },
     actionValue: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionSubitem: {
     },
@@ -385,7 +385,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       fontSize: '0.75rem',
       margin: '4px 0px 0px 0px',
       background: LIGHT_THEME.slate150,
-      color: LIGHT_THEME.colorTextSecondary
+      color: LIGHT_THEME.textSecondary
     },
     methodName: {
       color: LIGHT_THEME.highlightMethodName
@@ -395,7 +395,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     btn: {
       backgroundColor: LIGHT_THEME.colorBackground,
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       focusOutlineColor: LIGHT_THEME.colorPrimary,
     },
     btnHover: {
@@ -411,7 +411,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME.blue500
     },
     btnCancel: {
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       backgroundColor: LIGHT_THEME.colorBackground,
       borderColor: LIGHT_THEME.colorBorder,
       border: `1px solid ${LIGHT_THEME.colorBorder}`,
@@ -441,7 +441,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: LIGHT_THEME.colorBackground,
     },
     passkeyHaloLoadingTouchIcon: {
-      color: LIGHT_THEME.colorTextMuted,
+      color: LIGHT_THEME.textMuted,
       margin: '0.75rem',
       strokeWidth: '5',
     },
@@ -468,23 +468,23 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'rgba(0, 0, 0, 0.5)'
     },
     headerMobile: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     rowMobile: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionRowMobile: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionContentMobile: {
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     buttonsMobile: {
       background: 'transparent'
     },
     btnMobile: {
       backgroundColor: LIGHT_THEME.colorBackground,
-      color: LIGHT_THEME.colorText
+      color: LIGHT_THEME.textPrimary
     },
     actionContentScrollbarTrack: {
       background: LIGHT_THEME.colorSurface

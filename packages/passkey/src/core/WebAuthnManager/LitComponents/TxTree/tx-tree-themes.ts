@@ -50,7 +50,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       backgroundColor: DARK_THEME.colorBackground
     },
 
@@ -73,7 +73,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       padding: '0.5rem',
       background: DARK_THEME.colorBackground,
       border: 'none',
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
     },
     tooltipTreeChildren: {
     },
@@ -89,16 +89,16 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     },
     summaryRowHover: {
       background: DARK_THEME.colorSurface,
-      borderColor: DARK_THEME.colorTextSecondary,
+      borderColor: DARK_THEME.textSecondary,
     },
     row: {
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: DARK_THEME.colorText,
+      color: DARK_THEME.textPrimary,
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
@@ -108,10 +108,10 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     },
     labelHover: {
       background: DARK_THEME.colorBorder,
-      borderColor: DARK_THEME.colorTextSecondary,
+      borderColor: DARK_THEME.textSecondary,
     },
     chevron: {
-      color: DARK_THEME.colorTextSecondary,
+      color: DARK_THEME.textSecondary,
       width: '14px',
       height: '14px'
     },
@@ -122,12 +122,12 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     fileContent: {
       background: DARK_THEME.colorSurface,
       border: `1px solid none`,
-      color: DARK_THEME.colorTextSecondary,
+      color: DARK_THEME.textSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
       scrollbarTrackBackground: DARK_THEME.colorSurface,
-      scrollbarThumbBackground: DARK_THEME.colorTextSecondary
+      scrollbarThumbBackground: DARK_THEME.textSecondary
     },
     connector: {
       color: DARK_THEME.grey600,
@@ -180,7 +180,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     host: {
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       fontSize: '1rem',
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       backgroundColor: LIGHT_THEME.colorBackground
     },
 
@@ -203,7 +203,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       padding: '0.5rem',
       background: LIGHT_THEME.colorBackground,
       border: 'none',
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
     },
     tooltipTreeChildren: {
 
@@ -223,13 +223,13 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       borderColor: LIGHT_THEME.colorBorder
     },
     row: {
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       borderRadius: '0.375rem',
       transition: 'all 160ms cubic-bezier(0.2, 0.6, 0.2, 1)'
     },
     indent: {},
     label: {
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       fontSize: '0.875rem',
       gap: '4px',
       lineHeight: '1.5',
@@ -242,7 +242,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       borderColor: LIGHT_THEME.colorBorder
     },
     chevron: {
-      color: LIGHT_THEME.colorTextSecondary,
+      color: LIGHT_THEME.textSecondary,
       width: '14px',
       height: '14px'
     },
@@ -253,7 +253,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     fileContent: {
       background: LIGHT_THEME.slate100,
       border: `1px solid ${LIGHT_THEME.colorBorder}`,
-      color: LIGHT_THEME.colorText,
+      color: LIGHT_THEME.textPrimary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
