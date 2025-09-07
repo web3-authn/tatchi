@@ -59,7 +59,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               theme={theme}
             />
             <div style={{
-              opacity: disableRequireClick ? 0.4 : 1,
+              opacity: disableRequireClick ? 0.6 : 1,
               pointerEvents: disableRequireClick ? 'none' : 'auto'
             }}>
               <Toggle

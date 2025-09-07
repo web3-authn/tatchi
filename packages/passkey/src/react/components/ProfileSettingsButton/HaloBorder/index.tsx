@@ -42,7 +42,7 @@ export const HaloBorder: React.FC<HaloBorderProps> = ({
   ringBorderShadow,
   padding,
   innerPadding = '2rem',
-  innerBackground = 'var(--w3a-colors-surfacePrimary)',
+  innerBackground = 'var(--w3a-colors-colorBackground)',
 }) => {
   // Compose inline-only styles and optional JS-driven animation
   const paddingOverride = padding ? padding : `${ringGap + ringWidth}px`;

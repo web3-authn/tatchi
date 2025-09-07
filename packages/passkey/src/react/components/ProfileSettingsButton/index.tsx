@@ -8,9 +8,7 @@ import type { MenuItem, ProfileButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { AccessKeysModal } from './AccessKeysModal';
 import './Web3AuthProfileButton.css';
-import { ThemeProvider } from '../theme/ThemeProvider';
-import { ThemeScope } from '../theme/ThemeScope';
-import { useTheme } from '../theme/useTheme';
+import { ThemeProvider, ThemeScope, useTheme } from '../theme';
 
 
 /**

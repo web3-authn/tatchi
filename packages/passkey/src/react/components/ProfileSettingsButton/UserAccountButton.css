@@ -121,7 +121,7 @@
   width: 40px;
   height: 40px;
   margin-right: 4px;
-  background: var(--w3a-colors-surfaceSecondary);
+  background: var(--w3a-colors-colorSurface);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -138,7 +138,7 @@
 
 .w3a-user-account--account-id {
   font-size: 0.7rem;
-  color: var(--w3a-colors-textMuted);
+  color: var(--w3a-colors-textSecondary);
   margin: 0;
   text-decoration: none;
   transition: color 0.1s ease, opacity 0.1s ease, transform 0s ease; cursor: pointer;

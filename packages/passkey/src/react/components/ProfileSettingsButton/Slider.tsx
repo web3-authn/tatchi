@@ -27,7 +27,7 @@ export const Slider: React.FC<SliderProps> = ({
 }) => {
   return (
     <div className="w3a-slider-root" style={{
-      opacity: disabled ? 0.3 : 1,
+      opacity: disabled ? 0.5 : 1,
       pointerEvents: disabled ? 'none' : 'auto'
     }}>
       <div className="w3a-slider-container">

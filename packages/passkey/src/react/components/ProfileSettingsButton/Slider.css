@@ -71,7 +71,7 @@
   /* Knob uses darker background than its border */
   background: var(--w3a-colors-borderSecondary);
   cursor: pointer;
-  border: 1px solid var(--w3a-colors-borderPrimary);
+  border: 1px solid var(--w3a-colors-borderSecondary);
   box-shadow: var(--w3a-shadows-sm);
   /* Center the thumb vertically over the track */
   margin-top: -7px;
@@ -84,7 +84,7 @@
   /* Knob uses darker background than its border */
   background: var(--w3a-colors-borderSecondary);
   cursor: pointer;
-  border: 1px solid var(--w3a-colors-borderPrimary);
+  border: 1px solid var(--w3a-colors-borderSecondary);
   box-shadow: var(--w3a-shadows-sm);
   /* Center the thumb vertically over the track */
   margin-top: -7px;
@@ -116,5 +116,5 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.7rem;
-  color: var(--w3a-colors-textMuted);
+  color: var(--w3a-colors-textSecondary);
 }

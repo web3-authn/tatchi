@@ -7,10 +7,13 @@
   height: 100%;
   width: 100%;
   z-index: 1000;
-  background: rgba(0, 0, 0, 0.5);
+  background: oklch(0.2 0.01 240 / 0.8);
+  backdrop-filter: blur(8px);
   display: flex;
   justify-content: center;
   align-items: center;
+  animation: backdrop-opacity 32ms ease-in;
+  will-change: opacity;
 }
 
 .w3a-access-keys-modal-inner {
@@ -33,7 +36,8 @@
   overflow: visible;
   min-height: 200px;
   max-width: 480px;
-  background: var(--w3a-colors-surfacePrimary);
+  background: var(--w3a-colors-colorBackground);
+  border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 2rem;
 }
 
@@ -55,7 +59,7 @@
 
 .w3a-access-keys-modal-close:hover {
   color: var(--w3a-colors-textPrimary);
-  background: var(--w3a-colors-surfaceSecondary);
+  background: var(--w3a-colors-colorSurface);
 }
 
 .w3a-access-keys-modal-header {
@@ -63,10 +67,9 @@
   justify-content: space-between;
   box-sizing: border-box;
   align-items: center;
-  padding: 24px;
-  padding-bottom: 16px;
+  padding: 1rem;
   border-bottom: 1px solid var(--w3a-colors-borderPrimary);
-  margin-bottom: 24px;
+  margin-bottom: 1rem;
 }
 
 .w3a-access-keys-modal-title {
@@ -139,7 +142,7 @@
   align-items: center;
   height: 60px;
   width: 360px;
-  background: var(--w3a-colors-surfaceSecondary);
+  background: var(--w3a-colors-colorSurface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 1rem;
   padding: 0.5rem;
@@ -230,7 +233,7 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--w3a-colors-surfaceSecondary);
+  background: var(--w3a-colors-colorSurface);
   color: var(--w3a-colors-textPrimary);
   padding: 0.25rem;
   border-radius: 0.25rem;
@@ -251,7 +254,7 @@
   left: 50%;
   transform: translateX(-50%);
   border: 4px solid transparent;
-  border-top-color: var(--w3a-colors-surfaceSecondary);
+  border-top-color: var(--w3a-colors-colorSurface);
 }
 
 @keyframes tooltipFadeIn {
@@ -324,6 +327,15 @@
 }
 
 @keyframes fadeInKeyItem {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-opacity {
   from {
     opacity: 0;
   }

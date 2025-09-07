@@ -59,16 +59,16 @@
 }
 
 .w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-label {
-  color: var(--w3a-colors-textMuted);
+  color: var(--w3a-colors-textSecondary);
 }
 
 .w3a-dropdown-menu-item-description {
   font-size: 12px;
   font-weight: 500;
-  color: var(--w3a-colors-textMuted);
+  color: var(--w3a-colors-textSecondary);
   margin: 2px 0 0 0;
 }
 
 .w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-description {
-  color: var(--w3a-colors-textMuted);
+  color: var(--w3a-colors-textSecondary);
 }

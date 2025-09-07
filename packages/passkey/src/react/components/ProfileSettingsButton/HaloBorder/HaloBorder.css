@@ -20,7 +20,7 @@
 }
 
 .w3a-halo-border-content {
-  background: var(--w3a-halo__inner-background, var(--w3a-colors-surfacePrimary));
+  background: var(--w3a-halo__inner-background, var(--w3a-colors-colorBackground));
   /* border: 1px solid var(--w3a-colors-borderPrimary); */
   border-radius: var(--w3a-halo__ring-border-radius, 2rem);
   padding: var(--w3a-halo__inner-padding, 2rem);

@@ -14,7 +14,7 @@
 
 .w3a-profile-button-morphable {
   position: relative;
-  background-color: var(--w3a-colors-surfacePrimary);
+  background-color: var(--w3a-colors-colorBackground);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 28px;
   box-shadow: var(--w3a-shadows-sm);

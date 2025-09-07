@@ -3,7 +3,7 @@ import { usePasskeyContext } from '../../context';
 import { HaloBorder } from './HaloBorder';
 import './AccessKeysModal.css';
 import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
-import { useTheme } from '../theme/useTheme';
+import { useTheme } from '../theme';
 import PasskeyHaloLoading from './PasskeyHaloLoading';
 import LitPasskeyHaloLoading from '../LitPasskeyHaloLoading';
 
