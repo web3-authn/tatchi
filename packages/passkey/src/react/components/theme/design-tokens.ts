@@ -175,8 +175,8 @@ export const LIGHT_TOKENS: DesignTokens = {
     ...CHROMA_COLORS,
 
     // Primary brand colors
-    primary: CHROMA_COLORS.blue400,
-    primaryHover: CHROMA_COLORS.blue500,
+    primary: CHROMA_COLORS.blue500,
+    primaryHover: CHROMA_COLORS.blue600,
     secondary: GREY_COLORS.grey600,
     accent: CHROMA_COLORS.blue300,
 
@@ -197,10 +197,10 @@ export const LIGHT_TOKENS: DesignTokens = {
     focus: CHROMA_COLORS.blue400,
 
     // Status colors
-    success: CHROMA_COLORS.blue300, // using blue as consolidated success tint
-    warning: CHROMA_COLORS.yellow400,
-    error: CHROMA_COLORS.red400,
-    info: CHROMA_COLORS.blue400,
+    success: CHROMA_COLORS.blue500,
+    warning: CHROMA_COLORS.yellow500,
+    error: CHROMA_COLORS.red500,
+    info: CHROMA_COLORS.blue500,
 
     // Border colors
     borderPrimary: LIGHT_THEME.slate300,
@@ -261,10 +261,10 @@ export const LIGHT_TOKENS: DesignTokens = {
   },
 
   borderRadius: {
-    sm: '0.375rem',  // 6px
-    md: '0.5rem',    // 8px
-    lg: '0.75rem',   // 12px
-    xl: '1rem',      // 16px
+    sm: '0.5rem',
+    md: '1rem',
+    lg: '1.5rem',
+    xl: '2rem',
   },
 
   shadows: {
@@ -283,8 +283,8 @@ export const DARK_TOKENS: DesignTokens = {
     ...CHROMA_COLORS,
 
     // Primary brand colors (keep consistent with light)
-    primary: CHROMA_COLORS.blue400,
-    primaryHover: CHROMA_COLORS.blue500,
+    primary: CHROMA_COLORS.blue500,
+    primaryHover: CHROMA_COLORS.blue600,
     secondary: GREY_COLORS.grey400,
     accent: CHROMA_COLORS.blue300,
 
@@ -304,7 +304,7 @@ export const DARK_TOKENS: DesignTokens = {
     focus: CHROMA_COLORS.blue400,
 
     // Status colors (unchanged)
-    success: CHROMA_COLORS.blue300,
+    success: CHROMA_COLORS.blue400,
     warning: CHROMA_COLORS.yellow400,
     error: CHROMA_COLORS.red400,
     info: CHROMA_COLORS.blue400,

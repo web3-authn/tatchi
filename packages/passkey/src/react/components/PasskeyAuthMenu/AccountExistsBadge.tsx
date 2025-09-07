@@ -1,6 +1,7 @@
 import React from 'react';
 import { AuthMenuMode } from './index';
 import { useTheme } from '../theme';
+import { Check } from 'lucide-react';
 
 export interface AccountExistsBadgeProps {
   /** Whether the account domain/postfix corresponds to an existing account */
@@ -8,41 +9,73 @@ export interface AccountExistsBadgeProps {
   /** Current signup mode */
   mode: AuthMenuMode;
   /** Whether the current context is secure (HTTPS) */
-  secure: boolean;
+  secure?: boolean;
+  /** Optional extra class name for message styling/location */
+  className?: string;
+  /** Optional id for aria-describedby */
+  id?: string;
 }
 
 /**
- * AccountExistsBadge component displays status messages for account existence and security requirements
+ * AccountExistsBadge renders a small inline status message with tone classes.
  */
 export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
   isUsingExistingAccount,
   mode,
-  secure,
+  secure = true,
+  className,
+  id,
 }) => {
-  const { tokens } = useTheme();
+  // Ensure theme variables applied (not directly used)
+  useTheme();
 
-  const getStatusMessage = () => {
-    if (isUsingExistingAccount && mode === 'register') {
-      return 'Account taken!';
+  type Tone = 'error' | 'success' | 'neutral';
+  const getStatus = (): { message: string; tone: Tone } => {
+    if (mode === 'register') {
+      if (!secure) return { message: 'HTTPS required', tone: 'error' };
+      if (isUsingExistingAccount) return { message: 'name taken', tone: 'error' };
+      return { message: '', tone: 'neutral' };
     }
-
-    if (mode === 'register' && !secure) {
-      return 'HTTPS required for registration';
+    if (mode === 'login' || mode === 'sync') {
+      if (isUsingExistingAccount) return { message: '', tone: 'success' };
+      return { message: 'Account not found', tone: 'error' };
     }
-
-    return '\u00A0'; // Non-breaking space
+    return { message: '', tone: 'neutral' };
   };
 
-  const statusMessage = getStatusMessage();
+  const { message, tone } = getStatus();
+  const hasContent = message && message.trim().length > 0;
+  const [visible, setVisible] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!hasContent) {
+      setVisible(false);
+      return;
+    }
+    setVisible(true);
+    const t = setTimeout(() => setVisible(false), 3000);
+    return () => clearTimeout(t);
+  }, [hasContent, message]);
+
+  if (!hasContent) {
+    return <></>;
+  }
+
+  const toneClass = tone === 'error'
+    ? 'is-error'
+    : tone === 'success'
+      ? 'is-success'
+      : '';
+
+  const classes = [
+    'w3a-tooltip',
+    toneClass,
+    visible ? 'is-visible' : '', className
+  ].filter(Boolean).join(' ');
 
   return (
-    <div className="w3a-status-row">
-      <div
-        className="w3a-status-message"
-        style={{ color: statusMessage.trim() ? tokens.colors.textSecondary : 'transparent' }}
-      >
-        {statusMessage}
-      </div>
+    <div id={id} className={classes} role="status" aria-live="polite">
+      {message}
     </div>
   );
 };

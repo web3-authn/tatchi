@@ -34,18 +34,13 @@ export interface UsePostfixPositionReturn {
 export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: UsePostfixPositionOptions): UsePostfixPositionReturn {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const postfixRef = useRef<HTMLSpanElement | null>(null);
-  const measurerRef = useRef<HTMLSpanElement | null>(null);
+  const prevValueRef = useRef<string>('');
+  // Off-DOM canvas for text measurement (avoids inserting hidden spans)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const resizeObserverRef = useRef<ResizeObserver | null>(null);
   const rafRef = useRef<number | null>(null);
   const rafRef2 = useRef<number | null>(null);
-
-  const cleanupMeasurer = () => {
-    const measurer = measurerRef.current;
-    if (measurer && measurer.parentElement) {
-      measurer.parentElement.removeChild(measurer);
-    }
-    measurerRef.current = null;
-  };
 
   const schedule = (fn: () => void) => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -58,7 +53,6 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
   const measureAndPosition = () => {
     const input = inputRef.current;
     const postfix = postfixRef.current;
-    const measurer = measurerRef.current;
 
     // Always clear padding when value is empty or elements are missing
     if (!inputValue || inputValue.length === 0) {
@@ -68,28 +62,62 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
     }
 
     // If we cannot measure, ensure padding is not left behind
-    if (!input || !postfix || !measurer) {
+    if (!input || !postfix) {
       if (input) input.style.paddingRight = '';
       return;
     }
 
     const cs = window.getComputedStyle(input);
-    measurer.style.font = cs.font;
-    measurer.style.letterSpacing = cs.letterSpacing;
-    measurer.style.textTransform = cs.textTransform;
-    measurer.textContent = inputValue;
-    const textWidth = measurer.offsetWidth;
+    // Prepare canvas context with computed font
+    let ctx = ctxRef.current;
+    if (!ctx) {
+      canvasRef.current = document.createElement('canvas');
+      ctx = canvasRef.current.getContext('2d');
+      ctxRef.current = ctx;
+    }
+    let textWidth = 0;
+    if (ctx) {
+      // Fallback if cs.font is empty: build from parts
+      const fontString = cs.font && cs.font !== ''
+        ? cs.font
+        : `${cs.fontStyle || ''} ${cs.fontVariant || ''} ${cs.fontWeight || ''} ${cs.fontSize || '16px'} / ${cs.lineHeight || 'normal'} ${cs.fontFamily || 'sans-serif'}`;
+      ctx.font = fontString;
+      // Measure only up to caret to avoid dependence on timing of scrollLeft updates
+      const caret = (input as HTMLInputElement).selectionStart ?? inputValue.length;
+      // Respect text-transform for width calculation
+      let toMeasure = inputValue.slice(0, caret);
+      switch (cs.textTransform) {
+        case 'uppercase':
+          toMeasure = inputValue.toUpperCase();
+          break;
+        case 'lowercase':
+          toMeasure = inputValue.toLowerCase();
+          break;
+        case 'capitalize':
+          toMeasure = inputValue.replace(/\b(\p{L})/gu, (m) => m.toUpperCase());
+          break;
+      }
+      textWidth = ctx.measureText(toMeasure).width;
+      // Approximate letter-spacing impact if set
+      if (cs.letterSpacing && cs.letterSpacing !== 'normal') {
+        const ls = parseFloat(cs.letterSpacing) || 0;
+        if (ls !== 0 && toMeasure.length > 1) {
+          textWidth += ls * (toMeasure.length - 1);
+        }
+      }
+    }
 
     const inputPaddingLeft = parseFloat(cs.paddingLeft) || 0;
     const inputBorderLeft = parseFloat(cs.borderLeftWidth) || 0;
-    const calculatedLeft = inputPaddingLeft + inputBorderLeft + textWidth + gap;
+    // Account for horizontal scroll so postfix stays attached to visible text end
+    const scrollLeft = (input as any).scrollLeft || 0;
+    const calculatedLeft = inputPaddingLeft + inputBorderLeft + Math.max(0, textWidth - scrollLeft) + gap;
 
     postfix.style.left = `${calculatedLeft}px`;
     postfix.style.visibility = 'visible';
 
-    const postfixWidth = postfix.offsetWidth || 0;
-    const paddingRight = `${postfixWidth + gap + paddingBuffer}px`;
-    input.style.paddingRight = paddingRight;
+    // Do not modify input padding-right; avoid squishing the visible text width
+    // Overlap is prevented by positioning the postfix after the visible text end
   };
 
   useLayoutEffect(() => {
@@ -98,17 +126,6 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
     if (!input || !postfix) {
       return;
     }
-
-    // Prepare measurer colocated with input/postfix for consistent font metrics
-    const container = postfix.parentElement || input.parentElement || document.body;
-    const measurer = document.createElement('span');
-    measurer.style.position = 'absolute';
-    measurer.style.visibility = 'hidden';
-    measurer.style.whiteSpace = 'pre';
-    measurer.style.left = '0';
-    measurer.style.top = '0';
-    container.appendChild(measurer);
-    measurerRef.current = measurer;
 
     const ro = new ResizeObserver(() => schedule(measureAndPosition));
     resizeObserverRef.current = ro;
@@ -124,10 +141,16 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
     }
 
     const onResize = () => schedule(measureAndPosition);
+    const onScroll = () => schedule(measureAndPosition);
+    const onSelect = () => schedule(measureAndPosition);
+    input.addEventListener('scroll', onScroll);
+    input.addEventListener('select', onSelect);
     window.addEventListener('resize', onResize);
 
     return () => {
       window.removeEventListener('resize', onResize);
+      try { input.removeEventListener('scroll', onScroll); } catch {}
+      try { input.removeEventListener('select', onSelect); } catch {}
       if (resizeObserverRef.current) {
         resizeObserverRef.current.disconnect();
         resizeObserverRef.current = null;
@@ -137,7 +160,8 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
       }
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (rafRef2.current) cancelAnimationFrame(rafRef2.current);
-      cleanupMeasurer();
+      ctxRef.current = null;
+      canvasRef.current = null;
     };
   }, [
     // CRITICAL: These dependencies ensure the effect runs when refs become available
@@ -150,7 +174,17 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
   // This effect handles repositioning when the input value changes
   // It can use inputValue directly since the main effect already set up the measurer
   useLayoutEffect(() => {
+    const prev = prevValueRef.current || '';
+    const now = inputValue || '';
+    // Only do a synchronous measure for the first character to eliminate
+    // the empty → 1 char flash. For all other edits (including deletions),
+    // rely on rAF + scroll listener to avoid measuring before scrollLeft
+    // has settled, which causes a second jump.
+    if (prev.length === 0 && now.length === 1) {
+      try { measureAndPosition(); } catch {}
+    }
     schedule(measureAndPosition);
+    prevValueRef.current = now;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputValue]);
 

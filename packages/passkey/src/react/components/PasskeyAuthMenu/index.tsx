@@ -4,6 +4,7 @@ import { ThemeScope, useTheme } from '../theme';
 import { usePasskeyContext } from '../../context';
 import { ArrowLeft } from 'lucide-react';
 
+import { AccountExistsBadge } from './AccountExistsBadge';
 import { SocialProviders, type SocialProviderName } from './SocialProviders';
 import { SegmentedControl } from './SegmentedControl';
 import { PasskeyInput } from './PasskeyInput';
@@ -170,6 +171,8 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
   // Slightly darker than before for clearer contrast
   const segActiveBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
+  // Inline status message handled by AccountExistsBadge component
+
   return (
     <div
       className={`w3a-signup-menu-root${className ? ` ${className}` : ''}`}
@@ -177,8 +180,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
       data-waiting={waiting ? 'true' : 'false'}
       style={style}
     >
-      {/* Back button (only during waiting) */}
-      {/* Back button (persisted for fade/scale animation) */}
+      {/* Back button (only during waiting screen) */}
       <button
         aria-label="Back"
         onClick={onResetToStart}
@@ -187,13 +189,18 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
         <ArrowLeft size={18} strokeWidth={2.25} style={{ display: 'block' }} />
       </button>
 
-      {/* Header */}
       <div className="w3a-header">
-        {!waiting && <div className="w3a-title">{title}</div>}
+        {!waiting && (
+          <div>
+            <div className="w3a-title">{title}</div>
+            <div className="w3a-subhead">Fast, passwordless sign‑in</div>
+          </div>
+        )}
       </div>
 
       {/* Content switcher */}
       <ContentSwitcher waiting={waiting}>
+
         {/* Social providers row (optional) */}
         <SocialProviders providers={socialLogin} />
 
@@ -207,16 +214,17 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
             }
             setCurrentValue(val);
           }}
-          placeholder={mode === 'login' ? 'Login with Passkey' : mode === 'sync' ? 'Sync account with Passkey' : 'Register with Passkey'}
+          placeholder={'Enter your username'}
           postfixText={postfixTextResolved}
           isUsingExistingAccount={isUsingExistingAccountResolved}
           canProceed={canProceed}
           onProceed={onArrowClick}
           variant="both"
-          primaryLabel={mode === 'login' ? 'Login' : mode === 'sync' ? 'Sync account' : 'Register'}
+          primaryLabel={mode === 'login' ? 'Login' : mode === 'sync' ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
         />
+
 
         {/* Segmented control: Register | Login */}
         <SegmentedControl
@@ -235,19 +243,26 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
           activeBg={segActiveBg}
         />
 
+        {/* Help copy under segments */}
+        <div className="w3a-seg-help-row">
+          <div className="w3a-seg-help" aria-live="polite">
+            {mode === 'login' && 'Sign in with your passkey on this device.'}
+            {mode === 'register' && 'Create a new passkey account.'}
+            {mode === 'sync' && 'Recover or link an existing account.'}
+          </div>
+        </div>
+
         {/* QR Code section */}
         {showQRCodeSection && (
           <>
-            {/* Section divider */}
             <div className="w3a-section-divider">
-              <span className="w3a-section-divider-text">or</span>
+              <span className="w3a-section-divider-text">Already have an account?</span>
             </div>
-
-            {/* QR Code Button and Modal */}
             <ShowQRCode />
           </>
         )}
       </ContentSwitcher>
+
     </div>
   );
 };

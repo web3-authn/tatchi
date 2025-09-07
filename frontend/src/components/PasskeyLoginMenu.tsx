@@ -149,8 +149,8 @@ export function PasskeyLoginMenu() {
       <PasskeyAuthMenu
         title="Passkey Login"
         defaultMode={accountExists ? 'login' : 'register'}
-        socialLogin={["google", "apple", "github"]}
-        // socialLogin={[]}
+        // socialLogin={["google", "apple", "github"]}
+        socialLogin={[]}
         onLogin={() => { if (!targetAccountId) return; onLogin(); }}
         onRegister={() => { if (!targetAccountId) return; onRegister(); }}
         onRecoverAccount={() => { if (!targetAccountId) return; onRecover(); }}

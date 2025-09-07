@@ -24,11 +24,10 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({ mode, onChan
       <div className="w3a-seg-grid">
         <button className={`w3a-seg-btn register${mode === 'register' ? ' is-active' : ''}`} onClick={() => onChange('register')}>Register</button>
         <button className={`w3a-seg-btn login${mode === 'login' ? ' is-active' : ''}`} onClick={() => onChange('login')}>Login</button>
-        <button className={`w3a-seg-btn sync${mode === 'sync' ? ' is-active' : ''}`} onClick={() => onChange('sync')}>Sync</button>
+        <button className={`w3a-seg-btn sync${mode === 'sync' ? ' is-active' : ''}`} onClick={() => onChange('sync')}>Recover</button>
       </div>
     </div>
   );
 };
 
 export default SegmentedControl;
-
