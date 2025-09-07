@@ -225,7 +225,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     passkeyHaloLoadingTouchIcon: {
       color: DARK_THEME.textSecondary,
       margin: '0.75rem',
-      strokeWidth: '5',
+      strokeWidth: '4',
     },
 
     hero: {
@@ -443,7 +443,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     passkeyHaloLoadingTouchIcon: {
       color: LIGHT_THEME.textMuted,
       margin: '0.75rem',
-      strokeWidth: '5',
+      strokeWidth: '4',
     },
 
     hero: {

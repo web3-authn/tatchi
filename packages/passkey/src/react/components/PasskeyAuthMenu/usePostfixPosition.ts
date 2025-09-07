@@ -59,14 +59,17 @@ export function usePostfixPosition({ inputValue, gap = 1, paddingBuffer = 4 }: U
     const input = inputRef.current;
     const postfix = postfixRef.current;
     const measurer = measurerRef.current;
-    if (!input || !postfix || !measurer) {
-      console.error('Missing elements:', { input: !!input, postfix: !!postfix, measurer: !!measurer });
+
+    // Always clear padding when value is empty or elements are missing
+    if (!inputValue || inputValue.length === 0) {
+      if (input) input.style.paddingRight = '';
+      if (postfix) postfix.style.visibility = 'hidden';
       return;
     }
 
-    if (!inputValue || inputValue.length === 0) {
-      postfix.style.visibility = 'hidden';
-      input.style.paddingRight = '';
+    // If we cannot measure, ensure padding is not left behind
+    if (!input || !postfix || !measurer) {
+      if (input) input.style.paddingRight = '';
       return;
     }
 

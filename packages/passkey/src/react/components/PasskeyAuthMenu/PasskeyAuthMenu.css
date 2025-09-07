@@ -97,7 +97,7 @@
   position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 0.5rem;
   margin-bottom: var(--w3a-spacing-sm);
 }
 
@@ -106,11 +106,11 @@
   flex: 1;
   display: flex;
   align-items: center;
-  padding: 0 10px;
+  padding: 0 12px;
   gap: 8px;
   border: none;
   background: var(--w3a-colors-colorSurface);
-  border-radius: var(--w3a-border-radius-xl);
+  border-radius: 1rem;
   /* no shadow requested */
   box-shadow: none;
 }
@@ -150,7 +150,7 @@
 .w3a-arrow-btn {
   height: 48px;
   width: 64px;
-  border-radius: 16px;
+  border-radius: 1rem;
   background: var(--w3a-colors-primary);
   color: #fff;
   display: flex;

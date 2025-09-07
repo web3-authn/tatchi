@@ -42,8 +42,8 @@ export { useDeviceLinking } from './hooks/useDeviceLinking';
 export type { UseDeviceLinkingOptions, UseDeviceLinkingReturn } from './hooks/useDeviceLinking';
 export { useQRFileUpload } from './hooks/useQRFileUpload';
 export type { UseQRFileUploadOptions, UseQRFileUploadReturn } from './hooks/useQRFileUpload';
-export { usePostfixPosition } from './components/SignupMenu/usePostfixPosition';
-export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/SignupMenu/usePostfixPosition';
+export { usePostfixPosition } from './components/PasskeyAuthMenu/usePostfixPosition';
+export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/usePostfixPosition';
 export { TxExecutionStatus } from '../core/types/actions';
 
 // === REACT COMPONENTS ===
@@ -55,15 +55,19 @@ export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
 export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
 // Sign Up / Sign In menu
-export { SignupMenu } from './components/SignupMenu';
+export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples
 export { default as TouchIcon } from './components/ProfileSettingsButton/TouchIcon';
 export { default as QRCodeIcon } from './components/QRCodeIcon';
 // Lit component wrappers
-export { LitHaloBorder } from './components/LitHaloBorder';
-export { LitPasskeyHaloLoading } from './components/LitPasskeyHaloLoading';
-export type { LitHaloBorderProps } from './components/LitHaloBorder';
-export type { LitPasskeyHaloLoadingProps } from './components/LitPasskeyHaloLoading';
+export {
+  LitHaloBorder,
+  type LitHaloBorderProps
+} from './components/LitHaloBorder';
+export {
+  LitPasskeyHaloLoading,
+  type LitPasskeyHaloLoadingProps
+} from './components/LitPasskeyHaloLoading';
 
 // Theme components
 export { ThemeProvider, ThemeScope, useTheme } from './components/theme';

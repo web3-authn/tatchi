@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, SignupMenu } from '@web3authn/passkey/react'
+import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu } from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -7,8 +7,6 @@ import {
   AccountRecoveryPhase,
   AccountRecoveryStatus
 } from '@web3authn/passkey/react'
-
-import { GlassBorder } from './GlassBorder'
 import './PasskeyLoginMenu.css'
 
 
@@ -36,9 +34,6 @@ export function PasskeyLoginMenu() {
     useRelayer,
     toggleRelayer,
   } = usePasskeyContext();
-
-  const [isSecureContext] = useState(() => window.isSecureContext);
-
 
   const onRegister = async () => {
     if (!targetAccountId) return;
@@ -151,26 +146,14 @@ export function PasskeyLoginMenu() {
       placeItems: 'center',
       minHeight: '60vh'
     }}>
-      <SignupMenu
+      <PasskeyAuthMenu
         title="Passkey Login"
         defaultMode={accountExists ? 'login' : 'register'}
         socialLogin={["google", "apple", "github"]}
         // socialLogin={[]}
-        userInput={inputUsername}
-        onUserInputChange={setInputUsername}
-        postfixText={displayPostfix}
-        isUsingExistingAccount={isUsingExistingAccount}
-        accountExists={accountExists}
-        isSecureContext={isSecureContext}
-        onBeginPasskeyLogin={(mode) => {
-          if (!targetAccountId) return;
-          if (mode === 'login') onLogin();
-          else onRegister();
-        }}
-        onBeginAccountRecovery={() => {
-          if (!targetAccountId) return;
-          onRecover();
-        }}
+        onLogin={() => { if (!targetAccountId) return; onLogin(); }}
+        onRegister={() => { if (!targetAccountId) return; onRegister(); }}
+        onRecoverAccount={() => { if (!targetAccountId) return; onRecover(); }}
         showQRCodeSection={true}
       />
     </div>

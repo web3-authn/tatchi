@@ -1,12 +1,12 @@
 import React from 'react';
-import { SignupMode } from './index';
+import { AuthMenuMode } from './index';
 import { useTheme } from '../theme';
 
 export interface AccountExistsBadgeProps {
   /** Whether the account domain/postfix corresponds to an existing account */
   isUsingExistingAccount?: boolean;
   /** Current signup mode */
-  mode: SignupMode;
+  mode: AuthMenuMode;
   /** Whether the current context is secure (HTTPS) */
   secure: boolean;
 }

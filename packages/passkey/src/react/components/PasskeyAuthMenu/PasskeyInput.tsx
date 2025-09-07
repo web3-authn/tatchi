@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import TouchIcon from '../ProfileSettingsButton/TouchIcon';
 import { usePostfixPosition } from './usePostfixPosition';
 import { AccountExistsBadge } from './AccountExistsBadge';
-import { SignupMode } from './index';
+import { AuthMenuMode } from './index';
 
 export interface PasskeyInputProps {
   value: string;
@@ -18,7 +18,7 @@ export interface PasskeyInputProps {
   /** Text for the primary labeled button (e.g., Login/Register) */
   primaryLabel?: string;
   /** Current signup mode for status badge */
-  mode?: SignupMode;
+  mode?: AuthMenuMode;
   /** Whether the current context is secure (HTTPS) */
   secure?: boolean;
 }
@@ -45,7 +45,12 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   return (
     <div className="w3a-passkey-row">
       <div className="w3a-input-pill">
-        <TouchIcon width={20} height={20} />
+        <TouchIcon
+          width={24}
+          height={24}
+          strokeWidth={1.5}
+          style={{ color: 'var(--w3a-colors-textPrimary)' }}
+        />
         <div className="w3a-input-wrap">
           <input
             ref={bindInput}
