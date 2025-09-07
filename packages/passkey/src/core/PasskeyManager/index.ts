@@ -210,6 +210,16 @@ export class PasskeyManager {
     return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
   }
 
+  /**
+   * Prefetch latest block height/hash (and nonce if context missing) to reduce
+   * perceived latency when the user initiates a signing flow.
+   */
+  async prefetchBlockheight(): Promise<void> {
+    try {
+      await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient);
+    } catch {}
+  }
+
   async getRecentLogins(): Promise<{
     accountIds: string[],
     lastUsedAccountId: {

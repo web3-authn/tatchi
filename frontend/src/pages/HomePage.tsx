@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePasskeyContext } from '@web3authn/passkey/react';
+import { usePasskeyContext, useTheme } from '@web3authn/passkey/react';
 
 import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
 import { GreetingMenu } from '../components/GreetingMenu';
@@ -11,6 +11,7 @@ export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
 
   const { loginState } = usePasskeyContext();
+  const { tokens } = useTheme();
 
   return (
     <main>
@@ -22,7 +23,6 @@ export function HomePage() {
       ) : (
         <div className="layout-root">
           <PasskeyLoginMenu />
-          <LinkDeviceShowQR />
         </div>
       )}
     </main>

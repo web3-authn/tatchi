@@ -10,5 +10,8 @@
 @import './components/ProfileSettingsButton/UserAccountButton.css';
 @import './components/ProfileSettingsButton/Web3AuthProfileButton.css';
 
-/* Import QRCodeScanner styles */
+@import './components/SignupMenu/SignupMenu.css';
+
+/* Import QR Code Scanner styles */
 @import './components/QRCodeScanner.css';
+@import './components/ShowQRCode.css';

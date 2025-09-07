@@ -164,8 +164,8 @@ main {
 
 /* Homepage Content Layout */
 .layout-root {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  place-content: center;
   margin-top: 2rem;
   width: 100%;
   max-width: 480px;

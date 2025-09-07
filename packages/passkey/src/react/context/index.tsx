@@ -162,7 +162,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     }));
   }, [passkeyManager]);
 
-  const loginPasskey = async (nearAccountId: string, options: LoginHooksOptions) => {
+  const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
     const result: LoginResult = await passkeyManager.loginPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -178,18 +178,18 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearPublicKey: event.clientNearPublicKey || null,
           }));
         }
-        options.onEvent?.(event);
+        options?.onEvent?.(event);
       },
       onError: (error) => {
         logout();
-        options.onError?.(error);
+        options?.onError?.(error);
       }
     });
 
     return result
   }
 
-  const registerPasskey = async (nearAccountId: string, options: RegistrationHooksOptions) => {
+  const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
     const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -205,11 +205,11 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             nearPublicKey: currentLoginState.publicKey || null,
           }));
         }
-        options.onEvent?.(event);
+        options?.onEvent?.(event);
       },
       onError: (error) => {
         logout();
-        options.onError?.(error);
+        options?.onError?.(error);
       }
     });
 

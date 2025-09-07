@@ -137,8 +137,8 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   height: 'auto',
                   position: 'bottom-left'
                 }}
-                tooltipTheme="light"
-                // tooltipTheme="dark"
+                txTreeTheme="light"
+                // txTreeTheme="dark"
                 buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
                 onCancel={handleCancel}
                 onSuccess={(result) => {

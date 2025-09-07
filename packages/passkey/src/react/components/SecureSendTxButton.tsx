@@ -61,7 +61,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   /** Content shown inside the button; can be text or any element */
   buttonTextElement?: React.ReactNode;
   tooltipPosition?: TooltipPosition;
-  TxTreeTheme?: EmbeddedTxButtonTheme;
+  txTreeTheme?: EmbeddedTxButtonTheme;
   lockTheme?: boolean;
 }> = ({
   nearAccountId,
@@ -81,14 +81,14 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
     height: 'auto',
     position: 'top-center',
   },
-  TxTreeTheme = 'dark',
+  txTreeTheme = 'dark',
   lockTheme = false,
 }) => {
 
   const { passkeyManager } = usePasskeyContext();
   // Memoize passkey context for stable prop identity
   const passkeyManagerContext = useMemo(() => passkeyManager.getContext(), [passkeyManager]);
-  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(TxTreeTheme);
+  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
   // Uncontrolled mode: listen to user preference changes
@@ -105,8 +105,8 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
 
   // Controlled mode: sync with TxTreeTheme prop changes
   useEffect(() => {
-    if (lockTheme) setCurrentTheme(TxTreeTheme);
-  }, [TxTreeTheme, lockTheme]);
+    if (lockTheme) setCurrentTheme(txTreeTheme);
+  }, [txTreeTheme, lockTheme]);
 
   // Inline Lit wrapper creation
   const RawIframeButton = useMemo(() => createComponent({
@@ -147,6 +147,15 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
 
   return (
     <RawIframeButton
+      onMouseEnter={() => {
+        // Warm up block height/hash (and nonce if missing) on hover
+        // Fire-and-forget to avoid blocking UI thread
+        try { void passkeyManager.prefetchBlockheight(); } catch {}
+      }}
+      onFocus={() => {
+        // Also prefetch on keyboard focus
+        try { void passkeyManager.prefetchBlockheight(); } catch {}
+      }}
       passkeyManagerContext={passkeyManagerContext}
       // sendAndSignTransaction args
       nearAccountId={nearAccountId}
@@ -167,7 +176,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
       buttonStyle={toStyleRecord(buttonStyle)}
       buttonHoverStyle={toStyleRecord(buttonHoverStyle)}
       tooltipPosition={internalTooltipPosition}
-      TxTreeTheme={currentTheme}
+      txTreeTheme={currentTheme}
     >
       {content}
     </RawIframeButton>

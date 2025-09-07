@@ -257,7 +257,6 @@
   pointer-events: none;
   white-space: nowrap;
   z-index: 1;
-  visibility: hidden;
 }
 
 /* Stored account postfix styling */

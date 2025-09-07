@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase } from '@web3authn/passkey/react'
+import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, SignupMenu } from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -8,7 +8,6 @@ import {
   AccountRecoveryStatus
 } from '@web3authn/passkey/react'
 
-import { usePostfixPosition } from '../hooks/usePostfixPosition'
 import { GlassBorder } from './GlassBorder'
 import './PasskeyLoginMenu.css'
 
@@ -40,25 +39,9 @@ export function PasskeyLoginMenu() {
 
   const [isSecureContext] = useState(() => window.isSecureContext);
 
-  const usernameInputRef = useRef<HTMLInputElement>(null);
-  const postfixRef = useRef<HTMLSpanElement>(null);
-
-  // Use the postfix positioning hook
-  usePostfixPosition({
-    inputRef: usernameInputRef,
-    postfixRef: postfixRef,
-    inputValue: inputUsername
-  });
-
-  const handleLocalUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputUsername(e.target.value);
-  };
 
   const onRegister = async () => {
-    if (!targetAccountId) {
-      return;
-    }
-
+    if (!targetAccountId) return;
     try {
       const result = await registerPasskey(targetAccountId, {
         useRelayer: useRelayer,
@@ -110,7 +93,6 @@ export function PasskeyLoginMenu() {
 
   const onRecover = async () => {
     if (!targetAccountId) return;
-
     try {
       const flow = startAccountRecoveryFlow({
         onEvent: async (event) => {
@@ -163,85 +145,34 @@ export function PasskeyLoginMenu() {
     });
   };
 
-  if (!isSecureContext) {
-    return (
-      <div className="passkey-login-container-root">
-        <div className="passkey-translucent-container">
-          <div className="passkey-content-area">
-            <div className="login-header">
-              <h2 className="login-title">Passkey Authentication</h2>
-            </div>
-            <div className="login-content">
-              <div className="security-warning">
-                <p>⚠️ Passkey operations require a secure context (HTTPS or localhost).</p>
-                <p>Please ensure your development server is running on HTTPS or access via localhost.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <GlassBorder>
-      <div className="passkey-content-area">
-        <div className="login-header">
-          <h2 className="login-title">Passkey Login</h2>
-          <p className="login-caption">Authenticate onchain with Passkeys</p>
-        </div>
-
-        <div className="login-content">
-          <div className="input-wrapper">
-            <div className="username-input-container">
-              <input
-                ref={usernameInputRef}
-                type="text"
-                value={inputUsername}
-                onChange={handleLocalUsernameChange}
-                placeholder="Enter username for passkey"
-                className="username-input passkey-focus-ring"
-              />
-              <span
-                ref={postfixRef}
-                className={`account-postfix ${isUsingExistingAccount ? 'stored-account' : ''}`}
-                title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
-              >
-                {displayPostfix}
-              </span>
-            </div>
-            {isUsingExistingAccount && (
-              <div className="account-exists-badge">
-                account exists
-              </div>
-            )}
-          </div>
-
-          <div className="passkey-auth-buttons">
-            <button
-              onClick={onLogin}
-              className={`passkey-btn ${accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
-              disabled={!inputUsername || !accountExists}
-            >
-              Login
-            </button>
-            <button
-              onClick={onRegister}
-              className={`passkey-btn ${!accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
-              disabled={!inputUsername || !isSecureContext || accountExists}
-            >
-              Register Passkey
-            </button>
-            <button
-              onClick={onRecover}
-              className={`passkey-btn ${!accountExists ? 'passkey-btn-primary' : 'passkey-btn-secondary'}`}
-              disabled={!inputUsername || !isSecureContext || accountExists}
-            >
-              Recover Account
-            </button>
-          </div>
-          </div>
-      </div>
-    </GlassBorder>
+    <div className="passkey-login-container-root" style={{
+      display: 'grid',
+      placeItems: 'center',
+      minHeight: '60vh'
+    }}>
+      <SignupMenu
+        title="Passkey Login"
+        defaultMode={accountExists ? 'login' : 'register'}
+        socialLogin={["google", "apple", "github"]}
+        // socialLogin={[]}
+        userInput={inputUsername}
+        onUserInputChange={setInputUsername}
+        postfixText={displayPostfix}
+        isUsingExistingAccount={isUsingExistingAccount}
+        accountExists={accountExists}
+        isSecureContext={isSecureContext}
+        onBeginPasskeyLogin={(mode) => {
+          if (!targetAccountId) return;
+          if (mode === 'login') onLogin();
+          else onRegister();
+        }}
+        onBeginAccountRecovery={() => {
+          if (!targetAccountId) return;
+          onRecover();
+        }}
+        showQRCodeSection={true}
+      />
+    </div>
   );
 }

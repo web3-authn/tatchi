@@ -6,6 +6,7 @@ import type {
 } from '@/index';
 import { useQRCamera, QRScanMode } from '../hooks/useQRCamera';
 import { useDeviceLinking } from '../hooks/useDeviceLinking';
+import { ThemeScope } from './theme';
 
 /**
  * QR Code Scanner Component for Device Linking
@@ -134,97 +135,103 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
 
   if (qrCamera.error) {
     return (
-      <div className="qr-scanner-error-container">
-        <div className="qr-scanner-error-message">
-          <p>{qrCamera.error}</p>
-          <button
-            onClick={() => qrCamera.setError(null)}
-            className="qr-scanner-error-button"
-          >
-            Try Again
-          </button>
-          <button
-            onClick={handleClose}
-            className="qr-scanner-error-button"
-          >
-            Close
-          </button>
+      <ThemeScope>
+        <div className="qr-scanner-error-container">
+          <div className="qr-scanner-error-message">
+            <p>{qrCamera.error}</p>
+            <button
+              onClick={() => qrCamera.setError(null)}
+              className="qr-scanner-error-button"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={handleClose}
+              className="qr-scanner-error-button"
+            >
+              Close
+            </button>
+          </div>
         </div>
-      </div>
+      </ThemeScope>
     )
   }
 
   return (
-    <div className={`qr-scanner-modal ${className || ''}`} style={style}>
-      {/* Camera Scanner Section */}
-      {showCamera
-        && (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
-        && (
-        <div className="qr-scanner-camera-section">
-          {/* Camera Feed */}
-          <div className="qr-scanner-camera-container">
-            <video
-              ref={qrCamera.videoRef}
-              className={`qr-scanner-video${isVideoReady ? ' is-ready' : ''}`}
-              style={{
-                transform: qrCamera.isFrontCamera ? 'scaleX(-1)' : 'none'
-              }}
-              playsInline
-              autoPlay
-              muted
-              onCanPlay={() => setIsVideoReady(true)}
-              onLoadedData={() => setIsVideoReady(true)}
-            />
-            <canvas
-              ref={qrCamera.canvasRef}
-              className="qr-scanner-canvas"
-            />
+    <ThemeScope>
+      <div className={`qr-scanner-modal ${className || ''}`} style={style}>
+        <div className="qr-scanner-panel">
+          {/* Camera Scanner Section */}
+          {showCamera
+            && (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
+            && (
+            <div className="qr-scanner-camera-section">
+              {/* Camera Feed */}
+              <div className="qr-scanner-camera-container">
+                <video
+                  ref={qrCamera.videoRef}
+                  className={`qr-scanner-video${isVideoReady ? ' is-ready' : ''}`}
+                  style={{
+                    transform: qrCamera.isFrontCamera ? 'scaleX(-1)' : 'none'
+                  }}
+                  playsInline
+                  autoPlay
+                  muted
+                  onCanPlay={() => setIsVideoReady(true)}
+                  onLoadedData={() => setIsVideoReady(true)}
+                />
+                <canvas
+                  ref={qrCamera.canvasRef}
+                  className="qr-scanner-canvas"
+                />
 
-            {/* Scanner Overlay */}
-            <div className="qr-scanner-overlay">
-              <div className="qr-scanner-box">
-                <div className="qr-scanner-corner-top-left" />
-                <div className="qr-scanner-corner-top-right" />
-                <div className="qr-scanner-corner-bottom-left" />
-                <div className="qr-scanner-corner-bottom-right" />
+                {/* Scanner Overlay */}
+                <div className="qr-scanner-overlay">
+                  <div className="qr-scanner-box">
+                    <div className="qr-scanner-corner-top-left" />
+                    <div className="qr-scanner-corner-top-right" />
+                    <div className="qr-scanner-corner-bottom-left" />
+                    <div className="qr-scanner-corner-bottom-right" />
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Instructions */}
-          <div className="qr-scanner-instructions">
-            <p>Position the QR code within the frame</p>
-            {qrCamera.isScanning && (
-              <p className="qr-scanner-sub-instruction qr-scanner-sub-instruction--small">
-                Scanning...
-              </p>
-            )}
-          </div>
+              {/* Instructions */}
+              <div className="qr-scanner-instructions">
+                <p>Position the QR code within the frame</p>
+                {qrCamera.isScanning && (
+                  <p className="qr-scanner-sub-instruction qr-scanner-sub-instruction--small">
+                    Scanning...
+                  </p>
+                )}
+              </div>
 
-          {/* Camera Controls */}
-          {qrCamera.cameras.length > 1 && (
-            <div className="qr-scanner-camera-controls">
-              <select
-                value={qrCamera.selectedCamera}
-                onChange={(e) => qrCamera.handleCameraChange(e.target.value)}
-                className="qr-scanner-camera-selector"
-              >
-                {qrCamera.cameras.map(camera => (
-                  <option key={camera.deviceId} value={camera.deviceId}>
-                    {camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
-                  </option>
-                ))}
-              </select>
+              {/* Camera Controls */}
+              {qrCamera.cameras.length > 1 && (
+                <div className="qr-scanner-camera-controls">
+                  <select
+                    value={qrCamera.selectedCamera}
+                    onChange={(e) => qrCamera.handleCameraChange(e.target.value)}
+                    className="qr-scanner-camera-selector"
+                  >
+                    {qrCamera.cameras.map(camera => (
+                      <option key={camera.deviceId} value={camera.deviceId}>
+                        {camera.label || `Camera ${camera.deviceId.substring(0, 8)}...`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
 
-      {/* Close Button */}
-      <button onClick={handleClose} className="qr-scanner-close">
-        ✕
-      </button>
-    </div>
+        {/* Close Button */}
+        <button onClick={handleClose} className="qr-scanner-close">
+          ✕
+        </button>
+      </div>
+    </ThemeScope>
   );
 };
 

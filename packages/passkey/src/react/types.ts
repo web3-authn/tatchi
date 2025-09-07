@@ -162,8 +162,8 @@ export interface PasskeyContextType {
   ////////////////////////////
 
   // Registration and login functions
-  registerPasskey: (nearAccountId: string, options: RegistrationHooksOptions) => Promise<RegistrationResult>;
-  loginPasskey: (nearAccountId: string, options: LoginHooksOptions) => Promise<LoginResult>;
+  registerPasskey: (nearAccountId: string, options?: RegistrationHooksOptions) => Promise<RegistrationResult>;
+  loginPasskey: (nearAccountId: string, options?: LoginHooksOptions) => Promise<LoginResult>;
   logout: () => void;
 
   // Execute actions

@@ -12,6 +12,7 @@
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",
+    "lucide-react": "^0.542.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.5.2",
