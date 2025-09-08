@@ -88,6 +88,15 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
   private _txTreeWidth?: string | number;
   private _onResize = () => this._updateTxTreeWidth();
+  private _onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      // Only close for modal-style render modes
+      if (this.mode !== 'inline') {
+        e.preventDefault();
+        this._handleCancel();
+      }
+    }
+  };
 
   // Closed Shadow DOM for security
   static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
@@ -669,6 +678,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
   disconnectedCallback() {
     try { window.removeEventListener('resize', this._onResize as any); } catch {}
+    try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
     super.disconnectedCallback();
   }
 
@@ -679,6 +689,18 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     this.updateTheme();
     this._updateTxTreeWidth();
     try { window.addEventListener('resize', this._onResize, { passive: true } as any); } catch {}
+    // Listen globally so Escape works regardless of focus target
+    try { window.addEventListener('keydown', this._onKeyDown); } catch {}
+    // Ensure this iframe/host receives keyboard focus so ESC works immediately
+    try {
+      // Make host focusable and focus it without scrolling
+      (this as HTMLElement).tabIndex = (this as HTMLElement).tabIndex ?? -1;
+      (this as HTMLElement).focus({ preventScroll: true } as any);
+      // Also attempt to focus the frame window in case we're inside an iframe
+      if (typeof window.focus === 'function') {
+        window.focus();
+      }
+    } catch {}
   }
 
   private _updateTxTreeWidth() {
