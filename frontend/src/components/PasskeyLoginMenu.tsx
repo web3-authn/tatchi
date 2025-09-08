@@ -36,88 +36,78 @@ export function PasskeyLoginMenu() {
   } = usePasskeyContext();
 
   const onRegister = async () => {
-    if (!targetAccountId) return;
-    try {
-      const result = await registerPasskey(targetAccountId, {
-        useRelayer: useRelayer,
-        onEvent: (event: RegistrationSSEEvent) => {
-          switch (event.phase) {
-            case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:
-              if (event.status === RegistrationStatus.PROGRESS) {
-                toast.loading('Starting registration...', { id: 'registration' });
-              }
-              break;
-            case RegistrationPhase.STEP_2_KEY_GENERATION:
-              if (event.status === RegistrationStatus.SUCCESS) {
-                toast.success(`Keys generated...`, { id: 'registration' });
-              }
-              break;
-            case RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION:
-              if (event.status === RegistrationStatus.PROGRESS) {
-                toast.loading(`Creating account...`, { id: 'registration' });
-              }
-              break;
-            case RegistrationPhase.STEP_6_CONTRACT_REGISTRATION:
-              if (event.status === RegistrationStatus.PROGRESS) {
-                toast.loading(`Registering with Web3Authn contract...`, { id: 'registration' });
-              }
-              break;
-            case RegistrationPhase.STEP_7_REGISTRATION_COMPLETE:
-              if (event.status === RegistrationStatus.SUCCESS) {
-                toast.success('Registration completed successfully!', { id: 'registration' });
-              }
-              break;
-            case RegistrationPhase.REGISTRATION_ERROR:
-              toast.error(event.error || 'Registration failed', { id: 'registration' });
-              break;
-            default:
-              if (event.status === RegistrationStatus.PROGRESS) {
-                toast.loading(event.message || 'Processing...', { id: 'registration' });
-              }
-          }
-        },
-      });
+    const result = await registerPasskey(targetAccountId, {
+      useRelayer: useRelayer,
+      onEvent: (event: RegistrationSSEEvent) => {
+        switch (event.phase) {
+          case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:
+            if (event.status === RegistrationStatus.PROGRESS) {
+              toast.loading('Starting registration...', { id: 'registration' });
+            }
+            break;
+          case RegistrationPhase.STEP_2_KEY_GENERATION:
+            if (event.status === RegistrationStatus.SUCCESS) {
+              toast.success(`Keys generated...`, { id: 'registration' });
+            }
+            break;
+          case RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION:
+            if (event.status === RegistrationStatus.PROGRESS) {
+              toast.loading(`Creating account...`, { id: 'registration' });
+            }
+            break;
+          case RegistrationPhase.STEP_6_CONTRACT_REGISTRATION:
+            if (event.status === RegistrationStatus.PROGRESS) {
+              toast.loading(`Registering with Web3Authn contract...`, { id: 'registration' });
+            }
+            break;
+          case RegistrationPhase.STEP_7_REGISTRATION_COMPLETE:
+            if (event.status === RegistrationStatus.SUCCESS) {
+              toast.success('Registration completed successfully!', { id: 'registration' });
+            }
+            break;
+          case RegistrationPhase.REGISTRATION_ERROR:
+            toast.error(event.error || 'Registration failed', { id: 'registration' });
+            break;
+          default:
+            if (event.status === RegistrationStatus.PROGRESS) {
+              toast.loading(event.message || 'Processing...', { id: 'registration' });
+            }
+        }
+      },
+    });
 
-      if (result.success && result.nearAccountId) {
-        // Registration successful - the context will handle updating account data
-      }
-    } catch (error: any) {
-      console.error('Registration error:', error);
+    if (result.success && result.nearAccountId) {
+      // Registration successful - the context will handle updating account data
     }
   };
 
   const onRecover = async () => {
-    if (!targetAccountId) return;
-    try {
-      const flow = startAccountRecoveryFlow({
-        onEvent: async (event) => {
-          if (
-            event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
-            && event.status === AccountRecoveryStatus.SUCCESS
-          ) {
-            await refreshLoginState(targetAccountId);
-          }
-        },
-        onError: (error) => console.error('Recovery error:', error)
-      });
-
-      const options = await flow.discover(targetAccountId);
-      const result = await flow.recover(options[0]);
-
-      if (result.success) {
-        toast.success(`Account ${targetAccountId} recovered successfully!`);
-      } else {
-        toast.error(`Recovery failed: ${result.error || 'Unknown error'}`);
+    const flow = startAccountRecoveryFlow({
+      onEvent: async (event) => {
+        if (
+          event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
+          && event.status === AccountRecoveryStatus.SUCCESS
+        ) {
+          await refreshLoginState(targetAccountId);
+        }
+      },
+      onError: (error) => {
+        console.error('Recovery error:', error)
+        toast.error(`Recovery failed: ${error.message}`);
       }
-    } catch (error: any) {
-      console.error('Recovery error:', error);
-      toast.error(`Recovery failed: ${error.message}`);
+    });
+
+    const options = await flow.discover(targetAccountId);
+    const result = await flow.recover(options[0]);
+
+    if (result.success) {
+      toast.success(`Account ${targetAccountId} recovered successfully!`);
+    } else {
+      toast.error(`Recovery failed: ${result.error || 'Unknown error'}`);
     }
   };
 
   const onLogin = async () => {
-    if (!targetAccountId) return;
-
     await loginPasskey(targetAccountId, {
       onEvent: (event) => {
         switch (event.phase) {
@@ -142,15 +132,16 @@ export function PasskeyLoginMenu() {
 
   return (
     <div className="passkey-login-container-root" style={{
-      display: 'grid',
-      placeItems: 'center',
-      minHeight: '60vh'
     }}>
       <PasskeyAuthMenu
         title="Passkey Login"
         defaultMode={accountExists ? 'login' : 'register'}
-        // socialLogin={["google", "apple", "github"]}
-        socialLogin={[]}
+        socialLogin={{}}
+        // socialLogin={{
+        //   google: () => 'username is: <gmail_email@gmail>',
+        //   x: () => 'username is <twitter_handle@x>',
+        //   apple: () => 'username is <email@apple>'
+        // }}
         onLogin={() => { if (!targetAccountId) return; onLogin(); }}
         onRegister={() => { if (!targetAccountId) return; onRegister(); }}
         onRecoverAccount={() => { if (!targetAccountId) return; onRecover(); }}

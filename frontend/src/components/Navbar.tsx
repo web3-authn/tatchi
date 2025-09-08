@@ -1,23 +1,26 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 import {
   usePasskeyContext,
   ProfileSettingsButton,
   DeviceLinkingPhase,
-  DeviceLinkingStatus
+  DeviceLinkingStatus,
+  ThemeScope
 } from '@web3authn/passkey/react';
 import { DarkModeToggle } from './DarkModeToggle';
 
 export const Navbar: React.FC = () => {
   const { loginState } = usePasskeyContext();
+  const navigate = useNavigate();
 
   return (
-    <nav className="navbar-container">
+    <ThemeScope>
+      <nav className="navbar-container">
       <div className="navbar-title">
         <Link to="/">
-          Web3Authn Passkeys
+          Tachi.xyz
         </Link>
       </div>
 
@@ -39,7 +42,7 @@ export const Navbar: React.FC = () => {
         <ProfileSettingsButton
           nearAccountId={loginState.nearAccountId!}
           nearExplorerBaseUrl="https://testnet.nearblocks.io"
-          onLogout={() => {}}
+          onLogout={() => navigate('/')}
           deviceLinkingScannerParams={{
             fundingAmount: "0.05",
             onDeviceLinked: (result: any) => {
@@ -110,6 +113,7 @@ export const Navbar: React.FC = () => {
         />
       }
 
-    </nav>
+      </nav>
+    </ThemeScope>
   );
 };

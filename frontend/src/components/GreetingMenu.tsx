@@ -7,7 +7,7 @@ import { ActionType, TxExecutionStatus } from '@web3authn/passkey/react';
 
 import { GlassBorder } from './GlassBorder';
 import type { LastTxDetails } from '../types';
-import { RefreshIcon } from './icons/RefreshIcon';
+import { RefreshCcw } from 'lucide-react';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
@@ -249,7 +249,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               title="Refresh Greeting"
               className="refresh-icon-button"
             >
-              <RefreshIcon size={22} color={COBALT_BLUE}/>
+              <RefreshCcw size={22} color={COBALT_BLUE}/>
             </button>
             <p><strong>{onchainGreeting || "..."}</strong></p>
           </div>
