@@ -1,11 +1,11 @@
 {
-  "name": "reveries-passkey-monorepo",
+  "name": "web3authn-passkey-monorepo",
   "private": true,
   "scripts": {
-    "install-all": "pnpm install && (cd relay-server && pnpm install) && (cd frontend && pnpm install) && (cd packages/passkey && pnpm install)",
-    "build:sdk": "(cd packages/passkey && pnpm build && cd ../../ && sh ./npm_link_sdk.sh)",
-    "dev": "(cd frontend && pnpm dev)",
-    "server": "(cd relay-server && pnpm dev)"
+    "install-all": "pnpm -w install",
+    "build:sdk": "pnpm -C packages/passkey build",
+    "dev": "pnpm -C frontend dev",
+    "server": "pnpm -C relay-server dev"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

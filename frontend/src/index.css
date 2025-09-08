@@ -259,22 +259,22 @@ nav ul li a:hover {
   width: fit-content;
   margin-top: 0.5rem;
   margin-left: 0.5rem;
-  border-radius: 10px;
-  background-color: #ffffff;
-  color: #333333;
-  border-bottom: 1px solid #e0e0e0;
+  border-radius: 3rem;
+  background-color: var(--w3a-colors-colorSurface2);
+  color: var(--w3a-colors-textPrimary);
+  border-bottom: 1px solid var(--w3a-colors-borderPrimary);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--w3a-shadows-sm);
 }
 
 .navbar-title {
   font-size: 1.25rem;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--w3a-colors-textPrimary);
   margin-right: 2rem;
 }
 
@@ -291,7 +291,7 @@ nav ul li a:hover {
 }
 
 .navbar-links a {
-  color: #666666;
+  color: var(--w3a-colors-textSecondary);
   text-decoration: none;
   font-size: 0.9rem;
   font-weight: 500;
@@ -299,14 +299,14 @@ nav ul li a:hover {
 }
 
 .navbar-links a:hover {
-  color: var(--cerulean-blue-primary);
+  color: var(--w3a-colors-primary);
 }
 
 .navbar-user-info {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: var(--cerulean-blue);
+  color: var(--w3a-colors-primary);
   font-weight: 500;
 }
 
@@ -314,11 +314,11 @@ nav ul li a:hover {
   font-size: 0.85rem;
   opacity: 0.7;
   font-family: monospace;
-  color: #666666;
+  color: var(--w3a-colors-textSecondary);
 }
 
 .navbar-logout-button {
-  background: var(--cerulean-blue-primary);
+  background: var(--w3a-colors-primary);
   color: white;
   border: none;
   padding: 0.5rem 1rem;
@@ -328,5 +328,5 @@ nav ul li a:hover {
 }
 
 .navbar-logout-button:hover {
-  background: var(--cerulean-blue-hover);
+  background: var(--w3a-colors-primaryHover);
 }

@@ -48,9 +48,7 @@ export default defineConfig({
     },
   ],
   resolve: {
-    alias: {
-      // The plugin should handle buffer aliasing if needed.
-    },
+    alias: [],
   },
   define: {
     'process.env.NODE_ENV': JSON.stringify('development'), // Hardcode for client bundle
