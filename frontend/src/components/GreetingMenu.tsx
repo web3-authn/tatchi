@@ -1,8 +1,8 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
 import { ActionPhase, usePasskeyContext } from '@web3authn/passkey/react';
-import type { ActionArgs, FunctionCallAction, TransferAction } from '@web3authn/passkey/react';
+import type { FunctionCallAction, TransferAction } from '@web3authn/passkey/react';
 import { ActionType, TxExecutionStatus } from '@web3authn/passkey/react';
 
 import { GlassBorder } from './GlassBorder';

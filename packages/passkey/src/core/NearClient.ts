@@ -72,9 +72,9 @@ export class SignedTransaction {
     this.borsh_bytes = data.borsh_bytes;
   }
 
-  encode(): Uint8Array {
+  encode(): ArrayBuffer {
     // If borsh_bytes are already available, use them
-    return new Uint8Array(this.borsh_bytes);
+    return (new Uint8Array(this.borsh_bytes)).buffer;
   }
 
   base64Encode(): string {

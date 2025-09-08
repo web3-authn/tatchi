@@ -10,6 +10,7 @@ import { EmbeddedTxConfirmPage } from './pages/EmbeddedTxConfirmPage';
 import { ModalTxConfirmPage } from './pages/ModalTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
+import { ToasterThemed } from './components/ToasterThemed';
 
 // Simple App component to manage layout and potentially shared state later
 function App() {
@@ -36,7 +37,7 @@ function App() {
           <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
           <Route path="/modal" element={<ModalTxConfirmPage/>} />
         </Routes>
-
+        <ToasterThemed />
         </PasskeyProvider>
       </ThemeProvider>
     </BrowserRouter>

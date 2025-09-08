@@ -12,8 +12,6 @@ interface ShowQRCodeProps {
   onError: (error: Error) => void;
   /** Optional pre-created flow. If provided, ShowQRCode uses it instead of creating one. */
   deviceLinkingFlow?: LinkDeviceFlow;
-  /** If using a provided flow, whether ShowQRCode should cancel it on close. Defaults to true. */
-  manageFlowLifecycle?: boolean;
 }
 
 export function ShowQRCode({
@@ -22,7 +20,6 @@ export function ShowQRCode({
   onEvent,
   onError,
   deviceLinkingFlow,
-  manageFlowLifecycle = true,
 }: ShowQRCodeProps) {
 
   const { startDeviceLinkingFlow } = usePasskeyContext();
@@ -89,8 +86,8 @@ export function ShowQRCode({
 
     return () => {
       cancelled = true;
-      // Only cancel the flow if we created it here, or if explicit lifecycle management is desired
-      const shouldCancel = !deviceLinkingFlow || manageFlowLifecycle;
+      // Only cancel the flow if we created it here
+      const shouldCancel = !deviceLinkingFlow;
       if (shouldCancel) {
         device2Flow.cancel();
       }
@@ -98,7 +95,7 @@ export function ShowQRCode({
         flowRef.current = null;
       }
     };
-  }, [isOpen, deviceLinkingFlow, manageFlowLifecycle]);
+  }, [isOpen, deviceLinkingFlow]);
 
   if (!isOpen) return null;
 

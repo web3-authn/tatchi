@@ -78,7 +78,10 @@ export function PasskeyLoginMenu() {
 
     if (result.success && result.nearAccountId) {
       // Registration successful - the context will handle updating account data
+      return; // success: resolve
     }
+    // Ensure failure propagates to caller so UI can reset
+    throw new Error(result.error || 'Registration failed');
   };
 
   const onRecover = async () => {
@@ -98,18 +101,28 @@ export function PasskeyLoginMenu() {
     });
 
     const options = await flow.discover(targetAccountId);
-    const result = await flow.recover(options[0]);
-
-    if (result.success) {
-      toast.success(`Account ${targetAccountId} recovered successfully!`);
-    } else {
-      toast.error(`Recovery failed: ${result.error || 'Unknown error'}`);
+    try {
+      const result = await flow.recover(options[0]);
+      if (result.success) {
+        toast.success(`Account ${targetAccountId} recovered successfully!`);
+        return; // success
+      } else {
+        throw new Error(result.error || 'Unknown error');
+      }
+    } catch (err: any) {
+      console.error('Recovery error:', err);
+      // Keep toast consistent
+      toast.error(`Recovery failed: ${err?.message || String(err)}`);
+      // Re-throw so PasskeyAuthMenu can reset UI back to sign-in
+      throw err;
     }
   };
 
   const onLogin = async () => {
-    await loginPasskey(targetAccountId, {
+    // Return the promise so caller can await and catch
+    return loginPasskey(targetAccountId, {
       onEvent: (event) => {
+        console.log("LOGIN EVENT:", event);
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
             toast.loading(`Logging in as ${targetAccountId}...`, { id: 'login' });
@@ -134,7 +147,6 @@ export function PasskeyLoginMenu() {
     <div className="passkey-login-container-root" style={{
     }}>
       <PasskeyAuthMenu
-        title="Passkey Login"
         defaultMode={accountExists ? 'login' : 'register'}
         socialLogin={{}}
         // socialLogin={{
@@ -142,10 +154,18 @@ export function PasskeyLoginMenu() {
         //   x: () => 'username is <twitter_handle@x>',
         //   apple: () => 'username is <email@apple>'
         // }}
-        onLogin={() => { if (!targetAccountId) return; onLogin(); }}
-        onRegister={() => { if (!targetAccountId) return; onRegister(); }}
-        onRecoverAccount={() => { if (!targetAccountId) return; onRecover(); }}
-        showQRCodeSection={true}
+        onLogin={async () => {
+          if (!targetAccountId) throw new Error('Missing account id');
+          return onLogin();
+        }}
+        onRegister={async () => {
+          if (!targetAccountId) throw new Error('Missing account id');
+          return onRegister();
+        }}
+        onRecoverAccount={async () => {
+          if (!targetAccountId) throw new Error('Missing account id');
+          return onRecover();
+        }}
       />
     </div>
   );

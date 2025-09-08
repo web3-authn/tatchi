@@ -5,7 +5,6 @@ import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
 import { GreetingMenu } from '../components/GreetingMenu';
 import { TransactionDetails } from '../components/TransactionDetails';
 import type { LastTxDetails } from '../types';
-import { LinkDeviceShowQR } from '../components/LinkDeviceShowQR';
 
 export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
