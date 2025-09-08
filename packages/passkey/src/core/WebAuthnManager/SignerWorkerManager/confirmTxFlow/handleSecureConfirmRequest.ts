@@ -74,6 +74,12 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 6. If user rejected (confirmed === false), exit early
   if (!confirmed) {
+    // Release any reserved nonces for this modal request
+    try {
+      nearRpcResult.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    } catch (e) {
+      console.warn('[SignerWorkerManager]: Failed to release reserved nonces on cancel:', e);
+    }
     closeModalSafely(confirmHandle, false);
     sendWorkerResponse(worker, {
       requestId: data.requestId,
@@ -127,6 +133,14 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 
   // 9. Send confirmation response back to wasm-signer-worker
+  // Release any reserved nonces if final decision is not confirmed
+  try {
+    if (!decisionWithCredentials?.confirmed) {
+      nearRpcResult.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    }
+  } catch (e) {
+    console.warn('[SignerWorkerManager]: Failed to release reserved nonces after decision:', e);
+  }
   sendWorkerResponse(worker, decisionWithCredentials);
 }
 
@@ -142,33 +156,31 @@ async function performNearRpcCalls(
   transactionContext: TransactionContext | null;
   error?: string;
   details?: string;
+  reservedNonces?: string[];
 }> {
   try {
     // Use NonceManager's smart caching method
     const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
     console.log("Using NonceManager smart caching");
 
-    // For batch transactions, reserve nonces for each transaction
+    // Reserve nonces for this request to avoid parallel collisions
     const txCount = data.tx_signing_requests?.length || 1;
-    if (txCount > 1) {
-      console.log(`[NonceManager]: Reserving ${txCount} nonces for batch transaction`);
-      try {
-        const reservedNonces = ctx.nonceManager.reserveNonces(txCount);
-        console.log(`[NonceManager]: Reserved nonces:`, reservedNonces);
-
-        // Update the transaction context with the first reserved nonce
-        // The WASM worker will handle the nonce assignment for each transaction
-        transactionContext.nextNonce = reservedNonces[0];
-      } catch (error) {
-        console.warn(`[NonceManager]: Failed to reserve nonces for batch transaction:`, error);
-        // Continue with single nonce - the WASM worker will handle incrementing
-      }
+    let reservedNonces: string[] | undefined;
+    try {
+      reservedNonces = ctx.nonceManager.reserveNonces(txCount);
+      console.log(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
+      // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
+      transactionContext.nextNonce = reservedNonces[0];
+    } catch (error) {
+      console.warn(`[NonceManager]: Failed to reserve ${txCount} nonce(s):`, error);
+      // Continue with existing nextNonce; worker may auto-increment where appropriate
     }
 
     return {
       transactionContext,
       error: undefined,
-      details: undefined
+      details: undefined,
+      reservedNonces
     };
   } catch (error) {
     return {
