@@ -23,6 +23,10 @@ export class NonceManager {
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private prefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Nonce reservation system for batch transactions
+  private reservedNonces: Set<string> = new Set();
+  private lastReservedNonce: string | null = null;
+
   // Freshness thresholds (ms)
   private readonly NONCE_FRESHNESS_THRESHOLD = 20 * 1000; // 20 seconds
   private readonly BLOCK_FRESHNESS_THRESHOLD = 10 * 1000; // 10 seconds
@@ -89,6 +93,8 @@ export class NonceManager {
     this.clearRefreshTimer();
     this.clearPrefetchTimer();
     this.inflightFetch = null;
+    this.reservedNonces.clear();
+    this.lastReservedNonce = null;
   }
 
   /**
@@ -174,7 +180,6 @@ export class NonceManager {
         const isNonceStale = !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
         const isBlockStale = !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
 
-        let nextNonce: string;
         let accessKeyInfo = this.transactionContext?.accessKeyInfo;
         let txBlockHeight = this.transactionContext?.txBlockHeight;
         let txBlockHash = this.transactionContext?.txBlockHash;
@@ -204,8 +209,12 @@ export class NonceManager {
           txBlockHash = blockInfo.header.hash;
         }
 
-        // Derive nextNonce from the (possibly updated) access key info
-        nextNonce = (BigInt(accessKeyInfo!.nonce) + BigInt(1)).toString();
+        // Derive nextNonce from access key info + current context + reservations
+        const nextNonce = this.maxBigInt(
+          BigInt(accessKeyInfo!.nonce) + 1n,
+          this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
+          this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n
+        ).toString();
 
         const transactionContext: TransactionContext = {
           nearPublicKeyStr: capturedPublicKey!,
@@ -282,6 +291,151 @@ export class NonceManager {
     this.clearRefreshTimer();
     this.clearPrefetchTimer();
     this.inflightFetch = null;
+    this.reservedNonces.clear();
+    this.lastReservedNonce = null;
+  }
+
+  /**
+   * Reserve a nonce for batch transactions
+   * This increments the nonce locally to prevent conflicts in batch operations
+   * @param count - Number of nonces to reserve (default: 1)
+   * @returns Array of reserved nonces
+   */
+  public reserveNonces(count: number = 1): string[] {
+    if (!this.transactionContext) {
+      throw new Error('Transaction context not available - call getNonceBlockHashAndHeight() first');
+    }
+
+    if (count <= 0) return [];
+
+    const start = this.lastReservedNonce
+      ? BigInt(this.lastReservedNonce) + 1n
+      : BigInt(this.transactionContext.nextNonce);
+
+    // Plan reservations first (pure), then commit atomically
+    const planned: string[] = [];
+    for (let i = 0; i < count; i++) {
+      const candidate = (start + BigInt(i)).toString();
+      if (this.reservedNonces.has(candidate)) {
+        throw new Error(`Nonce ${candidate} is already reserved`);
+      }
+      planned.push(candidate);
+    }
+
+    // Commit: extend set and bump lastReservedNonce
+    const newSet = new Set(this.reservedNonces);
+    for (const n of planned) newSet.add(n);
+    this.reservedNonces = newSet;
+    this.lastReservedNonce = planned[planned.length - 1];
+
+    console.debug(`[NonceManager]: Reserved ${count} nonces:`, planned);
+    return planned;
+  }
+
+  /**
+   * Release a reserved nonce (call when transaction is completed or failed)
+   * @param nonce - The nonce to release
+   */
+  public releaseNonce(nonce: string): void {
+    if (this.reservedNonces.has(nonce)) {
+      this.reservedNonces.delete(nonce);
+      console.debug(`[NonceManager]: Released nonce ${nonce}`);
+    }
+  }
+
+  /**
+   * Release all reserved nonces
+   */
+  public releaseAllNonces(): void {
+    const count = this.reservedNonces.size;
+    this.reservedNonces.clear();
+    this.lastReservedNonce = null;
+    console.debug(`[NonceManager]: Released all ${count} reserved nonces`);
+  }
+
+  /**
+   * Update nonce from blockchain after transaction completion
+   * This should be called after a transaction is successfully broadcasted
+   * @param nearClient - NEAR client for RPC calls
+   * @param actualNonce - The actual nonce used in the completed transaction
+   */
+  public async updateNonceFromBlockchain(nearClient: NearClient, actualNonce: string): Promise<void> {
+    if (!this.nearAccountId || !this.nearPublicKeyStr) {
+      throw new Error('NonceManager not initialized with user data');
+    }
+
+    try {
+      // Fetch fresh access key info to get the latest nonce
+      const accessKeyInfo = await nearClient.viewAccessKey(this.nearAccountId, this.nearPublicKeyStr);
+
+      if (!accessKeyInfo || accessKeyInfo.nonce === undefined) {
+        throw new Error(`Access key not found or invalid for account ${this.nearAccountId}`);
+      }
+
+      const chainNonceBigInt = BigInt(accessKeyInfo.nonce);
+      const actualNonceBigInt = BigInt(actualNonce);
+
+      // Tolerate both pre- and post-final states:
+      // - pre-final: chainNonce == actualNonce - 1
+      // - post-final: chainNonce >= actualNonce
+      if (chainNonceBigInt < actualNonceBigInt - BigInt(1)) {
+        console.warn(
+          `[NonceManager]: Chain nonce (${chainNonceBigInt}) behind expected (${actualNonceBigInt - BigInt(1)}). Proceeding with tolerant update.`
+        );
+      }
+
+      // Compute next usable nonce using maxBigInt for clarity
+      const candidateNext = this.maxBigInt(
+        chainNonceBigInt + 1n,
+        this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
+        this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n,
+      );
+
+      // Update cached context with fresh access key info and computed next nonce
+      if (this.transactionContext) {
+        this.transactionContext.accessKeyInfo = accessKeyInfo;
+        this.transactionContext.nextNonce = candidateNext.toString();
+      } else {
+        // If no context exists (should be rare here), construct a minimal one
+        this.transactionContext = {
+          nearPublicKeyStr: this.nearPublicKeyStr,
+          accessKeyInfo: accessKeyInfo,
+          nextNonce: candidateNext.toString(),
+          // Block values are unknown here; leave stale ones to be refreshed later
+          txBlockHeight: '0',
+          txBlockHash: '',
+        } as any; // We'll refresh these via fetchFreshData when needed
+      }
+      this.lastNonceUpdate = Date.now();
+
+      // Release the used nonce (idempotent)
+      this.releaseNonce(actualNonce);
+
+      // Prune any reserved nonces that are now <= chain nonce (already used or invalid)
+      if (this.reservedNonces.size > 0) {
+        const { set: prunedSet, lastReserved } = this.pruneReserved(chainNonceBigInt, this.reservedNonces);
+        this.reservedNonces = prunedSet;
+        this.lastReservedNonce = lastReserved;
+      }
+
+      console.debug(
+        `[NonceManager]: Updated from chain nonce=${chainNonceBigInt} actual=${actualNonceBigInt} next=${this.transactionContext!.nextNonce}`
+      );
+
+    } catch (error) {
+      console.error('[NonceManager]: Failed to update nonce from blockchain:', error);
+      // Don't throw - this is a best-effort update
+    }
+  }
+
+  /**
+   * Get the next available nonce for a single transaction
+   * This is a convenience method that reserves exactly one nonce
+   * @returns The next nonce to use
+   */
+  public getNextNonce(): string {
+    const nonces = this.reserveNonces(1);
+    return nonces[0];
   }
 
   private clearRefreshTimer(): void {
@@ -296,6 +450,34 @@ export class NonceManager {
       this.prefetchTimer = null;
     }
   }
+
+  // Small helper to get max of BigInt values elegantly
+  private maxBigInt(...values: bigint[]): bigint {
+    if (values.length === 0) return 0n;
+    return values.reduce((a, b) => (a > b ? a : b));
+  }
+
+  // Return a new reserved set that excludes entries <= chain nonce, and compute new lastReserved
+  private pruneReserved(chainNonceBigInt: bigint, reserved: Set<string>): { set: Set<string>, lastReserved: string | null } {
+    const newSet = new Set<string>();
+    let newLast: bigint | null = null;
+    for (const r of reserved) {
+      try {
+        const rb = BigInt(r);
+        if (rb > chainNonceBigInt) {
+          newSet.add(r);
+          if (newLast === null || rb > newLast) newLast = rb;
+        }
+      } catch {
+        // skip malformed entries
+      }
+    }
+    return {
+      set: newSet,
+      lastReserved: newLast ? newLast.toString() : null
+    };
+  }
+
 }
 
 // Create and export singleton instance

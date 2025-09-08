@@ -38,7 +38,7 @@ test.describe('PasskeyManager Registration Rollback Verification', () => {
       try {
         const transactionBytes = new Uint8Array(signedTransaction.borsh_bytes);
         const hashInput = Array.from(transactionBytes).join(',');
-        const hash = base64UrlEncode(new TextEncoder().encode(hashInput)).substring(0, 16);
+        const hash = base64UrlEncode(new TextEncoder().encode(hashInput).buffer).substring(0, 16);
         return hash;
       } catch (error) {
         console.warn('Failed to generate transaction hash:', error);
@@ -90,7 +90,7 @@ test.describe('PasskeyManager Registration Rollback Verification', () => {
     function generateTransactionHash(signedTransaction: { borsh_bytes: number[] }): string {
       const transactionBytes = new Uint8Array(signedTransaction.borsh_bytes);
       const hashInput = Array.from(transactionBytes).join(',');
-      const hash = base64UrlEncode(new TextEncoder().encode(hashInput)).substring(0, 16);
+      const hash = base64UrlEncode(new TextEncoder().encode(hashInput).buffer).substring(0, 16);
       return hash;
     }
 

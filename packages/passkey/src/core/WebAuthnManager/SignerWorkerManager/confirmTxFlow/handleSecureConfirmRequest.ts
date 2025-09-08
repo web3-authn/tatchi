@@ -133,6 +133,7 @@ export async function handlePromptUserConfirmInJsMainThread(
 /**
  * Performs NEAR RPC call to get nonce, block hash and height
  * Uses NonceManager if available, otherwise falls back to direct RPC calls
+ * For batch transactions, reserves nonces for each transaction
  */
 async function performNearRpcCalls(
   ctx: SignerWorkerManagerContext,
@@ -146,6 +147,24 @@ async function performNearRpcCalls(
     // Use NonceManager's smart caching method
     const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
     console.log("Using NonceManager smart caching");
+
+    // For batch transactions, reserve nonces for each transaction
+    const txCount = data.tx_signing_requests?.length || 1;
+    if (txCount > 1) {
+      console.log(`[NonceManager]: Reserving ${txCount} nonces for batch transaction`);
+      try {
+        const reservedNonces = ctx.nonceManager.reserveNonces(txCount);
+        console.log(`[NonceManager]: Reserved nonces:`, reservedNonces);
+
+        // Update the transaction context with the first reserved nonce
+        // The WASM worker will handle the nonce assignment for each transaction
+        transactionContext.nextNonce = reservedNonces[0];
+      } catch (error) {
+        console.warn(`[NonceManager]: Failed to reserve nonces for batch transaction:`, error);
+        // Continue with single nonce - the WASM worker will handle incrementing
+      }
+    }
+
     return {
       transactionContext,
       error: undefined,
