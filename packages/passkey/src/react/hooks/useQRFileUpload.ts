@@ -7,7 +7,7 @@ export interface UseQRFileUploadOptions {
 }
 
 export interface UseQRFileUploadReturn {
-  fileInputRef: React.RefObject<HTMLInputElement>;
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
   handleFileUpload: (event: React.ChangeEvent<HTMLInputElement>) => Promise<void>;
   isProcessing: boolean;
 }

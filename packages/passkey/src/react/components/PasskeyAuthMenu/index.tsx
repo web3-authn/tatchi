@@ -2,7 +2,7 @@ import React from 'react';
 import './PasskeyAuthMenu.css';
 import { ThemeScope, useTheme } from '../theme';
 import { usePasskeyContext } from '../../context';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeftIcon } from './icons';
 
 import { SocialProviders } from './SocialProviders';
 import { SegmentedControl } from './SegmentedControl';
@@ -205,7 +205,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
         onClick={onResetToStart}
         className={`w3a-back-button${waiting ? ' is-visible' : ''}`}
       >
-        <ArrowLeft size={18} strokeWidth={2.25} style={{ display: 'block' }} />
+        <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
       </button>
 
       <div className="w3a-header">

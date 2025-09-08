@@ -112,8 +112,8 @@ export interface TransactionSettingsSectionProps {
 }
 
 export interface ProfileStateRefs {
-  buttonRef: React.RefObject<HTMLDivElement>;
-  dropdownRef: React.RefObject<HTMLDivElement>;
+  buttonRef: React.RefObject<HTMLDivElement | null>;
+  dropdownRef: React.RefObject<HTMLDivElement | null>;
   menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
 }
 

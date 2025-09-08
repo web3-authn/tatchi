@@ -61,7 +61,7 @@ export function useTheme(): UseThemeReturn {
 
 // Public: boundary element that applies CSS variables and data attribute
 export interface ThemeScopeProps {
-  as?: keyof JSX.IntrinsicElements;
+  as?: keyof React.JSX.IntrinsicElements;
   className?: string;
   style?: React.CSSProperties;
   dataAttr?: string; // attribute to mark theme on boundary

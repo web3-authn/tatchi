@@ -51,8 +51,8 @@ export interface UseQRCameraReturn {
   scanDurationMs: number;
 
   // Refs for UI
-  videoRef: React.RefObject<HTMLVideoElement>;
-  canvasRef: React.RefObject<HTMLCanvasElement>;
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
 
   // Controls
   startScanning: () => Promise<void>;

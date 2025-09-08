@@ -1,5 +1,5 @@
 import React from 'react';
-import { Chrome, Apple, AtSign } from 'lucide-react';
+import { ChromeIcon, AppleIcon, AtSignIcon } from './icons';
 
 export type SocialLoginHandlers = {
   google?: () => string;
@@ -12,9 +12,9 @@ export interface SocialProvidersProps {
 }
 
 const iconByKey: Record<keyof SocialLoginHandlers, { Icon: React.ComponentType<any>; label: string }> = {
-  google: { Icon: Chrome, label: 'Google' },
-  x: { Icon: AtSign, label: 'X' },
-  apple: { Icon: Apple, label: 'Apple' },
+  google: { Icon: ChromeIcon, label: 'Google' },
+  x: { Icon: AtSignIcon, label: 'X' },
+  apple: { Icon: AppleIcon, label: 'Apple' },
 };
 
 export const SocialProviders: React.FC<SocialProvidersProps> = ({ socialLogin }) => {
