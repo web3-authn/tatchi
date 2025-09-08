@@ -4,7 +4,7 @@
  */
 
 import init, * as vrfWasmModule from '../wasm_vrf_worker/wasm_vrf_worker';
-import { resolveWasmUrl } from './wasm/wasmLoader';
+import { resolveWasmUrl } from './wasmLoader';
 import type {
   VRFWorkerMessage,
   WasmVrfWorkerRequestType,

@@ -9,6 +9,21 @@ import {
 } from '@web3authn/passkey/react'
 import './PasskeyLoginMenu.css'
 
+function friendlyWebAuthnMessage(err: any): string {
+  const msg = err?.message || String(err || 'Unknown error');
+  const name = err?.name || '';
+
+  const notAllowed = name === 'NotAllowedError' || /NotAllowedError/i.test(msg) || /timed out or was not allowed/i.test(msg);
+  if (notAllowed) return 'Touch ID was cancelled or timed out.';
+
+  if (name === 'AbortError' || /AbortError/i.test(msg)) return 'Authentication was cancelled.';
+  if (name === 'TimeoutError' || /timed out/i.test(msg)) return 'Touch ID timed out. Please try again.';
+  if (name === 'SecurityError' || /SecurityError/i.test(msg)) return 'Security error. Make sure you are on a secure site (HTTPS).';
+  if (name === 'InvalidStateError' || /InvalidStateError/i.test(msg)) return 'No matching passkey found for this account.';
+
+  return msg.startsWith('Recovery failed:') ? msg : `Recovery failed: ${msg}`;
+}
+
 
 export function PasskeyLoginMenu() {
   const {
@@ -94,9 +109,9 @@ export function PasskeyLoginMenu() {
           await refreshLoginState(targetAccountId);
         }
       },
+      // Avoid toasting here to prevent duplicate messages; handle in catch below
       onError: (error) => {
-        console.error('Recovery error:', error)
-        toast.error(`Recovery failed: ${error.message}`);
+        console.error('Recovery error:', error);
       }
     });
 
@@ -111,8 +126,7 @@ export function PasskeyLoginMenu() {
       }
     } catch (err: any) {
       console.error('Recovery error:', err);
-      // Keep toast consistent
-      toast.error(`Recovery failed: ${err?.message || String(err)}`);
+      toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
       // Re-throw so PasskeyAuthMenu can reset UI back to sign-in
       throw err;
     }

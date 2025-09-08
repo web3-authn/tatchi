@@ -4,7 +4,6 @@ const require_index = require('../IndexedDBManager/index.js');
 const require_base64 = require('../../utils/base64.js');
 const require_vrf_worker = require('../types/vrf-worker.js');
 const require_passkeyManager = require('../types/passkeyManager.js');
-const require_registration = require('./registration.js');
 const require_rpcCalls = require('../rpcCalls.js');
 
 //#region src/core/PasskeyManager/recoverAccount.ts
@@ -70,7 +69,7 @@ var AccountRecoveryFlow = class {
 			const selectedOption = this.availableAccounts.find((option) => option.credentialId === selection.credentialId && option.accountId === selection.accountId);
 			if (!selectedOption) throw new Error("Invalid selection - account not found in available options");
 			if (!selectedOption.accountId) throw new Error("Invalid account selection - no account ID provided");
-			const recoveryResult = await recoverAccount(this.context, selectedOption.accountId, this.options, selectedOption.credential || void 0);
+			const recoveryResult = await recoverAccount(this.context, selectedOption.accountId, this.options, selectedOption.credential || void 0, selectedOption.credentialId && selectedOption.credentialId !== "manual-input" ? [selectedOption.credentialId] : void 0);
 			this.phase = "complete";
 			return recoveryResult;
 		} catch (error) {
@@ -112,44 +111,34 @@ var AccountRecoveryFlow = class {
 * Get available passkeys for account recovery
 */
 async function getRecoverableAccounts(context, accountId) {
-	const vrfChallenge = await require_registration.generateBootstrapVrfChallenge(context, accountId);
-	const availablePasskeys = await getAvailablePasskeysForDomain(context, vrfChallenge, accountId);
+	const availablePasskeys = await getAvailablePasskeysForDomain(context, accountId);
 	return availablePasskeys.filter((passkey) => passkey.accountId !== null);
 }
 /**
 * Discover passkeys for domain using contract-based lookup
 */
-async function getAvailablePasskeysForDomain(context, vrfChallenge, accountId) {
-	const { webAuthnManager, nearClient, configs } = context;
+async function getAvailablePasskeysForDomain(context, accountId) {
+	const { nearClient, configs } = context;
 	const credentialIds = await require_rpcCalls.getCredentialIdsContractCall(nearClient, configs.contractId, accountId);
-	try {
-		const credential = await webAuthnManager.getCredentialsForRecovery({
-			nearAccountId: accountId,
-			challenge: vrfChallenge,
-			credentialIds: credentialIds.length > 0 ? credentialIds : []
-		});
-		if (credential) return [{
-			credentialId: credential.id,
-			accountId,
-			publicKey: "",
-			displayName: `${accountId} (Authenticated with this passkey)`,
-			credential
-		}];
-	} catch (error) {
-		console.warn("Failed to authenticate with passkey:", error);
-	}
+	if (credentialIds.length > 0) return credentialIds.map((credentialId, idx) => ({
+		credentialId,
+		accountId,
+		publicKey: "",
+		displayName: credentialIds.length > 1 ? `${accountId} (passkey ${idx + 1})` : `${accountId}`,
+		credential: null
+	}));
 	return [{
 		credentialId: "manual-input",
 		accountId,
 		publicKey: "",
-		displayName: `${accountId} (Authentication failed - please try again)`,
+		displayName: `${accountId}`,
 		credential: null
 	}];
 }
 /**
 * Main account recovery function
 */
-async function recoverAccount(context, accountId, options, reuseCredential) {
+async function recoverAccount(context, accountId, options, reuseCredential, allowedCredentialIds) {
 	const { onEvent, onError, hooks } = options || {};
 	const { webAuthnManager, nearClient, configs } = context;
 	await hooks?.beforeCall?.();
@@ -168,7 +157,7 @@ async function recoverAccount(context, accountId, options, reuseCredential) {
 			status: require_passkeyManager.AccountRecoveryStatus.PROGRESS,
 			message: "Authenticating with WebAuthn..."
 		});
-		const credential = await getOrCreateCredential(webAuthnManager, accountId, reuseCredential);
+		const credential = await getOrCreateCredential(webAuthnManager, accountId, reuseCredential, allowedCredentialIds);
 		const recoveredKeypair = await deriveNearKeypairFromCredential(webAuthnManager, credential, accountId);
 		const { hasAccess, blockHeight, blockHash } = await Promise.all([nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey), nearClient.viewBlock({ finality: "final" })]).then(([hasAccess$1, blockInfo]) => {
 			return {
@@ -223,7 +212,7 @@ async function recoverAccount(context, accountId, options, reuseCredential) {
 /**
 * Get credential (reuse existing or create new)
 */
-async function getOrCreateCredential(webAuthnManager, accountId, reuseCredential) {
+async function getOrCreateCredential(webAuthnManager, accountId, reuseCredential, allowedCredentialIds) {
 	if (reuseCredential) {
 		const prfResults = reuseCredential.getClientExtensionResults()?.prf?.results;
 		if (!prfResults?.first || !prfResults?.second) throw new Error("Reused credential missing PRF outputs - cannot proceed with recovery");
@@ -233,7 +222,7 @@ async function getOrCreateCredential(webAuthnManager, accountId, reuseCredential
 	return await webAuthnManager.getCredentialsForRecovery({
 		nearAccountId: accountId,
 		challenge,
-		credentialIds: []
+		credentialIds: allowedCredentialIds ?? []
 	});
 }
 /**

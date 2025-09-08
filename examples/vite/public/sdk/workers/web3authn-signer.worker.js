@@ -4763,7 +4763,7 @@ async function __wbg_init(module_or_path) {
 }
 var wasm_signer_worker_default = __wbg_init;
 
-// src/core/wasm/wasmLoader.ts
+// src/core/wasmLoader.ts
 function resolveWasmUrl(wasmFilename, workerName, customBaseUrl) {
   if (customBaseUrl) {
     console.debug(`[wasmLoader: ${workerName}] Using custom WASM base URL: ${customBaseUrl}`);

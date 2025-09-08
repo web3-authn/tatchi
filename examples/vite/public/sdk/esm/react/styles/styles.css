@@ -1239,7 +1239,7 @@
               background-color 200ms ease,
               border-radius 250ms ease,
               opacity 200ms ease,
-              width 200ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
+              width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
 .w3a-arrow-btn.is-enabled {
   width: 100px; /* expand when enabled */
@@ -1253,7 +1253,7 @@
               background-color 200ms ease,
               border-radius 250ms ease,
               opacity 200ms ease,
-              width 200ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
+              width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
 .w3a-arrow-btn.is-enabled:hover {
   transform: scale(1.02);
