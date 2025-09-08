@@ -58,6 +58,7 @@ import {
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
+import { ServiceIframeClient } from '../ServiceIframe/client';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -77,6 +78,7 @@ export class PasskeyManager {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
   readonly configs: PasskeyManagerConfigs;
+  private serviceClient: ServiceIframeClient | null = null;
 
   constructor(
     configs: PasskeyManagerConfigs,
@@ -87,6 +89,8 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
+
+    // Defer service iframe init to an explicit call to avoid async in constructor.
   }
 
   /**
@@ -96,6 +100,29 @@ export class PasskeyManager {
   get userPreferences(): UserPreferencesManager {
     return this.webAuthnManager.getUserPreferences();
   }
+
+  /**
+   * Initialize the hidden wallet service iframe client (optional).
+   * If `walletOrigin` is not provided in configs, this is a no‑op.
+   */
+  async initServiceIframe(): Promise<void> {
+    if (!this.configs.walletOrigin) return;
+    if (this.serviceClient) return;
+    this.serviceClient = new ServiceIframeClient({
+      walletOrigin: this.configs.walletOrigin,
+      servicePath: this.configs.walletServicePath || '/service',
+      theme: this.configs.walletTheme,
+      nearRpcUrl: this.configs.nearRpcUrl,
+      nearNetwork: this.configs.nearNetwork,
+      contractId: this.configs.contractId,
+      relayer: this.configs.relayer,
+      vrfWorkerConfigs: this.configs.vrfWorkerConfigs as any,
+    });
+    await this.serviceClient.init();
+  }
+
+  /** Get the service iframe client if initialized. */
+  getServiceClient(): ServiceIframeClient | null { return this.serviceClient; }
 
   getContext(): PasskeyManagerContext {
     return {
@@ -426,6 +453,17 @@ export class PasskeyManager {
     transactions: TransactionInput[],
     options?: ActionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
+    // If a service iframe is initialized, route signing via wallet origin
+    if (this.serviceClient) {
+      const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
+      const result = await this.serviceClient.signTransactionsWithActions({
+        nearAccountId,
+        txSigningRequests: txs,
+        // Optional: we could forward confirmation config overrides here later
+      });
+      // Expect the wallet to return an array compatible with VerifyAndSignTransactionResult[]
+      return (result?.signedTransactions || result || []) as VerifyAndSignTransactionResult[];
+    }
     return signTransactionsWithActions({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -525,6 +563,18 @@ export class PasskeyManager {
     params: SignNEP413MessageParams,
     options?: BaseHooksOptions
   }): Promise<SignNEP413MessageResult> {
+    // Route via wallet service if available for stronger isolation
+    if (this.serviceClient) {
+      const payload = {
+        nearAccountId: args.nearAccountId,
+        message: args.params.message,
+        recipient: args.params.recipient,
+        state: args.params.state,
+      };
+      const result = await this.serviceClient.signNep413Message(payload);
+      // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
+      return result as SignNEP413MessageResult;
+    }
     return signNEP413Message({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),

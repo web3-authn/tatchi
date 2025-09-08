@@ -558,7 +558,7 @@ function generateTransactionHash(signedTransaction: SignedTransaction): string {
     const hashInput = Array.from(transactionBytes).join(',');
 
     // Create a deterministic hash by taking first 16 chars of base64 encoding
-    const hash = base64UrlEncode(new TextEncoder().encode(hashInput)).substring(0, 16);
+    const hash = base64UrlEncode(new TextEncoder().encode(hashInput).buffer).substring(0, 16);
 
     return hash;
   } catch (error) {

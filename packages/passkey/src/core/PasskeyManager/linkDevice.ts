@@ -661,7 +661,7 @@ export class LinkDeviceFlow {
         lastUpdated: Date.now(),
         passkeyCredential: {
           id: credential.id,
-          rawId: base64UrlEncode(new Uint8Array(credential.rawId))
+          rawId: base64UrlEncode(credential.rawId)
         },
         encryptedVrfKeypair: {
           encryptedVrfDataB64u: deterministicKeysResult.encryptedVrfKeypair.encryptedVrfDataB64u,
@@ -674,7 +674,7 @@ export class LinkDeviceFlow {
       await webAuthnManager.storeAuthenticator({
         nearAccountId: accountId,
         deviceNumber: this.session.deviceNumber,
-        credentialId: base64UrlEncode(new Uint8Array(credential.rawId)),
+        credentialId: base64UrlEncode(credential.rawId),
         credentialPublicKey: new Uint8Array(credential.rawId),
         transports: ['internal'],
         name: `Device ${this.session.deviceNumber || 'Unknown'} Passkey for ${accountId.split('.')[0]}`,

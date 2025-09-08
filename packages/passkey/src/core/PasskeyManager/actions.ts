@@ -138,6 +138,12 @@ export async function signTransactionsWithActions(args: {
  * );
  * console.log('Transaction ID:', result.transaction_outcome?.id);
  * ```
+ *
+ * sendTransaction centrally manages nonce lifecycle around broadcast:
+ * - On success: reconciles nonce with chain via updateNonceFromBlockchain() (async),
+ *   which also prunes any stale reservations.
+ * - On failure: releases the reserved nonce immediately to avoid leaks.
+ * Callers SHOULD NOT release the nonce in their own catch blocks.
  */
 export async function sendTransaction({
   context,
@@ -164,6 +170,17 @@ export async function sendTransaction({
       options?.waitUntil
     );
     txId = transactionResult.transaction?.hash || transactionResult.transaction?.id;
+
+    // Update nonce from blockchain after successful transaction broadcast asynchronously
+    const nonce = signedTransaction.transaction.nonce;
+    context.webAuthnManager.getNonceManager().updateNonceFromBlockchain(
+      context.nearClient,
+      nonce.toString()
+    ).catch((error) => {
+      console.warn('[sendTransaction] Failed to update nonce from blockchain:', error);
+      // don't fail transaction if nonce update fails
+    });
+
     options?.onEvent?.({
       step: 8,
       phase: ActionPhase.STEP_8_BROADCASTING,
@@ -178,6 +195,13 @@ export async function sendTransaction({
     });
   } catch (error) {
     console.error('[sendTransaction] failed:', error);
+    // Centralized cleanup: release reserved nonce on failure (idempotent)
+    try {
+      const nonce = signedTransaction.transaction.nonce;
+      context.webAuthnManager.getNonceManager().releaseNonce(nonce.toString());
+    } catch (nonceError) {
+      console.warn('[sendTransaction]: Failed to release nonce after failure:', nonceError);
+    }
     throw error;
   }
 
@@ -285,32 +309,42 @@ export async function signAndSendTransactionsInternal({
   confirmationConfigOverride?: ConfirmationConfig | undefined,
 }): Promise<ActionResult[]> {
 
-  const signedTxs = await signTransactionsWithActionsInternal({
-    context,
-    nearAccountId,
-    transactionInputs,
-    options,
-    confirmationConfigOverride
-  });
-
-  if (options?.executeSequentially) {
-    const txResults = [];
-    for (const tx of signedTxs) {
-      const txResult = await sendTransaction({
-        context,
-        signedTransaction: tx.signedTransaction,
-        options
-      });
-      txResults.push(txResult);
-    }
-    return txResults;
-
-  } else {
-    return Promise.all(signedTxs.map(tx => sendTransaction({
+  try {
+    const signedTxs = await signTransactionsWithActionsInternal({
       context,
-      signedTransaction: tx.signedTransaction,
-      options
-    })))
+      nearAccountId,
+      transactionInputs,
+      options,
+      confirmationConfigOverride
+    });
+
+    if (options?.executeSequentially) {
+      // Note: sendTransaction handles nonce release on failure centrally
+      const txResults = [];
+      for (const tx of signedTxs) {
+        const txResult = await sendTransaction({
+          context,
+          signedTransaction: tx.signedTransaction,
+          options
+        });
+        txResults.push(txResult);
+      }
+      return txResults;
+
+    } else {
+      // Parallel execution; sendTransaction handles failure cleanup per tx
+      return Promise.all(signedTxs.map(async (tx) =>
+        sendTransaction({
+          context,
+          signedTransaction: tx.signedTransaction,
+          options
+        })
+      ));
+    }
+  } catch (error) {
+    // If signing fails, release all reserved nonces
+    context.webAuthnManager.getNonceManager().releaseAllNonces();
+    throw error;
   }
 }
 
@@ -502,5 +536,3 @@ async function wasmAuthenticateAndSignTransactions(
 
   return signedTxs;
 }
-
-

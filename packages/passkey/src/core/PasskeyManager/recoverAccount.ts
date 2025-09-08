@@ -472,7 +472,7 @@ async function performAccountRecovery({
     const contractAuthenticators = await syncAuthenticatorsContractCall(nearClient, configs.contractId, accountId);
 
     // 2. Find the matching authenticator to get the correct device number
-    const credentialIdUsed = base64UrlEncode(new Uint8Array(credential.rawId));
+    const credentialIdUsed = base64UrlEncode(credential.rawId);
     const matchingAuthenticator = contractAuthenticators.find(auth => auth.credentialId === credentialIdUsed);
 
     if (!matchingAuthenticator) {
@@ -594,7 +594,7 @@ async function restoreUserData({
       lastUpdated: Date.now(),
       passkeyCredential: {
         id: credential.id,
-        rawId: base64UrlEncode(new Uint8Array(credential.rawId))
+        rawId: base64UrlEncode(credential.rawId)
       },
       encryptedVrfKeypair: {
         encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
@@ -659,14 +659,4 @@ async function restoreAuthenticators({
       deviceNumber // Pass the device number from contract data
     });
   }
-}
-
-async function getRecoveryLoginState(webAuthnManager: WebAuthnManager, accountId: AccountId) {
-  const loginState = await webAuthnManager.checkVrfStatus();
-  const isVrfActive = loginState.active && loginState.nearAccountId === accountId;
-  return {
-    isLoggedIn: isVrfActive,
-    vrfActive: isVrfActive,
-    vrfSessionDuration: loginState.sessionDuration
-  };
 }
