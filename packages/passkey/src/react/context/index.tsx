@@ -60,6 +60,12 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
       removeServerLockRoute: '/vrf/remove-server-lock',
     }
   }
+  ,
+  // By default, use a hosted wallet service origin so integrators don't need to
+  // copy any HTML. Override this in production to your wallet origin if needed.
+  // Leave undefined to run entirely same‑origin (less secure) for local dev.
+  // walletOrigin: 'https://wallet.web3authn.xyz',
+  // walletServicePath: '/service',
 }
 
 export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
@@ -107,6 +113,20 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
     return globalPasskeyManager;
   }, [config]);
+
+  // Initialize hidden wallet service iframe when walletOrigin is provided
+  useEffect(() => {
+    (async () => {
+      try {
+        const walletOrigin = passkeyManager?.configs?.walletOrigin;
+        if (walletOrigin) {
+          await passkeyManager.initServiceIframe();
+        }
+      } catch (err) {
+        console.warn('[PasskeyProvider] Service iframe init failed:', err);
+      }
+    })();
+  }, [passkeyManager]);
 
   // Use relayer hook
   const relayerHook = useRelayer({

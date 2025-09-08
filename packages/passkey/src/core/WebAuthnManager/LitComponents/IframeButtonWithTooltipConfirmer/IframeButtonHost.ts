@@ -349,7 +349,8 @@ export class IframeButtonHost extends LitElementWithProps {
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
           style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          sandbox="allow-scripts allow-same-origin"
+          allow="publickey-credentials-get; publickey-credentials-create"
         ></iframe>
       </div>
     `;

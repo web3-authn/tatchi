@@ -575,6 +575,10 @@ export interface PasskeyManagerConfigs {
   nearNetwork: 'testnet' | 'mainnet';
   contractId: 'web3-authn-v5.testnet' | 'web3-authn.near' | string;
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
+  // Optional service iframe configuration (wallet origin hosting sensitive logic)
+  walletOrigin?: string; // e.g., https://wallet.example.com
+  walletServicePath?: string; // defaults to '/service'
+  walletTheme?: 'dark' | 'light';
   // Relay Server is used to create new NEAR accounts
   relayer: {
     // Whether to use the relayer by default on initial load

@@ -244,7 +244,7 @@ export class MinimalNearClient implements NearClient {
       finality: 'final',
       account_id: contractId,
       method_name: method,
-      args_base64: base64Encode(new TextEncoder().encode(JSON.stringify(args)))
+      args_base64: base64Encode(new TextEncoder().encode(JSON.stringify(args)).buffer)
     };
 
     const result = await this.makeRpcCall<ContractResult<T>>(

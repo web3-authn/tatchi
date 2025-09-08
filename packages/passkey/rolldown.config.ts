@@ -225,6 +225,8 @@ export default defineConfig([
       'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
       'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
       'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
+      // Wallet service host (headless)
+      'service-host': 'src/core/ServiceIframe/service-host.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,

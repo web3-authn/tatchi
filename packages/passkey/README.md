@@ -116,4 +116,112 @@ rolldown.config.mjs   # Rolldown bundler configuration
 - **`build-paths.ts`** - Source of truth for all configuration
 - **`build-paths.sh`** - Shell version for bash scripts
 
+## Service Iframe (no external hosting required)
 
+This SDK mounts a hidden, sandboxed “service iframe” that runs sensitive logic (WebAuthn orchestration, workers, IndexedDB) without relying on any external server or copied HTML files.
+
+- Same‑origin by default: The iframe is created with `srcdoc` and loads an embedded ESM bundle (service‑host) resolved by your bundler (`?url` import). No manual copying.
+- Optional cross‑origin: If you want to run the service on a separate wallet origin, set `walletOrigin` (and optionally `walletServicePath`) in `PasskeyManager` configs. This is not required.
+- UI/gesture: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn; the service iframe remains headless.
+
+### React usage
+
+```tsx
+import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
+
+function App() {
+  return (
+    <PasskeyProvider
+      config={{
+        ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+        // Optional: set a custom wallet origin if you need a separate domain
+        // walletOrigin: 'https://wallet.example.com',
+        // walletServicePath: '/service',
+      }}
+    >
+      <YourApp />
+    </PasskeyProvider>
+  );
+}
+```
+
+### Vanilla TypeScript usage
+
+```ts
+import { PasskeyManager } from '@web3authn/passkey';
+
+const pm = new PasskeyManager({
+  nearRpcUrl: 'https://rpc.testnet.near.org',
+  nearNetwork: 'testnet',
+  contractId: 'web3-authn-v5.testnet',
+  // Optional: walletOrigin for a separate wallet site. Omit to stay same‑origin.
+  // walletOrigin: 'https://wallet.example.com',
+  // walletServicePath: '/service',
+});
+
+await pm.initServiceIframe();
+
+const signed = await pm.signTransactionsWithActions({
+  nearAccountId: 'alice.testnet',
+  transactions: [/* ... */],
+});
+```
+
+No external hosting or HTML copying is required when using the default same‑origin mode.
+
+### Optional: hosting on a separate wallet origin
+
+If you want stronger isolation by running the service iframe on a separate origin, you need to serve two things from that origin:
+
+- Static SDK assets under `/sdk` (workers and embedded bundles):
+  - `/sdk/workers/web3authn-signer.worker.js`
+  - `/sdk/workers/web3authn-vrf.worker.js`
+  - `/sdk/react/embedded/service-host.js` (and other embedded bundles)
+- A service page at `/service` that loads the service host module.
+
+You do not need to copy files into your app bundle — you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
+
+```ts
+import express from 'express';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { getWalletServiceHtml } from '@web3authn/passkey/core/ServiceIframe/html';
+
+const app = express();
+
+// Resolve the dist directory inside the installed package
+const pkgEntry = require.resolve('@web3authn/passkey/dist/esm/index.js');
+const distEsmDir = path.dirname(pkgEntry);           // .../node_modules/@web3authn/passkey/dist/esm
+const distRoot = path.resolve(distEsmDir, '..');     // .../node_modules/@web3authn/passkey/dist
+
+// Serve SDK assets at /sdk
+app.use('/sdk', express.static(path.join(distRoot, 'esm')));
+app.use('/sdk/workers', express.static(path.join(distRoot, 'workers')));
+
+// Service page at /service
+app.get('/service', (_req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  // sdkBasePath must match where you serve the SDK assets (here, '/sdk')
+  res.end(getWalletServiceHtml('/sdk'));
+});
+
+app.listen(8080, () => console.log('Wallet host running on http://localhost:8080'));
+```
+
+Then configure the SDK to use this wallet origin:
+
+```ts
+const pm = new PasskeyManager({
+  nearRpcUrl: 'https://rpc.testnet.near.org',
+  nearNetwork: 'testnet',
+  contractId: 'web3-authn-v5.testnet',
+  walletOrigin: 'http://localhost:8080', // your wallet site
+  walletServicePath: '/service',         // must match the route above
+});
+await pm.initServiceIframe();
+```
+
+With this approach, you don’t copy HTML into the integrator’s app and you don’t rely on any external vendor servers. You either:
+
+- Use the default same‑origin `srcdoc` mounting (zero configuration), or
+- Host the wallet service on your own separate origin by exposing `/sdk` and `/service` as shown.

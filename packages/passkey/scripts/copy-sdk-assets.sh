@@ -39,6 +39,7 @@ echo "Copying embedded components (with dynamic chunks)..."
 mkdir -p "$FRONTEND_SDK/embedded"
 cp -r "$BUILD_ESM/react/embedded/". "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded bundle directory not found"
 
+
 echo "✅ SDK files copied successfully!"
 echo "Files copied to: $FRONTEND_SDK"
 echo ""

@@ -353,7 +353,8 @@ export class IframeModalHost extends LitElementWithProps {
       <div class="iframe-modal-host">
         <iframe
           ${ref(this.iframeRef)}
-          sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
+          sandbox="allow-scripts allow-same-origin"
+          allow="publickey-credentials-get; publickey-credentials-create"
         ></iframe>
       </div>
     `;
