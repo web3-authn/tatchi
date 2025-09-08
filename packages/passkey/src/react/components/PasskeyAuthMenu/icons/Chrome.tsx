@@ -4,12 +4,16 @@ interface ChromeIconProps {
   size?: number;
   className?: string;
   color?: string;
+  strokeWidth?: number;
+  style?: React.CSSProperties;
 }
 
 export const ChromeIcon: React.FC<ChromeIconProps> = ({
   size = 24,
   className = '',
-  color = 'currentColor'
+  color = 'currentColor',
+  strokeWidth = 2,
+  style
 }) => {
   return (
     <svg
@@ -19,10 +23,11 @@ export const ChromeIcon: React.FC<ChromeIconProps> = ({
       viewBox="0 0 24 24"
       fill="none"
       stroke={color}
-      strokeWidth="2"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`lucide lucide-chromium-icon lucide-chromium ${className}`}
+      className={className}
+      style={style}
     >
       <path d="M10.88 21.94 15.46 14"/>
       <path d="M21.17 8H12"/>

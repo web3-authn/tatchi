@@ -26,7 +26,7 @@ export const ArrowLeftIcon: React.FC<ArrowLeftIconProps> = ({
       strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={`lucide lucide-arrow-left-icon lucide-arrow-left ${className}`}
+      className={className}
       style={style}
     >
       <path d="m12 19-7-7 7-7"/>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRightIcon } from './icons';
+import { ArrowUpIcon } from './icons';
 import TouchIcon from '../ProfileSettingsButton/TouchIcon';
 // Refactored: React-driven postfix positioning (no imperative DOM writes)
 import { AuthMenuMode } from './index';
@@ -153,7 +153,7 @@ const ArrowButton: React.FC<{
       disabled={disabled}
     >
       {!disabled && (
-        <ArrowRightIcon
+        <ArrowUpIcon
           size={24}
           strokeWidth={2.5}
           color="#ffffff"

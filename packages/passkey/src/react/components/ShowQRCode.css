@@ -1,76 +1,24 @@
-/* Modal Backdrop */
-.qr-modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  height: 100%;
-  width: 100%;
-  z-index: 1000;
-  background: oklch(0.2 0.01 240 / 0.8);
-  backdrop-filter: blur(8px);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  animation: backdrop-opacity 32ms ease-in;
-  will-change: opacity;
-}
-
-.qr-modal-content {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: visible;
-  min-height: 200px;
-  max-width: 480px;
-  background: var(--w3a-colors-colorBackground);
-  border: 1px solid var(--w3a-colors-borderPrimary);
-  border-radius: 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.qr-code-container {
 }
 
 /* Modal Header */
-.qr-modal-header {
+.qr-header {
   position: relative;
   display: grid;
   place-content: center;
-  padding: 2rem 1rem 0rem 1rem;
+  padding: 0rem;
 }
 
-.qr-modal-title {
+.qr-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--w3a-colors-textPrimary, #1e293b);
-  padding-top: 1rem;
+  padding-top: 0rem;
   margin: 0;
 }
 
-.qr-modal-close {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  color: var(--w3a-colors-textMuted, #64748b);
-  cursor: pointer;
-  padding: 1.5rem;
-  border-radius: 2rem;
-  transition: all 0.2s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-}
-
-.qr-modal-close:hover {
-  color: var(--w3a-colors-textPrimary, #1e293b);
-  background: var(--w3a-colors-colorSurface);
-}
-
-/* Modal Body */
-.qr-modal-body {
-  padding: 0rem 2rem 2rem 2rem;
+.qr-body {
+  padding: 0rem;
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -90,7 +38,7 @@
   flex-direction: column;
   align-items: center;
   gap: 0rem;
-  padding: 1rem 1.5rem;
+  padding: 1rem;
   border-radius: 1.5rem;
   width: 100%;
   max-width: 300px;
@@ -100,6 +48,7 @@
   margin: 0;
   font-size: 1rem;
   font-weight: 500;
+  line-height: 1.5;
   color: var(--w3a-colors-textSecondary, #1e293b);
   text-align: center;
 }
@@ -124,7 +73,7 @@
 }
 
 .qr-code-image {
-  max-width: 200px;
+  max-width: 150px;
   height: auto;
   border-radius: var(--w3a-border-radius-md, 0.5rem);
 }
@@ -133,46 +82,6 @@
   text-align: center;
   padding: 2rem;
   color: var(--w3a-colors-textSecondary, #64748b);
-}
-
-/* Button System */
-.link-device-btn {
-  height: 44px;
-  padding: 0 var(--w3a-spacing-lg, 1.5rem);
-  border: none;
-  border-radius: var(--w3a-border-radius-md, 0.5rem);
-  font-size: 0.9rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all var(--w3a-transition-fast, 0.15s ease);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--w3a-spacing-sm, 0.75rem);
-  font-family: var(--w3a-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.link-device-btn-primary {
-  background: var(--w3a-colors-primary, #3b82f6);
-  border-radius: 2rem;
-  color: white;
-}
-
-.link-device-btn-primary:hover:not(:disabled) {
-  background: var(--w3a-colors-primaryHover, #2563eb);
-  color: white;
-  box-shadow: var(--w3a-shadows-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
-}
-
-.link-device-btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* Responsive Design */

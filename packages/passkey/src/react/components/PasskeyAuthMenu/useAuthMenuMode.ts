@@ -1,0 +1,133 @@
+import React from 'react';
+import { AuthMenuMode } from '.';
+import { title } from 'process';
+import { get } from 'http';
+
+export interface UseAuthMenuModeArgs {
+  defaultMode?: AuthMenuMode;
+  accountExists: boolean;
+  passkeyManager?: {
+    getRecentLogins: () => Promise<{
+      lastUsedAccountId?: { nearAccountId?: string } | null;
+    }>;
+  } | null;
+  currentValue: string;
+  setCurrentValue: (v: string) => void;
+}
+
+export interface UseAuthMenuModeResult {
+  mode: AuthMenuMode;
+  setMode: React.Dispatch<React.SetStateAction<AuthMenuMode>>;
+  title: { title: string; subtitle: string };
+  onSegmentChange: (next: AuthMenuMode) => void;
+  onInputChange: (val: string) => void;
+  resetToDefault: () => void;
+}
+
+export function useAuthMenuMode({
+  defaultMode,
+  accountExists,
+  passkeyManager,
+  currentValue,
+  setCurrentValue,
+}: UseAuthMenuModeArgs): UseAuthMenuModeResult {
+  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExists ? 'login' : 'register')) as AuthMenuMode;
+  const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
+  const [title, setTitle] = React.useState<{
+    title: string;
+    subtitle: string;
+  }>({ title: '', subtitle: '' });
+
+  // Track if current input was auto-prefilled from IndexedDB and what value
+  const prefilledFromIdbRef = React.useRef(false);
+  const prefilledValueRef = React.useRef<string>('');
+  // Track last mode to detect transitions into 'login'
+  const prevModeRef = React.useRef<AuthMenuMode | null>(null);
+
+  // When switching to the "login" segment, attempt to prefill last used account
+  React.useEffect(() => {
+    let cancelled = false;
+    const enteringLogin = mode === 'login' && prevModeRef.current !== 'login';
+    if (enteringLogin && passkeyManager) {
+      (async () => {
+        try {
+          const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
+          if (!cancelled && lastUsedAccountId) {
+            const username = (lastUsedAccountId.nearAccountId || '').split('.')[0] || '';
+            // Only populate if empty on entry to login segment
+            if (!currentValue || currentValue.trim().length === 0) {
+              setCurrentValue(username);
+              prefilledFromIdbRef.current = true;
+              prefilledValueRef.current = username;
+            }
+          }
+        } catch {
+          // ignore if IndexedDB is unavailable
+        }
+      })();
+    }
+    prevModeRef.current = mode;
+    return () => { cancelled = true; };
+  }, [mode, passkeyManager, currentValue, setCurrentValue]);
+
+  const getTitleForMode = (mode: AuthMenuMode): { title: string; subtitle: string } => {
+    if (mode === 'login') {
+      return {
+        title: 'Login',
+        subtitle: 'Fast passwordless, keyless login'
+      };
+    } else if (mode === 'register') {
+      return {
+        title: 'Register Account',
+        subtitle: 'Create a wallet with a Passkey'
+      };
+    } else if (mode === 'recover') {
+      return {
+        title: 'Recover Account',
+        subtitle: 'Restore a wallet with Passkey',
+      };
+    } else {
+      return {
+        title: 'Login',
+        subtitle: 'Fast passwordless, keyless login'
+      };
+    }
+  }
+
+  React.useEffect(() => {
+    setTitle(getTitleForMode(mode));
+  }, [mode]);
+
+  const onSegmentChange = (nextMode: AuthMenuMode) => {
+    if (mode === 'login' && nextMode !== 'login') {
+      // Clear only if the value was auto-prefilled and remains unchanged
+      if (prefilledFromIdbRef.current && currentValue === prefilledValueRef.current) {
+        setCurrentValue('');
+      }
+      prefilledFromIdbRef.current = false;
+      prefilledValueRef.current = '';
+    }
+    setMode(nextMode);
+    setTitle(getTitleForMode(nextMode));
+  };
+
+  const onInputChange = (val: string) => {
+    if (val !== prefilledValueRef.current) {
+      prefilledFromIdbRef.current = false;
+    }
+    setCurrentValue(val);
+  };
+
+  const resetToDefault = () => {
+    // Reset mode to appropriate default based on account existence
+    setMode(accountExists ? 'login' : 'register');
+    setTitle(getTitleForMode(mode));
+    // Clear any prefill markers
+    prefilledFromIdbRef.current = false;
+    prefilledValueRef.current = '';
+  };
+
+  return { mode, setMode, title, onSegmentChange, onInputChange, resetToDefault };
+}
+
+export default useAuthMenuMode;

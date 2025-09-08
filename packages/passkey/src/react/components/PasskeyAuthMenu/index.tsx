@@ -3,24 +3,30 @@ import './PasskeyAuthMenu.css';
 import { ThemeScope, useTheme } from '../theme';
 import { usePasskeyContext } from '../../context';
 import { ArrowLeftIcon } from './icons';
-
 import { SocialProviders } from './SocialProviders';
 import { SegmentedControl } from './SegmentedControl';
 import { PasskeyInput } from './PasskeyInput';
 import { ContentSwitcher } from './ContentSwitcher';
 import { ShowQRCode } from '../ShowQRCode';
+import QRCodeIcon from '../QRCodeIcon';
+import { useAuthMenuMode } from './useAuthMenuMode';
+import { useProceedEligibility } from './useProceedEligibility';
+import type { LinkDeviceFlow } from '../../../core/PasskeyManager/linkDevice';
 
 export type AuthMenuMode = 'register' | 'login' | 'recover';
 
 export interface SignupMenuProps {
-  title?: string;
-  defaultMode?: AuthMenuMode;
   onLogin?: () => void;
   onRegister?: () => void;
-  style?: React.CSSProperties;
-  className?: string;
+  onRecoverAccount?: () => void;
+  deviceLinkingFlow?: LinkDeviceFlow;
+  manageDeviceLinkingLifecycle?: boolean;
+
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;
+  defaultMode?: AuthMenuMode;
+  style?: React.CSSProperties;
+  className?: string;
   /**
    * Optional social login hooks. Provide a function per provider that returns
    * the derived username (e.g., email/handle) after the external auth flow.
@@ -43,20 +49,14 @@ export interface SignupMenuProps {
   accountExists?: boolean;
   /** Optionally pass secure-context flag; defaults to window.isSecureContext */
   isSecureContext?: boolean;
-  /** Optional callback to initiate account recovery flow */
-  onRecoverAccount?: () => void;
-  /** Whether to show the QR code section */
-  showQRCodeSection?: boolean;
 }
 
 /**
- * SignupMenu (React-only)
  * - Uses theme tokens from design-tokens.ts via ThemeProvider/useTheme
  * - Segmented Register/Login with animated highlight
  * - Arrow proceeds to a simple "Waiting for Passkey" view with spinner
  */
-const SignupMenuInner: React.FC<SignupMenuProps> = ({
-  title = 'Sign In',
+const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   defaultMode,
   onLogin,
   onRegister,
@@ -71,7 +71,8 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
   accountExists,
   isSecureContext,
   onRecoverAccount,
-  showQRCodeSection = false,
+  deviceLinkingFlow,
+  manageDeviceLinkingLifecycle,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -87,14 +88,10 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     ? accountExists
     : (ctx?.accountInputState?.accountExists ?? false);
   const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? 'login' : 'register')) as AuthMenuMode;
-  const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
+
   const [waiting, setWaiting] = React.useState(false);
+  const [showScanDevice, setShowScanDevice] = React.useState(false);
   const [internalUserInput, setInternalUserInput] = React.useState('');
-  // Track if current input was auto-prefilled from IndexedDB and what value
-  const prefilledFromIdbRef = React.useRef(false);
-  const prefilledValueRef = React.useRef<string>('');
-  // Track last mode to detect transitions into 'login'
-  const prevModeRef = React.useRef<AuthMenuMode | null>(null);
   // Hover/press states replaced by CSS :hover/:active
 
   // const controlled = typeof userInput === 'string' && typeof onUserInputChange === 'function';
@@ -117,29 +114,45 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     ? isUsingExistingAccount
     : (ctx?.accountInputState?.isUsingExistingAccount ?? undefined);
 
-  // Decide when to SHOW the Continue button
-  const canShowContinue = mode === 'register'
-    ? (currentValue.length > 0 && !accountExistsResolved)
-    : mode === 'login'
-    ? (currentValue.length > 0 && !!accountExistsResolved)
-    : (currentValue.trim().length > 0);
+  const {
+    mode,
+    setMode,
+    title,
+    onSegmentChange,
+    onInputChange,
+    resetToDefault
+  } = useAuthMenuMode({
+    defaultMode: preferredDefaultMode,
+    accountExists: accountExistsResolved,
+    passkeyManager,
+    currentValue,
+    setCurrentValue,
+  });
 
-  // Decide when to ALLOW proceed after click (stricter than visibility)
-  const canSubmit = mode === 'register'
-    ? (currentValue.length > 0 && secure && !accountExistsResolved)
-    : mode === 'login'
-    ? (currentValue.length > 0 && !!accountExistsResolved)
-    : (currentValue.trim().length > 0);
+  const { canShowContinue, canSubmit } = useProceedEligibility({
+    mode,
+    currentValue,
+    accountExists: accountExistsResolved,
+    secure,
+  });
 
-  const onArrowClick = () => {
+  const onArrowClick = async () => {
     if (!canSubmit) return;
+
+    // Immediately show waiting state (no delayed timer)
     setWaiting(true);
-    if (mode === 'recover') {
-      onRecoverAccount?.();
-    } else if (mode === 'login') {
-      onLogin?.();
-    } else {
-      onRegister?.();
+    // No transitions; switch immediately
+
+    try {
+      if (mode === 'recover') {
+        await onRecoverAccount?.();
+      } else if (mode === 'login') {
+        await onLogin?.();
+      } else {
+        await onRegister?.();
+      }
+    } catch (error) {
+      onResetToStart();
     }
   };
 
@@ -151,42 +164,18 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
         onArrowClick();
       }
     };
-
     document.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [waiting, canShowContinue, onArrowClick]);
 
-  // When switching to the "login" segment, attempt to prefill last used account
-  React.useEffect(() => {
-    let cancelled = false;
-    const enteringLogin = mode === 'login' && prevModeRef.current !== 'login';
-    if (enteringLogin && passkeyManager) {
-      (async () => {
-        try {
-          const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
-          if (!cancelled && lastUsedAccountId) {
-            const username = (lastUsedAccountId.nearAccountId || '').split('.')[0] || '';
-            // Only populate if empty on entry to login segment
-            if (!currentValue || currentValue.trim().length === 0) {
-              setCurrentValue(username);
-              prefilledFromIdbRef.current = true;
-              prefilledValueRef.current = username;
-            }
-          }
-        } catch {
-          // ignore if IndexedDB is unavailable
-        }
-      })();
-    }
-    prevModeRef.current = mode;
-    return () => { cancelled = true; };
-  }, [mode, passkeyManager]);
-
   const onResetToStart = () => {
     setWaiting(false);
-    // Mode reset is now handled by SegmentedControl
+    setShowScanDevice(false);
+    // Reset mode to appropriate default based on account existence
+    resetToDefault();
     setCurrentValue('');
   };
 
@@ -196,31 +185,47 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     <div
       className={`w3a-signup-menu-root${className ? ` ${className}` : ''}`}
       data-mode={mode}
-      data-waiting={waiting ? 'true' : 'false'}
+      data-waiting={waiting}
+      data-scan-device={showScanDevice}
       style={style}
     >
-      {/* Back button (only during waiting screen) */}
-      <button
-        aria-label="Back"
-        onClick={onResetToStart}
-        className={`w3a-back-button${waiting ? ' is-visible' : ''}`}
+      <ContentSwitcher
+        waiting={waiting}
+        showScanDevice={showScanDevice}
+        backButton={
+          <button
+            aria-label="Back"
+            onClick={onResetToStart}
+            className={`w3a-back-button${(waiting || showScanDevice) ? ' is-visible' : ''}`}
+          >
+            <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
+          </button>
+        }
+        scanDeviceContent={
+          <ShowQRCode
+            isOpen={showScanDevice}
+            onClose={() => setShowScanDevice(false)}
+            onEvent={(event) => {
+              console.log('ShowQRCode event:', event);
+            }}
+            onError={(error) => {
+              console.error('ShowQRCode error:', error);
+            }}
+            deviceLinkingFlow={deviceLinkingFlow}
+            manageFlowLifecycle={manageDeviceLinkingLifecycle}
+          />
+        }
       >
-        <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
-      </button>
 
-      <div className="w3a-header">
-        {!waiting && (
-          header ?? (
+        {/* Header */}
+        <div className="w3a-header">
+          {header ?? (
             <div>
-              <div className="w3a-title">{title}</div>
-              <div className="w3a-subhead">Fast, passwordless wallet sign‑in</div>
+              <div className="w3a-title">{title.title}</div>
+              <div className="w3a-subhead">{title.subtitle}</div>
             </div>
-          )
-        )}
-      </div>
-
-      {/* Content switcher */}
-      <ContentSwitcher waiting={waiting}>
+          )}
+        </div>
 
         {/* Social providers row (optional) */}
         <SocialProviders socialLogin={socialLogin} />
@@ -228,13 +233,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
         {/* Passkey row */}
         <PasskeyInput
           value={currentValue}
-          onChange={(val) => {
-            // If user changes away from the prefilled value, it's no longer considered prefilled
-            if (val !== prefilledValueRef.current) {
-              prefilledFromIdbRef.current = false;
-            }
-            setCurrentValue(val);
-          }}
+          onChange={onInputChange}
           placeholder={'Enter your username'}
           postfixText={postfixTextResolved}
           isUsingExistingAccount={isUsingExistingAccountResolved}
@@ -247,24 +246,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
         />
 
         {/* Segmented control: Register | Login */}
-        <SegmentedControl
-          mode={mode}
-          onChange={(nextMode) => {
-            if (mode === 'login' && nextMode !== 'login') {
-              // Clear only if the value was auto-prefilled and remains unchanged
-              if (prefilledFromIdbRef.current && currentValue === prefilledValueRef.current) {
-                setCurrentValue('');
-              }
-              prefilledFromIdbRef.current = false;
-              prefilledValueRef.current = '';
-            }
-            setMode(nextMode);
-          }}
-          activeBg={segActiveBg}
-          defaultMode={defaultMode}
-          accountExists={accountExistsResolved}
-          onReset={waiting ? onResetToStart : undefined}
-        />
+        <SegmentedControl mode={mode} onChange={onSegmentChange} activeBg={segActiveBg} />
 
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
@@ -275,24 +257,36 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
           </div>
         </div>
 
-        {/* QR Code section */}
-        {showQRCodeSection && (
-          <>
-            <div className="w3a-section-divider">
-              <span className="w3a-section-divider-text">Already have an account?</span>
-            </div>
-            <ShowQRCode />
-          </>
-        )}
-      </ContentSwitcher>
+        {/* Scan and Link Device button */}
+        <div className="w3a-scan-device-row">
+          <div className="w3a-section-divider">
+            <span className="w3a-section-divider-text">Already have an account?</span>
+          </div>
+          <button
+            onClick={() => setShowScanDevice(true)}
+            className="w3a-link-device-btn"
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = tokens.colors.colorSurface2;
+              e.currentTarget.style.boxShadow = tokens.shadows.md;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = tokens.colors.colorSurface;
+              e.currentTarget.style.boxShadow = tokens.shadows.sm;
+            }}
+          >
+            <QRCodeIcon width={18} height={18} strokeWidth={2} />
+            Scan and Link Device
+          </button>
+        </div>
 
+      </ContentSwitcher>
     </div>
   );
 };
 
 export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
   <ThemeScope>
-    <SignupMenuInner {...props} />
+    <PasskeyAuthMenuInner {...props} />
   </ThemeScope>
 );
 

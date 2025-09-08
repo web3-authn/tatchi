@@ -26,6 +26,7 @@ import type {
 } from '../types/linkDevice';
 import { DeviceLinkingError, DeviceLinkingErrorCode } from '../types/linkDevice';
 import { DeviceLinkingPhase, DeviceLinkingStatus } from '../types/passkeyManager';
+import type { DeviceLinkingSSEEvent } from '../types/passkeyManager';
 
 
 async function generateQRCodeDataURL(data: string): Promise<string> {
@@ -61,8 +62,11 @@ export class LinkDeviceFlow {
   private options: StartDeviceLinkingOptionsDevice2;
   private session: DeviceLinkingSession | null = null;
   private error?: Error;
+  // Track explicit cancellation to short-circuit in-flight ops and logs
+  private cancelled: boolean = false;
   // AddKey polling
   private pollingInterval?: NodeJS.Timeout;
+  private pollGeneration = 0; // invalidate late ticks when stopping/restarting
   private readonly KEY_POLLING_INTERVAL = DEVICE_LINKING_CONFIG.TIMEOUTS.POLLING_INTERVAL_MS;
   // Registration retries
   private registrationRetryTimeout?: NodeJS.Timeout;
@@ -79,6 +83,16 @@ export class LinkDeviceFlow {
   ) {
     this.context = context;
     this.options = options;
+  }
+
+  // Guard helpers
+  private ifActive<T>(fn: () => T): T | undefined {
+    if (this.cancelled) return;
+    return fn();
+  }
+
+  private safeOnEvent(evt: DeviceLinkingSSEEvent) {
+    this.ifActive(() => this.options?.onEvent?.(evt));
   }
 
   /**
@@ -176,16 +190,18 @@ export class LinkDeviceFlow {
         ? 'Option E (provided account)'
         : 'Option F (account discovery)';
 
-      this.options?.onEvent?.({
+      this.safeOnEvent({
         step: 1,
         phase: DeviceLinkingPhase.STEP_1_QR_CODE_GENERATED,
         status: DeviceLinkingStatus.PROGRESS,
         message: `QR code generated using ${flowType}, waiting for Device1 to scan and authorize...`
       });
 
-      // Start polling for AddKey transaction
-      this.startPolling();
-      this.options?.onEvent?.({
+      // Start polling for AddKey transaction (guard if cancelled before reaching here)
+      if (!this.cancelled) {
+        this.startPolling();
+      }
+      this.safeOnEvent({
         step: 4,
         phase: DeviceLinkingPhase.STEP_4_POLLING,
         status: DeviceLinkingStatus.PROGRESS,
@@ -196,7 +212,7 @@ export class LinkDeviceFlow {
 
     } catch (error: any) {
       this.error = error;
-      this.options?.onEvent?.({
+      this.safeOnEvent({
         step: 0,
         phase: DeviceLinkingPhase.DEVICE_LINKING_ERROR,
         status: DeviceLinkingStatus.ERROR,
@@ -278,41 +294,50 @@ export class LinkDeviceFlow {
    * Device2: Start polling blockchain for AddKey transaction
    */
   private startPolling(): void {
-    if (!this.session) return;
+    if (!this.session || this.cancelled) return;
 
-    // Always stop any existing polling before starting new one
+    // Stop any existing schedule and invalidate late ticks
     this.stopPolling();
+    const myGen = ++this.pollGeneration;
 
-    this.pollingInterval = setInterval(async () => {
-      // Double-check we should still be polling (prevents race conditions)
+    const tick = async () => {
+      if (this.cancelled || this.pollGeneration !== myGen) return;
+
       if (!this.shouldContinuePolling()) {
         this.stopPolling();
         return;
       }
       try {
-        let hasKeyAdded = await this.checkForDeviceKeyAdded();
+        const hasKeyAdded = await this.checkForDeviceKeyAdded();
+        if (this.cancelled || this.pollGeneration !== myGen) return;
         if (hasKeyAdded && this.session) {
-          // AddKey detected! Stop polling and start registration process
           this.stopPolling();
-
-          this.options?.onEvent?.({
+          this.safeOnEvent({
             step: 5,
             phase: DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED,
             status: DeviceLinkingStatus.PROGRESS,
             message: 'AddKey transaction detected, starting registration...'
           });
-
           this.session.phase = DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED;
           this.startRegistrationWithRetries();
+          return;
         }
       } catch (error: any) {
+        if (this.cancelled || this.pollGeneration !== myGen) return;
         console.error('Polling error:', error);
         if (error.message?.includes('Account not found')) {
           console.warn('Account not found - stopping polling');
           this.stopPolling();
+          return;
         }
       }
-    }, this.KEY_POLLING_INTERVAL);
+
+      if (!this.cancelled && this.pollGeneration === myGen) {
+        this.pollingInterval = setTimeout(tick, this.KEY_POLLING_INTERVAL) as any as NodeJS.Timeout;
+      }
+    };
+
+    this.pollingInterval = setTimeout(tick, this.KEY_POLLING_INTERVAL) as any as NodeJS.Timeout;
   }
 
   private shouldContinuePolling(): boolean {
@@ -328,7 +353,7 @@ export class LinkDeviceFlow {
     }
     if (Date.now() > this.session.expiresAt) {
       this.error = new Error('Session expired');
-      this.options?.onEvent?.({
+      this.safeOnEvent({
         step: 0,
         phase: DeviceLinkingPhase.DEVICE_LINKING_ERROR,
         status: DeviceLinkingStatus.ERROR,
@@ -346,6 +371,10 @@ export class LinkDeviceFlow {
    * Device2: Check if device key has been added by polling contract HashMap
    */
   private async checkForDeviceKeyAdded(): Promise<boolean> {
+    // If polling was cancelled or cleared, bail out early to avoid noisy logs
+    if (this.cancelled || !this.pollingInterval) {
+      return false;
+    }
     if (!this.session?.nearPublicKey) {
       console.error(`LinkDeviceFlow: No session or public key available for polling`);
       return false;
@@ -358,7 +387,12 @@ export class LinkDeviceFlow {
         this.session.nearPublicKey
       );
 
-      this.options?.onEvent?.({
+      // Check again after RPC returns in case cancel happened mid-flight
+      if (this.cancelled || !this.pollingInterval) {
+        return false;
+      }
+
+      this.safeOnEvent({
         step: 4,
         phase: DeviceLinkingPhase.STEP_4_POLLING,
         status: DeviceLinkingStatus.PROGRESS,
@@ -382,7 +416,7 @@ export class LinkDeviceFlow {
         // Store the next device number for this device
         return true;
       } else {
-        console.log(`LinkDeviceFlow: No mapping found yet...`);
+        if (!this.cancelled) console.log(`LinkDeviceFlow: No mapping found yet...`);
       }
 
       return false;
@@ -467,7 +501,7 @@ export class LinkDeviceFlow {
     }
 
     try {
-      this.options?.onEvent?.({
+      this.safeOnEvent({
         step: 6,
         phase: DeviceLinkingPhase.STEP_6_REGISTRATION,
         status: DeviceLinkingStatus.PROGRESS,
@@ -482,7 +516,7 @@ export class LinkDeviceFlow {
 
       this.session.phase = DeviceLinkingPhase.STEP_7_LINKING_COMPLETE;
       this.registrationRetryCount = 0; // Reset retry counter on success
-      this.options?.onEvent?.({
+      this.safeOnEvent({
         step: 7,
         phase: DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
         status: DeviceLinkingStatus.SUCCESS,
@@ -1006,9 +1040,10 @@ export class LinkDeviceFlow {
   private stopPolling(): void {
     if (this.pollingInterval) {
       console.log(`LinkDeviceFlow: Stopping polling interval`);
-      clearInterval(this.pollingInterval);
+      clearTimeout(this.pollingInterval);
       this.pollingInterval = undefined;
     }
+    this.pollGeneration++;
   }
 
   /**
@@ -1038,6 +1073,7 @@ export class LinkDeviceFlow {
    */
   cancel(): void {
     console.log(`LinkDeviceFlow: Cancel called`);
+    this.cancelled = true;
     this.stopPolling();
     this.stopRegistrationRetry();
     this.cleanupTemporaryKeyFromMemory(); // Clean up temporary private key

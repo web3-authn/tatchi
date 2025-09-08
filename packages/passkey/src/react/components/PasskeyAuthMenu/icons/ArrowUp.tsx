@@ -1,6 +1,6 @@
 import React from 'react';
 
-interface AtSignIconProps {
+interface ArrowUpIconProps {
   size?: number;
   className?: string;
   color?: string;
@@ -8,7 +8,7 @@ interface AtSignIconProps {
   style?: React.CSSProperties;
 }
 
-export const AtSignIcon: React.FC<AtSignIconProps> = ({
+export const ArrowUpIcon: React.FC<ArrowUpIconProps> = ({
   size = 24,
   className = '',
   color = 'currentColor',
@@ -29,10 +29,10 @@ export const AtSignIcon: React.FC<AtSignIconProps> = ({
       className={className}
       style={style}
     >
-      <circle cx="12" cy="12" r="4"/>
-      <path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8"/>
+      <path d="m5 12 7-7 7 7"/>
+      <path d="M12 19V5"/>
     </svg>
   );
 };
 
-export default AtSignIcon;
+export default ArrowUpIcon;

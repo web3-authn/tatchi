@@ -2,6 +2,7 @@
 .w3a-signup-menu-root {
   width: 420px;
   max-width: 90vw;
+  min-height: 250px;
   color: var(--w3a-colors-textPrimary);
   background: var(--w3a-colors-colorBackground);
   border: 1px solid var(--w3a-colors-borderPrimary);
@@ -10,13 +11,17 @@
   padding: var(--w3a-spacing-lg);
   padding-top: calc(var(--w3a-spacing-lg) + 4px);
   position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1), min-height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: height, min-height;
 }
 
 /* Back button */
 .w3a-back-button {
   position: absolute;
-  top: 1.5rem;
-  left: 1.5rem;
+  top: 0rem;
+  left: 0rem;
   width: 44px;
   height: 44px;
   padding: 0;
@@ -52,27 +57,96 @@
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  margin-bottom: 1rem;
-  min-height: 28px;
+  opacity: 1;
+  height: auto;
+  overflow: hidden;
+  transition: opacity 240ms ease-out, height 260ms cubic-bezier(0.2, 0.8, 0.2, 1), padding 260ms cubic-bezier(0.2, 0.8, 0.2, 1), margin 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  pointer-events: auto;
+  position: relative;
+  will-change: height, opacity;
 }
+
+/* Hide header when waiting or scan device is active */
+.w3a-signup-menu-root[data-waiting="true"] .w3a-header,
+.w3a-signup-menu-root[data-scan-device="true"] .w3a-header {
+  opacity: 0;
+  height: 0px;
+  padding-top: 0px;
+  padding-bottom: 0px;
+  margin-top: 0px;
+  margin-bottom: 0px;
+  pointer-events: none;
+}
+
+/* Adjust content area when header is hidden */
+.w3a-signup-menu-root[data-waiting="true"] .w3a-content-area,
+.w3a-signup-menu-root[data-scan-device="true"] .w3a-content-area {
+  flex: 1 1 auto;
+  transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Specific height adjustments for different states */
+.w3a-signup-menu-root[data-waiting="true"] {
+  min-height: 200px;
+}
+
+.w3a-signup-menu-root[data-scan-device="true"] {
+  min-height: 300px;
+}
+
 .w3a-title {
   font-size: 24px;
   font-weight: 700;
 }
 
-/* Animated content switcher */
-.w3a-content {
-  opacity: 1;
-  transform: scale(1) translateY(0);
-  transform-origin: top center;
-  transition: opacity 240ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1), filter 240ms ease;
-  will-change: opacity, transform, filter;
+/* Content switcher container */
+.w3a-content-switcher {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: height;
 }
-.w3a-signup-menu-root[data-waiting="true"] .w3a-content {
-  opacity: 0;
-  transform: scale(0.98) translateY(-6px);
-  filter: blur(1px);
-  pointer-events: none;
+
+/* Content area container */
+.w3a-content-area {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  animation: fade-in 240ms ease-out;
+  transition: height 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* Default content */
+.w3a-signin-menu {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  min-height: 250px;
+  width: 100%;
+  animation: content-enter 240ms ease-out;
+}
+
+@keyframes content-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* Social providers row */
@@ -300,10 +374,9 @@
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 60%);
 }
 
-/* Waiting overlay */
+/* Waiting state */
 .w3a-waiting {
-  position: absolute;
-  inset: var(--w3a-spacing-lg);
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -311,17 +384,8 @@
   gap: 16px;
   background: transparent;
   text-align: center;
-  z-index: 2;
-  opacity: 0;
-  transform: scale(0.98) translateY(6px);
-  transition: opacity 240ms ease, transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  will-change: opacity, transform;
-  pointer-events: none;
-}
-.w3a-signup-menu-root[data-waiting="true"] .w3a-waiting {
-  opacity: 1;
-  transform: scale(1) translateY(0);
-  pointer-events: auto;
+  min-height: 200px;
+  animation: content-enter 240ms ease-out;
 }
 .w3a-waiting-text { font-size: 18px; font-weight: 600; }
 .w3a-spinner {
@@ -331,6 +395,36 @@
   border: 3px solid rgba(255,255,255,0.15);
   border-top-color: var(--w3a-colors-primary);
   animation: w3a-spin 0.9s linear infinite;
+}
+
+/* Scan device content wrapper */
+.w3a-scan-device-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: transparent;
+  text-align: center;
+  min-height: 300px;
+  width: 100%;
+  overflow: hidden;
+  animation: content-enter 240ms ease-out;
+}
+
+/* Ensure QR code content stays within bounds */
+.w3a-scan-device-content .qr-code-container,
+.w3a-scan-device-content .qr-modal-backdrop,
+.w3a-scan-device-content .qr-modal-content {
+  max-width: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.w3a-scan-device-content .qr-code-display {
+  max-width: 280px;
+  width: 100%;
 }
 
 /* Status message row */
@@ -372,28 +466,6 @@
   background: var(--w3a-colors-colorBackground);
 }
 
-/* Override ShowQRCode button styling for SignupMenu */
-.link-device-btn.link-device-btn-primary {
-  width: 100% !important;
-  padding: 12px 16px !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  border-radius: var(--w3a-border-radius-xl) !important;
-  box-shadow: var(--w3a-shadows-sm) !important;
-  transition: transform 120ms ease, background-color 160ms ease !important;
-}
-
-.link-device-btn.link-device-btn-primary:hover:not(:disabled) {
-  transform: scale(1.02) !important;
-}
-
-.link-device-btn.link-device-btn-primary:active {
-  transform: scale(0.98) !important;
-}/* Focus ring */
-button:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in sRGB, var(--w3a-colors-focus), transparent 60%);
-}
-
 /* Labels and helper text */
 .w3a-field-label {
   font-size: 12px;
@@ -407,6 +479,7 @@ button:focus-visible {
   line-height: 1;
   color: color-mix(in srgb, var(--w3a-colors-textSecondary), var(--w3a-colors-textPrimary) 20%);
   margin: 0;
+  margin-bottom: 1rem;
 }
 .w3a-seg-help {
   font-size: 12px;
@@ -465,4 +538,50 @@ button:focus-visible {
 
 @media (prefers-reduced-motion: reduce) {
   .w3a-input-msg.is-error { animation: none; }
+}
+
+/* Button System */
+.w3a-scan-device-row {
+}
+
+.w3a-link-device-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  height: 44px;
+  width: 100%;
+  max-width: 100%;
+  background: var(--w3a-colors-colorSurface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  box-shadow: var(--w3a-shadows-sm);
+  border-radius: 2rem;
+  cursor: pointer;
+  color: var(--w3a-colors-textPrimary);
+  font-family: var(--w3a-font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+  font-weight: 500;
+  font-size: 0.875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: all var(--w3a-transition-fast, 0.15s ease);
+}
+
+.w3a-link-device-btn-primary {
+  background: var(--w3a-colors-primary, #3b82f6);
+  border-radius: 2rem;
+  color: white;
+}
+
+.w3a-link-device-btn-primary:hover:not(:disabled) {
+  background: var(--w3a-colors-primaryHover, #2563eb);
+  color: white;
+  box-shadow: var(--w3a-shadows-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
+}
+
+.w3a-link-device-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
