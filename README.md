@@ -63,7 +63,7 @@ pnpm run install-all
 ```
 
 This command will:
-- Install dependencies for all packages (root, relay-server, frontend, packages/passkey)
+- Install dependencies for all packages (root, examples, packages/passkey)
 - Build the SDK with WASM compilation
 - Set up local development links
 
@@ -71,5 +71,5 @@ This command will:
 
 - `pnpm run install-all` - Install all dependencies and build the project
 - `pnpm run build:sdk` - Build the SDK and link it to other packages
-- `pnpm run dev` - Start the frontend development server
-- `pnpm run server` - Start the relay server
+- `pnpm run dev` - Start the Vite example app (`examples/vite`)
+- `pnpm run server` - Start the relay server example (`examples/relay-server`)

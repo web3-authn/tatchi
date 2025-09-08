@@ -72,6 +72,7 @@ export function ShowQRCode({
     flowRef.current = device2Flow;
 
     (async () => {
+    (async () => {
       try {
         const { qrCodeDataURL } = await device2Flow.generateQR();
         if (!cancelled) {
@@ -82,6 +83,7 @@ export function ShowQRCode({
           setDeviceLinkingState({ mode: 'idle', isProcessing: false });
         }
       }
+    })();
     })();
 
     return () => {

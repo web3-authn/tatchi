@@ -1,5 +1,6 @@
 packages:
   - packages/*
-  - frontend
-  - relay-server
+  - examples/relay-server
+  - examples/vite
+  - examples/vite-secure
 

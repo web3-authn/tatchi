@@ -1,0 +1,29 @@
+{
+  "name": "near-account-service-server",
+  "version": "1.0.1",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc -w --preserveWatchOutput",
+    "gen:shamir": "node ./scripts/generateShamirKeys.mjs",
+    "start": "node dist/index.js",
+    "dev": "node ./scripts/dev.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@web3authn/passkey": "workspace:*",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.23",
+    "@types/node": "^22.7.4",
+    "typescript": "^5.6.2"
+  }
+}

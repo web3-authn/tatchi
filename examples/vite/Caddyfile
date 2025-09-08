@@ -1,0 +1,31 @@
+# App (Vite dev server)
+example.localhost {
+	tls internal
+	encode gzip
+	header {
+		Cross-Origin-Embedder-Policy "require-corp"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self)"
+	}
+	reverse_proxy 127.0.0.1:5173
+}
+
+# Wallet host (placeholder for dedicated wallet dev server)
+wallet.example.localhost {
+	tls internal
+	encode gzip
+	header {
+		Cross-Origin-Embedder-Policy "require-corp"
+		Cross-Origin-Opener-Policy "same-origin"
+		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self)"
+	}
+	# If you run a wallet dev server on 5174, proxy here
+	reverse_proxy 127.0.0.1:5174
+}
+
+# Relay server on separate origin
+relay-server.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}

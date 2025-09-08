@@ -39,7 +39,8 @@ let messageQueue: MessageEvent[] = [];
  */
 async function initializeWasmModule(): Promise<void> {
   try {
-    await init(); // init function now handles loading WASM
+    // Prefer explicit URL init so bundlers resolve the asset from node_modules
+    await init(wasmUrl as any);
     // Mark WASM as ready and process any queued messages
     wasmReady = true;
     await processQueuedMessages();

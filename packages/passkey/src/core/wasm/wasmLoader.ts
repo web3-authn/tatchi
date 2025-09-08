@@ -106,7 +106,8 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
     // PRIMARY: Use bundled WASM (most reliable for SDK distribution)
     try {
       console.debug(`[${workerName}]: Using bundled WASM (SDK-optimized approach)`);
-      await initFunction();
+      // Pass resolved URL to initializer so bundlers rewrite to the correct asset
+      await initFunction(wasmUrl as any);
 
       // Run optional validation
       if (validateFunction) {

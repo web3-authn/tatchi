@@ -5,9 +5,9 @@ cd ./packages/passkey && pnpm link --global
 cd ../../
 
 # symlink the SDK to the frontend
-cd frontend && pnpm link --global @web3authn/passkey
-cd ../
+cd examples/vite && pnpm link --global @web3authn/passkey
+cd ../../
 
 # symlink the SDK to the relay-server
-cd relay-server && pnpm link --global @web3authn/passkey
-cd ../
+cd examples/relay-server && pnpm link --global @web3authn/passkey
+cd ../../

@@ -22,8 +22,8 @@
   position: absolute;
   top: 0rem;
   left: 0rem;
-  width: 44px;
-  height: 44px;
+  width: 48px;
+  height: 48px;
   padding: 0;
   aspect-ratio: 1 / 1;
   display: grid;
@@ -187,7 +187,6 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  margin-bottom: 0.5rem;
 }
 
 .w3a-input-pill {
@@ -196,7 +195,7 @@
   flex: 1;
   align-items: center;
   padding: 0rem 1rem;
-  height: 52px;
+  height: 54px;
   gap: 8px;
   border: none;
   background: var(--w3a-colors-colorSurface);
@@ -283,30 +282,33 @@
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  transition: transform 150ms ease,
-              background-color 150ms ease,
-              border-radius 200ms ease,
-              opacity 150ms ease,
-              width 150ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
+  margin-left: -1rem;
+  z-index: 1;
+  border: 6px solid var(--w3a-colors-colorBackground);
+  height: 64px;
+  transition: transform 200ms ease,
+              background-color 200ms ease,
+              border-radius 250ms ease,
+              opacity 200ms ease,
+              width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
 .w3a-arrow-btn.is-enabled {
-  width: 72px; /* expand when enabled */
+  width: 100px; /* expand when enabled */
   background: var(--w3a-colors-primary);
-  border-radius: 0.25rem 2rem 2rem 0.25rem;
+  border-radius: 2rem;
   /* border-radius: 2rem; */
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transition: transform 150ms ease,
-              background-color 150ms ease,
-              border-radius 200ms ease,
-              opacity 150ms ease,
-              width 150ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
+  transition: transform 200ms ease,
+              background-color 200ms ease,
+              border-radius 250ms ease,
+              opacity 200ms ease,
+              width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
 .w3a-arrow-btn.is-enabled:hover {
   transform: scale(1.02);
   background: var(--w3a-colors-primaryHover);
-  border-color: var(--w3a-colors-primaryHover);
 }
 .w3a-arrow-btn.is-enabled:active {
   transform: scale(0.985);
@@ -315,7 +317,6 @@
   cursor: not-allowed;
   opacity: 0.6;
   background: var(--w3a-colors-borderSecondary);
-  border-color: var(--w3a-colors-borderSecondary);
 }
 .w3a-arrow-btn .w3a-arrow-label {
   margin-left: 8px;
@@ -326,7 +327,7 @@
 /* Segmented control */
 .w3a-seg {
   position: relative;
-  height: 52px;
+  height: 54px;
   overflow: hidden;
   padding: 5px;
   border: none;
@@ -552,7 +553,7 @@
   overflow: hidden;
   gap: 0.5rem;
   padding: 0.5rem 1rem;
-  height: 44px;
+  height: 48px;
   width: 100%;
   max-width: 100%;
   background: var(--w3a-colors-colorSurface);

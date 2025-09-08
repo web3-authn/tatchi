@@ -172,9 +172,16 @@ export class ServiceIframeClient {
       const src = new URL(this.opts.servicePath, this.opts.walletOrigin).toString();
       iframe.src = src;
     } else {
-      // No external origin: mount same‑origin service via srcdoc and an imported module asset URL
-      const sanitizedBasePath = sanitizeSdkBasePath(this.opts.sdkBasePath);
-      const serviceHostUrl = `${sanitizedBasePath}/react/embedded/service-host.js`;
+      // No external origin: mount same‑origin service via srcdoc and a module asset URL
+      // Resolve the embedded service host relative to this ESM module for zero‑config
+      let serviceHostUrl = '';
+      try {
+        serviceHostUrl = new URL('../../../embedded/service-host.js', import.meta.url).toString();
+      } catch {
+        // Fallback to sdkBasePath for non‑ESM environments
+        const sanitizedBasePath = sanitizeSdkBasePath(this.opts.sdkBasePath);
+        serviceHostUrl = `${sanitizedBasePath}/embedded/service-host.js`;
+      }
       const escapedUrl = escapeHtmlAttribute(serviceHostUrl);
       const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/></head><body><script type="module" src="${escapedUrl}"></script></body></html>`;
       iframe.srcdoc = html;

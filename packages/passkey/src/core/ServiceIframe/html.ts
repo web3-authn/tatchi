@@ -6,7 +6,8 @@ import { sanitizeSdkBasePath, escapeHtmlAttribute } from './sanitization';
 
 export function getWalletServiceHtml(sdkBasePath: string = '/sdk'): string {
   const sanitizedBasePath = sanitizeSdkBasePath(sdkBasePath);
-  const serviceHostPath = `${sanitizedBasePath}/react/embedded/service-host.js`;
+  // Embedded bundles are exposed under `${sdkBasePath}/embedded/*`
+  const serviceHostPath = `${sanitizedBasePath}/embedded/service-host.js`;
   const escapedPath = escapeHtmlAttribute(serviceHostPath);
   return `<!doctype html>
 <html lang="en">
@@ -20,4 +21,3 @@ export function getWalletServiceHtml(sdkBasePath: string = '/sdk'): string {
   </body>
 </html>`;
 }
-

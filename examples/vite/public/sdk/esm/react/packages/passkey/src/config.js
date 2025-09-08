@@ -1,0 +1,33 @@
+import { BUILD_PATHS } from "../build-paths.js";
+
+//#region src/config.ts
+const SIGNER_WORKER_MANAGER_CONFIG = {
+	TIMEOUTS: {
+		DEFAULT: 3e4,
+		TRANSACTION: 3e4,
+		REGISTRATION: 3e4
+	},
+	WORKER: {
+		URL: BUILD_PATHS.RUNTIME.SIGNER_WORKER,
+		TYPE: "module",
+		NAME: "Web3AuthnSignerWorker"
+	},
+	RETRY: {
+		MAX_ATTEMPTS: 3,
+		BACKOFF_MS: 1e3
+	}
+};
+const DEVICE_LINKING_CONFIG = {
+	TIMEOUTS: {
+		QR_CODE_MAX_AGE_MS: 900 * 1e3,
+		SESSION_EXPIRATION_MS: 900 * 1e3,
+		TEMP_KEY_CLEANUP_MS: 900 * 1e3,
+		POLLING_INTERVAL_MS: 3e3,
+		REGISTRATION_RETRY_DELAY_MS: 2e3
+	},
+	RETRY: { MAX_REGISTRATION_ATTEMPTS: 5 }
+};
+
+//#endregion
+export { DEVICE_LINKING_CONFIG, SIGNER_WORKER_MANAGER_CONFIG };
+//# sourceMappingURL=config.js.map

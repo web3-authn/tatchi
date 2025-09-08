@@ -2,10 +2,11 @@
   "name": "web3authn-passkey-monorepo",
   "private": true,
   "scripts": {
-    "install-all": "pnpm -w install",
+    "install": "pnpm -w install",
     "build:sdk": "pnpm -C packages/passkey build",
-    "dev": "pnpm -C frontend dev",
-    "server": "pnpm -C relay-server dev"
+    "frontend": "pnpm -C examples/vite dev",
+    "server": "pnpm -C examples/relay-server dev",
+    "gen:shamir": "pnpm -C examples/relay-server run gen:shamir"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

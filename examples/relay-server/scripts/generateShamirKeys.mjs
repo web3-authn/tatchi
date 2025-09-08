@@ -1,0 +1,22 @@
+import 'dotenv/config';
+import { Shamir3PassUtils } from '@web3authn/passkey/server';
+
+async function main() {
+  const utils = new Shamir3PassUtils({});
+  const { p_b64u } = await utils.initialize();
+  const { e_s_b64u, d_s_b64u } = await utils.generateServerKeypair();
+
+  console.log('\n*****************************************');
+  console.log('Generated Shamir 3-pass server keypair.');
+  console.log('Backup these values in your .env file:\n');
+  console.log(`SHAMIR_P_B64U=${p_b64u}`);
+  console.log(`SHAMIR_E_S_B64U=${e_s_b64u}`);
+  console.log(`SHAMIR_D_S_B64U=${d_s_b64u}`);
+  console.log('*****************************************');
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+

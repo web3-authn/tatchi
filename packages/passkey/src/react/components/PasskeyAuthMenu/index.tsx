@@ -20,7 +20,6 @@ export interface SignupMenuProps {
   onRegister?: () => void;
   onRecoverAccount?: () => void;
   deviceLinkingFlow?: LinkDeviceFlow;
-  manageDeviceLinkingLifecycle?: boolean;
 
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;
@@ -72,7 +71,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   isSecureContext,
   onRecoverAccount,
   deviceLinkingFlow,
-  manageDeviceLinkingLifecycle,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -212,7 +210,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
               console.error('ShowQRCode error:', error);
             }}
             deviceLinkingFlow={deviceLinkingFlow}
-            manageFlowLifecycle={manageDeviceLinkingLifecycle}
           />
         }
       >
