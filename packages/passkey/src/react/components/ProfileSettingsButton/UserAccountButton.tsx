@@ -12,12 +12,27 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
   onMouseLeave,
   nearExplorerBaseUrl,
   theme = 'dark',
+  menuId,
+  triggerId,
 }) => {
+  const onKeyDown: React.KeyboardEventHandler<HTMLDivElement> = (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onClick();
+    }
+  };
   return (
     <div className={`w3a-user-account-button-root ${theme}`}>
       <div
+        id={triggerId}
         className={`w3a-user-account-button-trigger ${isOpen ? 'open' : 'closed'}`}
         onClick={onClick}
+        role="button"
+        tabIndex={0}
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        {...(menuId ? { 'aria-controls': menuId } as any : {})}
+        onKeyDown={onKeyDown}
         {...(onMouseEnter && { onMouseEnter })}
         {...(onMouseLeave && { onMouseLeave })}
       >

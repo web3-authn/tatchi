@@ -15,10 +15,10 @@
 /* Back button */
 .w3a-back-button {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  width: 36px;
-  height: 36px;
+  top: 1.5rem;
+  left: 1.5rem;
+  width: 44px;
+  height: 44px;
   padding: 0;
   aspect-ratio: 1 / 1;
   display: grid;

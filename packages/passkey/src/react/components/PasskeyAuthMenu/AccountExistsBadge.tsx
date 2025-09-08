@@ -1,7 +1,6 @@
 import React from 'react';
 import { AuthMenuMode } from './index';
 import { useTheme } from '../theme';
-import { Check } from 'lucide-react';
 
 export interface AccountExistsBadgeProps {
   /** Whether the account domain/postfix corresponds to an existing account */
@@ -36,7 +35,7 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
       if (isUsingExistingAccount) return { message: 'name taken', tone: 'error' };
       return { message: '', tone: 'neutral' };
     }
-    if (mode === 'login' || mode === 'sync') {
+    if (mode === 'login' || mode === 'recover') {
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: 'Account not found', tone: 'error' };
     }

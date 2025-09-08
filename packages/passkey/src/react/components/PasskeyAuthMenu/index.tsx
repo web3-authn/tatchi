@@ -4,14 +4,13 @@ import { ThemeScope, useTheme } from '../theme';
 import { usePasskeyContext } from '../../context';
 import { ArrowLeft } from 'lucide-react';
 
-import { AccountExistsBadge } from './AccountExistsBadge';
-import { SocialProviders, type SocialProviderName } from './SocialProviders';
+import { SocialProviders } from './SocialProviders';
 import { SegmentedControl } from './SegmentedControl';
 import { PasskeyInput } from './PasskeyInput';
 import { ContentSwitcher } from './ContentSwitcher';
 import { ShowQRCode } from '../ShowQRCode';
 
-export type AuthMenuMode = 'register' | 'login' | 'sync';
+export type AuthMenuMode = 'register' | 'login' | 'recover';
 
 export interface SignupMenuProps {
   title?: string;
@@ -20,8 +19,18 @@ export interface SignupMenuProps {
   onRegister?: () => void;
   style?: React.CSSProperties;
   className?: string;
-  /** Optional social login providers to render. Empty array hides the row. */
-  socialLogin?: SocialProviderName[];
+  /** Optional custom header element rendered when not waiting */
+  header?: React.ReactElement;
+  /**
+   * Optional social login hooks. Provide a function per provider that returns
+   * the derived username (e.g., email/handle) after the external auth flow.
+   * If omitted or all undefined, the social row is hidden.
+   */
+  socialLogin?: {
+    google?: () => string;
+    x?: () => string;
+    apple?: () => string;
+  };
   // /** Optional controlled input value for the username/email field */
   // userInput?: string;
   // /** Optional change handler to control the input */
@@ -48,11 +57,12 @@ export interface SignupMenuProps {
  */
 const SignupMenuInner: React.FC<SignupMenuProps> = ({
   title = 'Sign In',
-  defaultMode = 'login',
+  defaultMode,
   onLogin,
   onRegister,
   style,
   className,
+  header,
   socialLogin,
   // userInput,
   // onUserInputChange,
@@ -72,7 +82,12 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     ctx = null;
   }
   const passkeyManager: any = ctx?.passkeyManager || null;
-  const [mode, setMode] = React.useState<AuthMenuMode>(defaultMode);
+  // Resolve default mode: prefer prop, otherwise infer from account existence
+  const accountExistsResolved = (typeof accountExists === 'boolean')
+    ? accountExists
+    : (ctx?.accountInputState?.accountExists ?? false);
+  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? 'login' : 'register')) as AuthMenuMode;
+  const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
   const [waiting, setWaiting] = React.useState(false);
   const [internalUserInput, setInternalUserInput] = React.useState('');
   // Track if current input was auto-prefilled from IndexedDB and what value
@@ -93,9 +108,6 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     : setInternalUserInput;
 
   const secure = typeof isSecureContext === 'boolean' ? isSecureContext : (typeof window !== 'undefined' ? window.isSecureContext : true);
-  const accountExistsResolved = (typeof accountExists === 'boolean')
-    ? accountExists
-    : (ctx?.accountInputState?.accountExists ?? false);
 
   const postfixTextResolved = typeof postfixText === 'string'
     ? postfixText
@@ -105,22 +117,46 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     ? isUsingExistingAccount
     : (ctx?.accountInputState?.isUsingExistingAccount ?? undefined);
 
-  const canProceed = mode === 'login'
+  // Decide when to SHOW the Continue button
+  const canShowContinue = mode === 'register'
+    ? (currentValue.length > 0 && !accountExistsResolved)
+    : mode === 'login'
     ? (currentValue.length > 0 && !!accountExistsResolved)
-    : mode === 'sync'
-    ? (currentValue.length > 0 && secure && !!accountExistsResolved)
-    : (currentValue.length > 0 && secure && !accountExistsResolved);
+    : (currentValue.trim().length > 0);
 
-  // Only initialize mode from defaultMode once (on mount).
-  // Avoid switching segments when parent recomputes defaultMode
-  // due to input clearing or derived state changes.
-  const didInitModeRef = React.useRef(false);
-  React.useEffect(() => {
-    if (!didInitModeRef.current) {
-      setMode(defaultMode);
-      didInitModeRef.current = true;
+  // Decide when to ALLOW proceed after click (stricter than visibility)
+  const canSubmit = mode === 'register'
+    ? (currentValue.length > 0 && secure && !accountExistsResolved)
+    : mode === 'login'
+    ? (currentValue.length > 0 && !!accountExistsResolved)
+    : (currentValue.trim().length > 0);
+
+  const onArrowClick = () => {
+    if (!canSubmit) return;
+    setWaiting(true);
+    if (mode === 'recover') {
+      onRecoverAccount?.();
+    } else if (mode === 'login') {
+      onLogin?.();
+    } else {
+      onRegister?.();
     }
-  }, [defaultMode]);
+  };
+
+  // Handle Enter key to trigger continue button
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Enter' && !waiting && canShowContinue) {
+        event.preventDefault();
+        onArrowClick();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [waiting, canShowContinue, onArrowClick]);
 
   // When switching to the "login" segment, attempt to prefill last used account
   React.useEffect(() => {
@@ -140,7 +176,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
             }
           }
         } catch {
-          // Silently ignore if IndexedDB is unavailable
+          // ignore if IndexedDB is unavailable
         }
       })();
     }
@@ -148,30 +184,13 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
     return () => { cancelled = true; };
   }, [mode, passkeyManager]);
 
-  // Colors are read from CSS variables in stylesheet
-
-  const onArrowClick = () => {
-    if (!canProceed) return;
-    setWaiting(true);
-    if (mode === 'sync') {
-      onRecoverAccount?.();
-    } else if (mode === 'login') {
-      onLogin?.();
-    } else {
-      onRegister?.();
-    }
-  };
-
   const onResetToStart = () => {
     setWaiting(false);
-    setMode(defaultMode);
+    // Mode reset is now handled by SegmentedControl
     setCurrentValue('');
   };
 
-  // Slightly darker than before for clearer contrast
   const segActiveBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
-
-  // Inline status message handled by AccountExistsBadge component
 
   return (
     <div
@@ -191,10 +210,12 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
 
       <div className="w3a-header">
         {!waiting && (
-          <div>
-            <div className="w3a-title">{title}</div>
-            <div className="w3a-subhead">Fast, passwordless sign‑in</div>
-          </div>
+          header ?? (
+            <div>
+              <div className="w3a-title">{title}</div>
+              <div className="w3a-subhead">Fast, passwordless wallet sign‑in</div>
+            </div>
+          )
         )}
       </div>
 
@@ -202,7 +223,7 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
       <ContentSwitcher waiting={waiting}>
 
         {/* Social providers row (optional) */}
-        <SocialProviders providers={socialLogin} />
+        <SocialProviders socialLogin={socialLogin} />
 
         {/* Passkey row */}
         <PasskeyInput
@@ -217,14 +238,13 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
           placeholder={'Enter your username'}
           postfixText={postfixTextResolved}
           isUsingExistingAccount={isUsingExistingAccountResolved}
-          canProceed={canProceed}
+          canProceed={canShowContinue}
           onProceed={onArrowClick}
           variant="both"
-          primaryLabel={mode === 'login' ? 'Login' : mode === 'sync' ? 'Recover account' : 'Register'}
+          primaryLabel={mode === 'login' ? 'Login' : mode === 'recover' ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
         />
-
 
         {/* Segmented control: Register | Login */}
         <SegmentedControl
@@ -241,14 +261,17 @@ const SignupMenuInner: React.FC<SignupMenuProps> = ({
             setMode(nextMode);
           }}
           activeBg={segActiveBg}
+          defaultMode={defaultMode}
+          accountExists={accountExistsResolved}
+          onReset={waiting ? onResetToStart : undefined}
         />
 
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
           <div className="w3a-seg-help" aria-live="polite">
-            {mode === 'login' && 'Sign in with your passkey on this device.'}
-            {mode === 'register' && 'Create a new passkey account.'}
-            {mode === 'sync' && 'Recover or link an existing account.'}
+            {mode === 'login' && 'Sign in with your passkey this device'}
+            {mode === 'register' && 'Create a new account'}
+            {mode === 'recover' && 'Recover an account (iCloud/Chrome passkey sync)'}
           </div>
         </div>
 

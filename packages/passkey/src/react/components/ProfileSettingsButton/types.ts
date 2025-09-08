@@ -51,6 +51,9 @@ export interface UserAccountButtonProps {
   onMouseLeave?: () => void;
   nearExplorerBaseUrl?: string;
   theme?: EmbeddedTxButtonTheme;
+  // Optional ARIA linkage
+  menuId?: string;
+  triggerId?: string;
 }
 
 export interface ProfileDropdownProps {
@@ -69,6 +72,9 @@ export interface ProfileDropdownProps {
   onToggleTheme?: () => void;
   transactionSettingsOpen?: boolean;
   menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
+  // Optional ARIA linkage
+  menuId?: string;
+  triggerId?: string;
 }
 
 export interface MenuItemProps {
