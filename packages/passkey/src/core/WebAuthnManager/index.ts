@@ -80,6 +80,18 @@ export class WebAuthnManager {
     // VRF worker initializes on-demand with proper error propagation
   }
 
+  /**
+   * Public pre-warm hook to initialize signer workers ahead of time.
+   * Safe to call multiple times; errors are non-fatal.
+   */
+  prewarmSignerWorkers(): void {
+    try {
+      if (typeof window !== 'undefined' && typeof (window as any).Worker !== 'undefined') {
+        this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
+      }
+    } catch {}
+  }
+
   getCredentials({ nearAccountId, challenge, authenticators }: {
     nearAccountId: AccountId;
     challenge: VRFChallenge;
@@ -211,6 +223,9 @@ export class WebAuthnManager {
         console.error('WebAuthnManager: VRF keypair unlock failed');
         return { success: false, error: 'VRF keypair unlock failed' };
       }
+
+      // Warm up signer workers after a successful unlock to minimize first-use latency
+      try { this.signerWorkerManager.preWarmWorkerPool().catch(() => {}); } catch {}
 
       return { success: true };
 

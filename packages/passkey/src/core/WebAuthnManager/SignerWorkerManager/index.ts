@@ -268,6 +268,10 @@ export class SignerWorkerManager {
 
       worker.onmessage = async (event) => {
         try {
+          // Ignore readiness pings that can arrive if a worker was just spawned
+          if (event?.data?.type === 'WORKER_READY' || event?.data?.ready) {
+            return; // not a response to an operation
+          }
           // Use strong typing from WASM-generated types
           const response = event.data as WorkerResponseForRequest<T>;
           responses.push(response);
