@@ -106,7 +106,7 @@ export function PasskeyLoginMenu() {
           event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
           && event.status === AccountRecoveryStatus.SUCCESS
         ) {
-          await refreshLoginState(targetAccountId);
+          await refreshLoginState();
         }
       },
       // Avoid toasting here to prevent duplicate messages; handle in catch below
@@ -177,7 +177,6 @@ export function PasskeyLoginMenu() {
           return onRegister();
         }}
         onRecoverAccount={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
           return onRecover();
         }}
       />

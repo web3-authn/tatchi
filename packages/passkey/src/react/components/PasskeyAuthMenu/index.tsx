@@ -231,7 +231,13 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
         <PasskeyInput
           value={currentValue}
           onChange={onInputChange}
-          placeholder={'Enter your username'}
+          placeholder={
+            mode === 'register'
+              ? 'Pick a username'
+              : mode === 'recover'
+              ? 'Leave blank to discover accounts'
+              : 'Enter your username'
+          }
           postfixText={postfixTextResolved}
           isUsingExistingAccount={isUsingExistingAccountResolved}
           canProceed={canShowContinue}

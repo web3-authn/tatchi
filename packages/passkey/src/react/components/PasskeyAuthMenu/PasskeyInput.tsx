@@ -1,6 +1,5 @@
 import React from 'react';
 import { ArrowUpIcon } from './icons';
-import TouchIcon from '../ProfileSettingsButton/TouchIcon';
 // Refactored: React-driven postfix positioning (no imperative DOM writes)
 import { AuthMenuMode } from './index';
 import { AccountExistsBadge } from './AccountExistsBadge';
@@ -121,7 +120,10 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
             <span
               title={isUsingExistingAccount ? 'Using existing account domain' : 'New account domain'}
               className={`w3a-postfix${isUsingExistingAccount ? ' is-existing' : ''}`}
-              style={{ left: `${postfixLeft}px`, visibility: measured ? 'visible' : 'hidden' }}
+              style={{
+                left: `${postfixLeft}px`,
+                visibility: measured ? 'visible' : 'hidden'
+              }}
             >
               {postfixText}
             </span>
@@ -157,7 +159,10 @@ const ArrowButton: React.FC<{
           size={24}
           strokeWidth={2.5}
           color="#ffffff"
-          style={{ display: 'block', transition: 'transform 200ms, width 200ms, height 200ms' }}
+          style={{
+            display: 'block',
+            transition: 'transform 200ms, width 200ms, height 200ms'
+          }}
         />
       )}
     </button>

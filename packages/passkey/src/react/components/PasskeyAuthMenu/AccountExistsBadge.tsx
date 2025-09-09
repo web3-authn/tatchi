@@ -35,9 +35,13 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
       if (isUsingExistingAccount) return { message: 'name taken', tone: 'error' };
       return { message: '', tone: 'neutral' };
     }
-    if (mode === 'login' || mode === 'recover') {
+    if (mode === 'login') {
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: 'Account not found', tone: 'error' };
+    }
+    if (mode === 'recover') {
+      if (isUsingExistingAccount) return { message: '', tone: 'success' };
+      return { message: '', tone: 'neutral' };
     }
     return { message: '', tone: 'neutral' };
   };
@@ -52,7 +56,7 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
       return;
     }
     setVisible(true);
-    const t = setTimeout(() => setVisible(false), 3000);
+    const t = setTimeout(() => setVisible(false), 2000);
     return () => clearTimeout(t);
   }, [hasContent, message]);
 

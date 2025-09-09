@@ -5,9 +5,8 @@ import type { AccountId, StoredAuthenticator, VRFChallenge } from '../types';
 import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { validateNearAccountId } from '../../utils/validation';
 import { toAccountId } from '../types/accountIds';
-import { generateBootstrapVrfChallenge } from './registration';
 import { base64UrlEncode } from '../../utils/encoders';
-import { createRandomVRFChallenge, outputAs32Bytes } from '../types/vrf-worker';
+import { createRandomVRFChallenge } from '../types/vrf-worker';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
 import type { VRFInputData } from '../types/vrf-worker';
@@ -94,18 +93,54 @@ export class AccountRecoveryFlow {
    * Returns safe display data without exposing credentials to UI
    */
   async discover(accountId: string): Promise<PasskeyOptionWithoutCredential[]> {
-    const nearAccountId = toAccountId(accountId);
     try {
       this.phase = 'discovering';
       console.debug('AccountRecoveryFlow: Discovering available accounts...');
 
-      // Get full options with credentials, requires TouchID prompt
-      this.availableAccounts = await getRecoverableAccounts(this.context, nearAccountId);
+      const hasValidAccount = !!accountId && validateNearAccountId(accountId).valid;
 
-      if (this.availableAccounts.length === 0) {
-        // throw new Error('No recoverable accounts found for this passkey');
+      if (hasValidAccount) {
+        const nearAccountId = toAccountId(accountId);
+        // Contract-based lookup; no WebAuthn prompt during discovery
+        this.availableAccounts = await getRecoverableAccounts(this.context, nearAccountId);
+      } else {
+        // Fallback discovery without a typed account: prompt once to select a passkey
+        // Then infer the accountId from userHandle (set at registration time)
+        const challenge = createRandomVRFChallenge();
+        const credential = await this.context.webAuthnManager.getCredentialsForRecovery({
+          // Account is unknown here – salts aren't used downstream for discovery
+          nearAccountId: '' as any,
+          challenge: challenge as VRFChallenge,
+          credentialIds: []
+        });
+
+        // Try to infer accountId from userHandle
+        let inferredAccountId: string | null = null;
+        try {
+          const assertion: any = credential.response as any;
+          const userHandle: ArrayBuffer | null | undefined = assertion?.userHandle;
+          if (userHandle && (userHandle as ArrayBuffer).byteLength > 0) {
+            const decoded = new TextDecoder().decode(new Uint8Array(userHandle));
+            // Remove optional " (n)" suffix to get base account id
+            const base = decoded.replace(/ \(\d+\)$/g, '');
+            if (validateNearAccountId(base).valid) {
+              inferredAccountId = base;
+            }
+          }
+        } catch {}
+
+        const option: PasskeyOption = {
+          credentialId: credential.id,
+          accountId: inferredAccountId ? (inferredAccountId as any as AccountId) : null,
+          publicKey: '',
+          displayName: inferredAccountId ? `${inferredAccountId}` : 'Recovered passkey',
+          credential,
+        };
+        this.availableAccounts = [option];
+      }
+
+      if (!this.availableAccounts || this.availableAccounts.length === 0) {
         console.warn('No recoverable accounts found for this passkey');
-        console.warn(`Continuing with account recovery for ${accountId}`);
       } else {
         console.debug(`AccountRecoveryFlow: Found ${this.availableAccounts.length} recoverable accounts`);
       }
@@ -161,7 +196,8 @@ export class AccountRecoveryFlow {
         this.context,
         selectedOption.accountId,
         this.options,
-        selectedOption.credential || undefined
+        undefined,
+        selectedOption.credentialId && selectedOption.credentialId !== 'manual-input' ? [selectedOption.credentialId] : undefined
       );
 
       this.phase = 'complete';
@@ -214,8 +250,7 @@ async function getRecoverableAccounts(
   context: PasskeyManagerContext,
   accountId: AccountId
 ): Promise<PasskeyOption[]> {
-  const vrfChallenge = await generateBootstrapVrfChallenge(context, accountId);
-  const availablePasskeys = await getAvailablePasskeysForDomain(context, vrfChallenge, accountId);
+  const availablePasskeys = await getAvailablePasskeysForDomain(context, accountId);
   return availablePasskeys.filter(passkey => passkey.accountId !== null);
 }
 
@@ -224,40 +259,29 @@ async function getRecoverableAccounts(
  */
 async function getAvailablePasskeysForDomain(
   context: PasskeyManagerContext,
-  vrfChallenge: VRFChallenge,
   accountId: AccountId
 ): Promise<PasskeyOption[]> {
-  const { webAuthnManager, nearClient, configs } = context;
+  const { nearClient, configs } = context;
 
   const credentialIds = await getCredentialIdsContractCall(nearClient, configs.contractId, accountId);
 
-  // Always try to authenticate with the provided account ID, even if no credentials found in contract
-  try {
-    const credential = await webAuthnManager.getCredentialsForRecovery({
-      nearAccountId: accountId,
-      challenge: vrfChallenge,
-      credentialIds: credentialIds.length > 0 ? credentialIds : [] // Empty array if no contract credentials
-    });
-
-    if (credential) {
-      return [{
-        credentialId: credential.id,
-        accountId: accountId,
-        publicKey: '',
-        displayName: `${accountId} (Authenticated with this passkey)`,
-        credential: credential
-      }];
-    }
-  } catch (error) {
-    console.warn('Failed to authenticate with passkey:', error);
+  // Do not invoke WebAuthn here; just return display options bound to credential IDs
+  if (credentialIds.length > 0) {
+    return credentialIds.map((credentialId, idx) => ({
+      credentialId,
+      accountId,
+      publicKey: '',
+      displayName: credentialIds.length > 1 ? `${accountId} (passkey ${idx + 1})` : `${accountId}`,
+      credential: null,
+    }));
   }
 
-  // If authentication failed, still return the account option but without credential
+  // If no contract credentials found, still allow recovery by letting recover() prompt once
   return [{
     credentialId: 'manual-input',
-    accountId: accountId, // Use the provided accountId instead of null
+    accountId: accountId,
     publicKey: '',
-    displayName: `${accountId} (Authentication failed - please try again)`,
+    displayName: `${accountId}`,
     credential: null,
   }];
 }
@@ -269,7 +293,8 @@ export async function recoverAccount(
   context: PasskeyManagerContext,
   accountId: AccountId,
   options?: AccountRecoveryHooksOptions,
-  reuseCredential?: PublicKeyCredential
+  reuseCredential?: PublicKeyCredential,
+  allowedCredentialIds?: string[]
 ): Promise<RecoveryResult> {
   const { onEvent, onError, hooks } = options || {};
   const { webAuthnManager, nearClient, configs } = context;
@@ -296,7 +321,7 @@ export async function recoverAccount(
       message: 'Authenticating with WebAuthn...',
     });
 
-    const credential = await getOrCreateCredential(webAuthnManager, accountId, reuseCredential);
+    const credential = await getOrCreateCredential(webAuthnManager, accountId, reuseCredential, allowedCredentialIds);
     const recoveredKeypair = await deriveNearKeypairFromCredential(webAuthnManager, credential, accountId);
 
     const { hasAccess, blockHeight, blockHash } = await Promise.all([
@@ -370,7 +395,8 @@ export async function recoverAccount(
 async function getOrCreateCredential(
   webAuthnManager: WebAuthnManager,
   accountId: AccountId,
-  reuseCredential?: PublicKeyCredential
+  reuseCredential?: PublicKeyCredential,
+  allowedCredentialIds?: string[]
 ): Promise<PublicKeyCredential> {
   if (reuseCredential) {
     const prfResults = reuseCredential.getClientExtensionResults()?.prf?.results;
@@ -385,7 +411,7 @@ async function getOrCreateCredential(
   return await webAuthnManager.getCredentialsForRecovery({
     nearAccountId: accountId,
     challenge: challenge as VRFChallenge,
-    credentialIds: []
+    credentialIds: allowedCredentialIds ?? []
   });
 }
 
