@@ -1,5 +1,4 @@
 import type { NearClient, SignedTransaction } from '../NearClient';
-import { MinimalNearClient } from '../NearClient';
 import { validateNearAccountId } from '../../utils/validation';
 import type {
   RegistrationHooksOptions,
@@ -8,11 +7,14 @@ import type {
 } from '../types/passkeyManager';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import { RegistrationPhase, RegistrationStatus } from '../types/passkeyManager';
-import { createAccountAndRegisterWithRelayServer } from './faucets/createAccountRelayServer';
-import { createAccountAndRegisterWithTestnetFaucet } from './faucets/createAccountTestnetFaucet';
+import {
+  createAccountAndRegisterWithRelayServer
+} from '../PasskeyManager/faucets/createAccountRelayServer';
+import {
+  PasskeyManagerConfigs
+} from '../types/passkeyManager';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
-import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import { base64UrlEncode } from '../../utils/encoders';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
@@ -33,13 +35,17 @@ import { getUserFriendlyErrorMessage } from '../../utils/errors';
  *    future stateless authentication
  */
 export async function registerPasskey(
-  context: PasskeyManagerContext,
+  context: {
+    configs: PasskeyManagerConfigs,
+    webAuthnManager: WebAuthnManager,
+    nearClient: NearClient,
+  },
   nearAccountId: AccountId,
   options: RegistrationHooksOptions,
   authenticatorOptions: AuthenticatorOptions
 ): Promise<RegistrationResult> {
 
-  const { onEvent, onError, hooks, useRelayer } = options;
+  const { onEvent, onError, hooks } = options;
   const { webAuthnManager, configs } = context;
 
   // Track registration progress for rollback
@@ -48,7 +54,6 @@ export async function registerPasskey(
     contractRegistered: false,
     databaseStored: false,
     contractTransactionId: null as string | null,
-    preSignedDeleteTransaction: null as SignedTransaction | null,
   };
 
   console.log('⚡ Registration: Passkey registration with VRF WebAuthn ceremony');
@@ -163,31 +168,16 @@ export async function registerPasskey(
     });
 
     let accountAndRegistrationResult;
-    if (useRelayer) {
-      console.debug('Using relay-server registration flow');
-      accountAndRegistrationResult = await createAccountAndRegisterWithRelayServer(
-        context,
-        nearAccountId,
-        nearKeyResult.publicKey,
-        credential,
-        vrfChallenge,
-        deterministicVrfKeyResult.vrfPublicKey,
-        authenticatorOptions,
-        onEvent,
-      );
-    } else {
-      console.debug('Using testnet faucet registration flow');
-      accountAndRegistrationResult = await createAccountAndRegisterWithTestnetFaucet(
-        context,
-        nearAccountId,
-        nearKeyResult.publicKey,
-        credential,
-        vrfChallenge,
-        deterministicVrfKeyResult.vrfPublicKey,
-        authenticatorOptions,
-        onEvent,
-      );
-    }
+    accountAndRegistrationResult = await createAccountAndRegisterWithRelayServer(
+      context,
+      nearAccountId,
+      nearKeyResult.publicKey,
+      credential,
+      vrfChallenge,
+      deterministicVrfKeyResult.vrfPublicKey,
+      authenticatorOptions,
+      onEvent,
+    );
 
     if (!accountAndRegistrationResult.success) {
       throw new Error(accountAndRegistrationResult.error || 'Account creation and registration failed');
@@ -197,26 +187,6 @@ export async function registerPasskey(
     registrationState.accountCreated = true;
     registrationState.contractRegistered = true;
     registrationState.contractTransactionId = accountAndRegistrationResult.transactionId || null;
-    // Handle preSignedDeleteTransaction based on flow type
-    // => Relayer: no delete transaction is needed via relay (atomic tx)
-    // => Testnet Faucet: delete transaction is needed for rollback
-    registrationState.preSignedDeleteTransaction = null;
-
-    if (!useRelayer) {
-      // For sequential flow, store the delete transaction for rollback
-      registrationState.preSignedDeleteTransaction = accountAndRegistrationResult.preSignedDeleteTransaction;
-      console.debug('Pre-signed delete transaction captured for rollback');
-      // Generate hash for verification/testing
-      if (registrationState.preSignedDeleteTransaction) {
-        const preSignedDeleteTransactionHash = generateTransactionHash(registrationState.preSignedDeleteTransaction);
-        onEvent?.({
-          step: 6,
-          phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
-          status: RegistrationStatus.PROGRESS,
-          message: `Presigned delete transaction created for rollback (hash: ${preSignedDeleteTransactionHash})`
-        });
-      }
-    }
 
     // Step 6: Store user data with VRF credentials atomically
     onEvent?.({
@@ -246,10 +216,24 @@ export async function registerPasskey(
       message: 'VRF registration data stored successfully'
     });
 
+    // Initialize current user context so first transaction has correct nonce
+    try {
+      // Set as last user for subsequent sessions and initialize NonceManager
+      await webAuthnManager.setLastUser(nearAccountId);
+      await webAuthnManager.setCurrentUser(nearAccountId);
+      // Warm up nonce/block context to avoid a cold fetch on first tx
+      try {
+        await webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient);
+      } catch (prefetchErr) {
+        console.debug('Nonce prefetch after registration failed (non-fatal):', prefetchErr);
+      }
+    } catch (initErr) {
+      console.warn('Failed to initialize user/nonce context after registration:', initErr);
+    }
+
     // Step 7: Unlock VRF keypair in memory for login
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
       nearAccountId: nearAccountId,
-      // encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       credential: credential,
     }).catch((unlockError: any) => {
@@ -277,7 +261,6 @@ export async function registerPasskey(
       vrfRegistration: {
         success: true,
         vrfPublicKey: vrfChallenge.vrfPublicKey,
-        // encryptedVrfKeypair: encryptedVrfResult.encryptedVrfKeypair,
         encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
         contractVerified: accountAndRegistrationResult.success,
       }
@@ -338,7 +321,11 @@ export async function registerPasskey(
  * @returns VRF challenge data (VRF keypair persisted in worker memory)
  */
 export async function generateBootstrapVrfChallenge(
-  context: PasskeyManagerContext,
+  context: {
+    configs: PasskeyManagerConfigs,
+    webAuthnManager: WebAuthnManager,
+    nearClient: NearClient,
+  },
   nearAccountId: AccountId,
 ): Promise<VRFChallenge> {
 
@@ -372,7 +359,11 @@ export async function generateBootstrapVrfChallenge(
  * @param onError - Optional callback for error handling
  */
 const validateRegistrationInputs = async (
-  context: PasskeyManagerContext,
+  context: {
+    configs: PasskeyManagerConfigs,
+    webAuthnManager: WebAuthnManager,
+    nearClient: NearClient,
+  },
   nearAccountId: AccountId,
   onEvent?: (event: RegistrationSSEEvent) => void,
   onError?: (error: Error) => void,
@@ -441,7 +432,6 @@ async function performRegistrationRollback(
     contractRegistered: boolean;
     databaseStored: boolean;
     contractTransactionId: string | null;
-    preSignedDeleteTransaction: SignedTransaction | null;
   },
   nearAccountId: AccountId,
   webAuthnManager: WebAuthnManager,
@@ -477,44 +467,6 @@ async function performRegistrationRollback(
         message: `Rolling back NEAR account ${nearAccountId}...`,
         error: 'Registration failed - attempting account deletion'
       } as RegistrationSSEEvent);
-
-      if (registrationState.preSignedDeleteTransaction) {
-        console.debug('Broadcasting pre-signed delete transaction for account rollback...');
-        try {
-          // Note: We need to create a new NearClient here since we only have rpcNodeUrl
-          const tempNearClient = new MinimalNearClient(rpcNodeUrl);
-          const deletionResult = await tempNearClient.sendTransaction(registrationState.preSignedDeleteTransaction);
-          const deleteTransactionId = deletionResult?.transaction_outcome?.id;
-          console.debug(`NEAR account ${nearAccountId} deleted successfully via pre-signed transaction`);
-          console.debug(`   Delete transaction ID: ${deleteTransactionId}`);
-
-          onEvent?.({
-            step: 0,
-            phase: RegistrationPhase.REGISTRATION_ERROR,
-            status: RegistrationStatus.ERROR,
-            message: `NEAR account ${nearAccountId} deleted successfully (rollback completed)`,
-            error: 'Registration failed but account rollback completed'
-          } as RegistrationSSEEvent);
-        } catch (deleteError: any) {
-          console.error(`NEAR account deletion failed:`, deleteError);
-          onEvent?.({
-            step: 0,
-            phase: RegistrationPhase.REGISTRATION_ERROR,
-            status: RegistrationStatus.ERROR,
-            message: `️NEAR account ${nearAccountId} could not be deleted: ${deleteError.message}. Account will remain on testnet.`,
-            error: 'Registration failed - account deletion failed'
-          } as RegistrationSSEEvent);
-        }
-      } else {
-        console.debug(`No pre-signed delete transaction available for ${nearAccountId}. Account will remain on testnet.`);
-        onEvent?.({
-          step: 0,
-          phase: RegistrationPhase.REGISTRATION_ERROR,
-          status: RegistrationStatus.ERROR,
-          message: `️NEAR account ${nearAccountId} could not be deleted: No pre-signed transaction available. Account will remain on testnet.`,
-          error: 'Registration failed - no rollback transaction available'
-        } as RegistrationSSEEvent);
-      }
     }
 
     // 1. Contract rollback on the Web3Authn contract is not possible at the moment. No authenticator deletion functions exposed yet.

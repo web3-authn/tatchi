@@ -63,7 +63,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
   const vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
     userId: data.rpcCall.nearAccountId,
-    rpId: window.location.hostname,
+    rpId: (ctx as any).rpIdOverride || window.location.hostname,
     blockHeight: transactionContext.txBlockHeight,
     blockHash: transactionContext.txBlockHash,
   });
@@ -159,7 +159,7 @@ async function performNearRpcCalls(
   reservedNonces?: string[];
 }> {
   try {
-    // Use NonceManager's smart caching method
+    // Prefer NonceManager when initialized (signing flows)
     const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
     console.log("Using NonceManager smart caching");
 
@@ -176,18 +176,63 @@ async function performNearRpcCalls(
       // Continue with existing nextNonce; worker may auto-increment where appropriate
     }
 
-    return {
-      transactionContext,
-      error: undefined,
-      details: undefined,
-      reservedNonces
-    };
-  } catch (error) {
-    return {
-      transactionContext: null,
-      error: 'NEAR_RPC_FAILED',
-      details: error instanceof Error ? error.message : String(error)
-    };
+    return { transactionContext, reservedNonces };
+  } catch (error: any) {
+    // Registration or pre-login flows may not have NonceManager initialized.
+    // Fallback: try to fetch access key + block using IndexedDB public key, else block-only.
+    try {
+      const accountId = data?.rpcCall?.nearAccountId;
+      let nearPublicKeyStr: string | null = null;
+      try {
+        const user = accountId ? await ctx.indexedDB.clientDB.getUser(toAccountId(accountId)) : null;
+        nearPublicKeyStr = user?.clientNearPublicKey || null;
+      } catch {}
+
+      if (accountId && nearPublicKeyStr) {
+        // Fetch both access key and block to compute a valid next nonce
+        const [accessKeyInfo, block] = await Promise.all([
+          ctx.nearClient.viewAccessKey(accountId, nearPublicKeyStr),
+          ctx.nearClient.viewBlock({ finality: 'final' } as any)
+        ]);
+
+        if (!accessKeyInfo || (accessKeyInfo as any).nonce === undefined) {
+          throw new Error('Access key not found or invalid during fallback');
+        }
+        const txBlockHash = (block as any)?.header?.hash;
+        const txBlockHeight = String((block as any)?.header?.height ?? '');
+        if (!txBlockHash || !txBlockHeight) throw new Error('Failed to fetch Block Info');
+
+        const nextNonce = (BigInt(accessKeyInfo.nonce) + 1n).toString();
+        const ctxResult: TransactionContext = {
+          nearPublicKeyStr,
+          accessKeyInfo: accessKeyInfo as any,
+          nextNonce,
+          txBlockHeight,
+          txBlockHash,
+        };
+        return { transactionContext: ctxResult };
+      }
+
+      // As a last resort, fetch only the block; nextNonce is unknown here
+      const block = await ctx.nearClient.viewBlock({ finality: 'final' } as any);
+      const txBlockHash = (block as any)?.header?.hash;
+      const txBlockHeight = String((block as any)?.header?.height ?? '');
+      if (!txBlockHash || !txBlockHeight) throw new Error('Failed to fetch Block Info');
+      const minimalContext = {
+        nearPublicKeyStr: '',
+        accessKeyInfo: { nonce: 0 } as any,
+        nextNonce: '1', // avoid invalid 0; real AK fetch not available
+        txBlockHeight,
+        txBlockHash,
+      } as TransactionContext;
+      return { transactionContext: minimalContext };
+    } catch (fallbackErr: any) {
+      return {
+        transactionContext: null,
+        error: 'NEAR_RPC_FAILED',
+        details: fallbackErr?.message || error?.message || String(fallbackErr || error),
+      };
+    }
   }
 }
 

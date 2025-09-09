@@ -1,5 +1,4 @@
 import { WebAuthnManager } from '../WebAuthnManager';
-import { registerPasskey } from './registration';
 import { loginPasskey, getLoginState, getRecentLogins, logoutAndClearVrfSession } from './login';
 import {
   executeAction,
@@ -58,7 +57,7 @@ import {
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
-import { ServiceIframeClient } from '../ServiceIframe/client';
+import { WalletIframeClient } from '../WalletIframe/client';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -78,7 +77,9 @@ export class PasskeyManager {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
   readonly configs: PasskeyManagerConfigs;
-  private serviceClient: ServiceIframeClient | null = null;
+  private serviceClient: WalletIframeClient | null = null;
+  // Track active device-linking flows to ensure robust cancellation
+  private activeLinkDeviceFlows: Set<LinkDeviceFlow> = new Set();
 
   constructor(
     configs: PasskeyManagerConfigs,
@@ -105,24 +106,28 @@ export class PasskeyManager {
    * Initialize the hidden wallet service iframe client (optional).
    * If `walletOrigin` is not provided in configs, this is a no‑op.
    */
-  async initServiceIframe(): Promise<void> {
+  async initWalletIframe(): Promise<void> {
     if (!this.configs.walletOrigin) return;
     if (this.serviceClient) return;
-    this.serviceClient = new ServiceIframeClient({
+    this.serviceClient = new WalletIframeClient({
       walletOrigin: this.configs.walletOrigin,
       servicePath: this.configs.walletServicePath || '/service',
+      connectTimeoutMs: 20000,
+      requestTimeoutMs: 30000,
       theme: this.configs.walletTheme,
       nearRpcUrl: this.configs.nearRpcUrl,
       nearNetwork: this.configs.nearNetwork,
       contractId: this.configs.contractId,
-      relayer: this.configs.relayer,
+      // Ensure relay server config reaches the wallet host for atomic registration
+      relayer: this.configs.relayer as any,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs as any,
+      rpIdOverride: this.configs.rpIdOverride,
     });
     await this.serviceClient.init();
   }
 
   /** Get the service iframe client if initialized. */
-  getServiceClient(): ServiceIframeClient | null { return this.serviceClient; }
+  getServiceClient(): WalletIframeClient | null { return this.serviceClient; }
 
   getContext(): PasskeyManagerContext {
     return {
@@ -155,9 +160,9 @@ export class PasskeyManager {
    */
   async registerPasskey(
     nearAccountId: string,
-    options: RegistrationHooksOptions
+    options: RegistrationHooksOptions = {}
   ): Promise<RegistrationResult> {
-    return registerPasskey(
+    return this.webAuthnManager.registerPasskey(
       this.getContext(),
       toAccountId(nearAccountId),
       options,
@@ -185,7 +190,13 @@ export class PasskeyManager {
    * Logout: Clear VRF session (clear VRF keypair in worker)
    */
   async logoutAndClearVrfSession(): Promise<void> {
-    return logoutAndClearVrfSession(this.getContext());
+    await logoutAndClearVrfSession(this.getContext());
+    // Also clear wallet-origin VRF session if service iframe is active
+    try {
+      if (this.serviceClient) {
+        await (this.serviceClient as any).clearVrfSession?.();
+      }
+    } catch {}
   }
 
   /**
@@ -461,8 +472,11 @@ export class PasskeyManager {
         txSigningRequests: txs,
         // Optional: we could forward confirmation config overrides here later
       });
-      // Expect the wallet to return an array compatible with VerifyAndSignTransactionResult[]
-      return (result?.signedTransactions || result || []) as VerifyAndSignTransactionResult[];
+      // Normalize to VerifyAndSignTransactionResult[] with SignedTransaction instances
+      const arr: any[] = Array.isArray((result as any)?.signedTransactions)
+        ? (result as any).signedTransactions
+        : Array.isArray(result) ? (result as any) : [];
+      return arr as VerifyAndSignTransactionResult[];
     }
     return signTransactionsWithActions({
       context: this.getContext(),
@@ -662,7 +676,22 @@ export class PasskeyManager {
    * ```
    */
   startDeviceLinkingFlow(options: StartDeviceLinkingOptionsDevice2): LinkDeviceFlow {
-    return new LinkDeviceFlow(this.getContext(), options);
+    const flow = new LinkDeviceFlow(this.getContext(), options);
+    this.activeLinkDeviceFlows.add(flow);
+    // Wrap cancel to auto-deregister
+    const originalCancel = flow.cancel.bind(flow);
+    (flow as any).cancel = () => {
+      try { originalCancel(); } finally { this.activeLinkDeviceFlows.delete(flow); }
+    };
+    return flow;
+  }
+
+  /** Cancel all active device-linking flows (defensive cleanup) */
+  cancelAllDeviceLinkingFlows(): void {
+    for (const flow of this.activeLinkDeviceFlows) {
+      try { flow.cancel(); } catch {}
+    }
+    this.activeLinkDeviceFlows.clear();
   }
 
     /**

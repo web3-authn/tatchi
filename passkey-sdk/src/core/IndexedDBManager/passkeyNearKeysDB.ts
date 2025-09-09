@@ -1,7 +1,5 @@
 import { openDB, type IDBPDatabase } from 'idb';
 
-// === CONSTANTS ===
-
 const DB_CONFIG: PasskeyNearKeysDBConfig = {
   dbName: 'PasskeyNearKeys',
   dbVersion: 1,

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
-import path from 'path';
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export default defineConfig({
   server: {
@@ -23,6 +25,8 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
+      // Allow WebAuthn in this app and delegate to wallet origin iframe
+      'Permissions-Policy': 'publickey-credentials-get=(self "https://wallet.example.localhost"), publickey-credentials-create=(self "https://wallet.example.localhost")',
     }
   },
   plugins: [
@@ -46,6 +50,48 @@ export default defineConfig({
           next();
         });
       },
+    },
+    // Serve SDK assets directly from the local workspace (zero-copy)
+    {
+      name: 'serve-sdk-from-workspace',
+      configureServer(server) {
+        const sdkDistRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../../passkey-sdk/dist');
+        server.middlewares.use(async (req, res, next) => {
+          const url = req.url || '';
+          if (!url.startsWith('/sdk/')) return next();
+
+          // Normalize and protect against traversal
+          const rel = decodeURIComponent(url.replace(/^\/sdk\//, ''));
+          const absPath = path.resolve(sdkDistRoot, rel);
+          if (!absPath.startsWith(sdkDistRoot)) {
+            res.statusCode = 403; res.end('Forbidden'); return;
+          }
+
+          try {
+            const stat = fs.statSync(absPath);
+            if (stat.isDirectory()) {
+              // Try index.html or pass through
+              const indexPath = path.join(absPath, 'index.html');
+              if (fs.existsSync(indexPath)) {
+                res.setHeader('Content-Type', 'text/html; charset=utf-8');
+                fs.createReadStream(indexPath).pipe(res); return;
+              }
+              return next();
+            }
+
+            // Set basic content types
+            if (absPath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+            else if (absPath.endsWith('.css')) res.setHeader('Content-Type', 'text/css; charset=utf-8');
+            else if (absPath.endsWith('.wasm')) res.setHeader('Content-Type', 'application/wasm');
+            else if (absPath.endsWith('.json')) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            else if (absPath.endsWith('.map')) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+
+            fs.createReadStream(absPath).on('error', () => next()).pipe(res);
+          } catch {
+            next();
+          }
+        });
+      }
     },
   ],
   resolve: {

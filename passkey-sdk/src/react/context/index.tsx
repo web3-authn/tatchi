@@ -16,7 +16,6 @@ import {
 } from '@/index';
 import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
-import { useRelayer } from '../hooks/useRelayer';
 import type {
   PasskeyContextType,
   PasskeyContextProviderProps,
@@ -49,7 +48,6 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   relayer: {
     accountId: 'web3-authn-v5.testnet',
     url: 'http://localhost:3000',
-    initialUseRelayer: true,
   },
   vrfWorkerConfigs: {
     shamir3pass: {
@@ -81,6 +79,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     nearAccountId: null,
     nearPublicKey: null,
   });
+  // Wallet iframe connection status
+  const [walletIframeConnected, setWalletIframeConnected] = useState<boolean>(false);
 
   // UI input state (separate from authentication state)
   const [accountInputState, setAccountInputState] = useState<AccountInputState>({
@@ -116,28 +116,73 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
   // Initialize hidden wallet service iframe when walletOrigin is provided
   useEffect(() => {
+    let offReady: (() => void) | undefined;
+    let offVrf: (() => void) | undefined;
+    let cancelled = false;
     (async () => {
       try {
         const walletOrigin = passkeyManager?.configs?.walletOrigin;
-        if (walletOrigin) {
-          await passkeyManager.initServiceIframe();
+        if (!walletOrigin) return;
+
+        console.log("calling initWalletIframe...")
+        await passkeyManager.initWalletIframe();
+
+        const sc = passkeyManager.getServiceClient?.();
+        if (!sc) return;
+
+        if (cancelled) return;
+        setWalletIframeConnected(!!sc.isReady?.());
+        offReady = (sc as any).onReady?.(() => setWalletIframeConnected(true));
+
+        // After init, if wallet-origin VRF session is active, reflect it in login state
+        if (sc.isReady?.()) {
+          offVrf = (sc as any).onVrfStatusChanged?.(async (status: any) => {
+            if (status?.active && status?.nearAccountId) {
+              const state = await passkeyManager.getLoginState(status.nearAccountId);
+              if (cancelled) return;
+              setLoginState(prev => ({
+                ...prev,
+                isLoggedIn: true,
+                nearAccountId: status.nearAccountId,
+                nearPublicKey: state.publicKey || null,
+              }));
+            } else if (status && status.active === false) {
+              if (cancelled) return;
+              setLoginState(prev => ({ ...prev, isLoggedIn: false }));
+            }
+          });
+
+          try {
+            const statusRaw = await (sc as any).checkVrfStatus?.();
+            const status = (statusRaw as any)?.result || (statusRaw as any);
+            if (status?.active && status?.nearAccountId) {
+              const state = await passkeyManager.getLoginState(status.nearAccountId);
+              if (!cancelled) {
+                setLoginState(prev => ({
+                  ...prev,
+                  isLoggedIn: true,
+                  nearAccountId: status.nearAccountId,
+                  nearPublicKey: state.publicKey || null,
+                }));
+              }
+            }
+          } catch {}
         }
       } catch (err) {
         console.warn('[PasskeyProvider] Service iframe init failed:', err);
       }
     })();
+    return () => {
+      cancelled = true;
+      offReady && offReady();
+      offVrf && offVrf();
+    };
   }, [passkeyManager]);
-
-  // Use relayer hook
-  const relayerHook = useRelayer({
-    initialValue: config?.relayer.initialUseRelayer ?? false
-  });
 
   // Use account input hook
   const accountInputHook = useAccountInput({
     passkeyManager,
     relayerAccount: passkeyManager.configs.relayer.accountId,
-    useRelayer: relayerHook.useRelayer,
     currentNearAccountId: loginState.nearAccountId,
     isLoggedIn: loginState.isLoggedIn
   });
@@ -168,6 +213,12 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Simple logout that only manages React state
   const logout = useCallback(async () => {
     try {
+      // Explicitly clear wallet-origin VRF session if service iframe is active
+      try {
+        const sc = passkeyManager.getServiceClient?.();
+        await (sc as any)?.clearVrfSession?.();
+      } catch {}
+
       // Clear VRF session when user logs out
       await passkeyManager.logoutAndClearVrfSession();
     } catch (error) {
@@ -187,16 +238,37 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       ...options,
       onEvent: async (event) => {
         if (event.phase === 'login-complete' && event.status === 'success') {
-          // Check VRF status to determine if user is truly logged in
-          const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
-          const isVRFLoggedIn = currentLoginState.vrfActive;
+          // Prefer wallet-origin VRF status when available
+          let updatedFromWallet = false;
+          try {
+            const sc = passkeyManager.getServiceClient?.();
+            if (sc && sc.isReady?.()) {
+              const statusRaw  = await sc.checkVrfStatus?.();
+              const status = (statusRaw as any)?.result || (statusRaw as any);
+              if (status?.active && status?.nearAccountId) {
+                const state = await passkeyManager.getLoginState(status.nearAccountId);
+                setLoginState(prevState => ({
+                  ...prevState,
+                  isLoggedIn: true,
+                  nearAccountId: status.nearAccountId,
+                  nearPublicKey: state.publicKey || null,
+                }));
+                updatedFromWallet = true;
+              }
+            }
+          } catch {}
 
-          setLoginState(prevState => ({
-            ...prevState,
-            isLoggedIn: isVRFLoggedIn,  // Only logged in if VRF is active
-            nearAccountId: event.nearAccountId || null,
-            nearPublicKey: event.clientNearPublicKey || null,
-          }));
+          if (!updatedFromWallet) {
+            // Fallback to local VRF status
+            const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
+            const isVRFLoggedIn = currentLoginState.vrfActive;
+            setLoginState(prevState => ({
+              ...prevState,
+              isLoggedIn: isVRFLoggedIn,
+              nearAccountId: event.nearAccountId || null,
+              nearPublicKey: event.clientNearPublicKey || null,
+            }));
+          }
         }
         options?.onEvent?.(event);
       },
@@ -213,18 +285,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
-        if (event.phase === 'registration-complete' && event.status === 'success') {
-          // Check VRF status to determine if user is truly logged in after registration
-          const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
-          const isVRFLoggedIn = currentLoginState.vrfActive;
-
-          setLoginState(prevState => ({
-            ...prevState,
-            isLoggedIn: isVRFLoggedIn,  // Only logged in if VRF is active
-            nearAccountId: nearAccountId,
-            nearPublicKey: currentLoginState.publicKey || null,
-          }));
-        }
+        // Let caller observe progress; we reflect final state after the call returns
         options?.onEvent?.(event);
       },
       onError: (error) => {
@@ -233,6 +294,10 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       }
     });
 
+    // Ensure React state reflects final VRF status after registration
+    if (result?.success) {
+      await refreshLoginState(nearAccountId);
+    }
     return result;
   }
 
@@ -289,17 +354,33 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Function to manually refresh login state
   const refreshLoginState = useCallback(async (nearAccountId?: string) => {
     try {
-      const loginState = await passkeyManager.getLoginState(nearAccountId);
+      // Prefer wallet-origin VRF status if available
+      const sc = passkeyManager.getServiceClient?.();
+      if (sc && (sc as any).isReady?.()) {
+        try {
+          const statusRaw: any = await (sc as any).checkVrfStatus?.();
+          const status = (statusRaw as any)?.result || (statusRaw as any);
+          if (status?.active && status?.nearAccountId) {
+            const state = await passkeyManager.getLoginState(status.nearAccountId);
+            setLoginState(prevState => ({
+              ...prevState,
+              nearAccountId: status.nearAccountId,
+              nearPublicKey: state.publicKey,
+              isLoggedIn: true,
+            }));
+            return;
+          }
+        } catch {}
+      }
 
-      if (loginState.nearAccountId) {
-        // User is only logged in if VRF worker has private key in memory
-        const isVRFLoggedIn = loginState.vrfActive;
-
+      // Fallback: reflect local VRF status
+      const ls = await passkeyManager.getLoginState(nearAccountId);
+      if (ls.nearAccountId) {
         setLoginState(prevState => ({
           ...prevState,
-          nearAccountId: loginState.nearAccountId,
-          nearPublicKey: loginState.publicKey,
-          isLoggedIn: isVRFLoggedIn  // Only logged in if VRF is active
+          nearAccountId: ls.nearAccountId,
+          nearPublicKey: ls.publicKey,
+          isLoggedIn: ls.vrfActive
         }));
       }
     } catch (error) {
@@ -335,15 +416,13 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     getLoginState: (nearAccountId?: string) => passkeyManager.getLoginState(nearAccountId),
     refreshLoginState,           // Manually refresh login state
     loginState,
+    walletIframeConnected,
 
     // Account input management
     // UI account name input state (form/input tracking)
     accountInputState,
     setInputUsername: accountInputHook.setInputUsername,
     refreshAccountData: accountInputHook.refreshAccountData,
-    useRelayer: relayerHook.useRelayer,
-    setUseRelayer: relayerHook.setUseRelayer,
-    toggleRelayer: relayerHook.toggleRelayer,
 
     // Confirmation configuration functions
     setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),

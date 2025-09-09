@@ -34,6 +34,9 @@ export const Navbar: React.FC = () => {
         <Link to="/modal">
           Modal Demo
         </Link>
+        <Link to="/wallet-demo">
+          Wallet Demo
+        </Link>
         <DarkModeToggle />
       </div>
 

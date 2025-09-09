@@ -1,7 +1,6 @@
 export * from './checkCanRegisterUser';
 export * from './deriveNearKeypairAndEncrypt';
 export * from './decryptPrivateKeyWithPrf';
-export * from './signVerifyAndRegisterUser';
 export * from './signTransactionsWithActions';
 export * from './recoverKeypairFromPasskey';
 export * from './extractCosePublicKey';

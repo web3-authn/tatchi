@@ -18,7 +18,6 @@ export interface AccountInputState {
 export interface UseAccountInputOptions {
   passkeyManager: PasskeyManager;
   relayerAccount: string;
-  useRelayer: boolean;
   currentNearAccountId?: string | null;
   isLoggedIn: boolean;
 }
@@ -31,7 +30,6 @@ export interface UseAccountInputReturn extends AccountInputState {
 export function useAccountInput({
   passkeyManager,
   relayerAccount,
-  useRelayer,
   currentNearAccountId,
   isLoggedIn
 }: UseAccountInputOptions): UseAccountInputReturn {
@@ -102,8 +100,7 @@ export function useAccountInput({
       displayPostfix = `.${parts.slice(1).join('.')}`;
       isUsingExistingAccount = true;
     } else {
-      // New account: use relayer or testnet based on useRelayer setting
-      const postfix = useRelayer ? relayerAccount : 'testnet';
+      const postfix = relayerAccount;
       targetAccountId = `${username}.${postfix}`;
       displayPostfix = `.${postfix}`;
       isUsingExistingAccount = false;
@@ -118,7 +115,7 @@ export function useAccountInput({
 
     // Check if account has credentials
     checkAccountExists(targetAccountId);
-  }, [useRelayer, relayerAccount, passkeyManager]);
+  }, [relayerAccount, passkeyManager]);
 
   // Check if account has passkey credentials
   const checkAccountExists = useCallback(async (accountId: string) => {

@@ -88,6 +88,37 @@ export class SignedTransaction {
 }
 
 /**
+ * Serialize a signed transaction-like object to base64.
+ * Accepts either our SignedTransaction instance or a plain object
+ * with borsh bytes (borsh_bytes | borshBytes) from cross-origin RPC.
+ */
+export function encodeSignedTransactionBase64(
+  signed: SignedTransaction | { borsh_bytes?: number[]; borshBytes?: number[]; encode?: () => ArrayBuffer }
+): string {
+  try {
+    // Prefer instance method when available
+    const anySigned: any = signed as any;
+    if (typeof anySigned?.base64Encode === 'function') {
+      return anySigned.base64Encode();
+    }
+    // If encode() returns ArrayBuffer
+    if (typeof anySigned?.encode === 'function') {
+      const buf = anySigned.encode();
+      return base64Encode(buf);
+    }
+    // Fallback to raw borsh bytes arrays
+    const bytes = (anySigned?.borsh_bytes || anySigned?.borshBytes) as number[] | undefined;
+    if (Array.isArray(bytes)) {
+      const buf = new Uint8Array(bytes).buffer;
+      return base64Encode(buf);
+    }
+  } catch (e) {
+    // fallthrough to error below
+  }
+  throw new Error('Invalid signed transaction payload: cannot serialize to base64');
+}
+
+/**
  * MinimalNearClient provides a simplified interface for NEAR protocol interactions
  */
 export interface NearClient {
@@ -226,7 +257,7 @@ export class MinimalNearClient implements NearClient {
     return await this.makeRpcCall<FinalExecutionOutcome>(
       RpcCallType.Send,
       {
-        signed_tx_base64: signedTransaction.base64Encode(),
+        signed_tx_base64: encodeSignedTransactionBase64(signedTransaction as any),
         wait_until: waitUntil
       },
       'Send Transaction'

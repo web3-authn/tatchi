@@ -176,7 +176,7 @@ If you want stronger isolation by running the service iframe on a separate origi
 - Static SDK assets under `/sdk` (workers and embedded bundles):
   - `/sdk/workers/web3authn-signer.worker.js`
   - `/sdk/workers/web3authn-vrf.worker.js`
-  - `/sdk/embedded/service-host.js` (and other embedded bundles)
+  - `/sdk/esm/react/embedded/wallet-iframe-host.js` (and other embedded bundles)
 - A service page at `/service` that loads the service host module.
 
 You do not need to copy files into your app bundle — you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:

@@ -1,8 +1,6 @@
-// === EXPORTS ===
 export { PasskeyClientDBManager } from './passkeyClientDB';
 export { PasskeyNearKeysDBManager } from './passkeyNearKeysDB';
 
-// Re-export types for convenience
 export type {
   ClientUserData,
   UserPreferences,
@@ -15,6 +13,7 @@ export type {
 } from './passkeyNearKeysDB';
 
 import { AccountId } from '../types/accountIds';
+
 // === SINGLETON INSTANCES ===
 import { PasskeyClientDBManager, type ClientUserData } from './passkeyClientDB';
 import { PasskeyNearKeysDBManager, type EncryptedKeyData } from './passkeyNearKeysDB';
@@ -23,7 +22,6 @@ import { PasskeyNearKeysDBManager, type EncryptedKeyData } from './passkeyNearKe
 export const passkeyClientDB = new PasskeyClientDBManager();
 export const passkeyNearKeysDB = new PasskeyNearKeysDBManager();
 
-// === UNIFIED INTERFACE ===
 /**
  * Unified IndexedDB interface providing access to both databases
  * This allows centralized access while maintaining separation of concerns

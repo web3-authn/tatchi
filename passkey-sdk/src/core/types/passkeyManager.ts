@@ -473,7 +473,6 @@ export interface RegistrationHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent>;
   onError?: (error: Error) => void;
   hooks?: OperationHooks;
-  useRelayer?: boolean;
 }
 
 export interface LoginHooksOptions {
@@ -579,10 +578,11 @@ export interface PasskeyManagerConfigs {
   walletOrigin?: string; // e.g., https://wallet.example.com
   walletServicePath?: string; // defaults to '/service'
   walletTheme?: 'dark' | 'light';
+  // Force WebAuthn rpId to a base domain so credentials work across subdomains
+  // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
+  rpIdOverride?: string;
   // Relay Server is used to create new NEAR accounts
   relayer: {
-    // Whether to use the relayer by default on initial load
-    initialUseRelayer: boolean;
     accountId: string;
     url: string
   }

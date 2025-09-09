@@ -3,7 +3,7 @@ import { KeyPair } from '@near-js/crypto';
 import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
-import { generateBootstrapVrfChallenge } from './registration';
+import { generateBootstrapVrfChallenge } from '../WebAuthnManager/registration';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
@@ -11,7 +11,6 @@ import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import {
   VRFChallenge,
-  outputAs32Bytes,
   type EncryptedVRFKeypair,
   type ServerEncryptedVrfKeypair
 } from '../types/vrf-worker';

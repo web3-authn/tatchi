@@ -3,7 +3,8 @@ import {
   type ClientUserData,
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
-import { PasskeyClientDBManager, StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkeyClientDB';
+import { StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkeyClientDB';
+import { PasskeyManagerContext } from '../PasskeyManager';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
@@ -14,6 +15,7 @@ import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';
 import { NonceManager } from '../nonceManager';
 import NonceManagerInstance from '../nonceManager';
+import { registerPasskey } from './registration';
 
 
 import {
@@ -23,7 +25,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { PasskeyManagerConfigs, onProgressEvents } from '../types/passkeyManager';
+import type { PasskeyManagerConfigs, RegistrationHooksOptions, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -44,6 +46,7 @@ export class WebAuthnManager {
   private readonly signerWorkerManager: SignerWorkerManager;
   private readonly touchIdPrompt: TouchIdPrompt;
   private readonly userPreferencesManager: UserPreferencesManager;
+  private readonly nearClient: NearClient;
   private readonly nonceManager: NonceManager;
 
   readonly passkeyManagerConfigs: PasskeyManagerConfigs;
@@ -67,14 +70,17 @@ export class WebAuthnManager {
       applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
       removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
-    this.touchIdPrompt = new TouchIdPrompt();
+    // Respect rpIdOverride for WebAuthn get()/create() calls (cross-origin wallet scenarios)
+    this.touchIdPrompt = new TouchIdPrompt(passkeyManagerConfigs.rpIdOverride);
     this.userPreferencesManager = UserPreferencesInstance;
     this.nonceManager = NonceManagerInstance;
+    this.nearClient = nearClient;
     this.signerWorkerManager = new SignerWorkerManager(
       this.vrfWorkerManager,
       nearClient,
       UserPreferencesInstance,
-      NonceManagerInstance
+      NonceManagerInstance,
+      passkeyManagerConfigs.rpIdOverride
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
@@ -98,6 +104,24 @@ export class WebAuthnManager {
     authenticators: ClientAuthenticatorData[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
+  }
+
+  registerPasskey(
+    context: PasskeyManagerContext,
+    nearAccountId: AccountId,
+    options: RegistrationHooksOptions,
+    authenticatorOptions: AuthenticatorOptions
+  ) {
+    return registerPasskey(
+      {
+        configs: this.passkeyManagerConfigs,
+        webAuthnManager: this,
+        nearClient: this.nearClient,
+      },
+      nearAccountId,
+      options,
+      authenticatorOptions
+    );
   }
 
   ///////////////////////////////////////
@@ -631,79 +655,6 @@ export class WebAuthnManager {
       onEvent,
       nearRpcUrl: this.passkeyManagerConfigs.nearRpcUrl,
     });
-  }
-
-  /**
-   * Register user on-chain with transaction (STATE-CHANGING)
-   * This performs the actual on-chain registration transaction
-   * @deprecated Testnet only, use createAccountAndRegisterWithRelayServer instead for prod
-   */
-  async signVerifyAndRegisterUser({
-    contractId,
-    credential,
-    vrfChallenge,
-    deterministicVrfPublicKey,
-    nearAccountId,
-    nearPublicKeyStr,
-    nearClient,
-    deviceNumber = 1, // Default to device number 1 for first device (1-indexed)
-    authenticatorOptions,
-    onEvent,
-  }: {
-    contractId: string,
-    credential: PublicKeyCredential,
-    vrfChallenge: VRFChallenge,
-    deterministicVrfPublicKey: string, // deterministic VRF key for key recovery
-    nearAccountId: AccountId;
-    nearPublicKeyStr: string;
-    nearClient: NearClient;
-    deviceNumber?: number; // Device number for multi-device support (defaults to 1)
-    authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration
-    onEvent?: (update: onProgressEvents) => void;
-  }): Promise<{
-    success: boolean;
-    verified: boolean;
-    registrationInfo?: any;
-    logs?: string[];
-    signedTransaction: SignedTransaction;
-    preSignedDeleteTransaction: SignedTransaction | null;
-    error?: string;
-  }> {
-    try {
-      const registrationResult = await this.signerWorkerManager.signVerifyAndRegisterUser({
-        vrfChallenge,
-        credential,
-        contractId,
-        deterministicVrfPublicKey, // Pass through the deterministic VRF key
-        nearAccountId,
-        nearPublicKeyStr,
-        nearClient,
-        deviceNumber, // Pass device number for multi-device support
-        authenticatorOptions, // Pass authenticator options
-        onEvent,
-        nearRpcUrl: this.passkeyManagerConfigs.nearRpcUrl,
-      });
-
-      console.debug("On-chain registration completed:", registrationResult);
-
-      if (registrationResult.verified) {
-        console.debug('On-chain user registration successful');
-        return {
-          success: true,
-          verified: registrationResult.verified,
-          registrationInfo: registrationResult.registrationInfo,
-          logs: registrationResult.logs,
-          signedTransaction: registrationResult.signedTransaction,
-          preSignedDeleteTransaction: registrationResult.preSignedDeleteTransaction,
-        };
-      } else {
-        console.warn('On-chain user registration failed - WASM worker returned unverified result');
-        throw new Error('On-chain registration transaction failed');
-      }
-    } catch (error: any) {
-      console.error('WebAuthnManager: On-chain registration error:', error);
-      throw error;
-    }
   }
 
   ///////////////////////////////////////

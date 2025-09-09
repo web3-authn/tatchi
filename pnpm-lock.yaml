@@ -113,6 +113,22 @@ importers:
         specifier: ^0.24.0
         version: 0.24.0(rollup@4.50.1)(vite@6.3.5(@types/node@22.18.1)(tsx@4.20.5))
 
+  examples/vite-secure:
+    dependencies:
+      '@web3authn/passkey':
+        specifier: workspace:*
+        version: link:../../passkey-sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^22.15.21
+        version: 22.18.1
+      vite:
+        specifier: ^6.3.5
+        version: 6.3.5(@types/node@22.18.1)(tsx@4.20.5)
+      vite-plugin-mkcert:
+        specifier: ^1.17.8
+        version: 1.17.8(vite@6.3.5(@types/node@22.18.1)(tsx@4.20.5))
+
   passkey-sdk:
     dependencies:
       '@lit/react':

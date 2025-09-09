@@ -59,8 +59,6 @@ export interface UserAccountButtonProps {
 export interface ProfileDropdownProps {
   isOpen: boolean;
   menuItems: MenuItem[];
-  useRelayer: boolean;
-  onRelayerChange: (value: boolean) => void;
   onLogout: () => void;
   onClose: () => void;
   toggleColors?: ToggleColorProps;
@@ -92,8 +90,6 @@ export interface LogoutMenuItemProps {
 }
 
 export interface ProfileRelayerToggleSectionProps {
-  useRelayer: boolean;
-  onRelayerChange: (value: boolean) => void;
   toggleColors?: ToggleColorProps;
   className?: string;
   style?: React.CSSProperties;

@@ -26,7 +26,6 @@ import {
   deriveNearKeypairAndEncrypt,
   decryptPrivateKeyWithPrf,
   checkCanRegisterUser,
-  signVerifyAndRegisterUser,
   signTransactionsWithActions,
   recoverKeypairFromPasskey,
   extractCosePublicKey,
@@ -52,6 +51,7 @@ export interface SignerWorkerManagerContext {
   vrfWorkerManager?: VrfWorkerManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
+  rpIdOverride?: string;
   sendMessage: <T extends WorkerRequestType>(args: {
     message: {
       type: T;
@@ -81,10 +81,11 @@ export class SignerWorkerManager {
     vrfWorkerManager: VrfWorkerManager,
     nearClient: NearClient,
     userPreferencesManager: UserPreferencesManager,
-    nonceManager: NonceManager
+    nonceManager: NonceManager,
+    rpIdOverride?: string
   ) {
     this.indexedDB = IndexedDBManager;
-    this.touchIdPrompt = new TouchIdPrompt();
+    this.touchIdPrompt = new TouchIdPrompt(rpIdOverride);
     this.vrfWorkerManager = vrfWorkerManager;
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
@@ -100,6 +101,7 @@ export class SignerWorkerManager {
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
+      rpIdOverride: (this.touchIdPrompt as any)?.rpIdOverride,
     };
   }
 
@@ -421,31 +423,6 @@ export class SignerWorkerManager {
     error?: string;
   }> {
     return checkCanRegisterUser({ ctx: this.getContext(), ...args });
-  }
-
-  /**
-   * @deprecated Testnet only, use createAccountAndRegisterWithRelayServer instead for prod
-   */
-  async signVerifyAndRegisterUser(args: {
-    vrfChallenge: VRFChallenge,
-    credential: PublicKeyCredential,
-    contractId: string;
-    deterministicVrfPublicKey: string; // Required deterministic VRF key for dual registration
-    nearAccountId: AccountId;
-    nearPublicKeyStr: string;
-    nearClient: NearClient; // NEAR RPC client for getting transaction metadata
-    nearRpcUrl: string; // NEAR RPC URL for contract verification
-    deviceNumber?: number; // Device number for multi-device support (defaults to 1)
-    authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration
-    onEvent?: (update: onProgressEvents) => void;
-  }): Promise<{
-    verified: boolean;
-    registrationInfo?: any;
-    logs?: string[];
-    signedTransaction: SignedTransaction;
-    preSignedDeleteTransaction: SignedTransaction | null;
-  }> {
-    return signVerifyAndRegisterUser({ ctx: this.getContext(), ...args });
   }
 
   // === ACTION-BASED SIGNING METHODS ===

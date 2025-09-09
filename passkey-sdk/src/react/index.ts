@@ -35,7 +35,6 @@ export type {
   AccessKeyList
 } from '../core/NearClient';
 export { useAccountInput } from './hooks/useAccountInput';
-export { useRelayer } from './hooks/useRelayer';
 export { useQRCamera, QRScanMode } from './hooks/useQRCamera';
 export type { UseQRCameraOptions, UseQRCameraReturn } from './hooks/useQRCamera';
 export { useDeviceLinking } from './hooks/useDeviceLinking';
@@ -102,8 +101,6 @@ export type {
   // UI State
   AccountInputState,
   UseAccountInputReturn,
-  UseRelayerOptions,
-  UseRelayerReturn,
   // Embedded transaction confirmation
   SecureSendTxButtonProps as SecureTxConfirmButtonProps,
 } from './types';

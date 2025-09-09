@@ -1,5 +1,5 @@
 /**
- * Security utilities for ServiceIframe HTML generation
+ * Security utilities for WalletIframe HTML generation
  * Prevents injection attacks in srcdoc and HTML generation
  */
 

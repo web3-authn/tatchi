@@ -20,8 +20,6 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
   ({
     isOpen,
     menuItems,
-    useRelayer,
-    onRelayerChange,
     onLogout,
     onClose,
     menuItemsRef,

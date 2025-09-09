@@ -141,16 +141,16 @@ export interface UseAccountInputReturn extends AccountInputState {
   refreshAccountData: () => Promise<void>;
 }
 
-// Relayer hook types
-export interface UseRelayerOptions {
-  initialValue?: boolean;
-}
+// // Relayer hook types
+// export interface UseRelayerOptions {
+//   initialValue?: boolean;
+// }
 
-export interface UseRelayerReturn {
-  useRelayer: boolean;
-  setUseRelayer: (value: boolean) => void;
-  toggleRelayer: () => void;
-}
+// export interface UseRelayerReturn {
+//   useRelayer: boolean;
+//   setUseRelayer: (value: boolean) => void;
+//   toggleRelayer: () => void;
+// }
 
 // === CONTEXT TYPES ===
 export interface PasskeyContextType {
@@ -189,6 +189,8 @@ export interface PasskeyContextType {
 
   // Login State
   loginState: LoginState;
+  // Wallet iframe connectivity (true when service client handshake completes)
+  walletIframeConnected: boolean;
   getLoginState: (nearAccountId?: string) => Promise<{
     isLoggedIn: boolean;
     nearAccountId: string | null;
@@ -204,9 +206,6 @@ export interface PasskeyContextType {
   accountInputState: AccountInputState;
   setInputUsername: (username: string) => void;
   refreshAccountData: () => Promise<void>;
-  useRelayer: boolean;
-  setUseRelayer: (value: boolean) => void;
-  toggleRelayer: () => void;
 
   // Confirmation configuration functions
   setConfirmBehavior: (behavior: ConfirmationBehavior) => void;

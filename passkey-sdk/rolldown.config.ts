@@ -37,23 +37,9 @@ const external = [
 // External dependencies for embedded components.
 // IMPORTANT: Externalize Lit so the host app's bundler (e.g., Vite) serves a consistent copy.
 // Bundling Lit into /sdk/embedded caused internal node_modules paths and ESM export mismatches.
-const embeddedExternal = [
-  // React dependencies
-  'react',
-  'react-dom',
-  'react/jsx-runtime',
-  // All @near-js packages
-  /@near-js\/.*/,
-  // Core dependencies that should be provided by consuming application
-  'borsh',
-  'bs58',
-  'js-sha256',
-  'idb',
-  'near-api-js',
-  // Other common packages
-  'tslib'
-  // Note: Lit is not excluded here, it will be bundled
-];
+// Embedded bundles are loaded directly in the browser (no bundler/import maps),
+// so do NOT externalize dependencies. Bundle everything needed.
+const embeddedExternal: (string | RegExp)[] = [];
 
 const aliasConfig = {
   '@build-paths': path.resolve(process.cwd(), 'build-paths.ts'),
@@ -226,7 +212,7 @@ export default defineConfig([
       'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
       'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
       // Wallet service host (headless)
-      'service-host': 'src/core/ServiceIframe/service-host.ts',
+      'wallet-iframe-host': 'src/core/WalletIframe/wallet-iframe-host.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,

@@ -34,7 +34,6 @@ pub fn handle_shamir3pass_config_p(
     message_id: Option<String>,
     payload: Shamir3PassConfigPRequest,
 ) -> VrfWorkerResponse {
-    info!("Configuring Shamir P: {:?}", payload.p_b64u);
 
     if payload.p_b64u.is_empty() {
         return VrfWorkerResponse::fail(message_id, "Missing p_b64u");

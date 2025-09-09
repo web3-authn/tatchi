@@ -47,8 +47,15 @@ export function generateEd25519Salt(nearAccountId: string): Uint8Array {
  * and generates credentials, and PRF Outputs
  */
 export class TouchIdPrompt {
+  private rpIdOverride?: string;
 
-  constructor() {}
+  constructor(rpIdOverride?: string) {
+    this.rpIdOverride = rpIdOverride;
+  }
+
+  private getRpId(): string {
+    try { return this.rpIdOverride || window.location.hostname; } catch { return this.rpIdOverride || ''; }
+  }
 
   /**
    * Prompts for TouchID/biometric authentication and generates WebAuthn credentials with PRF output
@@ -73,7 +80,7 @@ export class TouchIdPrompt {
     const credential = await navigator.credentials.get({
       publicKey: {
         challenge: outputAs32Bytes(challenge),
-        rpId: window.location.hostname,
+        rpId: this.getRpId(),
         allowCredentials: authenticators.map(auth => ({
           id: base64UrlDecode(auth.credentialId),
           type: 'public-key' as const,
@@ -115,7 +122,7 @@ export class TouchIdPrompt {
     const credential = await navigator.credentials.get({
       publicKey: {
         challenge: outputAs32Bytes(challenge),
-        rpId: window.location.hostname,
+        rpId: this.getRpId(),
         allowCredentials: credentialIds.map(credentialId => ({
           id: base64UrlDecode(credentialId),
           type: 'public-key' as const,
@@ -193,7 +200,7 @@ export class TouchIdPrompt {
         challenge: outputAs32Bytes(challenge),
         rp: {
           name: 'WebAuthn VRF Passkey',
-          id: window.location.hostname
+          id: this.getRpId()
         },
         user: {
           // CRITICAL: user.id must be device-specific or

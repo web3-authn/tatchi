@@ -54,8 +54,6 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
     loginState,
     passkeyManager,
     logout,
-    useRelayer,
-    setUseRelayer,
   } = usePasskeyContext();
 
   // Use props if provided, otherwise fall back to context
@@ -207,8 +205,6 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
           ref={refs.dropdownRef}
           isOpen={isOpen}
           menuItems={MENU_ITEMS}
-          useRelayer={useRelayer}
-          onRelayerChange={setUseRelayer}
           onLogout={handleLogout}
           onClose={handleClose}
           menuItemsRef={refs.menuItemsRef}
