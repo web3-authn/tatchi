@@ -3,7 +3,7 @@
  */
 
 import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
-import { StripFree } from ".";
+import { StripFree } from "./index.js";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
@@ -22,8 +22,8 @@ export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
   | WasmShamir3PassConfigServerUrlsRequest
   | WasmShamir3PassClientDecryptVrfKeypairRequest;
 
-import { AccountId } from "./accountIds";
-import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders";
+import { AccountId } from "./accountIds.js";
+import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
 
 export interface VRFChallenge {
   vrfInput: string;

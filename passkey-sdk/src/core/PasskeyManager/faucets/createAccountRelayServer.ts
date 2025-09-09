@@ -1,4 +1,4 @@
-import { VRFChallenge } from '../../../core/types/vrf-worker';
+import { VRFChallenge } from '../../types/vrf-worker';
 import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../../types/passkeyManager';
 import { PasskeyManagerContext } from '..';
 import { base64UrlDecode } from '../../../utils/encoders';

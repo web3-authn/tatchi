@@ -6,8 +6,8 @@ import * as wasmModule from '../../wasm_signer_worker/wasm_signer_worker.js';
 import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
 export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums directly
 
-import { StripFree } from ".";
-import type { onProgressEvents } from "./passkeyManager";
+import { StripFree } from "./index.js";
+import type { onProgressEvents } from "./passkeyManager.js";
 
 export type TransactionPayload = StripFree<wasmModule.TransactionPayload>;
 export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;

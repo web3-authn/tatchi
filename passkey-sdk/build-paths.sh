@@ -24,9 +24,9 @@ CRITICAL_DIRS=(
 )
 
 # Example Vite app deployment paths (used only for local dev/test copying)
-FRONTEND_ROOT="../../examples/vite/public"
-FRONTEND_SDK="../../examples/vite/public/sdk"
-FRONTEND_WORKERS="../../examples/vite/public/sdk/workers"
+FRONTEND_ROOT="../examples/vite/public"
+FRONTEND_SDK="../examples/vite/public/sdk"
+FRONTEND_WORKERS="../examples/vite/public/sdk/workers"
 
 # Runtime paths (used by workers and tests)
 RUNTIME_SDK_BASE="/sdk"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # For local development, we need to symlink the SDK to the frontend node_modules
-cd ./packages/passkey && pnpm link --global
+cd ./passkey-sdk && pnpm link --global
 cd ../../
 
 # symlink the SDK to the frontend

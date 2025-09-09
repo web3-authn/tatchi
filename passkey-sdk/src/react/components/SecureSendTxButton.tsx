@@ -14,7 +14,7 @@ import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
-import TouchIcon from '../components/ProfileSettingsButton/TouchIcon';
+import TouchIcon from './ProfileSettingsButton/TouchIcon';
 
 
 export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean }> = ({

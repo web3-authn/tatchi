@@ -1,7 +1,6 @@
 # Node modules
 node_modules
-frontend/node_modules
-relay-server/node_modules
+**/node_modules
 
 # All environment files
 .env
@@ -11,13 +10,17 @@ relay-server/node_modules
 # Frontend test certs
 examples/vite/certs
 examples/vite-secure/certs
+examples/nextjs/certs
 
 # Build output
 examples/vite/public
-examples/vite/public/workers
 examples/vite/dist
 
 examples/vite-secure/public
+examples/vite-secure/dist
+
+examples/nextjs/public
+examples/nextjs/dist
 
 examples/relay-server/dist
 

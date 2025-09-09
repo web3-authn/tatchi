@@ -14,8 +14,8 @@ export default defineConfig({
         // Default: serve files from project root and repo root
         '..',
         '../..',
-        // Allow serving from the linked passkey package dist
-        '../../packages/passkey/dist'
+        // Allow serving from the linked passkey SDK dist
+        '../../passkey-sdk/dist'
       ]
     },
     // Configure MIME types for WASM files

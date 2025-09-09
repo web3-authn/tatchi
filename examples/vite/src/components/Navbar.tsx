@@ -20,7 +20,7 @@ export const Navbar: React.FC = () => {
       <nav className="navbar-container">
       <div className="navbar-title">
         <Link to="/">
-          Tachi.xyz
+          Tatchi.xyz
         </Link>
       </div>
 

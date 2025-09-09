@@ -26,9 +26,9 @@ export const BUILD_PATHS = {
 
   // Frontend deployment paths
   FRONTEND: {
-    ROOT: '../../frontend/public',
-    SDK: '../../frontend/public/sdk',
-    WORKERS: '../../frontend/public/sdk/workers'
+    ROOT: '../examples/vite/public',
+    SDK: '../examples/vite/public/sdk',
+    WORKERS: '../examples/vite/public/sdk/workers'
   },
 
   // Runtime paths (used by workers and tests)

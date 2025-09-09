@@ -1,6 +1,5 @@
 packages:
-  - packages/*
+  - passkey-sdk
   - examples/relay-server
   - examples/vite
   - examples/vite-secure
-

@@ -37,7 +37,10 @@ cp -r "$BUILD_CJS" "$FRONTEND_SDK/"
 # Copy embedded Lit components (entire folder to include dynamic chunks)
 echo "Copying embedded components (with dynamic chunks)..."
 mkdir -p "$FRONTEND_SDK/embedded"
-cp -r "$BUILD_ESM/react/embedded/". "$FRONTEND_SDK/embedded/" 2>/dev/null || echo "Warning: embedded bundle directory not found"
+# Try new layout first
+cp -r "$BUILD_ESM/embedded/". "$FRONTEND_SDK/embedded/" 2>/dev/null || \
+  cp -r "$BUILD_ESM/react/embedded/". "$FRONTEND_SDK/embedded/" 2>/dev/null || \
+  echo "Warning: embedded bundle directory not found"
 
 
 echo "✅ SDK files copied successfully!"

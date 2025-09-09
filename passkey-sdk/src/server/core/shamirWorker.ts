@@ -19,7 +19,7 @@ import {
   ShamirRemoveServerLockRequest,
   ShamirRemoveServerLockResponse,
   Shamir3PassGenerateServerKeypairRequest,
-} from './types';
+} from './types.js';
 
 export { SHAMIR_P_B64U, get_shamir_p_b64u };
 
@@ -39,7 +39,8 @@ async function ensureWasmInitialized(): Promise<void> {
     join(__dirname, '../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
     join(__dirname, '../../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
     join(__dirname, '../../../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../../../../packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
+    // Dev fallback path when running from the monorepo
+    join(__dirname, '../../../../../../passkey-sdk/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
   ];
   let bytes: Buffer | undefined;
   for (const p of candidates) {
@@ -144,4 +145,3 @@ export async function getShamirPB64uFromWasm(): Promise<string> {
   await ensureWasmInitialized();
   return get_shamir_p_b64u();
 }
-
