@@ -11,6 +11,7 @@ import { serializeRegistrationCredentialWithPRF, type DualPrfOutputs } from '../
 import { AccountId, toAccountId } from "../../../types/accountIds";
 import { VRFChallenge } from '../../../types/vrf-worker';
 import { SignerWorkerManagerContext } from '..';
+import { getDeviceNumberForAccount } from '../getDeviceNumber';
 
 /**
  * Secure registration flow with dual PRF: WebAuthn + WASM worker encryption using dual PRF
@@ -94,8 +95,11 @@ export async function deriveNearKeypairAndEncrypt({
     // response.payload is a WasmEncryptionResult with proper WASM types
     const wasmResult = response.payload;
     // Store the encrypted key in IndexedDB using the manager
+    // Determine deviceNumber (default 1 for initial device)
+    const deviceNumber = await getDeviceNumberForAccount(ctx, nearAccountId);
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
+      deviceNumber,
       encryptedData: wasmResult.encryptedData,
       iv: wasmResult.iv,
       timestamp: Date.now()
@@ -104,7 +108,7 @@ export async function deriveNearKeypairAndEncrypt({
     await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
 
     // Verify storage
-    const verified = await ctx.indexedDB.nearKeysDB.verifyKeyStorage(nearAccountId);
+    const verified = await ctx.indexedDB.nearKeysDB.verifyKeyStorage(nearAccountId, deviceNumber);
     if (!verified) {
       throw new Error('Key storage verification failed');
     }

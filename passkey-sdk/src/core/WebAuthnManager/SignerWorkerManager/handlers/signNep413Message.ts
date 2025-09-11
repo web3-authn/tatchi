@@ -1,6 +1,7 @@
 
 import { WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/signer-worker';
 import { extractPrfFromCredential } from '../../credentialsHelpers';
+import { getDeviceNumberForAccount } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 
 
@@ -29,7 +30,8 @@ export async function signNep413Message({ ctx, payload }: {
   error?: string;
 }> {
   try {
-    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(payload.accountId);
+    const deviceNumber = await getDeviceNumberForAccount(ctx, payload.accountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(payload.accountId, deviceNumber);
 
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${payload.accountId}`);

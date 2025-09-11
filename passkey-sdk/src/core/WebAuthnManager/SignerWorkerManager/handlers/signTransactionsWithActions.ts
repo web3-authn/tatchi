@@ -12,6 +12,7 @@ import { AccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
 import { RpcCallPayload } from '../../../types/signer-worker';
 import { toAccountId } from '../../../types/accountIds';
+import { getDeviceNumberForAccount } from '../getDeviceNumber';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -57,7 +58,8 @@ export async function signTransactionsWithActions({
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
+    const deviceNumber = await getDeviceNumberForAccount(ctx, nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }

@@ -9,8 +9,8 @@ import { extractPrfFromCredential } from '../../credentialsHelpers';
 import { AccountId, toAccountId } from "../../../types/accountIds";
 
 import { SignerWorkerManagerContext } from '..';
-import { base64UrlEncode } from '@/utils/encoders';
 import { createRandomVRFChallenge, VRFChallenge } from '@/core/types/vrf-worker';
+import { getDeviceNumberForAccount } from '../getDeviceNumber';
 
 
 export async function decryptPrivateKeyWithPrf({
@@ -25,7 +25,8 @@ export async function decryptPrivateKeyWithPrf({
   try {
     console.info('WebAuthnManager: Starting private key decryption with dual PRF (local operation)');
     // Retrieve encrypted key data from IndexedDB in main thread
-    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId);
+    const deviceNumber = await getDeviceNumberForAccount(ctx, nearAccountId);
+    const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }
