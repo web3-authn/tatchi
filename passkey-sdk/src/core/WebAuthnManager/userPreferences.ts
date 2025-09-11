@@ -31,7 +31,9 @@ export class UserPreferencesManager {
    */
   private notifyThemeChange(theme: 'dark' | 'light'): void {
     if (this.themeChangeListeners.size === 0) {
-      console.warn(`[UserPreferencesManager]: No listeners registered, theme change will not propagate.`);
+      // In many environments (e.g., wallet iframe host), there may be no UI subscribers.
+      // Use debug to avoid noisy warnings while still being helpful during development.
+      console.debug(`[UserPreferencesManager]: No listeners registered, theme change will not propagate.`);
       return;
     }
 
@@ -202,10 +204,23 @@ export class UserPreferencesManager {
    * Save current confirmation settings to IndexedDB
    */
   async saveUserSettings(): Promise<void> {
-    const currentUserAccountId = this.getCurrentUserAccountId();
     try {
+      let accountId: AccountId | undefined = undefined;
+      try {
+        accountId = this.currentUserAccountId ?? undefined;
+        if (!accountId) {
+          const last = await IndexedDBManager.clientDB.getLastUser();
+          accountId = (last as any)?.nearAccountId;
+        }
+      } catch {}
+
+      if (!accountId) {
+        console.warn('[UserPreferences]: No current user set; keeping confirmation config in memory only');
+        return;
+      }
+
       // Save confirmation config (which includes theme)
-      await IndexedDBManager.clientDB.updatePreferences(currentUserAccountId, {
+      await IndexedDBManager.clientDB.updatePreferences(accountId, {
         confirmationConfig: this.confirmationConfig,
       });
     } catch (error) {

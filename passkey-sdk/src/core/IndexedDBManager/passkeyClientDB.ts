@@ -238,7 +238,18 @@ export class PasskeyClientDBManager {
     // Should only have one record per account per device
     const index = db.transaction(DB_CONFIG.userStore).store.index('nearAccountId');
     const results = await index.getAll(accountId);
-    return results.length > 0 ? results[0] : null;
+    const user = results.length > 0 ? (results[0] as any) : null;
+    if (!user) return null;
+    // Ensure deviceNumber is always present; backfill to 1 if missing and persist
+    if (typeof user.deviceNumber !== 'number' || !Number.isFinite(user.deviceNumber)) {
+      const fixed: ClientUserData = {
+        ...user,
+        deviceNumber: 1,
+      };
+      await this.updateUser(accountId, { deviceNumber: 1 });
+      return fixed;
+    }
+    return user as ClientUserData;
   }
 
   /**
@@ -248,8 +259,21 @@ export class PasskeyClientDBManager {
   async getLastUser(): Promise<ClientUserData | null> {
     const lastUserState = await this.getAppState<LastUserAccountIdState>('lastUserAccountId');
     if (!lastUserState) return null;
+    const db = await this.getDB();
+    const accountId = toAccountId(lastUserState.accountId);
+    // Prefer exact device match using composite primary key
+    const record = await db.get(DB_CONFIG.userStore, [accountId, lastUserState.deviceNumber]);
+    if (record) return record as ClientUserData;
+    // Fallback: return any user for account
+    return this.getUser(accountId);
+  }
 
-    return this.getUser(lastUserState.accountId);
+  /** Get user record by composite key (nearAccountId, deviceNumber) */
+  async getUserByDevice(nearAccountId: AccountId, deviceNumber: number): Promise<ClientUserData | null> {
+    const db = await this.getDB();
+    const accountId = toAccountId(nearAccountId);
+    const rec = await db.get(DB_CONFIG.userStore, [accountId, deviceNumber]);
+    return rec as ClientUserData || null;
   }
 
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {

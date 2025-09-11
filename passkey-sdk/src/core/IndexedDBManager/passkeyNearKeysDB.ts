@@ -2,13 +2,14 @@ import { openDB, type IDBPDatabase } from 'idb';
 
 const DB_CONFIG: PasskeyNearKeysDBConfig = {
   dbName: 'PasskeyNearKeys',
-  dbVersion: 1,
+  dbVersion: 2,
   storeName: 'encryptedKeys',
-  keyPath: 'nearAccountId'
+  keyPath: ['nearAccountId', 'deviceNumber']
 } as const;
 
 export interface EncryptedKeyData {
   nearAccountId: string;
+  deviceNumber: number; // 1-indexed device number
   encryptedData: string;
   iv: string;
   timestamp: number;
@@ -18,7 +19,7 @@ interface PasskeyNearKeysDBConfig {
   dbName: string;
   dbVersion: number;
   storeName: string;
-  keyPath: string;
+  keyPath: string | [string, string];
 }
 
 export class PasskeyNearKeysDBManager {
@@ -38,11 +39,11 @@ export class PasskeyNearKeysDBManager {
     }
 
     this.db = await openDB(this.config.dbName, this.config.dbVersion, {
-      upgrade(db, oldVersion): void {
-        // Create store if it doesn't exist
-        if (!db.objectStoreNames.contains(DB_CONFIG.storeName)) {
-          db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
-        }
+      upgrade(db): void {
+        // Always recreate store with composite key; no migration
+        try { if (db.objectStoreNames.contains(DB_CONFIG.storeName)) db.deleteObjectStore(DB_CONFIG.storeName); } catch {}
+        const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath as any });
+        try { store.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
       },
       blocked() {
         console.warn('PasskeyNearKeysDB connection is blocked.');
@@ -70,21 +71,30 @@ export class PasskeyNearKeysDBManager {
   /**
    * Retrieve encrypted key data
    */
-  async getEncryptedKey(nearAccountId: string): Promise<EncryptedKeyData | null> {
+  async getEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<EncryptedKeyData | null> {
     const db = await this.getDB();
-    const result = await db.get(this.config.storeName, nearAccountId);
-    if (!result?.encryptedData && nearAccountId !== '_init_check') {
-      console.warn('PasskeyNearKeysDB: getEncryptedKey - No result found');
+    if (typeof deviceNumber === 'number') {
+      const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
+      if (!res?.encryptedData && nearAccountId !== '_init_check') {
+        console.warn('PasskeyNearKeysDB: getEncryptedKey - No result found for device:', deviceNumber);
+      }
+      return (res || null) as any;
     }
-    return result || null;
+    // Fallback: pick the first entry for this account (non-deterministic order)
+    try {
+      const idx = db.transaction(this.config.storeName).store.index('nearAccountId');
+      const cursor = await (idx as any).openCursor(IDBKeyRange.only(nearAccountId));
+      if (cursor?.value) return cursor.value as any;
+    } catch {}
+    return null;
   }
 
   /**
    * Verify key storage by attempting retrieval
    */
-  async verifyKeyStorage(nearAccountId: string): Promise<boolean> {
+  async verifyKeyStorage(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
     try {
-      const retrievedKey = await this.getEncryptedKey(nearAccountId);
+      const retrievedKey = await this.getEncryptedKey(nearAccountId, deviceNumber);
       return !!retrievedKey;
     } catch (error) {
       console.error('PasskeyNearKeysDB: verifyKeyStorage - Error:', error);
@@ -95,9 +105,23 @@ export class PasskeyNearKeysDBManager {
   /**
    * Delete encrypted key data for a specific account
    */
-  async deleteEncryptedKey(nearAccountId: string): Promise<void> {
+  async deleteEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<void> {
     const db = await this.getDB();
-    await db.delete(this.config.storeName, nearAccountId);
+    if (typeof deviceNumber === 'number') {
+      await db.delete(this.config.storeName, [nearAccountId, deviceNumber]);
+    } else {
+      // Delete all keys for this account if device unspecified
+      try {
+        const tx = db.transaction(this.config.storeName, 'readwrite');
+        const idx = tx.store.index('nearAccountId');
+        let cursor = await (idx as any).openCursor(IDBKeyRange.only(nearAccountId));
+        while (cursor) {
+          await tx.store.delete(cursor.primaryKey as any);
+          cursor = await cursor.continue();
+        }
+        await tx.done;
+      } catch {}
+    }
     console.debug('PasskeyNearKeysDB: deleteEncryptedKey - Successfully deleted');
   }
 
@@ -112,9 +136,9 @@ export class PasskeyNearKeysDBManager {
   /**
    * Check if a key exists for the given account
    */
-  async hasEncryptedKey(nearAccountId: string): Promise<boolean> {
+  async hasEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
     try {
-      const keyData = await this.getEncryptedKey(nearAccountId);
+      const keyData = await this.getEncryptedKey(nearAccountId, deviceNumber);
       return !!keyData;
     } catch (error) {
       console.error('PasskeyNearKeysDB: hasEncryptedKey - Error:', error);

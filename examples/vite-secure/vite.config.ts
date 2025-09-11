@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 function getWalletServiceHtml(sdkBasePath: string = '/sdk'): string {
   const safeBase = String(sdkBasePath || '/sdk').replace(/[^\w\/-]/g, '').replace(/\/+/g, '/');
   const serviceHostPath = `${safeBase}/esm/react/embedded/wallet-iframe-host.js`;
-  return `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>Web3Authn Wallet Service</title>\n  </head>\n  <body>\n    <script type="module" src="${serviceHostPath}"></script>\n  </body>\n</html>`;
+  return `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>Web3Authn Wallet Service</title>\n  </head>\n  <body>\n    <script>window.global=window; window.process=window.process||{env:{}};<\/script>\n    <script type="module" src="${serviceHostPath}"></script>\n  </body>\n</html>`;
 }
 
 export default defineConfig({

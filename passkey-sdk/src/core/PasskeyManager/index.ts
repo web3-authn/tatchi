@@ -6,7 +6,8 @@ import {
   sendTransaction,
   signAndSendTransactions,
 } from './actions';
-import { recoverAccount, AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
+import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
+import { registerPasskey } from './registration';
 import {
   MinimalNearClient,
   type NearClient,
@@ -44,7 +45,7 @@ import type {
   ScanAndLinkDeviceOptionsDevice1
 } from '../types/linkDevice';
 import { LinkDeviceFlow } from './linkDevice';
-import { linkDeviceWithQRCode } from './scanDevice';
+import { linkDeviceWithScannedQRData } from './scanDevice';
 import {
   ScanQRCodeFlow,
   type ScanQRCodeFlowOptions,
@@ -78,8 +79,9 @@ export class PasskeyManager {
   private readonly nearClient: NearClient;
   readonly configs: PasskeyManagerConfigs;
   private serviceClient: WalletIframeClient | null = null;
-  // Track active device-linking flows to ensure robust cancellation
-  private activeLinkDeviceFlows: Set<LinkDeviceFlow> = new Set();
+  // Internal active Device2 flow when running locally (not exposed)
+  private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
+  private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
 
   constructor(
     configs: PasskeyManagerConfigs,
@@ -90,8 +92,6 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
-
-    // Defer service iframe init to an explicit call to avoid async in constructor.
   }
 
   /**
@@ -147,6 +147,9 @@ export class PasskeyManager {
    * @returns Promise resolving to access key list
    */
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
+    if (this.serviceClient) {
+      return await this.serviceClient.viewAccessKeyList(accountId) as any;
+    }
     return this.nearClient.viewAccessKeyList(accountId);
   }
 
@@ -162,12 +165,24 @@ export class PasskeyManager {
     nearAccountId: string,
     options: RegistrationHooksOptions = {}
   ): Promise<RegistrationResult> {
-    return this.webAuthnManager.registerPasskey(
+    // Route via wallet iframe when available so WebAuthn ceremony runs inside host
+    if (this.serviceClient) {
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.serviceClient.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent } as any } as any);
+        try { await options?.afterCall?.(true, res as any); } catch {}
+        return res as any;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
+    return registerPasskey(
       this.getContext(),
       toAccountId(nearAccountId),
       options,
       this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
-      // Use config-based authenticator options with fallback to defaults
     );
   }
 
@@ -179,10 +194,22 @@ export class PasskeyManager {
     nearAccountId: string,
     options?: LoginHooksOptions
   ): Promise<LoginResult> {
-    // Set current user for settings persistence
-    await this.webAuthnManager.setCurrentUser(toAccountId(nearAccountId));
-    // Set as last user for future sessions
-    await this.webAuthnManager.setLastUser(toAccountId(nearAccountId));
+    if (this.serviceClient) {
+      // Keep local preferences in sync
+      try { await this.webAuthnManager.initializeAuthenticationState(toAccountId(nearAccountId), this.nearClient); } catch {}
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.serviceClient.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent } as any } as any);
+        try { await options?.afterCall?.(true, res as any); } catch {}
+        return res as any;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
+    // Initialize authentication state before login
+    await this.webAuthnManager.initializeAuthenticationState(toAccountId(nearAccountId), this.nearClient);
     return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
   }
 
@@ -204,17 +231,19 @@ export class PasskeyManager {
    * Uses AccountId for core account login state
    */
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
-    return getLoginState(
-      this.getContext(),
-      nearAccountId ? toAccountId(nearAccountId) : undefined
-    );
+    if (this.serviceClient) {
+      return this.serviceClient.getLoginState(nearAccountId);
+    }
+    return getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
   }
 
   /**
    * Get check if accountId has a passkey from IndexedDB
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
-    // Convert device-specific ID to base account ID for IndexedDB lookup
+    if (this.serviceClient) {
+      return this.serviceClient.hasPasskeyCredential(nearAccountId as any);
+    }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
   }
@@ -227,6 +256,13 @@ export class PasskeyManager {
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
+    if (this.serviceClient) {
+      // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
+      void this.serviceClient.setConfirmBehavior(behavior).catch(() => {});
+      // Mirror locally so UI reads from preferences stay in sync immediately
+      try { this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior); } catch {}
+      return;
+    }
     this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
   }
 
@@ -234,10 +270,18 @@ export class PasskeyManager {
    * Set the unified confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
+    if (this.serviceClient) {
+      // Fire and forget; avoid unhandled rejections in consumers
+      void this.serviceClient.setConfirmationConfig(config as any).catch(() => {});
+      // Mirror locally for immediate UI coherence
+      try { this.webAuthnManager.getUserPreferences().setConfirmationConfig(config); } catch {}
+      return;
+    }
     this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
   }
 
   setUserTheme(theme: 'dark' | 'light'): void {
+    if (this.serviceClient) { void this.serviceClient.setTheme(theme); return; }
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
@@ -245,6 +289,9 @@ export class PasskeyManager {
    * Get the current confirmation configuration
    */
   getConfirmationConfig(): ConfirmationConfig {
+    // Prefer wallet host value when available
+    // Note: synchronous signature; returns last-known local value if iframe reply is async
+    // Callers needing fresh remote value should use PasskeyManagerIframe directly.
     return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
   }
 
@@ -254,6 +301,7 @@ export class PasskeyManager {
    */
   async prefetchBlockheight(): Promise<void> {
     try {
+      if (this.serviceClient) { await this.serviceClient.prefetchBlockheight(); return; }
       await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient);
     } catch {}
   }
@@ -265,6 +313,9 @@ export class PasskeyManager {
       deviceNumber: number,
     } | null
   }> {
+    if (this.serviceClient) {
+      return await this.serviceClient.getRecentLogins()
+    }
     return getRecentLogins(this.getContext());
   }
 
@@ -281,7 +332,8 @@ export class PasskeyManager {
    * @param options - Action options for event handling
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - hooks: OperationHooks - Optional operation hooks
+   * - beforeCall: BeforeCall - Optional before call hooks
+   * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * @returns Promise resolving to action result
    *
@@ -328,6 +380,23 @@ export class PasskeyManager {
     actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
   }): Promise<ActionResult> {
+    if (this.serviceClient) {
+      try { await args.options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.serviceClient.executeAction({
+          nearAccountId: args.nearAccountId,
+          receiverId: args.receiverId,
+          actionArgs: args.actionArgs as any,
+          options: { onEvent: args.options?.onEvent, ...(typeof args.options?.waitUntil !== 'undefined' ? { waitUntil: args.options?.waitUntil } : {}) }
+        } as any);
+        try { await args.options?.afterCall?.(true, res as any); } catch {}
+        return res as any;
+      } catch (err: any) {
+        try { args.options?.onError?.(err); } catch {}
+        try { await args.options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
     return executeAction({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
@@ -346,7 +415,8 @@ export class PasskeyManager {
    * @param options - Sign and send transaction options
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - hooks: OperationHooks - Optional operation hooks
+   * - beforeCall: BeforeCall - Optional before call hooks
+   * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * - executeSequentially: boolean - Wait for each transaction to finish before sending the next (default: true)
    * @returns Promise resolving to action results
@@ -390,6 +460,25 @@ export class PasskeyManager {
     transactions: TransactionInput[],
     options?: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
+    if (this.serviceClient) {
+      await options?.beforeCall?.();
+      try {
+        const res = await this.serviceClient.signAndSendTransactions({
+          nearAccountId,
+          transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
+          options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
+        });
+        // Emit completion
+        const txIds = (res || []).map(r => r?.transactionId).filter(Boolean).join(', ');
+        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `All transactions sent: ${txIds}` });
+        await options?.afterCall?.(true, res);
+        return res;
+      } catch (err: any) {
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
+        throw err;
+      }
+    }
     return signAndSendTransactions({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -466,17 +555,18 @@ export class PasskeyManager {
   }): Promise<VerifyAndSignTransactionResult[]> {
     // If a service iframe is initialized, route signing via wallet origin
     if (this.serviceClient) {
-      const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-      const result = await this.serviceClient.signTransactionsWithActions({
-        nearAccountId,
-        txSigningRequests: txs,
-        // Optional: we could forward confirmation config overrides here later
-      });
-      // Normalize to VerifyAndSignTransactionResult[] with SignedTransaction instances
-      const arr: any[] = Array.isArray((result as any)?.signedTransactions)
-        ? (result as any).signedTransactions
-        : Array.isArray(result) ? (result as any) : [];
-      return arr as VerifyAndSignTransactionResult[];
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
+        const result = await this.serviceClient.signTransactionsWithActions({ nearAccountId, transactions: txs, options: { onEvent: options?.onEvent } } as any);
+        const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? (result as any) : [];
+        try { await options?.afterCall?.(true, arr as any); } catch {}
+        return arr;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
     }
     return signTransactionsWithActions({
       context: this.getContext(),
@@ -519,16 +609,24 @@ export class PasskeyManager {
     signedTransaction: SignedTransaction,
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
+    if (this.serviceClient) {
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.serviceClient.sendTransaction({ signedTransaction, options: { onEvent: options?.onEvent, ...(typeof options?.waitUntil !== 'undefined' ? { waitUntil: options?.waitUntil } : {}) } as any } as any);
+        try { await options?.afterCall?.(true, res as any); } catch {}
+        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
+        return res as any;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
     return sendTransaction({ context: this.getContext(), signedTransaction, options })
-    .then(txResult => {
-      options?.onEvent?.({
-        step: 9,
-        phase: ActionPhase.STEP_9_ACTION_COMPLETE,
-        status: ActionStatus.SUCCESS,
-        message: `Transaction ${txResult.transactionId} broadcasted`
+      .then(txResult => {
+        options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${txResult.transactionId} broadcasted` });
+        return txResult;
       });
-      return txResult;
-    });
   }
 
   ///////////////////////////////////////
@@ -536,12 +634,10 @@ export class PasskeyManager {
   ///////////////////////////////////////
 
   /**
-   * Sign a NEP-413 message using the user's passkey-derived private key
-   *
-   * This function implements the NEP-413 standard for off-chain message signing:
+   * Sign a NEP-413 message using the user's passkey-derived private key:
    * - Creates a payload with message, recipient, nonce, and state
    * - Serializes using Borsh
-   * - Adds NEP-413 prefix (2^31 + 413)
+   * - Adds NEP-413 prefix
    * - Hashes with SHA-256
    * - Signs with Ed25519
    * - Returns base64-encoded signature
@@ -554,7 +650,8 @@ export class PasskeyManager {
    * @param options - Action options for event handling
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - hooks: OperationHooks - Optional operation hooks
+   * - beforeCall: BeforeCall - Optional before call hooks
+   * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * @returns Promise resolving to signing result
    *
@@ -585,7 +682,9 @@ export class PasskeyManager {
         recipient: args.params.recipient,
         state: args.params.state,
       };
-      const result = await this.serviceClient.signNep413Message(payload);
+      try { await args.options?.beforeCall?.(); } catch {}
+      const result = await this.serviceClient.signNep413Message({ ...payload, options: { onEvent: (args.options as any)?.onEvent } } as any);
+      try { await args.options?.afterCall?.(true, result as any); } catch {}
       // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
       return result as SignNEP413MessageResult;
     }
@@ -610,7 +709,9 @@ export class PasskeyManager {
     privateKey: string;
     publicKey: string
   }> {
-    // Export private key using the method above
+    if (this.serviceClient) {
+      return await this.serviceClient.exportNearKeypairWithTouchId(nearAccountId);
+    }
     return await this.webAuthnManager.exportNearKeypairWithTouchId(toAccountId(nearAccountId))
   }
 
@@ -620,27 +721,51 @@ export class PasskeyManager {
 
   /**
    * Creates an AccountRecoveryFlow instance, for step-by-step account recovery UX
-   *
-   * @example
-   * ```typescript
-   * const flow = passkeyManager.startAccountRecoveryFlow();
-   *
-   * // Phase 1: Discover available accounts
-   * const options = await flow.discover(); // Returns PasskeyOptionWithoutCredential[]
-   *
-   * // Phase 2: User selects account in UI
-   * const selectedOption = await waitForUserSelection(options);
-   *
-   * // Phase 3: Execute recovery with secure credential lookup
-   * const result = await flow.recover({
-   *   credentialId: selectedOption.credentialId,
-   *   accountId: selectedOption.accountId
-   * });
-   * console.log('Recovery state:', flow.getState());
-   * ```
    */
-  startAccountRecoveryFlow(options?: AccountRecoveryHooksOptions): AccountRecoveryFlow {
-    return new AccountRecoveryFlow(this.getContext(), options);
+  async recoverAccountFlow(args: {
+    accountId?: string;
+    options?: AccountRecoveryHooksOptions
+  }): Promise<RecoveryResult> {
+
+    const accountIdInput = args?.accountId || '';
+    const options = args?.options;
+    // Prefer wallet-origin implementation when available
+    if (this.serviceClient?.isReady?.()) {
+      return await this.serviceClient.recoverAccountFlow({
+        accountId: accountIdInput,
+        onEvent: options?.onEvent
+      });
+    }
+    // Local orchestration using AccountRecoveryFlow for a single-call UX
+    await options?.beforeCall?.();
+    try {
+      const flow = new AccountRecoveryFlow(this.getContext(), options);
+      // Phase 1: Discover available accounts
+      const discovered = await flow.discover(accountIdInput || '');
+      if (!Array.isArray(discovered) || discovered.length === 0) {
+        const err = new Error('No recoverable accounts found');
+        try { options?.onError?.(err); } catch {}
+        await options?.afterCall?.(false, err);
+        return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message } as any;
+      }
+      // Phase 2: User selects account in UI
+      // Select the first account-scope; OS chooser selects the actual credential
+      const selected = discovered[0];
+
+      // Phase 3: Execute recovery with secure credential lookup
+      const result = await flow.recover({
+        credentialId: selected.credentialId,
+        accountId: selected.accountId
+      });
+
+      await options?.afterCall?.(true, result as any);
+      return result;
+
+    } catch (e: any) {
+      try { options?.onError?.(e); } catch {}
+      await options?.afterCall?.(false, e);
+      throw e;
+    }
   }
 
   ///////////////////////////////////////
@@ -648,182 +773,52 @@ export class PasskeyManager {
   ///////////////////////////////////////
 
   /**
-   * Creates a LinkDeviceFlow instance for step-by-step device linking UX
-   * for Device2 (the companion device is the one that generates the QR code)
-   * Device1 (the original device) scans the QR code and executes the AddKey
-   * and `store_device_linking_mapping` contract calls.
-   *
-   * @example
-   * ```typescript
-   *
-   * // Device2: First generates a QR code and start polling
-   * const device2Flow = passkeyManager.startDeviceLinkingFlow({ onEvent: ... });
-   * const { qrData, qrCodeDataURL } = await device2Flow.generateQR('alice.near');
-   *
-   * // Device1: Scan QR and automatically link device
-   * const device1Flow = passkeyManager.createScanQRCodeFlow({
-   *   deviceLinkingOptions: {
-   *     fundingAmount: '5000000000000000000000',
-   *     onEvent: (event) => console.log('Device linking:', event)
-   *   }
-   * });
-   * device1Flow.attachVideoElement(videoRef.current);
-   * await device1Flow.start(); // Automatically links when QR is detected
-   *
-   * // Device2: Flow automatically completes when AddKey is detected
-   * // it polls the chain for `store_device_linking_mapping` contract events
-   * const state = device2Flow.getState();
-   * ```
+   * Device2: Start device linking flow
+   * Returns QR payload and data URL to render; emits onEvent during the flow.
+   * Runs inside iframe when available for better isolation.
    */
-  startDeviceLinkingFlow(options: StartDeviceLinkingOptionsDevice2): LinkDeviceFlow {
-    const flow = new LinkDeviceFlow(this.getContext(), options);
-    this.activeLinkDeviceFlows.add(flow);
-    // Wrap cancel to auto-deregister
-    const originalCancel = flow.cancel.bind(flow);
-    (flow as any).cancel = () => {
-      try { originalCancel(); } finally { this.activeLinkDeviceFlows.delete(flow); }
-    };
-    return flow;
+  async startDevice2LinkingFlow(args?: { accountId?: string; ui?: 'modal' | 'inline' } & StartDeviceLinkingOptionsDevice2): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
+    if (this.serviceClient) {
+      return await this.serviceClient.startDevice2LinkingFlow({ accountId: args?.accountId, ui: args?.ui, onEvent: args?.onEvent });
+    }
+    // Local fallback: keep internal flow reference for cancellation
+    try { this.activeDeviceLinkFlow?.cancel(); } catch {}
+    const flow = new LinkDeviceFlow(this.getContext(), { onEvent: args?.onEvent, ensureUserActivation: args?.ensureUserActivation } as any);
+    this.activeDeviceLinkFlow = flow;
+    const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId as any);
+    return { qrData, qrCodeDataURL };
   }
 
-  /** Cancel all active device-linking flows (defensive cleanup) */
-  cancelAllDeviceLinkingFlows(): void {
-    for (const flow of this.activeLinkDeviceFlows) {
-      try { flow.cancel(); } catch {}
-    }
-    this.activeLinkDeviceFlows.clear();
-  }
-
-    /**
-   * Device1: Create a ScanQRCodeFlow for QR scanning with custom QR detection handling
-   * Provides a flexible flow that scans for QR codes and calls your custom handler when detected
-   *
-   * @param options Configuration for device linking and QR scanning
-   * @param options.deviceLinkingOptions Options for the device linking process (funding, callbacks)
-   * @param options.scanQRCodeFlowOptions Optional QR scanning configuration (camera, timeout)
-   * @param options.scanQRCodeFlowEvents Optional event handlers for scanning progress and QR detection
-   *
-   * @example
-   * ```typescript
-   * const flow = passkeyManager.createScanQRCodeFlow({
-   *   deviceLinkingOptions: {
-   *     fundingAmount: '5000000000000000000000', // 0.005 NEAR
-   *     onEvent: (event) => console.log('Device linking event:', event),
-   *     onError: (error) => console.error('Device linking error:', error)
-   *   },
-   *   scanQRCodeFlowOptions: {
-   *     cameraId: 'camera1',
-   *     timeout: 30000
-   *   },
-   *   scanQRCodeFlowEvents: {
-   *     onQRDetected: async (qrData) => {
-   *       // Handle QR detection - automatically link the device
-   *       console.log('QR detected:', qrData);
-   *       const result = await passkeyManager.linkDeviceWithQRCode(qrData, {
-   *         fundingAmount: '5000000000000000000000',
-   *         onEvent: (event) => console.log('Device linking:', event),
-   *         onError: (error) => console.error('Linking error:', error)
-   *       });
-   *       console.log('Device linked successfully:', result);
-   *     },
-   *     onScanProgress: (duration) => console.log('Scanning for', duration, 'ms'),
-   *     onCameraReady: (stream) => console.log('Camera ready')
-   *   }
-   * });
-   *
-   * // Attach to video element and start scanning
-   * flow.attachVideoElement(videoRef.current);
-   * await flow.start();
-   *
-   * // QR detection and device linking is handled by your onQRDetected callback
-   * ```
+  /**
+   * Device2: Stops device linking flow inside the iframe host.
    */
-  createScanQRCodeFlow(
-    options: {
-      deviceLinkingOptions: ScanAndLinkDeviceOptionsDevice1;
-      scanQRCodeFlowOptions?: ScanQRCodeFlowOptions;
-      scanQRCodeFlowEvents?: ScanQRCodeFlowEvents;
-      cameraConfigs?: {
-        facingMode?: 'user' | 'environment';
-        width?: number;
-        height?: number;
-      };
-      timeout?: number;
+  async stopDevice2LinkingFlow(): Promise<void> {
+    if (this.serviceClient) {
+      await this.serviceClient.stopDevice2LinkingFlow();
+      return;
     }
-  ): ScanQRCodeFlow {
-    return new ScanQRCodeFlow(
-      {
-        cameraId: options?.scanQRCodeFlowOptions?.cameraId,
-        cameraConfigs: {
-          facingMode: getOptimalCameraFacingMode(),
-          ...options?.cameraConfigs
-        },
-        timeout: 20000 // 20 seconds waiting for QR camera
-      },
-      {
-        onQRDetected: (qrData) => {
-          options?.scanQRCodeFlowEvents?.onQRDetected?.(qrData);
-        },
-        onError: (err) => {
-          console.error('useQRCamera: QR scan error -', err);
-          options?.scanQRCodeFlowEvents?.onError?.(err);
-        },
-        onCameraReady: (stream) => {
-          // Camera stream is ready, but video element attachment is handled separately
-          options?.scanQRCodeFlowEvents?.onCameraReady?.(stream);
-        },
-        onScanProgress: (duration) => {
-          options?.scanQRCodeFlowEvents?.onScanProgress?.(duration);
-        }
-      }
-    );
+    try { this.activeDeviceLinkFlow?.cancel(); } catch {}
+    this.activeDeviceLinkFlow = null;
   }
 
   /**
    * Device1: Link device using pre-scanned QR data.
-   * Either use a QR scanning library, or call this function in
-   * the onQRDetected(qrData) => {} callback of createScanQRCodeFlow.
+   * You can use a QR scanning component of your choice,
+   * or use the built-in <QRCodeScanner /> component.
    *
    * @param qrData The QR data obtained from scanning Device2's QR code
    * @param options Device linking options including funding amount and event callbacks
    * @returns Promise that resolves to the linking result
-   *
-   * @example
-   * ```typescript
-   * // If you have QR data from somewhere else (not from createScanQRCodeFlow)
-   * const qrData = await passkeyManager.scanQRCodeWithCamera();
-   * const result = await passkeyManager.linkDeviceWithQRCode(qrData, {
-   *   fundingAmount: '5000000000000000000000', // 0.005 NEAR
-   *   onEvent: (event) => console.log('Device linking event:', event),
-   *   onError: (error) => console.error('Device linking error:', error)
-   * });
-   * console.log('Device linked:', result);
-   * ```
-   *
-   * Or with createScanQRCodeFlow:
-   *
-   * @example
-   * ```typescript
-   * const flow = passkeyManager.createScanQRCodeFlow({
-   *   ...
-   *   scanQRCodeFlowEvents: {
-   *     onQRDetected: async (qrData) => {
-   *       const result = await passkeyManager.linkDeviceWithQRCode(qrData, {
-   *         fundingAmount: '5000000000000000000000',
-   *         onEvent: (event) => console.log('Device linking:', event),
-   *         onError: (error) => console.error('Linking error:', error)
-   *       });
-   *     },
-   *     ...
-   *   }
-   * });
-   * ```
    */
-  async linkDeviceWithQRCode(
+  async linkDeviceWithScannedQRData(
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
-    return linkDeviceWithQRCode(this.getContext(), qrData, options);
+    if (this.serviceClient) {
+      const res = await this.serviceClient.linkDeviceWithScannedQRData({ qrData, fundingAmount: options.fundingAmount, options: { onEvent: options.onEvent } });
+      return res as LinkDeviceResult;
+    }
+    return linkDeviceWithScannedQRData(this.getContext(), qrData, options);
   }
 
   /**
@@ -835,13 +830,15 @@ export class PasskeyManager {
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
     // Validate that we're not deleting the last key
-    const keysView = await this.nearClient.viewAccessKeyList(toAccountId(accountId));
+    const keysView = this.serviceClient
+      ? await this.serviceClient.viewAccessKeyList(accountId)
+      : await this.nearClient.viewAccessKeyList(toAccountId(accountId));
     if (keysView.keys.length <= 1) {
       throw new Error('Cannot delete the last access key from an account');
     }
 
     // Find the key to delete
-    const keyToDelete = keysView.keys.find(k => k.public_key === publicKeyToDelete);
+    const keyToDelete = keysView.keys.find((k: any) => k.public_key === publicKeyToDelete);
     if (!keyToDelete) {
       throw new Error(`Access key ${publicKeyToDelete} not found on account ${accountId}`);
     }
@@ -873,7 +870,8 @@ export type {
   ActionHooksOptions,
   ActionResult,
   EventCallback,
-  OperationHooks,
+  BeforeCall,
+  AfterCall,
 } from '../types/passkeyManager';
 
 export type {
@@ -889,10 +887,7 @@ export {
   DeviceLinkingErrorCode
 } from '../types/linkDevice';
 
-// Re-export device linking flow class
-export {
-  LinkDeviceFlow
-} from './linkDevice';
+// (No longer re-exporting LinkDeviceFlow; flow is internal only)
 
 // Re-export account recovery types and classes
 export type {

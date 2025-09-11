@@ -7,8 +7,6 @@ import type {
   PasskeyManager,
   PasskeyManagerConfigs,
   RecoveryResult,
-  AccountRecoveryFlow,
-  LinkDeviceFlow,
   LinkDeviceResult,
   SignNEP413MessageParams,
   SignNEP413MessageResult,
@@ -19,7 +17,8 @@ import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/sig
 import type { ActionArgs } from '../core/types/actions';
 import type {
   StartDeviceLinkingOptionsDevice2,
-  ScanAndLinkDeviceOptionsDevice1
+  ScanAndLinkDeviceOptionsDevice1,
+  DeviceLinkingQRData
 } from '../core/types/linkDevice';
 import type {
   DeviceLinkingSSEEvent,
@@ -181,11 +180,12 @@ export interface PasskeyContextType {
     options?: BaseHooksOptions;
   }) => Promise<SignNEP413MessageResult>;
 
-  // Account recovery functions
-  startAccountRecoveryFlow: (options: AccountRecoveryHooksOptions) => AccountRecoveryFlow;
+  // Account recovery function
+  recoverAccount: (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => Promise<RecoveryResult>;
 
   // Device linking functions
-  startDeviceLinkingFlow: (options: StartDeviceLinkingOptionsDevice2) => LinkDeviceFlow;
+  startDevice2LinkingFlow: (options?: StartDeviceLinkingOptionsDevice2) => Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
+  stopDevice2LinkingFlow: () => Promise<void>;
 
   // Login State
   loginState: LoginState;

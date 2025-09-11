@@ -5,15 +5,16 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
 } from 'react';
 import {
   PasskeyManager,
-  AccountRecoveryFlow,
   DeviceLinkingPhase,
   type SignNEP413MessageParams,
   type SignNEP413MessageResult,
   ActionArgs
 } from '@/index';
+import { PasskeyManagerIframe } from '@/core/WalletIframe';
 import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
 import type {
@@ -29,14 +30,15 @@ import type {
   ActionHooksOptions,
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
+  DeviceLinkingSSEEvent,
 } from '../types';
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { PasskeyManagerConfigs } from "@/core/types/passkeyManager";
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
 
-// Global singleton to prevent multiple PasskeyManager instances in StrictMode
-let globalPasskeyManager: PasskeyManager | null = null;
+// Global singleton to prevent multiple manager instances in StrictMode
+let globalPasskeyManager: any | null = null;
 let globalConfig: any = null;
 
 export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
@@ -97,85 +99,82 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Get the minimal NEAR RPC provider
   const nearClient = useNearClient();
 
-  // Initialize PasskeyManager with singleton pattern to prevent double initialization in StrictMode
+  // Initialize manager (PasskeyManager or PasskeyManagerIframe) with singleton pattern
   const passkeyManager = useMemo(() => {
-
-    const finalConfig = { ...PASSKEY_MANAGER_DEFAULT_CONFIGS, ...config };
-    // Check if we already have a global instance with the same config
+    const finalConfig = { ...PASSKEY_MANAGER_DEFAULT_CONFIGS, ...config } as any;
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
-
     if (!globalPasskeyManager || configChanged) {
-      console.debug('PasskeyProvider: Creating new PasskeyManager instance with config:', finalConfig);
-      globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
+      console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
+      if (finalConfig.walletOrigin) {
+        globalPasskeyManager = new PasskeyManagerIframe(finalConfig) as any as PasskeyManager;
+      } else {
+        globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
+      }
       globalConfig = finalConfig;
-    } else {
     }
+    return globalPasskeyManager as PasskeyManager;
+  }, [config, nearClient]);
 
-    return globalPasskeyManager;
-  }, [config]);
+  const pmIframeRef = useRef<PasskeyManagerIframe | null>(null);
 
-  // Initialize hidden wallet service iframe when walletOrigin is provided
+  // Initialize wallet service via PasskeyManagerIframe when walletOrigin is provided
   useEffect(() => {
     let offReady: (() => void) | undefined;
     let offVrf: (() => void) | undefined;
     let cancelled = false;
     (async () => {
       try {
-        const walletOrigin = passkeyManager?.configs?.walletOrigin;
-        if (!walletOrigin) return;
-
-        console.log("calling initWalletIframe...")
-        await passkeyManager.initWalletIframe();
-
-        const sc = passkeyManager.getServiceClient?.();
-        if (!sc) return;
-
-        if (cancelled) return;
-        setWalletIframeConnected(!!sc.isReady?.());
-        offReady = (sc as any).onReady?.(() => setWalletIframeConnected(true));
-
-        // After init, if wallet-origin VRF session is active, reflect it in login state
-        if (sc.isReady?.()) {
-          offVrf = (sc as any).onVrfStatusChanged?.(async (status: any) => {
-            if (status?.active && status?.nearAccountId) {
-              const state = await passkeyManager.getLoginState(status.nearAccountId);
-              if (cancelled) return;
-              setLoginState(prev => ({
-                ...prev,
-                isLoggedIn: true,
-                nearAccountId: status.nearAccountId,
-                nearPublicKey: state.publicKey || null,
-              }));
-            } else if (status && status.active === false) {
-              if (cancelled) return;
-              setLoginState(prev => ({ ...prev, isLoggedIn: false }));
-            }
-          });
-
-          try {
-            const statusRaw = await (sc as any).checkVrfStatus?.();
-            const status = (statusRaw as any)?.result || (statusRaw as any);
-            if (status?.active && status?.nearAccountId) {
-              const state = await passkeyManager.getLoginState(status.nearAccountId);
-              if (!cancelled) {
-                setLoginState(prev => ({
-                  ...prev,
-                  isLoggedIn: true,
-                  nearAccountId: status.nearAccountId,
-                  nearPublicKey: state.publicKey || null,
-                }));
-              }
-            }
-          } catch {}
+        const useIframe = !!(passkeyManager as any)?.initWalletIframe && !!config.walletOrigin;
+        if (!useIframe) {
+          setWalletIframeConnected(false);
+          return;
         }
+
+        const pmIframe = passkeyManager as any as PasskeyManagerIframe;
+        await pmIframe.initWalletIframe();
+        if (cancelled) return;
+        setWalletIframeConnected(pmIframe.isReady());
+
+        offReady = pmIframe.onReady?.(() => setWalletIframeConnected(true));
+
+        offVrf = pmIframe.onVrfStatusChanged?.(async (status) => {
+          if (cancelled) return;
+          if (status?.active && status?.nearAccountId) {
+            const state = await pmIframe.getLoginState(status.nearAccountId);
+            setLoginState(prev => ({
+              ...prev,
+              isLoggedIn: true,
+              nearAccountId: status.nearAccountId,
+              nearPublicKey: state.publicKey || null,
+            }));
+          } else if (status && status.active === false) {
+            setLoginState(prev => ({ ...prev, isLoggedIn: false }));
+          }
+        });
+
+        // Reflect initial status
+        try {
+          const st = await pmIframe.getLoginState();
+          if (st?.vrfActive && st?.nearAccountId) {
+            setLoginState(prev => ({
+              ...prev,
+              isLoggedIn: true,
+              nearAccountId: st.nearAccountId,
+              nearPublicKey: st.publicKey || null,
+            }));
+          }
+        } catch {}
+
+        pmIframeRef.current = pmIframe;
       } catch (err) {
-        console.warn('[PasskeyProvider] Service iframe init failed:', err);
+        console.warn('[PasskeyProvider] WalletIframe init failed:', err);
       }
     })();
     return () => {
       cancelled = true;
       offReady && offReady();
       offVrf && offVrf();
+      pmIframeRef.current = null;
     };
   }, [passkeyManager]);
 
@@ -214,10 +213,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   const logout = useCallback(async () => {
     try {
       // Explicitly clear wallet-origin VRF session if service iframe is active
-      try {
-        const sc = passkeyManager.getServiceClient?.();
-        await (sc as any)?.clearVrfSession?.();
-      } catch {}
+      try { await pmIframeRef.current?.logoutAndClearVrfSession?.(); } catch {}
 
       // Clear VRF session when user logs out
       await passkeyManager.logoutAndClearVrfSession();
@@ -234,41 +230,28 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }, [passkeyManager]);
 
   const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
+    // Prefer wallet-origin login when iframe is connected
+    if (walletIframeConnected && pmIframeRef.current) {
+      const result = await pmIframeRef.current.loginPasskey(nearAccountId, options as any);
+      if ((result as any)?.success) {
+        const st = await pmIframeRef.current.getLoginState(nearAccountId);
+        setLoginState(prev => ({ ...prev, isLoggedIn: !!st.vrfActive, nearAccountId: st.nearAccountId, nearPublicKey: st.publicKey || null }));
+      }
+      return result as LoginResult;
+    }
+
     const result: LoginResult = await passkeyManager.loginPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
         if (event.phase === 'login-complete' && event.status === 'success') {
-          // Prefer wallet-origin VRF status when available
-          let updatedFromWallet = false;
-          try {
-            const sc = passkeyManager.getServiceClient?.();
-            if (sc && sc.isReady?.()) {
-              const statusRaw  = await sc.checkVrfStatus?.();
-              const status = (statusRaw as any)?.result || (statusRaw as any);
-              if (status?.active && status?.nearAccountId) {
-                const state = await passkeyManager.getLoginState(status.nearAccountId);
-                setLoginState(prevState => ({
-                  ...prevState,
-                  isLoggedIn: true,
-                  nearAccountId: status.nearAccountId,
-                  nearPublicKey: state.publicKey || null,
-                }));
-                updatedFromWallet = true;
-              }
-            }
-          } catch {}
-
-          if (!updatedFromWallet) {
-            // Fallback to local VRF status
-            const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
-            const isVRFLoggedIn = currentLoginState.vrfActive;
-            setLoginState(prevState => ({
-              ...prevState,
-              isLoggedIn: isVRFLoggedIn,
-              nearAccountId: event.nearAccountId || null,
-              nearPublicKey: event.clientNearPublicKey || null,
-            }));
-          }
+          const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
+          const isVRFLoggedIn = currentLoginState.vrfActive;
+          setLoginState(prevState => ({
+            ...prevState,
+            isLoggedIn: isVRFLoggedIn,
+            nearAccountId: event.nearAccountId || null,
+            nearPublicKey: event.clientNearPublicKey || null,
+          }));
         }
         options?.onEvent?.(event);
       },
@@ -282,6 +265,15 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }
 
   const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
+    // Prefer wallet-origin registration when iframe is connected
+    if (walletIframeConnected && pmIframeRef.current) {
+      const result = await pmIframeRef.current.registerPasskey(nearAccountId, options as any);
+      if ((result as any)?.success) {
+        await refreshLoginState(nearAccountId);
+      }
+      return result as RegistrationResult;
+    }
+
     const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -301,29 +293,27 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     return result;
   }
 
-  const startAccountRecoveryFlow = (options?: AccountRecoveryHooksOptions): AccountRecoveryFlow => {
-    return passkeyManager.startAccountRecoveryFlow(options);
+  const recoverAccount = async (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => {
+    return await (passkeyManager as any).recoverAccountFlow({ accountId: args.accountId, options: args.options });
   }
 
-  /**
-   * Device2: Start device linking flow
-   * @param options - DeviceLinkingOptionsDevice2
-   * @returns LinkDeviceFlow
-   */
-  const startDeviceLinkingFlow = (options?: StartDeviceLinkingOptionsDevice2) => {
-    return passkeyManager.startDeviceLinkingFlow({
+  // Device2: Start device linking flow (returns QR payload)
+  const startDevice2LinkingFlow = async (options?: StartDeviceLinkingOptionsDevice2) => {
+    const res = await passkeyManager.startDevice2LinkingFlow({
       ...options,
-      onEvent: (event) => {
-        // Call original event handler
+      onEvent: (event: DeviceLinkingSSEEvent) => {
         options?.onEvent?.(event);
-        // Update React state when auto-login completes successfully
         if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === 'success') {
-          // Refresh login state to update React context after successful auto-login
-          refreshLoginState()
+          refreshLoginState();
         }
       }
     });
-  }
+    return res as { qrData: any; qrCodeDataURL: string };
+  };
+
+  const stopDevice2LinkingFlow = async () => {
+    await passkeyManager.stopDevice2LinkingFlow();
+  };
 
   const executeAction = async (args: {
     nearAccountId: string,
@@ -354,18 +344,16 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Function to manually refresh login state
   const refreshLoginState = useCallback(async (nearAccountId?: string) => {
     try {
-      // Prefer wallet-origin VRF status if available
-      const sc = passkeyManager.getServiceClient?.();
-      if (sc && (sc as any).isReady?.()) {
+      // Prefer wallet-origin VRF status if available via PasskeyManagerIframe
+      const pmIframe = pmIframeRef.current;
+      if (walletIframeConnected && pmIframeRef.current) {
         try {
-          const statusRaw: any = await (sc as any).checkVrfStatus?.();
-          const status = (statusRaw as any)?.result || (statusRaw as any);
-          if (status?.active && status?.nearAccountId) {
-            const state = await passkeyManager.getLoginState(status.nearAccountId);
+          const st = await pmIframe!.getLoginState();
+          if (st?.vrfActive && st?.nearAccountId) {
             setLoginState(prevState => ({
               ...prevState,
-              nearAccountId: status.nearAccountId,
-              nearPublicKey: state.publicKey,
+              nearAccountId: st.nearAccountId,
+              nearPublicKey: st.publicKey,
               isLoggedIn: true,
             }));
             return;
@@ -408,9 +396,10 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     signNEP413Message,           // Sign NEP-413 messages
 
     // Account recovery functions
-    startAccountRecoveryFlow,   // Create account recovery flow to discover accounts onchain, and recover accounts
+    recoverAccount,             // Single-endpoint account recovery flow (wallet-origin when available)
     // Device linking functions
-    startDeviceLinkingFlow,     // Create device linking flow for Whatsapp-style QR scan + device linking
+    startDevice2LinkingFlow,     // Start device linking (returns QR payload)
+    stopDevice2LinkingFlow,      // Stop device linking flow
 
     // Login state
     getLoginState: (nearAccountId?: string) => passkeyManager.getLoginState(nearAccountId),
