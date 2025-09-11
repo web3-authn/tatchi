@@ -14,6 +14,7 @@ import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
+import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
 
@@ -106,17 +107,12 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
-  // Uncontrolled mode: listen to user preference changes
+  // Uncontrolled mode: drive theme from the shared ThemeProvider
+  const { theme } = useTheme();
   useEffect(() => {
     if (lockTheme) return;
-    const handleThemeChange = (newTheme: 'dark' | 'light') => {
-      setCurrentTheme(newTheme as EmbeddedTxButtonTheme);
-    };
-    // Subscribe to theme changes
-    const unsubscribe = passkeyManager.userPreferences.onThemeChange(handleThemeChange);
-    handleThemeChange(passkeyManager.userPreferences.getUserTheme());
-    return () => unsubscribe();
-  }, [passkeyManager, lockTheme]);
+    setCurrentTheme((theme as EmbeddedTxButtonTheme) || 'dark');
+  }, [theme, lockTheme]);
 
   // Controlled mode: sync with TxTreeTheme prop changes
   useEffect(() => {

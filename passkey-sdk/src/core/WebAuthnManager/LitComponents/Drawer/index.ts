@@ -92,7 +92,6 @@ export class DrawerElement extends LitElementWithProps {
 
   connectedCallback() {
     super.connectedCallback();
-    this.setupDragListeners();
   }
 
   disconnectedCallback() {
@@ -102,29 +101,65 @@ export class DrawerElement extends LitElementWithProps {
 
   firstUpdated() {
     this.drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+    this.setupDragListeners();
+  }
+
+  updated(changedProperties: Map<string | number | symbol, unknown>) {
+    super.updated(changedProperties);
+
+    // Debug open property changes
+    if (changedProperties.has('open')) {
+      console.log('Drawer open property changed to:', this.open);
+    }
+
+    // Re-setup drag listeners if dragToClose property changed
+    if (changedProperties.has('dragToClose')) {
+      this.removeDragListeners();
+      this.setupDragListeners();
+    }
   }
 
   private setupDragListeners() {
     if (!this.dragToClose) return;
 
-    this.addEventListener('touchstart', this.handleTouchStart, { passive: false });
-    this.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-    this.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+    // Use a small delay to ensure the element is rendered
+    setTimeout(() => {
+      const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+      const handleElement = this.shadowRoot?.querySelector('.handle') as HTMLElement;
 
-    // Mouse events for desktop testing
-    this.addEventListener('mousedown', this.handleMouseDown);
-    this.addEventListener('mousemove', this.handleMouseMove);
-    this.addEventListener('mouseup', this.handleMouseUp);
+      if (!drawerElement) {
+        console.warn('Drawer element not found for drag listeners');
+        return;
+      }
+
+      // Remove any existing listeners first
+      this.removeDragListeners();
+
+      // Attach listeners to the entire drawer for mouse events
+      drawerElement.addEventListener('mousedown', this.handleMouseDown);
+      document.addEventListener('mousemove', this.handleMouseMove);
+      document.addEventListener('mouseup', this.handleMouseUp);
+
+      // Attach touch events to the drawer
+      drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+      document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+      document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+    }, 0);
   }
 
   private removeDragListeners() {
-    this.removeEventListener('touchstart', this.handleTouchStart);
-    this.removeEventListener('touchmove', this.handleTouchMove);
-    this.removeEventListener('touchend', this.handleTouchEnd);
+    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+    if (!drawerElement) return;
 
-    this.removeEventListener('mousedown', this.handleMouseDown);
-    this.removeEventListener('mousemove', this.handleMouseMove);
-    this.removeEventListener('mouseup', this.handleMouseUp);
+    // Remove listeners from drawer element
+    drawerElement.removeEventListener('touchstart', this.handleTouchStart);
+    drawerElement.removeEventListener('mousedown', this.handleMouseDown);
+
+    // Remove listeners from document
+    document.removeEventListener('touchmove', this.handleTouchMove);
+    document.removeEventListener('touchend', this.handleTouchEnd);
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseup', this.handleMouseUp);
   }
 
   private handleTouchStart = (e: TouchEvent) => {
@@ -197,10 +232,12 @@ export class DrawerElement extends LitElementWithProps {
     }
 
     this.currentY = y;
-    this.dragDistance = Math.max(0, y - this.startY);
+    this.dragDistance = y - this.startY; // Allow negative values for upward dragging
 
-    // Apply drag transform
-    const translateY = Math.min(this.dragDistance, window.innerHeight * 0.8);
+    // Apply drag transform - allow both upward and downward movement
+    const maxUpward = -window.innerHeight * 0.2; // Allow dragging up to 20% of screen height upward
+    const maxDownward = window.innerHeight * 0.8; // Allow dragging down to 80% of screen height
+    const translateY = Math.max(maxUpward, Math.min(this.dragDistance, maxDownward));
     this.drawerElement.style.transform = `translateY(${translateY}px)`;
 
     this.lastDragTime = now;
@@ -212,13 +249,17 @@ export class DrawerElement extends LitElementWithProps {
     this.isDragging = false;
     this.drawerElement.classList.remove('dragging');
 
-    const threshold = window.innerHeight * 0.3; // 30% of screen height
-    const velocityThreshold = 0.5; // pixels per ms
+    const closeThreshold = window.innerHeight * 0.15; // 15% of screen height to close (easier to close)
+    const velocityThreshold = 0.3; // pixels per ms (lower threshold for velocity)
 
-    // Close if dragged far enough or with enough velocity
-    if (this.dragDistance > threshold || this.velocity > velocityThreshold) {
+    console.log('endDrag - dragDistance:', this.dragDistance, 'closeThreshold:', closeThreshold, 'velocity:', this.velocity);
+
+    // Close if dragged down far enough or with enough downward velocity
+    if (this.dragDistance > closeThreshold || this.velocity > velocityThreshold) {
+      console.log('Closing drawer due to drag');
       this.closeDrawer();
     } else {
+      console.log('Snapping back to open position');
       // Snap back to open position
       this.drawerElement.style.transform = 'translateY(0%)';
     }
@@ -229,12 +270,26 @@ export class DrawerElement extends LitElementWithProps {
   }
 
   private closeDrawer() {
+    console.log('closeDrawer called, setting open to false');
+
+    // Clear any inline transform styles to allow CSS transition to work
+    if (this.drawerElement) {
+      this.drawerElement.style.transform = '';
+    }
+
     this.open = false;
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
   }
 
   private onCancel = () => {
+    console.log('onCancel called, loading:', this.loading);
     if (this.loading) return;
+
+    // Clear any inline transform styles to allow CSS transition to work
+    if (this.drawerElement) {
+      this.drawerElement.style.transform = '';
+    }
+
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
     this.open = false;
   };

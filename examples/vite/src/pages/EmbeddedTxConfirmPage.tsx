@@ -51,6 +51,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   };
 
   const handleDrawerCancel = () => {
+    console.log('handleDrawerCancel called in React component, setting drawerOpen to false');
     setResult('Drawer cancelled');
     setDrawerOpen(false);
   };
