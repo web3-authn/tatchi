@@ -1,4 +1,4 @@
-# Web3Authn Service Iframe Architecture Plan
+# Web3Authn WalletIframe Architecture Plan
 
 This document outlines how to run all sensitive Web3Authn logic inside a cross‑origin, headless service iframe while keeping an API‑first SDK for developers. The existing visible iframes (Modal and Embedded Button) remain the way to capture user gestures without popups.
 
@@ -17,7 +17,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
   - On `init(options)`, mounts an invisible iframe to `walletOrigin` and performs a READY handshake over a `MessageChannel`.
   - Each API call sends a typed RPC request to the iframe and awaits a typed response with `requestId` correlation, timeouts, and cancellation.
 
-- Service Iframe (wallet origin):
+- WalletIframe (wallet origin):
   - Loads a minimal wallet bundle under strict CSP; no third‑party runtime CDNs.
   - Spawns signer + VRF workers; owns IndexedDB for encrypted keys.
   - Implements RPC handlers: on `REQUEST_signTransactionsWithActions` or `REQUEST_registerPasskey` performs WebAuthn and calls local workers; returns only signature/signed txs.
@@ -29,7 +29,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
   - `PasskeyManager/index.ts` facade.
   - Small, non‑secret helpers are allowed (e.g., digest formatting). Do not handle PRF/credentials/decrypted keys here.
 
-- Service Iframe (wallet origin):
+- WalletIframe (wallet origin):
   - `WebAuthnManager`: calls `navigator.credentials.*` with PRF extensions.
   - `SignerWorkerManager` + `web3authn-signer.worker`: PRF → decrypt/derive → sign.
   - `VrfWorkerManager` + `web3authn-vrf.worker`: challenge generation and verification helpers.
@@ -47,7 +47,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
    - Preferred (no external hosting): uses `srcdoc` with an imported module asset URL resolved by the consumer bundler (e.g., `wallet-iframe-host.ts?url`). This keeps the service same‑origin and sandboxed, without copying HTML.
    - Optional (custom wallet site): if `walletOrigin` is set, loads `new URL(servicePath, walletOrigin)` instead.
    - Opens a `MessageChannel` and performs READY/PING handshake with protocol version check.
-3. Service iframe loads wallet bundle, applies strict CSP, spawns signer/VRF workers, opens IndexedDB, and posts `READY`.
+3. WalletIframe loads wallet bundle, applies strict CSP, spawns signer/VRF workers, opens IndexedDB, and posts `READY`.
 
 ## RPC Protocol (MessageChannel)
 
@@ -75,9 +75,9 @@ Implementation notes:
 
 - Parent calls `signTransactions()` inside a user gesture handler.
 - Parent forwards `REQUEST_signTransactionsWithActions` to service iframe.
-- Service iframe brings up a wallet‑origin visible modal (existing `IframeModalConfirmer`) to capture the confirm click.
+- WalletIframe brings up a wallet‑origin visible modal (existing `IframeModalConfirmer`) to capture the confirm click.
 - WebAuthn runs inside the wallet origin context and returns PRF/credential only within the wallet process boundary.
-- Service iframe passes PRF/credential to its local signer worker, signs transactions, and returns only signed txs to the parent.
+- WalletIframe passes PRF/credential to its local signer worker, signs transactions, and returns only signed txs to the parent.
 - The modal closes; the hidden service iframe remains mounted for future requests.
 
 Notes:
@@ -153,7 +153,7 @@ Notes:
   - Wire `PasskeyManager` APIs to forward to the client.
   - Add configuration for `walletOrigin` and theme.
 
-- Service Iframe (wallet)
+- WalletIframe (wallet)
   - Create wallet service page/bundle with strict CSP.
   - Implement RPC server and handlers for `REQUEST_signTransactionsWithActions`/`REQUEST_registerPasskey`.
   - Spawn signer/VRF workers; wire to `WebAuthnManager` and `IndexedDBManager`.

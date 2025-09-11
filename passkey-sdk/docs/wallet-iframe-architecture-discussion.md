@@ -1,4 +1,4 @@
-# Service Iframe Architecture — Discussion & Decisions
+# WalletIframe Architecture — Discussion & Decisions
 
 This document captures design decisions and trade‑offs discussed while planning the move of sensitive Web3Authn logic into a cross‑origin, headless service iframe, keeping an API‑first SDK for integrators and preserving a no‑popup UX.
 
@@ -135,7 +135,7 @@ Thanks — changes landed to simplify the default same‑origin flow and clarify
 
 - Documentation for integrators updated:
   - `packages/passkey/README.md` now documents:
-    - “Service Iframe (no external hosting required)” — same‑origin `srcdoc` is the default; zero copying or extra servers.
+    - “WalletIframe (no external hosting required)” — same‑origin `srcdoc` is the default; zero copying or extra servers.
     - “Optional: hosting on a separate wallet origin” — includes an Express example that:
       - Serves SDK assets from `node_modules` under `/sdk` (including workers/WASM).
       - Serves `/service` by returning the HTML from `getWalletServiceHtml('/sdk')`.

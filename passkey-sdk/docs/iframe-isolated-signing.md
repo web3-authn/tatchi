@@ -22,7 +22,7 @@ If a malicious package compromises the parent application, it should **not** be 
 
 ## Architecture
 
-### 1. Cross-Origin Service Iframe
+### 1. Cross-Origin WalletIframe
 
 All sensitive operations run in a separate iframe with its own origin:
 
@@ -118,7 +118,7 @@ export function sanitizeSdkBasePath(path: string): string {
 
 ## Implementation Details
 
-### Service Iframe Bootstrap
+### WalletIframe Bootstrap
 
 The iframe loads a minimal HTML page that imports the service host:
 

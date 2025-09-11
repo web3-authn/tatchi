@@ -116,7 +116,7 @@ rolldown.config.mjs   # Rolldown bundler configuration
 - **`build-paths.ts`** - Source of truth for all configuration
 - **`build-paths.sh`** - Shell version for bash scripts
 
-## Service Iframe (no external hosting required)
+## WalletIframe (no external hosting required)
 
 This SDK mounts a hidden, sandboxed “service iframe” that runs sensitive logic (WebAuthn orchestration, workers, IndexedDB) without relying on any external server or copied HTML files.
 
@@ -159,7 +159,7 @@ const pm = new PasskeyManager({
   // walletServicePath: '/service',
 });
 
-await pm.initServiceIframe();
+await pm.initWalletIframe();
 
 const signed = await pm.signTransactionsWithActions({
   nearAccountId: 'alice.testnet',
@@ -179,13 +179,13 @@ If you want stronger isolation by running the service iframe on a separate origi
   - `/sdk/esm/react/embedded/wallet-iframe-host.js` (and other embedded bundles)
 - A service page at `/service` that loads the service host module.
 
-You do not need to copy files into your app bundle — you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
+You do not need to copy files into your app bundle, you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
 
 ```ts
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getWalletServiceHtml } from '@web3authn/passkey/core/ServiceIframe/html';
+import { getWalletServiceHtml } from '@web3authn/passkey/core/WalletIframe/html';
 
 const app = express();
 
@@ -218,7 +218,7 @@ const pm = new PasskeyManager({
   walletOrigin: 'http://localhost:8080', // your wallet site
   walletServicePath: '/service',         // must match the route above
 });
-await pm.initServiceIframe();
+await pm.initWalletIframe();
 ```
 
 With this approach, you don’t copy HTML into the integrator’s app and you don’t rely on any external vendor servers. You either:
