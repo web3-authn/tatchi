@@ -385,8 +385,11 @@ export class NonceManager {
       }
 
       // Compute next usable nonce using maxBigInt for clarity
+      // Include (actualNonce + 1) to immediately advance locally after broadcast,
+      // even if chain finality has not reflected the new nonce yet.
       const candidateNext = this.maxBigInt(
         chainNonceBigInt + 1n,
+        actualNonceBigInt + 1n,
         this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
         this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n,
       );
@@ -422,8 +425,34 @@ export class NonceManager {
         `[NonceManager]: Updated from chain nonce=${chainNonceBigInt} actual=${actualNonceBigInt} next=${this.transactionContext!.nextNonce}`
       );
 
-    } catch (error) {
-      console.error('[NonceManager]: Failed to update nonce from blockchain:', error);
+    } catch (error: any) {
+      const msg = (error?.message || String(error || '')).toString();
+      // Tolerate missing/rotated keys: avoid noisy error and advance nextNonce optimistically
+      if (msg.includes('does not exist while viewing') || msg.includes('Access key not found')) {
+        try {
+          const actualNonceBigInt = BigInt(actualNonce);
+          const candidateNext = this.maxBigInt(
+            actualNonceBigInt + 1n,
+            this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
+            this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n,
+          );
+          if (this.transactionContext) {
+            this.transactionContext.nextNonce = candidateNext.toString();
+          } else {
+            this.transactionContext = {
+              nearPublicKeyStr: this.nearPublicKeyStr!,
+              accessKeyInfo: undefined as any,
+              nextNonce: candidateNext.toString(),
+              txBlockHeight: '0',
+              txBlockHash: '',
+            } as any;
+          }
+          this.lastNonceUpdate = Date.now();
+          console.debug('[NonceManager]: Access key missing; advanced nextNonce optimistically to', this.transactionContext?.nextNonce);
+          return;
+        } catch {}
+      }
+      console.warn('[NonceManager]: Failed to update nonce from blockchain:', error);
       // Don't throw - this is a best-effort update
     }
   }
