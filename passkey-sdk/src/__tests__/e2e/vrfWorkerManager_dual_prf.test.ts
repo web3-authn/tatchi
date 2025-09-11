@@ -14,6 +14,8 @@ import { setupBasicPasskeyTest } from '../setup';
 import { BUILD_PATHS } from '@build-paths';
 import type { VrfWorkerManager } from '../../core/WebAuthnManager/VrfWorkerManager';
 import type { AccountId } from '../../core/types/accountIds';
+import { WebAuthnAuthenticationCredential } from '../../core/types/webauthn';
+import { serializeAuthenticationCredentialWithPRF } from '../../core/WebAuthnManager/credentialsHelpers';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -234,8 +236,8 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Get centralized configuration
         const { configs } = (window as any).testUtils;
 
-        // Helper: obtain a mock PublicKeyCredential with PRF via setup WebAuthn mocks
-        const getCredentialForAccount = async (accountId: string): Promise<PublicKeyCredential> => {
+        // Helper: obtain a serialized WebAuthnAuthenticationCredential with PRF via setup WebAuthn mocks
+        const getCredentialForAccount = async (accountId: string): Promise<WebAuthnAuthenticationCredential> => {
           const challenge = crypto.getRandomValues(new Uint8Array(32));
           const cred = await (navigator as any).credentials.get({
             publicKey: {
@@ -254,7 +256,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
               // allowCredentials not required for our mock path using PRF salt
             }
           });
-          return cred as PublicKeyCredential;
+          return serializeAuthenticationCredentialWithPRF({
+            credential: cred as PublicKeyCredential,
+            firstPrfOutput: true,
+            secondPrfOutput: false,
+          });
         };
 
         // Derive deterministic VRF keypair from PRF output (used during recovery)
@@ -580,7 +586,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
           testResults.challengeWithoutSession = error.message.includes('VRF challenge generation failed');
         }
 
-        const buildCredential = async (salt: ArrayBuffer | null): Promise<PublicKeyCredential> => {
+        const buildCredential = async (salt: ArrayBuffer | null): Promise<WebAuthnAuthenticationCredential> => {
           const challenge = crypto.getRandomValues(new Uint8Array(32));
           const extensions: any = salt === null
             ? { prf: { eval: { first: null } } }
@@ -593,7 +599,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
               extensions
             }
           });
-          return cred as PublicKeyCredential;
+          return serializeAuthenticationCredentialWithPRF({
+            credential: cred as PublicKeyCredential,
+            firstPrfOutput: true,
+            secondPrfOutput: false,
+          });
         };
 
         // Test 2: Try to derive VRF keypair with invalid PRF output (non-base64url / malformed ArrayBuffer)

@@ -1,6 +1,11 @@
 import { ClientAuthenticatorData } from '../IndexedDBManager';
 import { base64Decode, base64UrlDecode } from '../../utils/encoders';
 import { outputAs32Bytes, VRFChallenge } from '../types/vrf-worker';
+import { serializeAuthenticationCredentialWithPRF, serializeRegistrationCredential, serializeRegistrationCredentialWithPRF } from './credentialsHelpers';
+import type {
+  WebAuthnAuthenticationCredential,
+  WebAuthnRegistrationCredential
+} from '../types/webauthn';
 
 export interface RegisterCredentialsArgs {
   nearAccountId: string,    // NEAR account ID for PRF salts and keypair derivation (always base account)
@@ -11,7 +16,23 @@ export interface RegisterCredentialsArgs {
 export interface AuthenticateCredentialsArgs {
   nearAccountId: string,
   challenge: VRFChallenge,
-  authenticators: ClientAuthenticatorData[],
+  allowCredentials: AllowCredential[],
+}
+
+export interface AllowCredential {
+  id: string,
+  type: string,
+  transports: AuthenticatorTransport[]
+}
+
+export function authenticatorsToAllowCredentials(
+  authenticators: ClientAuthenticatorData[]
+): AllowCredential[] {
+  return authenticators.map(auth => ({
+    id: auth.credentialId,
+    type: 'public-key',
+    transports: auth.transports as AuthenticatorTransport[]
+  }));
 }
 
 /**
@@ -57,129 +78,61 @@ export class TouchIdPrompt {
     try { return this.rpIdOverride || window.location.hostname; } catch { return this.rpIdOverride || ''; }
   }
 
-  /**
-   * Prompts for TouchID/biometric authentication and generates WebAuthn credentials with PRF output
-   * @param nearAccountId - NEAR account ID to authenticate
-   * @param challenge - VRF challenge bytes to use for WebAuthn authentication
-   * @param authenticators - List of stored authenticator data for the user
-   * @returns WebAuthn credential with PRF output (HKDF derivation done in WASM worker)
-   * ```ts
-   * const credential = await touchIdPrompt.getCredentials({
-   *   nearAccountId,
-   *   challenge,
-   *   authenticators,
-   * });
-   * ```
-   */
-  async getCredentials({
-    nearAccountId,
-    challenge,
-    authenticators
-  }: AuthenticateCredentialsArgs): Promise<PublicKeyCredential> {
-
-    const credential = await navigator.credentials.get({
-      publicKey: {
-        challenge: outputAs32Bytes(challenge),
-        rpId: this.getRpId(),
-        allowCredentials: authenticators.map(auth => ({
-          id: base64UrlDecode(auth.credentialId),
-          type: 'public-key' as const,
-          transports: auth.transports as AuthenticatorTransport[]
-        })),
-        userVerification: 'preferred' as UserVerificationRequirement,
-        timeout: 60000,
-        extensions: {
-          prf: {
-            eval: {
-              first: generateChaCha20Salt(nearAccountId),  // ChaCha20Poly1305 encryption keys
-              second: generateEd25519Salt(nearAccountId)   // Ed25519 signing keys
-            }
-          }
-        }
-      } as PublicKeyCredentialRequestOptions
-    }) as PublicKeyCredential;
-
-    if (!credential) {
-      throw new Error('WebAuthn authentication failed or was cancelled');
-    }
-    return credential;
-  }
 
   /**
-   * Simplified authentication for account recovery
-   * Uses credential IDs from contract without needing full authenticator data
+   * Get authentication credentials
    * @param nearAccountId - NEAR account ID to authenticate
    * @param challenge - VRF challenge bytes
-   * @param credentialIds - Array of credential IDs from contract lookup
-   * @returns WebAuthn credential with PRF output
+   * @param allowCredentials - Array of allowed credentials for authentication
+   * @returns WebAuthn credential with only the first PRF output
    */
-  async getCredentialsForRecovery({ nearAccountId, challenge, credentialIds }: {
-    nearAccountId: string,
-    challenge: VRFChallenge,
-    credentialIds: string[]
-  }): Promise<PublicKeyCredential> {
-
-    const credential = await navigator.credentials.get({
-      publicKey: {
-        challenge: outputAs32Bytes(challenge),
-        rpId: this.getRpId(),
-        allowCredentials: credentialIds.map(credentialId => ({
-          id: base64UrlDecode(credentialId),
-          type: 'public-key' as const,
-          transports: ['internal', 'hybrid', 'usb', 'ble'] as AuthenticatorTransport[]
-          // Include all common transports
-        })),
-        userVerification: 'preferred' as UserVerificationRequirement,
-        timeout: 60000,
-        extensions: {
-          prf: {
-            eval: {
-              first: generateChaCha20Salt(nearAccountId),  // ChaCha20Poly1305 encryption keys
-              second: generateEd25519Salt(nearAccountId)   // Ed25519 signing keys
-            }
-          }
-        }
-      } as PublicKeyCredentialRequestOptions
-    }) as PublicKeyCredential;
-
-    if (!credential) {
-      throw new Error('WebAuthn authentication failed or was cancelled');
-    }
-    return credential;
-  }
-
-  /**
-   * Generate WebAuthn registration credentials for normal account registration
-   * @param nearAccountId - NEAR account ID (used for both WebAuthn user ID and PRF salts)
-   * @param challenge - Random challenge bytes for the registration ceremony
-   * @returns Credential with PRF output
-   */
-  async generateRegistrationCredentials({ nearAccountId, challenge }: {
-    nearAccountId: string,
-    challenge: VRFChallenge
-  }): Promise<PublicKeyCredential> {
-    return this.generateRegistrationCredentialsInternal({
-      nearAccountId: nearAccountId,
-      challenge
-    });
-  }
-
-  /**
-   * Generate WebAuthn registration credentials for device linking
-   * @param nearAccountId - NEAR account ID for PRF salts (always base account like alice.testnet)
-   * @param challenge - Random challenge bytes for the registration ceremony
-   * @param deviceNumber - Device number for device-specific user ID
-   * @returns Credential with PRF output
-   */
-  async generateRegistrationCredentialsForLinkDevice({
+  async getAuthenticationCredentialsSerialized({
     nearAccountId,
     challenge,
-    deviceNumber
-  }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
-    return this.generateRegistrationCredentialsInternal({
+    allowCredentials,
+  }: {
+    nearAccountId: string
+    challenge: VRFChallenge
+    allowCredentials: AllowCredential[]
+  }): Promise<WebAuthnAuthenticationCredential> {
+    const credential = await this.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge,
-      deviceNumber
+      allowCredentials,
+    });
+    return serializeAuthenticationCredentialWithPRF({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: false,
+    })
+  }
+
+  /**
+   *  Same as getAuthenticationCredentialsSerialized but returns both PRF outputs
+   *  Used for account recovery where both PRF outputs are needed
+   * @param nearAccountId - NEAR account ID to authenticate
+   * @param challenge - VRF challenge bytes
+   * @param allowCredentials - Array of allowed credentials for authentication
+   * @returns
+   */
+  async getAuthenticationCredentialsForRecovery({
+    nearAccountId,
+    challenge,
+    allowCredentials
+  }: {
+    nearAccountId: string,
+    challenge: VRFChallenge,
+    allowCredentials: AllowCredential[],
+  }): Promise<WebAuthnAuthenticationCredential> {
+    const credential = await this.getAuthenticationCredentialsInternal({
+      nearAccountId,
+      challenge,
+      allowCredentials
+    });
+    return serializeAuthenticationCredentialWithPRF({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: true,
     });
   }
 
@@ -190,12 +143,12 @@ export class TouchIdPrompt {
    * @param deviceNumber - Device number for device-specific user ID.
    * @returns Credential with PRF output
    */
-  private async generateRegistrationCredentialsInternal({
+  async generateRegistrationCredentialsInternal({
     nearAccountId,
     challenge,
     deviceNumber
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
-    const credential = await navigator.credentials.create({
+    return await navigator.credentials.create({
       publicKey: {
         challenge: outputAs32Bytes(challenge),
         rp: {
@@ -229,9 +182,49 @@ export class TouchIdPrompt {
           }
         }
       } as PublicKeyCredentialCreationOptions
-    }) as PublicKeyCredential;
+    }) as PublicKeyCredential
+  }
 
-    return credential;
+  /**
+   * Internal method for getting WebAuthn authentication credentials with PRF output
+   * @param nearAccountId - NEAR account ID to authenticate
+   * @param challenge - VRF challenge bytes to use for WebAuthn authentication
+   * @param authenticators - List of stored authenticator data for the user
+   * @returns WebAuthn credential with PRF output (HKDF derivation done in WASM worker)
+   * ```ts
+   * const credential = await touchIdPrompt.getCredentials({
+   *   nearAccountId,
+   *   challenge,
+   *   authenticators,
+   * });
+   * ```
+   */
+  async getAuthenticationCredentialsInternal({
+    nearAccountId,
+    challenge,
+    allowCredentials,
+  }: AuthenticateCredentialsArgs): Promise<PublicKeyCredential> {
+    return await navigator.credentials.get({
+      publicKey: {
+        challenge: outputAs32Bytes(challenge),
+        rpId: this.getRpId(),
+        allowCredentials: allowCredentials.map(credential => ({
+          id: base64UrlDecode(credential.id),
+          type: credential.type,
+          transports: credential.transports
+        })),
+        userVerification: 'preferred' as UserVerificationRequirement,
+        timeout: 60000,
+        extensions: {
+          prf: {
+            eval: {
+              first: generateChaCha20Salt(nearAccountId),  // ChaCha20Poly1305 encryption keys
+              second: generateEd25519Salt(nearAccountId)   // Ed25519 signing keys
+            }
+          }
+        }
+      } as PublicKeyCredentialRequestOptions
+    }) as PublicKeyCredential
   }
 }
 

@@ -21,6 +21,55 @@ export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
  * }
  */
 
+export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
+export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
+export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
+export type WasmSignVerifyAndRegisterUserRequest = StripFree<wasmModule.SignVerifyAndRegisterUserRequest>;
+// Override the WASM request type to accept string literals for confirmation config
+export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.SignTransactionsWithActionsRequest>, 'confirmationConfig'> & {
+  confirmationConfig?: {
+    uiMode: ConfirmationUIMode;
+    behavior: ConfirmationBehavior;
+    autoProceedDelay?: number;
+    theme?: 'dark' | 'light';
+  };
+};
+export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
+export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
+export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
+export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
+export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest>;
+
+export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
+  | WasmRecoverKeypairRequest
+  | WasmCheckCanRegisterUserRequest
+  | WasmSignVerifyAndRegisterUserRequest
+  | WasmSignTransactionsWithActionsRequest
+  | WasmDecryptPrivateKeyRequest
+  | WasmExtractCosePublicKeyRequest
+  | WasmSignNep413MessageRequest
+  | WasmSignTransactionWithKeyPairRequest;
+
+// WASM Worker Response Types
+export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
+export type WasmRegistrationResult = InstanceType<typeof wasmModule.RegistrationResult>;
+export type WasmRegistrationCheckResult = InstanceType<typeof wasmModule.RegistrationCheckResult>;
+export type WasmRegistrationInfo = InstanceType<typeof wasmModule.RegistrationInfoStruct>;
+export type WasmSignedTransaction = InstanceType<typeof wasmModule.WasmSignedTransaction>;
+export type WasmTransactionSignResult = InstanceType<typeof wasmModule.TransactionSignResult>;
+export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
+export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
+// wasm-bindgen generates some classes with private constructors, which breaks
+// `InstanceType<typeof Class>`. Use the class name directly for the instance type.
+export type WasmRegistrationCredentialConfirmationResult = wasmModule.RegistrationCredentialConfirmationResult;
+
+
+export type WasmSignerWorkerRequest = {
+  type: WorkerRequestType;
+  request: WasmRequestPayload;
+  result: WasmRequestResult;
+}
+
 // === WORKER REQUEST TYPE MAPPING ===
 // Define the complete type mapping for each worker request
 export interface WorkerRequestTypeMap {
@@ -69,51 +118,12 @@ export interface WorkerRequestTypeMap {
     request: WasmSignNep413MessageRequest;
     result: wasmModule.SignNep413Result;
   };
-}
-
-export type WasmSignerWorkerRequest = {
-  type: WorkerRequestType;
-  request: WasmRequestPayload;
-  result: WasmRequestResult;
-}
-
-export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
-export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
-export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
-export type WasmSignVerifyAndRegisterUserRequest = StripFree<wasmModule.SignVerifyAndRegisterUserRequest>;
-// Override the WASM request type to accept string literals for confirmation config
-export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.SignTransactionsWithActionsRequest>, 'confirmationConfig'> & {
-  confirmationConfig?: {
-    uiMode: ConfirmationUIMode;
-    behavior: ConfirmationBehavior;
-    autoProceedDelay?: number;
-    theme?: 'dark' | 'light';
+  [WorkerRequestType.RegistrationCredentialConfirmation]: {
+    type: WorkerRequestType.RegistrationCredentialConfirmation;
+    request: WasmRegistrationCredentialConfirmationRequest;
+    result: wasmModule.RegistrationCredentialConfirmationResult;
   };
-};
-export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
-export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
-export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
-export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
-
-export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
-  | WasmRecoverKeypairRequest
-  | WasmCheckCanRegisterUserRequest
-  | WasmSignVerifyAndRegisterUserRequest
-  | WasmSignTransactionsWithActionsRequest
-  | WasmDecryptPrivateKeyRequest
-  | WasmExtractCosePublicKeyRequest
-  | WasmSignNep413MessageRequest
-  | WasmSignTransactionWithKeyPairRequest;
-
-// WASM Worker Response Types
-export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
-export type WasmRegistrationResult = InstanceType<typeof wasmModule.RegistrationResult>;
-export type WasmRegistrationCheckResult = InstanceType<typeof wasmModule.RegistrationCheckResult>;
-export type WasmRegistrationInfo = InstanceType<typeof wasmModule.RegistrationInfoStruct>;
-export type WasmSignedTransaction = InstanceType<typeof wasmModule.WasmSignedTransaction>;
-export type WasmTransactionSignResult = InstanceType<typeof wasmModule.TransactionSignResult>;
-export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
-export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
+}
 
 /**
  * Validation rules for ConfirmationConfig to ensure behavior conforms to UI mode:
@@ -271,6 +281,7 @@ export interface RequestResponseMap {
   [WorkerRequestType.ExtractCosePublicKey]: wasmModule.CoseExtractionResult;
   [WorkerRequestType.SignTransactionWithKeyPair]: WasmTransactionSignResult;
   [WorkerRequestType.SignNep413Message]: wasmModule.SignNep413Result;
+  [WorkerRequestType.RegistrationCredentialConfirmation]: wasmModule.RegistrationCredentialConfirmationResult;
 }
 
 // Generic success response type that uses WASM types
@@ -348,7 +359,8 @@ export function isWorkerSuccess<T extends WorkerRequestType>(
     response.type === WorkerResponseType.ExtractCosePublicKeySuccess ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess ||
     response.type === WorkerResponseType.SignNep413MessageSuccess ||
-    response.type === WorkerResponseType.SignVerifyAndRegisterUserSuccess
+    response.type === WorkerResponseType.SignVerifyAndRegisterUserSuccess ||
+    response.type === WorkerResponseType.RegistrationCredentialConfirmationSuccess
   );
 }
 
@@ -364,7 +376,8 @@ export function isWorkerError<T extends WorkerRequestType>(
     response.type === WorkerResponseType.ExtractCosePublicKeyFailure ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairFailure ||
     response.type === WorkerResponseType.SignNep413MessageFailure ||
-    response.type === WorkerResponseType.SignVerifyAndRegisterUserFailure
+    response.type === WorkerResponseType.SignVerifyAndRegisterUserFailure ||
+    response.type === WorkerResponseType.RegistrationCredentialConfirmationFailure
   );
 }
 

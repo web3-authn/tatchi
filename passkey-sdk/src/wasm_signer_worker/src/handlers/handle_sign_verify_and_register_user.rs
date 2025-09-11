@@ -16,7 +16,7 @@ use crate::types::{
     WebAuthnRegistrationCredentialStruct,
     DecryptionPayload,
     RegistrationPayload,
-    VerificationPayload,
+    RpcCallPayload,
     SerializedRegistrationCredential,
 };
 use crate::types::wasm_to_json::WasmSignedTransaction;
@@ -34,7 +34,7 @@ use crate::handlers::confirm_tx_details::request_user_registration_confirmation;
 #[serde(rename_all = "camelCase")]
 pub struct SignVerifyAndRegisterUserRequest {
     #[wasm_bindgen(getter_with_clone)]
-    pub verification: VerificationPayload,
+    pub verification: RpcCallPayload,
     #[wasm_bindgen(getter_with_clone)]
     pub decryption: DecryptionPayload,
     #[wasm_bindgen(getter_with_clone)]
@@ -128,9 +128,6 @@ pub async fn handle_sign_verify_and_register_user(
 ) -> Result<RegistrationResult, String> {
     let logs = Vec::new();
 
-    let vrf_challenge = request.verification.vrf_challenge
-        .as_ref().ok_or_else(|| "Missing vrfChallenge in verification".to_string())?;
-
     // Step 1: Request user confirmation and collect registration credential
     send_progress_message(
         ProgressMessageType::RegistrationProgress,
@@ -189,6 +186,10 @@ pub async fn handle_sign_verify_and_register_user(
         "Starting Web3Authn account registration...",
         Some("{\"step\": 2, \"total\": 4}"),
     );
+
+    // VRF challenge is now produced by the JS main thread during secureConfirm
+    let vrf_challenge = confirmation_result.vrf_challenge
+        .as_ref().ok_or_else(|| "Missing vrfChallenge from confirmation".to_string())?;
 
     // Convert structured types using From implementations
     let vrf_data = VrfData::try_from(vrf_challenge)

@@ -72,6 +72,7 @@ export enum WorkerRequestType {
   SignTransactionWithKeyPair = 6,
   SignNep413Message = 7,
   SignVerifyAndRegisterUser = 8,
+  RegistrationCredentialConfirmation = 9,
 }
 /**
  * Worker response types enum - corresponds to TypeScript WorkerResponseType
@@ -86,19 +87,21 @@ export enum WorkerResponseType {
   SignTransactionWithKeyPairSuccess = 6,
   SignNep413MessageSuccess = 7,
   SignVerifyAndRegisterUserSuccess = 8,
-  DeriveNearKeypairAndEncryptFailure = 9,
-  RecoverKeypairFromPasskeyFailure = 10,
-  CheckCanRegisterUserFailure = 11,
-  DecryptPrivateKeyWithPrfFailure = 12,
-  SignTransactionsWithActionsFailure = 13,
-  ExtractCosePublicKeyFailure = 14,
-  SignTransactionWithKeyPairFailure = 15,
-  SignNep413MessageFailure = 16,
-  SignVerifyAndRegisterUserFailure = 17,
-  RegistrationProgress = 18,
-  RegistrationComplete = 19,
-  ExecuteActionsProgress = 20,
-  ExecuteActionsComplete = 21,
+  RegistrationCredentialConfirmationSuccess = 9,
+  DeriveNearKeypairAndEncryptFailure = 10,
+  RecoverKeypairFromPasskeyFailure = 11,
+  CheckCanRegisterUserFailure = 12,
+  DecryptPrivateKeyWithPrfFailure = 13,
+  SignTransactionsWithActionsFailure = 14,
+  ExtractCosePublicKeyFailure = 15,
+  SignTransactionWithKeyPairFailure = 16,
+  SignNep413MessageFailure = 17,
+  SignVerifyAndRegisterUserFailure = 18,
+  RegistrationCredentialConfirmationFailure = 19,
+  RegistrationProgress = 20,
+  RegistrationComplete = 21,
+  ExecuteActionsProgress = 22,
+  ExecuteActionsComplete = 23,
 }
 export class AuthenticationResponse {
   private constructor();
@@ -322,6 +325,30 @@ export class RegistrationCheckResult {
   get error(): string | undefined;
   set error(value: string | null | undefined);
 }
+export class RegistrationCredentialConfirmationRequest {
+  private constructor();
+  free(): void;
+  nearAccountId: string;
+  deviceNumber: number;
+  contractId: string;
+  nearRpcUrl: string;
+}
+export class RegistrationCredentialConfirmationResult {
+  private constructor();
+  free(): void;
+  confirmed: boolean;
+  requestId: string;
+  intentDigest: string;
+  credential: any;
+  get prfOutput(): string | undefined;
+  set prfOutput(value: string | null | undefined);
+  get vrfChallenge(): VrfChallenge | undefined;
+  set vrfChallenge(value: VrfChallenge | null | undefined);
+  get transactionContext(): TransactionContext | undefined;
+  set transactionContext(value: TransactionContext | null | undefined);
+  get error(): string | undefined;
+  set error(value: string | null | undefined);
+}
 export class RegistrationInfoStruct {
   free(): void;
   constructor(credential_id: Uint8Array, credential_public_key: Uint8Array, user_id: string, vrf_public_key?: Uint8Array | null);
@@ -448,7 +475,7 @@ export class SignTransactionsWithActionsRequest {
 export class SignVerifyAndRegisterUserRequest {
   private constructor();
   free(): void;
-  verification: VerificationPayload;
+  verification: RpcCallPayload;
   decryption: DecryptionPayload;
   registration: RegistrationPayload;
 }
@@ -696,150 +723,12 @@ export interface InitOutput {
   readonly __wbg_set_webauthnauthenticationcredentialstruct_client_data_json: (a: number, b: number, c: number) => void;
   readonly __wbg_set_webauthnauthenticationcredentialstruct_authenticator_data: (a: number, b: number, c: number) => void;
   readonly __wbg_set_webauthnauthenticationcredentialstruct_signature: (a: number, b: number, c: number) => void;
-  readonly __wbg_extractcoserequest_free: (a: number, b: number) => void;
-  readonly __wbg_get_extractcoserequest_attestationObjectBase64url: (a: number) => [number, number];
-  readonly __wbg_coseextractionresult_free: (a: number, b: number) => void;
-  readonly __wbg_get_coseextractionresult_cosePublicKeyBytes: (a: number) => [number, number];
-  readonly __wbg_set_coseextractionresult_cosePublicKeyBytes: (a: number, b: number, c: number) => void;
-  readonly __wbg_signnep413request_free: (a: number, b: number) => void;
-  readonly __wbg_get_signnep413request_recipient: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_recipient: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_nonce: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_nonce: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_state: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_state: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_accountId: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_accountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_encryptedPrivateKeyData: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_encryptedPrivateKeyData: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_encryptedPrivateKeyIv: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_encryptedPrivateKeyIv: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_prfOutput: (a: number) => [number, number];
-  readonly __wbg_set_signnep413request_prfOutput: (a: number, b: number, c: number) => void;
-  readonly __wbg_signnep413result_free: (a: number, b: number) => void;
-  readonly __wbg_get_signnep413result_state: (a: number) => [number, number];
-  readonly __wbg_set_signnep413result_state: (a: number, b: number, c: number) => void;
-  readonly signnep413result_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-  readonly __wbg_set_extractcoserequest_attestationObjectBase64url: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signnep413request_message: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signnep413result_accountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signnep413result_publicKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signnep413result_signature: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signnep413request_message: (a: number) => [number, number];
-  readonly __wbg_get_signnep413result_accountId: (a: number) => [number, number];
-  readonly __wbg_get_signnep413result_publicKey: (a: number) => [number, number];
-  readonly __wbg_get_signnep413result_signature: (a: number) => [number, number];
   readonly __wbg_decryptprivatekeyrequest_free: (a: number, b: number) => void;
-  readonly __wbg_get_decryptprivatekeyrequest_nearAccountId: (a: number) => [number, number];
-  readonly __wbg_set_decryptprivatekeyrequest_nearAccountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_decryptprivatekeyrequest_chacha20PrfOutput: (a: number) => [number, number];
-  readonly __wbg_set_decryptprivatekeyrequest_chacha20PrfOutput: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_decryptprivatekeyrequest_encryptedPrivateKeyData: (a: number) => [number, number];
-  readonly __wbg_set_decryptprivatekeyrequest_encryptedPrivateKeyData: (a: number, b: number, c: number) => void;
   readonly __wbg_get_decryptprivatekeyrequest_encryptedPrivateKeyIv: (a: number) => [number, number];
   readonly __wbg_set_decryptprivatekeyrequest_encryptedPrivateKeyIv: (a: number, b: number, c: number) => void;
   readonly decryptprivatekeyrequest_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
   readonly __wbg_decryptprivatekeyresult_free: (a: number, b: number) => void;
   readonly decryptprivatekeyresult_new: (a: number, b: number, c: number, d: number) => number;
-  readonly __wbg_get_decryptprivatekeyresult_privateKey: (a: number) => [number, number];
-  readonly __wbg_get_decryptprivatekeyresult_nearAccountId: (a: number) => [number, number];
-  readonly __wbg_set_decryptprivatekeyresult_privateKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_decryptprivatekeyresult_nearAccountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_derivenearkeypairandencryptrequest_free: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptrequest_dualPrfOutputs: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptrequest_dualPrfOutputs: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptrequest_nearAccountId: (a: number) => [number, number];
-  readonly __wbg_set_derivenearkeypairandencryptrequest_nearAccountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptrequest_credential: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptrequest_credential: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptrequest_registrationTransaction: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptrequest_registrationTransaction: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptrequest_authenticatorOptions: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptrequest_authenticatorOptions: (a: number, b: number) => void;
-  readonly __wbg_dualprfoutputsstruct_free: (a: number, b: number) => void;
-  readonly __wbg_get_dualprfoutputsstruct_chacha20PrfOutput: (a: number) => [number, number];
-  readonly __wbg_set_dualprfoutputsstruct_chacha20PrfOutput: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_dualprfoutputsstruct_ed25519PrfOutput: (a: number) => [number, number];
-  readonly __wbg_set_dualprfoutputsstruct_ed25519PrfOutput: (a: number, b: number, c: number) => void;
-  readonly __wbg_linkdeviceregistrationtransaction_free: (a: number, b: number) => void;
-  readonly __wbg_get_linkdeviceregistrationtransaction_vrfChallenge: (a: number) => number;
-  readonly __wbg_set_linkdeviceregistrationtransaction_vrfChallenge: (a: number, b: number) => void;
-  readonly __wbg_get_linkdeviceregistrationtransaction_contractId: (a: number) => [number, number];
-  readonly __wbg_set_linkdeviceregistrationtransaction_contractId: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_linkdeviceregistrationtransaction_nonce: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_linkdeviceregistrationtransaction_deterministicVrfPublicKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_derivenearkeypairandencryptresult_free: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_nearAccountId: (a: number) => [number, number];
-  readonly __wbg_set_derivenearkeypairandencryptresult_nearAccountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_publicKey: (a: number) => [number, number];
-  readonly __wbg_set_derivenearkeypairandencryptresult_publicKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_encryptedData: (a: number) => [number, number];
-  readonly __wbg_set_derivenearkeypairandencryptresult_encryptedData: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_iv: (a: number) => [number, number];
-  readonly __wbg_set_derivenearkeypairandencryptresult_iv: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_stored: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptresult_stored: (a: number, b: number) => void;
-  readonly __wbg_get_derivenearkeypairandencryptresult_signedTransaction: (a: number) => number;
-  readonly __wbg_set_derivenearkeypairandencryptresult_signedTransaction: (a: number, b: number) => void;
-  readonly derivenearkeypairandencryptresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
-  readonly __wbg_signtransactionwithkeypairrequest_free: (a: number, b: number) => void;
-  readonly __wbg_get_signtransactionwithkeypairrequest_nonce: (a: number) => [number, number];
-  readonly __wbg_set_signtransactionwithkeypairrequest_nonce: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signtransactionwithkeypairrequest_blockHash: (a: number) => [number, number];
-  readonly __wbg_set_signtransactionwithkeypairrequest_blockHash: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_signtransactionwithkeypairrequest_actions: (a: number) => [number, number];
-  readonly __wbg_set_signtransactionwithkeypairrequest_actions: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_linkdeviceregistrationtransaction_nonce: (a: number) => [number, number];
-  readonly __wbg_get_linkdeviceregistrationtransaction_blockHash: (a: number) => [number, number];
-  readonly __wbg_get_linkdeviceregistrationtransaction_deterministicVrfPublicKey: (a: number) => [number, number];
-  readonly __wbg_get_signtransactionwithkeypairrequest_nearPrivateKey: (a: number) => [number, number];
-  readonly __wbg_get_signtransactionwithkeypairrequest_signerAccountId: (a: number) => [number, number];
-  readonly __wbg_get_signtransactionwithkeypairrequest_receiverId: (a: number) => [number, number];
-  readonly __wbg_set_linkdeviceregistrationtransaction_blockHash: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signtransactionwithkeypairrequest_nearPrivateKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signtransactionwithkeypairrequest_signerAccountId: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_signtransactionwithkeypairrequest_receiverId: (a: number, b: number, c: number) => void;
-  readonly __wbg_wasmpublickey_free: (a: number, b: number) => void;
-  readonly __wbg_get_wasmpublickey_keyType: (a: number) => number;
-  readonly __wbg_set_wasmpublickey_keyType: (a: number, b: number) => void;
-  readonly __wbg_get_wasmpublickey_keyData: (a: number) => [number, number];
-  readonly __wbg_set_wasmpublickey_keyData: (a: number, b: number, c: number) => void;
-  readonly wasmpublickey_new: (a: number, b: number, c: number) => number;
-  readonly __wbg_wasmsignature_free: (a: number, b: number) => void;
-  readonly __wbg_wasmtransaction_free: (a: number, b: number) => void;
-  readonly __wbg_get_wasmtransaction_signerId: (a: number) => [number, number];
-  readonly __wbg_set_wasmtransaction_signerId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_wasmtransaction_publicKey: (a: number) => number;
-  readonly __wbg_set_wasmtransaction_publicKey: (a: number, b: number) => void;
-  readonly __wbg_get_wasmtransaction_nonce: (a: number) => bigint;
-  readonly __wbg_set_wasmtransaction_nonce: (a: number, b: bigint) => void;
-  readonly __wbg_get_wasmtransaction_receiverId: (a: number) => [number, number];
-  readonly __wbg_set_wasmtransaction_receiverId: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_wasmtransaction_blockHash: (a: number) => [number, number];
-  readonly __wbg_set_wasmtransaction_blockHash: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_wasmtransaction_actionsJson: (a: number) => [number, number];
-  readonly __wbg_set_wasmtransaction_actionsJson: (a: number, b: number, c: number) => void;
-  readonly wasmtransaction_new: (a: number, b: number, c: number, d: bigint, e: number, f: number, g: number, h: number, i: number, j: number) => number;
-  readonly __wbg_wasmsignedtransaction_free: (a: number, b: number) => void;
-  readonly __wbg_get_wasmsignedtransaction_transaction: (a: number) => number;
-  readonly __wbg_set_wasmsignedtransaction_transaction: (a: number, b: number) => void;
-  readonly __wbg_get_wasmsignedtransaction_signature: (a: number) => number;
-  readonly __wbg_set_wasmsignedtransaction_signature: (a: number, b: number) => void;
-  readonly __wbg_get_wasmsignedtransaction_borshBytes: (a: number) => [number, number];
-  readonly __wbg_set_wasmsignedtransaction_borshBytes: (a: number, b: number, c: number) => void;
-  readonly wasmsignedtransaction_new: (a: number, b: number, c: number, d: number) => number;
-  readonly __wbg_set_wasmsignature_keyType: (a: number, b: number) => void;
-  readonly __wbg_set_wasmsignature_signatureData: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_wasmsignature_keyType: (a: number) => number;
-  readonly wasmsignature_new: (a: number, b: number, c: number) => number;
-  readonly __wbg_get_wasmsignature_signatureData: (a: number) => [number, number];
-  readonly __wbg_recoverkeypairrequest_free: (a: number, b: number) => void;
-  readonly __wbg_get_recoverkeypairrequest_credential: (a: number) => number;
-  readonly __wbg_set_recoverkeypairrequest_credential: (a: number, b: number) => void;
-  readonly __wbg_recoverkeypairresult_free: (a: number, b: number) => void;
-  readonly __wbg_get_recoverkeypairresult_accountIdHint: (a: number) => [number, number];
-  readonly __wbg_set_recoverkeypairresult_accountIdHint: (a: number, b: number, c: number) => void;
-  readonly recoverkeypairresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
   readonly __wbg_signtransactionswithactionsrequest_free: (a: number, b: number) => void;
   readonly __wbg_get_signtransactionswithactionsrequest_rpcCall: (a: number) => number;
   readonly __wbg_set_signtransactionswithactionsrequest_rpcCall: (a: number, b: number) => void;
@@ -859,6 +748,8 @@ export interface InitOutput {
   readonly __wbg_set_transactionsignresult_signedTransactions: (a: number, b: number, c: number) => void;
   readonly __wbg_get_transactionsignresult_logs: (a: number) => [number, number];
   readonly __wbg_set_transactionsignresult_logs: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_transactionsignresult_error: (a: number) => [number, number];
+  readonly __wbg_set_transactionsignresult_error: (a: number, b: number, c: number) => void;
   readonly transactionsignresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
   readonly transactionsignresult_failed: (a: number, b: number, c: number, d: number) => number;
   readonly __wbg_keyactionresult_free: (a: number, b: number) => void;
@@ -909,30 +800,51 @@ export interface InitOutput {
   readonly __wbg_set_registrationinfostruct_credentialPublicKey: (a: number, b: number, c: number) => void;
   readonly __wbg_get_registrationinfostruct_vrfPublicKey: (a: number) => [number, number];
   readonly __wbg_set_registrationinfostruct_vrfPublicKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_transactionpayload_nearAccountId: (a: number) => [number, number];
-  readonly __wbg_get_transactionpayload_receiverId: (a: number) => [number, number];
-  readonly __wbg_get_transactionpayload_actions: (a: number) => [number, number];
-  readonly __wbg_get_recoverkeypairresult_publicKey: (a: number) => [number, number];
-  readonly __wbg_get_recoverkeypairresult_encryptedData: (a: number) => [number, number];
-  readonly __wbg_get_recoverkeypairresult_iv: (a: number) => [number, number];
-  readonly __wbg_get_registrationinfostruct_userId: (a: number) => [number, number];
-  readonly __wbg_get_transactionsignresult_error: (a: number) => [number, number];
-  readonly __wbg_get_recoverkeypairrequest_accountIdHint: (a: number) => [number, number];
-  readonly __wbg_set_transactionsignresult_error: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_recoverkeypairrequest_accountIdHint: (a: number, b: number, c: number) => void;
   readonly registrationinfostruct_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+  readonly handle_signer_message: (a: number, b: number) => any;
+  readonly __wbg_set_decryptprivatekeyresult_privateKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_decryptprivatekeyresult_nearAccountId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactionpayload_nearAccountId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactionpayload_receiverId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactionpayload_actions: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_recoverkeypairresult_publicKey: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_recoverkeypairresult_encryptedData: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_recoverkeypairresult_iv: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_decryptprivatekeyrequest_nearAccountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_decryptprivatekeyrequest_chacha20PrfOutput: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_decryptprivatekeyrequest_encryptedPrivateKeyData: (a: number, b: number, c: number) => void;
   readonly __wbg_set_registrationinfostruct_userId: (a: number, b: number, c: number) => void;
+  readonly init_worker: () => void;
+  readonly __wbg_get_decryptprivatekeyresult_privateKey: (a: number) => [number, number];
+  readonly __wbg_get_decryptprivatekeyresult_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_get_transactionpayload_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_get_transactionpayload_receiverId: (a: number) => [number, number];
+  readonly __wbg_get_transactionpayload_actions: (a: number) => [number, number];
+  readonly __wbg_get_decryptprivatekeyrequest_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_get_decryptprivatekeyrequest_chacha20PrfOutput: (a: number) => [number, number];
+  readonly __wbg_get_decryptprivatekeyrequest_encryptedPrivateKeyData: (a: number) => [number, number];
+  readonly __wbg_get_registrationinfostruct_userId: (a: number) => [number, number];
+  readonly __wbg_registrationcredentialconfirmationrequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationrequest_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationrequest_nearAccountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationrequest_deviceNumber: (a: number) => number;
+  readonly __wbg_set_registrationcredentialconfirmationrequest_deviceNumber: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationrequest_contractId: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationrequest_contractId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationrequest_nearRpcUrl: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationrequest_nearRpcUrl: (a: number, b: number, c: number) => void;
+  readonly __wbg_registrationcredentialconfirmationresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_confirmed: (a: number) => number;
+  readonly __wbg_set_registrationcredentialconfirmationresult_confirmed: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_credential: (a: number) => any;
+  readonly __wbg_set_registrationcredentialconfirmationresult_credential: (a: number, b: any) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_prfOutput: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationresult_prfOutput: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_vrfChallenge: (a: number) => number;
+  readonly __wbg_set_registrationcredentialconfirmationresult_vrfChallenge: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_transactionContext: (a: number) => number;
+  readonly __wbg_set_registrationcredentialconfirmationresult_transactionContext: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcredentialconfirmationresult_error: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationresult_error: (a: number, b: number, c: number) => void;
   readonly __wbg_workerprogressmessage_free: (a: number, b: number) => void;
-  readonly __wbg_get_workerprogressmessage_message_type: (a: number) => [number, number];
   readonly __wbg_set_workerprogressmessage_message_type: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_workerprogressmessage_step: (a: number) => [number, number];
-  readonly __wbg_set_workerprogressmessage_step: (a: number, b: number, c: number) => void;
   readonly __wbg_get_workerprogressmessage_message: (a: number) => [number, number];
   readonly __wbg_set_workerprogressmessage_message: (a: number, b: number, c: number) => void;
   readonly __wbg_get_workerprogressmessage_status: (a: number) => [number, number];
@@ -942,6 +854,26 @@ export interface InitOutput {
   readonly __wbg_get_workerprogressmessage_data: (a: number) => [number, number];
   readonly __wbg_set_workerprogressmessage_data: (a: number, b: number, c: number) => void;
   readonly workerprogressmessage_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number) => number;
+  readonly __wbg_get_registrationcredentialconfirmationresult_requestId: (a: number) => [number, number];
+  readonly __wbg_get_registrationcredentialconfirmationresult_intentDigest: (a: number) => [number, number];
+  readonly __wbg_get_workerprogressmessage_message_type: (a: number) => [number, number];
+  readonly __wbg_get_workerprogressmessage_step: (a: number) => [number, number];
+  readonly __wbg_set_registrationcredentialconfirmationresult_requestId: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_registrationcredentialconfirmationresult_intentDigest: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_workerprogressmessage_step: (a: number, b: number, c: number) => void;
+  readonly __wbg_signtransactionwithkeypairrequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_nearPrivateKey: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_nearPrivateKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_signerAccountId: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_signerAccountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_receiverId: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_receiverId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_nonce: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_nonce: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_blockHash: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_blockHash: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signtransactionwithkeypairrequest_actions: (a: number) => [number, number];
+  readonly __wbg_set_signtransactionwithkeypairrequest_actions: (a: number, b: number, c: number) => void;
   readonly __wbg_checkcanregisteruserrequest_free: (a: number, b: number) => void;
   readonly __wbg_get_checkcanregisteruserrequest_vrfChallenge: (a: number) => number;
   readonly __wbg_set_checkcanregisteruserrequest_vrfChallenge: (a: number, b: number) => void;
@@ -954,6 +886,11 @@ export interface InitOutput {
   readonly __wbg_get_checkcanregisteruserrequest_authenticatorOptions: (a: number) => number;
   readonly __wbg_set_checkcanregisteruserrequest_authenticatorOptions: (a: number, b: number) => void;
   readonly __wbg_registrationcheckrequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_registrationcheckrequest_contract_id: (a: number) => [number, number];
+  readonly __wbg_set_registrationcheckrequest_contract_id: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_registrationcheckrequest_near_rpc_url: (a: number) => [number, number];
+  readonly __wbg_set_registrationcheckrequest_near_rpc_url: (a: number, b: number, c: number) => void;
+  readonly registrationcheckrequest_new: (a: number, b: number, c: number, d: number) => number;
   readonly __wbg_registrationcheckresult_free: (a: number, b: number) => void;
   readonly __wbg_get_registrationcheckresult_verified: (a: number) => number;
   readonly __wbg_set_registrationcheckresult_verified: (a: number, b: number) => void;
@@ -966,6 +903,92 @@ export interface InitOutput {
   readonly __wbg_get_registrationcheckresult_error: (a: number) => [number, number];
   readonly __wbg_set_registrationcheckresult_error: (a: number, b: number, c: number) => void;
   readonly registrationcheckresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
+  readonly __wbg_wasmpublickey_free: (a: number, b: number) => void;
+  readonly __wbg_get_wasmpublickey_keyType: (a: number) => number;
+  readonly __wbg_set_wasmpublickey_keyType: (a: number, b: number) => void;
+  readonly __wbg_get_wasmpublickey_keyData: (a: number) => [number, number];
+  readonly __wbg_set_wasmpublickey_keyData: (a: number, b: number, c: number) => void;
+  readonly wasmpublickey_new: (a: number, b: number, c: number) => number;
+  readonly __wbg_wasmsignature_free: (a: number, b: number) => void;
+  readonly __wbg_wasmtransaction_free: (a: number, b: number) => void;
+  readonly __wbg_get_wasmtransaction_signerId: (a: number) => [number, number];
+  readonly __wbg_set_wasmtransaction_signerId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_wasmtransaction_publicKey: (a: number) => number;
+  readonly __wbg_set_wasmtransaction_publicKey: (a: number, b: number) => void;
+  readonly __wbg_get_wasmtransaction_nonce: (a: number) => bigint;
+  readonly __wbg_set_wasmtransaction_nonce: (a: number, b: bigint) => void;
+  readonly __wbg_get_wasmtransaction_receiverId: (a: number) => [number, number];
+  readonly __wbg_set_wasmtransaction_receiverId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_wasmtransaction_blockHash: (a: number) => [number, number];
+  readonly __wbg_set_wasmtransaction_blockHash: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_wasmtransaction_actionsJson: (a: number) => [number, number];
+  readonly __wbg_set_wasmtransaction_actionsJson: (a: number, b: number, c: number) => void;
+  readonly wasmtransaction_new: (a: number, b: number, c: number, d: bigint, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+  readonly __wbg_wasmsignedtransaction_free: (a: number, b: number) => void;
+  readonly __wbg_get_wasmsignedtransaction_transaction: (a: number) => number;
+  readonly __wbg_set_wasmsignedtransaction_transaction: (a: number, b: number) => void;
+  readonly __wbg_get_wasmsignedtransaction_signature: (a: number) => number;
+  readonly __wbg_set_wasmsignedtransaction_signature: (a: number, b: number) => void;
+  readonly __wbg_get_wasmsignedtransaction_borshBytes: (a: number) => [number, number];
+  readonly __wbg_set_wasmsignedtransaction_borshBytes: (a: number, b: number, c: number) => void;
+  readonly wasmsignedtransaction_new: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbg_set_wasmsignature_keyType: (a: number, b: number) => void;
+  readonly __wbg_set_wasmsignature_signatureData: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_wasmsignature_keyType: (a: number) => number;
+  readonly wasmsignature_new: (a: number, b: number, c: number) => number;
+  readonly __wbg_get_wasmsignature_signatureData: (a: number) => [number, number];
+  readonly __wbg_derivenearkeypairandencryptrequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptrequest_dualPrfOutputs: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptrequest_dualPrfOutputs: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptrequest_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_set_derivenearkeypairandencryptrequest_nearAccountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptrequest_credential: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptrequest_credential: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptrequest_registrationTransaction: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptrequest_registrationTransaction: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptrequest_authenticatorOptions: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptrequest_authenticatorOptions: (a: number, b: number) => void;
+  readonly __wbg_dualprfoutputsstruct_free: (a: number, b: number) => void;
+  readonly __wbg_get_dualprfoutputsstruct_chacha20PrfOutput: (a: number) => [number, number];
+  readonly __wbg_set_dualprfoutputsstruct_chacha20PrfOutput: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_dualprfoutputsstruct_ed25519PrfOutput: (a: number) => [number, number];
+  readonly __wbg_set_dualprfoutputsstruct_ed25519PrfOutput: (a: number, b: number, c: number) => void;
+  readonly __wbg_linkdeviceregistrationtransaction_free: (a: number, b: number) => void;
+  readonly __wbg_get_linkdeviceregistrationtransaction_vrfChallenge: (a: number) => number;
+  readonly __wbg_set_linkdeviceregistrationtransaction_vrfChallenge: (a: number, b: number) => void;
+  readonly __wbg_get_linkdeviceregistrationtransaction_contractId: (a: number) => [number, number];
+  readonly __wbg_set_linkdeviceregistrationtransaction_contractId: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_linkdeviceregistrationtransaction_nonce: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_linkdeviceregistrationtransaction_deterministicVrfPublicKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_derivenearkeypairandencryptresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_nearAccountId: (a: number) => [number, number];
+  readonly __wbg_set_derivenearkeypairandencryptresult_nearAccountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_publicKey: (a: number) => [number, number];
+  readonly __wbg_set_derivenearkeypairandencryptresult_publicKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_encryptedData: (a: number) => [number, number];
+  readonly __wbg_set_derivenearkeypairandencryptresult_encryptedData: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_iv: (a: number) => [number, number];
+  readonly __wbg_set_derivenearkeypairandencryptresult_iv: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_stored: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptresult_stored: (a: number, b: number) => void;
+  readonly __wbg_get_derivenearkeypairandencryptresult_signedTransaction: (a: number) => number;
+  readonly __wbg_set_derivenearkeypairandencryptresult_signedTransaction: (a: number, b: number) => void;
+  readonly derivenearkeypairandencryptresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number) => number;
+  readonly __wbg_get_linkdeviceregistrationtransaction_nonce: (a: number) => [number, number];
+  readonly __wbg_get_linkdeviceregistrationtransaction_blockHash: (a: number) => [number, number];
+  readonly __wbg_get_linkdeviceregistrationtransaction_deterministicVrfPublicKey: (a: number) => [number, number];
+  readonly __wbg_set_linkdeviceregistrationtransaction_blockHash: (a: number, b: number, c: number) => void;
+  readonly __wbg_recoverkeypairrequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_recoverkeypairrequest_credential: (a: number) => number;
+  readonly __wbg_set_recoverkeypairrequest_credential: (a: number, b: number) => void;
+  readonly __wbg_get_recoverkeypairrequest_accountIdHint: (a: number) => [number, number];
+  readonly __wbg_set_recoverkeypairrequest_accountIdHint: (a: number, b: number, c: number) => void;
+  readonly __wbg_recoverkeypairresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_recoverkeypairresult_iv: (a: number) => [number, number];
+  readonly __wbg_set_recoverkeypairresult_iv: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_recoverkeypairresult_accountIdHint: (a: number) => [number, number];
+  readonly __wbg_set_recoverkeypairresult_accountIdHint: (a: number, b: number, c: number) => void;
+  readonly recoverkeypairresult_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
   readonly __wbg_originpolicyinput_free: (a: number, b: number) => void;
   readonly __wbg_get_originpolicyinput_single: (a: number) => number;
   readonly __wbg_set_originpolicyinput_single: (a: number, b: number) => void;
@@ -1001,41 +1024,71 @@ export interface InitOutput {
   readonly __wbg_set_decryptionpayload_encryptedPrivateKeyIv: (a: number, b: number, c: number) => void;
   readonly decryptionpayload_new: (a: number, b: number, c: number, d: number) => number;
   readonly __wbg_registrationpayload_free: (a: number, b: number) => void;
-  readonly __wbg_get_registrationpayload_blockHash: (a: number) => [number, number];
-  readonly __wbg_set_registrationpayload_blockHash: (a: number, b: number, c: number) => void;
-  readonly __wbg_get_registrationpayload_deterministicVrfPublicKey: (a: number) => [number, number];
-  readonly __wbg_set_registrationpayload_deterministicVrfPublicKey: (a: number, b: number, c: number) => void;
   readonly __wbg_get_registrationpayload_deviceNumber: (a: number) => number;
   readonly __wbg_set_registrationpayload_deviceNumber: (a: number, b: number) => void;
   readonly __wbg_get_registrationpayload_authenticatorOptions: (a: number) => number;
   readonly __wbg_set_registrationpayload_authenticatorOptions: (a: number, b: number) => void;
   readonly __wbg_get_rpccallpayload_contractId: (a: number) => [number, number];
   readonly __wbg_get_rpccallpayload_nearRpcUrl: (a: number) => [number, number];
+  readonly __wbg_get_rpccallpayload_nearAccountId: (a: number) => [number, number];
   readonly __wbg_get_transactioncontext_nearPublicKeyStr: (a: number) => [number, number];
   readonly __wbg_get_transactioncontext_nextNonce: (a: number) => [number, number];
   readonly __wbg_get_transactioncontext_txBlockHeight: (a: number) => [number, number];
   readonly __wbg_get_verificationpayload_contractId: (a: number) => [number, number];
   readonly __wbg_get_verificationpayload_nearRpcUrl: (a: number) => [number, number];
-  readonly __wbg_get_registrationcheckrequest_contract_id: (a: number) => [number, number];
-  readonly __wbg_get_registrationcheckrequest_near_rpc_url: (a: number) => [number, number];
+  readonly __wbg_get_recoverkeypairresult_publicKey: (a: number) => [number, number];
+  readonly __wbg_get_recoverkeypairresult_encryptedData: (a: number) => [number, number];
   readonly __wbg_get_registrationpayload_nearAccountId: (a: number) => [number, number];
   readonly __wbg_get_registrationpayload_nonce: (a: number) => [number, number];
-  readonly __wbg_get_rpccallpayload_nearAccountId: (a: number) => [number, number];
-  readonly registrationcheckrequest_new: (a: number, b: number, c: number, d: number) => number;
+  readonly __wbg_get_registrationpayload_blockHash: (a: number) => [number, number];
+  readonly __wbg_set_registrationpayload_deterministicVrfPublicKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_registrationpayload_deterministicVrfPublicKey: (a: number) => [number, number];
   readonly __wbg_set_rpccallpayload_contractId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_rpccallpayload_nearRpcUrl: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_rpccallpayload_nearAccountId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactioncontext_nearPublicKeyStr: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactioncontext_nextNonce: (a: number, b: number, c: number) => void;
   readonly __wbg_set_transactioncontext_txBlockHeight: (a: number, b: number, c: number) => void;
   readonly __wbg_set_verificationpayload_contractId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_verificationpayload_nearRpcUrl: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_registrationcheckrequest_contract_id: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_registrationcheckrequest_near_rpc_url: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_recoverkeypairresult_publicKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_recoverkeypairresult_encryptedData: (a: number, b: number, c: number) => void;
   readonly __wbg_set_registrationpayload_nearAccountId: (a: number, b: number, c: number) => void;
   readonly __wbg_set_registrationpayload_nonce: (a: number, b: number, c: number) => void;
-  readonly __wbg_set_rpccallpayload_nearAccountId: (a: number, b: number, c: number) => void;
-  readonly handle_signer_message: (a: number, b: number) => any;
-  readonly init_worker: () => void;
+  readonly __wbg_set_registrationpayload_blockHash: (a: number, b: number, c: number) => void;
+  readonly __wbg_extractcoserequest_free: (a: number, b: number) => void;
+  readonly __wbg_get_extractcoserequest_attestationObjectBase64url: (a: number) => [number, number];
+  readonly __wbg_coseextractionresult_free: (a: number, b: number) => void;
+  readonly __wbg_get_coseextractionresult_cosePublicKeyBytes: (a: number) => [number, number];
+  readonly __wbg_set_coseextractionresult_cosePublicKeyBytes: (a: number, b: number, c: number) => void;
+  readonly __wbg_signnep413request_free: (a: number, b: number) => void;
+  readonly __wbg_get_signnep413request_recipient: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_recipient: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_nonce: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_nonce: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_state: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_state: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_accountId: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_accountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_encryptedPrivateKeyData: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_encryptedPrivateKeyData: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_encryptedPrivateKeyIv: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_encryptedPrivateKeyIv: (a: number, b: number, c: number) => void;
+  readonly __wbg_get_signnep413request_prfOutput: (a: number) => [number, number];
+  readonly __wbg_set_signnep413request_prfOutput: (a: number, b: number, c: number) => void;
+  readonly __wbg_signnep413result_free: (a: number, b: number) => void;
+  readonly __wbg_get_signnep413result_state: (a: number) => [number, number];
+  readonly __wbg_set_signnep413result_state: (a: number, b: number, c: number) => void;
+  readonly signnep413result_new: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
+  readonly __wbg_get_signnep413request_message: (a: number) => [number, number];
+  readonly __wbg_get_signnep413result_accountId: (a: number) => [number, number];
+  readonly __wbg_get_signnep413result_publicKey: (a: number) => [number, number];
+  readonly __wbg_get_signnep413result_signature: (a: number) => [number, number];
+  readonly __wbg_set_extractcoserequest_attestationObjectBase64url: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_signnep413request_message: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_signnep413result_accountId: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_signnep413result_publicKey: (a: number, b: number, c: number) => void;
+  readonly __wbg_set_signnep413result_signature: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
@@ -1045,7 +1098,7 @@ export interface InitOutput {
   readonly __wbindgen_export_6: WebAssembly.Table;
   readonly __externref_drop_slice: (a: number, b: number) => void;
   readonly closure208_externref_shim: (a: number, b: number, c: any) => void;
-  readonly closure239_externref_shim: (a: number, b: number, c: any, d: any) => void;
+  readonly closure240_externref_shim: (a: number, b: number, c: any, d: any) => void;
   readonly __wbindgen_start: () => void;
 }
 

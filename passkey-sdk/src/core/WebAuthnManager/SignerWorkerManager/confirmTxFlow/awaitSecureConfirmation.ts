@@ -4,10 +4,9 @@ import {
   SecureConfirmMessageType,
   SecureConfirmData,
   ConfirmationSummaryAction,
-  ConfirmationSummaryRegistration
+  ConfirmationSummaryRegistration,
+  SecureConfirmRequest
 } from './types';
-import { VRFChallenge } from '@/core/types/vrf-worker';
-import { VRFChallengeData } from '@/wasm_vrf_worker/wasm_vrf_worker';
 
 /**
  * Bridge function called from Rust to await user confirmation on the main thread
@@ -95,8 +94,56 @@ export function awaitSecureConfirmation(
         intentDigest: parsedConfirmationData?.intentDigest,
         rpcCall: parsedConfirmationData?.rpcCall,
         tx_signing_requests: parsedTxSigningRequests,
-        confirmationConfig: parsedConfirmationData?.confirmationConfig
+        confirmationConfig: parsedConfirmationData?.confirmationConfig,
+        // Propagate registration/link-device marker so main thread uses create() + VRF bootstrap
+        registrationDetails: (parsedConfirmationData as any)?.registrationDetails
       }
+    });
+  });
+}
+
+/**
+ * V2: Typed secure confirmation entrypoint (preferred for new flows)
+ * Accepts a discriminated request and forwards it to the main thread.
+ * Backwards-compatible alongside the legacy function above.
+ */
+export function awaitSecureConfirmationV2(
+  request: SecureConfirmRequest
+): Promise<WorkerConfirmationResponse> {
+  return new Promise((resolve, reject) => {
+    if (!request || typeof request.requestId !== 'string') {
+      return reject(new Error('[signer-worker]: invalid V2 request: missing requestId'));
+    }
+
+    const onDecisionReceived = (messageEvent: MessageEvent) => {
+      const { data } = messageEvent;
+      if (
+        data?.type === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE &&
+        data?.data?.requestId === request.requestId
+      ) {
+        self.removeEventListener('message', onDecisionReceived);
+        if (typeof data?.data?.confirmed !== 'boolean') {
+          return reject(new Error('[signer-worker]: Invalid confirmation response: missing boolean "confirmed"'));
+        }
+        resolve({
+          request_id: request.requestId,
+          intent_digest: data.data?.intentDigest,
+          confirmed: !!data.data?.confirmed,
+          credential: data.data?.credential,
+          prf_output: data.data?.prfOutput,
+          vrf_challenge: data.data?.vrfChallenge,
+          transaction_context: data.data?.transactionContext,
+          error: data.data?.error
+        });
+      }
+    };
+
+    self.addEventListener('message', onDecisionReceived);
+
+    // Post the V2 request directly; main thread handler will route by type
+    self.postMessage({
+      type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+      data: request
     });
   });
 }

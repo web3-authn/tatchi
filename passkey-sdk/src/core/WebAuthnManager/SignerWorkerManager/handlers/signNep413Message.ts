@@ -19,7 +19,7 @@ export async function signNep413Message({ ctx, payload }: {
     nonce: string;
     state: string | null;
     accountId: string;
-    credential: PublicKeyCredential;
+    credential: import('../../../types/webauthn').WebAuthnAuthenticationCredential;
   };
 }): Promise<{
   success: boolean;

@@ -21,6 +21,8 @@ pub enum WorkerRequestType {
     SignNep413Message,
     // DEPRECATED: only used for testnet registration
     SignVerifyAndRegisterUser,
+    // Collect registration credential via secureConfirm (registration or link-device flows)
+    RegistrationCredentialConfirmation,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -36,6 +38,7 @@ impl From<u32> for WorkerRequestType {
             7 => WorkerRequestType::SignNep413Message,
             // DEPRECATED: only used for testnet registration
             8 => WorkerRequestType::SignVerifyAndRegisterUser,
+            9 => WorkerRequestType::RegistrationCredentialConfirmation,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -52,6 +55,7 @@ impl WorkerRequestType {
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
             WorkerRequestType::SignVerifyAndRegisterUser => "SIGN_VERIFY_AND_REGISTER_USER",
+            WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
         }
     }
 }
@@ -70,6 +74,7 @@ pub enum WorkerResponseType {
     SignTransactionWithKeyPairSuccess,
     SignNep413MessageSuccess,
     SignVerifyAndRegisterUserSuccess,
+    RegistrationCredentialConfirmationSuccess,
 
     // Failure responses - one for each request type
     DeriveNearKeypairAndEncryptFailure,
@@ -81,6 +86,7 @@ pub enum WorkerResponseType {
     SignTransactionWithKeyPairFailure,
     SignNep413MessageFailure,
     SignVerifyAndRegisterUserFailure,
+    RegistrationCredentialConfirmationFailure,
 
     // Progress responses - for real-time updates during operations
     RegistrationProgress,
@@ -101,23 +107,25 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::SignTransactionWithKeyPairSuccess => 6,
             WorkerResponseType::SignNep413MessageSuccess => 7,
             WorkerResponseType::SignVerifyAndRegisterUserSuccess => 8,
+            WorkerResponseType::RegistrationCredentialConfirmationSuccess => 9,
 
             // Failure responses
-            WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 9,
-            WorkerResponseType::RecoverKeypairFromPasskeyFailure => 10,
-            WorkerResponseType::CheckCanRegisterUserFailure => 11,
-            WorkerResponseType::DecryptPrivateKeyWithPrfFailure => 12,
-            WorkerResponseType::SignTransactionsWithActionsFailure => 13,
-            WorkerResponseType::ExtractCosePublicKeyFailure => 14,
-            WorkerResponseType::SignTransactionWithKeyPairFailure => 15,
-            WorkerResponseType::SignNep413MessageFailure => 16,
-            WorkerResponseType::SignVerifyAndRegisterUserFailure => 17,
+            WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 10,
+            WorkerResponseType::RecoverKeypairFromPasskeyFailure => 11,
+            WorkerResponseType::CheckCanRegisterUserFailure => 12,
+            WorkerResponseType::DecryptPrivateKeyWithPrfFailure => 13,
+            WorkerResponseType::SignTransactionsWithActionsFailure => 14,
+            WorkerResponseType::ExtractCosePublicKeyFailure => 15,
+            WorkerResponseType::SignTransactionWithKeyPairFailure => 16,
+            WorkerResponseType::SignNep413MessageFailure => 17,
+            WorkerResponseType::SignVerifyAndRegisterUserFailure => 18,
+            WorkerResponseType::RegistrationCredentialConfirmationFailure => 19,
 
             // Progress responses - for real-time updates during operations
-            WorkerResponseType::RegistrationProgress => 18,
-            WorkerResponseType::RegistrationComplete => 19,
-            WorkerResponseType::ExecuteActionsProgress => 20,
-            WorkerResponseType::ExecuteActionsComplete => 21,
+            WorkerResponseType::RegistrationProgress => 20,
+            WorkerResponseType::RegistrationComplete => 21,
+            WorkerResponseType::ExecuteActionsProgress => 22,
+            WorkerResponseType::ExecuteActionsComplete => 23,
         }
     }
 }
@@ -134,23 +142,25 @@ impl From<u32> for WorkerResponseType {
             6 => WorkerResponseType::SignTransactionWithKeyPairSuccess,
             7 => WorkerResponseType::SignNep413MessageSuccess,
             8 => WorkerResponseType::SignVerifyAndRegisterUserSuccess,
+            9 => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
 
             // Failure responses
-            9 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
-            10 => WorkerResponseType::RecoverKeypairFromPasskeyFailure,
-            11 => WorkerResponseType::CheckCanRegisterUserFailure,
-            12 => WorkerResponseType::DecryptPrivateKeyWithPrfFailure,
-            13 => WorkerResponseType::SignTransactionsWithActionsFailure,
-            14 => WorkerResponseType::ExtractCosePublicKeyFailure,
-            15 => WorkerResponseType::SignTransactionWithKeyPairFailure,
-            16 => WorkerResponseType::SignNep413MessageFailure,
-            17 => WorkerResponseType::SignVerifyAndRegisterUserFailure,
+            10 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
+            11 => WorkerResponseType::RecoverKeypairFromPasskeyFailure,
+            12 => WorkerResponseType::CheckCanRegisterUserFailure,
+            13 => WorkerResponseType::DecryptPrivateKeyWithPrfFailure,
+            14 => WorkerResponseType::SignTransactionsWithActionsFailure,
+            15 => WorkerResponseType::ExtractCosePublicKeyFailure,
+            16 => WorkerResponseType::SignTransactionWithKeyPairFailure,
+            17 => WorkerResponseType::SignNep413MessageFailure,
+            18 => WorkerResponseType::SignVerifyAndRegisterUserFailure,
+            19 => WorkerResponseType::RegistrationCredentialConfirmationFailure,
 
             // Progress responses - for real-time updates during operations
-            18 => WorkerResponseType::RegistrationProgress,
-            19 => WorkerResponseType::RegistrationComplete,
-            20 => WorkerResponseType::ExecuteActionsProgress,
-            21 => WorkerResponseType::ExecuteActionsComplete,
+            20 => WorkerResponseType::RegistrationProgress,
+            21 => WorkerResponseType::RegistrationComplete,
+            22 => WorkerResponseType::ExecuteActionsProgress,
+            23 => WorkerResponseType::ExecuteActionsComplete,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
     }

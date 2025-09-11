@@ -2,9 +2,8 @@ import {
   WorkerRequestType,  // from wasm worker
   isRecoverKeypairFromPasskeySuccess,
 } from '../../../types/signer-worker';
-import { serializeAuthenticationCredentialWithPRF } from '../../credentialsHelpers';
+import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { SignerWorkerManagerContext } from '..';
-
 
 /**
  * Recover keypair from authentication credential for account recovery
@@ -16,7 +15,7 @@ export async function recoverKeypairFromPasskey({
   accountIdHint,
 }: {
   ctx: SignerWorkerManagerContext;
-  credential: PublicKeyCredential;
+  credential: WebAuthnAuthenticationCredential;
   accountIdHint?: string;
 }): Promise<{
   publicKey: string;
@@ -26,16 +25,13 @@ export async function recoverKeypairFromPasskey({
 }> {
   try {
     console.info('SignerWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
-    // Serialize the authentication credential for the worker (includes dual PRF outputs)
-    const authenticationCredential = serializeAuthenticationCredentialWithPRF({
-      credential,
-      firstPrfOutput: true,
-      secondPrfOutput: true, // only for recovering NEAR keys
-    });
+    // Accept either live PublicKeyCredential or already-serialized auth credential
 
     // Verify dual PRF outputs are available
-    if (!authenticationCredential.clientExtensionResults?.prf?.results?.first ||
-        !authenticationCredential.clientExtensionResults?.prf?.results?.second) {
+    if (
+      !credential.clientExtensionResults?.prf?.results?.first ||
+      !credential.clientExtensionResults?.prf?.results?.second
+    ) {
       throw new Error('Dual PRF outputs required for account recovery - both ChaCha20 and Ed25519 PRF outputs must be available');
     }
 
@@ -44,7 +40,7 @@ export async function recoverKeypairFromPasskey({
       message: {
         type: WorkerRequestType.RecoverKeypairFromPasskey,
         payload: {
-          credential: authenticationCredential,
+          credential: credential,
           accountIdHint: accountIdHint,
         }
       }

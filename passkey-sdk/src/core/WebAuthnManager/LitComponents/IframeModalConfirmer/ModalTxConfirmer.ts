@@ -745,7 +745,11 @@ export class ModalTxConfirmElement extends LitElementWithProps {
               ></w3a-passkey-halo-loading>
               <div class="hero-container">
                 <!-- Hero heading -->
-                <h2 class="hero-heading">Sign transaction with Passkey</h2>
+                ${(() => {
+                  const isRegistration = (this.txSigningRequests?.length || 0) === 0;
+                  const heading = isRegistration ? 'Create passkey' : 'Sign transaction with Passkey';
+                  return html`<h2 class="hero-heading">${heading}</h2>`;
+                })()}
                 ${this.errorMessage
                   ? html`<div class="error-banner">${this.errorMessage}</div>`
                   : ''}
@@ -830,7 +834,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
                   @click=${this._handleCancel}
                 >
                   <span class="loading-indicator"></span>
-                  Signing
+                  ${((this.txSigningRequests?.length || 0) === 0) ? 'Creating…' : 'Signing'}
                 </button>
               ` : this.errorMessage ? html`
                 <!-- Error mode: show only Close button in soft red -->
@@ -852,7 +856,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
                   class="btn btn-confirm"
                   @click=${this._handleConfirm}
                 >
-                  ${this.confirmText}
+                  ${((this.txSigningRequests?.length || 0) === 0) ? 'Create Passkey' : this.confirmText}
                 </button>
               `}
             </div>

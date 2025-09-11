@@ -31,8 +31,9 @@ import {
   extractCosePublicKey,
   signTransactionWithKeyPair,
   signNep413Message,
+  requestRegistrationCredentialConfirmation,
+  deriveNearKeypairAndEncryptFromSerialized,
 } from './handlers';
-
 import {
   SecureConfirmMessageType,
   SecureConfirmMessage,
@@ -42,6 +43,7 @@ import {
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
 import { NonceManager } from '../../nonceManager';
+import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 
 
 export interface SignerWorkerManagerContext {
@@ -395,6 +397,22 @@ export class SignerWorkerManager {
   }
 
   /**
+   * Derive NEAR keypair from a serialized WebAuthn registration credential
+   */
+  async deriveNearKeypairAndEncryptFromSerialized(args: {
+    credential: any;
+    nearAccountId: AccountId;
+    options?: any;
+  }): Promise<{
+    success: boolean;
+    nearAccountId: AccountId;
+    publicKey: string;
+    signedTransaction?: SignedTransaction;
+  }> {
+    return deriveNearKeypairAndEncryptFromSerialized({ ctx: this.getContext(), ...args });
+  }
+
+  /**
    * Secure private key decryption with dual PRF
    */
   async decryptPrivateKeyWithPrf(args: {
@@ -409,7 +427,7 @@ export class SignerWorkerManager {
 
   async checkCanRegisterUser(args: {
     vrfChallenge: VRFChallenge,
-    credential: PublicKeyCredential,
+    credential: WebAuthnRegistrationCredential,
     contractId: string;
     nearRpcUrl: string;
     authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
@@ -449,7 +467,7 @@ export class SignerWorkerManager {
    * Uses dual PRF-based Ed25519 key derivation with account-specific HKDF and AES encryption
    */
   async recoverKeypairFromPasskey(args: {
-    credential: PublicKeyCredential;
+    credential: WebAuthnAuthenticationCredential;
     accountIdHint?: string;
   }): Promise<{
     publicKey: string;
@@ -498,7 +516,7 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
-    credential: PublicKeyCredential;
+    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -508,6 +526,28 @@ export class SignerWorkerManager {
     error?: string;
   }> {
     return signNep413Message({ ctx: this.getContext(), payload });
+  }
+
+  /**
+   * Prompt user for registration credential confirmation (create() with PRF) and return artifacts
+   * Used for registration (device 1) and link-device (device N) flows.
+   */
+  async requestRegistrationCredentialConfirmation(args: {
+    nearAccountId: string;
+    deviceNumber: number;
+    contractId: string;
+    nearRpcUrl: string;
+  }): Promise<{
+    confirmed: boolean;
+    requestId: string;
+    intentDigest: string;
+    credential?: any;
+    prfOutput?: string;
+    vrfChallenge?: any;
+    transactionContext?: any;
+    error?: string;
+  }> {
+    return requestRegistrationCredentialConfirmation({ ctx: this.getContext(), ...args });
   }
 
 }

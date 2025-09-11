@@ -320,7 +320,7 @@ pub async fn request_user_confirmation_with_config(
                 "nearAccountId": near_account_id,
                 "rpcCall": tx_batch_request.rpc_call,
                 "confirmationConfig": Some(normalized_config),
-                "isRegistration": false, // not registration flow
+                // "registrationDetails": None, // not registration flow
             });
 
             // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
@@ -391,7 +391,7 @@ pub async fn request_user_confirmation_with_config(
         "nearAccountId": near_account_id,
         "rpcCall": tx_batch_request.rpc_call,
         "confirmationConfig": normalized_config,
-        "isRegistration": false, // not registration flow
+        // "registrationDetails": None, // not registration flow
     });
 
     // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
@@ -437,21 +437,30 @@ pub async fn request_user_registration_confirmation(
 
     // Extract account information for credential collection
     let near_account_id = &registration_request.registration.near_account_id;
+    let device_number = registration_request.registration.device_number.unwrap_or(1);
 
     // Create registration confirmation data
+    // IMPORTANT: Require an in-iframe user click for WebAuthn create()
+    // Provide rpcCall so the JS main thread can fetch NEAR context and generate VRF challenge.
     let confirmation_data = serde_json::json!({
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
-        "vrfChallenge": registration_request.verification.vrf_challenge,
-        // No need to show confirmation modal for registration flow,
-        // so we use the default config for skip/embedded modes.
+        "rpcCall": {
+            "contractId": registration_request.verification.contract_id,
+            "nearRpcUrl": registration_request.verification.near_rpc_url,
+            "nearAccountId": registration_request.registration.near_account_id,
+        },
+        // vrfChallenge will be computed in JS main thread from NEAR context
         "confirmationConfig": ConfirmationConfig {
-            ui_mode: ConfirmationUIMode::Skip,
-            behavior: ConfirmationBehavior::AutoProceed,
-            auto_proceed_delay: Some(0),
+            ui_mode: ConfirmationUIMode::Modal,
+            behavior: ConfirmationBehavior::RequireClick,
+            auto_proceed_delay: None,
             theme: Some("dark".to_string()),
         },
-        "isRegistration": true, // Flag to indicate this is registration flow
+        "registrationDetails": {
+            "nearAccountId": near_account_id,
+            "deviceNumber": device_number,
+        }, // Flag to indicate this is registration/link flow
     });
 
     // Call JS bridge for user confirmation
@@ -469,6 +478,59 @@ pub async fn request_user_registration_confirmation(
     let result = parse_confirmation_result(confirm_result)?;
 
     Ok(result)
+}
+
+/// Requests user confirmation for link-device flow (Device N)
+/// This triggers an in-iframe modal to gather a real user click,
+/// computes NEAR context + VRF challenge on the main thread,
+/// then performs a WebAuthn create() to collect dual PRF outputs and a registration credential.
+pub async fn request_registration_credential_confirmation(
+    near_account_id: &str,
+    device_number: usize,
+    contract_id: &str,
+    near_rpc_url: &str,
+) -> Result<ConfirmationResult, String> {
+    // Summary shown to the user (object form)
+    let summary = serde_json::json!({
+        "type": "registration",
+        "nearAccountId": near_account_id,
+        "deviceNumber": device_number,
+        "contractId": contract_id,
+    });
+
+    // Deterministic-ish digest for UI/telemetry (not a tx digest)
+    let intent_digest = format!("linkdevice:{}:{}", near_account_id, device_number);
+    let request_id = generate_request_id();
+
+    // Confirmation data for JS main thread
+    let confirmation_data = serde_json::json!({
+        "intentDigest": intent_digest,
+        "nearAccountId": near_account_id,
+        "rpcCall": {
+            "contractId": contract_id,
+            "nearRpcUrl": near_rpc_url,
+            "nearAccountId": near_account_id,
+        },
+        "confirmationConfig": ConfirmationConfig {
+            ui_mode: ConfirmationUIMode::Modal,
+            behavior: ConfirmationBehavior::RequireClick,
+            auto_proceed_delay: None,
+            theme: Some("dark".to_string()),
+        },
+        "registrationDetails": {
+            "nearAccountId": near_account_id,
+            "deviceNumber": device_number,
+        },
+    });
+
+    let confirm_result = await_secure_confirmation(
+        &request_id,
+        JsValue::from_str(&summary.to_string()),
+        JsValue::from_str(&confirmation_data.to_string()),
+        "" // No tx actions in link-device confirmation
+    ).await;
+
+    parse_confirmation_result(confirm_result)
 }
 
 /// Creates a summary for registration confirmation

@@ -14,9 +14,10 @@ import { PasskeyManagerConfigs } from '../types/passkeyManager';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
+import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
-import { base64UrlEncode } from '../../utils/encoders';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
+import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 
 /**
  * Core registration function that handles passkey registration
@@ -74,25 +75,18 @@ export async function registerPasskey(
       message: 'Account available - generating VRF credentials...'
     });
 
-    // Step 1: Generate bootstrap VRF challenge for WebAuthn ceremony
-    // (temporary, replaced later with determinisitic VRF keypair)
-    const { vrfChallenge } = await Promise.all([
-      validateRegistrationInputs(context, nearAccountId, onEvent, onError),
-      generateBootstrapVrfChallenge(context, nearAccountId),
-    ]).then(([_, vrfChallenge]) => ({ vrfChallenge }));
-
-    // Step 2: WebAuthn registration ceremony with PRF (TouchID)
-    onEvent?.({
-      step: 1,
-      phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
-      status: RegistrationStatus.PROGRESS,
-      message: 'Performing WebAuthn registration with VRF challenge...'
+    // Step 1 + 2: Use secureConfirm to collect a passkey with PRF inside the wallet iframe
+    const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
+      nearAccountId,
+      deviceNumber: 1,
+      contractId: context.configs.contractId,
+      nearRpcUrl: context.configs.nearRpcUrl,
     });
-
-    const credential = await webAuthnManager.generateRegistrationCredentials({
-      nearAccountId: nearAccountId,
-      challenge: vrfChallenge,
-    });
+    if (!confirm.confirmed || !confirm.credential) {
+      throw new Error('User cancelled registration');
+    }
+    const credential: WebAuthnRegistrationCredential = confirm.credential;
+    const vrfChallenge = confirm.vrfChallenge as VRFChallenge;
 
     onEvent?.({
       step: 1,
@@ -101,26 +95,25 @@ export async function registerPasskey(
       message: 'WebAuthn ceremony successful, PRF output obtained'
     });
 
-    // Steps 3-4: Encrypt VRF keypair, derive NEAR keypair, and check registration in parallel
+    // Steps 3-4: Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
     const {
       deterministicVrfKeyResult,
       nearKeyResult,
       canRegisterUserResult,
     } = await Promise.all([
-      // Generate deterministic VRF keypair from PRF output for recovery
-      webAuthnManager.deriveVrfKeypair({
+      webAuthnManager.deriveVrfKeypairFromRawPrf({
+        prfOutput: confirm.prfOutput!,
+        nearAccountId,
+        saveInMemory: true,
+      }),
+      webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
         credential,
         nearAccountId,
-        saveInMemory: true, // Save in worker memory so it can be used for challenge generation
-      }),
-      webAuthnManager.deriveNearKeypairAndEncrypt({
-        credential,
-        nearAccountId
       }),
       webAuthnManager.checkCanRegisterUser({
         contractId: context.configs.contractId,
-        credential: credential,
-        vrfChallenge: vrfChallenge,
+        credential,
+        vrfChallenge,
         onEvent: (progress) => {
           console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
           onEvent?.({
@@ -211,11 +204,31 @@ export async function registerPasskey(
       message: 'VRF registration data stored successfully'
     });
 
+    // Initialize NonceManager with newly stored user before fetching block/nonce
+    try {
+      context.webAuthnManager.getNonceManager().initializeUser(nearAccountId, nearKeyResult.publicKey);
+      await context.webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient);
+    } catch {}
+
     // Step 7: Unlock VRF keypair in memory (auto‑login) – only proceed with login state after this succeeds
+    // Obtain an authentication credential for VRF unlock (separate from registration credential)
+    const { txBlockHash, txBlockHeight } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
+    const vrfChallenge2 = await webAuthnManager.generateVrfChallenge({
+      userId: nearAccountId,
+      rpId: window.location.hostname,
+      blockHash: txBlockHash,
+      blockHeight: txBlockHeight,
+    });
+    const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+    const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+      nearAccountId,
+      challenge: vrfChallenge2,
+      allowCredentials: authenticatorsToAllowCredentials(authenticators),
+    });
     const unlockResult = await webAuthnManager.unlockVRFKeypair({
       nearAccountId: nearAccountId,
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
-      credential: credential,
+      credential: authCredential,
     }).catch((unlockError: any) => {
       return { success: false, error: unlockError.message };
     });

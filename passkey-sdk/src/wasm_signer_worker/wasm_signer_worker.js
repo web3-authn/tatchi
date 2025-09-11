@@ -255,12 +255,12 @@ export function handle_signer_message(message_json) {
     return ret;
 }
 
-function __wbg_adapter_48(arg0, arg1, arg2) {
+function __wbg_adapter_52(arg0, arg1, arg2) {
     wasm.closure208_externref_shim(arg0, arg1, arg2);
 }
 
-function __wbg_adapter_568(arg0, arg1, arg2, arg3) {
-    wasm.closure239_externref_shim(arg0, arg1, arg2, arg3);
+function __wbg_adapter_606(arg0, arg1, arg2, arg3) {
+    wasm.closure240_externref_shim(arg0, arg1, arg2, arg3);
 }
 
 /**
@@ -324,7 +324,7 @@ export const UserVerificationPolicy = Object.freeze({
     Discouraged: 2, "2": "Discouraged",
 });
 /**
- * @enum {0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8}
+ * @enum {0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9}
  */
 export const WorkerRequestType = Object.freeze({
     DeriveNearKeypairAndEncrypt: 0, "0": "DeriveNearKeypairAndEncrypt",
@@ -336,10 +336,11 @@ export const WorkerRequestType = Object.freeze({
     SignTransactionWithKeyPair: 6, "6": "SignTransactionWithKeyPair",
     SignNep413Message: 7, "7": "SignNep413Message",
     SignVerifyAndRegisterUser: 8, "8": "SignVerifyAndRegisterUser",
+    RegistrationCredentialConfirmation: 9, "9": "RegistrationCredentialConfirmation",
 });
 /**
  * Worker response types enum - corresponds to TypeScript WorkerResponseType
- * @enum {0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21}
+ * @enum {0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23}
  */
 export const WorkerResponseType = Object.freeze({
     DeriveNearKeypairAndEncryptSuccess: 0, "0": "DeriveNearKeypairAndEncryptSuccess",
@@ -351,19 +352,21 @@ export const WorkerResponseType = Object.freeze({
     SignTransactionWithKeyPairSuccess: 6, "6": "SignTransactionWithKeyPairSuccess",
     SignNep413MessageSuccess: 7, "7": "SignNep413MessageSuccess",
     SignVerifyAndRegisterUserSuccess: 8, "8": "SignVerifyAndRegisterUserSuccess",
-    DeriveNearKeypairAndEncryptFailure: 9, "9": "DeriveNearKeypairAndEncryptFailure",
-    RecoverKeypairFromPasskeyFailure: 10, "10": "RecoverKeypairFromPasskeyFailure",
-    CheckCanRegisterUserFailure: 11, "11": "CheckCanRegisterUserFailure",
-    DecryptPrivateKeyWithPrfFailure: 12, "12": "DecryptPrivateKeyWithPrfFailure",
-    SignTransactionsWithActionsFailure: 13, "13": "SignTransactionsWithActionsFailure",
-    ExtractCosePublicKeyFailure: 14, "14": "ExtractCosePublicKeyFailure",
-    SignTransactionWithKeyPairFailure: 15, "15": "SignTransactionWithKeyPairFailure",
-    SignNep413MessageFailure: 16, "16": "SignNep413MessageFailure",
-    SignVerifyAndRegisterUserFailure: 17, "17": "SignVerifyAndRegisterUserFailure",
-    RegistrationProgress: 18, "18": "RegistrationProgress",
-    RegistrationComplete: 19, "19": "RegistrationComplete",
-    ExecuteActionsProgress: 20, "20": "ExecuteActionsProgress",
-    ExecuteActionsComplete: 21, "21": "ExecuteActionsComplete",
+    RegistrationCredentialConfirmationSuccess: 9, "9": "RegistrationCredentialConfirmationSuccess",
+    DeriveNearKeypairAndEncryptFailure: 10, "10": "DeriveNearKeypairAndEncryptFailure",
+    RecoverKeypairFromPasskeyFailure: 11, "11": "RecoverKeypairFromPasskeyFailure",
+    CheckCanRegisterUserFailure: 12, "12": "CheckCanRegisterUserFailure",
+    DecryptPrivateKeyWithPrfFailure: 13, "13": "DecryptPrivateKeyWithPrfFailure",
+    SignTransactionsWithActionsFailure: 14, "14": "SignTransactionsWithActionsFailure",
+    ExtractCosePublicKeyFailure: 15, "15": "ExtractCosePublicKeyFailure",
+    SignTransactionWithKeyPairFailure: 16, "16": "SignTransactionWithKeyPairFailure",
+    SignNep413MessageFailure: 17, "17": "SignNep413MessageFailure",
+    SignVerifyAndRegisterUserFailure: 18, "18": "SignVerifyAndRegisterUserFailure",
+    RegistrationCredentialConfirmationFailure: 19, "19": "RegistrationCredentialConfirmationFailure",
+    RegistrationProgress: 20, "20": "RegistrationProgress",
+    RegistrationComplete: 21, "21": "RegistrationComplete",
+    ExecuteActionsProgress: 22, "22": "ExecuteActionsProgress",
+    ExecuteActionsComplete: 23, "23": "ExecuteActionsComplete",
 });
 
 const __wbindgen_enum_RequestMode = ["same-origin", "no-cors", "cors", "navigate"];
@@ -869,7 +872,7 @@ export class DecryptPrivateKeyRequest {
     set nearAccountId(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptprivatekeyrequest_nearAccountId(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryption_chacha20_prf_output(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -892,7 +895,7 @@ export class DecryptPrivateKeyRequest {
     set chacha20PrfOutput(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptprivatekeyrequest_chacha20PrfOutput(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryption_encrypted_private_key_data(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -915,7 +918,7 @@ export class DecryptPrivateKeyRequest {
     set encryptedPrivateKeyData(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptprivatekeyrequest_encryptedPrivateKeyData(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryption_encrypted_private_key_iv(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -1000,7 +1003,7 @@ export class DecryptPrivateKeyResult {
     set privateKey(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptprivatekeyrequest_nearAccountId(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryption_chacha20_prf_output(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -1023,7 +1026,7 @@ export class DecryptPrivateKeyResult {
     set nearAccountId(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptprivatekeyrequest_chacha20PrfOutput(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryption_encrypted_private_key_data(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @param {string} private_key
@@ -2129,7 +2132,7 @@ export class RecoverKeypairRequest {
     set accountIdHint(arg0) {
         var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_keyactionresult_error(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairrequest_accountIdHint(this.__wbg_ptr, ptr0, len0);
     }
 }
 
@@ -2171,7 +2174,7 @@ export class RecoverKeypairResult {
     set publicKey(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryption_chacha20_prf_output(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryptionpayload_encryptedPrivateKeyData(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -2194,7 +2197,7 @@ export class RecoverKeypairResult {
     set encryptedData(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryption_encrypted_private_key_data(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_decryptionpayload_encryptedPrivateKeyIv(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -2217,7 +2220,7 @@ export class RecoverKeypairResult {
     set iv(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryption_encrypted_private_key_iv(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairresult_iv(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string | undefined}
@@ -2299,7 +2302,7 @@ export class RegistrationCheckRequest {
     set contract_id(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptionpayload_encryptedPrivateKeyData(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_registrationcheckrequest_contract_id(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -2322,7 +2325,7 @@ export class RegistrationCheckRequest {
     set near_rpc_url(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_decryptionpayload_encryptedPrivateKeyIv(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_registrationcheckrequest_near_rpc_url(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @param {string} contract_id
@@ -2333,7 +2336,7 @@ export class RegistrationCheckRequest {
         const len0 = WASM_VECTOR_LEN;
         const ptr1 = passStringToWasm0(near_rpc_url, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len1 = WASM_VECTOR_LEN;
-        const ret = wasm.decryptionpayload_new(ptr0, len0, ptr1, len1);
+        const ret = wasm.registrationcheckrequest_new(ptr0, len0, ptr1, len1);
         this.__wbg_ptr = ret >>> 0;
         RegistrationCheckRequestFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -2472,6 +2475,274 @@ export class RegistrationCheckResult {
     }
 }
 
+const RegistrationCredentialConfirmationRequestFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_registrationcredentialconfirmationrequest_free(ptr >>> 0, 1));
+
+export class RegistrationCredentialConfirmationRequest {
+
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        RegistrationCredentialConfirmationRequestFinalization.unregister(this);
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_registrationcredentialconfirmationrequest_free(ptr, 0);
+    }
+    /**
+     * @returns {string}
+     */
+    get nearAccountId() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_registrationcredentialconfirmationrequest_nearAccountId(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set nearAccountId(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_nearAccountId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {number}
+     */
+    get deviceNumber() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationrequest_deviceNumber(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} arg0
+     */
+    set deviceNumber(arg0) {
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_deviceNumber(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @returns {string}
+     */
+    get contractId() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_registrationcredentialconfirmationrequest_contractId(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set contractId(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_contractId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {string}
+     */
+    get nearRpcUrl() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_registrationcredentialconfirmationrequest_nearRpcUrl(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set nearRpcUrl(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_nearRpcUrl(this.__wbg_ptr, ptr0, len0);
+    }
+}
+
+const RegistrationCredentialConfirmationResultFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_registrationcredentialconfirmationresult_free(ptr >>> 0, 1));
+
+export class RegistrationCredentialConfirmationResult {
+
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        RegistrationCredentialConfirmationResultFinalization.unregister(this);
+        return ptr;
+    }
+
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_registrationcredentialconfirmationresult_free(ptr, 0);
+    }
+    /**
+     * @returns {boolean}
+     */
+    get confirmed() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_confirmed(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @param {boolean} arg0
+     */
+    set confirmed(arg0) {
+        wasm.__wbg_set_registrationcredentialconfirmationresult_confirmed(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @returns {string}
+     */
+    get requestId() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_requestId(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set requestId(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_nearAccountId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {string}
+     */
+    get intentDigest() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_intentDigest(this.__wbg_ptr);
+            deferred1_0 = ret[0];
+            deferred1_1 = ret[1];
+            return getStringFromWasm0(ret[0], ret[1]);
+        } finally {
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+     * @param {string} arg0
+     */
+    set intentDigest(arg0) {
+        const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_contractId(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {any}
+     */
+    get credential() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_credential(this.__wbg_ptr);
+        return ret;
+    }
+    /**
+     * @param {any} arg0
+     */
+    set credential(arg0) {
+        wasm.__wbg_set_registrationcredentialconfirmationresult_credential(this.__wbg_ptr, arg0);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get prfOutput() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_prfOutput(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @param {string | null} [arg0]
+     */
+    set prfOutput(arg0) {
+        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationresult_prfOutput(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+     * @returns {VrfChallenge | undefined}
+     */
+    get vrfChallenge() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_vrfChallenge(this.__wbg_ptr);
+        return ret === 0 ? undefined : VrfChallenge.__wrap(ret);
+    }
+    /**
+     * @param {VrfChallenge | null} [arg0]
+     */
+    set vrfChallenge(arg0) {
+        let ptr0 = 0;
+        if (!isLikeNone(arg0)) {
+            _assertClass(arg0, VrfChallenge);
+            ptr0 = arg0.__destroy_into_raw();
+        }
+        wasm.__wbg_set_registrationcredentialconfirmationresult_vrfChallenge(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @returns {TransactionContext | undefined}
+     */
+    get transactionContext() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_transactionContext(this.__wbg_ptr);
+        return ret === 0 ? undefined : TransactionContext.__wrap(ret);
+    }
+    /**
+     * @param {TransactionContext | null} [arg0]
+     */
+    set transactionContext(arg0) {
+        let ptr0 = 0;
+        if (!isLikeNone(arg0)) {
+            _assertClass(arg0, TransactionContext);
+            ptr0 = arg0.__destroy_into_raw();
+        }
+        wasm.__wbg_set_registrationcredentialconfirmationresult_transactionContext(this.__wbg_ptr, ptr0);
+    }
+    /**
+     * @returns {string | undefined}
+     */
+    get error() {
+        const ret = wasm.__wbg_get_registrationcredentialconfirmationresult_error(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getStringFromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+    /**
+     * @param {string | null} [arg0]
+     */
+    set error(arg0) {
+        var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        var len0 = WASM_VECTOR_LEN;
+        wasm.__wbg_set_registrationcredentialconfirmationresult_error(this.__wbg_ptr, ptr0, len0);
+    }
+}
+
 const RegistrationInfoStructFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_registrationinfostruct_free(ptr >>> 0, 1));
@@ -2589,7 +2860,7 @@ export class RegistrationInfoStruct {
         const len2 = WASM_VECTOR_LEN;
         var ptr3 = isLikeNone(vrf_public_key) ? 0 : passArray8ToWasm0(vrf_public_key, wasm.__wbindgen_malloc);
         var len3 = WASM_VECTOR_LEN;
-        const ret = wasm.recoverkeypairresult_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+        const ret = wasm.registrationinfostruct_new(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
         this.__wbg_ptr = ret >>> 0;
         RegistrationInfoStructFinalization.register(this, this.__wbg_ptr, this);
         return this;
@@ -2688,7 +2959,7 @@ export class RegistrationPayload {
     set blockHash(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_registrationpayload_blockHash(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairresult_iv(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string | undefined}
@@ -2708,7 +2979,7 @@ export class RegistrationPayload {
     set deterministicVrfPublicKey(arg0) {
         var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_registrationpayload_deterministicVrfPublicKey(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairresult_accountIdHint(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {number | undefined}
@@ -3084,7 +3355,7 @@ export class RpcCallPayload {
     set nearAccountId(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_registrationpayload_blockHash(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairresult_iv(this.__wbg_ptr, ptr0, len0);
     }
 }
 
@@ -3746,7 +4017,7 @@ export class SignTransactionWithKeyPairRequest {
     set nearPrivateKey(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_dualprfoutputsstruct_chacha20PrfOutput(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_signtransactionwithkeypairrequest_nearPrivateKey(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -3769,7 +4040,7 @@ export class SignTransactionWithKeyPairRequest {
     set signerAccountId(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_dualprfoutputsstruct_ed25519PrfOutput(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_signtransactionwithkeypairrequest_signerAccountId(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -3792,7 +4063,7 @@ export class SignTransactionWithKeyPairRequest {
     set receiverId(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_derivenearkeypairandencryptrequest_nearAccountId(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_signtransactionwithkeypairrequest_receiverId(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -3969,17 +4240,17 @@ export class SignVerifyAndRegisterUserRequest {
         wasm.__wbg_signverifyandregisteruserrequest_free(ptr, 0);
     }
     /**
-     * @returns {VerificationPayload}
+     * @returns {RpcCallPayload}
      */
     get verification() {
         const ret = wasm.__wbg_get_signverifyandregisteruserrequest_verification(this.__wbg_ptr);
-        return VerificationPayload.__wrap(ret);
+        return RpcCallPayload.__wrap(ret);
     }
     /**
-     * @param {VerificationPayload} arg0
+     * @param {RpcCallPayload} arg0
      */
     set verification(arg0) {
-        _assertClass(arg0, VerificationPayload);
+        _assertClass(arg0, RpcCallPayload);
         var ptr0 = arg0.__destroy_into_raw();
         wasm.__wbg_set_signverifyandregisteruserrequest_verification(this.__wbg_ptr, ptr0);
     }
@@ -4023,6 +4294,14 @@ const TransactionContextFinalization = (typeof FinalizationRegistry === 'undefin
  * Computed in the main thread confirmation flow
  */
 export class TransactionContext {
+
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(TransactionContext.prototype);
+        obj.__wbg_ptr = ptr;
+        TransactionContextFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
 
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -4102,7 +4381,7 @@ export class TransactionContext {
     set txBlockHeight(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_registrationpayload_blockHash(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_recoverkeypairresult_iv(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -4345,7 +4624,7 @@ export class TransactionSignResult {
     set error(arg0) {
         var ptr0 = isLikeNone(arg0) ? 0 : passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         var len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_recoverkeypairresult_accountIdHint(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_transactionsignresult_error(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @param {boolean} success
@@ -4393,14 +4672,6 @@ const VerificationPayloadFinalization = (typeof FinalizationRegistry === 'undefi
  * DEPRECATED: Use RpcCallPayload instead
  */
 export class VerificationPayload {
-
-    static __wrap(ptr) {
-        ptr = ptr >>> 0;
-        const obj = Object.create(VerificationPayload.prototype);
-        obj.__wbg_ptr = ptr;
-        VerificationPayloadFinalization.register(obj, obj.__wbg_ptr, obj);
-        return obj;
-    }
 
     __destroy_into_raw() {
         const ptr = this.__wbg_ptr;
@@ -5610,7 +5881,7 @@ export class WorkerProgressMessage {
     set step(arg0) {
         const ptr0 = passStringToWasm0(arg0, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
-        wasm.__wbg_set_workerprogressmessage_step(this.__wbg_ptr, ptr0, len0);
+        wasm.__wbg_set_registrationcredentialconfirmationrequest_nearRpcUrl(this.__wbg_ptr, ptr0, len0);
     }
     /**
      * @returns {string}
@@ -5922,7 +6193,7 @@ function __wbg_get_imports() {
                 const a = state0.a;
                 state0.a = 0;
                 try {
-                    return __wbg_adapter_568(a, state0.b, arg0, arg1);
+                    return __wbg_adapter_606(a, state0.b, arg0, arg1);
                 } finally {
                     state0.a = a;
                 }
@@ -5935,6 +6206,14 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbg_new_405e22f390576ce2 = function() {
         const ret = new Object();
+        return ret;
+    };
+    imports.wbg.__wbg_new_5e0be73521bc8c17 = function() {
+        const ret = new Map();
+        return ret;
+    };
+    imports.wbg.__wbg_new_78feb108b6472713 = function() {
+        const ret = new Array();
         return ret;
     };
     imports.wbg.__wbg_new_8a6f238a6ece86ea = function() {
@@ -6013,8 +6292,18 @@ function __wbg_get_imports() {
     imports.wbg.__wbg_set_11cd83f45504cedf = function() { return handleError(function (arg0, arg1, arg2, arg3, arg4) {
         arg0.set(getStringFromWasm0(arg1, arg2), getStringFromWasm0(arg3, arg4));
     }, arguments) };
+    imports.wbg.__wbg_set_37837023f3d740e8 = function(arg0, arg1, arg2) {
+        arg0[arg1 >>> 0] = arg2;
+    };
+    imports.wbg.__wbg_set_3f1d0b984ed272ed = function(arg0, arg1, arg2) {
+        arg0[arg1] = arg2;
+    };
     imports.wbg.__wbg_set_65595bdd868b3009 = function(arg0, arg1, arg2) {
         arg0.set(arg1, arg2 >>> 0);
+    };
+    imports.wbg.__wbg_set_8fc6bf8a5b1071d1 = function(arg0, arg1, arg2) {
+        const ret = arg0.set(arg1, arg2);
+        return ret;
     };
     imports.wbg.__wbg_setbody_5923b78a95eedf29 = function(arg0, arg1) {
         arg0.body = arg1;
@@ -6133,8 +6422,8 @@ function __wbg_get_imports() {
         const ret = false;
         return ret;
     };
-    imports.wbg.__wbindgen_closure_wrapper1639 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 209, __wbg_adapter_48);
+    imports.wbg.__wbindgen_closure_wrapper1689 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 209, __wbg_adapter_52);
         return ret;
     };
     imports.wbg.__wbindgen_debug_string = function(arg0, arg1) {
@@ -6170,6 +6459,10 @@ function __wbg_get_imports() {
         const ret = typeof(arg0) === 'function';
         return ret;
     };
+    imports.wbg.__wbindgen_is_null = function(arg0) {
+        const ret = arg0 === null;
+        return ret;
+    };
     imports.wbg.__wbindgen_is_object = function(arg0) {
         const val = arg0;
         const ret = typeof(val) === 'object' && val !== null;
@@ -6200,6 +6493,10 @@ function __wbg_get_imports() {
         const ret = typeof(obj) === 'number' ? obj : undefined;
         getDataViewMemory0().setFloat64(arg0 + 8 * 1, isLikeNone(ret) ? 0 : ret, true);
         getDataViewMemory0().setInt32(arg0 + 4 * 0, !isLikeNone(ret), true);
+    };
+    imports.wbg.__wbindgen_number_new = function(arg0) {
+        const ret = arg0;
+        return ret;
     };
     imports.wbg.__wbindgen_string_get = function(arg0, arg1) {
         const obj = arg1;

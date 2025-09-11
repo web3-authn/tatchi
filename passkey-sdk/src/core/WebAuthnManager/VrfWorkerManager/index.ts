@@ -20,6 +20,7 @@ import type {
   WasmUnlockVrfKeypairRequest,
   WasmDeriveVrfKeypairFromPrfRequest,
 } from '../../types/vrf-worker';
+import { WebAuthnRegistrationCredential } from '../../types';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
 import { AccountId, toAccountId } from '../../types/accountIds';
@@ -217,7 +218,7 @@ export class VrfWorkerManager {
     encryptedVrfKeypair,
     onEvent,
   }: {
-    credential: PublicKeyCredential,
+    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential,
     nearAccountId: AccountId,
     encryptedVrfKeypair: EncryptedVRFKeypair,
     onEvent?: (event: { type: string, data: { step: string, message: string } }) => void,
@@ -442,7 +443,7 @@ export class VrfWorkerManager {
     vrfInputData,
     saveInMemory = true,
   }: {
-    credential: PublicKeyCredential;
+    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
@@ -533,6 +534,75 @@ export class VrfWorkerManager {
       console.error('VRF Manager: VRF keypair derivation failed:', error);
       throw new Error(`VRF keypair derivation failed: ${error.message}`);
     }
+  }
+
+  /**
+   * Derive deterministic VRF keypair directly from a base64url PRF output string.
+   * Useful when PRF has been obtained via a serialized credential (secureConfirm).
+   */
+  async deriveVrfKeypairFromRawPrf({
+    prfOutput,
+    nearAccountId,
+    vrfInputData,
+    saveInMemory = true,
+  }: {
+    prfOutput: string;
+    nearAccountId: AccountId;
+    vrfInputData?: VRFInputData;
+    saveInMemory?: boolean;
+  }): Promise<{
+    vrfPublicKey: string;
+    vrfChallenge: VRFChallenge | null;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
+  }> {
+    await this.ensureWorkerReady();
+
+    const hasVrfInputData = vrfInputData?.blockHash
+      && vrfInputData?.blockHeight
+      && vrfInputData?.userId
+      && vrfInputData?.rpId;
+
+    const message: VRFWorkerMessage<WasmDeriveVrfKeypairFromPrfRequest> = {
+      type: 'DERIVE_VRF_KEYPAIR_FROM_PRF',
+      id: this.generateMessageId(),
+      payload: {
+        prfOutput,
+        nearAccountId: nearAccountId,
+        saveInMemory: saveInMemory,
+        vrfInputData: hasVrfInputData ? {
+          userId: vrfInputData.userId,
+          rpId: vrfInputData.rpId,
+          blockHeight: String(vrfInputData.blockHeight),
+          blockHash: vrfInputData.blockHash,
+        } : undefined,
+      }
+    };
+
+    const response = await this.sendMessage(message);
+    if (!response.success || !response.data) {
+      throw new Error(`VRF keypair derivation failed: ${response.error}`);
+    }
+
+    const vrfChallenge = response.data.vrfChallengeData
+      ? validateVRFChallenge({
+          vrfInput: response.data.vrfChallengeData.vrfInput,
+          vrfOutput: response.data.vrfChallengeData.vrfOutput,
+          vrfProof: response.data.vrfChallengeData.vrfProof,
+          vrfPublicKey: response.data.vrfChallengeData.vrfPublicKey,
+          userId: response.data.vrfChallengeData.userId,
+          rpId: response.data.vrfChallengeData.rpId,
+          blockHeight: response.data.vrfChallengeData.blockHeight,
+          blockHash: response.data.vrfChallengeData.blockHash,
+        })
+      : null;
+
+    return {
+      vrfPublicKey: response.data.vrfPublicKey,
+      vrfChallenge,
+      encryptedVrfKeypair: response.data.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: response.data.serverEncryptedVrfKeypair || null,
+    };
   }
 
   /**

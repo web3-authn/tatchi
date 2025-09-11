@@ -9,6 +9,7 @@ import {
 import { VRFChallenge } from './vrf-worker';
 import { AccountId } from './accountIds';
 import { SignedTransaction } from '../NearClient';
+import { WebAuthnRegistrationCredential } from '.';
 
 // Re-export DeviceLinkingPhase from passkeyManager
 export { DeviceLinkingPhase } from './passkeyManager';
@@ -26,7 +27,7 @@ export interface DeviceLinkingSession {
   accountId: AccountId | null; // Null until discovered from contract logs (Option F) or provided upfront (Option E)
   deviceNumber?: number; // Device number assigned by Device1 for device linking
   nearPublicKey: string;
-  credential: PublicKeyCredential | null; // Null for Option F until real account discovered
+  credential: WebAuthnRegistrationCredential | null; // Null for Option F until real account discovered
   vrfChallenge: VRFChallenge | null; // Null for Option F until real account discovered
   phase: DeviceLinkingPhase;
   createdAt: number;

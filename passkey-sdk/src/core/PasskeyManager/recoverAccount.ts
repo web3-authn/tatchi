@@ -1,7 +1,14 @@
 import type { EventCallback, AccountRecoverySSEEvent, BeforeCall, AfterCall } from '../types/passkeyManager';
 import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
-import type { AccountId, StoredAuthenticator, VRFChallenge } from '../types';
+import type {
+  AccountId,
+  StoredAuthenticator,
+  VRFChallenge,
+  WebAuthnRegistrationCredential,
+  WebAuthnAuthenticationCredential
+} from '../types';
+import { serializeAuthenticationCredentialWithPRF } from '../WebAuthnManager/credentialsHelpers';
 import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { validateNearAccountId } from '../../utils/validation';
 import { toAccountId } from '../types/accountIds';
@@ -14,6 +21,7 @@ import {
   getCredentialIdsContractCall,
   syncAuthenticatorsContractCall
 } from '../rpcCalls';
+import { base64UrlDecode } from '../../utils/encoders';
 
 /**
  * Use case:
@@ -48,7 +56,7 @@ export interface PasskeyOption {
   accountId: AccountId | null;
   publicKey: string;
   displayName: string;
-  credential: PublicKeyCredential | null;
+  credential: WebAuthnAuthenticationCredential | null;
 }
 
 // Public-facing passkey option without sensitive credential data
@@ -107,11 +115,11 @@ export class AccountRecoveryFlow {
         // Fallback discovery without a typed account: prompt once to select a passkey
         // Then infer the accountId from userHandle (set at registration time)
         const challenge = createRandomVRFChallenge();
-        const credential = await this.context.webAuthnManager.getCredentialsForRecovery({
+        const credential = await this.context.webAuthnManager.getAuthenticationCredentialsForRecovery({
           // Account is unknown here – salts aren't used downstream for discovery
           nearAccountId: '' as any,
           challenge: challenge as VRFChallenge,
-          credentialIds: []
+          credentialIds: [],
         });
 
         // Try to infer accountId from userHandle
@@ -307,7 +315,7 @@ export async function recoverAccount(
   context: PasskeyManagerContext,
   accountId: AccountId,
   options?: AccountRecoveryHooksOptions,
-  reuseCredential?: PublicKeyCredential,
+  reuseCredential?: WebAuthnAuthenticationCredential,
   allowedCredentialIds?: string[]
 ): Promise<RecoveryResult> {
   const { onEvent, onError, beforeCall, afterCall } = options || {};
@@ -335,8 +343,16 @@ export async function recoverAccount(
       message: 'Authenticating with WebAuthn...',
     });
 
-    const credential = await getOrCreateCredential(webAuthnManager, accountId, reuseCredential, allowedCredentialIds);
-    const recoveredKeypair = await deriveNearKeypairFromCredential(webAuthnManager, credential, accountId);
+    const credential = await getOrCreateCredential(
+      webAuthnManager,
+      accountId,
+      reuseCredential,
+      allowedCredentialIds
+    );
+    const recoveredKeypair = await webAuthnManager.recoverKeypairFromPasskey(
+      credential,
+      accountId
+    );
 
     const { hasAccess, blockHeight, blockHash } = await Promise.all([
       nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey),
@@ -378,7 +394,7 @@ export async function recoverAccount(
         encryptedPrivateKey: recoveredKeypair.encryptedPrivateKey,
         iv: recoveredKeypair.iv,
       },
-      credential,
+      credential: credential,
       encryptedVrfResult: {
         vrfPublicKey: deterministicVrfResult.vrfPublicKey,
         encryptedVrfKeypair: deterministicVrfResult.encryptedVrfKeypair,
@@ -416,11 +432,12 @@ export async function recoverAccount(
 async function getOrCreateCredential(
   webAuthnManager: WebAuthnManager,
   accountId: AccountId,
-  reuseCredential?: PublicKeyCredential,
+  reuseCredential?: WebAuthnAuthenticationCredential,
   allowedCredentialIds?: string[]
-): Promise<PublicKeyCredential> {
+): Promise<WebAuthnAuthenticationCredential> {
+
   if (reuseCredential) {
-    const prfResults = reuseCredential.getClientExtensionResults()?.prf?.results;
+    const prfResults = reuseCredential.clientExtensionResults?.prf?.results;
     if (!prfResults?.first || !prfResults?.second) {
       throw new Error('Reused credential missing PRF outputs - cannot proceed with recovery');
     }
@@ -429,25 +446,11 @@ async function getOrCreateCredential(
 
   const challenge = createRandomVRFChallenge();
 
-  return await webAuthnManager.getCredentialsForRecovery({
+  return await webAuthnManager.getAuthenticationCredentialsForRecovery({
     nearAccountId: accountId,
     challenge: challenge as VRFChallenge,
     credentialIds: allowedCredentialIds ?? []
   });
-}
-
-/**
- * Derive NEAR keypair from credential
- */
-async function deriveNearKeypairFromCredential(
-  webAuthnManager: WebAuthnManager,
-  credential: PublicKeyCredential,
-  accountId: string
-) {
-  return await webAuthnManager.recoverKeypairFromPasskey(
-    credential,
-    accountId
-  );
 }
 
 /**
@@ -496,7 +499,7 @@ async function performAccountRecovery({
     encryptedPrivateKey: string,
     iv: string
   },
-  credential: PublicKeyCredential,
+  credential: WebAuthnAuthenticationCredential,
   encryptedVrfResult: {
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string
@@ -520,7 +523,8 @@ async function performAccountRecovery({
     const contractAuthenticators = await syncAuthenticatorsContractCall(nearClient, configs.contractId, accountId);
 
     // 2. Find the matching authenticator to get the correct device number
-    const credentialIdUsed = base64UrlEncode(credential.rawId);
+    // Serialized auth credential.rawId is already base64url-encoded
+    const credentialIdUsed = credential.rawId;
     const matchingAuthenticator = contractAuthenticators.find(auth => auth.credentialId === credentialIdUsed);
 
     if (!matchingAuthenticator) {
@@ -628,7 +632,7 @@ async function restoreUserData({
     encryptedPrivateKey: string;
     iv: string
   },
-  credential: PublicKeyCredential
+  credential: WebAuthnAuthenticationCredential
 }) {
   const existingUser = await webAuthnManager.getUser(accountId);
 
@@ -650,7 +654,8 @@ async function restoreUserData({
       lastUpdated: Date.now(),
       passkeyCredential: {
         id: credential.id,
-        rawId: base64UrlEncode(credential.rawId)
+        // credential here is a serialized auth cred during recovery; we don't store attestation
+        rawId: (credential as any).rawId ?? ''
       },
       encryptedVrfKeypair: {
         encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,

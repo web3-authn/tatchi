@@ -7,14 +7,13 @@ import { StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkey
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
-import { TouchIdPrompt } from './touchIdPrompt';
+import { AllowCredential, TouchIdPrompt } from './touchIdPrompt';
 import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
 import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';
 import { NonceManager } from '../nonceManager';
 import NonceManagerInstance from '../nonceManager';
-
 import {
   EncryptedVRFKeypair,
   ServerEncryptedVrfKeypair,
@@ -27,6 +26,7 @@ import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
+import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 
 
 /**
@@ -95,12 +95,20 @@ export class WebAuthnManager {
     } catch {}
   }
 
-  getCredentials({ nearAccountId, challenge, authenticators }: {
+  getAuthenticationCredentialsSerialized({
+    nearAccountId,
+    challenge,
+    allowCredentials
+  }: {
     nearAccountId: AccountId;
     challenge: VRFChallenge;
-    authenticators: ClientAuthenticatorData[];
-  }): Promise<PublicKeyCredential> {
-    return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
+    allowCredentials: AllowCredential[];
+  }): Promise<WebAuthnAuthenticationCredential> {
+    return this.touchIdPrompt.getAuthenticationCredentialsSerialized({
+      nearAccountId,
+      challenge,
+      allowCredentials
+    });
   }
 
   ///////////////////////////////////////
@@ -131,6 +139,48 @@ export class WebAuthnManager {
   }
 
   /**
+   * SecureConfirm wrapper for link-device registration: prompts user in-iframe to create a
+   * new passkey (device N), returning artifacts for subsequent derivation.
+   */
+  async requestRegistrationCredentialConfirmation({
+    nearAccountId,
+    deviceNumber,
+    contractId,
+    nearRpcUrl,
+  }: {
+    nearAccountId: string;
+    deviceNumber: number;
+    contractId: string;
+    nearRpcUrl: string;
+  }): Promise<import('./SignerWorkerManager/handlers').RegistrationCredentialConfirmationPayload> {
+    return this.signerWorkerManager.requestRegistrationCredentialConfirmation({
+      nearAccountId,
+      deviceNumber,
+      contractId,
+      nearRpcUrl,
+    });
+  }
+
+  /**
+   * Derive NEAR keypair directly from a serialized WebAuthn registration credential
+   */
+  async deriveNearKeypairAndEncryptFromSerialized({
+    credential,
+    nearAccountId,
+    options,
+  }: {
+    credential: any;
+    nearAccountId: string;
+    options?: any;
+  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; signedTransaction?: SignedTransaction }>{
+    return this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+      credential,
+      nearAccountId: toAccountId(nearAccountId),
+      options,
+    });
+  }
+
+  /**
    * Derive deterministic VRF keypair from PRF output for recovery
    * Optionally generates VRF challenge if input parameters are provided
    * This enables deterministic VRF key derivation from WebAuthn credentials
@@ -147,7 +197,7 @@ export class WebAuthnManager {
     vrfInputData,
     saveInMemory = true,
   }: {
-    credential: PublicKeyCredential;
+    credential: WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
@@ -201,6 +251,41 @@ export class WebAuthnManager {
   }
 
   /**
+   * Derive deterministic VRF keypair from a raw base64url PRF output.
+   */
+  async deriveVrfKeypairFromRawPrf({
+    prfOutput,
+    nearAccountId,
+    vrfInputData,
+    saveInMemory = true,
+  }: {
+    prfOutput: string;
+    nearAccountId: AccountId;
+    vrfInputData?: any;
+    saveInMemory?: boolean;
+  }): Promise<{
+    success: boolean;
+    vrfPublicKey: string;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    vrfChallenge: VRFChallenge | null;
+    serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
+  }> {
+    const r = await this.vrfWorkerManager.deriveVrfKeypairFromRawPrf({
+      prfOutput,
+      nearAccountId,
+      vrfInputData,
+      saveInMemory,
+    });
+    return {
+      success: true,
+      vrfPublicKey: r.vrfPublicKey,
+      encryptedVrfKeypair: r.encryptedVrfKeypair,
+      vrfChallenge: r.vrfChallenge,
+      serverEncryptedVrfKeypair: r.serverEncryptedVrfKeypair,
+    };
+  }
+
+  /**
    * Unlock VRF keypair in memory using PRF output
    * This is called during login to decrypt and load the VRF keypair in-memory
    */
@@ -211,7 +296,7 @@ export class WebAuthnManager {
   }: {
     nearAccountId: AccountId;
     encryptedVrfKeypair: EncryptedVRFKeypair;
-    credential: PublicKeyCredential;
+    credential: WebAuthnAuthenticationCredential;
   }): Promise<{ success: boolean; error?: string }> {
     try {
       console.debug('WebAuthnManager: Unlocking VRF keypair');
@@ -421,7 +506,7 @@ export class WebAuthnManager {
     onEvent
   }: {
     nearAccountId: AccountId;
-    credential: PublicKeyCredential;
+    credential: any;
     publicKey: string;
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string;
@@ -432,16 +517,31 @@ export class WebAuthnManager {
     await this.atomicOperation(async (db) => {
 
       // Store credential for authentication
-      const credentialId = base64UrlEncode(credential.rawId);
-      const response = credential.response as AuthenticatorAttestationResponse;
+      const isSerialized = !!credential && typeof credential === 'object'
+        && typeof credential?.response?.attestationObject === 'string';
+
+      const credentialId: string = isSerialized
+        ? credential.rawId
+        : base64UrlEncode(credential.rawId);
+
+      let attestationB64u: string;
+      let transports: string[] = [];
+      if (isSerialized) {
+        attestationB64u = credential.response.attestationObject as string;
+        transports = Array.isArray(credential.response?.transports) ? credential.response.transports : [];
+      } else {
+        const response = credential.response as AuthenticatorAttestationResponse;
+        attestationB64u = base64UrlEncode(response.attestationObject);
+        try {
+          transports = response.getTransports?.() || [];
+        } catch { transports = []; }
+      }
 
       await this.storeAuthenticator({
         nearAccountId: nearAccountId,
         credentialId: credentialId,
-        credentialPublicKey: await this.extractCosePublicKey(
-          base64UrlEncode(response.attestationObject)
-        ),
-        transports: response.getTransports?.() || [],
+        credentialPublicKey: await this.extractCosePublicKey(attestationB64u),
+        transports,
         name: `VRF Passkey for ${this.extractUsername(nearAccountId)}`,
         registered: new Date().toISOString(),
         syncedAt: new Date().toISOString(),
@@ -597,7 +697,7 @@ export class WebAuthnManager {
     nonce: string;
     state: string | null;
     accountId: AccountId;
-    credential: PublicKeyCredential;
+    credential: WebAuthnAuthenticationCredential;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -648,7 +748,7 @@ export class WebAuthnManager {
     onEvent,
   }: {
     contractId: string,
-    credential: PublicKeyCredential,
+    credential: WebAuthnRegistrationCredential,
     vrfChallenge: VRFChallenge,
     authenticatorOptions?: AuthenticatorOptions;
     onEvent?: (update: onProgressEvents) => void
@@ -683,7 +783,7 @@ export class WebAuthnManager {
    * @returns Public key and encrypted private key for secure storage
    */
   async recoverKeypairFromPasskey(
-    authenticationCredential: PublicKeyCredential,
+    authenticationCredential: WebAuthnAuthenticationCredential,
     accountIdHint?: string,
   ): Promise<{
     publicKey: string;
@@ -704,7 +804,7 @@ export class WebAuthnManager {
       }
 
       // Verify dual PRF outputs are available
-      const prfResults = authenticationCredential.getClientExtensionResults()?.prf?.results;
+      const prfResults = authenticationCredential.clientExtensionResults?.prf?.results;
       if (!prfResults?.first || !prfResults?.second) {
         throw new Error('Dual PRF outputs required for account recovery - both AES and Ed25519 PRF outputs must be available');
       }
@@ -724,26 +824,7 @@ export class WebAuthnManager {
     }
   }
 
-  async generateRegistrationCredentials({ nearAccountId, challenge }: {
-    nearAccountId: AccountId;
-    challenge: VRFChallenge;
-  }): Promise<PublicKeyCredential> {
-    return this.touchIdPrompt.generateRegistrationCredentials({ nearAccountId, challenge });
-  }
-
-  async generateRegistrationCredentialsForLinkDevice({
-    nearAccountId,
-    challenge,
-    deviceNumber,
-  }: {
-    nearAccountId: AccountId;
-    challenge: VRFChallenge;
-    deviceNumber: number;
-  }): Promise<PublicKeyCredential> {
-    return this.touchIdPrompt.generateRegistrationCredentialsForLinkDevice({ nearAccountId, challenge, deviceNumber });
-  }
-
-  async getCredentialsForRecovery({
+  async getAuthenticationCredentialsForRecovery({
     nearAccountId,
     challenge,
     credentialIds,
@@ -751,8 +832,18 @@ export class WebAuthnManager {
     nearAccountId: AccountId;
     challenge: VRFChallenge,
     credentialIds: string[];
-  }): Promise<PublicKeyCredential> {
-    return this.touchIdPrompt.getCredentialsForRecovery({ nearAccountId, challenge, credentialIds });
+  }): Promise<WebAuthnAuthenticationCredential> {
+    // Same as getAuthenticationCredentialsSerialized but returns both PRF outputs
+    // for account recovery
+    return this.touchIdPrompt.getAuthenticationCredentialsForRecovery({
+      nearAccountId,
+      challenge,
+      allowCredentials: credentialIds.map(id => ({
+        id: id,
+        type: 'public-key',
+        transports: ['internal', 'hybrid', 'usb', 'ble'] as AuthenticatorTransport[]
+      }))
+    });
   }
 
   /**

@@ -39,13 +39,22 @@ export async function ensureIframeModalDefined(): Promise<void> {
   });
 }
 
-export async function mountIframeModalHostWithHandle({
+// ========= Host Modal helpers (no nested iframe) =========
+
+async function ensureHostModalDefined(): Promise<void> {
+  if (customElements.get('passkey-modal-confirm')) return;
+  // Dynamically import the modal element definition into the host context
+  await import('./IframeModalConfirmer/ModalTxConfirmer');
+}
+
+export async function mountHostModalWithHandle({
   ctx,
   summary,
   txSigningRequests,
   vrfChallenge,
   loading,
   theme,
+  nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
@@ -53,10 +62,90 @@ export async function mountIframeModalHostWithHandle({
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
   theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
+}): Promise<{ element: HTMLElement & { close: (confirmed: boolean) => void }; close: (confirmed: boolean) => void }> {
+  await ensureHostModalDefined();
+  const el = document.createElement('passkey-modal-confirm') as any;
+  (el as any).nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+  (el as any).txSigningRequests = txSigningRequests || [];
+  (el as any).intentDigest = summary?.intentDigest;
+  if (vrfChallenge) (el as any).vrfChallenge = vrfChallenge;
+  if (theme) (el as any).theme = theme;
+  if (loading != null) (el as any).loading = !!loading;
+  // Two-phase close: let caller control removal
+  (el as any).deferClose = true;
+  document.body.appendChild(el);
+  const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
+  return { element: el, close };
+}
+
+export async function awaitHostModalDecisionWithHandle({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  theme,
+  nearAccountIdOverride,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
+}): Promise<{
+  confirmed: boolean;
+  handle: { element: any; close: (confirmed: boolean) => void };
+}> {
+  await ensureHostModalDefined();
+  return new Promise((resolve) => {
+    const el = document.createElement('passkey-modal-confirm') as any;
+    el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+    el.txSigningRequests = txSigningRequests || [];
+    el.intentDigest = summary?.intentDigest;
+    if (vrfChallenge) el.vrfChallenge = vrfChallenge;
+    if (theme) el.theme = theme;
+    el.deferClose = true;
+
+    const onConfirm = (e: Event) => {
+      cleanup();
+      resolve({ confirmed: true, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
+    };
+    const onCancel = () => {
+      cleanup();
+      resolve({ confirmed: false, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
+    };
+    const cleanup = () => {
+      try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
+      try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
+    };
+    el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
+    el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
+
+    document.body.appendChild(el);
+  });
+}
+
+export async function mountIframeModalHostWithHandle({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  loading,
+  theme,
+  nearAccountIdOverride,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  loading?: boolean,
+  theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
 }): Promise<{ element: IframeModalHost; close: (confirmed: boolean) => void }> {
   await ensureIframeModalDefined();
   const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
-  el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+  el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
   el.intentDigest = summary?.intentDigest;
   if (vrfChallenge) {
@@ -77,12 +166,14 @@ export async function awaitIframeModalDecisionWithHandle({
   txSigningRequests,
   vrfChallenge,
   theme,
+  nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
   theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
 }): Promise<{
   confirmed: boolean;
   handle: { element: IframeModalHost; close: (confirmed: boolean) => void }
@@ -90,7 +181,7 @@ export async function awaitIframeModalDecisionWithHandle({
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
     const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
-    el.nearAccountId = ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+    el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;
     if (vrfChallenge) {

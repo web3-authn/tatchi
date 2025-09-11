@@ -27,28 +27,54 @@ export function extractPrfFromCredential({
   firstPrfOutput = true,
   secondPrfOutput = false,
 }: {
-  credential: PublicKeyCredential,
+  credential: any,
   firstPrfOutput?: boolean | undefined,
   secondPrfOutput?: boolean,
 }): DualPrfOutputs {
+  // Support both live PublicKeyCredential and already-serialized credential objects
+  let extensionResults: any | undefined;
+  try {
+    const fn = (credential as any)?.getClientExtensionResults;
+    if (typeof fn === 'function') {
+      extensionResults = fn.call(credential);
+    } else {
+      extensionResults = (credential as any)?.clientExtensionResults;
+    }
+  } catch {
+    extensionResults = (credential as any)?.clientExtensionResults;
+  }
 
-  const extensionResults = credential.getClientExtensionResults();
   const prfResults = extensionResults?.prf?.results;
-
   if (!prfResults) {
     throw new Error('Missing PRF results from credential, use a PRF-enabled Authenticator');
   }
 
-  const first = firstPrfOutput
-    ? prfResults?.first ? base64UrlEncode(prfResults.first as ArrayBuffer) : undefined
-    : undefined;
-  const second = secondPrfOutput
-    ? prfResults?.second ? base64UrlEncode(prfResults.second as ArrayBuffer) : undefined
-    : undefined;
+  const normalizeToB64u = (val: any): string | undefined => {
+    if (!val) return undefined;
+    if (typeof val === 'string') return val; // already base64url in serialized shape
+    if (val instanceof ArrayBuffer) return base64UrlEncode(val);
+    if (ArrayBuffer.isView(val)) return base64UrlEncode((val as ArrayBufferView).buffer);
+    try {
+      // Attempt to treat as ArrayBuffer-like
+      return base64UrlEncode(val as ArrayBufferLike);
+    } catch {
+      try { return base64UrlEncode((new Uint8Array(val as any).buffer)); } catch { return undefined; }
+    }
+  };
+
+  const firstEncoded = firstPrfOutput ? normalizeToB64u(prfResults.first) : undefined;
+  const secondEncoded = secondPrfOutput ? normalizeToB64u(prfResults.second) : undefined;
+
+  if (firstPrfOutput && !firstEncoded) {
+    throw new Error('Missing PRF result: first');
+  }
+  if (secondPrfOutput && !secondEncoded) {
+    throw new Error('Missing PRF result: second');
+  }
 
   return {
-    chacha20PrfOutput: first!,
-    ed25519PrfOutput: second!,
+    chacha20PrfOutput: firstEncoded || '',
+    ed25519PrfOutput: secondEncoded || '',
   };
 }
 
@@ -65,6 +91,16 @@ export function serializeRegistrationCredential(
   credential: PublicKeyCredential,
 ): WebAuthnRegistrationCredential {
   const response = credential.response as AuthenticatorAttestationResponse;
+  // Safari and some platforms may not implement getTransports(); guard it.
+  let transports: string[] = [];
+  try {
+    const fn: any = (response as any)?.getTransports;
+    if (typeof fn === 'function') {
+      transports = fn.call(response) || [];
+    }
+  } catch {
+    transports = [];
+  }
 
   return {
     id: credential.id,
@@ -74,7 +110,7 @@ export function serializeRegistrationCredential(
     response: {
       clientDataJSON: base64UrlEncode(response.clientDataJSON),
       attestationObject: base64UrlEncode(response.attestationObject),
-      transports: response.getTransports() || [],
+      transports,
     },
     clientExtensionResults: {
       prf: {
@@ -175,6 +211,73 @@ export function serializeAuthenticationCredentialWithPRF({
   };
 }
 
+/////////////////////////////////////////
+// RUNTIME VALIDATION / NORMALIZATION
+/////////////////////////////////////////
+
+function isString(x: any): x is string { return typeof x === 'string'; }
+function isArray(x: any): x is any[] { return Array.isArray(x); }
+
+/**
+ * Validates and normalizes a serialized WebAuthn registration credential.
+ * Ensures required fields exist and have the expected primitive types.
+ * Populates missing optional arrays like transports with [].
+ */
+export function normalizeRegistrationCredential(input: any): WebAuthnRegistrationCredential {
+  if (!input || typeof input !== 'object') throw new Error('Invalid credential: not an object');
+  const out: any = { ...input };
+
+  if (!isString(out.id)) throw new Error('Invalid credential.id');
+  if (!isString(out.type)) throw new Error('Invalid credential.type');
+  if (!isString(out.rawId)) out.rawId = '';
+  if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
+    out.authenticatorAttachment = String(out.authenticatorAttachment);
+  }
+  if (!out.response || typeof out.response !== 'object') out.response = {};
+  if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
+  if (!isString(out.response.attestationObject)) out.response.attestationObject = '';
+  if (!isArray(out.response.transports)) out.response.transports = [];
+
+  // Ensure PRF results shape exists and normalize to string | undefined
+  out.clientExtensionResults = (typeof out.clientExtensionResults === 'object' && out.clientExtensionResults) || { prf: { results: {} } };
+  out.clientExtensionResults.prf = (typeof out.clientExtensionResults.prf === 'object' && out.clientExtensionResults.prf) || { results: {} } as any;
+  const rReg: any = (typeof out.clientExtensionResults.prf.results === 'object' && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
+  rReg.first = isString(rReg.first) ? rReg.first : undefined;
+  rReg.second = isString(rReg.second) ? rReg.second : undefined;
+
+  return out as WebAuthnRegistrationCredential;
+}
+
+/**
+ * Validates and normalizes a serialized WebAuthn authentication credential.
+ * Ensures required fields exist and have the expected primitive types.
+ */
+export function normalizeAuthenticationCredential(input: any): WebAuthnAuthenticationCredential {
+  if (!input || typeof input !== 'object') throw new Error('Invalid credential: not an object');
+  const out: any = { ...input };
+
+  if (!isString(out.id)) throw new Error('Invalid credential.id');
+  if (!isString(out.type)) throw new Error('Invalid credential.type');
+  if (!isString(out.rawId)) out.rawId = '';
+  if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
+    out.authenticatorAttachment = String(out.authenticatorAttachment);
+  }
+  if (!out.response || typeof out.response !== 'object') out.response = {};
+  if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
+  if (!isString(out.response.authenticatorData)) out.response.authenticatorData = '';
+  if (!isString(out.response.signature)) out.response.signature = '';
+  if (out.response.userHandle !== undefined && !isString(out.response.userHandle)) out.response.userHandle = undefined;
+
+  // Ensure PRF results shape exists and normalize to string | undefined
+  out.clientExtensionResults = (typeof out.clientExtensionResults === 'object' && out.clientExtensionResults) || { prf: { results: {} } };
+  out.clientExtensionResults.prf = (typeof out.clientExtensionResults.prf === 'object' && out.clientExtensionResults.prf) || { results: {} } as any;
+  const rAuth: any = (typeof out.clientExtensionResults.prf.results === 'object' && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
+  rAuth.first = isString(rAuth.first) ? rAuth.first : undefined;
+  rAuth.second = isString(rAuth.second) ? rAuth.second : undefined;
+
+  return out as WebAuthnAuthenticationCredential;
+}
+
 /**
  * Removes PRF outputs from the credential
  * @param credential - The WebAuthn credential containing PRF outputs
@@ -187,11 +290,11 @@ export function removePrfOutputGuard<C extends SerializableCredential>(credentia
       ...credential.clientExtensionResults,
       prf: {
         results: {
-          first: null, // ChaCha20 PRF output
-          second: null // Ed25519 PRF output
+          first: undefined,
+          second: undefined
         }
       }
     }
-  };
+  } as C;
   return credentialWithoutPrf;
 }

@@ -100,5 +100,5 @@ export type {
   CreateAccountAndRegisterRequest,
   CreateAccountAndRegisterResult,
   ContractVrfData,
-  WebAuthnRegistrationCredential
 } from './server';
+

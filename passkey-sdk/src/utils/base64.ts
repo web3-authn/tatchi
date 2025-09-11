@@ -3,11 +3,11 @@
  * Uses standard base64 characters (+, /, =) rather than base64url encoding.
  * Converts binary data to base64 string using browser's btoa() function.
  *
- * @param value - ArrayBuffer containing the binary data to encode
+ * @param value - ArrayBufferLike containing the binary data to encode
  * @returns Standard base64-encoded string with padding
  */
-export const base64Encode = (value: ArrayBuffer): string => {
-  return btoa(String.fromCharCode(...Array.from(new Uint8Array(value))));
+export const base64Encode = (value: ArrayBufferLike): string => {
+  return btoa(String.fromCharCode(...Array.from(new Uint8Array(value as ArrayBufferLike))));
 }
 
 /**
@@ -37,11 +37,11 @@ export function base64Decode(base64: string): Uint8Array {
  * Used for WebAuthn API compatibility in browser environments.
  * Equivalent to Buffer.from(value).toString('base64url') in Node.js.
  *
- * @param value - The ArrayBuffer to encode
+ * @param value - The ArrayBufferLike to encode
  * @returns A base64url-encoded string without padding
  */
-export const base64UrlEncode = (value: ArrayBuffer): string => {
-  return base64Encode(value)
+export const base64UrlEncode = (value: ArrayBufferLike): string => {
+  return base64Encode(value as ArrayBufferLike)
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=/g, "");

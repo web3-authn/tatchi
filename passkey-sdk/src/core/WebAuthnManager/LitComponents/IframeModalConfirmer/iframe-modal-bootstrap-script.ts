@@ -213,7 +213,19 @@ function hookDecisionEvents(): void {
     const message: IframeModalMessage = { type };
     try { window.parent.postMessage(message, PARENT_ORIGIN || '*'); } catch {}
   };
-  document.addEventListener('w3a:confirm', () => forward('CONFIRM'));
+  document.addEventListener('w3a:confirm', async () => {
+    try {
+      // Synchronously invoke parent host's activation bridge, if available,
+      // so that WebAuthn calls can start within the same user gesture.
+      const sync = (window.parent as any)?.__W3A_MODAL_SYNC__;
+      if (sync && typeof sync.onConfirm === 'function') {
+        await sync.onConfirm();
+      }
+    } catch (e) {
+      console.warn('[IframeModalBootstrap] parent activation bridge failed', e);
+    }
+    forward('CONFIRM');
+  });
   document.addEventListener('w3a:cancel', () => forward('CANCEL'));
 }
 

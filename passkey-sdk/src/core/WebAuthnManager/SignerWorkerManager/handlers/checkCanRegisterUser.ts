@@ -24,7 +24,7 @@ export async function checkCanRegisterUser({
 }: {
   ctx: SignerWorkerManagerContext,
   vrfChallenge: VRFChallenge,
-  credential: PublicKeyCredential,
+  credential: any,
   contractId: string;
   nearRpcUrl: string;
   authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
@@ -43,6 +43,15 @@ export async function checkCanRegisterUser({
   error?: string;
 }> {
   try {
+    // Accept either a real PublicKeyCredential or an already-serialized credential
+    const isSerialized = (cred: any) => !!cred && typeof cred === 'object'
+      && typeof cred?.response?.clientDataJSON === 'string'
+      && typeof cred?.response?.attestationObject === 'string';
+
+    const serializedCredential = isSerialized(credential)
+      ? credential
+      : serializeRegistrationCredentialWithPRF({ credential: credential as PublicKeyCredential });
+
     const response = await ctx.sendMessage<WorkerRequestType.CheckCanRegisterUser>({
       message: {
         type: WorkerRequestType.CheckCanRegisterUser,
@@ -57,7 +66,7 @@ export async function checkCanRegisterUser({
             blockHeight: vrfChallenge.blockHeight,
             blockHash: vrfChallenge.blockHash,
           },
-          credential: serializeRegistrationCredentialWithPRF({ credential }),
+          credential: serializedCredential,
           contractId,
           nearRpcUrl,
           authenticatorOptions: authenticatorOptions ? {

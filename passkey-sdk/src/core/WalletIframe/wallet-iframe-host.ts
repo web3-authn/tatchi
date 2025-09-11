@@ -203,35 +203,13 @@ async function onPortMessage(e: MessageEvent) {
       case 'PM_REGISTER': {
         ensurePasskeyManager();
         const { nearAccountId, options } = (req.payload || {}) as any;
-        withUserActivation(async () => {
-          if (isCancelled(requestId)) {
-            post({
-              type: 'PROGRESS',
-              requestId,
-              payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
-            });
-            post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
-            clearCancelled(requestId);
-            return;
-          }
-
-          const result = await passkeyManager!.registerPasskey(nearAccountId, {
-            ...(options || {}),
-            onEvent: (ev: any) => post({ type: 'PROGRESS', requestId, payload: ev })
-          });
-
-          if (isCancelled(requestId)) {
-            post({
-              type: 'PROGRESS',
-              requestId,
-              payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
-            });
-            post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
-            clearCancelled(requestId);
-            return;
-          }
-          post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
+        if (isCancelled(requestId)) { post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } }); post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } }); clearCancelled(requestId); return; }
+        const result = await passkeyManager!.registerPasskey(nearAccountId, {
+          ...(options || {}),
+          onEvent: (ev: any) => post({ type: 'PROGRESS', requestId, payload: ev })
         });
+        if (isCancelled(requestId)) { post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } }); post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } }); clearCancelled(requestId); return; }
+        post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
         return;
       }
       case 'PM_SIGN_TXS_WITH_ACTIONS': {
@@ -324,19 +302,7 @@ async function onPortMessage(e: MessageEvent) {
           const { qrData, qrCodeDataURL } = await passkeyManager!.startDevice2LinkingFlow({
             accountId,
             onEvent: (ev: any) => { try { post({ type: 'PROGRESS', requestId, payload: ev }); } catch {} },
-            ensureUserActivation: () => new Promise<void>((resolve) => {
-              try {
-                // Notify parent to reveal the wallet iframe for activation
-                post({ type: 'PROGRESS', requestId, payload: { step: 6, phase: 'user-confirmation', status: 'progress', message: 'Tap Continue in wallet to proceed' } });
-              } catch {}
-              try {
-                withUserActivation(async () => {
-                  try { post({ type: 'PROGRESS', requestId, payload: { step: 6, phase: 'user-confirmation-complete', status: 'progress', message: 'Continuing…' } }); } catch {}
-                  resolve();
-                });
-              } catch { resolve(); }
-            })
-          });
+          } as any);
           post({
             type: 'PM_RESULT', requestId,
             payload: { ok: true, result: { flowId: requestId, qrData, qrCodeDataURL } }

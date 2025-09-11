@@ -54,13 +54,14 @@ export class DrawerElement extends LitElementWithProps {
       transform: translateY(100%);
       transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
-      padding: 14px 16px 16px;
-      max-height: 80vh;
+      padding: 14px 16px calc(16px + 20vh);
+      height: 70vh;
+      max-height: 70vh;
       display: grid;
       grid-template-rows: auto 1fr auto;
       touch-action: none;
     }
-    :host([open]) .drawer { transform: translateY(0%); }
+    :host([open]) .drawer { transform: translateY(20%); }
     .drawer.dragging { transition: none; }
     .handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.25); margin: 6px auto 10px; }
     .title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
@@ -216,6 +217,12 @@ export class DrawerElement extends LitElementWithProps {
 
     if (this.drawerElement) {
       this.drawerElement.classList.add('dragging');
+      // Store the initial transform value to maintain position continuity
+      const currentTransform = this.drawerElement.style.transform;
+      if (!currentTransform) {
+        // If no transform is set, the drawer is at its default position (20% submerged)
+        this.drawerElement.style.transform = 'translateY(20%)';
+      }
     }
   }
 
@@ -234,10 +241,15 @@ export class DrawerElement extends LitElementWithProps {
     this.currentY = y;
     this.dragDistance = y - this.startY; // Allow negative values for upward dragging
 
-    // Apply drag transform - allow both upward and downward movement
-    const maxUpward = -window.innerHeight * 0.2; // Allow dragging up to 20% of screen height upward
+    // Apply drag transform - calculate relative to the initial 20% position
+    const initialPosition = window.innerHeight * 0.2; // 20% submerged position
+    const maxUpward = -window.innerHeight * 0.2; // Allow dragging up to 20% above initial position
     const maxDownward = window.innerHeight * 0.8; // Allow dragging down to 80% of screen height
-    const translateY = Math.max(maxUpward, Math.min(this.dragDistance, maxDownward));
+
+    // Calculate the new position: start from initial position and add drag distance
+    const newPosition = initialPosition + this.dragDistance;
+    const translateY = Math.max(maxUpward, Math.min(newPosition, maxDownward));
+
     this.drawerElement.style.transform = `translateY(${translateY}px)`;
 
     this.lastDragTime = now;
@@ -249,19 +261,26 @@ export class DrawerElement extends LitElementWithProps {
     this.isDragging = false;
     this.drawerElement.classList.remove('dragging');
 
-    const closeThreshold = window.innerHeight * 0.15; // 15% of screen height to close (easier to close)
+    const openPosition = window.innerHeight * 0.2; // 20% submerged position
+    const pullUpToCloseThreshold = -window.innerHeight * 0.15; // 15% up from open position to close
+    const pullDownToCloseThreshold = window.innerHeight * 0.15; // 15% down from open position to close
     const velocityThreshold = 0.3; // pixels per ms (lower threshold for velocity)
 
-    console.log('endDrag - dragDistance:', this.dragDistance, 'closeThreshold:', closeThreshold, 'velocity:', this.velocity);
+    console.log('endDrag - dragDistance:', this.dragDistance, 'pullUpToCloseThreshold:', pullUpToCloseThreshold, 'pullDownToCloseThreshold:', pullDownToCloseThreshold, 'velocity:', this.velocity);
 
-    // Close if dragged down far enough or with enough downward velocity
-    if (this.dragDistance > closeThreshold || this.velocity > velocityThreshold) {
-      console.log('Closing drawer due to drag');
+    // Close if pulled up more than 15% from open position (pull up to close)
+    if (this.dragDistance < pullUpToCloseThreshold) {
+      console.log('Closing drawer due to pull up to close');
+      this.closeDrawer();
+    }
+    // Close if dragged down more than 15% from open position or with enough downward velocity
+    else if (this.dragDistance > pullDownToCloseThreshold || this.velocity > velocityThreshold) {
+      console.log('Closing drawer due to drag down');
       this.closeDrawer();
     } else {
       console.log('Snapping back to open position');
-      // Snap back to open position
-      this.drawerElement.style.transform = 'translateY(0%)';
+      // Snap back to open position (20% submerged)
+      this.drawerElement.style.transform = 'translateY(20%)';
     }
 
     // Reset drag state

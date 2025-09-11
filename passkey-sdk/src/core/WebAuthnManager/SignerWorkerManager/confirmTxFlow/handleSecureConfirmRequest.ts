@@ -11,13 +11,17 @@ import {
   TransactionSummary,
   SecureConfirmMessageType,
   SecureConfirmData,
+  SecureConfirmRequest,
+  SecureConfirmationType,
+  SignTransactionPayload,
+  RegisterAccountPayload,
+  isSecureConfirmRequestV2,
 } from './types';
 import { TransactionContext } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
-import { fetchNonceBlockHashAndHeight } from '../../../rpcCalls';
-import type { NonceManager } from '../../../nonceManager';
 import { awaitIframeModalDecisionWithHandle, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
+import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -28,10 +32,13 @@ export async function handlePromptUserConfirmInJsMainThread(
   ctx: SignerWorkerManagerContext,
   message: {
     type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
-    data: SecureConfirmData,
+    data: SecureConfirmData | SecureConfirmRequest,
   },
   worker: Worker
 ): Promise<void> {
+
+  // Normalize V2 request into legacy SecureConfirmData when needed
+  const normalizedMessage = normalizeConfirmMessage(message);
 
   // 1. Validate and parse request
   const {
@@ -39,7 +46,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     summary,
     confirmationConfig,
     transactionSummary
-  } = validateAndParseRequest({ ctx, message });
+  } = validateAndParseRequest({ ctx, message: normalizedMessage });
 
   // 2. Perform NEAR RPC calls first (needed for VRF challenge)
   const nearRpcResult = await performNearRpcCalls(ctx, data);
@@ -61,14 +68,50 @@ export async function handlePromptUserConfirmInJsMainThread(
   if (!ctx.vrfWorkerManager) {
     throw new Error('VrfWorkerManager not available in context');
   }
-  const vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
-    userId: data.rpcCall.nearAccountId,
-    rpId: (ctx as any).rpIdOverride || window.location.hostname,
-    blockHeight: transactionContext.txBlockHeight,
-    blockHash: transactionContext.txBlockHash,
-  });
+  // For registration/link flows, there is no unlocked VRF keypair yet.
+  // Use the bootstrap path which creates a temporary VRF keypair in-memory
+  // and returns a VRF challenge for the WebAuthn create() ceremony.
+  const rpId = (ctx as any).rpIdOverride || window.location.hostname;
+  let vrfChallenge: any;
+  if (data.registrationDetails) {
+    const bootstrap = await ctx.vrfWorkerManager.generateVrfKeypairBootstrap({
+      userId: data.rpcCall.nearAccountId,
+      rpId,
+      blockHeight: transactionContext.txBlockHeight,
+      blockHash: transactionContext.txBlockHash,
+    }, true /* saveInMemory */);
+    vrfChallenge = bootstrap.vrfChallenge;
+  } else {
+    vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
+      userId: data.rpcCall.nearAccountId,
+      rpId,
+      blockHeight: transactionContext.txBlockHeight,
+      blockHash: transactionContext.txBlockHash,
+    });
+  }
 
   // 5. Render user confirmation UI with VRF challenge
+  // Install a synchronous activation bridge so the child modal can invoke create() within the same gesture
+  if (data.registrationDetails) {
+    try {
+      (window as any).__W3A_MODAL_SYNC__ = {
+        onConfirm: async () => {
+          try {
+            const nearAccountId = data?.rpcCall?.nearAccountId || (data as any).nearAccountId;
+            const dn = data.registrationDetails?.deviceNumber;
+            let cred: PublicKeyCredential = await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
+              nearAccountId,
+              challenge: vrfChallenge,
+              deviceNumber: dn,
+            });
+            (window as any).__W3A_CREDENTIAL_CACHE__ = { credential: cred, t: Date.now() };
+          } catch (e) {
+            console.warn('[SecureConfirm] Modal sync onConfirm failed', e);
+          }
+        }
+      };
+    } catch {}
+  }
   const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data, vrfChallenge });
   const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
 
@@ -104,6 +147,12 @@ export async function handlePromptUserConfirmInJsMainThread(
   let touchIdSuccess = false;
 
   try {
+    // For registration/link flows, the confirm click occurred inside a nested iframe
+    // which does not grant user activation to the host window. Ensure a real click
+    // happens in the host context before invoking WebAuthn create()/get().
+    if (data.registrationDetails && !(window as any).__W3A_CREDENTIAL_CACHE__) {
+      await ensureTopLevelUserActivation();
+    }
     const result = await collectTouchIdCredentials({
       ctx,
       data,
@@ -130,6 +179,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   } finally {
     // Always close the modal after TouchID attempt (success or failure)
     closeModalSafely(confirmHandle, touchIdSuccess);
+    try { (window as any).__W3A_MODAL_SYNC__ = undefined; } catch {}
   }
 
   // 9. Send confirmation response back to wasm-signer-worker
@@ -142,6 +192,119 @@ export async function handlePromptUserConfirmInJsMainThread(
     console.warn('[SignerWorkerManager]: Failed to release reserved nonces after decision:', e);
   }
   sendWorkerResponse(worker, decisionWithCredentials);
+}
+
+/**
+ * Ensures a real user activation occurs in the host browsing context
+ * (wallet iframe window) before calling WebAuthn APIs. Displays a small
+ * non-blocking CTA in the bottom-right that the user can click.
+ */
+async function ensureTopLevelUserActivation(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    try {
+      // If a recent transient activation exists, proceed without overlay
+      // (best-effort; not standardized across browsers)
+      // Fallback to overlay if uncertain
+    } catch {}
+
+    const cta = document.createElement('div');
+    cta.style.position = 'fixed';
+    cta.style.bottom = '16px';
+    cta.style.right = '16px';
+    cta.style.zIndex = '2147483647';
+    cta.style.background = 'white';
+    cta.style.color = '#111';
+    cta.style.padding = '10px 12px';
+    cta.style.borderRadius = '12px';
+    cta.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
+    cta.style.display = 'flex';
+    cta.style.alignItems = 'center';
+    cta.style.gap = '10px';
+
+    const label = document.createElement('div');
+    label.textContent = 'Continue to create passkey';
+    label.style.fontSize = '13px';
+    label.style.fontWeight = '600';
+    label.style.margin = '0';
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Continue';
+    btn.style.padding = '6px 10px';
+    btn.style.borderRadius = '10px';
+    btn.style.border = '0';
+    btn.style.background = '#4DAFFE';
+    btn.style.color = '#0b1220';
+    btn.style.cursor = 'pointer';
+
+    const cleanup = () => { try { cta.remove(); } catch {} };
+
+    const onProceed = () => {
+      try { btn.setAttribute('disabled', 'true'); } catch {}
+      cleanup();
+      resolve();
+    };
+
+    btn.addEventListener('click', onProceed, { once: true } as any);
+    cta.appendChild(label);
+    cta.appendChild(btn);
+    document.body.appendChild(cta);
+  });
+}
+
+/**
+ * Converts a V2 request envelope into the legacy SecureConfirmData shape
+ * for reuse of existing flow logic. SIGN_TRANSACTION maps 1:1; registration/link
+ * set registrationDetails=true and pass tx_signing_requests as [].
+ */
+function normalizeConfirmMessage(message: {
+  type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+  data: SecureConfirmData | SecureConfirmRequest,
+}): { type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: SecureConfirmData } {
+  const data = message.data as any;
+  if (!isSecureConfirmRequestV2(data)) {
+    return message as unknown as { type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: SecureConfirmData };
+  }
+
+  switch (data.type) {
+    case SecureConfirmationType.SIGN_TRANSACTION: {
+      const payload = data.payload as SignTransactionPayload;
+      const legacy: SecureConfirmData = {
+        requestId: data.requestId,
+        summary: data.summary,
+        tx_signing_requests: payload.txSigningRequests || [],
+        intentDigest: payload.intentDigest,
+        rpcCall: payload.rpcCall,
+        confirmationConfig: data.confirmationConfig,
+        registrationDetails: undefined,
+      } as SecureConfirmData;
+      return { type: message.type, data: legacy };
+    }
+    case SecureConfirmationType.REGISTER_ACCOUNT:
+    case SecureConfirmationType.LINK_DEVICE: {
+      const payload = data.payload as RegisterAccountPayload;
+      const legacy: SecureConfirmData = {
+        requestId: data.requestId,
+        summary: data.summary,
+        tx_signing_requests: [],
+        intentDigest: (data as any).intentDigest || '',
+        rpcCall: payload.rpcCall,
+        confirmationConfig: data.confirmationConfig,
+        registrationDetails: {
+          nearAccountId: payload.nearAccountId,
+          deviceNumber: payload.deviceNumber,
+        },
+      } as SecureConfirmData;
+      return { type: message.type, data: legacy };
+    }
+    case SecureConfirmationType.SIGN_NEP413_MESSAGE:
+    case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF: {
+      // Not yet migrated to legacy path; throw explicit error to avoid silent misuse
+      // These will have dedicated recipes that don't use tx-specific logic.
+      throw new Error(`[SignerWorkerManager]: Unsupported V2 confirmation type in legacy path: ${data.type}`);
+    }
+    default:
+      throw new Error('[SignerWorkerManager]: Unknown V2 confirmation type');
+  }
 }
 
 /**
@@ -264,8 +427,8 @@ function validateAndParseRequest({ ctx, message }: {
   const confirmationConfig = data.confirmationConfig || ctx.userPreferencesManager.getConfirmationConfig();
   const transactionSummary: TransactionSummary = {
     totalAmount: summary?.totalAmount,
-    method: summary?.method || (data.isRegistration ? 'Register Account' : undefined),
-    intentDigest: data.intentDigest
+    method: summary?.method || (data.registrationDetails ? 'Register Account' : undefined),
+    intentDigest: data.registrationDetails ? undefined : data.intentDigest
   };
 
   return {
@@ -306,6 +469,19 @@ async function renderUserConfirmUI({
     case 'embedded': {
       // For embedded mode, validate that the UI displayed transactions match
       // the worker-provided transactions by comparing canonical digests.
+      // Registration/link-device flows do not display a tx tree; enforce modal instead.
+      if (data.registrationDetails) {
+        // Fall back to modal-confirm-with-click
+        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
+          ctx,
+          summary: transactionSummary,
+          txSigningRequests: [],
+          vrfChallenge: vrfChallenge,
+          theme: confirmationConfig.theme,
+          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
+        });
+        return { confirmed, confirmHandle: handle };
+      }
       try {
         const hostEl = document.querySelector(IFRAME_BUTTON_ID) as any;
 
@@ -343,7 +519,8 @@ async function renderUserConfirmUI({
           txSigningRequests: data.tx_signing_requests,
           vrfChallenge: vrfChallenge,
           loading: true,
-          theme: confirmationConfig.theme
+          theme: confirmationConfig.theme,
+          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
         });
         // Wait for the specified delay before proceeding
         const delay = confirmationConfig.autoProceedDelay ?? 1000; // Default 1 seconds if not specified
@@ -357,7 +534,8 @@ async function renderUserConfirmUI({
           summary: transactionSummary,
           txSigningRequests: data.tx_signing_requests,
           vrfChallenge: vrfChallenge,
-          theme: confirmationConfig.theme
+          theme: confirmationConfig.theme,
+          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
         });
         return { confirmed, confirmHandle: handle };
       }
@@ -371,7 +549,8 @@ async function renderUserConfirmUI({
         txSigningRequests: data.tx_signing_requests,
         vrfChallenge: vrfChallenge,
         loading: true,
-        theme: confirmationConfig.theme
+        theme: confirmationConfig.theme,
+        nearAccountIdOverride: data?.rpcCall?.nearAccountId,
       });
       return { confirmed: true, confirmHandle: handle };
     }
@@ -400,19 +579,41 @@ async function collectTouchIdCredentials({
     throw new Error('VRF challenge not available for credential collection');
   }
 
-  const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+  let credential: PublicKeyCredential | undefined = undefined;
+  // Prefer credential captured during the modal confirm click (same-gesture)
+  const cached = (window as any).__W3A_CREDENTIAL_CACHE__?.credential as PublicKeyCredential | undefined;
+  if (cached) {
+    credential = cached;
+    try { delete (window as any).__W3A_CREDENTIAL_CACHE__; } catch {}
+  }
 
-  const credential = await ctx.touchIdPrompt.getCredentials({
-    nearAccountId: nearAccountId,
-    challenge: vrfChallenge,
-    authenticators: authenticators,
-  });
+  if (!credential && data.registrationDetails) {
+    // Registration/link flows must use create() to generate a new credential
+    // Resolve optional deviceNumber from summary if present
+    let deviceNumber = data.registrationDetails.deviceNumber;
+    credential = await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
+      nearAccountId,
+      challenge: vrfChallenge,
+      deviceNumber,
+    });
+  } else if (!credential) {
+    // Authentication flows use get() with allowCredentials
+    const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+    credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
+      nearAccountId,
+      challenge: vrfChallenge,
+      allowCredentials: authenticatorsToAllowCredentials(authenticators),
+    });
+  }
+
+  const isRegistration = !!data.registrationDetails?.nearAccountId
+    && !!data.registrationDetails?.deviceNumber;
 
   // Extract PRF output for decryption (registration needs both PRF outputs)
   const dualPrfOutputs = extractPrfFromCredential({
     credential,
     firstPrfOutput: true,
-    secondPrfOutput: data.isRegistration, // Registration needs second PRF output
+    secondPrfOutput: isRegistration, // Registration needs second PRF output
   });
 
   if (!dualPrfOutputs.chacha20PrfOutput) {
@@ -420,13 +621,13 @@ async function collectTouchIdCredentials({
   }
 
   // Serialize credential for WASM worker (use appropriate serializer based on flow type)
-  const serializedCredential = data.isRegistration
+  const serializedCredential = data.registrationDetails
     ? serializeRegistrationCredentialWithPRF({
-        credential,
+        credential: credential,
         firstPrfOutput: true,
         secondPrfOutput: true
       })
-    : serializeAuthenticationCredentialWithPRF({ credential });
+    : serializeAuthenticationCredentialWithPRF({ credential: credential });
 
   return {
     decisionWithCredentials: {

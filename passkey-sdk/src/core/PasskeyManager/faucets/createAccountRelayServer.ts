@@ -3,9 +3,10 @@ import { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '../
 import { PasskeyManagerContext } from '..';
 import { base64UrlDecode, base64UrlEncode } from '../../../utils/encoders';
 import type { SignedTransaction } from '../../NearClient';
-import { removePrfOutputGuard, serializeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
-import { WebAuthnRegistrationCredential } from '../../types/webauthn';
+import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
+import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
+import { CreateAccountAndRegisterResult } from '../../../index';
 
 /**
  * HTTP Request body for the relay server's /create_account_and_register_user endpoint
@@ -38,7 +39,7 @@ export async function createAccountAndRegisterWithRelayServer(
   context: PasskeyManagerContext,
   nearAccountId: string,
   publicKey: string,
-  credential: PublicKeyCredential,
+  credential: WebAuthnRegistrationCredential | PublicKeyCredential,
   vrfChallenge: VRFChallenge,
   deterministicVrfPublicKey: string,
   authenticatorOptions?: AuthenticatorOptions,
@@ -47,7 +48,6 @@ export async function createAccountAndRegisterWithRelayServer(
   success: boolean;
   transactionId?: string;
   error?: string;
-  preSignedDeleteTransaction: null; // not used for relay server
 }> {
   const { configs } = context;
 
@@ -63,8 +63,24 @@ export async function createAccountAndRegisterWithRelayServer(
       message: 'Adding access key to account...',
     });
 
-    // Serialize the WebAuthn credential properly for the contract
-    const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serializeRegistrationCredential(credential));
+    // Serialize the WebAuthn credential properly for the contract.
+    // Accept both live PublicKeyCredential and already-serialized credentials from secureConfirm.
+    const isSerialized = !!credential && typeof credential === 'object'
+      && typeof (credential as any)?.response?.attestationObject === 'string';
+
+    // Ensure proper serialization + normalization regardless of source
+    const serialized: WebAuthnRegistrationCredential = isSerialized
+      ? normalizeRegistrationCredential(credential as WebAuthnRegistrationCredential)
+      : serializeRegistrationCredential(credential as PublicKeyCredential);
+
+    // Strip PRF outputs before sending to relay/contract
+    const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serialized);
+    // Normalize transports to an array (avoid null)
+    if (!Array.isArray(serializedCredential?.response?.transports)) {
+      try {
+        serializedCredential.response.transports = [];
+      } catch {}
+    }
 
     // Prepare data for atomic endpoint
     const requestData: CreateAccountAndRegisterUserRequest = {
@@ -101,7 +117,7 @@ export async function createAccountAndRegisterWithRelayServer(
     });
 
     // Handle both successful and failed responses
-    const result = await response.json();
+    const result: CreateAccountAndRegisterResult = await response.json();
 
     if (!response.ok) {
       // Extract specific error message from relay server response
@@ -123,8 +139,6 @@ export async function createAccountAndRegisterWithRelayServer(
     return {
       success: true,
       transactionId: result.transactionHash,
-      // No preSignedDeleteTransaction needed for atomic transactions
-      preSignedDeleteTransaction: null
     };
 
   } catch (error: any) {
@@ -141,7 +155,6 @@ export async function createAccountAndRegisterWithRelayServer(
     return {
       success: false,
       error: error.message,
-      preSignedDeleteTransaction: null
     };
   }
 }

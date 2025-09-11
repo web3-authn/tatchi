@@ -36,10 +36,14 @@ export async function decryptPrivateKeyWithPrf({
     // Security comes from device possession + biometrics, not challenge validation
     const challenge = createRandomVRFChallenge();
     // TouchID prompt
-    const credential = await ctx.touchIdPrompt.getCredentials({
+    const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsSerialized({
       nearAccountId,
       challenge: challenge as VRFChallenge,
-      authenticators,
+      allowCredentials: authenticators.map(auth => ({
+        id: auth.credentialId,
+        type: 'public-key',
+        transports: auth.transports as AuthenticatorTransport[]
+      })),
     });
 
     // Extract dual PRF outputs and use the AES one for decryption

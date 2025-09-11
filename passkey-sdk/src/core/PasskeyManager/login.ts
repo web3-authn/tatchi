@@ -12,7 +12,7 @@ import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
-import { base64UrlEncode } from '@/utils/encoders';
+import { authenticatorsToAllowCredentials} from '../WebAuthnManager/touchIdPrompt';
 
 /**
  * Core login function that handles passkey authentication without React dependencies
@@ -195,10 +195,10 @@ async function handleLoginUnlockVRF(
 
       // Get credential for VRF unlock
       const challenge = createRandomVRFChallenge();
-      const credential = await webAuthnManager.getCredentials({
+      const credential = await webAuthnManager.getAuthenticationCredentialsSerialized({
         nearAccountId,
         challenge: challenge as VRFChallenge,
-        authenticators,
+        allowCredentials: authenticatorsToAllowCredentials(authenticators),
       });
 
       unlockResult = await webAuthnManager.unlockVRFKeypair({

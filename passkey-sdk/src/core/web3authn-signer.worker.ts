@@ -56,7 +56,7 @@ import { resolveWasmUrl } from './wasmLoader';
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 const { handle_signer_message } = wasmModule;
-import { awaitSecureConfirmation } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
+import { awaitSecureConfirmation, awaitSecureConfirmationV2 } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
 import { SecureConfirmMessageType } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/types';
 
 let messageProcessed = false;
@@ -128,6 +128,7 @@ function sendProgressMessage(
 
 // Expose the worker bridge for WASM to call
 (globalThis as any).awaitSecureConfirmation = awaitSecureConfirmation;
+(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 
 /**
  * Initialize WASM module

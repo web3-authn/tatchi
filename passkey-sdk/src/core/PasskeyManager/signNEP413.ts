@@ -2,6 +2,7 @@ import type { PasskeyManagerContext } from './index';
 import type { BaseHooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
+import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 
 /**
  * NEP-413 message signing parameters
@@ -97,10 +98,10 @@ export async function signNEP413Message(args: {
       blockHash: txBlockHash,
       blockHeight: txBlockHeight,
     });
-    const credential = await context.webAuthnManager.getCredentials({
+    const credential = await context.webAuthnManager.getAuthenticationCredentialsSerialized({
       nearAccountId,
       challenge: vrfChallenge,
-      authenticators,
+      allowCredentials: authenticatorsToAllowCredentials(authenticators),
     });
 
     // Emit signing progress event
