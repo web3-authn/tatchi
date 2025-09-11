@@ -2,8 +2,6 @@ import React, { useCallback, useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import { ActionType, ActionPhase, ActionStatus, usePasskeyContext } from '@web3authn/passkey/react';
 import './EmbeddedTxConfirmPage.css';
-// Import the WalletIframeClient directly from the SDK source for same-origin DB access
-import { WalletIframeClient } from '../../../../passkey-sdk/src/core/WalletIframe/client.ts';
 
 const buttonStyle = {
   marginBottom: '1rem',
@@ -23,10 +21,12 @@ export const WalletIframeDemoPage: React.FC = () => {
   const [recipient, setRecipient] = useState('web3-authn-v5.testnet');
   const [amount, setAmount] = useState('0.001');
   const [busy, setBusy] = useState(false);
+  const [execBusy, setExecBusy] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [regBusy, setRegBusy] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
   const [migrateBusy, setMigrateBusy] = useState(false);
-  const [newAccountId, setNewAccountId] = useState('berp1.web3-authn-v5.testnet');
+  const [newAccountId, setNewAccountId] = useState('berp7.web3-authn-v5.testnet');
   // Source of truth comes from SDK context (loginState). Avoid duplicating state locally.
 
   // Event-based readiness first; fall back to quick one-shot check
@@ -45,8 +45,7 @@ export const WalletIframeDemoPage: React.FC = () => {
       toast.error('Please log in (wallet origin) first');
       return;
     }
-    const sc = passkeyManager.getServiceClient?.();
-    if (!sc || !sc.isReady?.()) { toast.error('Service iframe not initialized'); return; }
+    // PasskeyManager will route via WalletIframe when configured
     setBusy(true);
     try {
       const yocto = nearToYocto(amount);
@@ -102,12 +101,13 @@ export const WalletIframeDemoPage: React.FC = () => {
     setRegBusy(true);
     try {
       toast.loading('Starting wallet-origin registration…', { id: 'reg' });
-      const sc = passkeyManager.getServiceClient?.();
-      if (!sc || !sc.isReady?.()) {
-        toast.error('Service iframe not initialized', { id: 'reg' });
-        return;
-      }
-      const reg = await sc.registerPasskey?.({ nearAccountId: accountId });
+      const reg = await passkeyManager.registerPasskey(accountId, {
+        onEvent: (ev: any) => {
+          if (ev?.message) toast.loading(ev.message, { id: 'reg' });
+          if (ev?.status === 'success' && ev?.phase?.includes?.('complete')) toast.success('Registration complete', { id: 'reg' });
+          if (ev?.status === 'error') toast.error(ev?.error || 'Registration error', { id: 'reg' });
+        }
+      } as any);
       if (reg?.success && reg?.nearAccountId) {
         toast.success(`Registered ${accountId}`, { id: 'reg' });
       } else {
@@ -121,6 +121,82 @@ export const WalletIframeDemoPage: React.FC = () => {
     }
   }, [newAccountId, passkeyManager]);
 
+  const executeActionTransfer = useCallback(async () => {
+    if (!loginState.isLoggedIn || !loginState.nearAccountId) {
+      toast.error('Please log in (wallet origin) first');
+      return;
+    }
+    const yocto = nearToYocto(amount);
+    if (yocto === '0') { toast.error('Invalid amount'); return; }
+    setExecBusy(true);
+    const toastId = 'exec-action';
+    try {
+      toast.loading('Executing transfer via executeAction…', { id: toastId });
+      const res = await passkeyManager.executeAction({
+        nearAccountId: loginState.nearAccountId,
+        receiverId: recipient.trim(),
+        actionArgs: { type: ActionType.Transfer, amount: yocto },
+        options: {
+          onEvent: (event) => {
+            if (event?.message) toast.loading(event.message, { id: toastId });
+            if (event?.phase === ActionPhase.STEP_9_ACTION_COMPLETE && event?.status === ActionStatus.SUCCESS) {
+              toast.success(event.message || 'Action complete', { id: toastId });
+            }
+          },
+        },
+      } as any);
+      if (res?.success) {
+        toast.success(`Action tx: ${res.transactionId}`);
+      } else {
+        toast.error(res?.error || 'Action failed');
+      }
+    } catch (err: any) {
+      console.error('[WalletIframeDemo] executeAction error:', err);
+      toast.error(err?.message || 'Action failed', { id: toastId });
+    } finally {
+      setExecBusy(false);
+    }
+  }, [loginState.isLoggedIn, loginState.nearAccountId, recipient, amount, passkeyManager]);
+
+  const signAndSendOneCall = useCallback(async () => {
+    if (!loginState.isLoggedIn || !loginState.nearAccountId) {
+      toast.error('Please log in (wallet origin) first');
+      return;
+    }
+    const yocto = nearToYocto(amount);
+    if (yocto === '0') { toast.error('Invalid amount'); return; }
+    setBatchBusy(true);
+    const toastId = 'sign-send-onecall';
+    try {
+      toast.loading('Signing and sending (one call)…', { id: toastId });
+      const results = await passkeyManager.signAndSendTransactions({
+        nearAccountId: loginState.nearAccountId,
+        transactions: [
+          {
+            receiverId: recipient.trim(),
+            actions: [{ type: ActionType.Transfer, amount: yocto }],
+          },
+        ],
+        options: {
+          executeSequentially: true,
+          onEvent: (event) => {
+            if (event?.message) toast.loading(event.message, { id: toastId });
+            if (event?.phase === ActionPhase.STEP_9_ACTION_COMPLETE && event?.status === ActionStatus.SUCCESS) {
+              toast.success(event.message || 'All done', { id: toastId });
+            }
+          },
+        },
+      });
+      const txIds = (results || []).map((r: any) => r?.transactionId).filter(Boolean).join(', ');
+      if (txIds) toast.success(`Sent txs: ${txIds}`);
+    } catch (err: any) {
+      console.error('[WalletIframeDemo] signAndSendTransactions error:', err);
+      toast.error(err?.message || 'Batch failed', { id: toastId });
+    } finally {
+      setBatchBusy(false);
+    }
+  }, [loginState.isLoggedIn, loginState.nearAccountId, recipient, amount, passkeyManager]);
+
   const loginViaWalletOrigin = useCallback(async () => {
     const accountId = newAccountId.trim();
     if (!accountId) { toast.error('Enter a full NEAR account ID'); return; }
@@ -128,11 +204,12 @@ export const WalletIframeDemoPage: React.FC = () => {
     const toastId = 'wallet-login';
     try {
       toast.loading('Authenticating with Passkey…', { id: toastId });
-      const sc = passkeyManager.getServiceClient?.();
-      if (!sc || !sc.isReady?.()) {
-        throw new Error('Service iframe not initialized');
-      }
-      const raw = await sc.loginPasskey?.({ nearAccountId: accountId });
+      const raw = await passkeyManager.loginPasskey(accountId, {
+        onEvent: (ev: any) => {
+          if (ev?.message) toast.loading(ev.message, { id: toastId });
+          if (ev?.status === 'error') toast.error(ev?.error || 'Login error', { id: toastId });
+        }
+      } as any);
       const ok = raw.success;
       if (!ok) throw new Error(raw?.error || 'Login failed');
       // Fetch VRF status from wallet origin
@@ -150,125 +227,21 @@ export const WalletIframeDemoPage: React.FC = () => {
     setMigrateBusy(true);
     const toastId = 'migrate';
     try {
-      toast.loading('Scanning local data…', { id: toastId });
-
-      // Same-origin client to read local IndexedDB via existing RPCs
-      const localClient = new WalletIframeClient({});
-      await localClient.init();
-
-      const lastUserRes: any = await localClient.getLastUser();
-      const lastUser = lastUserRes?.result || null;
-
-      // Pull all users to migrate full users table
-      const allUsersRes: any = await (localClient as any).getAllUsers?.();
-      const allUsers: any[] = Array.isArray(allUsersRes?.result) ? allUsersRes.result : [];
-      if (!lastUser && allUsers.length === 0) {
-        toast.error('No local records found to migrate', { id: toastId });
-        return;
-      }
-
-      const nearAccountId: string = (lastUser?.nearAccountId) || (allUsers[0]?.nearAccountId) || '';
-      const deviceNumber: number = (lastUser?.deviceNumber) || 1;
-
-      // Pull preferences, theme, and authenticators from local origin
-      const [prefsRes, themeRes, authsRes, nearKeysRes] = await Promise.all([
-        nearAccountId ? localClient.getPreferences(nearAccountId) : Promise.resolve(null),
-        nearAccountId ? localClient.getTheme(nearAccountId) : Promise.resolve(null),
-        nearAccountId ? localClient.getAuthenticators(nearAccountId) : Promise.resolve({ result: [] }),
-        (localClient as any).getAllNearKeys?.() ?? Promise.resolve({ result: [] }),
-      ]);
-
-      const preferences = (prefsRes as any)?.result || null;
-      const theme = (themeRes as any)?.result || null;
-      const authenticators: any[] = Array.isArray((authsRes as any)?.result) ? (authsRes as any).result : [];
-      const nearKeys: any[] = Array.isArray((nearKeysRes as any)?.result) ? (nearKeysRes as any).result : [];
-
-      toast.loading('Migrating to wallet origin…', { id: toastId });
-
-      // Connect to wallet origin via a dedicated client (ensures latest helper methods)
-      const cfg: any = (passkeyManager as any).configs || {};
-      const wc = new WalletIframeClient({
-        walletOrigin: cfg.walletOrigin,
-        servicePath: cfg.walletServicePath || '/wallet-service',
-        theme: cfg.walletTheme,
-        nearRpcUrl: cfg.nearRpcUrl,
-        nearNetwork: cfg.nearNetwork,
-        contractId: cfg.contractId,
-        relayer: cfg.relayer,
-        vrfWorkerConfigs: cfg.vrfWorkerConfigs,
-        sdkBasePath: '/sdk',
-      });
-      await wc.init();
-
-      // Push into wallet origin via service-iframe DB RPCs
-      // 1) Users table: store WebAuthn user data for each user
-      let usersStored = 0;
-      let authStored = 0;
-      for (const u of allUsers) {
-        const userData = {
-          nearAccountId: u.nearAccountId,
-          deviceNumber: u.deviceNumber,
-          clientNearPublicKey: u.clientNearPublicKey,
-          lastUpdated: u.lastUpdated,
-          passkeyCredential: u.passkeyCredential,
-          encryptedVrfKeypair: u.encryptedVrfKeypair,
-          serverEncryptedVrfKeypair: u.serverEncryptedVrfKeypair,
-        };
-        await (wc as any).storeWebAuthnUser?.(userData);
-        usersStored += 1;
-        // Also migrate per-user preferences if present
-        if (u.preferences && typeof u.preferences === 'object') {
-          await (wc as any).updatePreferences?.(u.nearAccountId, u.preferences);
-        }
-        // Migrate authenticators per user
-        const authsResU: any = await localClient.getAuthenticators(u.nearAccountId);
-        const authsU: any[] = Array.isArray(authsResU?.result) ? authsResU.result : [];
-        for (const rec of authsU) {
-          await (wc as any).storeAuthenticator?.(rec);
-          authStored += 1;
-        }
-      }
-
-      // 2) Preferences and theme for last user (if specified directly)
-      if (preferences && typeof preferences === 'object') {
-        await (wc as any).updatePreferences?.(nearAccountId, preferences);
-      }
-      // Theme
-      if (theme === 'dark' || theme === 'light') {
-        await wc.setTheme(nearAccountId, theme);
-      }
-      // 3) Authenticators (for directly specified last user-only fetch if not already covered)
-      // Note: If allUsers contained this user, the per-user loop already migrated its authenticators.
-      if (authenticators.length && !allUsers.some(u => u?.nearAccountId === nearAccountId)) {
-        for (const rec of authenticators) {
-          await (wc as any).storeAuthenticator?.(rec);
-          authStored += 1;
-        }
-      }
-      // 4) Near keys (encrypted)
-      let keysStored = 0;
-      for (const k of nearKeys) {
-        await (wc as any).storeNearKey?.(k);
-        keysStored += 1;
-      }
-
-      // 5) Last user pointer
-      await (wc as any).setLastUser?.(nearAccountId, deviceNumber);
-
-      toast.success(`Migration complete. ${usersStored} user(s), ${authStored} authenticator(s), ${keysStored} key(s) imported.`, { id: toastId });
+      toast.loading('Migration flow removed in new WalletIframe API', { id: toastId });
+      toast.success('Nothing to migrate', { id: toastId });
     } catch (err: any) {
       console.error('[WalletIframeDemo] migrate error:', err);
       toast.error(err?.message || 'Migration failed', { id: toastId });
     } finally {
       setMigrateBusy(false);
     }
-  }, [passkeyManager]);
+  }, []);
 
   return (
     <main className="embedded-tx-page-root">
       <div className="embedded-tx-translucent-container">
         <div className="embedded-tx-content-area">
-          <h2>Service Iframe Demo</h2>
+          <h2>WalletIframe Demo</h2>
           <p>
             This demo signs a transfer using the cross-origin wallet service
             running at <code>https://wallet.example.localhost</code> and then
@@ -336,6 +309,25 @@ export const WalletIframeDemoPage: React.FC = () => {
             >
               {busy ? 'Processing...' : 'Sign via Wallet Origin'}
             </button>
+
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
+              <button
+                className="fe-button-secondary"
+                style={buttonStyle}
+                onClick={executeActionTransfer}
+                disabled={!loginState.isLoggedIn || execBusy}
+              >
+                {execBusy ? 'Executing…' : 'Execute Action (Transfer)'}
+              </button>
+              <button
+                className="fe-button-secondary"
+                style={buttonStyle}
+                onClick={signAndSendOneCall}
+                disabled={!loginState.isLoggedIn || batchBusy}
+              >
+                {batchBusy ? 'Sending…' : 'Sign & Send (one call)'}
+              </button>
+            </div>
 
             <div style={{ marginTop: 16 }}>
               <button

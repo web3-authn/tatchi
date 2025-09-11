@@ -14,12 +14,44 @@ import type {
 } from '../types/passkeyManager';
 import type { DeviceLinkingQRData, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1 } from '../types/linkDevice';
+import type { ConfirmationConfig } from '../types/signer-worker';
+import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 
 
 export class PasskeyManagerIframe {
   readonly configs: PasskeyManagerConfigs;
   private client: WalletIframeClient;
   private fallbackLocal: PasskeyManager | null = null;
+  private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
+  private themeListeners: Set<(t: 'light' | 'dark') => void> = new Set();
+  private themePollTimer: number | null = null;
+  private readonly themePollMs = 1500;
+
+  // Expose a userPreferences shim so API matches PasskeyManager
+  get userPreferences() {
+    return {
+      onThemeChange: (cb: (t: 'light' | 'dark') => void) => {
+        this.themeListeners.add(cb);
+        // Immediately emit current value
+        try { cb(this.lastConfirmationConfig.theme); } catch {}
+        this.ensureThemePolling();
+        return () => {
+          this.themeListeners.delete(cb);
+          this.maybeStopThemePolling();
+        };
+      },
+      getUserTheme: () => this.lastConfirmationConfig.theme,
+      setUserTheme: (t: 'light' | 'dark') => {
+        this.setUserTheme(t);
+        // Optimistically update local cache and notify listeners
+        this.lastConfirmationConfig = { ...this.lastConfirmationConfig, theme: t } as ConfirmationConfig;
+        this.notifyTheme(t);
+      },
+      setConfirmBehavior: (b: 'requireClick' | 'autoProceed') => { try { this.setConfirmBehavior(b); } catch {} },
+      setConfirmationConfig: (c: Record<string, unknown>) => { try { this.setConfirmationConfig(c); } catch {} },
+      getConfirmationConfig: () => this.getConfirmationConfig(),
+    };
+  }
 
   constructor(configs: PasskeyManagerConfigs) {
     this.configs = configs;
@@ -41,6 +73,13 @@ export class PasskeyManagerIframe {
 
   async initWalletIframe(): Promise<void> {
     await this.client.init();
+    try {
+      const cfg = await this.client.getConfirmationConfig();
+      if (cfg && typeof cfg === 'object') {
+        this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...(cfg as any) } as ConfirmationConfig;
+        this.notifyTheme(this.lastConfirmationConfig.theme);
+      }
+    } catch {}
   }
 
   isReady(): boolean { return this.client.isReady(); }
@@ -226,13 +265,18 @@ export class PasskeyManagerIframe {
     this.client.setConfirmBehavior(behavior);
   }
   setConfirmationConfig(config: Record<string, unknown>): void {
+    // Update local cache synchronously for immediate reads
+    this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...this.lastConfirmationConfig, ...(config as any) } as ConfirmationConfig;
     this.client.setConfirmationConfig(config);
   }
   setUserTheme(theme: 'dark' | 'light'): void {
+    this.lastConfirmationConfig = { ...this.lastConfirmationConfig, theme } as ConfirmationConfig;
     this.client.setTheme(theme);
+    this.notifyTheme(theme);
   }
   getConfirmationConfig(): any {
-    return this.client.getConfirmationConfig();
+    // Synchronous API parity with PasskeyManager
+    return this.lastConfirmationConfig;
   }
   async prefetchBlockheight(): Promise<void> {
     await this.client.prefetchBlockheight();
@@ -332,6 +376,35 @@ export class PasskeyManagerIframe {
       try { options?.onError?.(err); } catch {}
       try { await options?.afterCall?.(false, err); } catch {}
       throw err;
+    }
+  }
+
+  // === Theme sync helpers (iframe-host source of truth) ===
+  private ensureThemePolling(): void {
+    if (this.themePollTimer !== null) return;
+    const tick = async () => {
+      try {
+        const cfg = await this.client.getConfirmationConfig();
+        const theme = (cfg as any)?.theme as 'light' | 'dark' | undefined;
+        if (theme && theme !== this.lastConfirmationConfig.theme) {
+          this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...(cfg as any) } as ConfirmationConfig;
+          this.notifyTheme(theme);
+        }
+      } catch {}
+    };
+    this.themePollTimer = window.setInterval(tick, this.themePollMs) as any;
+  }
+
+  private maybeStopThemePolling(): void {
+    if (this.themeListeners.size === 0 && this.themePollTimer !== null) {
+      try { window.clearInterval(this.themePollTimer as any); } catch {}
+      this.themePollTimer = null;
+    }
+  }
+
+  private notifyTheme(t: 'light' | 'dark'): void {
+    for (const cb of Array.from(this.themeListeners)) {
+      try { cb(t); } catch {}
     }
   }
 }

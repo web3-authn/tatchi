@@ -2,7 +2,6 @@ import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
 } from './messages';
-import { sanitizeSdkBasePath, escapeHtmlAttribute } from './sanitization';
 import { SignedTransaction } from '../NearClient';
 import { ProgressBus, defaultPhaseHeuristics } from './progress-bus';
 import type { RegistrationResult, LoginResult, VerifyAndSignTransactionResult, LoginState, ActionResult } from '../types/passkeyManager';
@@ -87,7 +86,11 @@ export class WalletIframeClient {
     this.progressBus = new ProgressBus(
       { show: () => this.showFrameForActivation(), hide: () => this.hideFrameForActivation() },
       defaultPhaseHeuristics,
-      this.debug ? ((msg, data) => { try { console.debug('[WalletIframeClient][ProgressBus]', msg, data || ''); } catch {} }) : undefined
+      this.debug
+        ? ((msg: any, ...args: any[]) => {
+            try { console.debug('[WalletIframeClient][ProgressBus]', msg, ...(args || [])); } catch {}
+          })
+        : undefined
     );
   }
 

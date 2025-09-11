@@ -100,34 +100,31 @@ export function PasskeyLoginMenu() {
   };
 
   const onRecover = async () => {
-    const flow = startAccountRecoveryFlow({
-      onEvent: async (event) => {
-        if (
-          event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
-          && event.status === AccountRecoveryStatus.SUCCESS
-        ) {
-          await refreshLoginState();
-        }
-      },
-      // Avoid toasting here to prevent duplicate messages; handle in catch below
-      onError: (error) => {
-        console.error('Recovery error:', error);
-      }
-    });
-
-    const options = await flow.discover(targetAccountId);
     try {
-      const result = await flow.recover(options[0]);
-      if (result.success) {
+      const result = await (passkeyManager as any).recoverAccountFlow({
+        accountId: targetAccountId,
+        options: {
+          onEvent: async (event: any) => {
+            if (
+              event.phase === AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE
+              && event.status === AccountRecoveryStatus.SUCCESS
+            ) {
+              await refreshLoginState();
+            }
+          },
+          onError: (error: any) => {
+            console.error('Recovery error:', error);
+          }
+        }
+      });
+      if (result?.success) {
         toast.success(`Account ${targetAccountId} recovered successfully!`);
-        return; // success
-      } else {
-        throw new Error(result.error || 'Unknown error');
+        return;
       }
+      throw new Error(result?.error || 'Unknown error');
     } catch (err: any) {
       console.error('Recovery error:', err);
       toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
-      // Re-throw so PasskeyAuthMenu can reset UI back to sign-in
       throw err;
     }
   };

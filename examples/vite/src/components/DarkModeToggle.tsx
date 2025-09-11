@@ -10,9 +10,7 @@ export const DarkModeToggle: React.FC = () => {
     const next = isDark ? 'light' : 'dark';
     // If logged in, persist to user preferences via passkeyManager
     if (loginState.isLoggedIn) {
-      try {
-        void passkeyManager?.userPreferences?.setUserTheme(next);
-      } catch {}
+      passkeyManager.setUserTheme(next);
     }
     // Always update local theme context immediately for snappy UI
     setTheme(next);
@@ -21,14 +19,13 @@ export const DarkModeToggle: React.FC = () => {
   // Subscribe to user preference theme updates when logged in
   useEffect(() => {
     if (!loginState.isLoggedIn || !passkeyManager) return;
-    const up = passkeyManager.userPreferences;
-    const unsub = up.onThemeChange((t) => setTheme(t));
-    // Initialize from current stored preference
-    try {
-      const t = up.getUserTheme();
-      if (t === 'light' || t === 'dark') setTheme(t);
-    } catch {}
-    return () => { try { unsub?.(); } catch {} };
+    const unsub = passkeyManager.userPreferences.onThemeChange(t => setTheme(t));
+    const t = passkeyManager.userPreferences.getUserTheme();
+    if (t === 'light' || t === 'dark') {
+      setTheme(t);
+    }
+
+    return () => { unsub?.(); };
   }, [loginState.isLoggedIn, passkeyManager, setTheme]);
 
   return (

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { TouchIdWithText, usePasskeyContext } from '@web3authn/passkey/react';
 import { SecureSendTxButton, ActionType } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
+import { LitDrawer } from '../../../../passkey-sdk/src/react/components/LitDrawer';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import './EmbeddedTxConfirmPage.css';
 
@@ -24,6 +25,9 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   // State for transaction results
   const [loading, setLoading] = useState(false);
 
+  // State for LitDrawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   // Create transaction data for setting greeting
   const createGreetingAction = (): ActionArgs => {
     const newGreetingMessage = `${greetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
@@ -39,6 +43,16 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   const handleCancel = () => {
     setResult('Transaction cancelled by user');
     setError('');
+  };
+
+  const handleDrawerConfirm = () => {
+    setResult('Drawer confirmed!');
+    setDrawerOpen(false);
+  };
+
+  const handleDrawerCancel = () => {
+    setResult('Drawer cancelled');
+    setDrawerOpen(false);
   };
 
   if (!loginState.isLoggedIn) {
@@ -86,6 +100,31 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
             </div>
 
             <div className="test-embedded-section">
+              <label className="test-embedded-section-label">LitDrawer Demo:</label>
+              <div style={{ marginBottom: '16px' }}>
+                <button
+                  onClick={() => setDrawerOpen(true)}
+                  style={{
+                    background: '#4DAFFE',
+                    color: '#0b1220',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    marginRight: '8px'
+                  }}
+                >
+                  Open Drawer
+                </button>
+                <span style={{ fontSize: '14px', color: '#666' }}>
+                  Click to test the LitDrawer component with drag-to-close
+                </span>
+              </div>
+            </div>
+
+            <div className="test-embedded-section">
               <label className="test-embedded-section-label">Embedded Component:</label>
               <SecureSendTxButton
                 nearAccountId={loginState.nearAccountId!}
@@ -109,10 +148,8 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   },
                 ]}
                 options={{
-                  hooks: {
-                    beforeCall: () => {
-                      // optional: add any per-call logging here
-                    },
+                  beforeCall: () => {
+                    // optional: add any per-call logging here
                   },
                   onError: (error) => {
                     setError(`Transaction failed: ${error.message}`);
@@ -178,6 +215,20 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* LitDrawer Component */}
+      <LitDrawer
+        open={drawerOpen}
+        theme="light"
+        title="Test Drawer with Drag"
+        subtitle="Drag down to close or use the buttons. This demonstrates the new drag-to-close functionality!"
+        accountId={loginState.nearAccountId || 'test.near'}
+        confirmText="Confirm"
+        cancelText="Cancel"
+        dragToClose={true}
+        onConfirm={handleDrawerConfirm}
+        onCancel={handleDrawerCancel}
+      />
     </div>
   );
 };

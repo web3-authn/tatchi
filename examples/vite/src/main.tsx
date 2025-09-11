@@ -20,8 +20,8 @@ function App() {
       <ThemeProvider>
         <PasskeyProvider
           config={{
-            nearRpcUrl: 'https://rpc.testnet.near.org',
-            // nearRpcUrl: 'https://test.rpc.fastnear.com',
+            // nearRpcUrl: 'https://rpc.testnet.near.org',
+            nearRpcUrl: 'https://test.rpc.fastnear.com',
             contractId: 'web3-authn-v5.testnet',
             nearNetwork: 'testnet',
             nearExplorerUrl: 'https://testnet.nearblocks.io',
@@ -30,8 +30,9 @@ function App() {
             walletOrigin: 'https://wallet.example.localhost',
             walletServicePath: '/wallet-service',
             walletTheme: 'dark',
-            // Force a single rpId across parent + wallet origins so passkeys are usable on both
-            rpIdOverride: 'example.localhost',
+            // Use wallet origin as RP ID so contract validation matches
+            // If you want a shared RP ID across subdomains, update contract/verification to accept it
+            rpIdOverride: 'wallet.example.localhost',
             relayer: {
               accountId: 'web3-authn-v5.testnet',
               url: 'https://relay-server.localhost',

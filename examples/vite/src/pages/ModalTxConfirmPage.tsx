@@ -157,12 +157,10 @@ export const ModalTxConfirmPage: React.FC = () => {
             }
           },
           waitUntil: TxExecutionStatus.FINAL,
-          hooks: {
-            afterCall: (success: boolean, result?: any) => {
-              if (success && result?.transactionId) {
-                console.log('Combined transaction success:', result.transactionId);
-                console.log('Actions executed:', actions.length);
-              }
+          afterCall: (success: boolean, result?: any) => {
+            if (success && result?.transactionId) {
+              console.log('Combined transaction success:', result.transactionId);
+              console.log('Actions executed:', actions.length);
             }
           }
         }
