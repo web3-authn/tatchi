@@ -34,10 +34,8 @@ export class PasskeyManagerIframe {
         this.themeListeners.add(cb);
         // Immediately emit current value
         try { cb(this.lastConfirmationConfig.theme); } catch {}
-        this.ensureThemePolling();
         return () => {
           this.themeListeners.delete(cb);
-          this.maybeStopThemePolling();
         };
       },
       getUserTheme: () => this.lastConfirmationConfig.theme,
