@@ -62,7 +62,6 @@ export interface ReadyPayload {
 
 export interface PMSetConfigPayload {
   theme?: 'dark' | 'light';
-  language?: string;
   // PasskeyManagerConfigs subset for wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
