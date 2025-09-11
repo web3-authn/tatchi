@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { usePasskeyContext } from '../context'
-import type { LinkDeviceFlow } from '../../core/PasskeyManager/linkDevice'
 import { DeviceLinkingSSEEvent, DeviceLinkingStatus, DeviceLinkingPhase } from '../../core/types/passkeyManager'
 import './ShowQRCode.css'
 
@@ -10,8 +9,6 @@ interface ShowQRCodeProps {
   onClose: () => void;
   onEvent: (event: DeviceLinkingSSEEvent) => void;
   onError: (error: Error) => void;
-  /** Optional pre-created flow. If provided, ShowQRCode uses it instead of creating one. */
-  deviceLinkingFlow?: LinkDeviceFlow;
 }
 
 export function ShowQRCode({
@@ -19,85 +16,74 @@ export function ShowQRCode({
   onClose,
   onEvent,
   onError,
-  deviceLinkingFlow,
 }: ShowQRCodeProps) {
 
-  const { startDeviceLinkingFlow } = usePasskeyContext();
+  const {
+    startDevice2LinkingFlow,
+    stopDevice2LinkingFlow,
+    passkeyManager
+  } = usePasskeyContext();
 
   const [deviceLinkingState, setDeviceLinkingState] = useState<{
     mode: 'idle' | 'device1' | 'device2';
     qrCodeDataURL?: string;
     isProcessing: boolean;
+    lastPhase?: string;
+    lastMessage?: string;
   }>({ mode: 'idle', isProcessing: false });
 
-  // Store the flow instance to allow proper cleanup
-  const flowRef = useRef<any>(null);
-
-  useEffect(() => {
-    return () => {
-      if (flowRef.current) {
-        flowRef.current?.cancel();
-        flowRef.current = null;
-      }
-    };
-  }, []);
+  // Prevent duplicate concurrent starts (e.g., React StrictMode double-effect)
+  const sessionRef = useRef(0);
+  const initCompletedRef = useRef(false);
 
   // Auto-start QR generation when modal opens; cancel when closing or unmounting
   useEffect(() => {
     if (!isOpen) return;
 
+    const mySession = ++sessionRef.current;
     let cancelled = false;
     setDeviceLinkingState({ mode: 'device2', isProcessing: true });
 
-    // Use provided flow if present; otherwise create one and forward events
-    const device2Flow: LinkDeviceFlow = deviceLinkingFlow ?? startDeviceLinkingFlow({
-      onEvent: (event: DeviceLinkingSSEEvent) => {
-        if (cancelled) return;
-        onEvent(event);
-        if (
-          event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE &&
-          event.status === DeviceLinkingStatus.SUCCESS
-        ) {
-          try { onClose(); } catch {}
-        }
-      },
-      onError: (error: Error) => {
-        if (cancelled) return;
-        setDeviceLinkingState({ mode: 'idle', isProcessing: false });
-        onError(error);
-        try { onClose(); } catch {}
-      },
-    });
-
-    flowRef.current = device2Flow;
-
-    (async () => {
     (async () => {
       try {
-        const { qrCodeDataURL } = await device2Flow.generateQR();
-        if (!cancelled) {
+        const { qrCodeDataURL } = await startDevice2LinkingFlow({
+          onEvent: (event: DeviceLinkingSSEEvent) => {
+            if (cancelled) return;
+            // Update UI status line
+            setDeviceLinkingState(prev => ({ ...prev, lastPhase: String(event.phase), lastMessage: event.message }));
+            onEvent(event);
+            if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === DeviceLinkingStatus.SUCCESS) {
+              try { onClose(); } catch {}
+            }
+          },
+          onError: (error: Error) => {
+            if (cancelled) return;
+            setDeviceLinkingState({ mode: 'idle', isProcessing: false });
+            onError(error);
+            try { onClose(); } catch {}
+          }
+        });
+        if (!cancelled && sessionRef.current === mySession) {
+          initCompletedRef.current = true;
           setDeviceLinkingState(prev => ({ ...prev, qrCodeDataURL, isProcessing: false }));
         }
       } catch (err) {
-        if (!cancelled) {
+        if (!cancelled && sessionRef.current === mySession) {
           setDeviceLinkingState({ mode: 'idle', isProcessing: false });
         }
       }
     })();
-    })();
 
     return () => {
       cancelled = true;
-      // Only cancel the flow if we created it here
-      const shouldCancel = !deviceLinkingFlow;
-      if (shouldCancel) {
-        device2Flow.cancel();
-      }
-      if (flowRef.current === device2Flow) {
-        flowRef.current = null;
+      // Invalidate this session so any late resolves are ignored
+      sessionRef.current++;
+      // Avoid cancelling prematurely during React StrictMode double-invoke
+      if (initCompletedRef.current) {
+        stopDevice2LinkingFlow().catch(() => {});
       }
     };
-  }, [isOpen, deviceLinkingFlow]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -126,7 +112,10 @@ export function ShowQRCode({
             {deviceLinkingState.qrCodeDataURL && (
               <>
                 <div className="qr-instruction">Scan to backup your other device.</div>
-                <div className="qr-status">Waiting for your other device to scan<span className="animated-ellipsis"></span></div>
+                <div className="qr-status">
+                  {deviceLinkingState.lastMessage || 'Waiting for your other device to scan'}
+                  <span className="animated-ellipsis"></span>
+                </div>
               </>
             )}
           </div>

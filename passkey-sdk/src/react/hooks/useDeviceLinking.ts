@@ -90,7 +90,7 @@ export const useDeviceLinking = (options: UseDeviceLinkingOptions): UseDeviceLin
 
       const nearClient = passkeyManager.getNearClient();
 
-      const result = await passkeyManager.linkDeviceWithQRCode(qrData, {
+      const result = await passkeyManager.linkDeviceWithScannedQRData(qrData, {
         fundingAmount,
         onEvent: (event) => {
           onEvent?.(event);

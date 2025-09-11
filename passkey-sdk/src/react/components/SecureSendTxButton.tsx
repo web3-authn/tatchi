@@ -15,6 +15,7 @@ import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeBut
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import TouchIcon from './ProfileSettingsButton/TouchIcon';
+import { TransactionInput } from '@/core/types/actions';
 
 
 export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean }> = ({
@@ -86,8 +87,22 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
 }) => {
 
   const { passkeyManager } = usePasskeyContext();
-  // Memoize passkey context for stable prop identity
-  const passkeyManagerContext = useMemo(() => passkeyManager.getContext(), [passkeyManager]);
+  // Provide external confirm handler when using PasskeyManagerIframe (no local context)
+  const externalConfirm = useMemo(() => {
+    // Always route via the manager's API; PasskeyManagerIframe proxies to wallet-origin.
+    return async ({ nearAccountId, txSigningRequests, options }: {
+      nearAccountId: string;
+      txSigningRequests: TransactionInput[];
+      options?: any;
+    }) => {
+      return await passkeyManager.signAndSendTransactions({
+        nearAccountId,
+        transactions: txSigningRequests,
+        options,
+      });
+    };
+  }, [passkeyManager]);
+
   const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
@@ -156,13 +171,13 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
         // Also prefetch on keyboard focus
         try { void passkeyManager.prefetchBlockheight(); } catch {}
       }}
-      passkeyManagerContext={passkeyManagerContext}
       // sendAndSignTransaction args
       nearAccountId={nearAccountId}
       txSigningRequests={txSigningRequests}
       // hooks
       options={{
-        hooks: options?.hooks,
+        beforeCall: options?.beforeCall,
+        afterCall: options?.afterCall,
         onError: options?.onError,
         onEvent: options?.onEvent,
         waitUntil: options?.waitUntil,
@@ -177,6 +192,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
       buttonHoverStyle={toStyleRecord(buttonHoverStyle)}
       tooltipPosition={internalTooltipPosition}
       txTreeTheme={currentTheme}
+      externalConfirm={externalConfirm as any}
     >
       {content}
     </RawIframeButton>

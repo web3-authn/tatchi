@@ -3,6 +3,7 @@ import {
   type PasskeyManager,
   toAccountId
 } from '@/index';
+import { awaitWalletIframeReady } from '../utils/walletIframe';
 
 export interface AccountInputState {
   inputUsername: string;
@@ -44,9 +45,15 @@ export function useAccountInput({
     indexDBAccounts: []
   });
 
-  // Load IndexDB accounts and determine account info
+  // Await wallet iframe readiness when needed
+  const awaitWalletIframeIfNeeded = useCallback(async () => {
+    await awaitWalletIframeReady(passkeyManager);
+  }, [passkeyManager]);
+
+  // Load recent accounts and determine account info
   const refreshAccountData = useCallback(async () => {
     try {
+      await awaitWalletIframeIfNeeded();
       const { accountIds, lastUsedAccountId } = await passkeyManager.getRecentLogins();
 
       let lastUsername = '';
@@ -125,6 +132,7 @@ export function useAccountInput({
     }
 
     try {
+      await awaitWalletIframeIfNeeded();
       const hasCredential = await passkeyManager.hasPasskeyCredential(toAccountId(accountId));
       setState(prevState => ({ ...prevState, accountExists: hasCredential }));
     } catch (error) {
@@ -150,6 +158,7 @@ export function useAccountInput({
         setState(prevState => ({ ...prevState, inputUsername: username }));
       } else {
         // No logged-in user, try to get last used account
+        await awaitWalletIframeIfNeeded();
         const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
         if (lastUsedAccountId) {
           const username = lastUsedAccountId.nearAccountId.split('.')[0];
@@ -167,7 +176,8 @@ export function useAccountInput({
       // Only reset if user just logged out (isLoggedIn is false but we had a nearAccountId before)
       if (!isLoggedIn && !currentNearAccountId) {
         try {
-        const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
+          await awaitWalletIframeIfNeeded();
+          const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
           if (lastUsedAccountId) {
             const username = lastUsedAccountId.nearAccountId.split('.')[0];
             setState(prevState => ({ ...prevState, inputUsername: username }));

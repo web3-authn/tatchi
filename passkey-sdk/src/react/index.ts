@@ -67,6 +67,10 @@ export {
   LitPasskeyHaloLoading,
   type LitPasskeyHaloLoadingProps
 } from './components/LitPasskeyHaloLoading';
+export {
+  LitDrawer,
+  type LitDrawerProps
+} from './components/LitDrawer';
 
 // Theme components
 export { ThemeProvider, ThemeScope, useTheme } from './components/theme';

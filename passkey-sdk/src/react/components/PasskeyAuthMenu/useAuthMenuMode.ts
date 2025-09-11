@@ -1,4 +1,5 @@
 import React from 'react';
+import { awaitWalletIframeReady } from '../../utils/walletIframe';
 import { AuthMenuMode } from '.';
 import { title } from 'process';
 import { get } from 'http';
@@ -51,6 +52,8 @@ export function useAuthMenuMode({
     if (enteringLogin && passkeyManager) {
       (async () => {
         try {
+          // Await wallet iframe readiness when applicable
+          await awaitWalletIframeReady(passkeyManager);
           const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
           if (!cancelled && lastUsedAccountId) {
             const username = (lastUsedAccountId.nearAccountId || '').split('.')[0] || '';

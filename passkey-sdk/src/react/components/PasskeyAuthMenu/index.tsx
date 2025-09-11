@@ -11,7 +11,6 @@ import { ShowQRCode } from '../ShowQRCode';
 import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
-import type { LinkDeviceFlow } from '../../../core/PasskeyManager/linkDevice';
 
 export type AuthMenuMode = 'register' | 'login' | 'recover';
 
@@ -19,7 +18,6 @@ export interface SignupMenuProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onRecoverAccount?: () => void;
-  deviceLinkingFlow?: LinkDeviceFlow;
 
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;
@@ -36,10 +34,6 @@ export interface SignupMenuProps {
     x?: () => string;
     apple?: () => string;
   };
-  // /** Optional controlled input value for the username/email field */
-  // userInput?: string;
-  // /** Optional change handler to control the input */
-  // onUserInputChange?: (value: string) => void;
   /** Text to show inline after the input (e.g., .testnet) */
   postfixText?: string;
   /** Whether the account domain/postfix corresponds to an existing account */
@@ -70,16 +64,11 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   accountExists,
   isSecureContext,
   onRecoverAccount,
-  deviceLinkingFlow,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
   let ctx: any = null;
-  try {
-    ctx = usePasskeyContext();
-  } catch {
-    ctx = null;
-  }
+  try { ctx = usePasskeyContext(); } catch {}
   const passkeyManager: any = ctx?.passkeyManager || null;
   // Resolve default mode: prefer prop, otherwise infer from account existence
   const accountExistsResolved = (typeof accountExists === 'boolean')
@@ -209,7 +198,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
             onError={(error) => {
               console.error('ShowQRCode error:', error);
             }}
-            deviceLinkingFlow={deviceLinkingFlow}
           />
         }
       >

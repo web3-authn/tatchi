@@ -73,7 +73,7 @@
 }
 
 .qr-code-image {
-  max-width: 150px;
+  max-width: 200px;
   height: auto;
   border-radius: var(--w3a-border-radius-md, 0.5rem);
 }
@@ -92,7 +92,7 @@
   }
 
   .qr-code-image {
-    max-width: 150px;
+    max-width: 200px;
   }
 
   .qr-code-display {
