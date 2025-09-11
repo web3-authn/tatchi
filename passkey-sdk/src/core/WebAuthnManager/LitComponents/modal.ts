@@ -24,14 +24,15 @@ export async function ensureIframeModalDefined(): Promise<void> {
       existing.addEventListener('error', (e) => reject(e), { once: true });
       return;
     }
+    const base = (window as any).__W3A_EMBEDDED_BASE__ || '/sdk/embedded/';
     const script = document.createElement('script');
     script.type = 'module';
     script.async = true;
     script.dataset.w3a = IFRAME_MODAL_ID;
-    script.src = `/sdk/embedded/${IFRAME_MODAL_ID}.js`;
+    script.src = `${base}${IFRAME_MODAL_ID}.js`;
     script.onload = () => resolve();
     script.onerror = (e) => {
-      console.error('[LitComponents/modal] Failed to load iframe modal host bundle');
+      console.error('[LitComponents/modal] Failed to load iframe modal host bundle', script.src);
       reject(e);
     };
     document.head.appendChild(script);

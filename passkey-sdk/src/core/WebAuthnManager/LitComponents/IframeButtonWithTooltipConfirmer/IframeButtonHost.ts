@@ -3,10 +3,7 @@ import { html, css, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInput } from '../../../types/actions';
-import { toAccountId } from '../../../types/accountIds';
 import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
-import { signAndSendTransactionsInternal } from '../../../PasskeyManager/actions';
-import type { PasskeyManagerContext } from '../../../PasskeyManager';
 // Local imports
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import type { TxTreeStyles } from '../TxTree';
@@ -85,16 +82,11 @@ export class IframeButtonHost extends LitElementWithProps {
         return JSON.stringify(newVal) !== JSON.stringify(oldVal);
       }
     },
-    passkeyManagerContext: {
-      type: Object,
-      hasChanged(newVal: PasskeyManagerContext | null, oldVal: PasskeyManagerContext | null) {
-        return JSON.stringify(newVal) !== JSON.stringify(oldVal);
-      }
-    },
     // Event handlers
     onSuccess: { type: Object },
     onCancel: { type: Object },
-    onLoadTouchIdPrompt: { type: Object }
+    onLoadTouchIdPrompt: { type: Object },
+    externalConfirm: { type: Object }
   } as const;
 
   static styles = css`
@@ -215,7 +207,13 @@ export class IframeButtonHost extends LitElementWithProps {
   declare txTreeTheme: EmbeddedTxButtonTheme;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
-  declare passkeyManagerContext: PasskeyManagerContext | null;
+  // Optional external confirm handler (e.g., to route via wallet iframe)
+  declare externalConfirm?: (args: {
+    nearAccountId: string;
+    txSigningRequests: TransactionInput[];
+    options?: SignAndSendTransactionHooksOptions;
+    theme?: 'dark' | 'light';
+  }) => Promise<ActionResult[]>;
 
   // Event handlers (not reactive properties)
   onSuccess?: (result: ActionResult[] ) => void;
@@ -246,7 +244,7 @@ export class IframeButtonHost extends LitElementWithProps {
     this.txTreeTheme = 'dark';
     this.showLoading = false;
     this.options = {};
-    this.passkeyManagerContext = null;
+    this.externalConfirm = undefined;
   }
 
   connectedCallback() {
@@ -815,12 +813,7 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   private async handleConfirm() {
-    if (
-      !this.passkeyManagerContext ||
-      !this.nearAccountId ||
-      !this.txSigningRequests ||
-      this.txSigningRequests.length === 0
-    ) {
+    if (!this.nearAccountId || !this.txSigningRequests || this.txSigningRequests.length === 0) {
       const err = new Error('Missing required data for transaction');
       this.options?.onError?.(err);
       return;
@@ -831,27 +824,24 @@ export class IframeButtonHost extends LitElementWithProps {
     this.onLoadTouchIdPrompt?.(true)
 
     try {
-      const txResults = await signAndSendTransactionsInternal({
-        context: this.passkeyManagerContext,
-        nearAccountId: toAccountId(this.nearAccountId),
-        transactionInputs: this.txSigningRequests.map(tx => ({
-          receiverId: tx.receiverId,
-          actions: tx.actions
-        })),
-        options: {
-          onEvent: this.options?.onEvent,
-          onError: this.options?.onError,
-          hooks: this.options?.hooks,
-          waitUntil: this.options?.waitUntil,
-          executeSequentially: this.options?.executeSequentially
-        },
-        confirmationConfigOverride: {
-          uiMode: 'embedded',
-          behavior: 'autoProceed',
-          autoProceedDelay: 0,
+      let txResults: ActionResult[] | undefined;
+
+      // Prefer an external confirm handler when provided (e.g., wallet iframe route)
+      if (typeof this.externalConfirm === 'function') {
+        txResults = await this.externalConfirm({
+          nearAccountId: this.nearAccountId,
+          txSigningRequests: this.txSigningRequests,
+          options: {
+            onEvent: this.options?.onEvent,
+            onError: this.options?.onError,
+            waitUntil: this.options?.waitUntil,
+            executeSequentially: this.options?.executeSequentially
+          },
           theme: this.txTreeTheme
-        }
-      });
+        });
+      } else {
+        throw new Error('No external confirm handler provided');
+      }
       this.onSuccess?.(txResults);
 
     } catch (err) {
