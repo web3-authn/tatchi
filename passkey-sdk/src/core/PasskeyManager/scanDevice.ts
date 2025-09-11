@@ -15,7 +15,7 @@ import { executeDeviceLinkingContractCalls } from '../rpcCalls';
 /**
  * Device1 (original device): Link device using pre-scanned QR data
  */
-export async function linkDeviceWithQRCode(
+export async function linkDeviceWithScannedQRData(
   context: PasskeyManagerContext,
   qrData: DeviceLinkingQRData,
   options: ScanAndLinkDeviceOptionsDevice1

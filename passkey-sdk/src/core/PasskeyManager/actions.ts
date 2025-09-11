@@ -244,11 +244,11 @@ export async function executeActionInternal({
   confirmationConfigOverride?: ConfirmationConfig | undefined,
 }): Promise<ActionResult> {
 
-  const { onEvent, onError, hooks, waitUntil } = options || {};
+  const { onEvent, onError, beforeCall, afterCall, waitUntil } = options || {};
   const actions = Array.isArray(actionArgs) ? actionArgs : [actionArgs];
 
   try {
-    await options?.hooks?.beforeCall?.();
+    await beforeCall?.();
 
     // Pre-warm NonceManager with fresh transaction context data
     try {
@@ -265,17 +265,17 @@ export async function executeActionInternal({
         receiverId: receiverId,
         actions: actions,
       }],
-      options: { onEvent, onError, hooks, waitUntil },
+      options: { onEvent, onError, beforeCall, waitUntil },
       confirmationConfigOverride
     });
 
     const txResult = await sendTransaction({
       context,
       signedTransaction: signedTxs[0].signedTransaction,
-      options: { onEvent, onError, hooks, waitUntil }
+      options: { onEvent, onError, afterCall, waitUntil }
     });
 
-    hooks?.afterCall?.(true, txResult);
+    afterCall?.(true, txResult);
     return txResult;
 
   } catch (error: any) {
@@ -289,8 +289,8 @@ export async function executeActionInternal({
       error: error.message
     });
 
-    const result = { success: false, error: error.message, transactionId: undefined };
-    hooks?.afterCall?.(false, result);
+    const result = { success: false, error: error.message, transactionId: undefined } as any;
+    afterCall?.(false, result);
     return result;
   }
 }
@@ -372,10 +372,10 @@ export async function signTransactionsWithActionsInternal({
   confirmationConfigOverride?: ConfirmationConfig | undefined,
 }): Promise<VerifyAndSignTransactionResult[]> {
 
-  const { onEvent, onError, hooks, waitUntil } = options || {};
+  const { onEvent, onError, beforeCall, waitUntil } = options || {};
 
   try {
-    await options?.hooks?.beforeCall?.();
+    await beforeCall?.();
     // Emit started event
     onEvent?.({
       step: 1,
@@ -387,14 +387,14 @@ export async function signTransactionsWithActionsInternal({
     });
 
     // 1. Basic validation (NEAR data fetching moved to confirmation flow)
-    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, hooks, waitUntil });
+    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil } as any);
 
     // 2. VRF Authentication + Transaction Signing (NEAR data fetched in confirmation flow)
     const signedTxs = await wasmAuthenticateAndSignTransactions(
       context,
       nearAccountId,
       transactionInputs,
-      { onEvent, onError, hooks, waitUntil, confirmationConfigOverride }
+      { onEvent, onError, waitUntil, confirmationConfigOverride } as any
     );
 
     return signedTxs;
@@ -424,7 +424,7 @@ async function validateInputsOnly(
   transactionInputs: TransactionInput[],
   options?: ActionHooksOptions,
 ): Promise<void> {
-  const { onEvent, onError, hooks } = options || {};
+  const { onEvent, onError } = options || {};
 
   // Basic validation
   if (!nearAccountId) {
@@ -465,7 +465,7 @@ async function wasmAuthenticateAndSignTransactions(
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<VerifyAndSignTransactionResult[]> {
 
-  const { onEvent, onError, hooks, confirmationConfigOverride } = options || {};
+  const { onEvent, onError, confirmationConfigOverride } = options || {};
   const { webAuthnManager } = context;
 
   onEvent?.({

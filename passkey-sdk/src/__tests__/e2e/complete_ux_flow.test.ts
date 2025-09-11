@@ -260,41 +260,17 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         console.log('=== PHASE 3: RECOVERY FLOW ===');
 
         const recoveryEvents: any[] = [];
-        const recoveryFlow = await passkeyManager.startAccountRecoveryFlow({
-          onEvent: (event: any) => {
-            recoveryEvents.push(event);
-            console.log(`Recovery [${event.step}]: ${event.phase} - ${event.message}`);
-          },
-          onError: (error: any) => {
-            console.error('Recovery Error:', error);
+        const recoveryResult = await passkeyManager.recoverAccountFlow({
+          options: {
+            onEvent: (event: any) => {
+              recoveryEvents.push(event);
+              console.log(`Recovery [${event.step}]: ${event.phase} - ${event.message}`);
+            },
+            onError: (error: any) => {
+              console.error('Recovery Error:', error);
+            }
           }
         });
-
-        // Phase 1: Discover available accounts for recovery
-        console.log('Recovery Phase 1: Discovering available accounts...');
-        const recoveryOptions = await recoveryFlow.discover(testAccountId);
-        console.log(`Recovery: Found ${recoveryOptions.length} recoverable accounts`);
-
-        // Phase 2: Execute recovery (use first available option or create a mock selection)
-        console.log('Recovery Phase 2: Executing recovery...');
-        let recoveryResult;
-        if (recoveryOptions.length > 0) {
-          // Use the first available option
-          const selectedOption = recoveryOptions[0];
-          recoveryResult = await recoveryFlow.recover({
-            credentialId: selectedOption.credentialId,
-            accountId: selectedOption.accountId || testAccountId
-          });
-        } else {
-          // No recoverable accounts found, this might be expected for a fresh registration
-          console.log('Recovery: No recoverable accounts found, skipping recovery test');
-          recoveryResult = {
-            success: true,
-            accountId: testAccountId,
-            publicKey: 'mock-public-key',
-            message: 'Recovery skipped - no recoverable accounts found'
-          };
-        }
 
         // Add explicit completion logging
         console.log('Recovery completed successfully:', recoveryResult);

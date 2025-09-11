@@ -1,7 +1,7 @@
 
 export { PasskeyManager } from './core/PasskeyManager';
 export { WebAuthnManager } from './core/WebAuthnManager';
-export { LinkDeviceFlow, AccountRecoveryFlow } from './core/PasskeyManager';
+export { AccountRecoveryFlow } from './core/PasskeyManager';
 export { type NearClient, MinimalNearClient } from './core/NearClient';
 export { verifyAuthenticationResponse } from './core/PasskeyManager/login';
 
@@ -33,7 +33,8 @@ export type {
   LoginHooksOptions,
   RegistrationHooksOptions,
   ActionHooksOptions,
-  OperationHooks,
+  BeforeCall,
+  AfterCall,
   EventCallback,
 } from './core/types/passkeyManager';
 

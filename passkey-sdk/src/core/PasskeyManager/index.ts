@@ -196,7 +196,7 @@ export class PasskeyManager {
   ): Promise<LoginResult> {
     if (this.serviceClient) {
       // Keep local preferences in sync
-      try { await this.webAuthnManager.initializeAuthenticationState(toAccountId(nearAccountId), this.nearClient); } catch {}
+      try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
       try { await options?.beforeCall?.(); } catch {}
       try {
         const res = await this.serviceClient.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent } as any } as any);
@@ -208,8 +208,8 @@ export class PasskeyManager {
         throw err;
       }
     }
-    // Initialize authentication state before login
-    await this.webAuthnManager.initializeAuthenticationState(toAccountId(nearAccountId), this.nearClient);
+    // Initialize current user before login
+    await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
     return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
   }
 

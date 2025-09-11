@@ -1,4 +1,4 @@
-import type { OperationHooks, EventCallback, AccountRecoverySSEEvent } from '../types/passkeyManager';
+import type { EventCallback, AccountRecoverySSEEvent, BeforeCall, AfterCall } from '../types/passkeyManager';
 import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
 import type { AccountId, StoredAuthenticator, VRFChallenge } from '../types';
@@ -192,12 +192,26 @@ export class AccountRecoveryFlow {
         throw new Error('Invalid account selection - no account ID provided');
       }
 
+      // If multiple credentials exist for this account, allow the platform chooser UI
+      // by passing all known credential IDs for this account as allowCredentials.
+      const allowList = (() => {
+        try {
+          if (!this.availableAccounts) return undefined;
+          if (!selectedOption.credentialId || selectedOption.credentialId === 'manual-input') return undefined;
+          const ids = this.availableAccounts
+            .filter(opt => opt.accountId === selectedOption.accountId && opt.credentialId && opt.credentialId !== 'manual-input')
+            .map(opt => opt.credentialId);
+          const uniq = Array.from(new Set(ids));
+          return uniq.length > 0 ? uniq : undefined;
+        } catch { return undefined; }
+      })();
+
       const recoveryResult = await recoverAccount(
         this.context,
         selectedOption.accountId,
         this.options,
         undefined,
-        selectedOption.credentialId && selectedOption.credentialId !== 'manual-input' ? [selectedOption.credentialId] : undefined
+        allowList
       );
 
       this.phase = 'complete';
@@ -296,10 +310,10 @@ export async function recoverAccount(
   reuseCredential?: PublicKeyCredential,
   allowedCredentialIds?: string[]
 ): Promise<RecoveryResult> {
-  const { onEvent, onError, hooks } = options || {};
+  const { onEvent, onError, beforeCall, afterCall } = options || {};
   const { webAuthnManager, nearClient, configs } = context;
 
-  await hooks?.beforeCall?.();
+  await beforeCall?.();
 
   onEvent?.({
     step: 1,
@@ -311,7 +325,7 @@ export async function recoverAccount(
   try {
     const validation = validateNearAccountId(accountId);
     if (!validation.valid) {
-      return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, hooks);
+  return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, beforeCall, afterCall);
     }
 
     onEvent?.({
@@ -336,7 +350,7 @@ export async function recoverAccount(
     });
 
     if (!hasAccess) {
-      return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, hooks);
+  return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, beforeCall, afterCall);
     }
 
     const vrfInputData: VRFInputData = {
@@ -381,11 +395,18 @@ export async function recoverAccount(
       data: recoveryResult,
     });
 
-    hooks?.afterCall?.(true, recoveryResult);
+    afterCall?.(true, recoveryResult);
     return recoveryResult;
   } catch (error: any) {
+    // Clear any VRF session that might have been established during recovery
+    try {
+      await webAuthnManager.clearVrfSession();
+    } catch (clearError) {
+      console.warn('Failed to clear VRF session after recovery error:', clearError);
+    }
+
     onError?.(error);
-    return handleRecoveryError(accountId, error.message, onError, hooks);
+    return handleRecoveryError(accountId, error.message, onError, beforeCall, afterCall);
   }
 }
 
@@ -436,7 +457,8 @@ function handleRecoveryError(
   accountId: AccountId,
   errorMessage: string,
   onError?: (error: Error) => void,
-  hooks?: OperationHooks
+  beforeCall?: BeforeCall,
+  afterCall?: AfterCall<any>
 ): RecoveryResult {
   console.error('[recoverAccount] Error:', errorMessage);
   onError?.(new Error(errorMessage));
@@ -449,8 +471,8 @@ function handleRecoveryError(
     error: errorMessage
   };
 
-  const result = { success: false, accountId, error: errorMessage };
-  hooks?.afterCall?.(false, result);
+  const result = { success: false, accountId, error: errorMessage } as any;
+  afterCall?.(false, result);
   return errorResult;
 }
 
@@ -556,6 +578,13 @@ async function performAccountRecovery({
       console.debug('VRF keypair unlocked successfully after account recovery');
     }
 
+    // 6. Initialize current user only after a successful unlock
+    try {
+      await webAuthnManager.initializeCurrentUser(accountId, context.nearClient);
+    } catch (initErr) {
+      console.warn('Failed to initialize current user after recovery:', initErr);
+    }
+
     return {
       success: true,
       accountId,
@@ -606,6 +635,7 @@ async function restoreUserData({
   // Store the encrypted NEAR keypair in the encrypted keys database
   await IndexedDBManager.nearKeysDB.storeEncryptedKey({
     nearAccountId: accountId,
+    deviceNumber,
     encryptedData: encryptedNearKeypair.encryptedPrivateKey,
     iv: encryptedNearKeypair.iv,
     timestamp: Date.now()

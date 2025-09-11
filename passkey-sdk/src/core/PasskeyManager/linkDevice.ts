@@ -3,7 +3,7 @@ import { KeyPair } from '@near-js/crypto';
 import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
-import { generateBootstrapVrfChallenge } from '../WebAuthnManager/registration';
+import { generateBootstrapVrfChallenge } from './registration';
 import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
 
@@ -607,6 +607,14 @@ export class LinkDeviceFlow {
 
           if (unlockResult.success) {
             console.log('LinkDeviceFlow: Shamir 3-pass unlock successful for auto-login');
+
+            // Initialize current user after successful VRF unlock
+            try {
+              await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+            } catch (initErr) {
+              console.warn('Failed to initialize current user after Shamir 3-pass unlock:', initErr);
+            }
+
             this.options?.onEvent?.({
               step: 8,
               phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
@@ -631,6 +639,13 @@ export class LinkDeviceFlow {
       });
 
       if (vrfUnlockResult.success) {
+        // Initialize current user after successful VRF unlock
+        try {
+          await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+        } catch (initErr) {
+          console.warn('Failed to initialize current user after TouchID unlock:', initErr);
+        }
+
         this.options?.onEvent?.({
           step: 8,
           phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
@@ -761,6 +776,8 @@ export class LinkDeviceFlow {
         const deviceNumber = this.session.deviceNumber;
         console.log(`LinkDeviceFlow: Using device number ${deviceNumber} for credential generation`);
 
+        // Ensure user activation before WebAuthn in cross-origin iframe
+        try { await this.options?.ensureUserActivation?.(); } catch {}
         // Generate WebAuthn credentials with TouchID (now that we know the real account)
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use account ID for consistent PRF salts across devices
@@ -804,7 +821,13 @@ export class LinkDeviceFlow {
         const {
           nextNonce,
           txBlockHash,
-        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
+        } = await (async () => {
+          try {
+            // Initialize NonceManager with current (temporary) on-chain key
+            this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, this.session!.nearPublicKey);
+          } catch {}
+          return await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
+        })();
 
         await this.executeKeySwapTransaction(
           nearKeyResultStep1.publicKey,
@@ -816,7 +839,13 @@ export class LinkDeviceFlow {
         const {
           nextNonce: newKeyNonce,
           txBlockHash: newTxBlockHash,
-        } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
+        } = await (async () => {
+          try {
+            // Switch NonceManager to the newly added deterministic key
+            this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, nearKeyResultStep1.publicKey);
+          } catch {}
+          return await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
+        })();
         console.log("Key Replacement Transaction Block Hash retrieved.");
         console.log("NewKey's actual nonce >>>> newKeyNonce", newKeyNonce);
 
@@ -841,6 +870,15 @@ export class LinkDeviceFlow {
         // === STEP 3: Broadcast Registration Transaction ===
         console.log(`LinkDeviceFlow: Broadcasting Device2 authenticator registration transaction`);
         const registrationTxResult = await this.context.nearClient.sendTransaction(nearKeyResultStep3.signedTransaction);
+        // Advance NonceManager immediately after broadcast to avoid reusing the same nonce
+        try {
+          await this.context.webAuthnManager.getNonceManager().updateNonceFromBlockchain(
+            this.context.nearClient,
+            newKeyNonce
+          );
+        } catch (e) {
+          console.warn('[LinkDeviceFlow]: Failed to update nonce after registration broadcast:', e);
+        }
         console.log(`LinkDeviceFlow: Device2 authenticator registered on-chain:`, registrationTxResult?.transaction?.hash);
 
         // === OPTION F: Clean up temp account VRF data ===
@@ -880,6 +918,8 @@ export class LinkDeviceFlow {
         const deviceNumber = this.session.deviceNumber;
         console.log(`LinkDeviceFlow: Option E - Using device number ${deviceNumber} for credential regeneration`);
 
+        // Ensure user activation before WebAuthn in cross-origin iframe
+        try { await this.options?.ensureUserActivation?.(); } catch {}
         // Regenerate WebAuthn credentials with proper device number
         const credential = await this.context.webAuthnManager.generateRegistrationCredentialsForLinkDevice({
           nearAccountId: realAccountId, // Use base account ID for consistent PRF salts across devices
@@ -971,6 +1011,15 @@ export class LinkDeviceFlow {
         keySwapResult.signedTransaction,
         DEFAULT_WAIT_STATUS.linkDeviceSwapKey
       );
+      // Keep NonceManager in sync for the temporary key that signed this swap
+      try {
+        await this.context.webAuthnManager.getNonceManager().updateNonceFromBlockchain(
+          this.context.nearClient,
+          nextNonce
+        );
+      } catch (e) {
+        console.warn('[LinkDeviceFlow]: Failed to update nonce after key swap broadcast:', e);
+      }
 
       console.log(`LinkDeviceFlow: Key replacement transaction successful:`, txResult?.transaction?.hash);
 

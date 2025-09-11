@@ -3,6 +3,8 @@ import type {
   LoginResult,
   LoginState,
   LoginSSEvent,
+  AfterCall,
+  BeforeCall,
 } from '../types/passkeyManager';
 import { LoginPhase, LoginStatus } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
@@ -21,7 +23,7 @@ export async function loginPasskey(
   options?: LoginHooksOptions
 ): Promise<LoginResult> {
 
-  const { onEvent, onError, hooks } = options || {};
+  const { onEvent, onError, beforeCall, afterCall } = options || {};
   // Emit started event
   onEvent?.({
     step: 1,
@@ -32,7 +34,7 @@ export async function loginPasskey(
 
   try {
     // Run beforeCall hook
-    await hooks?.beforeCall?.();
+    await beforeCall?.();
 
     // Validation
     if (!window.isSecureContext) {
@@ -47,7 +49,7 @@ export async function loginPasskey(
         error: errorMessage
       });
       const result = { success: false, error: errorMessage };
-      hooks?.afterCall?.(false, result);
+      afterCall?.(false, result);
       return result;
     }
 
@@ -57,7 +59,8 @@ export async function loginPasskey(
       nearAccountId,
       onEvent,
       onError,
-      hooks
+      beforeCall,
+      afterCall
     );
 
   } catch (err: any) {
@@ -70,7 +73,7 @@ export async function loginPasskey(
       error: err.message
     });
     const result = { success: false, error: err.message };
-    hooks?.afterCall?.(false, result);
+    afterCall?.(false, result);
     return result;
   }
 }
@@ -102,10 +105,8 @@ async function handleLoginUnlockVRF(
   nearAccountId: AccountId,
   onEvent?: (event: LoginSSEvent) => void,
   onError?: (error: Error) => void,
-  hooks?: {
-    beforeCall?: () => void | Promise<void>;
-    afterCall?: (success: boolean, result?: any) => void | Promise<void>
-  }
+  beforeCall?: BeforeCall,
+  afterCall?: AfterCall<any>,
 ): Promise<LoginResult> {
 
   const { webAuthnManager } = context;
@@ -223,7 +224,6 @@ async function handleLoginUnlockVRF(
 
     // Step 3: Update local data and return success
     await webAuthnManager.updateLastLogin(nearAccountId);
-    await webAuthnManager.setLastUser(nearAccountId);
 
     const result: LoginResult = {
       success: true,
@@ -241,7 +241,7 @@ async function handleLoginUnlockVRF(
       clientNearPublicKey: userData?.clientNearPublicKey || ''
     });
 
-    hooks?.afterCall?.(true, result);
+    afterCall?.(true, result);
     return result;
 
   } catch (error: any) {
@@ -258,7 +258,7 @@ async function handleLoginUnlockVRF(
     });
 
     const result = { success: false, error: errorMessage };
-    hooks?.afterCall?.(false, result);
+    afterCall?.(false, result);
     return result;
   }
 }
@@ -344,6 +344,7 @@ export async function logoutAndClearVrfSession(context: PasskeyManagerContext): 
   console.log("LOGOUT AND CLEAR VRF SESSION");
   const { webAuthnManager } = context;
   await webAuthnManager.clearVrfSession();
+  try { webAuthnManager.getNonceManager().clear(); } catch {}
 }
 
 /**

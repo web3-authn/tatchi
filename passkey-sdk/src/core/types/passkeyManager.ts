@@ -3,6 +3,7 @@ import type { EncryptedVRFKeypair } from './vrf-worker';
 import { AccountId } from "./accountIds";
 import { SignedTransaction } from "../NearClient";
 import type { AuthenticatorOptions } from './authenticatorOptions';
+import { ClientUserData } from ".";
 
 //////////////////////////
 // Progress Events Enums
@@ -98,14 +99,8 @@ export enum DeviceLinkingStatus {
 // Base event callback type
 export type EventCallback<T> = (event: T) => void;
 
-// Operation hooks for before/after call customization
-export interface OperationHooks {
-  beforeCall?: () => void | Promise<void>;
-  afterCall?: (
-    success: boolean,
-    result?: ActionResult[] | LoginResult | RegistrationResult | Error
-  ) => void | Promise<void>;
-}
+export type BeforeCall = () => void | Promise<void>;
+export type AfterCall<T> = (success: boolean, result?: T | Error) => void | Promise<void>;
 
 // Base SSE Event Types (unified for Registration and Actions)
 export interface BaseSSEEvent {
@@ -465,56 +460,65 @@ export type AccountRecoverySSEEvent =
 export interface BaseHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 // Function Options
 export interface RegistrationHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
+  // Back-compat fields (temporarily supported)
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 export interface LoginHooksOptions {
   onEvent?: EventCallback<LoginSSEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 export interface ActionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
   waitUntil?: TxExecutionStatus;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 export interface SignAndSendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
   waitUntil?: TxExecutionStatus;
-  executeSequentially?: boolean; // wait for each transaction to finish before sending the next
+  executeSequentially?: boolean;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 export interface SignTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: Omit<OperationHooks, 'afterCall'>;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
   waitUntil?: TxExecutionStatus;
 }
 
 export interface SendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: Omit<OperationHooks, 'beforeCall'>;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
   waitUntil?: TxExecutionStatus;
 }
 
 export interface AccountRecoveryHooksOptions {
   onEvent?: EventCallback<AccountRecoverySSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
   waitUntil?: TxExecutionStatus;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
 
 //////////////////////////////////
@@ -525,7 +529,7 @@ export interface LoginState {
   isLoggedIn: boolean;
   nearAccountId: AccountId | null;
   publicKey: string | null;
-  userData: any | null;
+  userData: ClientUserData | null;
   vrfActive: boolean;
   vrfSessionDuration?: number;
 }

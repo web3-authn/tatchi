@@ -1,0 +1,5 @@
+/Users/pta/Dev/rust/web3-authn-sdk/passkey-sdk/src/wasm_signer_worker/target/debug/build/proc-macro2-dcc42af8043d1b71/build_script_build-dcc42af8043d1b71: /Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/build.rs
+
+/Users/pta/Dev/rust/web3-authn-sdk/passkey-sdk/src/wasm_signer_worker/target/debug/build/proc-macro2-dcc42af8043d1b71/build_script_build-dcc42af8043d1b71.d: /Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/build.rs
+
+/Users/pta/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.95/build.rs:

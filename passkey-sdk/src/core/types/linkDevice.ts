@@ -1,9 +1,10 @@
 import {
   ActionResult,
   EventCallback,
-  OperationHooks,
   DeviceLinkingPhase,
-  DeviceLinkingSSEEvent
+  DeviceLinkingSSEEvent,
+  BeforeCall,
+  AfterCall
 } from './passkeyManager';
 import { VRFChallenge } from './vrf-worker';
 import { AccountId } from './accountIds';
@@ -64,12 +65,16 @@ export interface StartDeviceLinkingOptionsDevice2 {
   cameraId?: string;
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
+  // Called by the flow just-in-time before any WebAuthn ceremony that requires a user gesture
+  ensureUserActivation?: () => Promise<void>;
 }
 
 export interface ScanAndLinkDeviceOptionsDevice1 {
   fundingAmount: string;
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
-  hooks?: OperationHooks;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<any>;
 }
