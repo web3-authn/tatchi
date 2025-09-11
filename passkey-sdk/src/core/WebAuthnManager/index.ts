@@ -4,7 +4,6 @@ import {
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
 import { StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkeyClientDB';
-import { PasskeyManagerContext } from '../PasskeyManager';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
@@ -15,8 +14,6 @@ import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';
 import { NonceManager } from '../nonceManager';
 import NonceManagerInstance from '../nonceManager';
-import { registerPasskey } from './registration';
-
 
 import {
   EncryptedVRFKeypair,
@@ -104,24 +101,6 @@ export class WebAuthnManager {
     authenticators: ClientAuthenticatorData[];
   }): Promise<PublicKeyCredential> {
     return this.touchIdPrompt.getCredentials({ nearAccountId, challenge, authenticators });
-  }
-
-  registerPasskey(
-    context: PasskeyManagerContext,
-    nearAccountId: AccountId,
-    options: RegistrationHooksOptions,
-    authenticatorOptions: AuthenticatorOptions
-  ) {
-    return registerPasskey(
-      {
-        configs: this.passkeyManagerConfigs,
-        webAuthnManager: this,
-        nearClient: this.nearClient,
-      },
-      nearAccountId,
-      options,
-      authenticatorOptions
-    );
   }
 
   ///////////////////////////////////////
@@ -334,13 +313,47 @@ export class WebAuthnManager {
     return await IndexedDBManager.clientDB.setLastUser(nearAccountId, deviceNumber);
   }
 
-  async setCurrentUser(nearAccountId: AccountId): Promise<void> {
-    this.userPreferencesManager.setCurrentUser(nearAccountId);
 
-    // Also initialize NonceManager with user data
-    const userData = await IndexedDBManager.clientDB.getLastUser();
-    if (userData && userData.clientNearPublicKey) {
-      this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+  /**
+   * Initialize current user authentication state
+   * This should be called after VRF keypair is successfully unlocked in memory
+   * to ensure the user is properly logged in and can perform transactions
+   *
+   * @param nearAccountId - The NEAR account ID to initialize
+   * @param nearClient - The NEAR client for nonce prefetching
+   */
+  async initializeCurrentUser(nearAccountId: AccountId, nearClient?: NearClient): Promise<void> {
+    try {
+      // Set as last user for future sessions
+      await this.setLastUser(nearAccountId);
+      // Set as current user for immediate use (includes NonceManager initialization)
+      this.userPreferencesManager.setCurrentUser(nearAccountId);
+
+      // Initialize NonceManager with the selected user's public key (if available)
+      try {
+        let userData = await IndexedDBManager.clientDB.getUser(nearAccountId);
+        // Backward-compat fallback: if not found, try last user entry
+        if (!userData) {
+          try { userData = await IndexedDBManager.clientDB.getLastUser(); } catch {}
+        }
+        if (userData && userData.clientNearPublicKey) {
+          this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+        }
+      } catch {
+        // NonceManager init is best-effort; signing path can still fetch context lazily
+      }
+
+      // Prefetch block height for better UX (non-fatal if it fails and nearClient is provided)
+      if (nearClient) {
+        try {
+          await this.nonceManager.prefetchBlockheight(nearClient);
+        } catch (prefetchErr) {
+          console.debug('Nonce prefetch after authentication state initialization failed (non-fatal):', prefetchErr);
+        }
+      }
+    } catch (initErr) {
+      console.warn('Failed to initialize current user:', initErr);
+      throw initErr;
     }
   }
 
