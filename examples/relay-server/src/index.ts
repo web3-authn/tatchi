@@ -28,7 +28,7 @@ const authService = new AuthService({
   // nearRpcUrl: 'https://test.rpc.fastnear.com'
   networkId: 'testnet',
   accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
-  createAccountAndRegisterGas: '45000000000000', // 45 TGas (tested)
+  createAccountAndRegisterGas: '85000000000000', // 80 TGas (tested)
   // Shamir 3-pass params (base64url bigints)
   shamir_p_b64u: process.env.SHAMIR_P_B64U!,
   shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
