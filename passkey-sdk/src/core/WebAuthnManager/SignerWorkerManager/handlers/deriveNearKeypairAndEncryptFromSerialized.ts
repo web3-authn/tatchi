@@ -6,6 +6,7 @@ import {
   isDeriveNearKeypairAndEncryptSuccess,
 } from '../../../types/signer-worker';
 import { AccountId, toAccountId } from "../../../types/accountIds";
+import { getDeviceNumberForAccount } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 
 /**
@@ -28,6 +29,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     nonce?: string;
     blockHash?: string;
     authenticatorOptions?: AuthenticatorOptions;
+    deviceNumber?: number;
   }
 }): Promise<{
   success: boolean;
@@ -69,7 +71,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     }
 
     const wasmResult = response.payload;
-    const deviceNumber = 1; // fallback; storage API determines actual device number later where applicable
+    // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
+    const deviceNumber = (typeof options?.deviceNumber === 'number')
+      ? options!.deviceNumber!
+      : await getDeviceNumberForAccount(ctx, nearAccountId);
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
@@ -103,4 +108,3 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     };
   }
 }
-

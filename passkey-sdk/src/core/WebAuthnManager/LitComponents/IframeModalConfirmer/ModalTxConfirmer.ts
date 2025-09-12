@@ -2,21 +2,18 @@ import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { when } from 'lit/directives/when.js';
 
-import { TransactionInputWasm, ActionArgsWasm } from '../../../types';
+import { TransactionInputWasm } from '../../../types';
 import { fromTransactionInputsWasm } from '../../../types/actions';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
-import { formatArgs, formatDeposit, formatGas } from '../common/formatters';
+import { formatDeposit, formatGas } from '../common/formatters';
 import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
 import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
-
-export type ConfirmRenderMode = 'inline' | 'modal' | 'fullscreen' | 'toast';
-export type ConfirmVariant = 'default' | 'warning' | 'danger';
 
 export interface SecureTxSummary {
   to?: string;
@@ -42,8 +39,6 @@ export interface TxAction {
 export class ModalTxConfirmElement extends LitElementWithProps {
   // Component properties (automatically reactive)
   static properties = {
-    mode: { type: String },
-    variant: { type: String },
     to: { type: String },
     totalAmount: { type: String },
     method: { type: String },
@@ -57,12 +52,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     errorMessage: { type: String },
     styles: { type: Object },
     theme: { type: String, attribute: 'theme' },
-    _isVisible: { type: Boolean, state: true },
-    _isAnimating: { type: Boolean, state: true }
   };
-
-  mode: ConfirmRenderMode = 'modal';
-  variant: ConfirmVariant = 'default';
 
   totalAmount = '';
   method = '';
@@ -81,8 +71,6 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   deferClose = false;
 
   // Internal state
-  private _isVisible = false;
-  private _isAnimating = false;
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
   private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
@@ -91,12 +79,12 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       // Only close for modal-style render modes
-      if (this.mode !== 'inline') {
-        e.preventDefault();
-        this._handleCancel();
-      }
+      e.preventDefault();
+      this._handleCancel();
     }
   };
+  // Guard to prevent immediate backdrop-cancel due to the click that mounted the modal
+  private _backdropArmed = false;
 
   // Closed Shadow DOM for security
   static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
@@ -684,7 +672,8 @@ export class ModalTxConfirmElement extends LitElementWithProps {
 
   connectedCallback(): void {
     super.connectedCallback();
-    this._isVisible = true;
+    // Arm backdrop after the current event loop to avoid capturing the mounting click
+    try { setTimeout(() => { this._backdropArmed = true; }, 0); } catch {}
     // Initialize styles based on theme
     this.updateTheme();
     this._updateTxTreeWidth();
@@ -868,20 +857,22 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   }
 
   private _handleCancel() {
-    try { this.dispatchEvent(new CustomEvent('w3a:cancel', { bubbles: true, composed: true })); } catch {}
+    try { this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(false);
     }
   }
 
   private _handleConfirm() {
-    try { this.dispatchEvent(new CustomEvent('w3a:confirm', { bubbles: true, composed: true })); } catch {}
+    try { this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true })); } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(true);
     }
   }
 
   private _handleBackdropClick() {
+    // Ignore the first click that may have triggered mounting the modal
+    if (!this._backdropArmed) return;
     this._handleCancel();
   }
 

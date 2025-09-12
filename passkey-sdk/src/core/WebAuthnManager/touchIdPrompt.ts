@@ -75,7 +75,25 @@ export class TouchIdPrompt {
   }
 
   private getRpId(): string {
-    try { return this.rpIdOverride || window.location.hostname; } catch { return this.rpIdOverride || ''; }
+    // Use override only if it's a valid registrable suffix of current host
+    try {
+      const host = (window?.location?.hostname || '').toLowerCase();
+      const override = (this.rpIdOverride || '').toLowerCase();
+      if (override && TouchIdPrompt._isRegistrableSuffix(host, override)) return override;
+      return host;
+    } catch {
+      return (this.rpIdOverride || '');
+    }
+  }
+
+  /**
+   * Minimal check: override must equal host or be a dot-suffix of host.
+   * e.g. host = wallet.example.localhost → override example.localhost is allowed.
+   */
+  private static _isRegistrableSuffix(host: string, cand: string): boolean {
+    if (!host || !cand) return false;
+    if (host === cand) return true;
+    return host.endsWith('.' + cand);
   }
 
 

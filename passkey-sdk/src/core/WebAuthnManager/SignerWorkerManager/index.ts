@@ -36,8 +36,6 @@ import {
 } from './handlers';
 import {
   SecureConfirmMessageType,
-  SecureConfirmMessage,
-  SecureConfirmData,
   handlePromptUserConfirmInJsMainThread,
 } from './confirmTxFlow';
 import { RpcCallPayload } from '../../types/signer-worker';
@@ -54,6 +52,8 @@ export interface SignerWorkerManagerContext {
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
   rpIdOverride?: string;
+  // Default for using nested iframe modal when walletOrigin is configured
+  iframeModeDefault?: boolean;
   sendMessage: <T extends WorkerRequestType>(args: {
     message: {
       type: T;
@@ -84,7 +84,8 @@ export class SignerWorkerManager {
     nearClient: NearClient,
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
-    rpIdOverride?: string
+    rpIdOverride?: string,
+    iframeModeDefault?: boolean
   ) {
     this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt(rpIdOverride);
@@ -92,6 +93,8 @@ export class SignerWorkerManager {
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
+    // Store default UI mode as a boolean
+    (this as any)._iframeModeDefault = !!iframeModeDefault;
   }
 
   private getContext(): SignerWorkerManagerContext {
@@ -104,6 +107,7 @@ export class SignerWorkerManager {
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
       rpIdOverride: (this.touchIdPrompt as any)?.rpIdOverride,
+      iframeModeDefault: (this as any)._iframeModeDefault,
     };
   }
 
@@ -282,11 +286,23 @@ export class SignerWorkerManager {
 
           // Intercept secure confirm handshake (Phase A: pluggable UI)
           if (event.data.type === SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD) {
+            try {
+              const req = (event.data as any)?.data;
+              const keys = req && typeof req === 'object' ? Object.keys(req) : [];
+              console.debug('[SignerWorkerManager] Received PROMPT_USER_CONFIRM', {
+                hasData: !!req,
+                reqType: typeof req,
+                keys,
+                requestId: req?.requestId,
+                schemaVersion: req?.schemaVersion,
+                type: req?.type,
+              });
+            } catch {}
             await handlePromptUserConfirmInJsMainThread(
               this.getContext(),
               event.data as {
                 type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
-                data: SecureConfirmData,
+                data: import('./confirmTxFlow/types').SecureConfirmRequest,
               },
               worker
             );

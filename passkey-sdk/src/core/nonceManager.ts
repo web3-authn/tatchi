@@ -28,8 +28,9 @@ export class NonceManager {
   private lastReservedNonce: string | null = null;
 
   // Freshness thresholds (ms)
-  private readonly NONCE_FRESHNESS_THRESHOLD = 20 * 1000; // 20 seconds
-  private readonly BLOCK_FRESHNESS_THRESHOLD = 10 * 1000; // 10 seconds
+  // Treat context older than 5s as stale enough to refetch
+  private readonly NONCE_FRESHNESS_THRESHOLD = 5 * 1000; // 5 seconds
+  private readonly BLOCK_FRESHNESS_THRESHOLD = 5 * 1000; // 5 seconds
   private readonly PREFETCH_DEBOUNCE_MS = 150; // small debounce to avoid hover spam
 
   // Private constructor for singleton pattern
@@ -101,26 +102,13 @@ export class NonceManager {
    * Smart caching method for nonce and block height data
    * Returns cached data if fresh, otherwise fetches synchronously
    */
-  public async getNonceBlockHashAndHeight(nearClient: NearClient): Promise<TransactionContext> {
+  public async getNonceBlockHashAndHeight(nearClient: NearClient, opts?: { force?: boolean }): Promise<TransactionContext> {
+    // Always prefer a fresh fetch for critical paths; coalesced by fetchFreshData.
+    // This minimizes subtle cache bugs after key rotations/linking and across devices.
     if (!this.nearAccountId || !this.nearPublicKeyStr) {
       throw new Error('NonceManager not initialized with user data');
     }
-
-    const now = Date.now();
-    // Check if both nonce and block height data are fresh
-    const isNonceFresh = !!this.lastNonceUpdate && (now - this.lastNonceUpdate) < this.NONCE_FRESHNESS_THRESHOLD;
-    const isBlockHeightFresh = !!this.lastBlockHeightUpdate && (now - this.lastBlockHeightUpdate) < this.BLOCK_FRESHNESS_THRESHOLD;
-
-    // If both are fresh, return cached data and schedule async refresh
-    if (isNonceFresh && isBlockHeightFresh && this.transactionContext) {
-      // Gate background refresh: only schedule if approaching staleness and no inflight fetch
-      this.maybeScheduleBackgroundRefresh(nearClient);
-      return this.transactionContext;
-    }
-
-    // If either is stale, fetch synchronously and return fresh data
-    console.debug('[NonceManager]: Data is stale, fetching synchronously');
-    return await this.fetchFreshData(nearClient);
+    return await this.fetchFreshData(nearClient, true);
   }
 
   /**
@@ -166,7 +154,7 @@ export class NonceManager {
   /**
    * Fetch fresh transaction context data from NEAR RPC
    */
-  private async fetchFreshData(nearClient: NearClient): Promise<TransactionContext> {
+  private async fetchFreshData(nearClient: NearClient, force: boolean = false): Promise<TransactionContext> {
     // Coalesce concurrent fetches
     if (this.inflightFetch) return this.inflightFetch;
 
@@ -177,8 +165,8 @@ export class NonceManager {
       try {
         // Determine what is actually stale so we only fetch what we need
         const now = Date.now();
-        const isNonceStale = !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
-        const isBlockStale = !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
+        const isNonceStale = force || !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
+        const isBlockStale = force || !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
 
         let accessKeyInfo = this.transactionContext?.accessKeyInfo;
         let txBlockHeight = this.transactionContext?.txBlockHeight;
@@ -187,17 +175,45 @@ export class NonceManager {
         const fetchAccessKey = isNonceStale || !accessKeyInfo;
         const fetchBlock = isBlockStale || !txBlockHeight || !txBlockHash;
 
-        // Fetch required parts in parallel
-        const [maybeAccessKey, maybeBlock] = await Promise.all([
-          fetchAccessKey ? nearClient.viewAccessKey(capturedAccountId!, capturedPublicKey!) : Promise.resolve(null),
-          fetchBlock ? nearClient.viewBlock({ finality: 'final' }) : Promise.resolve(null)
-        ]);
+        // Fetch required parts with tolerance for missing access key just after creation
+        let maybeAccessKey: any = null;
+        let maybeBlock: any = null;
 
         if (fetchAccessKey) {
-          if (!maybeAccessKey || (maybeAccessKey as any).nonce === undefined) {
-            throw new Error(`Access key not found or invalid for account ${capturedAccountId} with public key ${capturedPublicKey}.`);
+          try {
+            maybeAccessKey = await nearClient.viewAccessKey(capturedAccountId!, capturedPublicKey!);
+          } catch (akErr: any) {
+            const msg = (akErr?.message || String(akErr || '')).toString();
+            const missingAk = msg.includes('does not exist while viewing')
+              || msg.includes('Access key not found')
+              || msg.includes('unknown public key')
+              || msg.includes('does not exist');
+            if (missingAk) {
+              // Non-fatal: proceed without live AK; compute nextNonce conservatively
+              console.debug('[NonceManager]: Access key missing during fetch; proceeding with block-only context');
+              maybeAccessKey = null;
+            } else {
+              throw akErr;
+            }
           }
-          accessKeyInfo = maybeAccessKey!;
+        }
+
+        try {
+          if (fetchBlock) {
+            maybeBlock = await nearClient.viewBlock({ finality: 'final' });
+          }
+        } catch (blockErr) {
+          // Block info is required
+          throw blockErr;
+        }
+
+        if (fetchAccessKey) {
+          if (maybeAccessKey && (maybeAccessKey as any).nonce !== undefined) {
+            accessKeyInfo = maybeAccessKey!;
+          } else {
+            // Keep previous accessKeyInfo if present; else set minimal placeholder
+            accessKeyInfo = this.transactionContext?.accessKeyInfo || ({ nonce: 0 } as any);
+          }
         }
 
         if (fetchBlock) {
@@ -210,11 +226,13 @@ export class NonceManager {
         }
 
         // Derive nextNonce from access key info + current context + reservations
-        const nextNonce = this.maxBigInt(
-          BigInt(accessKeyInfo!.nonce) + 1n,
+        let nextCandidate = this.maxBigInt(
+          accessKeyInfo && (accessKeyInfo as any).nonce !== undefined ? (BigInt(accessKeyInfo!.nonce) + 1n) : 0n,
           this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
           this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n
-        ).toString();
+        );
+        if (nextCandidate <= 0n) nextCandidate = 1n; // never use 0
+        const nextNonce = nextCandidate.toString();
 
         const transactionContext: TransactionContext = {
           nearPublicKeyStr: capturedPublicKey!,
@@ -293,6 +311,18 @@ export class NonceManager {
     this.inflightFetch = null;
     this.reservedNonces.clear();
     this.lastReservedNonce = null;
+  }
+
+  /**
+   * Force a synchronous refresh of nonce + block context.
+   * Useful after key rotations (e.g., link-device) or when encountering INVALID_NONCE.
+   * Optionally clears any locally reserved nonces to avoid collisions.
+   */
+  public async refreshNow(nearClient: NearClient, opts?: { clearReservations?: boolean }): Promise<TransactionContext> {
+    if (opts?.clearReservations) {
+      try { this.releaseAllNonces(); } catch {}
+    }
+    return await this.fetchFreshData(nearClient, true);
   }
 
   /**

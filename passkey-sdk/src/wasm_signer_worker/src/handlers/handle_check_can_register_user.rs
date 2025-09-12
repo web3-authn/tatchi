@@ -15,7 +15,39 @@ use crate::types::{
     WebAuthnRegistrationCredentialStruct
 };
 use crate::types::wasm_to_json::WasmSignedTransaction;
-use crate::handlers::handle_sign_verify_and_register_user::RegistrationInfoStruct;
+// Local definition for registration info returned by pre-check.
+// Moved here after removing the deprecated testnet registration flow.
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RegistrationInfoStruct {
+    #[wasm_bindgen(getter_with_clone, js_name = "credentialId")]
+    pub credential_id: Vec<u8>,
+    #[wasm_bindgen(getter_with_clone, js_name = "credentialPublicKey")]
+    pub credential_public_key: Vec<u8>,
+    #[wasm_bindgen(getter_with_clone, js_name = "userId")]
+    pub user_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "vrfPublicKey")]
+    pub vrf_public_key: Option<Vec<u8>>,
+}
+
+#[wasm_bindgen]
+impl RegistrationInfoStruct {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        credential_id: Vec<u8>,
+        credential_public_key: Vec<u8>,
+        user_id: String,
+        vrf_public_key: Option<Vec<u8>>,
+    ) -> RegistrationInfoStruct {
+        RegistrationInfoStruct {
+            credential_id,
+            credential_public_key,
+            user_id,
+            vrf_public_key,
+        }
+    }
+}
 
 #[wasm_bindgen]
 #[derive(Deserialize, Debug, Clone)]

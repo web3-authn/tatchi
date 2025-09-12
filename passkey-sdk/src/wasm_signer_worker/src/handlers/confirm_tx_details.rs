@@ -11,7 +11,6 @@ use serde_json;
 use serde_wasm_bindgen;
 use sha2::{Sha256, Digest};
 use super::handle_sign_transactions_with_actions::{TransactionPayload, SignTransactionsWithActionsRequest};
-use super::handle_sign_verify_and_register_user::SignVerifyAndRegisterUserRequest;
 use crate::types::handlers::{
     ConfirmationConfig,
     ConfirmationUIMode,
@@ -21,16 +20,22 @@ use crate::encoders::base64_url_encode;
 use crate::actions::ActionParams;
 use serde_json::Value;
 
-// External JS function for secure confirmation
+// External JS function for secure confirmation (V2 typed API)
+//
+// IMPORTANT: Always pass a JSON STRING (via `JsValue::from_str`) to this bridge,
+// not a non‑plain object from `serde_wasm_bindgen::to_value`. The TS guard
+// (requestGuards.ts) expects a plain JSON object (post-JSON.parse) and checks
+// fields like `schemaVersion === 2`. Non‑plain objects can fail these checks.
+//
+// Strategy used everywhere in this file:
+//   1) Build `request_obj` with `serde_json::json!`
+//   2) Serialize with `serde_json::to_string(&request_obj)`
+//   3) Wrap with `JsValue::from_str(&request_json_str)`
+//   4) Call `await_secure_confirmation_v2(request_js)`
 #[wasm_bindgen]
 extern "C" {
-    #[wasm_bindgen(js_name = awaitSecureConfirmation)]
-    async fn await_secure_confirmation(
-        request_id: &str,
-        summary: JsValue,
-        confirmation_data: JsValue,
-        actions_json: &str
-    ) -> JsValue;
+    #[wasm_bindgen(js_name = awaitSecureConfirmationV2)]
+    async fn await_secure_confirmation_v2(request: JsValue) -> JsValue;
 }
 
 /// Transaction confirmation result with detailed information
@@ -319,7 +324,7 @@ pub async fn request_user_confirmation_with_config(
                 "intentDigest": intent_digest,
                 "nearAccountId": near_account_id,
                 "rpcCall": tx_batch_request.rpc_call,
-                "confirmationConfig": Some(normalized_config),
+                "confirmationConfig": Some(normalized_config.clone()),
                 // "registrationDetails": None, // not registration flow
             });
 
@@ -331,12 +336,29 @@ pub async fn request_user_confirmation_with_config(
                 })
             }).collect::<Vec<serde_json::Value>>();
 
-            let confirm_result = await_secure_confirmation(
-                &request_id,
-                JsValue::from_str(&summary.to_string()),
-                JsValue::from_str(&confirmation_data.to_string()),
-                &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
-            ).await;
+            // Build V2 secure confirm request
+            let request_obj = serde_json::json!({
+                "schemaVersion": 2,
+                "requestId": request_id,
+                "type": "signTransaction",
+                "summary": summary,
+                "payload": {
+                    "txSigningRequests": tx_signing_requests_json,
+                    "intentDigest": intent_digest,
+                    "rpcCall": tx_batch_request.rpc_call,
+                },
+                "confirmationConfig": normalized_config,
+            });
+
+            // Serialize to JSON string for robust cross-boundary cloning into TS
+            // Using the same strategy as the normal confirmation flow to avoid
+            // wasm-bindgen object shape issues in the TS validator.
+            let request_json_str = serde_json::to_string(&request_obj)
+                .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
+            web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx:skip/embedded) JSON length: {}", request_json_str.len()).into());
+            let request_js = JsValue::from_str(&request_json_str);
+
+            let confirm_result = await_secure_confirmation_v2(request_js).await;
 
             let result = parse_confirmation_result(confirm_result)?;
 
@@ -394,7 +416,7 @@ pub async fn request_user_confirmation_with_config(
         // "registrationDetails": None, // not registration flow
     });
 
-    // Convert actions: str to serde_json::Value first before serializing (to avoid double-encoding strings)
+    // Convert actions to JSON values the UI expects
     let tx_signing_requests_json = parsed_receivers_and_actions.iter().map(|(receiver_id, actions)| {
         serde_json::json!({
             "receiverId": receiver_id,
@@ -402,83 +424,35 @@ pub async fn request_user_confirmation_with_config(
         })
     }).collect::<Vec<serde_json::Value>>();
 
-    // Call JS bridge for user confirmation with enhanced data
-    let confirm_result = await_secure_confirmation(
-        &request_id,
-        JsValue::from_str(&summary.to_string()),
-        JsValue::from_str(&confirmation_data.to_string()),
-        &serde_json::to_string(&tx_signing_requests_json).unwrap_or_default()
-    ).await;
-
-    // Parse confirmation result
-    let result = parse_confirmation_result(confirm_result)?;
-
-    Ok(result)
-}
-
-/// Requests user confirmation for registration flow
-/// This is different from transaction confirmation as it needs to collect registration credentials
-pub async fn request_user_registration_confirmation(
-    registration_request: &SignVerifyAndRegisterUserRequest,
-) -> Result<ConfirmationResult, String> {
-
-    // Create registration summary
-    let summary = create_registration_summary(registration_request)
-        .map_err(|e| format!("Failed to create registration summary: {}", e))?;
-
-    // For registration, we use the account ID as the intent digest since there's no transaction batch
-    let intent_digest = format!("registration:{}", registration_request.registration.near_account_id);
-    let request_id = generate_request_id();
-
-    // Log confirmation request
-    web_sys::console::log_1(
-        &format!("[Rust] Prompting user registration confirmation in JS main thread with ID: {}", request_id).into()
-    );
-
-    // Extract account information for credential collection
-    let near_account_id = &registration_request.registration.near_account_id;
-    let device_number = registration_request.registration.device_number.unwrap_or(1);
-
-    // Create registration confirmation data
-    // IMPORTANT: Require an in-iframe user click for WebAuthn create()
-    // Provide rpcCall so the JS main thread can fetch NEAR context and generate VRF challenge.
-    let confirmation_data = serde_json::json!({
-        "intentDigest": intent_digest,
-        "nearAccountId": near_account_id,
-        "rpcCall": {
-            "contractId": registration_request.verification.contract_id,
-            "nearRpcUrl": registration_request.verification.near_rpc_url,
-            "nearAccountId": registration_request.registration.near_account_id,
+    // Build V2 secure confirm request
+    let request_obj = serde_json::json!({
+        "schemaVersion": 2,
+        "requestId": request_id,
+        "type": "signTransaction",
+        "summary": summary,
+        "payload": {
+            "txSigningRequests": tx_signing_requests_json,
+            "intentDigest": intent_digest,
+            "rpcCall": tx_batch_request.rpc_call,
         },
-        // vrfChallenge will be computed in JS main thread from NEAR context
-        "confirmationConfig": ConfirmationConfig {
-            ui_mode: ConfirmationUIMode::Modal,
-            behavior: ConfirmationBehavior::RequireClick,
-            auto_proceed_delay: None,
-            theme: Some("dark".to_string()),
-        },
-        "registrationDetails": {
-            "nearAccountId": near_account_id,
-            "deviceNumber": device_number,
-        }, // Flag to indicate this is registration/link flow
+        "confirmationConfig": normalized_config,
     });
 
-    // Call JS bridge for user confirmation
-    let confirm_result = await_secure_confirmation(
-        &request_id,
-        JsValue::from_str(&summary.to_string()),
-        JsValue::from_str(&confirmation_data.to_string()),
-        "" // No actions for registration, actions are signed by either server account
-        // or delegated action account, so no need to show TX confirmation modals.
-    ).await;
+    // Serialize to JSON string for robust cross-boundary cloning into TS
+    let request_json_str = serde_json::to_string(&request_obj)
+        .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
+    web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx) JSON length: {}", request_json_str.len()).into());
+    let request_js = JsValue::from_str(&request_json_str);
 
-    web_sys::console::log_1(&"[Rust] User passkey confirmation response received".into());
+    // Call JS bridge for user confirmation with enhanced data
+    let confirm_result = await_secure_confirmation_v2(request_js).await;
 
     // Parse confirmation result
     let result = parse_confirmation_result(confirm_result)?;
 
     Ok(result)
 }
+
 
 /// Requests user confirmation for link-device flow (Device N)
 /// This triggers an in-iframe modal to gather a real user click,
@@ -511,10 +485,11 @@ pub async fn request_registration_credential_confirmation(
             "nearRpcUrl": near_rpc_url,
             "nearAccountId": near_account_id,
         },
+        // Link-device flow: default to autoProceed in modal mode
         "confirmationConfig": ConfirmationConfig {
             ui_mode: ConfirmationUIMode::Modal,
             behavior: ConfirmationBehavior::RequireClick,
-            auto_proceed_delay: None,
+            auto_proceed_delay: Some(1000),
             theme: Some("dark".to_string()),
         },
         "registrationDetails": {
@@ -523,28 +498,38 @@ pub async fn request_registration_credential_confirmation(
         },
     });
 
-    let confirm_result = await_secure_confirmation(
-        &request_id,
-        JsValue::from_str(&summary.to_string()),
-        JsValue::from_str(&confirmation_data.to_string()),
-        "" // No tx actions in link-device confirmation
-    ).await;
+    // Build V2 secure confirm request (link-device)
+    let request_obj = serde_json::json!({
+        "schemaVersion": 2,
+        "requestId": request_id,
+        "type": "linkDevice",
+        "summary": summary,
+        "payload": {
+            "nearAccountId": near_account_id,
+            "deviceNumber": device_number,
+            "rpcCall": {
+                "contractId": contract_id,
+                "nearRpcUrl": near_rpc_url,
+                "nearAccountId": near_account_id,
+            }
+        },
+        "confirmationConfig": confirmation_data.get("confirmationConfig").cloned().unwrap_or(serde_json::json!({})),
+        "intentDigest": intent_digest,
+    });
+
+    // Serialize to JSON string for robust cross-boundary cloning into TS
+    let request_json_str = serde_json::to_string(&request_obj)
+        .map_err(|e| format!("Failed to serialize V2 link-device confirm request to string: {}", e))?;
+    web_sys::console::log_1(&format!("[Rust] V2 confirm request (link-device) JSON length: {}", request_json_str.len()).into());
+    let request_js = JsValue::from_str(&request_json_str);
+
+    let confirm_result = await_secure_confirmation_v2(request_js).await;
 
     parse_confirmation_result(confirm_result)
 }
 
 /// Creates a summary for registration confirmation
-fn create_registration_summary(request: &SignVerifyAndRegisterUserRequest) -> Result<serde_json::Value, String> {
-    let summary = serde_json::json!({
-        "type": "registration",
-        "nearAccountId": request.registration.near_account_id,
-        "deviceNumber": request.registration.device_number.unwrap_or(1),
-        "contractId": request.verification.contract_id,
-        "deterministicVrfPublicKey": request.registration.deterministic_vrf_public_key,
-    });
-
-    Ok(summary)
-}
+// legacy registration summary function removed with deprecated testnet flow
 
 /// Parses the confirmation result from JavaScript bridge
 fn parse_confirmation_result(confirm_result: JsValue) -> Result<ConfirmationResult, String> {

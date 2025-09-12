@@ -191,7 +191,6 @@ export async function registerPasskey(
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
-      onEvent
     });
 
     // Mark database as stored for rollback tracking
@@ -210,32 +209,42 @@ export async function registerPasskey(
       await context.webAuthnManager.getNonceManager().prefetchBlockheight(context.nearClient);
     } catch {}
 
-    // Step 7: Unlock VRF keypair in memory (auto‑login) – only proceed with login state after this succeeds
-    // Obtain an authentication credential for VRF unlock (separate from registration credential)
-    const { txBlockHash, txBlockHeight } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
-    const vrfChallenge2 = await webAuthnManager.generateVrfChallenge({
-      userId: nearAccountId,
-      rpId: window.location.hostname,
-      blockHash: txBlockHash,
-      blockHeight: txBlockHeight,
-    });
-    const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
-    const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
-      nearAccountId,
-      challenge: vrfChallenge2,
-      allowCredentials: authenticatorsToAllowCredentials(authenticators),
-    });
-    const unlockResult = await webAuthnManager.unlockVRFKeypair({
-      nearAccountId: nearAccountId,
-      encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
-      credential: authCredential,
-    }).catch((unlockError: any) => {
-      return { success: false, error: unlockError.message };
-    });
+    // Step 7: Ensure VRF session is active for auto-login
+    // If VRF keypair is already in-memory (saved earlier), skip an extra Touch ID prompt.
+    let vrfStatus = await webAuthnManager.checkVrfStatus().catch(() => ({ active: false }));
+    if (!vrfStatus?.active) {
+      // Obtain an authentication credential for VRF unlock (separate from registration credential)
+      // IMPORTANT: Immediately after account creation, the new access key may not be queryable yet on some RPC nodes.
+      // We only need fresh block info for the VRF challenge here, so fetch the block directly to avoid AK lookup failures.
+      const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
+      const txBlockHash = blockInfo?.header?.hash;
+      const txBlockHeight = String(blockInfo.header?.height ?? '');
+      const vrfChallenge2 = await webAuthnManager.generateVrfChallenge({
+        userId: nearAccountId,
+        rpId: window.location.hostname,
+        blockHash: txBlockHash,
+        blockHeight: txBlockHeight,
+      });
+      const authenticators = await webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+      const authCredential = await webAuthnManager.getAuthenticationCredentialsSerialized({
+        nearAccountId,
+        challenge: vrfChallenge2,
+        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+      });
+      const unlockResult = await webAuthnManager.unlockVRFKeypair({
+        nearAccountId: nearAccountId,
+        encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
+        credential: authCredential,
+      }).catch((unlockError: any) => {
+        return { success: false, error: unlockError.message };
+      });
 
-    if (!unlockResult.success) {
-      console.warn('VRF keypair unlock failed:', unlockResult.error);
-      throw new Error(unlockResult.error);
+      if (!unlockResult.success) {
+        console.warn('VRF keypair unlock failed:', unlockResult.error);
+        throw new Error(unlockResult.error);
+      }
+    } else {
+      console.debug('Registration: VRF session already active; skipping extra Touch ID unlock');
     }
 
     // Initialize current user only after a successful unlock
@@ -330,15 +339,16 @@ export async function generateBootstrapVrfChallenge(
 
   console.log('Generating VRF keypair for registration');
   // Generate VRF keypair and persist in worker memory
-  const vrfResult = await webAuthnManager.generateVrfKeypairBootstrap(
-    true, // saveInMemory: true - this VRF keypair is persisted in worker memory until PRF encryption
-    {
+  const vrfResult = await webAuthnManager.generateVrfKeypairBootstrap({
+    vrfInputData: {
       userId: nearAccountId,
       rpId: window.location.hostname,
       blockHeight: String(blockInfo.header.height),
       blockHash: blockInfo.header.hash,
-    }
-  );
+    },
+    saveInMemory: true,
+    // VRF keypair persists in worker memory until PRF encryption
+  });
 
   if (!vrfResult.vrfChallenge) {
     throw new Error('Registration VRF keypair generation failed');

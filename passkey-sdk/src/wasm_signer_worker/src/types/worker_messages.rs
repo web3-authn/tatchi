@@ -19,8 +19,6 @@ pub enum WorkerRequestType {
     ExtractCosePublicKey,
     SignTransactionWithKeyPair,
     SignNep413Message,
-    // DEPRECATED: only used for testnet registration
-    SignVerifyAndRegisterUser,
     // Collect registration credential via secureConfirm (registration or link-device flows)
     RegistrationCredentialConfirmation,
 }
@@ -36,9 +34,7 @@ impl From<u32> for WorkerRequestType {
             5 => WorkerRequestType::ExtractCosePublicKey,
             6 => WorkerRequestType::SignTransactionWithKeyPair,
             7 => WorkerRequestType::SignNep413Message,
-            // DEPRECATED: only used for testnet registration
-            8 => WorkerRequestType::SignVerifyAndRegisterUser,
-            9 => WorkerRequestType::RegistrationCredentialConfirmation,
+            8 => WorkerRequestType::RegistrationCredentialConfirmation,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -54,7 +50,6 @@ impl WorkerRequestType {
             WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-            WorkerRequestType::SignVerifyAndRegisterUser => "SIGN_VERIFY_AND_REGISTER_USER",
             WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
         }
     }
@@ -73,7 +68,6 @@ pub enum WorkerResponseType {
     ExtractCosePublicKeySuccess,
     SignTransactionWithKeyPairSuccess,
     SignNep413MessageSuccess,
-    SignVerifyAndRegisterUserSuccess,
     RegistrationCredentialConfirmationSuccess,
 
     // Failure responses - one for each request type
@@ -85,7 +79,6 @@ pub enum WorkerResponseType {
     ExtractCosePublicKeyFailure,
     SignTransactionWithKeyPairFailure,
     SignNep413MessageFailure,
-    SignVerifyAndRegisterUserFailure,
     RegistrationCredentialConfirmationFailure,
 
     // Progress responses - for real-time updates during operations
@@ -106,8 +99,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::ExtractCosePublicKeySuccess => 5,
             WorkerResponseType::SignTransactionWithKeyPairSuccess => 6,
             WorkerResponseType::SignNep413MessageSuccess => 7,
-            WorkerResponseType::SignVerifyAndRegisterUserSuccess => 8,
-            WorkerResponseType::RegistrationCredentialConfirmationSuccess => 9,
+            WorkerResponseType::RegistrationCredentialConfirmationSuccess => 8,
 
             // Failure responses
             WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 10,
@@ -118,8 +110,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::ExtractCosePublicKeyFailure => 15,
             WorkerResponseType::SignTransactionWithKeyPairFailure => 16,
             WorkerResponseType::SignNep413MessageFailure => 17,
-            WorkerResponseType::SignVerifyAndRegisterUserFailure => 18,
-            WorkerResponseType::RegistrationCredentialConfirmationFailure => 19,
+            WorkerResponseType::RegistrationCredentialConfirmationFailure => 18,
 
             // Progress responses - for real-time updates during operations
             WorkerResponseType::RegistrationProgress => 20,
@@ -141,8 +132,7 @@ impl From<u32> for WorkerResponseType {
             5 => WorkerResponseType::ExtractCosePublicKeySuccess,
             6 => WorkerResponseType::SignTransactionWithKeyPairSuccess,
             7 => WorkerResponseType::SignNep413MessageSuccess,
-            8 => WorkerResponseType::SignVerifyAndRegisterUserSuccess,
-            9 => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
+            8 => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
 
             // Failure responses
             10 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
@@ -153,8 +143,7 @@ impl From<u32> for WorkerResponseType {
             15 => WorkerResponseType::ExtractCosePublicKeyFailure,
             16 => WorkerResponseType::SignTransactionWithKeyPairFailure,
             17 => WorkerResponseType::SignNep413MessageFailure,
-            18 => WorkerResponseType::SignVerifyAndRegisterUserFailure,
-            19 => WorkerResponseType::RegistrationCredentialConfirmationFailure,
+            18 => WorkerResponseType::RegistrationCredentialConfirmationFailure,
 
             // Progress responses - for real-time updates during operations
             20 => WorkerResponseType::RegistrationProgress,

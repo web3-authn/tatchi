@@ -1,7 +1,7 @@
 import { WalletIframeClient } from './client';
 import { PasskeyManager } from '../PasskeyManager';
 import { MinimalNearClient } from '../NearClient';
-import type { NearClient, SignedTransaction } from '../NearClient';
+import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
 import type {
   PasskeyManagerConfigs,
   RegistrationResult,
@@ -13,9 +13,12 @@ import type {
   AccountRecoveryHooksOptions,
 } from '../types/passkeyManager';
 import type { DeviceLinkingQRData, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
-import type { ScanAndLinkDeviceOptionsDevice1 } from '../types/linkDevice';
+import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
+import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
+import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
+import type { RecoveryResult } from '../PasskeyManager';
 
 
 export class PasskeyManagerIframe {
@@ -46,7 +49,7 @@ export class PasskeyManagerIframe {
         this.notifyTheme(t);
       },
       setConfirmBehavior: (b: 'requireClick' | 'autoProceed') => { try { this.setConfirmBehavior(b); } catch {} },
-      setConfirmationConfig: (c: Record<string, unknown>) => { try { this.setConfirmationConfig(c); } catch {} },
+      setConfirmationConfig: (c: ConfirmationConfig) => { try { this.setConfirmationConfig(c); } catch {} },
       getConfirmationConfig: () => this.getConfirmationConfig(),
     };
   }
@@ -94,7 +97,7 @@ export class PasskeyManagerIframe {
     return this.client.onVrfStatusChanged(cb);
   }
 
-  async registerPasskey(nearAccountId: string, options: any = {}): Promise<RegistrationResult> {
+  async registerPasskey(nearAccountId: string, options: RegistrationHooksOptions = {}): Promise<RegistrationResult> {
     try { await options?.beforeCall?.(); } catch {}
     try {
       const res = await this.client.registerPasskey({
@@ -110,7 +113,7 @@ export class PasskeyManagerIframe {
     }
   }
 
-  async loginPasskey(nearAccountId: string, options?: any): Promise<LoginResult> {
+  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
     try { await options?.beforeCall?.(); } catch {}
     try {
       const res = await this.client.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent } });
@@ -129,7 +132,7 @@ export class PasskeyManagerIframe {
     if (!this.client.isReady()) {
       return {
         isLoggedIn: false,
-        nearAccountId: null as any,
+        nearAccountId: null,
         publicKey: null,
         userData: null,
         vrfActive: false,
@@ -163,17 +166,25 @@ export class PasskeyManagerIframe {
 
   async signNEP413Message(args: {
     nearAccountId: string;
-    params: any;
+    params: SignNEP413MessageParams;
     options?: BaseHooksOptions
-  }): Promise<any> {
-    const res = await this.client.signNep413Message({
-      nearAccountId: args.nearAccountId,
-      message: args.params.message,
-      recipient: args.params.recipient,
-      state: args.params.state,
-      options: { onEvent: (args.options as any)?.onEvent }
-    });
-    return res as any;
+  }): Promise<SignNEP413MessageResult> {
+    try { await args.options?.beforeCall?.(); } catch {}
+    try {
+      const res = await this.client.signNep413Message({
+        nearAccountId: args.nearAccountId,
+        message: args.params.message,
+        recipient: args.params.recipient,
+        state: args.params.state,
+        options: { onEvent: (args.options as any)?.onEvent }
+      });
+      try { await args.options?.afterCall?.(true, res as any); } catch {}
+      return res as SignNEP413MessageResult;
+    } catch (err: any) {
+      try { args.options?.onError?.(err); } catch {}
+      try { await args.options?.afterCall?.(false, err); } catch {}
+      throw err;
+    }
   }
 
   // Flows not yet proxied: fall back to local manager with identical APIs
@@ -196,7 +207,7 @@ export class PasskeyManagerIframe {
         if (self.client.isReady()) return await self.client.viewAccessKeyList(accountId);
         return await base.viewAccessKeyList(accountId);
       },
-      async sendTransaction(signedTransaction: SignedTransaction, waitUntil?: any) {
+      async sendTransaction(signedTransaction: SignedTransaction, waitUntil?: import('@near-js/types').TxExecutionStatus) {
         if (self.client.isReady()) {
           const res = await self.client.sendTransaction({ signedTransaction, options: { ...(typeof waitUntil !== 'undefined' ? { waitUntil } : {}) } as any });
           // Align with NearClient.sendTransaction returning FinalExecutionOutcome shape
@@ -215,7 +226,7 @@ export class PasskeyManagerIframe {
     } as NearClient;
   }
 
-  async recoverAccountFlow(args: { accountId?: string; options?: AccountRecoveryHooksOptions }): Promise<any> {
+  async recoverAccountFlow(args: { accountId?: string; options?: AccountRecoveryHooksOptions }): Promise<RecoveryResult> {
     const options = args.options;
     if (this.client.isReady()) {
       try { await options?.beforeCall?.(); } catch {}
@@ -235,11 +246,23 @@ export class PasskeyManagerIframe {
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
   async startDevice2LinkingFlow(args?: { accountId?: string; ui?: 'modal' | 'inline' } & StartDeviceLinkingOptionsDevice2): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
     // If iframe client present, prefer secure host flow; otherwise fallback to local QR generation
-    if (this.client.isReady()) {
-      return (this.client as any).startDevice2LinkingFlow({ accountId: args?.accountId, ui: args?.ui, onEvent: args?.onEvent });
+    const optsAny = (args || {}) as any;
+    try { await optsAny?.beforeCall?.(); } catch {}
+    try {
+      if (this.client.isReady()) {
+        const res = await (this.client as any).startDevice2LinkingFlow({ accountId: args?.accountId, ui: args?.ui, onEvent: optsAny?.onEvent });
+        try { await optsAny?.afterCall?.(true, res); } catch {}
+        return res as any;
+      }
+      const { qrData, qrCodeDataURL } = await this.ensureFallbackLocal().startDevice2LinkingFlow({ accountId: args?.accountId, onEvent: optsAny?.onEvent, ensureUserActivation: (args as any)?.ensureUserActivation } as any);
+      const res = { qrData, qrCodeDataURL } as any;
+      try { await optsAny?.afterCall?.(true, res); } catch {}
+      return res;
+    } catch (err: any) {
+      try { optsAny?.onError?.(err); } catch {}
+      try { await optsAny?.afterCall?.(false, err); } catch {}
+      throw err;
     }
-    const { qrData, qrCodeDataURL } = await this.ensureFallbackLocal().startDevice2LinkingFlow({ accountId: args?.accountId, onEvent: args?.onEvent, ensureUserActivation: (args as any)?.ensureUserActivation } as any);
-    return { qrData, qrCodeDataURL } as any;
   }
 
   async stopDevice2LinkingFlow(): Promise<void> {
@@ -251,18 +274,30 @@ export class PasskeyManagerIframe {
   }
 
   // Device1: Link device in the host (AddKey + mapping) using scanned QR payload
-  async linkDeviceWithScannedQRData(qrData: DeviceLinkingQRData, options: ScanAndLinkDeviceOptionsDevice1): Promise<any> {
-    if (this.client.isReady()) {
-      return await this.client.linkDeviceWithScannedQRData({ qrData, fundingAmount: (options as any).fundingAmount, options: { onEvent: (options as any)?.onEvent } });
+  async linkDeviceWithScannedQRData(qrData: DeviceLinkingQRData, options: ScanAndLinkDeviceOptionsDevice1): Promise<LinkDeviceResult> {
+    const optsAny = (options || {}) as any;
+    try { await optsAny?.beforeCall?.(); } catch {}
+    try {
+      if (this.client.isReady()) {
+        const res = await this.client.linkDeviceWithScannedQRData({ qrData, fundingAmount: (optsAny as any).fundingAmount, options: { onEvent: (optsAny as any)?.onEvent } });
+        try { await optsAny?.afterCall?.(true, res); } catch {}
+        return res as LinkDeviceResult;
+      }
+      const res = await this.ensureFallbackLocal().linkDeviceWithScannedQRData(qrData, options as any);
+      try { await optsAny?.afterCall?.(true, res); } catch {}
+      return res as LinkDeviceResult;
+    } catch (err: any) {
+      try { optsAny?.onError?.(err); } catch {}
+      try { await optsAny?.afterCall?.(false, err); } catch {}
+      throw err;
     }
-    return await this.ensureFallbackLocal().linkDeviceWithScannedQRData(qrData, options as any);
   }
 
   // Parity with PasskeyManager API
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
     this.client.setConfirmBehavior(behavior);
   }
-  setConfirmationConfig(config: Record<string, unknown>): void {
+  setConfirmationConfig(config: ConfirmationConfig): void {
     // Update local cache synchronously for immediate reads
     this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...this.lastConfirmationConfig, ...(config as any) } as ConfirmationConfig;
     this.client.setConfirmationConfig(config);
@@ -272,7 +307,7 @@ export class PasskeyManagerIframe {
     this.client.setTheme(theme);
     this.notifyTheme(theme);
   }
-  getConfirmationConfig(): any {
+  getConfirmationConfig(): ConfirmationConfig {
     // Synchronous API parity with PasskeyManager
     return this.lastConfirmationConfig;
   }
@@ -288,18 +323,27 @@ export class PasskeyManagerIframe {
   async hasPasskeyCredential(nearAccountId: string): Promise<boolean> {
     return this.client.hasPasskeyCredential(nearAccountId);
   }
-  async viewAccessKeyList(accountId: string): Promise<any> {
+  async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     return this.client.viewAccessKeyList(accountId);
   }
-  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<any> {
-    return this.client.deleteDeviceKey(accountId, publicKeyToDelete, { onEvent: options?.onEvent as any });
+  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<import('../types/passkeyManager').ActionResult> {
+    try { await options?.beforeCall?.(); } catch {}
+    try {
+      const res = await this.client.deleteDeviceKey(accountId, publicKeyToDelete, { onEvent: options?.onEvent as any });
+      try { await options?.afterCall?.(true, res); } catch {}
+      return res;
+    } catch (err: any) {
+      try { options?.onError?.(err); } catch {}
+      try { await options?.afterCall?.(false, err); } catch {}
+      throw err;
+    }
   }
   async executeAction(args: {
     nearAccountId: string;
     receiverId: string;
     actionArgs: unknown | unknown[];
     options?: ActionHooksOptions
-  }): Promise<any> {
+  }): Promise<import('../types/passkeyManager').ActionResult> {
     // Route via iframe client with PROGRESS bridging
     try { await args.options?.beforeCall?.(); } catch {}
     try {
@@ -322,7 +366,7 @@ export class PasskeyManagerIframe {
       throw err;
     }
   }
-  async sendTransaction(args: { signedTransaction: any; options?: Record<string, unknown> }): Promise<any> {
+  async sendTransaction(args: { signedTransaction: SignedTransaction; options?: SendTransactionHooksOptions }): Promise<import('../types/passkeyManager').ActionResult> {
     // Route via iframe client with PROGRESS bridging
     const options: any = args.options || {};
     options?.beforeCall?.();
@@ -359,7 +403,7 @@ export class PasskeyManagerIframe {
     nearAccountId: string;
     transactions: { receiverId: string; actions: unknown[] }[];
     options?: { executeSequentially?: boolean } & ActionHooksOptions;
-  }): Promise<any[]> {
+  }): Promise<import('../types/passkeyManager').ActionResult[]> {
     const options: any = args.options || {};
     try { await options?.beforeCall?.(); } catch {}
     try {
@@ -369,7 +413,7 @@ export class PasskeyManagerIframe {
         options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
       });
       try { await options?.afterCall?.(true, res as any); } catch {}
-      return res as any[];
+      return res as import('../types/passkeyManager').ActionResult[];
     } catch (err: any) {
       try { options?.onError?.(err); } catch {}
       try { await options?.afterCall?.(false, err); } catch {}

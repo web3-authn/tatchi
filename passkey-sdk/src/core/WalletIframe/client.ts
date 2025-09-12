@@ -1,15 +1,35 @@
 import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
+  type ProgressPayload,
 } from './messages';
 import { SignedTransaction } from '../NearClient';
 import { ProgressBus, defaultPhaseHeuristics } from './progress-bus';
-import type { RegistrationResult, LoginResult, VerifyAndSignTransactionResult, LoginState, ActionResult } from '../types/passkeyManager';
+import type {
+  RegistrationResult,
+  LoginResult,
+  VerifyAndSignTransactionResult,
+  LoginState,
+  ActionResult,
+  ActionSSEEvent,
+  RegistrationSSEEvent,
+  LoginSSEvent,
+  DeviceLinkingSSEEvent,
+  AccountRecoverySSEEvent,
+  BeforeCall,
+  AfterCall
+} from '../types/passkeyManager';
+import type { TxExecutionStatus } from '../types/actions';
 import { IframeTransport } from './IframeTransport';
 import {
-  DeviceLinkingQRData
+  DeviceLinkingQRData,
+  LinkDeviceResult,
 } from '../types/linkDevice'
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
+import type { ConfirmationConfig } from '../types/signer-worker';
+import type { AccessKeyList } from '../NearClient';
+import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
+import type { RecoveryResult } from '../PasskeyManager';
 
 // Simple, framework-agnostic service iframe client.
 //
@@ -30,7 +50,10 @@ export interface WalletIframeClientOptions {
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
-  relayer?: { initialUseRelayer: boolean; accountId: string; url: string };
+  relayer?: {
+    accountId: string;
+    url: string
+  };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
   authenticatorOptions?: AuthenticatorOptions;
@@ -40,10 +63,10 @@ export interface WalletIframeClientOptions {
 }
 
 type Pending = {
-  resolve: (value: any) => void;
-  reject: (reason?: any) => void;
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
   timer: number | undefined;
-  onProgress?: (payload: any) => void;
+  onProgress?: (payload: ProgressPayload) => void;
 };
 
 export class WalletIframeClient {
@@ -60,7 +83,7 @@ export class WalletIframeClient {
   private activationOverlayVisible = false;
   private vrfStatusListeners: Set<(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void> = new Set();
   // Coalesce duplicate Device2 start calls (e.g., React StrictMode double-effects)
-  private device2StartPromise: Promise<{ qrData: any; qrCodeDataURL: string }> | null = null;
+  private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
   private progressBus: ProgressBus;
   private debug = false;
 
@@ -87,8 +110,8 @@ export class WalletIframeClient {
       { show: () => this.showFrameForActivation(), hide: () => this.hideFrameForActivation() },
       defaultPhaseHeuristics,
       this.debug
-        ? ((msg: any, ...args: any[]) => {
-            try { console.debug('[WalletIframeClient][ProgressBus]', msg, ...(args || [])); } catch {}
+        ? ((msg: string, data?: Record<string, unknown>) => {
+            try { console.debug('[WalletIframeClient][ProgressBus]', msg, data || {}); } catch {}
           })
         : undefined
     );
@@ -185,7 +208,10 @@ export class WalletIframeClient {
       actions: unknown[]
     }[];
     options?: {
-      onEvent?: (ev: any) => void
+      onEvent?: (ev: ActionSSEEvent) => void;
+      onError?: (error: Error) => void;
+      beforeCall?: BeforeCall;
+      afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
     }
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
@@ -212,7 +238,7 @@ export class WalletIframeClient {
   async registerPasskey(payload: {
     nearAccountId: string;
     options?: {
-      onEvent?: (ev: any) => void
+      onEvent?: (ev: RegistrationSSEEvent) => void
     }
   }): Promise<RegistrationResult> {
     this.showFrameForActivation();
@@ -242,7 +268,7 @@ export class WalletIframeClient {
   async loginPasskey(payload: {
     nearAccountId: string;
     options?: {
-      onEvent?: (ev: any) => void
+      onEvent?: (ev: LoginSSEvent) => void
     }
   }): Promise<LoginResult> {
     this.showFrameForActivation();
@@ -286,29 +312,53 @@ export class WalletIframeClient {
     return { ok: true };
   }
 
-  async signNep413Message(payload: { nearAccountId: string; message: string; recipient: string; state?: string; options?: { onEvent?: (ev: any) => void } }): Promise<any> {
+  async signNep413Message(payload: {
+    nearAccountId: string;
+    message: string;
+    recipient: string;
+    state?: string;
+    options?: { onEvent?: (ev: ActionSSEEvent) => void }
+  }): Promise<SignNEP413MessageResult> {
     const res = await this.post<any>({ type: 'PM_SIGN_NEP413', payload: { nearAccountId: payload.nearAccountId, params: { message: payload.message, recipient: payload.recipient, state: payload.state } } }, { onProgress: payload.options?.onEvent as any });
-    return res?.result as any;
+    return res?.result as SignNEP413MessageResult;
   }
 
-  async signTransactionWithKeyPair(payload: { signedTransaction: SignedTransaction; options?: { onEvent?: (ev: any) => void } & Record<string, unknown> }): Promise<ActionResult> {
+  async signTransactionWithKeyPair(payload: {
+    signedTransaction: SignedTransaction;
+    options?: {
+      onEvent?: (ev: ActionSSEEvent) => void
+    } & Record<string, unknown>
+  }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = payload || {};
     const safeOptions: Record<string, unknown> | undefined = options ? ({
       ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
     } as any) : undefined;
     const res = await this.post<any>({ type: 'PM_SEND_TRANSACTION', payload: { signedTransaction: payload.signedTransaction, options: safeOptions } as any }, { onProgress: options?.onEvent as any });
-    return (res?.result as any) as ActionResult;
+    return (res?.result as ActionResult);
   }
 
-  async executeAction(payload: { nearAccountId: string; receiverId: string; actionArgs: unknown | unknown[]; options?: { onEvent?: (ev: any) => void } & Record<string, unknown> }): Promise<any> {
+  async executeAction(payload: {
+    nearAccountId: string;
+    receiverId: string;
+    actionArgs: unknown | unknown[];
+    options?: {
+      onEvent?: (ev: ActionSSEEvent) => void
+    }
+  }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = payload || {};
     const safeOptions: Record<string, unknown> | undefined = options ? ({
       ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
     } as any) : undefined;
-    const res = await this.post<any>({ type: 'PM_EXECUTE_ACTION', payload: { ...payload, options: safeOptions } as any }, { onProgress: options?.onEvent as any });
-    return res?.result;
+    const res = await this.post<any>(
+      {
+        type: 'PM_EXECUTE_ACTION',
+        payload: { ...payload, options: safeOptions }
+      },
+      { onProgress: options?.onEvent as any }
+    );
+    return res?.result as ActionResult;
   }
 
   async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
@@ -321,7 +371,7 @@ export class WalletIframeClient {
     await this.post<any>({ type: 'PM_SET_CONFIRM_BEHAVIOR', payload: { behavior, nearAccountId } as any });
   }
 
-  async setConfirmationConfig(config: Record<string, unknown>): Promise<void> {
+  async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
     if (!this.ready) {
       try { await this.init(); } catch {}
     }
@@ -331,9 +381,9 @@ export class WalletIframeClient {
     await this.post<any>({ type: 'PM_SET_CONFIRMATION_CONFIG', payload: { config, nearAccountId } as any });
   }
 
-  async getConfirmationConfig(): Promise<any> {
+  async getConfirmationConfig(): Promise<ConfirmationConfig> {
     const res = await this.post<any>({ type: 'PM_GET_CONFIRMATION_CONFIG' } as any);
-    return res?.result;
+    return res?.result as ConfirmationConfig;
   }
 
   async setTheme(theme: 'dark' | 'light'): Promise<void> {
@@ -352,7 +402,7 @@ export class WalletIframeClient {
   async signAndSendTransactions(payload: {
     nearAccountId: string;
     transactions: { receiverId: string; actions: unknown[] }[];
-    options?: { executeSequentially?: boolean; waitUntil?: any; onEvent?: (ev: any) => void } & Record<string, unknown>;
+    options?: { executeSequentially?: boolean; waitUntil?: import('@near-js/types').TxExecutionStatus; onEvent?: (ev: ActionSSEEvent) => void } & Record<string, unknown>;
   }): Promise<ActionResult[]> {
     const { options } = payload || {};
     const safeOptions: Record<string, unknown> | undefined = options ? ({
@@ -369,43 +419,68 @@ export class WalletIframeClient {
     return !!res?.result;
   }
 
-  async viewAccessKeyList(accountId: string): Promise<any> {
+  async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     const res = await this.post<any>({ type: 'PM_VIEW_ACCESS_KEYS', payload: { accountId } as any });
-    return res?.result;
+    return res?.result as AccessKeyList;
   }
 
-  async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: { onEvent?: (ev: any) => void }): Promise<any> {
-    const res = await this.post<any>({ type: 'PM_DELETE_DEVICE_KEY', payload: { accountId, publicKeyToDelete } as any }, { onProgress: options?.onEvent as any });
-    return res?.result;
+  async deleteDeviceKey(
+    accountId: string,
+    publicKeyToDelete: string,
+    options?: { onEvent?: (ev: ActionSSEEvent) => void }
+  ) : Promise<ActionResult> {
+    const res = await this.post<any>(
+      {
+        type: 'PM_DELETE_DEVICE_KEY',
+        payload: { accountId, publicKeyToDelete }
+      },
+      { onProgress: options?.onEvent as any }
+    );
+    return res?.result as ActionResult;
   }
 
-  async sendTransaction(args: { signedTransaction: SignedTransaction; options?: { onEvent?: (ev: any) => void } & Record<string, unknown> }): Promise<ActionResult> {
+  async sendTransaction(args: {
+    signedTransaction: SignedTransaction;
+    options?: { onEvent?: (ev: ActionSSEEvent) => void } & Record<string, unknown>
+  }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = args || {};
     const safeOptions: Record<string, unknown> | undefined = options ? ({
       ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
     } as any) : undefined;
-    const res = await this.post<any>({ type: 'PM_SEND_TRANSACTION', payload: { signedTransaction: args.signedTransaction, options: safeOptions } as any }, { onProgress: options?.onEvent as any });
-    return res?.result as any;
+    const res = await this.post<any>(
+      {
+        type: 'PM_SEND_TRANSACTION',
+        payload: { signedTransaction: args.signedTransaction, options: safeOptions } as any
+      }, { onProgress: options?.onEvent as any }
+    );
+    return res?.result as ActionResult;
   }
 
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<{ accountId: string; privateKey: string; publicKey: string }> {
+  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<{
+    accountId: string;
+    privateKey: string;
+    publicKey: string
+  }> {
     const res = await this.post<any>({ type: 'PM_EXPORT_NEAR_KEYPAIR', payload: { nearAccountId } as any });
     return res?.result as any;
   }
 
   // ===== Account Recovery (single-endpoint flow) =====
-  async recoverAccountFlow(payload: { accountId?: string; onEvent?: (ev: any) => void }): Promise<any> {
-    const res = await this.post<any>({ type: 'PM_RECOVER_ACCOUNT_FLOW', payload: { accountId: payload.accountId } as any }, { onProgress: payload.onEvent as any, sticky: true });
-    return res?.result as any;
+  async recoverAccountFlow(payload: { accountId?: string; onEvent?: (ev: AccountRecoverySSEEvent) => void }): Promise<RecoveryResult> {
+    const res = await this.post<any>(
+      { type: 'PM_RECOVER_ACCOUNT_FLOW', payload: { accountId: payload.accountId } },
+      { onProgress: payload.onEvent as any, sticky: true }
+    );
+    return res?.result as RecoveryResult;
   }
 
   // ===== Device Linking (iframe-hosted) =====
   async linkDeviceWithScannedQRData(payload: {
     qrData: DeviceLinkingQRData;
     fundingAmount: string;
-    options?: { onEvent?: (ev: any) => void }
-  }): Promise<any> {
+    options?: { onEvent?: (ev: DeviceLinkingSSEEvent) => void }
+  }): Promise<LinkDeviceResult> {
     // TouchID required within host
     this.showFrameForActivation();
     try {
@@ -417,9 +492,9 @@ export class WalletIframeClient {
             fundingAmount: payload.fundingAmount
           }
         },
-        { onProgress: payload.options?.onEvent }
+        { onProgress: payload.options?.onEvent as any }
       );
-      return res?.result as any;
+      return res?.result as LinkDeviceResult;
     } finally {
       this.hideFrameForActivation();
     }
@@ -428,7 +503,7 @@ export class WalletIframeClient {
   async startDevice2LinkingFlow(payload?: {
     accountId?: string;
     ui?: 'modal' | 'inline';
-    onEvent?: (ev: any) => void
+    onEvent?: (ev: DeviceLinkingSSEEvent) => void
   }): Promise<{
     qrData: DeviceLinkingQRData;
     qrCodeDataURL: string
@@ -440,13 +515,13 @@ export class WalletIframeClient {
         type: 'PM_START_DEVICE2_LINKING_FLOW',
         payload: { accountId: payload?.accountId, ui: payload?.ui } as any
       },
-      { onProgress: payload?.onEvent, sticky: true }
-    ).then((res) => (res?.result || {}) as any)
+      { onProgress: payload?.onEvent as any, sticky: true }
+    ).then((res) => (res?.result || {}) as { qrData: DeviceLinkingQRData; qrCodeDataURL: string })
     .finally(() => { this.device2StartPromise = null; });
 
-    this.device2StartPromise = p as any;
+    this.device2StartPromise = p as Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
 
-    return p as any;
+    return p as Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
   }
 
   async stopDevice2LinkingFlow(): Promise<void> {
@@ -466,7 +541,7 @@ export class WalletIframeClient {
 
   // mount + handshake are handled by IframeTransport
 
-  private onPortMessage(e: MessageEvent) {
+  private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
     const msg = e.data as ChildToParentEnvelope;
     if (!msg || typeof msg !== 'object') return;
 
@@ -474,7 +549,7 @@ export class WalletIframeClient {
     if (msg.type === 'PROGRESS') {
       const rid = msg.requestId as string | undefined;
       if (!rid) return;
-      const payload = (msg as any).payload;
+      const payload = (msg.payload as ProgressPayload);
       // Route via ProgressBus (handles overlay + sticky delivery)
       this.progressBus.dispatch(rid, payload);
       // Refresh timeout for long-running operations whenever progress is received
@@ -530,7 +605,13 @@ export class WalletIframeClient {
    * Post a typed envelope over the MessagePort with robust readiness handling.
    * If the port is not ready yet, lazily initializes the transport (awaits init()).
    */
-  private async post<T = any>(envelope: Omit<ParentToChildEnvelope, 'requestId'>, opts?: { onProgress?: (payload: any) => void; sticky?: boolean }): Promise<T> {
+  private async post<T = any>(
+    envelope: Omit<ParentToChildEnvelope, 'requestId'>,
+    opts?: {
+      onProgress?: (payload: ProgressPayload) => void;
+      sticky?: boolean
+    }
+  ): Promise<T> {
     // Lazily initialize the iframe/client if not ready yet
     if (!this.ready || !this.port) {
       try {
@@ -548,9 +629,14 @@ export class WalletIframeClient {
         reject(new Error(`Wallet request timeout for ${envelope.type}`));
       }, this.opts.requestTimeoutMs);
 
-      this.pending.set(requestId, { resolve, reject, timer, onProgress: opts?.onProgress });
+      this.pending.set(requestId, {
+        resolve: resolve as any,
+        reject,
+        timer,
+        onProgress: opts?.onProgress
+      });
       // Register progress handler; overlay handled by ProgressBus
-      this.progressBus.register(requestId, (payload: any) => {
+      this.progressBus.register(requestId, (payload: ProgressPayload) => {
         try { opts?.onProgress?.(payload); } catch {}
       }, !!opts?.sticky);
       try {
@@ -610,7 +696,7 @@ export class WalletIframeClient {
   }
 
   // Public subscription API for observability/testing
-  subscribeProgress(requestId: string, handler: (payload: any) => void, opts?: { sticky?: boolean }): () => void {
+  subscribeProgress(requestId: string, handler: (payload: ProgressPayload) => void, opts?: { sticky?: boolean }): () => void {
     this.progressBus.register(requestId, handler, !!opts?.sticky);
     return () => { try { this.progressBus.unregister(requestId); } catch {} };
   }

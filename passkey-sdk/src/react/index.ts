@@ -53,6 +53,7 @@ export { QRCodeScanner } from './components/QRCodeScanner';
 export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
 export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
+export { WalletRegisterButtonHost } from './components/WalletRegisterButtonHost';
 // Sign Up / Sign In menu
 export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples

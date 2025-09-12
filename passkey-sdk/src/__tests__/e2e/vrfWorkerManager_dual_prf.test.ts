@@ -149,13 +149,13 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Generate bootstrap VRF keypair (used during registration)
         console.log('Generating bootstrap VRF keypair...');
-        const bootstrapResult = await vrfWorkerManager.generateVrfKeypairBootstrap(
-          {
+        const bootstrapResult = await vrfWorkerManager.generateVrfKeypairBootstrap({
+          vrfInputData: {
             ...testConfig.VRF_INPUT_PARAMS,
             rpId: configs.rpId
           },
-          true // saveInMemory
-        );
+          saveInMemory: true // saveInMemory
+        });
 
         // Verify bootstrap keypair generation
         const hasValidPublicKey = !!(bootstrapResult.vrfPublicKey &&
@@ -166,13 +166,13 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Test that VRF challenge is deterministic for same input
         console.log('Testing deterministic VRF challenge generation...');
-        const bootstrapResult2 = await vrfWorkerManager.generateVrfKeypairBootstrap(
-          {
+        const bootstrapResult2 = await vrfWorkerManager.generateVrfKeypairBootstrap({
+          vrfInputData: {
             ...testConfig.VRF_INPUT_PARAMS,
             rpId: configs.rpId
           },
-          true
-        );
+          saveInMemory: true
+        });
 
         // Note: Bootstrap keypairs are random, so public keys will be different
         // But VRF challenges should use the newly generated keypair consistently
@@ -390,7 +390,10 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Generate a VRF keypair to activate session
         console.log('Activating VRF session with keypair generation...');
-        await vrfWorkerManager.generateVrfKeypairBootstrap(testConfig.VRF_INPUT_PARAMS, true);
+        await vrfWorkerManager.generateVrfKeypairBootstrap({
+          vrfInputData: testConfig.VRF_INPUT_PARAMS,
+          saveInMemory: true
+        });
 
         // Check status after activation
         console.log('Checking VRF status after activation...');
@@ -464,9 +467,12 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // First, activate session by generating a VRF keypair
         console.log('Activating VRF session...');
         await vrfWorkerManager.generateVrfKeypairBootstrap({
-          ...testConfig.VRF_INPUT_PARAMS,
-          rpId: configs.rpId
-        }, true);
+          vrfInputData: {
+            ...testConfig.VRF_INPUT_PARAMS,
+            rpId: configs.rpId
+          },
+          saveInMemory: true
+        });
 
         // Test VRF challenge generation with active session
         console.log('Generating VRF challenge with active session...');
@@ -694,7 +700,10 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Test 2: Generate VRF keypair (complex response)
         console.log('Testing generateVrfKeypairBootstrap response...');
-        const keypairResult = await vrfWorkerManager.generateVrfKeypairBootstrap(testConfig.VRF_INPUT_PARAMS, true);
+        const keypairResult = await vrfWorkerManager.generateVrfKeypairBootstrap({
+          vrfInputData: testConfig.VRF_INPUT_PARAMS,
+          saveInMemory: true
+        });
         console.log('Keypair result type:', typeof keypairResult);
         console.log('Keypair result keys:', Object.keys(keypairResult));
         console.log('vrfPublicKey type:', typeof keypairResult.vrfPublicKey);

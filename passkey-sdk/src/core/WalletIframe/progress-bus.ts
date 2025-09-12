@@ -1,7 +1,45 @@
 // Lightweight progress event router for wallet iframe client
 // Encapsulates sticky and in-flight progress handling and overlay heuristics.
 
-export type ProgressPayload = any;
+import type { ProgressPayload as MessageProgressPayload } from './messages';
+import {
+  ActionPhase,
+  DeviceLinkingPhase,
+  AccountRecoveryPhase,
+  RegistrationPhase,
+  LoginPhase,
+} from '../types/passkeyManager';
+
+// Phases that should temporarily SHOW the overlay (to capture activation)
+const SHOW_PHASES = new Set<string>([
+  ActionPhase.STEP_2_USER_CONFIRMATION,
+  ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
+  // Device1: TouchID authorization (host needs overlay to capture activation)
+  DeviceLinkingPhase.STEP_3_AUTHORIZATION,
+  // Device2: Registration inside wallet host (collects passkey via ModalTxConfirmer)
+  // Show overlay so the wallet iframe is visible and focused for WebAuthn
+  DeviceLinkingPhase.STEP_6_REGISTRATION,
+  AccountRecoveryPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
+  LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
+]);
+
+// Phases that should HIDE the overlay asap (post-activation, non-interactive)
+const HIDE_PHASES = new Set<string>([
+  ActionPhase.STEP_5_AUTHENTICATION_COMPLETE,
+  ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
+  ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
+  ActionPhase.STEP_3_CONTRACT_VERIFICATION,
+  ActionPhase.STEP_8_BROADCASTING,
+  ActionPhase.STEP_9_ACTION_COMPLETE,
+  // Device linking: hide when the flow has finished or errored
+  DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
+  DeviceLinkingPhase.REGISTRATION_ERROR,
+  DeviceLinkingPhase.LOGIN_ERROR,
+  DeviceLinkingPhase.DEVICE_LINKING_ERROR,
+  RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
+]);
+
+export type ProgressPayload = MessageProgressPayload;
 
 export interface OverlayController {
   show: () => void;
@@ -97,16 +135,40 @@ export class ProgressBus {
 }
 
 // Default phase heuristic used by the client
+/**
+ * defaultPhaseHeuristics
+ *
+ * Decides when to expand or contract the invisible wallet iframe overlay
+ * based on incoming progress events (phases). Returning:
+ *  - 'show' → expands the iframe to a full-screen, invisible layer that captures
+ *             user activation (e.g., TouchID / WebAuthn prompts) and pointer events.
+ *  - 'hide' → immediately contracts the iframe back to 0×0 so it no longer blocks clicks.
+ *  - 'none' → no change.
+ *
+ * Important UX constraint: the overlay covers the entire viewport and is
+ * intentionally invisible. While expanded, it will intercept clicks and can
+ * block interactions with the app. Therefore, we must minimize the time it is
+ * expanded and only show it during the brief windows where user activation is
+ * required (e.g., when the TouchID prompt is about to appear or the modal is
+ * mounting and needs focus/activation in the iframe context). As soon as
+ * activation completes (e.g., authentication-complete), we hide it again.
+ *
+ * If new phases are introduced that require user activation, add them to
+ * SHOW_PHASES; if phases become non-interactive post-activation, add them to
+ * HIDE_PHASES. The goal is to keep the overlay up for the minimum possible time.
+ */
 export const defaultPhaseHeuristics: PhaseHeuristics = (payload: ProgressPayload) => {
   try {
-    const raw = String((payload || {}).phase || '').toLowerCase();
-    if (!raw) return 'none';
-    if (
-      raw === 'user-confirmation' || raw.includes('user-confirmation') ||
-      raw.includes('webauthn-authentication') || raw.includes('authorization') ||
-      raw.includes('step_6_registration') || raw.includes('registration')
-    ) return 'show';
+    const phase = String((payload || {}).phase || '');
+    if (!phase) return 'none';
+
+    if (SHOW_PHASES.has(phase)) return 'show';
+    if (HIDE_PHASES.has(phase)) return 'hide';
+
+    // Back-compat: hide on legacy/custom completion markers if present.
+    const raw = phase.toLowerCase();
     if (raw === 'user-confirmation-complete') return 'hide';
+
     return 'none';
   } catch { return 'none'; }
 };

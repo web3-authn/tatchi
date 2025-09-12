@@ -4,44 +4,11 @@ import { ConfirmationConfig } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
 import { RpcCallPayload } from '../../../types/signer-worker';
 
-// === SECURE CONFIRM TYPES ===
-
-export interface SecureConfirmData {
-  requestId: string;
-  summary: string | object;
-  tx_signing_requests: TransactionInputWasm[]; // Array of TransactionInputWasm objects
-  intentDigest: string;
-  rpcCall: RpcCallPayload; // RPC parameters for NEAR operations and VRF generation
-  confirmationConfig?: ConfirmationConfig; // Confirmation configuration from WASM worker
-  registrationDetails?: {
-    nearAccountId: string;
-    deviceNumber: number;
-    deterministicVrfPublicKey?: string; // Optional VRF public key for registration transactions
-  };
-}
-
-export interface ConfirmationSummaryAction {
-  to: string;
-  totalAmount: string;
-}
-
-export interface ConfirmationSummaryRegistration {
-  type: string;
-  nearAccountId: string;
-  deviceNumber: number;
-  contractId: string;
-  deterministicVrfPublicKey: string;
-}
-
+// === SECURE CONFIRM TYPES (V2) ===
 
 export enum SecureConfirmMessageType {
   PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD = 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD',
   USER_PASSKEY_CONFIRM_RESPONSE = 'USER_PASSKEY_CONFIRM_RESPONSE',
-}
-
-export interface SecureConfirmMessage {
-  type: SecureConfirmMessageType;
-  data: SecureConfirmData;
 }
 
 export interface SecureConfirmDecision {
@@ -101,6 +68,15 @@ export interface SecureConfirmRequest<TPayload = any, TSummary = any> {
   summary: TSummary;
   payload: TPayload;
   confirmationConfig?: ConfirmationConfig;
+  // Optional intent digest to echo back in responses for flows that
+  // do not have a tx-centric payload (e.g., registration/link flows)
+  intentDigest?: string;
+  // Indicates where the call was initiated from, relative to the page hosting
+  // the PasskeyManager runtime.
+  // - 'parent': default; typical programmatic calls from outside any embedded UI
+  // - 'iframe': initiated by an embedded iframe control (e.g., IframeButtonHost)
+  // This is advisory and used only for runtime UI decisions/logging on the main thread.
+  invokedFrom?: 'iframe' | 'parent';
 }
 
 // V2 payloads

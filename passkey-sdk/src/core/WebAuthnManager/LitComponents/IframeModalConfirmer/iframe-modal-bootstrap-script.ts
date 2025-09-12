@@ -209,24 +209,15 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
 
 // Proxy modal decision events to parent (composed+bubbling custom events)
 function hookDecisionEvents(): void {
-  const forward = (type: 'CONFIRM' | 'CANCEL'): void => {
-    const message: IframeModalMessage = { type };
+  const forward = (type: 'CONFIRM' | 'CANCEL', payload?: any): void => {
+    const message: IframeModalMessage = { type: type as any, payload } as any;
     try { window.parent.postMessage(message, PARENT_ORIGIN || '*'); } catch {}
   };
-  document.addEventListener('w3a:confirm', async () => {
-    try {
-      // Synchronously invoke parent host's activation bridge, if available,
-      // so that WebAuthn calls can start within the same user gesture.
-      const sync = (window.parent as any)?.__W3A_MODAL_SYNC__;
-      if (sync && typeof sync.onConfirm === 'function') {
-        await sync.onConfirm();
-      }
-    } catch (e) {
-      console.warn('[IframeModalBootstrap] parent activation bridge failed', e);
-    }
+  // On confirm, simply forward to parent (host prompts WebAuthn)
+  document.addEventListener('w3a:modal-confirm', () => {
     forward('CONFIRM');
   });
-  document.addEventListener('w3a:cancel', () => forward('CANCEL'));
+  document.addEventListener('w3a:modal-cancel', () => forward('CANCEL'));
 }
 
 window.addEventListener('message', onMessage);

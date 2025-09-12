@@ -295,16 +295,15 @@ export class IframeModalHost extends LitElementWithProps {
         const uiDigest = await this.requestUiIntentDigest();
         if (uiDigest !== this.intentDigest) {
           confirmed = false;
-          error = JSON.stringify({
-            code: 'ui_digest_mismatch',
-            uiDigest,
-            intentDigest: this.intentDigest
-          });
-          this.onError?.(new Error('UI digest mismatch'));
+          const msg = 'INTENT_DIGEST_MISMATCH';
+          error = msg;
+          // Surface a clear, explicit error to any host listeners
+          const err = Object.assign(new Error(msg), { code: msg, details: { uiDigest, intentDigest: this.intentDigest } });
+          this.onError?.(err);
         }
       } catch (e) {
         confirmed = false;
-        error = 'ui_digest_validation_failed';
+        error = 'UI_DIGEST_VALIDATION_FAILED';
         const err = e instanceof Error ? e : new Error(String(e));
         this.onError?.(err);
       }

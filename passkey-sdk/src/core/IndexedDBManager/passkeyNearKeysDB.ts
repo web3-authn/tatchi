@@ -42,7 +42,7 @@ export class PasskeyNearKeysDBManager {
       upgrade(db): void {
         // Always recreate store with composite key; no migration
         try { if (db.objectStoreNames.contains(DB_CONFIG.storeName)) db.deleteObjectStore(DB_CONFIG.storeName); } catch {}
-        const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath as any });
+        const store = db.createObjectStore(DB_CONFIG.storeName, { keyPath: DB_CONFIG.keyPath });
         try { store.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
       },
       blocked() {
@@ -75,16 +75,33 @@ export class PasskeyNearKeysDBManager {
     const db = await this.getDB();
     if (typeof deviceNumber === 'number') {
       const res = await db.get(this.config.storeName, [nearAccountId, deviceNumber]);
-      if (!res?.encryptedData && nearAccountId !== '_init_check') {
-        console.warn('PasskeyNearKeysDB: getEncryptedKey - No result found for device:', deviceNumber);
+      if (res?.encryptedData) {
+        return res;
       }
-      return (res || null) as any;
+      // Fallback: if specific device key missing, return the most recent key for the account
+      if (nearAccountId !== '_init_check') {
+        console.warn('PasskeyNearKeysDB: getEncryptedKey - No result for device', deviceNumber, '→ falling back to any key for account');
+      }
+      try {
+        const idx = db.transaction(this.config.storeName).store.index('nearAccountId');
+        const all = await idx.getAll(nearAccountId);
+        if (Array.isArray(all) && all.length > 0) {
+          // Choose the most recently stored entry by timestamp
+          const latest = (all as EncryptedKeyData[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
+          return latest;
+        }
+      } catch {}
+      return null;
     }
     // Fallback: pick the first entry for this account (non-deterministic order)
     try {
       const idx = db.transaction(this.config.storeName).store.index('nearAccountId');
-      const cursor = await (idx as any).openCursor(IDBKeyRange.only(nearAccountId));
-      if (cursor?.value) return cursor.value as any;
+      // Prefer all+latest even in generic path for consistency
+      const all = await idx.getAll(nearAccountId);
+      if (Array.isArray(all) && all.length > 0) {
+        const latest = (all as EncryptedKeyData[]).reduce((a, b) => (a.timestamp >= b.timestamp ? a : b));
+        return latest;
+      }
     } catch {}
     return null;
   }
@@ -114,9 +131,9 @@ export class PasskeyNearKeysDBManager {
       try {
         const tx = db.transaction(this.config.storeName, 'readwrite');
         const idx = tx.store.index('nearAccountId');
-        let cursor = await (idx as any).openCursor(IDBKeyRange.only(nearAccountId));
+        let cursor = await idx.openCursor(IDBKeyRange.only(nearAccountId));
         while (cursor) {
-          await tx.store.delete(cursor.primaryKey as any);
+          await tx.store.delete(cursor.primaryKey);
           cursor = await cursor.continue();
         }
         await tx.done;

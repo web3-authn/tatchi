@@ -487,6 +487,13 @@ async function wasmAuthenticateAndSignTransactions(
   });
 
   // Use the unified action-based WASM worker transaction signing
+  // Ensure freshest nonce+block context before entering confirmation flow
+  try {
+    await webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient, { force: true });
+  } catch (e) {
+    console.warn('[wasmAuthenticateAndSignTransactions]: Nonce prefetch (force) failed:', e);
+  }
+
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
     transactions: transactionInputsWasm,
     rpcCall: {

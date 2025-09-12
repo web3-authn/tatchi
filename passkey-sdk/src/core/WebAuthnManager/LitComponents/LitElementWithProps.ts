@@ -10,6 +10,24 @@ export type CSSProperties = Record<string, string | Record<string, string> | und
 export class LitElementWithProps extends LitElement {
 
   /**
+   * Optional: Subclasses can provide a list of imported custom element classes they rely on
+   * to prevent bundlers from tree-shaking those definitions when they are only used
+   * through side effects (e.g., nested custom elements inside templates).
+   * Example usage in a subclass:
+   *   import { EmbeddedRegisterButton } from '../EmbeddedRegisterButton';
+   *   static keepDefinitions = [EmbeddedRegisterButton];
+   */
+  static keepDefinitions?: unknown[];
+
+  /**
+   * Optional: Tag names that should be defined before this component renders.
+   * When missing, a console.warn is emitted to remind developers to import/keep the child.
+   * Example:
+   *   static requiredChildTags = ['embedded-register-button'];
+   */
+  static requiredChildTags?: string[];
+
+  /**
    * Handles the custom element upgrade race for a specific property.
    * This method ensures that any property values set before the custom element
    * fully upgrades are correctly re-applied through Lit's property system.
@@ -65,6 +83,33 @@ export class LitElementWithProps extends LitElement {
     if (this.styles) {
       this.applyStyles(this.styles, this.getComponentPrefix());
     }
+
+    // Ensure referenced definitions are kept by bundlers (touch the values)
+    try {
+      const ctor = this.constructor as typeof LitElementWithProps & {
+        keepDefinitions?: unknown[];
+        requiredChildTags?: string[];
+      };
+      const defs = ctor.keepDefinitions;
+      if (defs && defs.length) {
+        // Touch each value to prevent tree-shaking of side-effect-only imports
+        for (const d of defs) void d;
+      }
+
+      // Dev-time reminder when nested custom elements are not defined
+      const req = ctor.requiredChildTags;
+      if (req && Array.isArray(req)) {
+        for (const tag of req) {
+          try {
+            if (typeof tag === 'string' && tag.includes('-') && !customElements.get(tag)) {
+              // Non-fatal: helps remind that a child element import/keep is missing
+              console.warn(`[W3A] Required child custom element not defined: <${tag}>. ` +
+                'Import it and keep a reference via `static keepDefinitions` to avoid tree-shaking.');
+            }
+          } catch {}
+        }
+      }
+    } catch {}
   }
 
   /**

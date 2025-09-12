@@ -158,6 +158,10 @@ export async function executeDeviceLinkingContractCalls({
       }
     ],
     onEvent: (progress) => {
+      // Bridge all action progress events to the parent so the wallet iframe overlay
+      // can expand during user confirmation in wallet-iframe mode.
+      try { onEvent?.(progress as any); } catch {}
+      // Keep existing success mapping for device linking semantics
       if (progress.phase == ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE) {
         onEvent?.({
           step: 3,

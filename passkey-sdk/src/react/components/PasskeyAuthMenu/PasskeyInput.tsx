@@ -1,8 +1,10 @@
 import React from 'react';
-import { ArrowUpIcon } from './icons';
+// Arrow visuals handled inside ArrowButton
 // Refactored: React-driven postfix positioning (no imperative DOM writes)
 import { AuthMenuMode } from './index';
 import { AccountExistsBadge } from './AccountExistsBadge';
+import { usePasskeyContext } from '../../context';
+import ArrowButton from './ArrowButton';
 
 export interface PasskeyInputProps {
   value: string;
@@ -35,6 +37,14 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   mode,
   secure,
 }) => {
+  const ctx = (() => {
+    try {
+      return usePasskeyContext();
+    } catch {
+      return undefined;
+    }
+  })();
+
   const inputRef = React.useRef<HTMLInputElement | null>(null);
   const measurerRef = React.useRef<HTMLSpanElement | null>(null);
   // caretIndex retained initially but not used for measuring anymore
@@ -138,35 +148,28 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
           )}
         </div>
       </div>
+
       <ArrowButton onClick={onProceed} disabled={!canProceed} />
+
+      {/* {
+        mode === 'login' || mode === 'recover'
+        ? <ArrowButton onClick={onProceed} disabled={!canProceed} />
+        : (
+          <ArrowButton
+            disabled={!canProceed}
+            embeddedRegister={false}
+            nearAccountId={ctx?.accountInputState.targetAccountId || ''}
+            width={100}
+            height={64}
+            onRegisterSuccess={() => {}}
+            onRegisterError={(e) => { console.error('[PasskeyInput] Register error:', e); }}
+          />
+        )
+      } */}
     </div>
   );
 };
 
-const ArrowButton: React.FC<{
-  onClick: () => void;
-  disabled: boolean;
-}> = ({ onClick, disabled }) => {
-  return (
-    <button
-      aria-label="Continue"
-      onClick={onClick}
-      className={`w3a-arrow-btn${!disabled ? ' is-enabled' : ''}`}
-      disabled={disabled}
-    >
-      {!disabled && (
-        <ArrowUpIcon
-          size={24}
-          strokeWidth={2.5}
-          color="#ffffff"
-          style={{
-            display: 'block',
-            transition: 'transform 200ms, width 200ms, height 200ms'
-          }}
-        />
-      )}
-    </button>
-  )
-};
+// ArrowButton moved to its own module
 
 export default PasskeyInput;

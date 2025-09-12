@@ -13,6 +13,11 @@ const external = [
 
   // Exclude Lit SSR shim (not needed for client-side only)
   '@lit-labs/ssr-dom-shim',
+  // Externalize Lit for library builds so host bundler resolves a single copy
+  'lit',
+  /lit\/directives\/.*/,
+  'lit-html',
+  /lit-html\/.*/,
 
   // Node.js native modules for /server SDK
   'fs',

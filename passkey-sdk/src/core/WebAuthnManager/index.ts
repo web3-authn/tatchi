@@ -21,7 +21,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { PasskeyManagerConfigs, RegistrationHooksOptions, onProgressEvents } from '../types/passkeyManager';
+import type { PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -77,7 +77,8 @@ export class WebAuthnManager {
       nearClient,
       UserPreferencesInstance,
       NonceManagerInstance,
-      passkeyManagerConfigs.rpIdOverride
+      passkeyManagerConfigs.rpIdOverride,
+      !!passkeyManagerConfigs.walletOrigin
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
@@ -128,14 +129,17 @@ export class WebAuthnManager {
    * @param vrfInputParams - Optional parameters to generate VRF challenge/proof in same call
    * @returns VRF public key and optionally VRF challenge data
    */
-  async generateVrfKeypairBootstrap(
+  async generateVrfKeypairBootstrap(args: {
     saveInMemory: boolean,
     vrfInputData: VRFInputData
-  ): Promise<{
+  }): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {
-    return this.vrfWorkerManager.generateVrfKeypairBootstrap(vrfInputData, saveInMemory);
+    return this.vrfWorkerManager.generateVrfKeypairBootstrap({
+      vrfInputData: args.vrfInputData,
+      saveInMemory: args.saveInMemory
+    });
   }
 
   /**
@@ -169,7 +173,7 @@ export class WebAuthnManager {
     nearAccountId,
     options,
   }: {
-    credential: any;
+    credential: WebAuthnRegistrationCredential;
     nearAccountId: string;
     options?: any;
   }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; signedTransaction?: SignedTransaction }>{
@@ -261,7 +265,7 @@ export class WebAuthnManager {
   }: {
     prfOutput: string;
     nearAccountId: AccountId;
-    vrfInputData?: any;
+    vrfInputData?: VRFInputData;
     saveInMemory?: boolean;
   }): Promise<{
     success: boolean;
@@ -503,39 +507,19 @@ export class WebAuthnManager {
     encryptedVrfKeypair,
     vrfPublicKey,
     serverEncryptedVrfKeypair,
-    onEvent
   }: {
     nearAccountId: AccountId;
-    credential: any;
+    credential: WebAuthnRegistrationCredential;
     publicKey: string;
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string;
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
-    onEvent?: (event: any) => void;
   }): Promise<void> {
-
     await this.atomicOperation(async (db) => {
-
       // Store credential for authentication
-      const isSerialized = !!credential && typeof credential === 'object'
-        && typeof credential?.response?.attestationObject === 'string';
-
-      const credentialId: string = isSerialized
-        ? credential.rawId
-        : base64UrlEncode(credential.rawId);
-
-      let attestationB64u: string;
-      let transports: string[] = [];
-      if (isSerialized) {
-        attestationB64u = credential.response.attestationObject as string;
-        transports = Array.isArray(credential.response?.transports) ? credential.response.transports : [];
-      } else {
-        const response = credential.response as AuthenticatorAttestationResponse;
-        attestationB64u = base64UrlEncode(response.attestationObject);
-        try {
-          transports = response.getTransports?.() || [];
-        } catch { transports = []; }
-      }
+      const credentialId: string = credential.rawId;
+      const attestationB64u: string = credential.response.attestationObject;
+      const transports: string[] = credential.response?.transports;
 
       await this.storeAuthenticator({
         nearAccountId: nearAccountId,
@@ -569,13 +553,6 @@ export class WebAuthnManager {
 
       console.debug('Registration data stored atomically');
       return true;
-    });
-
-    onEvent?.({
-      step: 5,
-      phase: 'database-storage',
-      status: 'success',
-      message: 'VRF registration data stored successfully'
     });
   }
 

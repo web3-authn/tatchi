@@ -56,7 +56,7 @@ import { resolveWasmUrl } from './wasmLoader';
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 const { handle_signer_message } = wasmModule;
-import { awaitSecureConfirmation, awaitSecureConfirmationV2 } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
+import { awaitSecureConfirmationV2 } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
 import { SecureConfirmMessageType } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/types';
 
 let messageProcessed = false;
@@ -126,8 +126,7 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-// Expose the worker bridge for WASM to call
-(globalThis as any).awaitSecureConfirmation = awaitSecureConfirmation;
+// Expose the worker bridge for WASM to call (V2 only)
 (globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 
 /**
@@ -201,9 +200,9 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
       break;
 
     case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
-      // Case 2: User confirmation response - let it bubble to awaitSecureConfirmation listener
+      // Case 2: User confirmation response - let it bubble to awaitSecureConfirmationV2 listener
       // By breaking here without consuming the event, the message continues to propagate
-      // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmation
+      // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmationV2
       break;
 
     case messageProcessed:
@@ -258,3 +257,7 @@ function extractErrorMessage(error: any): string {
   }
   return typeof error === 'string' ? error : 'Unknown error occurred';
 }
+
+// Expose the V2 confirmation bridge function globally for WASM glue to call
+// Rust side binds to js_name = awaitSecureConfirmationV2
+(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;

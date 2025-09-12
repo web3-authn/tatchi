@@ -132,7 +132,10 @@ pub async fn verify_authentication_response_rpc_call(
             "account_id": contract_id,
             "method_name": VERIFY_AUTHENTICATION_RESPONSE_METHOD,
             "args_base64": base64_standard_encode(contract_args.to_string().as_bytes()),
-            "finality": "optimistic"
+            // Use 'final' to align with block hash/height fetched for VRF challenge
+            // which the SDK queries using finality: 'final'. This prevents
+            // large height deltas that can trigger StaleChallenge.
+            "finality": "final"
         }
     });
 
@@ -443,4 +446,3 @@ pub fn parse_check_can_register_response(result: serde_json::Value) -> Result<Co
         pre_signed_delete_transaction: None, // View functions don't have transactions
     })
 }
-

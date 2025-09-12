@@ -107,7 +107,8 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
     try {
       console.debug(`[${workerName}]: Using bundled WASM (SDK-optimized approach)`);
       // Pass resolved URL to initializer so bundlers rewrite to the correct asset
-      await initFunction(wasmUrl as any);
+      // Use new single-object signature to avoid deprecation warnings
+      await initFunction({ module_or_path: wasmUrl as any });
 
       // Run optional validation
       if (validateFunction) {
@@ -140,7 +141,8 @@ export async function initializeWasm(options: WasmLoaderOptions): Promise<any> {
       // Use ArrayBuffer approach (works regardless of MIME type)
       const arrayBuffer = await response.arrayBuffer();
       const wasmModule = await WebAssembly.compile(arrayBuffer);
-      await initFunction(wasmModule);
+      // Use the same object-based init for compiled module
+      await initFunction({ module_or_path: wasmModule as any });
 
       // Run optional validation
       if (validateFunction) {

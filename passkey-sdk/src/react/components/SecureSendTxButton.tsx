@@ -158,6 +158,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
 
   return (
     <RawIframeButton
+      invokedFrom={"iframe" as any}
       onMouseEnter={() => {
         // Warm up block height/hash (and nonce if missing) on hover
         // Fire-and-forget to avoid blocking UI thread

@@ -119,8 +119,8 @@ export class PasskeyManager {
       nearNetwork: this.configs.nearNetwork,
       contractId: this.configs.contractId,
       // Ensure relay server config reaches the wallet host for atomic registration
-      relayer: this.configs.relayer as any,
-      vrfWorkerConfigs: this.configs.vrfWorkerConfigs as any,
+      relayer: this.configs.relayer,
+      vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
       rpIdOverride: this.configs.rpIdOverride,
     });
     await this.serviceClient.init();
@@ -148,7 +148,7 @@ export class PasskeyManager {
    */
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
     if (this.serviceClient) {
-      return await this.serviceClient.viewAccessKeyList(accountId) as any;
+      return await this.serviceClient.viewAccessKeyList(accountId);
     }
     return this.nearClient.viewAccessKeyList(accountId);
   }
@@ -169,9 +169,9 @@ export class PasskeyManager {
     if (this.serviceClient) {
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent } as any } as any);
-        try { await options?.afterCall?.(true, res as any); } catch {}
-        return res as any;
+        const res = await this.serviceClient.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        try { await options?.afterCall?.(true, res); } catch {}
+        return res;
       } catch (err: any) {
         try { options?.onError?.(err); } catch {}
         try { await options?.afterCall?.(false, err); } catch {}
@@ -199,9 +199,9 @@ export class PasskeyManager {
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent } as any } as any);
-        try { await options?.afterCall?.(true, res as any); } catch {}
-        return res as any;
+        const res = await this.serviceClient.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        try { await options?.afterCall?.(true, res); } catch {}
+        return res;
       } catch (err: any) {
         try { options?.onError?.(err); } catch {}
         try { await options?.afterCall?.(false, err); } catch {}
@@ -221,7 +221,7 @@ export class PasskeyManager {
     // Also clear wallet-origin VRF session if service iframe is active
     try {
       if (this.serviceClient) {
-        await (this.serviceClient as any).clearVrfSession?.();
+        await this.serviceClient.clearVrfSession?.();
       }
     } catch {}
   }
@@ -242,7 +242,7 @@ export class PasskeyManager {
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
     if (this.serviceClient) {
-      return this.serviceClient.hasPasskeyCredential(nearAccountId as any);
+      return this.serviceClient.hasPasskeyCredential(nearAccountId);
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -272,7 +272,7 @@ export class PasskeyManager {
   setConfirmationConfig(config: ConfirmationConfig): void {
     if (this.serviceClient) {
       // Fire and forget; avoid unhandled rejections in consumers
-      void this.serviceClient.setConfirmationConfig(config as any).catch(() => {});
+      void this.serviceClient.setConfirmationConfig(config).catch(() => {});
       // Mirror locally for immediate UI coherence
       try { this.webAuthnManager.getUserPreferences().setConfirmationConfig(config); } catch {}
       return;
@@ -386,11 +386,11 @@ export class PasskeyManager {
         const res = await this.serviceClient.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
-          actionArgs: args.actionArgs as any,
+          actionArgs: args.actionArgs,
           options: { onEvent: args.options?.onEvent, ...(typeof args.options?.waitUntil !== 'undefined' ? { waitUntil: args.options?.waitUntil } : {}) }
-        } as any);
-        try { await args.options?.afterCall?.(true, res as any); } catch {}
-        return res as any;
+        });
+        try { await args.options?.afterCall?.(true, res); } catch {}
+        return res;
       } catch (err: any) {
         try { args.options?.onError?.(err); } catch {}
         try { await args.options?.afterCall?.(false, err); } catch {}
@@ -558,9 +558,13 @@ export class PasskeyManager {
       try { await options?.beforeCall?.(); } catch {}
       try {
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-        const result = await this.serviceClient.signTransactionsWithActions({ nearAccountId, transactions: txs, options: { onEvent: options?.onEvent } } as any);
-        const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? (result as any) : [];
-        try { await options?.afterCall?.(true, arr as any); } catch {}
+        const result = await this.serviceClient.signTransactionsWithActions({
+          nearAccountId, transactions:
+          txs,
+          options: { onEvent: options?.onEvent }
+        });
+        const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? result : [];
+        try { await options?.afterCall?.(true, arr); } catch {}
         return arr;
       } catch (err: any) {
         try { options?.onError?.(err); } catch {}
@@ -612,10 +616,18 @@ export class PasskeyManager {
     if (this.serviceClient) {
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.sendTransaction({ signedTransaction, options: { onEvent: options?.onEvent, ...(typeof options?.waitUntil !== 'undefined' ? { waitUntil: options?.waitUntil } : {}) } as any } as any);
-        try { await options?.afterCall?.(true, res as any); } catch {}
+        const res = await this.serviceClient.sendTransaction({
+          signedTransaction,
+          options: {
+            onEvent: options?.onEvent,
+            ...(typeof options?.waitUntil !== 'undefined'
+              ? { waitUntil: options?.waitUntil }
+              : {})
+          }
+        });
+        try { await options?.afterCall?.(true, res); } catch {}
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
-        return res as any;
+        return res;
       } catch (err: any) {
         try { options?.onError?.(err); } catch {}
         try { await options?.afterCall?.(false, err); } catch {}
@@ -683,8 +695,11 @@ export class PasskeyManager {
         state: args.params.state,
       };
       try { await args.options?.beforeCall?.(); } catch {}
-      const result = await this.serviceClient.signNep413Message({ ...payload, options: { onEvent: (args.options as any)?.onEvent } } as any);
-      try { await args.options?.afterCall?.(true, result as any); } catch {}
+      const result = await this.serviceClient.signNep413Message({
+        ...payload,
+        options: { onEvent: args.options?.onEvent }
+      });
+      try { await args.options?.afterCall?.(true, result); } catch {}
       // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
       return result as SignNEP413MessageResult;
     }
@@ -746,7 +761,7 @@ export class PasskeyManager {
         const err = new Error('No recoverable accounts found');
         try { options?.onError?.(err); } catch {}
         await options?.afterCall?.(false, err);
-        return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message } as any;
+        return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message };
       }
       // Phase 2: User selects account in UI
       // Select the first account-scope; OS chooser selects the actual credential
@@ -758,7 +773,7 @@ export class PasskeyManager {
         accountId: selected.accountId
       });
 
-      await options?.afterCall?.(true, result as any);
+      await options?.afterCall?.(true, result);
       return result;
 
     } catch (e: any) {
@@ -779,13 +794,20 @@ export class PasskeyManager {
    */
   async startDevice2LinkingFlow(args?: { accountId?: string; ui?: 'modal' | 'inline' } & StartDeviceLinkingOptionsDevice2): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
     if (this.serviceClient) {
-      return await this.serviceClient.startDevice2LinkingFlow({ accountId: args?.accountId, ui: args?.ui, onEvent: args?.onEvent });
+      return await this.serviceClient.startDevice2LinkingFlow({
+        accountId: args?.accountId,
+        ui: args?.ui,
+        onEvent: args?.onEvent
+      });
     }
     // Local fallback: keep internal flow reference for cancellation
     try { this.activeDeviceLinkFlow?.cancel(); } catch {}
-    const flow = new LinkDeviceFlow(this.getContext(), { onEvent: args?.onEvent, ensureUserActivation: args?.ensureUserActivation } as any);
+    const flow = new LinkDeviceFlow(this.getContext(), {
+      onEvent: args?.onEvent,
+      ensureUserActivation: args?.ensureUserActivation
+    });
     this.activeDeviceLinkFlow = flow;
-    const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId as any);
+    const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId ? toAccountId(args.accountId) : undefined);
     return { qrData, qrCodeDataURL };
   }
 
@@ -815,7 +837,11 @@ export class PasskeyManager {
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
     if (this.serviceClient) {
-      const res = await this.serviceClient.linkDeviceWithScannedQRData({ qrData, fundingAmount: options.fundingAmount, options: { onEvent: options.onEvent } });
+      const res = await this.serviceClient.linkDeviceWithScannedQRData({
+        qrData,
+        fundingAmount: options.fundingAmount,
+        options: { onEvent: options.onEvent }
+      });
       return res as LinkDeviceResult;
     }
     return linkDeviceWithScannedQRData(this.getContext(), qrData, options);
@@ -838,7 +864,7 @@ export class PasskeyManager {
     }
 
     // Find the key to delete
-    const keyToDelete = keysView.keys.find((k: any) => k.public_key === publicKeyToDelete);
+    const keyToDelete = keysView.keys.find((k: { public_key: string }) => k.public_key === publicKeyToDelete);
     if (!keyToDelete) {
       throw new Error(`Access key ${publicKeyToDelete} not found on account ${accountId}`);
     }

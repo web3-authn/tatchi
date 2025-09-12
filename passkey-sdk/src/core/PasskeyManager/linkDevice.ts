@@ -131,7 +131,8 @@ export class LinkDeviceFlow {
         // Derive NEAR keypair using serialized WebAuthn registration credential
         const nearKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
           credential: confirm.credential,
-          nearAccountId: toAccountId(accountId)
+          nearAccountId: toAccountId(accountId),
+          options: { deviceNumber: 2 }
         });
 
         if (!nearKeyResult.success || !nearKeyResult.publicKey) {
@@ -141,7 +142,7 @@ export class LinkDeviceFlow {
         // Create session with real account ID from start
         this.session = {
           accountId: accountId,
-          deviceNumber: undefined,
+          deviceNumber: 2,
           nearPublicKey: nearKeyResult.publicKey,
           credential: null,
           vrfChallenge: confirm.vrfChallenge || null,
@@ -610,6 +611,8 @@ export class LinkDeviceFlow {
             // Initialize current user after successful VRF unlock
             try {
               await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+              // Ensure last-user device number reflects Device2 for future lookups
+              try { await this.context.webAuthnManager.setLastUser(this.session.accountId, this.session.deviceNumber!); } catch {}
             } catch (initErr) {
               console.warn('Failed to initialize current user after Shamir 3-pass unlock:', initErr);
             }
@@ -655,6 +658,8 @@ export class LinkDeviceFlow {
         // Initialize current user after successful VRF unlock
         try {
           await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+          // Ensure last-user device number reflects Device2 for future lookups
+          try { await this.context.webAuthnManager.setLastUser(this.session.accountId, this.session.deviceNumber!); } catch {}
         } catch (initErr) {
           console.warn('Failed to initialize current user after TouchID unlock:', initErr);
         }
@@ -817,6 +822,7 @@ export class LinkDeviceFlow {
         const nearKeyResultStep1 = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
           nearAccountId: realAccountId, // Use base account ID for consistency
           credential: confirm.credential,
+          options: { deviceNumber: this.session.deviceNumber },
           // No options - just generate the keypair, don't sign registration tx yet.
           // We need the deterministic NEAR public key to get the nonce for the key replacement transaction first
           // Then once the key replacement transaction is executed, we use the deterministic key
@@ -868,6 +874,7 @@ export class LinkDeviceFlow {
             blockHash: newTxBlockHash,
             // Pass the deterministic VRF public key for contract call
             deterministicVrfPublicKey: vrfDerivationResult.vrfPublicKey,
+            deviceNumber: this.session.deviceNumber,
           }
         });
 

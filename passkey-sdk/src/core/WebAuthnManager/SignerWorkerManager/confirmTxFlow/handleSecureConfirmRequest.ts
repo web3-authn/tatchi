@@ -5,21 +5,19 @@ import {
 } from '../../credentialsHelpers';
 import type { SignerWorkerManagerContext } from '../index';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
+import { determineConfirmationConfig } from './determineConfirmationConfig';
 import {
-  SecureConfirmMessage,
   SecureConfirmDecision,
   TransactionSummary,
   SecureConfirmMessageType,
-  SecureConfirmData,
   SecureConfirmRequest,
   SecureConfirmationType,
   SignTransactionPayload,
   RegisterAccountPayload,
-  isSecureConfirmRequestV2,
 } from './types';
 import { TransactionContext } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
-import { awaitIframeModalDecisionWithHandle, mountIframeModalHostWithHandle } from '../../LitComponents/modal';
+import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 
@@ -32,30 +30,79 @@ export async function handlePromptUserConfirmInJsMainThread(
   ctx: SignerWorkerManagerContext,
   message: {
     type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
-    data: SecureConfirmData | SecureConfirmRequest,
+    data: SecureConfirmRequest,
   },
   worker: Worker
 ): Promise<void> {
-
-  // Normalize V2 request into legacy SecureConfirmData when needed
-  const normalizedMessage = normalizeConfirmMessage(message);
-
   // 1. Validate and parse request
-  const {
-    data,
-    summary,
-    confirmationConfig,
-    transactionSummary
-  } = validateAndParseRequest({ ctx, message: normalizedMessage });
+  let request: SecureConfirmRequest;
+  let summary: TransactionSummary;
+  let confirmationConfig: ConfirmationConfig;
+  let transactionSummary: TransactionSummary;
+  try {
+    const parsed = validateAndParseRequest({ ctx, request: message.data });
+    request = parsed.request;
+    summary = parsed.summary;
+    confirmationConfig = parsed.confirmationConfig;
+    transactionSummary = parsed.transactionSummary;
+  } catch (e: any) {
+    console.error('[SecureConfirm][Host] validateAndParseRequest failed', e);
+    // Attempt to send a structured error back to the worker to avoid hard failure
+    try {
+      const rid = (message?.data as any)?.requestId || `${Date.now()}-${Math.random()}`;
+      sendWorkerResponse(worker, {
+        requestId: rid,
+        confirmed: false,
+        error: e?.message || 'Invalid secure confirm request'
+      });
+      return;
+    } catch (_) {
+      throw e;
+    }
+  }
+
+  // Set invocation source hint if missing: detect embedded iframe button presence
+  try {
+    if (!request.invokedFrom) {
+      const el = document.querySelector(IFRAME_BUTTON_ID);
+      (request as any).invokedFrom = el ? 'iframe' : 'parent';
+    }
+  } catch {}
+
+  // Extra diagnostics: ensure payload exists and has required fields
+  try {
+    const hasPayload = !!(request as any)?.payload;
+    const keys = hasPayload && typeof (request as any).payload === 'object' ? Object.keys((request as any).payload) : [];
+    console.debug('[SecureConfirm][Host] request payload check', {
+      hasPayload,
+      payloadKeys: keys,
+      type: request.type
+    });
+  } catch {}
+  if (!request?.payload) {
+    console.error('[SecureConfirm][Host] Invalid secure confirm request: missing payload', request);
+    sendWorkerResponse(worker, {
+      requestId: request.requestId,
+      confirmed: false,
+      error: 'Invalid secure confirm request - missing payload'
+    });
+    return;
+  }
 
   // 2. Perform NEAR RPC calls first (needed for VRF challenge)
-  const nearRpcResult = await performNearRpcCalls(ctx, data);
+  const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
+    : (request.payload as RegisterAccountPayload).nearAccountId;
+  const txCount = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? ((request.payload as SignTransactionPayload).txSigningRequests?.length || 1)
+    : 1;
+  const nearRpcResult = await performNearRpcCalls(ctx, { nearAccountId, txCount });
 
   // 3. If NEAR RPC failed, return error
   if (nearRpcResult.error || !nearRpcResult.transactionContext) {
     sendWorkerResponse(worker, {
-      requestId: data.requestId,
-      intentDigest: data.intentDigest,
+      requestId: request.requestId,
+      intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
       confirmed: false,
       error: `Failed to fetch NEAR data: ${nearRpcResult.details}`
     });
@@ -71,19 +118,25 @@ export async function handlePromptUserConfirmInJsMainThread(
   // For registration/link flows, there is no unlocked VRF keypair yet.
   // Use the bootstrap path which creates a temporary VRF keypair in-memory
   // and returns a VRF challenge for the WebAuthn create() ceremony.
-  const rpId = (ctx as any).rpIdOverride || window.location.hostname;
+  const rpId = resolveRpId((ctx as any).rpIdOverride);
   let vrfChallenge: any;
-  if (data.registrationDetails) {
+  if (
+    request.type === SecureConfirmationType.REGISTER_ACCOUNT ||
+    request.type === SecureConfirmationType.LINK_DEVICE
+  ) {
     const bootstrap = await ctx.vrfWorkerManager.generateVrfKeypairBootstrap({
-      userId: data.rpcCall.nearAccountId,
-      rpId,
-      blockHeight: transactionContext.txBlockHeight,
-      blockHash: transactionContext.txBlockHash,
-    }, true /* saveInMemory */);
+      vrfInputData: {
+        userId: nearAccountId,
+        rpId,
+        blockHeight: transactionContext.txBlockHeight,
+        blockHash: transactionContext.txBlockHash,
+      },
+      saveInMemory: true,
+    });
     vrfChallenge = bootstrap.vrfChallenge;
   } else {
     vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
-      userId: data.rpcCall.nearAccountId,
+      userId: nearAccountId,
       rpId,
       blockHeight: transactionContext.txBlockHeight,
       blockHash: transactionContext.txBlockHash,
@@ -91,29 +144,8 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 
   // 5. Render user confirmation UI with VRF challenge
-  // Install a synchronous activation bridge so the child modal can invoke create() within the same gesture
-  if (data.registrationDetails) {
-    try {
-      (window as any).__W3A_MODAL_SYNC__ = {
-        onConfirm: async () => {
-          try {
-            const nearAccountId = data?.rpcCall?.nearAccountId || (data as any).nearAccountId;
-            const dn = data.registrationDetails?.deviceNumber;
-            let cred: PublicKeyCredential = await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
-              nearAccountId,
-              challenge: vrfChallenge,
-              deviceNumber: dn,
-            });
-            (window as any).__W3A_CREDENTIAL_CACHE__ = { credential: cred, t: Date.now() };
-          } catch (e) {
-            console.warn('[SecureConfirm] Modal sync onConfirm failed', e);
-          }
-        }
-      };
-    } catch {}
-  }
-  const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, data, vrfChallenge });
-  const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
+  const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, request, vrfChallenge });
+  const { confirmed, confirmHandle, error: uiError } = userConfirmResult as any;
 
   // 6. If user rejected (confirmed === false), exit early
   if (!confirmed) {
@@ -125,8 +157,8 @@ export async function handlePromptUserConfirmInJsMainThread(
     }
     closeModalSafely(confirmHandle, false);
     sendWorkerResponse(worker, {
-      requestId: data.requestId,
-      intentDigest: data.intentDigest,
+      requestId: request.requestId,
+      intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
       confirmed: false,
       error: uiError
     });
@@ -135,8 +167,8 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 7. Create decision with generated data
   const decision: SecureConfirmDecision = {
-    requestId: data.requestId,
-    intentDigest: data.intentDigest,
+    requestId: request.requestId,
+    intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
     confirmed: true,
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
@@ -147,17 +179,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   let touchIdSuccess = false;
 
   try {
-    // For registration/link flows, the confirm click occurred inside a nested iframe
-    // which does not grant user activation to the host window. Ensure a real click
-    // happens in the host context before invoking WebAuthn create()/get().
-    if (data.registrationDetails && !(window as any).__W3A_CREDENTIAL_CACHE__) {
-      await ensureTopLevelUserActivation();
-    }
-    const result = await collectTouchIdCredentials({
-      ctx,
-      data,
-      decision,
-    });
+    const result = await collectTouchIdCredentials({ ctx, request, decision });
     decisionWithCredentials = result.decisionWithCredentials;
     touchIdSuccess = decisionWithCredentials?.confirmed ?? false;
   } catch (touchIdError) {
@@ -179,7 +201,6 @@ export async function handlePromptUserConfirmInJsMainThread(
   } finally {
     // Always close the modal after TouchID attempt (success or failure)
     closeModalSafely(confirmHandle, touchIdSuccess);
-    try { (window as any).__W3A_MODAL_SYNC__ = undefined; } catch {}
   }
 
   // 9. Send confirmation response back to wasm-signer-worker
@@ -194,117 +215,22 @@ export async function handlePromptUserConfirmInJsMainThread(
   sendWorkerResponse(worker, decisionWithCredentials);
 }
 
-/**
- * Ensures a real user activation occurs in the host browsing context
- * (wallet iframe window) before calling WebAuthn APIs. Displays a small
- * non-blocking CTA in the bottom-right that the user can click.
- */
-async function ensureTopLevelUserActivation(): Promise<void> {
-  return new Promise<void>((resolve) => {
-    try {
-      // If a recent transient activation exists, proceed without overlay
-      // (best-effort; not standardized across browsers)
-      // Fallback to overlay if uncertain
-    } catch {}
-
-    const cta = document.createElement('div');
-    cta.style.position = 'fixed';
-    cta.style.bottom = '16px';
-    cta.style.right = '16px';
-    cta.style.zIndex = '2147483647';
-    cta.style.background = 'white';
-    cta.style.color = '#111';
-    cta.style.padding = '10px 12px';
-    cta.style.borderRadius = '12px';
-    cta.style.boxShadow = '0 10px 30px rgba(0,0,0,0.25)';
-    cta.style.display = 'flex';
-    cta.style.alignItems = 'center';
-    cta.style.gap = '10px';
-
-    const label = document.createElement('div');
-    label.textContent = 'Continue to create passkey';
-    label.style.fontSize = '13px';
-    label.style.fontWeight = '600';
-    label.style.margin = '0';
-
-    const btn = document.createElement('button');
-    btn.textContent = 'Continue';
-    btn.style.padding = '6px 10px';
-    btn.style.borderRadius = '10px';
-    btn.style.border = '0';
-    btn.style.background = '#4DAFFE';
-    btn.style.color = '#0b1220';
-    btn.style.cursor = 'pointer';
-
-    const cleanup = () => { try { cta.remove(); } catch {} };
-
-    const onProceed = () => {
-      try { btn.setAttribute('disabled', 'true'); } catch {}
-      cleanup();
-      resolve();
-    };
-
-    btn.addEventListener('click', onProceed, { once: true } as any);
-    cta.appendChild(label);
-    cta.appendChild(btn);
-    document.body.appendChild(cta);
-  });
+/** Resolve a safe RP ID matching current host; only use override if suffix of host. */
+function resolveRpId(rpIdOverride?: string): string {
+  try {
+    const host = (window?.location?.hostname || '').toLowerCase();
+    const override = (rpIdOverride || '').toLowerCase();
+    if (override && isRegistrableSuffix(host, override)) return override;
+    return host;
+  } catch {
+    return rpIdOverride || '';
+  }
 }
 
-/**
- * Converts a V2 request envelope into the legacy SecureConfirmData shape
- * for reuse of existing flow logic. SIGN_TRANSACTION maps 1:1; registration/link
- * set registrationDetails=true and pass tx_signing_requests as [].
- */
-function normalizeConfirmMessage(message: {
-  type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
-  data: SecureConfirmData | SecureConfirmRequest,
-}): { type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: SecureConfirmData } {
-  const data = message.data as any;
-  if (!isSecureConfirmRequestV2(data)) {
-    return message as unknown as { type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: SecureConfirmData };
-  }
-
-  switch (data.type) {
-    case SecureConfirmationType.SIGN_TRANSACTION: {
-      const payload = data.payload as SignTransactionPayload;
-      const legacy: SecureConfirmData = {
-        requestId: data.requestId,
-        summary: data.summary,
-        tx_signing_requests: payload.txSigningRequests || [],
-        intentDigest: payload.intentDigest,
-        rpcCall: payload.rpcCall,
-        confirmationConfig: data.confirmationConfig,
-        registrationDetails: undefined,
-      } as SecureConfirmData;
-      return { type: message.type, data: legacy };
-    }
-    case SecureConfirmationType.REGISTER_ACCOUNT:
-    case SecureConfirmationType.LINK_DEVICE: {
-      const payload = data.payload as RegisterAccountPayload;
-      const legacy: SecureConfirmData = {
-        requestId: data.requestId,
-        summary: data.summary,
-        tx_signing_requests: [],
-        intentDigest: (data as any).intentDigest || '',
-        rpcCall: payload.rpcCall,
-        confirmationConfig: data.confirmationConfig,
-        registrationDetails: {
-          nearAccountId: payload.nearAccountId,
-          deviceNumber: payload.deviceNumber,
-        },
-      } as SecureConfirmData;
-      return { type: message.type, data: legacy };
-    }
-    case SecureConfirmationType.SIGN_NEP413_MESSAGE:
-    case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF: {
-      // Not yet migrated to legacy path; throw explicit error to avoid silent misuse
-      // These will have dedicated recipes that don't use tx-specific logic.
-      throw new Error(`[SignerWorkerManager]: Unsupported V2 confirmation type in legacy path: ${data.type}`);
-    }
-    default:
-      throw new Error('[SignerWorkerManager]: Unknown V2 confirmation type');
-  }
+function isRegistrableSuffix(host: string, cand: string): boolean {
+  if (!host || !cand) return false;
+  if (host === cand) return true;
+  return host.endsWith('.' + cand);
 }
 
 /**
@@ -314,7 +240,7 @@ function normalizeConfirmMessage(message: {
  */
 async function performNearRpcCalls(
   ctx: SignerWorkerManagerContext,
-  data: SecureConfirmData
+  opts: { nearAccountId: string, txCount: number }
 ): Promise<{
   transactionContext: TransactionContext | null;
   error?: string;
@@ -323,11 +249,11 @@ async function performNearRpcCalls(
 }> {
   try {
     // Prefer NonceManager when initialized (signing flows)
-    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
+    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
     console.log("Using NonceManager smart caching");
 
     // Reserve nonces for this request to avoid parallel collisions
-    const txCount = data.tx_signing_requests?.length || 1;
+    const txCount = opts.txCount || 1;
     let reservedNonces: string[] | undefined;
     try {
       reservedNonces = ctx.nonceManager.reserveNonces(txCount);
@@ -344,7 +270,7 @@ async function performNearRpcCalls(
     // Registration or pre-login flows may not have NonceManager initialized.
     // Fallback: try to fetch access key + block using IndexedDB public key, else block-only.
     try {
-      const accountId = data?.rpcCall?.nearAccountId;
+      const accountId = opts?.nearAccountId;
       let nearPublicKeyStr: string | null = null;
       try {
         const user = accountId ? await ctx.indexedDB.clientDB.getUser(toAccountId(accountId)) : null;
@@ -406,51 +332,79 @@ async function performNearRpcCalls(
 /**
  * Validates and parses the confirmation request data
  */
-function validateAndParseRequest({ ctx, message }: {
+function validateAndParseRequest({ ctx, request }: {
   ctx: SignerWorkerManagerContext,
-  message: SecureConfirmMessage,
+  request: SecureConfirmRequest,
 }): {
-  data: SecureConfirmData;
+  request: SecureConfirmRequest;
   summary: TransactionSummary;
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
 } {
-  // Validate required fields
-  const data = message.data;
-  if (!data || !data.requestId) {
-    throw new Error('Invalid secure confirm request - missing requestId');
+  try {
+    const keys = request && typeof request === 'object' ? Object.keys(request as any) : [];
+    console.debug('[SecureConfirm][Host] validateAndParseRequest() input', {
+      hasRequest: !!request,
+      type: typeof request,
+      keys,
+      requestId: (request as any)?.requestId,
+      schemaVersion: (request as any)?.schemaVersion,
+      kind: (request as any)?.type,
+    });
+  } catch {}
+  // Normalize and validate required fields
+  const reqAny = request as any;
+  if (reqAny && typeof reqAny === 'object' && typeof reqAny.requestId !== 'string' && typeof reqAny.request_id === 'string') {
+    reqAny.requestId = reqAny.request_id;
+  }
+  if (!reqAny || typeof reqAny.requestId !== 'string' || !reqAny.requestId) {
+    const fallbackId = `${Date.now()}-${Math.random()}`;
+    try { console.warn('[SecureConfirm][Host] missing requestId; generating fallback id', fallbackId); } catch {}
+    (reqAny as any).requestId = fallbackId;
   }
 
   // Parse and validate summary data (can contain extra fields we need)
-  const summary = parseTransactionSummary(data.summary);
-  // Get confirmation configuration from data (overrides user settings) or use user's settings
-  const confirmationConfig = data.confirmationConfig || ctx.userPreferencesManager.getConfirmationConfig();
+  const summary = parseTransactionSummary(reqAny.summary as any);
+  // Get confirmation configuration from data (overrides user settings) or use user's settings,
+  // then compute effective config based on runtime and request type
+  const baseConfig: ConfirmationConfig = reqAny.confirmationConfig || ctx.userPreferencesManager.getConfirmationConfig();
+  const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, reqAny as SecureConfirmRequest, baseConfig);
   const transactionSummary: TransactionSummary = {
-    totalAmount: summary?.totalAmount,
-    method: summary?.method || (data.registrationDetails ? 'Register Account' : undefined),
-    intentDigest: data.registrationDetails ? undefined : data.intentDigest
+    totalAmount: (summary as any)?.totalAmount,
+    method: (summary as any)?.method || (reqAny.type === SecureConfirmationType.REGISTER_ACCOUNT || reqAny.type === SecureConfirmationType.LINK_DEVICE ? 'Register Account' : undefined),
+    intentDigest: reqAny.type === SecureConfirmationType.SIGN_TRANSACTION
+      ? (reqAny.payload as SignTransactionPayload).intentDigest
+      : undefined,
   };
+  try {
+    console.debug('[SecureConfirm][Host] validateAndParseRequest() parsed', {
+      requestId: reqAny.requestId,
+      summaryKeys: Object.keys((summary as any) || {}),
+      uiMode: (reqAny as any)?.confirmationConfig?.uiMode,
+    });
+  } catch {}
 
   return {
-    data,
+    request: reqAny as SecureConfirmRequest,
     summary,
     confirmationConfig,
     transactionSummary
   };
 }
 
+
 /**
  * Determines user confirmation based on UI mode and configuration
  */
 async function renderUserConfirmUI({
   ctx,
-  data,
+  request,
   confirmationConfig,
   transactionSummary,
   vrfChallenge,
 }: {
   ctx: SignerWorkerManagerContext,
-  data: SecureConfirmData,
+  request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
   vrfChallenge?: any;
@@ -459,6 +413,14 @@ async function renderUserConfirmUI({
   confirmHandle?: { element: any, close: (confirmed: boolean) => void };
   error?: string;
 }> {
+  // Recompute effective config defensively at render time as well
+  confirmationConfig = determineConfirmationConfig(ctx, request, confirmationConfig);
+  console.log("confirmationConfig", confirmationConfig);
+
+  const nearAccountIdForUi = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
+    : (request.payload as RegisterAccountPayload).nearAccountId;
+  // runtimeMode retained for future selection but not needed for confirm UI
 
   switch (confirmationConfig.uiMode) {
     case 'skip': {
@@ -470,15 +432,15 @@ async function renderUserConfirmUI({
       // For embedded mode, validate that the UI displayed transactions match
       // the worker-provided transactions by comparing canonical digests.
       // Registration/link-device flows do not display a tx tree; enforce modal instead.
-      if (data.registrationDetails) {
+      if (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE) {
         // Fall back to modal-confirm-with-click
-        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
+        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
           ctx,
           summary: transactionSummary,
           txSigningRequests: [],
           vrfChallenge: vrfChallenge,
           theme: confirmationConfig.theme,
-          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
+          nearAccountIdOverride: nearAccountIdForUi,
         });
         return { confirmed, confirmHandle: handle };
       }
@@ -493,15 +455,17 @@ async function renderUserConfirmUI({
         let uiDigest: string | null = null;
         if (hostEl?.requestUiIntentDigest) {
           uiDigest = await hostEl.requestUiIntentDigest();
-          console.log('[SecureConfirm] digest check', { uiDigest, intentDigest: data.intentDigest });
+          const intentDigest = request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined);
+          console.log('[SecureConfirm] digest check', { uiDigest, intentDigest });
         } else {
           console.error('[SecureConfirm]: missing requestUiIntentDigest on secure element');
         }
         // Debug: show UI digest and WASM worker's provided intentDigest for comparison
-        if (uiDigest !== data.intentDigest) {
-          console.error('[SecureConfirm]: UI digest mismatch');
-          const errPayload = JSON.stringify({ code: 'ui_digest_mismatch', uiDigest, intentDigest: data.intentDigest });
-          return { confirmed: false, confirmHandle: undefined, error: errPayload };
+        const expectedDigest = request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined);
+        if (uiDigest !== expectedDigest) {
+          console.error('[SecureConfirm]: INTENT_DIGEST_MISMATCH', { uiDigest, expectedDigest });
+          // Return explicit error code so upstream does not misclassify as user cancel
+          return { confirmed: false, confirmHandle: undefined, error: 'INTENT_DIGEST_MISMATCH' };
         }
         return { confirmed: true, confirmHandle: undefined };
       } catch (e) {
@@ -512,30 +476,26 @@ async function renderUserConfirmUI({
 
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        // Mount modal immediately in loading state
-        const handle = await mountIframeModalHostWithHandle({
+        const handle = await mountModalTxConfirmer({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: data.tx_signing_requests,
-          vrfChallenge: vrfChallenge,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
+          vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
-          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
+          nearAccountIdOverride: nearAccountIdForUi,
         });
-        // Wait for the specified delay before proceeding
-        const delay = confirmationConfig.autoProceedDelay ?? 1000; // Default 1 seconds if not specified
-        await new Promise(resolve => setTimeout(resolve, delay));
+        const delay = confirmationConfig.autoProceedDelay ?? 1000;
+        await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
-
       } else {
-        // Require click
-        const { confirmed, handle } = await awaitIframeModalDecisionWithHandle({
+        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: data.tx_signing_requests,
-          vrfChallenge: vrfChallenge,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
+          vrfChallenge,
           theme: confirmationConfig.theme,
-          nearAccountIdOverride: data?.rpcCall?.nearAccountId,
+          nearAccountIdOverride: nearAccountIdForUi,
         });
         return { confirmed, confirmHandle: handle };
       }
@@ -543,14 +503,14 @@ async function renderUserConfirmUI({
 
     default: {
       // Fallback to modal with explicit confirm for unknown UI modes
-      const handle = await mountIframeModalHostWithHandle({
+      const handle = await mountModalTxConfirmer({
         ctx,
         summary: transactionSummary,
-        txSigningRequests: data.tx_signing_requests,
+        txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
-        nearAccountIdOverride: data?.rpcCall?.nearAccountId,
+        nearAccountIdOverride: nearAccountIdForUi,
       });
       return { confirmed: true, confirmHandle: handle };
     }
@@ -562,14 +522,16 @@ async function renderUserConfirmUI({
  */
 async function collectTouchIdCredentials({
   ctx,
-  data,
+  request,
   decision,
 }: {
   ctx: SignerWorkerManagerContext,
-  data: SecureConfirmData,
+  request: SecureConfirmRequest,
   decision: SecureConfirmDecision,
 }): Promise<{ decisionWithCredentials: SecureConfirmDecision }> {
-  const nearAccountId = data.rpcCall?.nearAccountId || (data as any).nearAccountId;
+  const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
+    : (request.payload as RegisterAccountPayload).nearAccountId;
   const vrfChallenge = decision.vrfChallenge; // Now comes from confirmation flow
 
   if (!nearAccountId) {
@@ -580,23 +542,16 @@ async function collectTouchIdCredentials({
   }
 
   let credential: PublicKeyCredential | undefined = undefined;
-  // Prefer credential captured during the modal confirm click (same-gesture)
-  const cached = (window as any).__W3A_CREDENTIAL_CACHE__?.credential as PublicKeyCredential | undefined;
-  if (cached) {
-    credential = cached;
-    try { delete (window as any).__W3A_CREDENTIAL_CACHE__; } catch {}
-  }
-
-  if (!credential && data.registrationDetails) {
+  if (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE) {
     // Registration/link flows must use create() to generate a new credential
     // Resolve optional deviceNumber from summary if present
-    let deviceNumber = data.registrationDetails.deviceNumber;
+    let deviceNumber = (request.payload as RegisterAccountPayload)?.deviceNumber;
     credential = await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
       nearAccountId,
       challenge: vrfChallenge,
       deviceNumber,
     });
-  } else if (!credential) {
+  } else {
     // Authentication flows use get() with allowCredentials
     const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
     credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
@@ -606,8 +561,7 @@ async function collectTouchIdCredentials({
     });
   }
 
-  const isRegistration = !!data.registrationDetails?.nearAccountId
-    && !!data.registrationDetails?.deviceNumber;
+  const isRegistration = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE);
 
   // Extract PRF output for decryption (registration needs both PRF outputs)
   const dualPrfOutputs = extractPrfFromCredential({
@@ -621,7 +575,7 @@ async function collectTouchIdCredentials({
   }
 
   // Serialize credential for WASM worker (use appropriate serializer based on flow type)
-  const serializedCredential = data.registrationDetails
+  const serializedCredential = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
     ? serializeRegistrationCredentialWithPRF({
         credential: credential,
         firstPrfOutput: true,

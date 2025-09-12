@@ -7,8 +7,6 @@ import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/ty
 
 export { ModalTxConfirmElement } from './IframeModalConfirmer/ModalTxConfirmer';
 export type {
-  ConfirmRenderMode,
-  ConfirmVariant,
   SecureTxSummary,
   TxAction,
 } from './IframeModalConfirmer/ModalTxConfirmer';
@@ -63,7 +61,10 @@ export async function mountHostModalWithHandle({
   loading?: boolean,
   theme?: 'dark' | 'light',
   nearAccountIdOverride?: string,
-}): Promise<{ element: HTMLElement & { close: (confirmed: boolean) => void }; close: (confirmed: boolean) => void }> {
+}): Promise<{
+  element: HTMLElement & { close: (confirmed: boolean) => void };
+  close: (confirmed: boolean) => void
+}> {
   await ensureHostModalDefined();
   const el = document.createElement('passkey-modal-confirm') as any;
   (el as any).nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
@@ -109,16 +110,23 @@ export async function awaitHostModalDecisionWithHandle({
 
     const onConfirm = (e: Event) => {
       cleanup();
-      resolve({ confirmed: true, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
+      resolve({
+        confirmed: true,
+        handle: { element: el, close: (_c: boolean) => {el.remove();} }
+      });
     };
     const onCancel = () => {
       cleanup();
-      resolve({ confirmed: false, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
+      resolve({
+        confirmed: false,
+        handle: { element: el, close: (_c: boolean) => {el.remove();} }
+      });
     };
     const cleanup = () => {
       try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
       try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
     };
+    // Listen for both the new canonical events and legacy aliases
     el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
     el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
 
@@ -174,10 +182,7 @@ export async function awaitIframeModalDecisionWithHandle({
   vrfChallenge?: VRFChallenge,
   theme?: 'dark' | 'light',
   nearAccountIdOverride?: string,
-}): Promise<{
-  confirmed: boolean;
-  handle: { element: IframeModalHost; close: (confirmed: boolean) => void }
-}> {
+}): Promise<{ confirmed: boolean; handle: { element: IframeModalHost; close: (confirmed: boolean) => void } }>{
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
     const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
@@ -190,18 +195,11 @@ export async function awaitIframeModalDecisionWithHandle({
     if (theme) {
       el.theme = theme;
     }
-
     const onConfirm = (e: Event) => {
       const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
       cleanup();
       const ok = !!(ce?.detail?.confirmed);
-      resolve({
-        confirmed: ok,
-        handle: {
-          element: el,
-          close: (_confirmed: boolean) => { try { el.remove(); } catch {} }
-        }
-      });
+      resolve({ confirmed: ok, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
     };
     const onCancel = () => {
       cleanup();
@@ -222,5 +220,92 @@ export async function awaitIframeModalDecisionWithHandle({
     el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
     el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
     document.body.appendChild(el);
+  });
+}
+
+// ========= Unified helpers (choose host vs iframe) =========
+
+export async function mountModalTxConfirmer({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  loading,
+  theme,
+  nearAccountIdOverride,
+  iframeMode,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  loading?: boolean,
+  theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
+  iframeMode?: boolean,
+}): Promise<{ element: any; close: (confirmed: boolean) => void }> {
+  const useIframe = typeof iframeMode === 'boolean' ? iframeMode : !!ctx?.iframeModeDefault;
+  if (useIframe) {
+    return await mountIframeModalHostWithHandle({
+      ctx,
+      summary,
+      txSigningRequests,
+      vrfChallenge,
+      loading,
+      theme,
+      nearAccountIdOverride,
+    });
+  }
+  return await mountHostModalWithHandle({
+    ctx,
+    summary,
+    txSigningRequests,
+    vrfChallenge,
+    loading,
+    theme,
+    nearAccountIdOverride,
+  });
+}
+
+export async function awaitModalTxConfirmerDecision({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  theme,
+  nearAccountIdOverride,
+  iframeMode,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  theme?: 'dark' | 'light',
+  nearAccountIdOverride?: string,
+  iframeMode?: boolean,
+}): Promise<{
+  confirmed: boolean;
+  handle: { element: any; close: (confirmed: boolean) => void }
+}> {
+
+  const useIframe = typeof iframeMode === 'boolean' ? iframeMode : !!ctx?.iframeModeDefault;
+
+  if (useIframe) {
+    return await awaitIframeModalDecisionWithHandle({
+      ctx,
+      summary,
+      txSigningRequests,
+      vrfChallenge,
+      theme,
+      nearAccountIdOverride,
+    });
+  }
+  return await awaitHostModalDecisionWithHandle({
+    ctx,
+    summary,
+    txSigningRequests,
+    vrfChallenge,
+    theme,
+    nearAccountIdOverride,
   });
 }

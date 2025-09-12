@@ -41,11 +41,8 @@ pub use handlers::{
     // Registration Check
     RegistrationCheckRequest,
     CheckCanRegisterUserRequest,
-    // Registration
     RegistrationInfoStruct,
     RegistrationCheckResult,
-    RegistrationResult,
-    SignVerifyAndRegisterUserRequest, // Deprecated
     // Execute Actions
     SignTransactionsWithActionsRequest,
     TransactionPayload,
@@ -227,13 +224,6 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             let result = handlers::handle_sign_nep413_message(request).await?;
             result.to_json()
         },
-        // DEPRECATED: only used for testnet registration
-        WorkerRequestType::SignVerifyAndRegisterUser => {
-            let request = msg.parse_payload::<SignVerifyAndRegisterUserRequest>(request_type)?;
-            // DEPRECATED: only used for testnet registration
-            let result = handlers::handle_sign_verify_and_register_user(request).await?;
-            result.to_json()
-        },
         WorkerRequestType::RegistrationCredentialConfirmation => {
             let request = msg.parse_payload::<handlers::RegistrationCredentialConfirmationRequest>(request_type)?;
             let result = handlers::handle_request_registration_credential_confirmation(request).await?;
@@ -254,7 +244,6 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeySuccess,
                 WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairSuccess,
                 WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
-                WorkerRequestType::SignVerifyAndRegisterUser => WorkerResponseType::SignVerifyAndRegisterUserSuccess,
                 WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
             };
             (success_response_type, message)
@@ -270,7 +259,6 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeyFailure,
                 WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairFailure,
                 WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageFailure,
-                WorkerRequestType::SignVerifyAndRegisterUser => WorkerResponseType::SignVerifyAndRegisterUserFailure,
                 WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationFailure,
             };
             let error_payload = serde_json::json!({
@@ -311,8 +299,6 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-        // DEPRECATED: only used for testnet registration
-        WorkerRequestType::SignVerifyAndRegisterUser => "SIGN_VERIFY_AND_REGISTER_USER",
         WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
     }
 }
@@ -329,7 +315,6 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::ExtractCosePublicKeySuccess => "EXTRACT_COSE_PUBLIC_KEY_SUCCESS",
         WorkerResponseType::SignTransactionWithKeyPairSuccess => "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS",
         WorkerResponseType::SignNep413MessageSuccess => "SIGN_NEP413_MESSAGE_SUCCESS",
-        WorkerResponseType::SignVerifyAndRegisterUserSuccess => "SIGN_VERIFY_AND_REGISTER_USER_SUCCESS",
         WorkerResponseType::RegistrationCredentialConfirmationSuccess => "REGISTRATION_CREDENTIAL_CONFIRMATION_SUCCESS",
 
         // Failure responses
@@ -341,7 +326,6 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::ExtractCosePublicKeyFailure => "EXTRACT_COSE_PUBLIC_KEY_FAILURE",
         WorkerResponseType::SignTransactionWithKeyPairFailure => "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE",
         WorkerResponseType::SignNep413MessageFailure => "SIGN_NEP413_MESSAGE_FAILURE",
-        WorkerResponseType::SignVerifyAndRegisterUserFailure => "SIGN_VERIFY_AND_REGISTER_USER_FAILURE",
         WorkerResponseType::RegistrationCredentialConfirmationFailure => "REGISTRATION_CREDENTIAL_CONFIRMATION_FAILURE",
 
         // Progress responses - for real-time updates during operations

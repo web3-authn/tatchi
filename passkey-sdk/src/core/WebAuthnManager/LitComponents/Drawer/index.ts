@@ -242,15 +242,19 @@ export class DrawerElement extends LitElementWithProps {
     this.dragDistance = y - this.startY; // Allow negative values for upward dragging
 
     // Apply drag transform - calculate relative to the initial 20% position
-    const initialPosition = window.innerHeight * 0.2; // 20% submerged position
-    const maxUpward = -window.innerHeight * 0.2; // Allow dragging up to 20% above initial position
-    const maxDownward = window.innerHeight * 0.8; // Allow dragging down to 80% of screen height
+    const initialPositionPercent = 20; // 20% submerged position
+    const maxUpwardPercent = 10; // Allow dragging up to 10% above initial position (10% from top)
+    // No downward limit - allow dragging to any position
 
     // Calculate the new position: start from initial position and add drag distance
-    const newPosition = initialPosition + this.dragDistance;
-    const translateY = Math.max(maxUpward, Math.min(newPosition, maxDownward));
+    // Convert drag distance to percentage of viewport height
+    const dragDistancePercent = (this.dragDistance / window.innerHeight) * 100;
+    const newPositionPercent = initialPositionPercent + dragDistancePercent;
+    const translateYPercent = Math.max(maxUpwardPercent, newPositionPercent); // Only limit upward movement
 
-    this.drawerElement.style.transform = `translateY(${translateY}px)`;
+    // Ensure no transition during active dragging for immediate response
+    this.drawerElement.style.transition = '';
+    this.drawerElement.style.transform = `translateY(${translateYPercent}%)`;
 
     this.lastDragTime = now;
   }
@@ -261,26 +265,59 @@ export class DrawerElement extends LitElementWithProps {
     this.isDragging = false;
     this.drawerElement.classList.remove('dragging');
 
-    const openPosition = window.innerHeight * 0.2; // 20% submerged position
-    const pullUpToCloseThreshold = -window.innerHeight * 0.15; // 15% up from open position to close
-    const pullDownToCloseThreshold = window.innerHeight * 0.15; // 15% down from open position to close
-    const velocityThreshold = 0.3; // pixels per ms (lower threshold for velocity)
+    const openPositionPercent = 20; // 20% submerged position
+    const pullUpToCloseThreshold = -10; // 10% up from open position to close (in percentage)
 
-    console.log('endDrag - dragDistance:', this.dragDistance, 'pullUpToCloseThreshold:', pullUpToCloseThreshold, 'pullDownToCloseThreshold:', pullDownToCloseThreshold, 'velocity:', this.velocity);
+    // Convert drag distance to percentage
+    const dragDistancePercent = (this.dragDistance / window.innerHeight) * 100;
 
-    // Close if pulled up more than 15% from open position (pull up to close)
-    if (this.dragDistance < pullUpToCloseThreshold) {
-      console.log('Closing drawer due to pull up to close');
+    // Close if pulled up more than 10% from open position (pull up to close)
+    if (dragDistancePercent < pullUpToCloseThreshold) {
       this.closeDrawer();
+      return;
     }
-    // Close if dragged down more than 15% from open position or with enough downward velocity
-    else if (this.dragDistance > pullDownToCloseThreshold || this.velocity > velocityThreshold) {
-      console.log('Closing drawer due to drag down');
+
+    // For downward dragging, implement snap-to-points every 100px
+    const currentPositionPercent = openPositionPercent + dragDistancePercent;
+    const currentPositionPixels = (currentPositionPercent / 100) * window.innerHeight;
+    const drawerHeight = this.drawerElement.offsetHeight;
+    const distanceFromBottom = window.innerHeight - (currentPositionPixels + drawerHeight);
+    const closeThreshold = 50; // Close when drawer bottom is within 50px of screen bottom
+
+    if (distanceFromBottom <= closeThreshold) {
       this.closeDrawer();
     } else {
-      console.log('Snapping back to open position');
-      // Snap back to open position (20% submerged)
-      this.drawerElement.style.transform = 'translateY(20%)';
+      // Snap to nearest 100px point
+      const initialPositionPixels = (openPositionPercent / 100) * window.innerHeight;
+      const snapInterval = 100; // Snap every 100px
+
+      // Calculate how far we've dragged from the initial position
+      const dragDistancePixels = currentPositionPixels - initialPositionPixels;
+
+      // Find the nearest snap point
+      const snapPoint = Math.round(dragDistancePixels / snapInterval) * snapInterval;
+      const finalPositionPixels = initialPositionPixels + snapPoint;
+      const finalPositionPercent = (finalPositionPixels / window.innerHeight) * 100;
+
+      console.log('Snap calculation:', {
+        currentPositionPixels,
+        initialPositionPixels,
+        dragDistancePixels,
+        snapPoint,
+        finalPositionPixels,
+        finalPositionPercent
+      });
+
+      // Animate to the snap point
+      this.drawerElement.style.transition = 'transform 0.3s ease-out';
+      this.drawerElement.style.transform = `translateY(${finalPositionPercent}%)`;
+
+      // Remove transition after animation completes
+      setTimeout(() => {
+        if (this.drawerElement) {
+          this.drawerElement.style.transition = '';
+        }
+      }, 300);
     }
 
     // Reset drag state

@@ -369,10 +369,13 @@ export class VrfWorkerManager {
    * @param vrfInputParams - Optional parameters to generate VRF challenge/proof in same call
    * @returns VRF public key and optionally VRF challenge data
    */
-  async generateVrfKeypairBootstrap(
+  async generateVrfKeypairBootstrap({
+    vrfInputData,
+    saveInMemory = true,
+  }: {
     vrfInputData: VRFInputData,
     saveInMemory: boolean,
-  ): Promise<{
+  }): Promise<{
     vrfPublicKey: string;
     vrfChallenge: VRFChallenge;
   }> {

@@ -8,7 +8,6 @@ pub mod handle_recover_keypair_from_passkey;
 pub mod handle_sign_nep413_message;
 pub mod handle_sign_transaction_with_keypair;
 pub mod handle_sign_transactions_with_actions;
-pub mod handle_sign_verify_and_register_user;
 pub mod handle_request_registration_credential_confirmation;
 
 // Handler functions
@@ -20,7 +19,6 @@ pub use handle_recover_keypair_from_passkey::handle_recover_keypair_from_passkey
 pub use handle_sign_nep413_message::handle_sign_nep413_message;
 pub use handle_sign_transaction_with_keypair::handle_sign_transaction_with_keypair;
 pub use handle_sign_transactions_with_actions::handle_sign_transactions_with_actions;
-pub use handle_sign_verify_and_register_user::handle_sign_verify_and_register_user;
 pub use handle_request_registration_credential_confirmation::handle_request_registration_credential_confirmation;
 
 // Request/Result types
@@ -28,8 +26,8 @@ pub use handle_check_can_register_user::{
     CheckCanRegisterUserRequest,
     RegistrationCheckRequest,
     RegistrationCheckResult,
+    RegistrationInfoStruct,
 };
-pub use handle_sign_verify_and_register_user::RegistrationInfoStruct;
 pub use handle_extract_cose_public_key::{
     ExtractCoseRequest,
     CoseExtractionResult
@@ -47,10 +45,6 @@ pub use handle_sign_transactions_with_actions::{
     SignTransactionsWithActionsRequest,
     TransactionPayload,
     KeyActionResult
-};
-pub use handle_sign_verify_and_register_user::{
-    SignVerifyAndRegisterUserRequest,
-    RegistrationResult
 };
 pub use handle_request_registration_credential_confirmation::{
     RegistrationCredentialConfirmationRequest,
@@ -73,7 +67,5 @@ pub use crate::types::handlers::{
     ConfirmationUIMode,
     ConfirmationBehavior,
 };
-
-
 
 
