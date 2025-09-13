@@ -40,9 +40,12 @@ import type { SecureConfirmRequest } from './types';
 export function determineConfirmationConfig(
   ctx: SignerWorkerManagerContext,
   request: SecureConfirmRequest | undefined,
-  input: ConfirmationConfig
 ): ConfirmationConfig {
-  let cfg: ConfirmationConfig = { ...input };
+
+  let cfg: ConfirmationConfig = {
+    ...request?.confirmationConfig,
+    ...ctx.userPreferencesManager.getConfirmationConfig()
+  };
 
   // Helper: detect if this browsing context is cross‑origin with its parent
   const isCrossOriginWithTop = (() => {
@@ -67,8 +70,8 @@ export function determineConfirmationConfig(
       const before = { uiMode: cfg.uiMode, behavior: cfg.behavior };
       cfg = { ...cfg, uiMode: 'modal', behavior: 'requireClick' } as ConfirmationConfig;
       try {
-        const flow = (request as any)?.type || 'UNKNOWN';
-        const invokedFrom = (request as any)?.invokedFrom || 'parent';
+        const flow = request?.type || 'UNKNOWN';
+        const invokedFrom = request?.invokedFrom || 'parent';
         console.warn('[SecureConfirm] Cross‑origin detected: forcing modal+requireClick', { flow, invokedFrom, before });
       } catch {}
       return cfg;

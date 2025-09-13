@@ -15,11 +15,12 @@ import {
   SignTransactionPayload,
   RegisterAccountPayload,
 } from './types';
-import { TransactionContext } from '../../../types';
+import { TransactionContext, VRFChallenge } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
+import { VrfChallenge } from '@/wasm_signer_worker/wasm_signer_worker';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -49,7 +50,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     console.error('[SecureConfirm][Host] validateAndParseRequest failed', e);
     // Attempt to send a structured error back to the worker to avoid hard failure
     try {
-      const rid = (message?.data as any)?.requestId || `${Date.now()}-${Math.random()}`;
+      const rid = message?.data?.requestId;
       sendWorkerResponse(worker, {
         requestId: rid,
         confirmed: false,
@@ -65,20 +66,11 @@ export async function handlePromptUserConfirmInJsMainThread(
   try {
     if (!request.invokedFrom) {
       const el = document.querySelector(IFRAME_BUTTON_ID);
-      (request as any).invokedFrom = el ? 'iframe' : 'parent';
+      request.invokedFrom = el ? 'iframe' : 'parent';
     }
   } catch {}
 
   // Extra diagnostics: ensure payload exists and has required fields
-  try {
-    const hasPayload = !!(request as any)?.payload;
-    const keys = hasPayload && typeof (request as any).payload === 'object' ? Object.keys((request as any).payload) : [];
-    console.debug('[SecureConfirm][Host] request payload check', {
-      hasPayload,
-      payloadKeys: keys,
-      type: request.type
-    });
-  } catch {}
   if (!request?.payload) {
     console.error('[SecureConfirm][Host] Invalid secure confirm request: missing payload', request);
     sendWorkerResponse(worker, {
@@ -102,7 +94,9 @@ export async function handlePromptUserConfirmInJsMainThread(
   if (nearRpcResult.error || !nearRpcResult.transactionContext) {
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
+      intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
+        ? (request.payload as SignTransactionPayload).intentDigest
+        : undefined),
       confirmed: false,
       error: `Failed to fetch NEAR data: ${nearRpcResult.details}`
     });
@@ -118,8 +112,8 @@ export async function handlePromptUserConfirmInJsMainThread(
   // For registration/link flows, there is no unlocked VRF keypair yet.
   // Use the bootstrap path which creates a temporary VRF keypair in-memory
   // and returns a VRF challenge for the WebAuthn create() ceremony.
-  const rpId = resolveRpId((ctx as any).rpIdOverride);
-  let vrfChallenge: any;
+  const rpId = resolveRpId(ctx.rpIdOverride);
+  let vrfChallenge: VRFChallenge;
   if (
     request.type === SecureConfirmationType.REGISTER_ACCOUNT ||
     request.type === SecureConfirmationType.LINK_DEVICE
@@ -145,7 +139,7 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 5. Render user confirmation UI with VRF challenge
   const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, request, vrfChallenge });
-  const { confirmed, confirmHandle, error: uiError } = userConfirmResult as any;
+  const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
 
   // 6. If user rejected (confirmed === false), exit early
   if (!confirmed) {
@@ -158,7 +152,9 @@ export async function handlePromptUserConfirmInJsMainThread(
     closeModalSafely(confirmHandle, false);
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
+      intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
+        ? (request.payload as SignTransactionPayload).intentDigest
+        : undefined),
       confirmed: false,
       error: uiError
     });
@@ -168,7 +164,9 @@ export async function handlePromptUserConfirmInJsMainThread(
   // 7. Create decision with generated data
   const decision: SecureConfirmDecision = {
     requestId: request.requestId,
-    intentDigest: request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined),
+    intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
+      ? (request.payload as SignTransactionPayload).intentDigest
+      : undefined),
     confirmed: true,
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
@@ -250,7 +248,6 @@ async function performNearRpcCalls(
   try {
     // Prefer NonceManager when initialized (signing flows)
     const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
-    console.log("Using NonceManager smart caching");
 
     // Reserve nonces for this request to avoid parallel collisions
     const txCount = opts.txCount || 1;
@@ -269,59 +266,11 @@ async function performNearRpcCalls(
   } catch (error: any) {
     // Registration or pre-login flows may not have NonceManager initialized.
     // Fallback: try to fetch access key + block using IndexedDB public key, else block-only.
-    try {
-      const accountId = opts?.nearAccountId;
-      let nearPublicKeyStr: string | null = null;
-      try {
-        const user = accountId ? await ctx.indexedDB.clientDB.getUser(toAccountId(accountId)) : null;
-        nearPublicKeyStr = user?.clientNearPublicKey || null;
-      } catch {}
-
-      if (accountId && nearPublicKeyStr) {
-        // Fetch both access key and block to compute a valid next nonce
-        const [accessKeyInfo, block] = await Promise.all([
-          ctx.nearClient.viewAccessKey(accountId, nearPublicKeyStr),
-          ctx.nearClient.viewBlock({ finality: 'final' } as any)
-        ]);
-
-        if (!accessKeyInfo || (accessKeyInfo as any).nonce === undefined) {
-          throw new Error('Access key not found or invalid during fallback');
-        }
-        const txBlockHash = (block as any)?.header?.hash;
-        const txBlockHeight = String((block as any)?.header?.height ?? '');
-        if (!txBlockHash || !txBlockHeight) throw new Error('Failed to fetch Block Info');
-
-        const nextNonce = (BigInt(accessKeyInfo.nonce) + 1n).toString();
-        const ctxResult: TransactionContext = {
-          nearPublicKeyStr,
-          accessKeyInfo: accessKeyInfo as any,
-          nextNonce,
-          txBlockHeight,
-          txBlockHash,
-        };
-        return { transactionContext: ctxResult };
-      }
-
-      // As a last resort, fetch only the block; nextNonce is unknown here
-      const block = await ctx.nearClient.viewBlock({ finality: 'final' } as any);
-      const txBlockHash = (block as any)?.header?.hash;
-      const txBlockHeight = String((block as any)?.header?.height ?? '');
-      if (!txBlockHash || !txBlockHeight) throw new Error('Failed to fetch Block Info');
-      const minimalContext = {
-        nearPublicKeyStr: '',
-        accessKeyInfo: { nonce: 0 } as any,
-        nextNonce: '1', // avoid invalid 0; real AK fetch not available
-        txBlockHeight,
-        txBlockHash,
-      } as TransactionContext;
-      return { transactionContext: minimalContext };
-    } catch (fallbackErr: any) {
-      return {
-        transactionContext: null,
-        error: 'NEAR_RPC_FAILED',
-        details: fallbackErr?.message || error?.message || String(fallbackErr || error),
-      };
-    }
+    return {
+      transactionContext: null,
+      error: 'NEAR_RPC_FAILED',
+      details: error?.message,
+    };
   }
 }
 
@@ -341,51 +290,21 @@ function validateAndParseRequest({ ctx, request }: {
   confirmationConfig: ConfirmationConfig;
   transactionSummary: TransactionSummary;
 } {
-  try {
-    const keys = request && typeof request === 'object' ? Object.keys(request as any) : [];
-    console.debug('[SecureConfirm][Host] validateAndParseRequest() input', {
-      hasRequest: !!request,
-      type: typeof request,
-      keys,
-      requestId: (request as any)?.requestId,
-      schemaVersion: (request as any)?.schemaVersion,
-      kind: (request as any)?.type,
-    });
-  } catch {}
-  // Normalize and validate required fields
-  const reqAny = request as any;
-  if (reqAny && typeof reqAny === 'object' && typeof reqAny.requestId !== 'string' && typeof reqAny.request_id === 'string') {
-    reqAny.requestId = reqAny.request_id;
-  }
-  if (!reqAny || typeof reqAny.requestId !== 'string' || !reqAny.requestId) {
-    const fallbackId = `${Date.now()}-${Math.random()}`;
-    try { console.warn('[SecureConfirm][Host] missing requestId; generating fallback id', fallbackId); } catch {}
-    (reqAny as any).requestId = fallbackId;
-  }
-
   // Parse and validate summary data (can contain extra fields we need)
-  const summary = parseTransactionSummary(reqAny.summary as any);
+  const summary = parseTransactionSummary(request.summary);
   // Get confirmation configuration from data (overrides user settings) or use user's settings,
   // then compute effective config based on runtime and request type
-  const baseConfig: ConfirmationConfig = reqAny.confirmationConfig || ctx.userPreferencesManager.getConfirmationConfig();
-  const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, reqAny as SecureConfirmRequest, baseConfig);
+  const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, request);
   const transactionSummary: TransactionSummary = {
-    totalAmount: (summary as any)?.totalAmount,
-    method: (summary as any)?.method || (reqAny.type === SecureConfirmationType.REGISTER_ACCOUNT || reqAny.type === SecureConfirmationType.LINK_DEVICE ? 'Register Account' : undefined),
-    intentDigest: reqAny.type === SecureConfirmationType.SIGN_TRANSACTION
-      ? (reqAny.payload as SignTransactionPayload).intentDigest
+    totalAmount: summary?.totalAmount,
+    method: summary?.method,
+    intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
+      ? (request.payload as SignTransactionPayload).intentDigest
       : undefined,
   };
-  try {
-    console.debug('[SecureConfirm][Host] validateAndParseRequest() parsed', {
-      requestId: reqAny.requestId,
-      summaryKeys: Object.keys((summary as any) || {}),
-      uiMode: (reqAny as any)?.confirmationConfig?.uiMode,
-    });
-  } catch {}
 
   return {
-    request: reqAny as SecureConfirmRequest,
+    request,
     summary,
     confirmationConfig,
     transactionSummary
@@ -414,8 +333,7 @@ async function renderUserConfirmUI({
   error?: string;
 }> {
   // Recompute effective config defensively at render time as well
-  confirmationConfig = determineConfirmationConfig(ctx, request, confirmationConfig);
-  console.log("confirmationConfig", confirmationConfig);
+  confirmationConfig = determineConfirmationConfig(ctx, request);
 
   const nearAccountIdForUi = request.type === SecureConfirmationType.SIGN_TRANSACTION
     ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
@@ -441,11 +359,15 @@ async function renderUserConfirmUI({
           vrfChallenge: vrfChallenge,
           theme: confirmationConfig.theme,
           nearAccountIdOverride: nearAccountIdForUi,
+          useIframe: !!ctx.iframeModeDefault
         });
         return { confirmed, confirmHandle: handle };
       }
       try {
-        const hostEl = document.querySelector(IFRAME_BUTTON_ID) as any;
+        const hostEl = document.querySelector(IFRAME_BUTTON_ID) as HTMLElement & {
+          tooltipTheme?: string;
+          requestUiIntentDigest?: () => Promise<string | null>;
+        };
 
         // Apply theme to existing embedded component if theme is specified
         if (hostEl && confirmationConfig.theme) {
@@ -455,13 +377,17 @@ async function renderUserConfirmUI({
         let uiDigest: string | null = null;
         if (hostEl?.requestUiIntentDigest) {
           uiDigest = await hostEl.requestUiIntentDigest();
-          const intentDigest = request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined);
+          const intentDigest = request.type === SecureConfirmationType.SIGN_TRANSACTION
+            ? request.payload.intentDigest
+            : undefined;
           console.log('[SecureConfirm] digest check', { uiDigest, intentDigest });
         } else {
           console.error('[SecureConfirm]: missing requestUiIntentDigest on secure element');
         }
         // Debug: show UI digest and WASM worker's provided intentDigest for comparison
-        const expectedDigest = request.intentDigest ?? (request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).intentDigest : undefined);
+        const expectedDigest = (request.type === SecureConfirmationType.SIGN_TRANSACTION
+          ? request.payload.intentDigest
+          : undefined);
         if (uiDigest !== expectedDigest) {
           console.error('[SecureConfirm]: INTENT_DIGEST_MISMATCH', { uiDigest, expectedDigest });
           // Return explicit error code so upstream does not misclassify as user cancel
@@ -479,7 +405,7 @@ async function renderUserConfirmUI({
         const handle = await mountModalTxConfirmer({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
+          txSigningRequests: request.payload?.txSigningRequests,
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
@@ -492,10 +418,11 @@ async function renderUserConfirmUI({
         const { confirmed, handle } = await awaitModalTxConfirmerDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
+          txSigningRequests: request.payload?.txSigningRequests,
           vrfChallenge,
           theme: confirmationConfig.theme,
           nearAccountIdOverride: nearAccountIdForUi,
+          useIframe: !!ctx.iframeModeDefault
         });
         return { confirmed, confirmHandle: handle };
       }
@@ -506,7 +433,7 @@ async function renderUserConfirmUI({
       const handle = await mountModalTxConfirmer({
         ctx,
         summary: transactionSummary,
-        txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? (request.payload as SignTransactionPayload).txSigningRequests : [],
+        txSigningRequests: request.payload.txSigningRequests,
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
@@ -642,16 +569,21 @@ function sendWorkerResponse(worker: Worker, responseData: any): void {
   });
 }
 
-function sanitizeForPostMessage(data: any): any {
-  if (data == null) return data;
-  if (typeof data !== 'object') return data;
+// Shallow type that removes function-valued properties and the private `_confirmHandle` key
+type NonFunctionKeys<T> = { [K in keyof T]: T[K] extends Function ? never : K }[keyof T];
+type ShallowPostMessageSafe<T> = T extends object
+  ? Omit<Pick<T, NonFunctionKeys<T>>, '_confirmHandle'>
+  : T;
+
+function sanitizeForPostMessage<T>(data: T): ShallowPostMessageSafe<T> {
+  if (data == null || typeof data !== 'object') return data as ShallowPostMessageSafe<T>;
   // Drop private handles and any functions (non-cloneable)
-  const out: any = Array.isArray(data) ? [] : {};
-  for (const key of Object.keys(data)) {
+  const out: Record<string, unknown> | unknown[] = Array.isArray(data) ? [] : {};
+  for (const key of Object.keys(data as any)) {
     if (key === '_confirmHandle') continue;
     const value = (data as any)[key];
     if (typeof value === 'function') continue;
-    out[key] = value;
+    (out as any)[key] = value;
   }
-  return out;
+  return out as ShallowPostMessageSafe<T>;
 }
