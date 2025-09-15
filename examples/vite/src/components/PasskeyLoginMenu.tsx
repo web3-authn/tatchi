@@ -41,18 +41,14 @@ export function PasskeyLoginMenu() {
     },
     loginPasskey,
     registerPasskey,
-    startAccountRecoveryFlow,
     refreshLoginState,
     // UI
     setInputUsername,
     passkeyManager,
-    useRelayer,
-    toggleRelayer,
   } = usePasskeyContext();
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {
-      useRelayer: useRelayer,
       onEvent: (event: RegistrationSSEEvent) => {
         switch (event.phase) {
           case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:

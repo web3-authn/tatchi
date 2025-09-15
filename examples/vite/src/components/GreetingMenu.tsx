@@ -93,29 +93,27 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
           }
         },
         waitUntil: TxExecutionStatus.FINAL,
-        hooks: {
-          afterCall: (success: boolean, result?: any) => {
-            if (success && result?.transactionId) {
-              const txId = result.transactionId;
-              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+        afterCall: (success: boolean, result?: any) => {
+          if (success && result?.transactionId) {
+            const txId = result.transactionId;
+            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
 
-              // Reset greeting input on any successful transaction
-              setGreetingInput("");
-              // Transaction executed successfully - fetch the updated greeting
-              fetchGreeting();
+            // Reset greeting input on any successful transaction
+            setGreetingInput("");
+            // Transaction executed successfully - fetch the updated greeting
+            fetchGreeting();
 
-              onTransactionUpdate({
-                id: txId,
-                link: txLink,
-                message: newGreetingMessage
-              });
-            } else if (success) {
-              onTransactionUpdate({ id: 'N/A', link: '#', message: 'Success, no TxID in response' });
-            } else {
-              onTransactionUpdate({ id: 'N/A', link: '#', message: `Failed: ${result?.error || 'Unknown error'}` });
-            }
+            onTransactionUpdate({
+              id: txId,
+              link: txLink,
+              message: newGreetingMessage
+            });
+          } else if (success) {
+            onTransactionUpdate({ id: 'N/A', link: '#', message: 'Success, no TxID in response' });
+          } else {
+            onTransactionUpdate({ id: 'N/A', link: '#', message: `Failed: ${result?.error || 'Unknown error'}` });
           }
-        },
+        }
       }
     });
   }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting, onTransactionUpdate]);
@@ -182,36 +180,34 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               break;
           }
         },
-        hooks: {
-          afterCall: (success: boolean, result?: any) => {
-            if (success) {
-              // Reset transfer inputs on successful transaction
-              setTransferRecipient("web3-authn-v5.testnet");
-              setTransferAmount("");
-            }
+        afterCall: (success: boolean, result?: any) => {
+          if (success) {
+            // Reset transfer inputs on successful transaction
+            setTransferRecipient("web3-authn-v5.testnet");
+            setTransferAmount("");
+          }
 
-            if (success && result?.transactionId) {
-              const txId = result.transactionId;
-              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+          if (success && result?.transactionId) {
+            const txId = result.transactionId;
+            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
 
-              onTransactionUpdate({
-                id: txId,
-                link: txLink,
-                message: `Successfully sent ${amount} NEAR to ${recipient}`
-              });
-            } else if (success) {
-              onTransactionUpdate({
-                id: 'N/A',
-                link: '#',
-                message: `Transfer successful: ${amount} NEAR to ${recipient}`
-              });
-            } else {
-              onTransactionUpdate({
-                id: 'N/A',
-                link: '#',
-                message: `Transfer failed: ${result?.error || 'Unknown error'}`
-              });
-            }
+            onTransactionUpdate({
+              id: txId,
+              link: txLink,
+              message: `Successfully sent ${amount} NEAR to ${recipient}`
+            });
+          } else if (success) {
+            onTransactionUpdate({
+              id: 'N/A',
+              link: '#',
+              message: `Transfer successful: ${amount} NEAR to ${recipient}`
+            });
+          } else {
+            onTransactionUpdate({
+              id: 'N/A',
+              link: '#',
+              message: `Transfer failed: ${result?.error || 'Unknown error'}`
+            });
           }
         },
         waitUntil: TxExecutionStatus.FINAL,

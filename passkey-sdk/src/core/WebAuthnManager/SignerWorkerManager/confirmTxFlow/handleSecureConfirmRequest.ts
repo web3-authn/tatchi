@@ -20,7 +20,6 @@ import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
 import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
-import { VrfChallenge } from '@/wasm_signer_worker/wasm_signer_worker';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -68,6 +67,9 @@ export async function handlePromptUserConfirmInJsMainThread(
       const el = document.querySelector(IFRAME_BUTTON_ID);
       request.invokedFrom = el ? 'iframe' : 'parent';
     }
+    try {
+      console.debug('[SecureConfirm][Host] invokedFrom:', request.invokedFrom || 'parent');
+    } catch {}
   } catch {}
 
   // Extra diagnostics: ensure payload exists and has required fields
@@ -83,20 +85,21 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 2. Perform NEAR RPC calls first (needed for VRF challenge)
   const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
-    : (request.payload as RegisterAccountPayload).nearAccountId;
+    ? request.payload.rpcCall.nearAccountId
+    : request.payload.nearAccountId;
+
   const txCount = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? ((request.payload as SignTransactionPayload).txSigningRequests?.length || 1)
-    : 1;
+    ? request.payload.txSigningRequests?.length : 1;
+
   const nearRpcResult = await performNearRpcCalls(ctx, { nearAccountId, txCount });
 
   // 3. If NEAR RPC failed, return error
   if (nearRpcResult.error || !nearRpcResult.transactionContext) {
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
-        ? (request.payload as SignTransactionPayload).intentDigest
-        : undefined),
+      intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
+        ? request.payload.intentDigest
+        : undefined,
       confirmed: false,
       error: `Failed to fetch NEAR data: ${nearRpcResult.details}`
     });
@@ -149,12 +152,12 @@ export async function handlePromptUserConfirmInJsMainThread(
     } catch (e) {
       console.warn('[SignerWorkerManager]: Failed to release reserved nonces on cancel:', e);
     }
-    closeModalSafely(confirmHandle, false);
+    closeModalSafely(false, confirmHandle);
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
-        ? (request.payload as SignTransactionPayload).intentDigest
-        : undefined),
+      intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
+        ? request.payload.intentDigest
+        : undefined,
       confirmed: false,
       error: uiError
     });
@@ -164,9 +167,9 @@ export async function handlePromptUserConfirmInJsMainThread(
   // 7. Create decision with generated data
   const decision: SecureConfirmDecision = {
     requestId: request.requestId,
-    intentDigest: (request.type === SecureConfirmationType.SIGN_TRANSACTION
-      ? (request.payload as SignTransactionPayload).intentDigest
-      : undefined),
+    intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
+      ? request.payload.intentDigest
+      : undefined,
     confirmed: true,
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
@@ -198,7 +201,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     touchIdSuccess = false;
   } finally {
     // Always close the modal after TouchID attempt (success or failure)
-    closeModalSafely(confirmHandle, touchIdSuccess);
+    closeModalSafely(touchIdSuccess, confirmHandle);
   }
 
   // 9. Send confirmation response back to wasm-signer-worker
@@ -232,7 +235,7 @@ function isRegistrableSuffix(host: string, cand: string): boolean {
 }
 
 /**
- * Performs NEAR RPC call to get nonce, block hash and height
+ * Performs RPC call to get nonce, block hash and height
  * Uses NonceManager if available, otherwise falls back to direct RPC calls
  * For batch transactions, reserves nonces for each transaction
  */
@@ -277,6 +280,11 @@ async function performNearRpcCalls(
 //////////////////////////////////
 // === CONFIRMATION LOGIC ===
 //////////////////////////////////
+
+interface SummaryType {
+  totalAmount?: string,
+  method?: string,
+}
 
 /**
  * Validates and parses the confirmation request data
@@ -326,10 +334,10 @@ async function renderUserConfirmUI({
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
-  vrfChallenge?: any;
+  vrfChallenge: VRFChallenge;
 }): Promise<{
   confirmed: boolean;
-  confirmHandle?: { element: any, close: (confirmed: boolean) => void };
+  confirmHandle?: { element: HTMLElement, close: (confirmed: boolean) => void };
   error?: string;
 }> {
   // Recompute effective config defensively at render time as well
@@ -524,7 +532,7 @@ async function collectTouchIdCredentials({
 /**
  * Safely parses transaction summary data, handling both string and object formats
  */
-function parseTransactionSummary(summaryData: string | object | undefined): any {
+function parseTransactionSummary(summaryData: string | object | undefined): SummaryType {
   if (!summaryData) {
     return {};
   }
@@ -546,7 +554,10 @@ function parseTransactionSummary(summaryData: string | object | undefined): any 
 /**
  * Safely closes modal with error handling
  */
-function closeModalSafely(confirmHandle: any, confirmed: boolean): void {
+function closeModalSafely(
+  confirmed: boolean,
+  confirmHandle?: { element: HTMLElement; close: (confirmed: boolean) => void; },
+): void {
   if (confirmHandle?.close) {
     try {
       confirmHandle.close(confirmed);
@@ -560,7 +571,7 @@ function closeModalSafely(confirmHandle: any, confirmed: boolean): void {
 /**
  * Sends response to worker with consistent message format
  */
-function sendWorkerResponse(worker: Worker, responseData: any): void {
+function sendWorkerResponse(worker: Worker, responseData: SecureConfirmDecision): void {
   // Sanitize payload to ensure postMessage structured-clone safety
   const sanitized = sanitizeForPostMessage(responseData);
   worker.postMessage({

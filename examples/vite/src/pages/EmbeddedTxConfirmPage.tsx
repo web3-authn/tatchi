@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { TouchIdWithText, usePasskeyContext } from '@web3authn/passkey/react';
 import { SecureSendTxButton, ActionType } from '@web3authn/passkey/react';
+import { TxExecutionStatus } from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
 import { LitDrawer } from '../../../../passkey-sdk/src/react/components/LitDrawer';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import './EmbeddedTxConfirmPage.css';
+import { useSetGreeting } from '../hooks/useSetGreeting';
 
 /**
  * Demo page showing how to use EmbeddedTxConfirm with the setGreeting functionality.
@@ -18,6 +20,7 @@ import './EmbeddedTxConfirmPage.css';
  */
 export const EmbeddedTxConfirmPage: React.FC = () => {
   const { loginState } = usePasskeyContext();
+  const { fetchGreeting } = useSetGreeting();
   const [greetingInput, setGreetingInput] = useState('Hello from Embedded Component!');
   const [result, setResult] = useState<string>('');
   const [error, setError] = useState<string>('');
@@ -152,6 +155,15 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   beforeCall: () => {
                     // optional: add any per-call logging here
                   },
+                  // Wait for final execution so subsequent views reflect the update
+                  waitUntil: TxExecutionStatus.FINAL,
+                  // After the call completes, refresh on-chain greeting
+                  afterCall: (success) => {
+                    if (success) {
+                      // Small delay to avoid hook rate limit and ensure finality propagation
+                      setTimeout(() => { void fetchGreeting(); }, 1100);
+                    }
+                  },
                   onError: (error) => {
                     setError(`Transaction failed: ${error.message}`);
                     setResult('');
@@ -182,6 +194,8 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                 onSuccess={(result) => {
                   setResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
                   setError('');
+                  // Also trigger a refresh here for safety
+                  setTimeout(() => { void fetchGreeting(); }, 1100);
                 }}
               />
             </div>
