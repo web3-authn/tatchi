@@ -572,6 +572,20 @@ export interface VerifyAndSignTransactionResult {
   logs?: string[];
 }
 
+export interface ExportNearKeypairWithTouchIdResult {
+  accountId: string;
+  privateKey: string;
+  publicKey: string
+}
+
+export interface GetRecentLoginsResult {
+  accountIds: string[],
+  lastUsedAccountId: {
+    nearAccountId: AccountId,
+    deviceNumber: number,
+  } | null
+}
+
 // PasskeyManager Configuration
 export interface PasskeyManagerConfigs {
   nearRpcUrl: string;

@@ -11,7 +11,6 @@ import { AccountId } from './accountIds';
 import { SignedTransaction } from '../NearClient';
 import { WebAuthnRegistrationCredential } from '.';
 
-// Re-export DeviceLinkingPhase from passkeyManager
 export { DeviceLinkingPhase } from './passkeyManager';
 
 // === DEVICE LINKING TYPES ===
@@ -62,14 +61,22 @@ export enum DeviceLinkingErrorCode {
   SESSION_EXPIRED = 'SESSION_EXPIRED'
 }
 
+export type StartDevice2LinkingFlowArgs = {
+  accountId?: string;
+  ui?: 'modal' | 'inline';
+} & StartDeviceLinkingOptionsDevice2
+
+export interface StartDevice2LinkingFlowResults {
+  qrData: DeviceLinkingQRData;
+  qrCodeDataURL: string
+}
+
 export interface StartDeviceLinkingOptionsDevice2 {
   cameraId?: string;
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<any>;
-  // Called by the flow just-in-time before any WebAuthn ceremony that requires a user gesture
-  ensureUserActivation?: () => Promise<void>;
 }
 
 export interface ScanAndLinkDeviceOptionsDevice1 {
