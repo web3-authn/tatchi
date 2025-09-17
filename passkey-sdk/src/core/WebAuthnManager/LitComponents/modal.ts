@@ -189,18 +189,16 @@ export async function awaitIframeModalDecisionWithHandle({
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;
-    if (vrfChallenge) {
-      el.vrfChallenge = vrfChallenge;
-    }
-    if (theme) {
-      el.theme = theme;
-    }
+    el.vrfChallenge = vrfChallenge;
+    if (theme) { el.theme = theme; }
+
     const onConfirm = (e: Event) => {
       const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
       cleanup();
       const ok = !!(ce?.detail?.confirmed);
       resolve({ confirmed: ok, handle: { element: el, close: (_c: boolean) => { try { el.remove(); } catch {} } } });
     };
+
     const onCancel = () => {
       cleanup();
       resolve({
@@ -274,22 +272,19 @@ export async function awaitModalTxConfirmerDecision({
   vrfChallenge,
   theme,
   nearAccountIdOverride,
-  iframeMode,
+  useIframe,
 }: {
   ctx: SignerWorkerManagerContext,
   summary: TransactionSummary,
-  txSigningRequests?: TransactionInputWasm[],
-  vrfChallenge?: VRFChallenge,
-  theme?: 'dark' | 'light',
-  nearAccountIdOverride?: string,
-  iframeMode?: boolean,
+  txSigningRequests: TransactionInputWasm[],
+  vrfChallenge: VRFChallenge,
+  theme: 'dark' | 'light',
+  nearAccountIdOverride: string,
+  useIframe: boolean,
 }): Promise<{
   confirmed: boolean;
   handle: { element: any; close: (confirmed: boolean) => void }
 }> {
-
-  const useIframe = typeof iframeMode === 'boolean' ? iframeMode : !!ctx?.iframeModeDefault;
-
   if (useIframe) {
     return await awaitIframeModalDecisionWithHandle({
       ctx,

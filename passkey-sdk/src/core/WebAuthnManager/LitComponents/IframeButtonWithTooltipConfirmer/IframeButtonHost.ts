@@ -87,7 +87,6 @@ export class IframeButtonHost extends LitElementWithProps {
     onCancel: { type: Object },
     onLoadTouchIdPrompt: { type: Object },
     externalConfirm: { type: Object },
-    invokedFrom: { type: String, attribute: 'invoked-from' }
   } as const;
 
   static styles = css`
@@ -215,7 +214,7 @@ export class IframeButtonHost extends LitElementWithProps {
     options?: SignAndSendTransactionHooksOptions;
     theme?: 'dark' | 'light';
   }) => Promise<ActionResult[]>;
-  declare invokedFrom?: 'iframe' | 'parent';
+
 
   // Event handlers (not reactive properties)
   onSuccess?: (result: ActionResult[] ) => void;
@@ -247,7 +246,6 @@ export class IframeButtonHost extends LitElementWithProps {
     this.showLoading = false;
     this.options = {};
     this.externalConfirm = undefined;
-    this.invokedFrom = 'iframe';
   }
 
   connectedCallback() {
@@ -342,7 +340,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeSize = this.calculateIframeSize();
 
     return html`
-      <div class="iframe-button-host" ${ref(this.hostRef)} data-invoked-from=${this.invokedFrom || 'iframe'}
+      <div class="iframe-button-host" ${ref(this.hostRef)}
         style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
       >
         <div class="host-button-visual"><slot>${this.buttonTextElement}</slot></div>
