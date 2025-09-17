@@ -1,14 +1,14 @@
 // Lightweight progress event router for wallet iframe client
 // Encapsulates sticky and in-flight progress handling and overlay heuristics.
 
-import type { ProgressPayload as MessageProgressPayload } from './messages';
+import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
 import {
   ActionPhase,
   DeviceLinkingPhase,
   AccountRecoveryPhase,
   RegistrationPhase,
   LoginPhase,
-} from '../types/passkeyManager';
+} from '../../types/passkeyManager';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
 const SHOW_PHASES = new Set<string>([

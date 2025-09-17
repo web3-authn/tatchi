@@ -1,9 +1,43 @@
 
 // Lit component tag names
 // These are rendered as web components:
-// e.g. <iframe-button></iframe-button>, <button-with-tooltip>, etc;
-export const IFRAME_BUTTON_ID = 'iframe-button';
+// e.g. <w3a-tx-button></w3a-tx-button>, <button-with-tooltip>, etc;
 export const BUTTON_WITH_TOOLTIP_ID = 'button-with-tooltip';
+
+// Preferred aliases for top-level elements used by WalletIframe host
+export const W3A_TX_BUTTON_ID = 'w3a-tx-button';
+export const W3A_REGISTER_BUTTON_ID = 'w3a-register-button';
+export const W3A_REGISTER_BUTTON_HOST_ID = 'w3a-register-button-host';
+export const W3A_TX_BUTTON_HOST_ID = 'w3a-tx-button-host';
+// Legacy host element ids (back-compat aliases)
+// legacy-only aliases (not exported): 'w3a-wallet-register-host', 'w3a-wallet-tx-host'
+
+// Consolidated tag registry and helpers
+export type TagDef = { id: string; aliases?: string[] };
+export const TAG_DEFS = {
+  registerButton: { id: W3A_REGISTER_BUTTON_ID, aliases: ['embedded-register-button'] },
+  txButton: { id: W3A_TX_BUTTON_ID, aliases: ['iframe-button'] },
+  registerHost: { id: W3A_REGISTER_BUTTON_HOST_ID, aliases: ['w3a-wallet-register-host'] },
+  txHost: { id: W3A_TX_BUTTON_HOST_ID, aliases: ['w3a-wallet-tx-host'] },
+} as const;
+export type TagKey = keyof typeof TAG_DEFS;
+
+/** Return canonical tag for a tag key */
+export function getTag(key: TagKey): string { return TAG_DEFS[key].id; }
+
+/** Define a custom element for canonical and alias tags (no-throw). */
+export function defineTag(key: TagKey, ctor: CustomElementConstructor): void {
+  const def = TAG_DEFS[key];
+  try {
+    if (!customElements.get(def.id)) {
+      customElements.define(def.id, ctor);
+    }
+  } catch {}
+  const aliases = def.aliases || [];
+  for (const alias of aliases) {
+    try { if (!customElements.get(alias)) customElements.define(alias, ctor); } catch {}
+  }
+}
 
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
 export const EMBEDDED_SDK_BASE_PATH = '/sdk/embedded/';

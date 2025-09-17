@@ -26,6 +26,7 @@
 
 // Context
 export { PasskeyProvider, usePasskeyContext } from './context';
+export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
 
 // === REACT HOOKS ===
 
@@ -53,7 +54,14 @@ export { QRCodeScanner } from './components/QRCodeScanner';
 export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
 export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
-export { WalletRegisterButtonHost } from './components/WalletRegisterButtonHost';
+export {
+  WalletIframeRegisterButtonHost,
+  type WalletIframeRegisterButtonHostProps,
+} from './components/WalletIframeRegisterButtonHost';
+export {
+  WalletIframeTxButtonHost,
+  type WalletIframeTxButtonHostProps,
+} from './components/WalletIframeTxButtonHost';
 // Sign Up / Sign In menu
 export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples

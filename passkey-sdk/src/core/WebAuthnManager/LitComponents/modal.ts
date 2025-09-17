@@ -1,6 +1,6 @@
 // Import types and components needed for mount functions
 import { TransactionInputWasm, VRFChallenge } from '../../types';
-import { IFRAME_MODAL_ID } from './IframeButtonWithTooltipConfirmer/tags';
+import { IFRAME_MODAL_ID } from './tags';
 import type IframeModalHost from './IframeModalConfirmer/IframeModalHost';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';

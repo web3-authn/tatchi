@@ -88,7 +88,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 11, // Increment version for adding confirmation settings to UserPreferences
+  dbVersion: 12, // Bump version; add fallback open for mixed-version contexts
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators'
@@ -139,34 +139,49 @@ export class PasskeyClientDBManager {
       return this.db;
     }
 
-    this.db = await openDB(this.config.dbName, this.config.dbVersion, {
-      upgrade(db, oldVersion): void {
-        // Create stores if they don't exist
-        if (!db.objectStoreNames.contains(DB_CONFIG.userStore)) {
-          // Users table: composite key of [nearAccountId, deviceNumber]
-          const userStore = db.createObjectStore(DB_CONFIG.userStore, { keyPath: ['nearAccountId', 'deviceNumber'] });
-          userStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+    try {
+      this.db = await openDB(this.config.dbName, this.config.dbVersion, {
+        upgrade(db, oldVersion): void {
+          // Create stores if they don't exist
+          if (!db.objectStoreNames.contains(DB_CONFIG.userStore)) {
+            // Users table: composite key of [nearAccountId, deviceNumber]
+            const userStore = db.createObjectStore(DB_CONFIG.userStore, { keyPath: ['nearAccountId', 'deviceNumber'] });
+            userStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+          }
+          if (!db.objectStoreNames.contains(DB_CONFIG.appStateStore)) {
+            db.createObjectStore(DB_CONFIG.appStateStore, { keyPath: 'key' });
+          }
+          if (!db.objectStoreNames.contains(DB_CONFIG.authenticatorStore)) {
+            // Authenticators table: composite key of [nearAccountId, deviceNumber, credentialId]
+            const authStore = db.createObjectStore(DB_CONFIG.authenticatorStore, { keyPath: ['nearAccountId', 'deviceNumber', 'credentialId'] });
+            authStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+          }
+        },
+        blocked() {
+          console.warn('PasskeyClientDB connection is blocked.');
+        },
+        blocking() {
+          console.warn('PasskeyClientDB connection is blocking another connection.');
+        },
+        terminated: () => {
+          console.warn('PasskeyClientDB connection has been terminated.');
+          this.db = null;
+        },
+      });
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (err?.name === 'VersionError' || /less than the existing version/i.test(msg)) {
+        // Mixed-version contexts (host/app) — open without version to adopt existing DB
+        try {
+          console.warn('PasskeyClientDB: opening existing DB without version due to VersionError');
+          this.db = await openDB(this.config.dbName);
+        } catch (e) {
+          throw err;
         }
-        if (!db.objectStoreNames.contains(DB_CONFIG.appStateStore)) {
-          db.createObjectStore(DB_CONFIG.appStateStore, { keyPath: 'key' });
-        }
-        if (!db.objectStoreNames.contains(DB_CONFIG.authenticatorStore)) {
-          // Authenticators table: composite key of [nearAccountId, deviceNumber, credentialId]
-          const authStore = db.createObjectStore(DB_CONFIG.authenticatorStore, { keyPath: ['nearAccountId', 'deviceNumber', 'credentialId'] });
-          authStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
-        }
-      },
-      blocked() {
-        console.warn('PasskeyClientDB connection is blocked.');
-      },
-      blocking() {
-        console.warn('PasskeyClientDB connection is blocking another connection.');
-      },
-      terminated: () => {
-        console.warn('PasskeyClientDB connection has been terminated.');
-        this.db = null;
-      },
-    });
+      } else {
+        throw err;
+      }
+    }
 
     return this.db;
   }

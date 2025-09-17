@@ -213,11 +213,12 @@ export default defineConfig([
   {
     input: {
       'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
+      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
       'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
       'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
       'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
       // Wallet service host (headless)
-      'wallet-iframe-host': 'src/core/WalletIframe/wallet-iframe-host.ts',
+      'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,

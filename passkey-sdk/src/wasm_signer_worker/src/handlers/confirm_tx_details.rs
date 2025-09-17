@@ -45,8 +45,10 @@ pub struct ConfirmationResult {
     pub request_id: String,
     /// SHA-256 digest of ActionParams[], then base64url encoded.
     /// Used to ensure that what the user sees in the secure iframe is what
-    /// is actually signed in the wasm-worker
-    pub intent_digest: String,
+    /// is actually signed in the wasm-worker.
+    ///
+    /// Optional for non-transaction flows (e.g., registration/link-device).
+    pub intent_digest: Option<String>,
     pub credential: Option<serde_json::Value>, // Serialized WebAuthn credential (JSON)
     pub prf_output: Option<String>, // Base64url-encoded PRF output for decryption
     pub vrf_challenge: Option<crate::types::VrfChallenge>, // VRF challenge generated in main thread
@@ -507,6 +509,9 @@ pub async fn request_registration_credential_confirmation(
         "payload": {
             "nearAccountId": near_account_id,
             "deviceNumber": device_number,
+            // Include intentDigest in payload so main-thread code that only
+            // echoes payload.intentDigest can return it for parsing on Rust side
+            "intentDigest": intent_digest,
             "rpcCall": {
                 "contractId": contract_id,
                 "nearRpcUrl": near_rpc_url,
@@ -519,8 +524,8 @@ pub async fn request_registration_credential_confirmation(
 
     // Serialize to JSON string for robust cross-boundary cloning into TS
     let request_json_str = serde_json::to_string(&request_obj)
-        .map_err(|e| format!("Failed to serialize V2 link-device confirm request to string: {}", e))?;
-    web_sys::console::log_1(&format!("[Rust] V2 confirm request (link-device) JSON length: {}", request_json_str.len()).into());
+        .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
+    web_sys::console::log_1(&format!("[Rust] V2 confirm registration request JSON length: {}", request_json_str.len()).into());
     let request_js = JsValue::from_str(&request_json_str);
 
     let confirm_result = await_secure_confirmation_v2(request_js).await;

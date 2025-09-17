@@ -12,6 +12,7 @@ import {
 } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
 import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
+import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
@@ -122,7 +123,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   // Inline Lit wrapper creation
   const RawIframeButton = useMemo(() => createComponent({
     react: React,
-    tagName: 'iframe-button',
+    tagName: W3A_TX_BUTTON_ID,
     elementClass: IframeButtonHost,
     events: {}
   }), []);
@@ -158,7 +159,6 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
 
   return (
     <RawIframeButton
-      invokedFrom={"iframe" as any}
       onMouseEnter={() => {
         // Warm up block height/hash (and nonce if missing) on hover
         // Fire-and-forget to avoid blocking UI thread

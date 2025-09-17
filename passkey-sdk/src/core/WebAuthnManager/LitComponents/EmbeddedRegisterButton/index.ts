@@ -1,4 +1,6 @@
 import { html, css } from 'lit';
+import { defineTag } from '../tags';
+import { TAG_DEFS } from '../tags';
 import { styleMap } from 'lit/directives/style-map.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 
@@ -94,4 +96,5 @@ export class EmbeddedRegisterButton extends LitElementWithProps {
   }
 }
 
-customElements.define('embedded-register-button', EmbeddedRegisterButton);
+// Define canonical + alias tags centrally
+try { defineTag('registerButton', EmbeddedRegisterButton as unknown as CustomElementConstructor); } catch {}

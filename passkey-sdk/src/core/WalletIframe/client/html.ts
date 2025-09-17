@@ -2,7 +2,7 @@
 // a service page at `${walletOrigin}${servicePath}` without copying files.
 // Serve the returned string as text/html from your server route.
 
-import { sanitizeSdkBasePath, escapeHtmlAttribute } from './sanitization';
+import { sanitizeSdkBasePath, escapeHtmlAttribute } from '../sanitization';
 
 export function getWalletServiceHtml(sdkBasePath: string = '/sdk'): string {
   const sanitizedBasePath = sanitizeSdkBasePath(sdkBasePath);

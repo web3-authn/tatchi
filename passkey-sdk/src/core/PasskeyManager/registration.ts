@@ -83,7 +83,9 @@ export async function registerPasskey(
       nearRpcUrl: context.configs.nearRpcUrl,
     });
     if (!confirm.confirmed || !confirm.credential) {
-      throw new Error('User cancelled registration');
+      const reason = confirm?.error || 'User cancelled registration';
+      console.warn('Registration confirm failed', { confirmed: confirm?.confirmed, hasCredential: !!confirm?.credential, error: confirm?.error });
+      throw new Error(reason);
     }
     const credential: WebAuthnRegistrationCredential = confirm.credential;
     const vrfChallenge = confirm.vrfChallenge as VRFChallenge;

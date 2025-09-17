@@ -10,28 +10,29 @@ export async function awaitWalletIframeReady(
   manager: any,
   opts?: { timeoutMs?: number }
 ): Promise<boolean> {
-  const timeoutMs = Math.max(250, Math.min(10_000, opts?.timeoutMs ?? 1500));
+  const timeoutMs = Math.max(500, Math.min(15_000, opts?.timeoutMs ?? 4000));
 
   if (!manager || (typeof manager !== 'object' && typeof manager !== 'function')) return false;
 
   const getClient = (): any => {
     try { return (typeof manager.getServiceClient === 'function') ? manager.getServiceClient() : null; } catch { return null; }
   };
-  const client = getClient();
 
   const isReadyNow = (): boolean => {
     try { if (typeof manager.isReady === 'function' && manager.isReady()) return true; } catch {}
-    try { if (client && typeof client.isReady === 'function' && client.isReady()) return true; } catch {}
+    try {
+      const c = getClient();
+      if (c && typeof c.isReady === 'function' && c.isReady()) return true;
+    } catch {}
     return false;
   };
 
-  // Kick init if available (no-op if already initialized)
-  try { if (typeof manager.initWalletIframe === 'function') await manager.initWalletIframe(); } catch {}
+  // Only wait if the manager looks iframe-capable
+  const iframeCapable = (typeof manager.initWalletIframe === 'function') || (typeof manager.getServiceClient === 'function');
+  if (!iframeCapable) return false;
 
-  if (!('isReady' in (manager || {})) && !client) {
-    // Not an iframe-capable manager; nothing to wait for
-    return false;
-  }
+  // Kick init (idempotent in implementations)
+  try { if (typeof manager.initWalletIframe === 'function') await manager.initWalletIframe(); } catch {}
 
   if (isReadyNow()) return true;
 
@@ -45,7 +46,7 @@ export async function awaitWalletIframeReady(
       resolve(ok);
     };
 
-    // Subscribe to whichever onReady is available
+    // Subscribe to onReady hooks if available
     let offMgr: (() => void) | undefined;
     let offCli: (() => void) | undefined;
     try {
@@ -60,12 +61,14 @@ export async function awaitWalletIframeReady(
       }
     } catch {}
 
-    // Poll as a backup in case onReady is not provided
+    // Poll and keep nudging init as a backup
     const start = Date.now();
     const poll = async () => {
       if (done) return;
       if (isReadyNow()) { finish(true); return; }
       if (Date.now() - start >= timeoutMs) { finish(false); return; }
+      // Nudge init (no-op if already initialized)
+      try { if (typeof manager.initWalletIframe === 'function') await manager.initWalletIframe(); } catch {}
       setTimeout(poll, 100);
     };
     poll();
@@ -73,4 +76,3 @@ export async function awaitWalletIframeReady(
     const timer = setTimeout(() => finish(false), timeoutMs + 50) as unknown as number;
   });
 }
-

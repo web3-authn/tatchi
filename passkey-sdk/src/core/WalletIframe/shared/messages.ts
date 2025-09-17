@@ -1,7 +1,7 @@
 
 // Typed RPC messages for the wallet service iframe channel (PasskeyManager-first)
 import { AuthenticatorOptions } from '@/server';
-import { ActionArgs, TransactionInput } from '../types';
+import { ActionArgs, TransactionInput } from '../../types';
 import {
   BaseHooksOptions,
   LoginHooksOptions,
@@ -10,7 +10,7 @@ import {
   SignAndSendTransactionHooksOptions,
   ScanAndLinkDeviceOptionsDevice1,
   StartDeviceLinkingOptionsDevice2
-} from '../types';
+} from '../../types';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -193,7 +193,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_DELETE_DEVICE_KEY', PMDeleteDeviceKeyPayload>
   // Device linking
   | RpcEnvelope<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA', {
-      qrData: import('../types/linkDevice').DeviceLinkingQRData;
+      qrData: import('../../types/linkDevice').DeviceLinkingQRData;
       fundingAmount: string;
     }>
   | RpcEnvelope<'PM_START_DEVICE2_LINKING_FLOW', {

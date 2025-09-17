@@ -14,7 +14,7 @@ import {
   type SignNEP413MessageResult,
   ActionArgs
 } from '@/index';
-import { PasskeyManagerIframe } from '@/core/WalletIframe';
+import type { WalletIframeRouter } from '@/core/WalletIframe/client/router';
 import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
 import type {
@@ -33,40 +33,17 @@ import type {
   DeviceLinkingSSEEvent,
 } from '../types';
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
-import { PasskeyManagerConfigs } from "@/core/types/passkeyManager";
+import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@/core/defaultConfigs';
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
 
 // Global singleton to prevent multiple manager instances in StrictMode
-let globalPasskeyManager: any | null = null;
-let globalConfig: any = null;
+let globalPasskeyManager: PasskeyManager | null = null;
+let globalConfig: PasskeyManagerConfigs | null = null;
 
-export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
-  // nearRpcUrl: 'https://rpc.testnet.near.org',
-  nearRpcUrl: 'https://test.rpc.fastnear.com',
-  nearNetwork: 'testnet' as const,
-  contractId: 'web3-authn-v5.testnet',
-  nearExplorerUrl: 'https://testnet.nearblocks.io',
-  relayer: {
-    accountId: 'web3-authn-v5.testnet',
-    url: 'http://localhost:3000',
-  },
-  vrfWorkerConfigs: {
-    shamir3pass: {
-      // default Shamir's P in vrf-wasm-worker, needs to match relay server's Shamir P
-      p: '3N5w46AIGjGT2v5Vua_TMD5Ywfa9U2F7-WzW8SNDsIM',
-      relayServerUrl: 'http://localhost:3000',
-      applyServerLockRoute: '/vrf/apply-server-lock',
-      removeServerLockRoute: '/vrf/remove-server-lock',
-    }
-  }
-  ,
-  // By default, use a hosted wallet service origin so integrators don't need to
-  // copy any HTML. Override this in production to your wallet origin if needed.
-  // Leave undefined to run entirely same‑origin (less secure) for local dev.
-  // walletOrigin: 'https://wallet.web3authn.xyz',
-  // walletServicePath: '/service',
-}
+// Note: defaults moved to core/defaultConfigs to avoid coupling top-level SDK
+// consumers to React bundles.
 
 export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   children,
@@ -100,22 +77,18 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   const nearClient = useNearClient();
 
   // Initialize manager (PasskeyManager or PasskeyManagerIframe) with singleton pattern
-  const passkeyManager = useMemo(() => {
-    const finalConfig = { ...PASSKEY_MANAGER_DEFAULT_CONFIGS, ...config } as any;
+  const passkeyManager = useMemo<PasskeyManager>(() => {
+    const finalConfig: PasskeyManagerConfigs = { ...PASSKEY_MANAGER_DEFAULT_CONFIGS, ...config };
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
       console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
-      if (finalConfig.walletOrigin) {
-        globalPasskeyManager = new PasskeyManagerIframe(finalConfig) as any as PasskeyManager;
-      } else {
-        globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
-      }
+      globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
       globalConfig = finalConfig;
     }
     return globalPasskeyManager as PasskeyManager;
   }, [config, nearClient]);
 
-  const pmIframeRef = useRef<PasskeyManagerIframe | null>(null);
+  const pmIframeRef = useRef<WalletIframeRouter | null>(null);
 
   // Initialize wallet service via PasskeyManagerIframe when walletOrigin is provided
   useEffect(() => {
@@ -124,23 +97,24 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     let cancelled = false;
     (async () => {
       try {
-        const useIframe = !!(passkeyManager as any)?.initWalletIframe && !!config.walletOrigin;
+        const useIframe = !!config.iframeWallet?.walletOrigin;
         if (!useIframe) {
           setWalletIframeConnected(false);
           return;
         }
 
-        const pmIframe = passkeyManager as any as PasskeyManagerIframe;
-        await pmIframe.initWalletIframe();
+        await passkeyManager.initWalletIframe();
+        const client = passkeyManager.getServiceClient();
+        if (!client) { setWalletIframeConnected(false); return; }
         if (cancelled) return;
-        setWalletIframeConnected(pmIframe.isReady());
+        setWalletIframeConnected(client.isReady());
 
-        offReady = pmIframe.onReady?.(() => setWalletIframeConnected(true));
+        offReady = client.onReady?.(() => setWalletIframeConnected(true));
 
-        offVrf = pmIframe.onVrfStatusChanged?.(async (status) => {
+        offVrf = client.onVrfStatusChanged?.(async (status) => {
           if (cancelled) return;
           if (status?.active && status?.nearAccountId) {
-            const state = await pmIframe.getLoginState(status.nearAccountId);
+            const state = await client.getLoginState(status.nearAccountId);
             setLoginState(prev => ({
               ...prev,
               isLoggedIn: true,
@@ -154,7 +128,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
         // Reflect initial status
         try {
-          const st = await pmIframe.getLoginState();
+          const st = await client.getLoginState();
           if (st?.vrfActive && st?.nearAccountId) {
             setLoginState(prev => ({
               ...prev,
@@ -164,8 +138,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
             }));
           }
         } catch {}
-
-        pmIframeRef.current = pmIframe;
+        pmIframeRef.current = client;
       } catch (err) {
         console.warn('[PasskeyProvider] WalletIframe init failed:', err);
       }
@@ -212,10 +185,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Simple logout that only manages React state
   const logout = useCallback(async () => {
     try {
-      // Explicitly clear wallet-origin VRF session if service iframe is active
-      try { await pmIframeRef.current?.logoutAndClearVrfSession?.(); } catch {}
-
-      // Clear VRF session when user logs out
+      // Clear VRF session when user logs out (also clears wallet-origin session if active)
       await passkeyManager.logoutAndClearVrfSession();
     } catch (error) {
       console.warn('VRF logout warning:', error);
@@ -230,16 +200,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }, [passkeyManager]);
 
   const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
-    // Prefer wallet-origin login when iframe is connected
-    if (walletIframeConnected && pmIframeRef.current) {
-      const result = await pmIframeRef.current.loginPasskey(nearAccountId, options as any);
-      if ((result as any)?.success) {
-        const st = await pmIframeRef.current.getLoginState(nearAccountId);
-        setLoginState(prev => ({ ...prev, isLoggedIn: !!st.vrfActive, nearAccountId: st.nearAccountId, nearPublicKey: st.publicKey || null }));
-      }
-      return result as LoginResult;
-    }
-
     const result: LoginResult = await passkeyManager.loginPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -265,15 +225,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }
 
   const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
-    // Prefer wallet-origin registration when iframe is connected
-    if (walletIframeConnected && pmIframeRef.current) {
-      const result = await pmIframeRef.current.registerPasskey(nearAccountId, options as any);
-      if ((result as any)?.success) {
-        await refreshLoginState(nearAccountId);
-      }
-      return result as RegistrationResult;
-    }
-
     const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -294,7 +245,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }
 
   const recoverAccount = async (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => {
-    return await (passkeyManager as any).recoverAccountFlow({ accountId: args.accountId, options: args.options });
+    return await passkeyManager.recoverAccountFlow({ accountId: args.accountId, options: args.options });
   }
 
   // Device2: Start device linking flow (returns QR payload)
@@ -308,7 +259,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
         }
       }
     });
-    return res as { qrData: any; qrCodeDataURL: string };
+    return res;
   };
 
   const stopDevice2LinkingFlow = async () => {
@@ -345,10 +296,10 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   const refreshLoginState = useCallback(async (nearAccountId?: string) => {
     try {
       // Prefer wallet-origin VRF status if available via PasskeyManagerIframe
-      const pmIframe = pmIframeRef.current;
-      if (walletIframeConnected && pmIframeRef.current) {
+      const pmClient = pmIframeRef.current;
+      if (walletIframeConnected && pmClient) {
         try {
-          const st = await pmIframe!.getLoginState();
+          const st = await pmClient.getLoginState();
           if (st?.vrfActive && st?.nearAccountId) {
             setLoginState(prevState => ({
               ...prevState,
@@ -415,7 +366,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
     // Confirmation configuration functions
     setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),
-    setConfirmationConfig: (config: any) => passkeyManager.setConfirmationConfig(config),
+    setConfirmationConfig: (config) => passkeyManager.setConfirmationConfig(config),
     setUserTheme: (theme: 'dark' | 'light') => passkeyManager.setUserTheme(theme),
     getConfirmationConfig: () => passkeyManager.getConfirmationConfig(),
 

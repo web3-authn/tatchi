@@ -13,8 +13,9 @@
  * WalletIframeRouter can depend on without worrying about browser quirks.
  */
 
-import type { ChildToParentEnvelope } from './messages';
-import { sanitizeSdkBasePath, escapeHtmlAttribute } from './sanitization';
+import type { ChildToParentEnvelope } from '../shared/messages';
+import { isRecord } from '../validation';
+import { sanitizeSdkBasePath, escapeHtmlAttribute } from '../sanitization';
 
 export interface IframeTransportOptions {
   walletOrigin?: string;     // e.g., https://wallet.example.com (optional; empty => same-origin srcdoc)
@@ -44,8 +45,8 @@ export class IframeTransport {
       const { walletOrigin } = this.opts;
       if (walletOrigin) {
         window.addEventListener('message', (e) => {
-          const data = e.data as any;
-          if (e.origin === walletOrigin && data && typeof data === 'object' && data.type === 'SERVICE_HOST_BOOTED') {
+          const data = e.data as unknown;
+          if (e.origin === walletOrigin && isRecord(data) && (data as any).type === 'SERVICE_HOST_BOOTED') {
             try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
             this.serviceBooted = true;
           }
@@ -209,4 +210,3 @@ export class IframeTransport {
     });
   }
 }
-

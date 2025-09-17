@@ -1,8 +1,23 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePasskeyContext } from '@/react/context';
 import { ArrowUpIcon } from './PasskeyAuthMenu/icons';
+import type { PasskeyManagerConfigs, RegistrationResult } from '@/core/types/passkeyManager';
+import { isRecord, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
 
-export function WalletRegisterButtonHost({
+export interface WalletIframeRegisterButtonHostProps {
+  nearAccountId: string;
+  text?: string;
+  theme?: 'dark' | 'light';
+  width?: number | string;
+  height?: number | string;
+  className?: string;
+  style?: React.CSSProperties | Record<string, string>;
+  onSuccess?: (result: RegistrationResult) => void;
+  onError?: (error: Error) => void;
+  autoClose?: boolean;
+}
+
+export function WalletIframeRegisterButtonHost({
   nearAccountId,
   text = 'Create Passkey',
   theme = 'dark',
@@ -13,21 +28,11 @@ export function WalletRegisterButtonHost({
   onSuccess,
   onError,
   autoClose = true,
-}: {
-  nearAccountId: string;
-  text?: string;
-  theme?: 'dark' | 'light';
-  width?: number | string;
-  height?: number | string;
-  className?: string;
-  style?: React.CSSProperties;
-  onSuccess?: (result: any) => void;
-  onError?: (error: Error) => void;
-  autoClose?: boolean;
-}) {
+}: WalletIframeRegisterButtonHostProps) {
   const ctx = usePasskeyContext();
-  const pmConfigs = (ctx?.passkeyManager as any)?.configs || ({} as any);
-  const { walletOrigin, walletServicePath } = pmConfigs;
+  const pmConfigs: PasskeyManagerConfigs | undefined = ctx?.passkeyManager?.configs;
+  const walletOrigin = pmConfigs?.iframeWallet?.walletOrigin;
+  const walletServicePath = pmConfigs?.iframeWallet?.walletServicePath;
   const src = useMemo(() => {
     const origin = walletOrigin || window.location.origin;
     const path = walletServicePath || '/wallet-service';
@@ -39,13 +44,20 @@ export function WalletRegisterButtonHost({
 
   useEffect(() => {
     const onMessage = (evt: MessageEvent) => {
-      const t = (evt?.data && (evt.data as any).type) || undefined;
-      const p = (evt?.data && (evt.data as any).payload) || undefined;
-      if (t === 'SERVICE_HOST_BOOTED') {
+      const data = evt.data as unknown;
+      const type = isRecord(data) && isString((data as any).type) ? (data as any).type : undefined;
+      const payload = isRecord(data) && isRecord(data.payload) ? data.payload : undefined;
+      if (type === 'SERVICE_HOST_BOOTED') {
         setReady(true);
-      } else if (t === 'REGISTER_RESULT') {
-        if (p?.ok) onSuccess?.(p?.result);
-        else onError?.(new Error(p?.error || 'Registration failed'));
+      } else if (type === 'REGISTER_RESULT' && isRecord(payload)) {
+        const ok = payload.ok as boolean | undefined;
+        if (ok) {
+          const result = (payload as { result?: RegistrationResult }).result;
+          if (result) onSuccess?.(result);
+        } else {
+          const errMsg = (payload as { error?: string }).error || 'Registration failed';
+          onError?.(new Error(errMsg));
+        }
       }
     };
     window.addEventListener('message', onMessage);
@@ -70,7 +82,7 @@ export function WalletRegisterButtonHost({
   // Match ArrowButton layout and animations
   const toCssSize = (v?: number | string): string | undefined => {
     if (v == null) return undefined;
-    if (typeof v === 'number' && Number.isFinite(v)) return `${v}px`;
+    if (isFiniteNumber(v)) return `${v}px`;
     const s = String(v).trim();
     return s || undefined;
   };
@@ -109,4 +121,4 @@ export function WalletRegisterButtonHost({
   );
 }
 
-export default WalletRegisterButtonHost;
+export default WalletIframeRegisterButtonHost;

@@ -1,4 +1,4 @@
-import { WalletIframeRouter } from './router';
+import { WalletIframeRouter } from './client/router';
 import { PasskeyManager } from '../PasskeyManager';
 import { MinimalNearClient } from '../NearClient';
 import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
@@ -23,6 +23,7 @@ import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../PasskeyManager';
+import type { WalletUIRegistry } from './host/lit-element-registry';
 
 
 export class PasskeyManagerIframe {
@@ -61,8 +62,8 @@ export class PasskeyManagerIframe {
   constructor(configs: PasskeyManagerConfigs) {
     this.configs = configs;
     this.client = new WalletIframeRouter({
-      walletOrigin: configs.walletOrigin || '',
-      servicePath: configs.walletServicePath || '/service',
+      walletOrigin: configs.iframeWallet?.walletOrigin || '',
+      servicePath: configs.iframeWallet?.walletServicePath || '/service',
       connectTimeoutMs: 20000,
       requestTimeoutMs: 30000,
       theme: configs.walletTheme,
@@ -71,8 +72,9 @@ export class PasskeyManagerIframe {
       contractId: configs.contractId,
       relayer: configs.relayer,
       vrfWorkerConfigs: configs.vrfWorkerConfigs,
-      rpIdOverride: configs.rpIdOverride,
+      rpIdOverride: configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: configs.authenticatorOptions,
+      uiRegistry: configs.iframeWallet?.uiRegistry as any,
     });
   }
 
@@ -101,6 +103,16 @@ export class PasskeyManagerIframe {
   ): () => void {
     return this.client.onVrfStatusChanged(cb);
   }
+
+  // === Generic Wallet UI registration/mounting ===
+  registerWalletUI(types: WalletUIRegistry): void { this.client.registerUiTypes(types); }
+  mountWalletUI(params: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }): void {
+    this.client.mountUiComponent(params);
+  }
+  updateWalletUI(id: string, props?: Record<string, unknown>): void {
+    this.client.updateUiComponent({ id, props });
+  }
+  unmountWalletUI(id: string): void { this.client.unmountUiComponent(id); }
 
   async registerPasskey(nearAccountId: string, options: RegistrationHooksOptions = {}): Promise<RegistrationResult> {
     try { await options?.beforeCall?.(); } catch {}
@@ -368,10 +380,30 @@ export class PasskeyManagerIframe {
     await this.client.prefetchBlockheight();
   }
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
-    if (!this.client.isReady()) {
-      return { accountIds: [], lastUsedAccountId: null };
+    // Avoid readiness race by ensuring the client initializes.
+    try { await this.client.init(); } catch {}
+    let remote: GetRecentLoginsResult | null = null;
+    try {
+      remote = await this.client.getRecentLogins();
+    } catch (err) {
+      // Wallet host may be on older bundle (IDB VersionError). Fallback to local.
+      try {
+        return await this.ensureFallbackLocal().getRecentLogins();
+      } catch {}
+      throw err;
     }
-    return this.client.getRecentLogins();
+    // If wallet-origin has no last user yet (common in first-run dev),
+    // fall back to local IndexedDB for lastUsedAccountId so the UI can prefill.
+    try {
+      if (!remote?.lastUsedAccountId) {
+        const local = this.ensureFallbackLocal();
+        const loc = await local.getRecentLogins();
+        if (loc?.lastUsedAccountId) {
+          remote = { accountIds: remote?.accountIds || [], lastUsedAccountId: loc.lastUsedAccountId };
+        }
+      }
+    } catch {}
+    return remote as GetRecentLoginsResult;
   }
   async hasPasskeyCredential(nearAccountId: string): Promise<boolean> {
     return this.client.hasPasskeyCredential(nearAccountId);
@@ -410,9 +442,7 @@ export class PasskeyManagerIframe {
         actionArgs: args.actionArgs,
         options: {
           onEvent: args.options?.onEvent,
-          ...(typeof args.options?.waitUntil !== 'undefined'
-            ? { waitUntil: args.options?.waitUntil }
-            : {})
+          waitUntil: args.options?.waitUntil,
         }
       });
       try { await args.options?.afterCall?.(true, res); } catch {}
@@ -435,10 +465,7 @@ export class PasskeyManagerIframe {
         signedTransaction: args.signedTransaction,
         options: {
           onEvent: options?.onEvent,
-          ...(typeof options?.waitUntil !== 'undefined'
-            ? { waitUntil: options?.waitUntil }
-            : {}
-          )
+          waitUntil: options?.waitUntil,
         }
       });
       await options?.afterCall?.(true, res);

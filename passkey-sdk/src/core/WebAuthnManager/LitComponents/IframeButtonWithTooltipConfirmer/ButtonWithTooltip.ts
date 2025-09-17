@@ -9,7 +9,7 @@ import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { TooltipGeometry, TooltipPositionInternal } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from './tags';
+import { BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
 
 /**

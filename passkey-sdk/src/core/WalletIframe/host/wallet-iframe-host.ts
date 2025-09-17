@@ -4,8 +4,6 @@
 // Ensure common Node-ish globals exist for browser bundles that expect them
 try { (globalThis as any).global = (globalThis as any).global || globalThis; } catch {}
 try { (globalThis as any).process = (globalThis as any).process || { env: {} }; } catch {}
-try { window.addEventListener('DOMContentLoaded', () => console.debug('[WalletHost] DOMContentLoaded')); } catch {}
-try { window.addEventListener('load', () => console.debug('[WalletHost] window load')); } catch {}
 try { window.parent?.postMessage({ type: 'SERVICE_HOST_BOOTED' }, '*'); } catch {}
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
 try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
@@ -41,16 +39,17 @@ import type {
   PMHasPasskeyPayload,
   PMViewAccessKeysPayload,
   PMDeleteDeviceKeyPayload,
-} from './messages';
-import { MinimalNearClient, SignedTransaction } from '../NearClient';
-import { setupElemMounter } from './elem-mounter';
-import type { PasskeyManagerConfigs } from '../types/passkeyManager';
-import { PasskeyManager } from '../PasskeyManager';
-import { PasskeyManagerIframe } from './PasskeyManagerIframe';
-import type { DeviceLinkingQRData } from '../types/linkDevice';
-import type { TransactionInput } from '../types';
-import type { ProgressPayload } from './messages';
-import type { ConfirmationConfig } from '../types/signer-worker';
+} from '../shared/messages';
+import { MinimalNearClient, SignedTransaction } from '../../NearClient';
+import { setupLitElemMounter } from './lit-elem-mounter';
+import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
+import { isRecord, isString, isFiniteNumber } from '../validation';
+import { PasskeyManager } from '../../PasskeyManager';
+import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
+import type { DeviceLinkingQRData } from '../../types/linkDevice';
+import type { TransactionInput } from '../../types';
+import type { ProgressPayload } from '../shared/messages';
+import type { ConfirmationConfig } from '../../types/signer-worker';
 import type {
   RegistrationHooksOptions,
   LoginHooksOptions,
@@ -59,12 +58,12 @@ import type {
   SendTransactionHooksOptions,
   BaseHooksOptions,
   AccountRecoveryHooksOptions,
-} from '../types/passkeyManager';
+} from '../../types/passkeyManager';
 import type {
   ScanAndLinkDeviceOptionsDevice1,
   StartDeviceLinkingOptionsDevice2
-} from '../types/linkDevice';
-import { toAccountId } from '../types/accountIds';
+} from '../../types/linkDevice';
+import { toAccountId } from '../../types/accountIds';
 
 const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
 
@@ -85,7 +84,19 @@ function ensurePasskeyManager(): void {
   }
   if (!nearClient) nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   if (!passkeyManager) {
-    const cfg = { ...walletConfigs };
+    // IMPORTANT: The wallet host must not consider itself an iframe client.
+    // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
+    // Also clear rpIdOverride so WebAuthn rpId defaults to the host (wallet.example.localhost).
+    const cfg = {
+      ...walletConfigs,
+      iframeWallet: {
+        ...(walletConfigs?.iframeWallet || {}),
+        walletOrigin: undefined,
+        walletServicePath: undefined,
+        rpIdOverride: undefined,
+        isWalletIframeHost: true,
+      },
+    } as PasskeyManagerConfigs;
     passkeyManager = new PasskeyManager(cfg, nearClient);
     // Bridge theme changes to the host document so embedded UIs can react via CSS
     try {
@@ -110,21 +121,18 @@ function post(msg: ChildToParentEnvelope) {
 // iframe can instruct this host to render a clickable button that performs WebAuthn
 // create() within the same browsing context (satisfying user activation requirements).
 (() => {
-  setupElemMounter({
+  setupLitElemMounter({
     ensurePasskeyManager,
     getPasskeyManager: () => passkeyManager,
     updateWalletConfigs: (patch) => {
-      try {
-        walletConfigs = { ...walletConfigs, ...patch } as PasskeyManagerConfigs;
-        console.debug('[WalletHost:RegisterBtn] config updated via WALLET_SET_CONFIG');
-      } catch {}
+      walletConfigs = { ...walletConfigs, ...patch } as PasskeyManagerConfigs;
     },
   });
 })();
 
 async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   const req = e.data as ParentToChildEnvelope;
-  if (!req || typeof req !== 'object') return;
+  if (!req || !isRecord(req)) return;
   const requestId = req.requestId;
 
   if (req.type === 'PING') { post({ type: 'PONG', requestId }); return; }
@@ -139,21 +147,31 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       relayer: payload?.relayer || walletConfigs?.relayer,
       authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
-      walletOrigin: undefined,
-      walletServicePath: undefined,
       walletTheme: payload?.theme || walletConfigs?.walletTheme,
-      rpIdOverride: payload?.rpIdOverride || walletConfigs?.rpIdOverride,
+      iframeWallet: {
+        ...(walletConfigs?.iframeWallet || {}),
+        walletOrigin: undefined,
+        walletServicePath: undefined,
+        rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
+      },
     } as PasskeyManagerConfigs;
     // Configure SDK embedded asset base for Lit modal/embedded components
     try {
       const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
-      if (assetsBaseUrl && typeof assetsBaseUrl === 'string') {
+      if (isString(assetsBaseUrl)) {
         const norm = assetsBaseUrl.endsWith('/') ? assetsBaseUrl : assetsBaseUrl + '/';
         (window as any).__W3A_EMBEDDED_BASE__ = norm + 'embedded/';
         try { console.debug('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
       }
     } catch {}
     nearClient = null; passkeyManager = null;
+    // Forward UI registry to lit-elem-mounter if provided
+    try {
+      const uiRegistry = (payload as any)?.uiRegistry;
+      if (uiRegistry && isRecord(uiRegistry)) {
+        window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
+      }
+    } catch {}
     post({ type: 'PONG', requestId });
     return;
   }
@@ -229,7 +247,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
       case 'PM_GET_LOGIN_STATE': {
         ensurePasskeyManager();
-        const { nearAccountId } = req.payload as PMGetLoginStatePayload;
+        const nearAccountId = (req.payload as PMGetLoginStatePayload | undefined)?.nearAccountId;
         const state = await passkeyManager!.getLoginState(nearAccountId);
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result: state } });
         return;
@@ -393,7 +411,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         const { signedTransaction, options } = (req.payload || {}) as PMSendTxPayload & { options?: Record<string, unknown> };
         let st: any = signedTransaction;
         try {
-          if (st && typeof st.base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
+          if (st && typeof (st as any).base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
             st = new SignedTransaction({
               transaction: st.transaction,
               signature: st.signature,
@@ -563,6 +581,17 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       case 'PM_HAS_PASSKEY': {
         ensurePasskeyManager();
         const { nearAccountId } = (req.payload || {}) as PMHasPasskeyPayload;
+        // Gather additional diagnostics from IndexedDB
+        try {
+          const ctx = (passkeyManager as any)?.getContext?.();
+          const web = ctx?.webAuthnManager;
+          if (web) {
+            let user: any = null;
+            let auths: any[] = [];
+            try { user = await web.getUser(toAccountId(nearAccountId)); } catch {}
+            try { auths = await web.getAuthenticatorsByUser(toAccountId(nearAccountId)); } catch {}
+          }
+        } catch {}
         const result = await passkeyManager!.hasPasskeyCredential(toAccountId(nearAccountId));
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
         return;
@@ -634,15 +663,13 @@ function adoptPort(p: MessagePort) {
   port = p;
   port.onmessage = onPortMessage as any;
   port.start?.();
-  try { console.debug('[WalletHost] Port adopted; posting READY'); } catch {}
   post({ type: 'READY', payload: { protocolVersion: PROTOCOL } });
 }
 
 function onWindowMessage(e: MessageEvent) {
   const { data, ports } = e;
-  if (!data || typeof data !== 'object') return;
+  if (!data || !isRecord(data)) return;
   if ((data as any).type === 'CONNECT' && ports && ports[0]) {
-    try { console.debug('[WalletHost] CONNECT received; adopting port'); } catch {}
     adoptPort(ports[0]);
   }
 }
@@ -654,16 +681,16 @@ export {};
 // Normalize an arbitrary patch object into a valid ConfirmationConfig object using base as defaults
 function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<string, unknown>): ConfirmationConfig {
   const p: any = patch || {};
-  const uiModeCand = typeof p.uiMode === 'string' ? p.uiMode : undefined;
-  const behaviorCand = typeof p.behavior === 'string' ? p.behavior : undefined;
+  const uiModeCand = isString(p.uiMode) ? p.uiMode : undefined;
+  const behaviorCand = isString(p.behavior) ? p.behavior : undefined;
   let delayCand: number | undefined;
-  if (typeof p.autoProceedDelay === 'number' && Number.isFinite(p.autoProceedDelay)) {
+  if (isFiniteNumber(p.autoProceedDelay)) {
     delayCand = p.autoProceedDelay as number;
-  } else if (typeof p.autoProceedDelay === 'string') {
+  } else if (isString(p.autoProceedDelay)) {
     const parsed = Number(p.autoProceedDelay);
     delayCand = Number.isFinite(parsed) ? parsed : undefined;
   }
-  const themeCand = typeof p.theme === 'string' ? p.theme : undefined;
+  const themeCand = isString(p.theme) ? p.theme : undefined;
 
   const uiMode: ConfirmationConfig['uiMode'] = (uiModeCand === 'skip' || uiModeCand === 'modal' || uiModeCand === 'embedded')
     ? uiModeCand

@@ -71,12 +71,6 @@ export interface SecureConfirmRequest<TPayload = any, TSummary = any> {
   // Optional intent digest to echo back in responses for flows that
   // do not have a tx-centric payload (e.g., registration/link flows)
   intentDigest?: string;
-  // Indicates where the call was initiated from, relative to the page hosting
-  // the PasskeyManager runtime.
-  // - 'parent': default; typical programmatic calls from outside any embedded UI
-  // - 'iframe': initiated by an embedded iframe control (e.g., IframeButtonHost)
-  // This is advisory and used only for runtime UI decisions/logging on the main thread.
-  invokedFrom?: 'iframe' | 'parent';
 }
 
 // V2 payloads

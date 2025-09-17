@@ -248,7 +248,10 @@ pub async fn handle_sign_transactions_with_actions(
     if !c.confirmed {
         return Ok(TransactionSignResult::failed(logs, "Transaction rejected by user".to_string()));
     }
-    logs.push(format!("User confirmation received with digest: {}", c.intent_digest));
+    logs.push(format!(
+        "User confirmation received with digest: {}",
+        c.intent_digest.clone().unwrap_or_default()
+    ));
 
     // Log validation success for embedded mode
     if let Some(confirmation_config) = &tx_batch_request.confirmation_config {

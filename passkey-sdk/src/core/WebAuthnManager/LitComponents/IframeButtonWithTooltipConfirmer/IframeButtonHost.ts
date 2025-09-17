@@ -13,8 +13,8 @@ import {
   EMBEDDED_SDK_BASE_PATH,
   BUTTON_WITH_TOOLTIP_ID,
   IFRAME_BOOTSTRAP_MODULE,
-  IFRAME_BUTTON_ID
-} from './tags';
+  defineTag
+} from '../tags';
 import {
   computeExpandedIframeSizeFromGeometryPure,
   computeIframeSizePure,
@@ -857,6 +857,8 @@ export class IframeButtonHost extends LitElementWithProps {
 }
 
 // Define the custom element
-customElements.define(IFRAME_BUTTON_ID, IframeButtonHost);
+try {
+try { defineTag('txButton', IframeButtonHost as unknown as CustomElementConstructor); } catch {}
+} catch {}
 
 export default IframeButtonHost;

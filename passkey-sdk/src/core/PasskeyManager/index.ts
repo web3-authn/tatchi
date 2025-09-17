@@ -62,7 +62,7 @@ import {
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
-import { WalletIframeRouter } from '../WalletIframe/router';
+import { WalletIframeRouter } from '../WalletIframe/client/router';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -111,11 +111,11 @@ export class PasskeyManager {
    * If `walletOrigin` is not provided in configs, this is a no‑op.
    */
   async initWalletIframe(): Promise<void> {
-    if (!this.configs.walletOrigin) return;
+    if (!this.configs.iframeWallet?.walletOrigin) return;
     if (this.iframeRouter) return;
     this.iframeRouter = new WalletIframeRouter({
-      walletOrigin: this.configs.walletOrigin,
-      servicePath: this.configs.walletServicePath || '/service',
+      walletOrigin: this.configs.iframeWallet?.walletOrigin,
+      servicePath: this.configs.iframeWallet?.walletServicePath || '/service',
       connectTimeoutMs: 20000,
       requestTimeoutMs: 30000,
       theme: this.configs.walletTheme,
@@ -125,7 +125,7 @@ export class PasskeyManager {
       // Ensure relay server config reaches the wallet host for atomic registration
       relayer: this.configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
-      rpIdOverride: this.configs.rpIdOverride,
+      rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
     });
     await this.iframeRouter.init();
   }
@@ -246,7 +246,8 @@ export class PasskeyManager {
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
     if (this.iframeRouter) {
-      return this.iframeRouter.hasPasskeyCredential(nearAccountId);
+      try { return await this.iframeRouter.hasPasskeyCredential(nearAccountId); }
+      catch { /* fall through to local */ }
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -743,6 +744,10 @@ export class PasskeyManager {
 
     const accountIdInput = args?.accountId || '';
     const options = args?.options;
+    // Ensure wallet iframe is initialized when walletOrigin is configured
+    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter) {
+      try { await this.initWalletIframe(); } catch {}
+    }
     // Prefer wallet-origin implementation when available
     if (this.iframeRouter?.isReady?.()) {
       return await this.iframeRouter.recoverAccountFlow({
@@ -750,6 +755,12 @@ export class PasskeyManager {
         onEvent: options?.onEvent
       });
     }
+    // If walletOrigin is configured but iframe is not ready, warn: recovery should run under wallet.*
+    try {
+      if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
+        console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
+      }
+    } catch {}
     // Local orchestration using AccountRecoveryFlow for a single-call UX
     await options?.beforeCall?.();
     try {

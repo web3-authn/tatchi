@@ -106,7 +106,7 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 
 ## 14) Next Steps
 
-- Parent: implement `WalletIframeClient` (mount, handshake, RPC, timeouts, origin checks).
+- Parent: implement `WalletIframeRouter` (mount, handshake, RPC, timeouts, origin checks).
 - Wallet: implement service page + RPC server; spawn signer/VRF workers; wire DB managers.
 - Wire Modal/Embedded flows to run WebAuthn in wallet origin and forward to local signer worker.
 - Migrate DBs to wallet origin; add one‑time import.

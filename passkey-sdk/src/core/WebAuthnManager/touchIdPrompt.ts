@@ -74,7 +74,7 @@ export class TouchIdPrompt {
     this.rpIdOverride = rpIdOverride;
   }
 
-  private getRpId(): string {
+  getRpId(): string {
     // Use override only if it's a valid registrable suffix of current host
     try {
       const host = (window?.location?.hostname || '').toLowerCase();
@@ -136,7 +136,7 @@ export class TouchIdPrompt {
   async getAuthenticationCredentialsForRecovery({
     nearAccountId,
     challenge,
-    allowCredentials
+    allowCredentials,
   }: {
     nearAccountId: string,
     challenge: VRFChallenge,
@@ -145,7 +145,7 @@ export class TouchIdPrompt {
     const credential = await this.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge,
-      allowCredentials
+      allowCredentials,
     });
     return serializeAuthenticationCredentialWithPRF({
       credential,
@@ -164,7 +164,7 @@ export class TouchIdPrompt {
   async generateRegistrationCredentialsInternal({
     nearAccountId,
     challenge,
-    deviceNumber
+    deviceNumber,
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
     return await navigator.credentials.create({
       publicKey: {

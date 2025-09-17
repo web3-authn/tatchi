@@ -149,7 +149,7 @@ Notes:
 ## Implementation Checklist
 
 - Parent SDK
-  - Add `WalletIframeClient` (mount iframe, handshake, MessageChannel, request/response).
+  - Add `WalletIframeRouter` (mount iframe, handshake, MessageChannel, request/response).
   - Wire `PasskeyManager` APIs to forward to the client.
   - Add configuration for `walletOrigin` and theme.
 

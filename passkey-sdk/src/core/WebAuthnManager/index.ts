@@ -21,7 +21,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
+import type { ExportNearKeypairWithTouchIdResult, PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -68,7 +68,7 @@ export class WebAuthnManager {
       removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
     // Respect rpIdOverride for WebAuthn get()/create() calls (cross-origin wallet scenarios)
-    this.touchIdPrompt = new TouchIdPrompt(passkeyManagerConfigs.rpIdOverride);
+    this.touchIdPrompt = new TouchIdPrompt(passkeyManagerConfigs.iframeWallet?.rpIdOverride);
     this.userPreferencesManager = UserPreferencesInstance;
     this.nonceManager = NonceManagerInstance;
     this.nearClient = nearClient;
@@ -77,8 +77,8 @@ export class WebAuthnManager {
       nearClient,
       UserPreferencesInstance,
       NonceManagerInstance,
-      passkeyManagerConfigs.rpIdOverride,
-      !!passkeyManagerConfigs.walletOrigin
+      passkeyManagerConfigs.iframeWallet?.rpIdOverride,
+      !!passkeyManagerConfigs.iframeWallet?.walletOrigin
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
@@ -594,11 +594,7 @@ export class WebAuthnManager {
   /**
    * Export private key using PRF-based decryption. Requires TouchId
    */
-  async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<{
-    accountId: string,
-    publicKey: string,
-    privateKey: string
-  }> {
+  async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<ExportNearKeypairWithTouchIdResult> {
     console.debug(`🔐 Exporting private key for account: ${nearAccountId}`);
     // Get user data to verify user exists
     const userData = await this.getUser(nearAccountId);
@@ -819,7 +815,7 @@ export class WebAuthnManager {
         id: id,
         type: 'public-key',
         transports: ['internal', 'hybrid', 'usb', 'ble'] as AuthenticatorTransport[]
-      }))
+      })),
     });
   }
 

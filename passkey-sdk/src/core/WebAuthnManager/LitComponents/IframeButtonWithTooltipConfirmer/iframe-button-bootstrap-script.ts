@@ -8,7 +8,7 @@ import type {
 import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
 import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
-import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from './tags';
+import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
 
 /**
  * Iframe Button Bootstrap Script (ESM)

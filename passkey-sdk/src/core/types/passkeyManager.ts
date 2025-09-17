@@ -592,13 +592,21 @@ export interface PasskeyManagerConfigs {
   nearNetwork: 'testnet' | 'mainnet';
   contractId: 'web3-authn-v5.testnet' | 'web3-authn.near' | string;
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
-  // Optional service iframe configuration (wallet origin hosting sensitive logic)
-  walletOrigin?: string; // e.g., https://wallet.example.com
-  walletServicePath?: string; // defaults to '/service'
   walletTheme?: 'dark' | 'light';
-  // Force WebAuthn rpId to a base domain so credentials work across subdomains
-  // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
-  rpIdOverride?: string;
+  // Iframe Wallet configuration (when using a separate wallet origin)
+  iframeWallet?: {
+    walletOrigin?: string; // e.g., https://wallet.example.com
+    walletServicePath?: string; // defaults to '/service'
+    // Internal flag set only inside the wallet iframe host context. Not for public consumption.
+    // Signals that WebAuthn flows are executing within the wallet.* origin.
+    isWalletIframeHost?: boolean;
+    // Optional: register wallet-host UI components (Lit tags + bindings)
+    // Allows mounting custom surfaces via generic messages without hardcoding.
+    uiRegistry?: Record<string, any>;
+    // Force WebAuthn rpId to a base domain so credentials work across subdomains
+    // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
+    rpIdOverride?: string;
+  };
   // Relay Server is used to create new NEAR accounts
   relayer: {
     accountId: string;

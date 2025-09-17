@@ -18,7 +18,7 @@ import {
 import { TransactionContext, VRFChallenge } from '../../../types';
 import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
-import { IFRAME_BUTTON_ID } from '../../LitComponents/IframeButtonWithTooltipConfirmer/tags';
+import { W3A_TX_BUTTON_ID } from '../../LitComponents/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 
 /**
@@ -61,17 +61,6 @@ export async function handlePromptUserConfirmInJsMainThread(
     }
   }
 
-  // Set invocation source hint if missing: detect embedded iframe button presence
-  try {
-    if (!request.invokedFrom) {
-      const el = document.querySelector(IFRAME_BUTTON_ID);
-      request.invokedFrom = el ? 'iframe' : 'parent';
-    }
-    try {
-      console.debug('[SecureConfirm][Host] invokedFrom:', request.invokedFrom || 'parent');
-    } catch {}
-  } catch {}
-
   // Extra diagnostics: ensure payload exists and has required fields
   if (!request?.payload) {
     console.error('[SecureConfirm][Host] Invalid secure confirm request: missing payload', request);
@@ -84,29 +73,24 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 
   // 2. Perform NEAR RPC calls first (needed for VRF challenge)
-  const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? request.payload.rpcCall.nearAccountId
-    : request.payload.nearAccountId;
-
-  const txCount = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? request.payload.txSigningRequests?.length : 1;
+  const nearAccountId = getNearAccountId(request);
+  const txCount = getTxCount(request);
 
   const nearRpcResult = await performNearRpcCalls(ctx, { nearAccountId, txCount });
 
-  // 3. If NEAR RPC failed, return error
-  if (nearRpcResult.error || !nearRpcResult.transactionContext) {
+  // 3. If NEAR RPC failed entirely, return error. Otherwise, proceed with whatever
+  //    transactionContext we could obtain (fallback includes block info for registration flows).
+  if (nearRpcResult.error && !nearRpcResult.transactionContext) {
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
-        ? request.payload.intentDigest
-        : undefined,
+      intentDigest: getIntentDigest(request),
       confirmed: false,
       error: `Failed to fetch NEAR data: ${nearRpcResult.details}`
     });
     return;
   }
 
-  const transactionContext = nearRpcResult.transactionContext;
+  const transactionContext = nearRpcResult.transactionContext as TransactionContext;
 
   // 4. Generate VRF challenge with NEAR data
   if (!ctx.vrfWorkerManager) {
@@ -115,7 +99,11 @@ export async function handlePromptUserConfirmInJsMainThread(
   // For registration/link flows, there is no unlocked VRF keypair yet.
   // Use the bootstrap path which creates a temporary VRF keypair in-memory
   // and returns a VRF challenge for the WebAuthn create() ceremony.
-  const rpId = resolveRpId(ctx.rpIdOverride);
+  // Derive effective rpId from the same TouchIdPrompt instance that will
+  // perform navigator.credentials.create()/get(), so VRF rpId matches
+  // the WebAuthn ceremony rpId exactly.
+  // Use the TouchIdPrompt's resolved rpId so WebAuthn and VRF share the same value
+  const rpId = ctx.touchIdPrompt.getRpId();
   let vrfChallenge: VRFChallenge;
   if (
     request.type === SecureConfirmationType.REGISTER_ACCOUNT ||
@@ -155,9 +143,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     closeModalSafely(false, confirmHandle);
     sendWorkerResponse(worker, {
       requestId: request.requestId,
-      intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
-        ? request.payload.intentDigest
-        : undefined,
+      intentDigest: getIntentDigest(request),
       confirmed: false,
       error: uiError
     });
@@ -167,9 +153,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   // 7. Create decision with generated data
   const decision: SecureConfirmDecision = {
     requestId: request.requestId,
-    intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
-      ? request.payload.intentDigest
-      : undefined,
+    intentDigest: getIntentDigest(request),
     confirmed: true,
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
@@ -234,6 +218,25 @@ function isRegistrableSuffix(host: string, cand: string): boolean {
   return host.endsWith('.' + cand);
 }
 
+// ===== Small helpers to centralize request shape access =====
+function getNearAccountId(request: SecureConfirmRequest): string {
+  return request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
+    : (request.payload as RegisterAccountPayload).nearAccountId;
+}
+
+function getTxCount(request: SecureConfirmRequest): number {
+  return request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? ((request.payload as SignTransactionPayload).txSigningRequests?.length || 1)
+    : 1;
+}
+
+function getIntentDigest(request: SecureConfirmRequest): string | undefined {
+  return request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? (request.payload as SignTransactionPayload).intentDigest
+    : undefined;
+}
+
 /**
  * Performs RPC call to get nonce, block hash and height
  * Uses NonceManager if available, otherwise falls back to direct RPC calls
@@ -268,12 +271,26 @@ async function performNearRpcCalls(
     return { transactionContext, reservedNonces };
   } catch (error: any) {
     // Registration or pre-login flows may not have NonceManager initialized.
-    // Fallback: try to fetch access key + block using IndexedDB public key, else block-only.
-    return {
-      transactionContext: null,
-      error: 'NEAR_RPC_FAILED',
-      details: error?.message,
-    };
+    // Fallback: fetch latest block info directly; nonces are not required for registration/link flows.
+    try {
+      const block = await ctx.nearClient.viewBlock({ finality: 'final' } as any);
+      const txBlockHeight = String(block?.header?.height ?? '');
+      const txBlockHash = String(block?.header?.hash ?? '');
+      const fallback: TransactionContext = {
+        nearPublicKeyStr: '', // not needed for registration VRF challenge
+        accessKeyInfo: { nonce: 0 } as any, // minimal shape; not used in registration/link flows
+        nextNonce: '0',       // placeholder; not used in registration/link flows
+        txBlockHeight,
+        txBlockHash,
+      } as TransactionContext;
+      return { transactionContext: fallback };
+    } catch (e: any) {
+      return {
+        transactionContext: null,
+        error: 'NEAR_RPC_FAILED',
+        details: e?.message || error?.message,
+      };
+    }
   }
 }
 
@@ -306,9 +323,7 @@ function validateAndParseRequest({ ctx, request }: {
   const transactionSummary: TransactionSummary = {
     totalAmount: summary?.totalAmount,
     method: summary?.method,
-    intentDigest: request.type === SecureConfirmationType.SIGN_TRANSACTION
-      ? (request.payload as SignTransactionPayload).intentDigest
-      : undefined,
+    intentDigest: getIntentDigest(request),
   };
 
   return {
@@ -340,12 +355,7 @@ async function renderUserConfirmUI({
   confirmHandle?: { element: HTMLElement, close: (confirmed: boolean) => void };
   error?: string;
 }> {
-  // Recompute effective config defensively at render time as well
-  confirmationConfig = determineConfirmationConfig(ctx, request);
-
-  const nearAccountIdForUi = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
-    : (request.payload as RegisterAccountPayload).nearAccountId;
+  const nearAccountIdForUi = getNearAccountId(request);
   // runtimeMode retained for future selection but not needed for confirm UI
 
   switch (confirmationConfig.uiMode) {
@@ -372,7 +382,7 @@ async function renderUserConfirmUI({
         return { confirmed, confirmHandle: handle };
       }
       try {
-        const hostEl = document.querySelector(IFRAME_BUTTON_ID) as HTMLElement & {
+        const hostEl = document.querySelector(W3A_TX_BUTTON_ID) as HTMLElement & {
           tooltipTheme?: string;
           requestUiIntentDigest?: () => Promise<string | null>;
         };
@@ -385,17 +395,13 @@ async function renderUserConfirmUI({
         let uiDigest: string | null = null;
         if (hostEl?.requestUiIntentDigest) {
           uiDigest = await hostEl.requestUiIntentDigest();
-          const intentDigest = request.type === SecureConfirmationType.SIGN_TRANSACTION
-            ? request.payload.intentDigest
-            : undefined;
+          const intentDigest = getIntentDigest(request);
           console.log('[SecureConfirm] digest check', { uiDigest, intentDigest });
         } else {
           console.error('[SecureConfirm]: missing requestUiIntentDigest on secure element');
         }
         // Debug: show UI digest and WASM worker's provided intentDigest for comparison
-        const expectedDigest = (request.type === SecureConfirmationType.SIGN_TRANSACTION
-          ? request.payload.intentDigest
-          : undefined);
+        const expectedDigest = getIntentDigest(request);
         if (uiDigest !== expectedDigest) {
           console.error('[SecureConfirm]: INTENT_DIGEST_MISMATCH', { uiDigest, expectedDigest });
           // Return explicit error code so upstream does not misclassify as user cancel
@@ -413,7 +419,7 @@ async function renderUserConfirmUI({
         const handle = await mountModalTxConfirmer({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.payload?.txSigningRequests,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? request.payload.txSigningRequests : [],
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
@@ -426,7 +432,7 @@ async function renderUserConfirmUI({
         const { confirmed, handle } = await awaitModalTxConfirmerDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.payload?.txSigningRequests,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? request.payload.txSigningRequests : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
           nearAccountIdOverride: nearAccountIdForUi,
@@ -481,11 +487,37 @@ async function collectTouchIdCredentials({
     // Registration/link flows must use create() to generate a new credential
     // Resolve optional deviceNumber from summary if present
     let deviceNumber = (request.payload as RegisterAccountPayload)?.deviceNumber;
-    credential = await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
-      nearAccountId,
-      challenge: vrfChallenge,
-      deviceNumber,
-    });
+    // Some authenticators throw InvalidStateError if a resident credential already exists
+    // for the same rpId + user.id. In that case, fallback to the next deviceNumber to
+    // derive a distinct user.id ("<account> (2)") and retry within the transient activation.
+    const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
+      return await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
+        nearAccountId,
+        challenge: vrfChallenge,
+        deviceNumber: dn,
+      });
+    };
+    try {
+      credential = await tryCreate(deviceNumber);
+    } catch (e: any) {
+      const name = (e?.name || '').toString();
+      const msg = (e?.message || '').toString();
+      const isDuplicate = name === 'InvalidStateError' || /excluded|already\s*registered/i.test(msg);
+      if (isDuplicate) {
+        const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber))
+          ? (deviceNumber + 1)
+          : 2;
+        try {
+          credential = await tryCreate(nextDeviceNumber);
+          // Update deviceNumber used downstream (naming/UI only)
+          (request.payload as RegisterAccountPayload).deviceNumber = nextDeviceNumber;
+        } catch (e2) {
+          throw e; // rethrow original error if retry also fails
+        }
+      } else {
+        throw e;
+      }
+    }
   } else {
     // Authentication flows use get() with allowCredentials
     const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));

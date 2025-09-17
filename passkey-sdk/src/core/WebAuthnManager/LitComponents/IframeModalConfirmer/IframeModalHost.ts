@@ -13,7 +13,7 @@ import {
   IFRAME_MODAL_ID,
   IFRAME_MODAL_BOOTSTRAP_MODULE,
   MODAL_TX_CONFIRM_BUNDLE
-} from '../IframeButtonWithTooltipConfirmer/tags';
+} from '../tags';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
 
 type MessageType = IframeModalMessageType | 'MODAL_IFRAME_BOOT' | 'MODAL_IFRAME_DOM_READY' | 'MODAL_TIMEOUT';

@@ -66,15 +66,3 @@ export function readWalletConfigFromEnv(): WalletEnvConfig {
 
   return { walletOrigin, walletServicePath, sdkBasePath };
 }
-
-export function createWalletIframeRouterFromEnv(overrides: Partial<WalletIframeRouterOptions> = {}): WalletIframeRouter {
-  const cfg = readWalletConfigFromEnv();
-  const opts: WalletIframeRouterOptions = {
-    walletOrigin: cfg.walletOrigin || '',
-    servicePath: cfg.walletServicePath || '/service',
-    sdkBasePath: cfg.sdkBasePath || '/sdk',
-    ...overrides,
-  } as WalletIframeRouterOptions;
-  return new WalletIframeRouter(opts);
-}
-

@@ -2,8 +2,8 @@ import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
   type ProgressPayload,
-} from './messages';
-import { SignedTransaction } from '../NearClient';
+} from '../shared/messages';
+import { SignedTransaction } from '../../NearClient';
 import { ProgressBus, defaultPhaseHeuristics } from './progress-bus';
 import type {
   RegistrationResult,
@@ -23,24 +23,32 @@ import type {
   ActionHooksOptions,
   ExportNearKeypairWithTouchIdResult,
   GetRecentLoginsResult,
-} from '../types/passkeyManager';
+} from '../../types/passkeyManager';
+import {
+  RegistrationPhase,
+  LoginPhase,
+  ActionPhase,
+  DeviceLinkingPhase,
+  AccountRecoveryPhase,
+} from '../../types/passkeyManager';
 import {
   ActionArgs,
   TransactionInput,
   TxExecutionStatus
-} from '../types';
+} from '../../types';
 import { IframeTransport } from './IframeTransport';
+import type { WalletUIRegistry } from '../host/lit-element-registry';
 import {
   DeviceLinkingQRData,
   LinkDeviceResult,
   StartDevice2LinkingFlowArgs,
   StartDevice2LinkingFlowResults,
-} from '../types/linkDevice'
-import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import type { ConfirmationConfig } from '../types/signer-worker';
-import type { AccessKeyList } from '../NearClient';
-import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
-import type { RecoveryResult } from '../PasskeyManager';
+} from '../../types/linkDevice'
+import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
+import type { ConfirmationConfig } from '../../types/signer-worker';
+import type { AccessKeyList } from '../../NearClient';
+import type { SignNEP413MessageResult } from '../../PasskeyManager/signNEP413';
+import type { RecoveryResult } from '../../PasskeyManager';
 import { SignNep413Result } from '@/wasm_signer_worker/wasm_signer_worker';
 import { After } from 'v8';
 
@@ -73,6 +81,8 @@ export interface WalletIframeRouterOptions {
   // SDK asset base path for embedded bundles when mounting same‑origin via srcdoc
   // Must serve dist/esm under this base path. Defaults to '/sdk'.
   sdkBasePath?: string;
+  // Optional: pre-register UI components in wallet host
+  uiRegistry?: Record<string, unknown>;
 }
 
 type Pending = {
@@ -186,6 +196,7 @@ export class WalletIframeRouter {
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,
           authenticatorOptions: this.opts.authenticatorOptions,
+          uiRegistry: this.opts.uiRegistry,
           // for embedded Lit components
           assetsBaseUrl: (() => {
             try {
@@ -205,6 +216,39 @@ export class WalletIframeRouter {
   }
 
   isReady(): boolean { return this.ready; }
+
+  // ===== UI registry/window-message helpers (generic mounting) =====
+  registerUiTypes(registry: WalletUIRegistry): void {
+    const iframe = this.transport.ensureIframeMounted();
+    const w = iframe.contentWindow;
+    if (!w) return;
+    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target as any); } catch {}
+  }
+
+  mountUiComponent(params: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }): void {
+    const iframe = this.transport.ensureIframeMounted();
+    const w = iframe.contentWindow;
+    if (!w) return;
+    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target as any); } catch {}
+  }
+
+  updateUiComponent(params: { id: string; props?: Record<string, unknown> }): void {
+    const iframe = this.transport.ensureIframeMounted();
+    const w = iframe.contentWindow;
+    if (!w) return;
+    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target as any); } catch {}
+  }
+
+  unmountUiComponent(id: string): void {
+    const iframe = this.transport.ensureIframeMounted();
+    const w = iframe.contentWindow;
+    if (!w) return;
+    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target as any); } catch {}
+  }
 
   // ===== Public RPC helpers =====
 
@@ -247,7 +291,7 @@ export class WalletIframeRouter {
         nearAccountId: payload.nearAccountId,
         transactions: payload.transactions
       },
-      options: { onProgress: payload.options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
     return normalizeSignedTransactionObject(res.result)
   }
@@ -267,7 +311,7 @@ export class WalletIframeRouter {
           nearAccountId: payload.nearAccountId,
           options: safeOptions
         },
-        options: { onProgress: payload.options?.onEvent as any }
+        options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isRegistrationSSEEvent) }
       });
       const st = await this.getLoginState(payload.nearAccountId);
       this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
@@ -292,7 +336,7 @@ export class WalletIframeRouter {
           nearAccountId: payload.nearAccountId,
           options: safeOptions
         },
-        options: { onProgress: payload.options?.onEvent as any }
+        options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isLoginSSEEvent) }
       });
       const st = await this.getLoginState(payload.nearAccountId);
       this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
@@ -345,7 +389,7 @@ export class WalletIframeRouter {
           state: payload.state
         }
       },
-      options: { onProgress: payload.options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
     return res.result
   }
@@ -364,7 +408,7 @@ export class WalletIframeRouter {
         signedTransaction: payload.signedTransaction,
         options: options
       },
-      options: { onProgress: options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
     return res.result;
   }
@@ -387,7 +431,7 @@ export class WalletIframeRouter {
         ...payload,
         options: safeOptions
       },
-      options: { onProgress: options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
     return res.result;
   }
@@ -432,6 +476,22 @@ export class WalletIframeRouter {
     return res.result;
   }
 
+  // Bridge typed public onEvent callbacks to the transport's onProgress callback.
+  // - onEvent: consumer's strongly-typed event handler (e.g., ActionSSEEvent)
+  // - isExpectedEvent: runtime type guard that validates a ProgressPayload as that event type
+  // Returns an onProgress handler that safely narrows before invoking onEvent.
+  private wrapOnEvent<TEvent extends ProgressPayload>(
+    onEvent: ((event: TEvent) => void) | undefined,
+    isExpectedEvent: (progress: ProgressPayload) => progress is TEvent
+  ): ((progress: ProgressPayload) => void) | undefined {
+    if (!onEvent) return undefined;
+    return (progress: ProgressPayload) => {
+      try {
+        if (isExpectedEvent(progress)) onEvent(progress);
+      } catch {}
+    };
+  }
+
   async signAndSendTransactions(payload: {
     nearAccountId: string;
     transactions: TransactionInput[];
@@ -454,7 +514,7 @@ export class WalletIframeRouter {
         transactions: payload.transactions,
         options: safeOptions
       },
-      options: { onProgress: options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
     return res.result;
   }
@@ -486,7 +546,7 @@ export class WalletIframeRouter {
         accountId,
         publicKeyToDelete
       },
-      options: { onProgress: options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
     return res.result
   }
@@ -507,7 +567,7 @@ export class WalletIframeRouter {
         signedTransaction: args.signedTransaction,
         options: safeOptions
       },
-      options: { onProgress: options?.onEvent as any }
+      options: { onProgress: this.wrapOnEvent(options?.onEvent, isActionSSEEvent) }
     });
     return res.result
   }
@@ -529,7 +589,7 @@ export class WalletIframeRouter {
       type: 'PM_RECOVER_ACCOUNT_FLOW',
       payload: { accountId: payload.accountId },
       options: {
-        onProgress: payload.onEvent as any,
+        onProgress: this.wrapOnEvent(payload.onEvent, isAccountRecoverySSEEvent),
         sticky: true
       }
     });
@@ -552,7 +612,7 @@ export class WalletIframeRouter {
           fundingAmount: payload.fundingAmount
         },
         options: {
-          onProgress: payload.options?.onEvent as any
+          onProgress: this.wrapOnEvent(payload.options?.onEvent, isDeviceLinkingSSEEvent)
         }
       });
       return res.result
@@ -572,7 +632,7 @@ export class WalletIframeRouter {
         ui: payload?.ui
       },
       options: {
-        onProgress: payload?.onEvent as any,
+        onProgress: this.wrapOnEvent(payload?.onEvent, isDeviceLinkingSSEEvent),
         sticky: true
       }
     }).then((res) => res.result)
@@ -666,7 +726,7 @@ export class WalletIframeRouter {
       await this.init();
     }
     const requestId = `${Date.now()}-${++this.reqCounter}`;
-    const full: ParentToChildEnvelope = { ...envelope, requestId } as any;
+    const full: ParentToChildEnvelope = { ...(envelope as unknown as ParentToChildEnvelope), requestId };
     const { options } = full;
 
     return new Promise<PostResult<T>>((resolve, reject) => {
@@ -694,7 +754,14 @@ export class WalletIframeRouter {
       });
 
       try {
-        this.port!.postMessage(full);
+        // Strip non-cloneable fields (functions) from envelope options before posting
+        const wireOptions = (options && typeof options === 'object')
+          ? (('sticky' in options && (options as any).sticky !== undefined)
+              ? { sticky: (options as any).sticky }
+              : undefined)
+          : undefined;
+        const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
+        this.port!.postMessage(serializableFull as ParentToChildEnvelope);
       } catch (err) {
         this.pending.delete(requestId);
         window.clearTimeout(timer);
@@ -751,6 +818,37 @@ export class WalletIframeRouter {
 
 }
 
+// ===== Runtime type guards to safely bridge ProgressPayload → typed SSE events =====
+const REGISTRATION_PHASES = new Set<string>(Object.values(RegistrationPhase) as string[]);
+const LOGIN_PHASES = new Set<string>(Object.values(LoginPhase) as string[]);
+const ACTION_PHASES = new Set<string>(Object.values(ActionPhase) as string[]);
+const DEVICE_LINKING_PHASES = new Set<string>(Object.values(DeviceLinkingPhase) as string[]);
+const ACCOUNT_RECOVERY_PHASES = new Set<string>(Object.values(AccountRecoveryPhase) as string[]);
+
+function phaseOf(progress: ProgressPayload): string {
+  try { return String(progress?.phase || ''); } catch { return ''; }
+}
+
+function isRegistrationSSEEvent(progress: ProgressPayload): progress is RegistrationSSEEvent {
+  return REGISTRATION_PHASES.has(phaseOf(progress));
+}
+
+function isLoginSSEEvent(p: ProgressPayload): p is LoginSSEvent {
+  return LOGIN_PHASES.has(phaseOf(p));
+}
+
+function isActionSSEEvent(p: ProgressPayload): p is ActionSSEEvent {
+  return ACTION_PHASES.has(phaseOf(p));
+}
+
+function isDeviceLinkingSSEEvent(p: ProgressPayload): p is DeviceLinkingSSEEvent {
+  return DEVICE_LINKING_PHASES.has(phaseOf(p));
+}
+
+function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEEvent {
+  return ACCOUNT_RECOVERY_PHASES.has(phaseOf(p));
+}
+
 /**
  * Strips out class functions as they cannot be sent over postMessage to iframe
  */
@@ -759,7 +857,7 @@ function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult
   const normalized = arr.map(entry => {
     if (entry?.signedTransaction) {
       const st = entry.signedTransaction;
-      if (st && typeof st.base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
+      if (st && (typeof (st as any).base64Encode !== 'function') && (st.borsh_bytes || st.borshBytes)) {
         entry.signedTransaction = new SignedTransaction({
           transaction: st.transaction,
           signature: st.signature,
@@ -775,9 +873,8 @@ function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult
 /**
  * Strips out functions as they cannot be sent over postMessage to iframe
  */
-function removeFunctionsFromOptions(options?: Object): Object | undefined {
-  if (!options) return undefined;
-  return Object.fromEntries(
-    Object.entries(options).filter(([, v]) => typeof v !== 'function')
-  )
+import { stripFunctionsShallow } from '../validation';
+
+function removeFunctionsFromOptions(options?: object): object | undefined {
+  return stripFunctionsShallow(options as Record<string, unknown>);
 }

@@ -41,43 +41,27 @@ export function determineConfirmationConfig(
   ctx: SignerWorkerManagerContext,
   request: SecureConfirmRequest | undefined,
 ): ConfirmationConfig {
-
   let cfg: ConfirmationConfig = {
     ...request?.confirmationConfig,
     ...ctx.userPreferencesManager.getConfirmationConfig()
   };
-
-  // Helper: detect if this browsing context is cross‑origin with its parent
-  const isCrossOriginWithTop = (() => {
-    try {
-      // Accessing top.document will throw on cross‑origin; same‑origin is readable
-      // eslint-disable-next-line no-unused-expressions
-      (window.top as any)?.document; // probe
-      // Additionally, confirm origins differ if accessible (defensive)
-      try {
-        const same = (window.top as Window).location.origin === window.location.origin;
-        return !same && window.self !== window.top;
-      } catch {
-        return window.self !== window.top ? false : false;
-      }
-    } catch {
-      return true;
-    }
+  // Detect if running inside an iframe (wallet host context)
+  const inIframe = (() => {
+    try { return window.self !== window.top; } catch { return true; }
   })();
 
-  try {
-    if (isCrossOriginWithTop) {
-      const before = { uiMode: cfg.uiMode, behavior: cfg.behavior };
-      cfg = { ...cfg, uiMode: 'modal', behavior: 'requireClick' } as ConfirmationConfig;
-      try {
-        const flow = request?.type || 'UNKNOWN';
-        const invokedFrom = request?.invokedFrom || 'parent';
-        console.warn('[SecureConfirm] Cross‑origin detected: forcing modal+requireClick', { flow, invokedFrom, before });
-      } catch {}
-      return cfg;
-    }
-  } catch {}
+  // In wallet-iframe host context, require an explicit user click for
+  // registration/link-device to ensure a user activation before WebAuthn
+  // create(). Keep theme from user prefs, ignore autoProceed for these flows.
+  if (inIframe && request?.type && (request.type === 'registerAccount' || request.type === 'linkDevice')) {
+    return {
+      uiMode: 'modal',
+      behavior: 'requireClick',
+      autoProceedDelay: undefined,
+      theme: cfg.theme || 'dark',
+    } as ConfirmationConfig;
+  }
 
-  // Same‑origin: honor caller/user configuration
+  // Otherwise honor caller/user configuration
   return cfg;
 }
