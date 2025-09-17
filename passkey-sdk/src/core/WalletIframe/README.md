@@ -5,7 +5,7 @@
 The callback chain follows this flow:
 
 ### 1. **PasskeyManagerIframe** (Entry Point)
-- Acts as a proxy/wrapper around the WalletIframeClient
+- Acts as a proxy/wrapper around the WalletIframeRouter
 - Handles hook callbacks (`beforeCall`, `afterCall`, `onError`, `onEvent`)
 - For example, in `registerPasskey()`:
   ```typescript
@@ -15,7 +15,7 @@ The callback chain follows this flow:
   });
   ```
 
-### 2. **WalletIframeClient** (Communication Layer)
+### 2. **WalletIframeRouter** (Communication Layer)
 - Manages the iframe and MessagePort communication
 - Posts messages to the iframe host via `this.post()` method
 - Handles progress events by bridging them back to the caller's `onEvent` callback
@@ -36,23 +36,23 @@ The callback chain follows this flow:
 
 ## Key Communication Flow:
 
-1. **PasskeyManagerIframe** → calls **WalletIframeClient** method
-2. **WalletIframeClient** → posts message to iframe via MessagePort
+1. **PasskeyManagerIframe** → calls **WalletIframeRouter** method
+2. **WalletIframeRouter** → posts message to iframe via MessagePort
 3. **wallet-iframe-host.ts** → receives message, executes PasskeyManager operation
 4. **wallet-iframe-host.ts** → sends PROGRESS events during operation
-5. **WalletIframeClient** → bridges PROGRESS events to caller's `onEvent` callback
+5. **WalletIframeRouter** → bridges PROGRESS events to caller's `onEvent` callback
 6. **wallet-iframe-host.ts** → sends final result
-7. **WalletIframeClient** → resolves promise with result
+7. **WalletIframeRouter** → resolves promise with result
 8. **PasskeyManagerIframe** → calls `afterCall` hook and returns result
 
 ## Progress Event Bridging:
 
 The key insight is that progress events are bridged through the MessagePort:
 - Host sends: `{ type: 'PROGRESS', requestId, payload: ev }`
-- Client receives and calls: `pend?.onProgress?.((msg as any).payload)`
+- Client receives and calls: `pend?.onProgress?.(msg.payload)`
 - This allows the original `onEvent` callback to receive real-time progress updates
 
-So yes, your understanding is correct: **PasskeyManagerIframe → WalletIframeClient → posts to wallet-iframe-host.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
+So yes, your understanding is correct: **PasskeyManagerIframe → WalletIframeRouter → posts to wallet-iframe-host.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
 
 ## Activation Overlay (iframe sizing behavior)
 

@@ -10,10 +10,17 @@ import '../WebAuthnManager/LitComponents/EmbeddedRegisterButton';
 import { EmbeddedRegisterButton as __EmbeddedRegisterButtonKeep } from '../WebAuthnManager/LitComponents/EmbeddedRegisterButton/index';
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost';
+import { PasskeyManagerIframe } from './PasskeyManagerIframe';
+import { PasskeyManager } from '../PasskeyManager';
+import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../types';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const __ensureTreeDefinition = [__EmbeddedRegisterButtonKeep, __IframeButtonKeep];
 // Define the element defensively in case the side-effect define was optimized away
+
+import { type WalletIframeTxButtonHostProps } from '../../react/components/WalletIframeTxButtonHost';
+import { WalletIframeRegisterButtonHostProps, type WalletIframeRegisterButtonHost } from '../../react/components/WalletIframeRegisterButtonHost';
+
 try {
   if (!customElements.get('embedded-register-button')) {
     customElements.define('embedded-register-button', __EmbeddedRegisterButtonKeep as unknown as CustomElementConstructor);
@@ -26,8 +33,41 @@ try {
 } catch {}
 
 export type EnsurePasskeyManager = () => void;
-export type GetPasskeyManager = () => any | null; // Avoid tight coupling to class type
+export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
 export type UpdateWalletConfigs = (patch: Record<string, unknown>) => void;
+
+type IframeButtonLitElementProps = HTMLElement & {
+  style: Record<string, string> | CSSStyleDeclaration;
+  nearAccountId: string,
+  txSigningRequests: TransactionInput[],
+  buttonTextElement: HTMLElement | string | any;
+  txTreeTheme: any;
+  buttonStyle?: Record<string, string> | CSSStyleDeclaration;
+  buttonHoverStyle?: Record<string, string> | CSSStyleDeclaration;
+  tooltipPosition: Record<string, string>,
+  externalConfirm(args: {
+    nearAccountId: string,
+    txSigningRequests: TransactionInput[],
+    options: {
+      beforeCall(): void;
+      onEvent(e: BaseSSEEvent): void;
+      afterCall(a: any, result: any): void;
+    }
+  }): void
+  onSuccess(result: any): void;
+  onCancel(): void;
+}
+
+type EmbeddedRegisterButtonLitElementProps = HTMLElement & {
+  text: string;
+  theme: 'dark' | 'light';
+  width: string | number;
+  height: string | number;
+  style: Record<string, string> | CSSStyleDeclaration;
+  buttonClass: string;
+  buttonStyle: Record<string, string> | CSSStyleDeclaration;
+  busy: boolean;
+}
 
 export function setupElemMounter(opts: {
   ensurePasskeyManager: EnsurePasskeyManager;
@@ -59,8 +99,8 @@ export function setupElemMounter(opts: {
   let txBtnEl: HTMLElement | null = null;
   let busy = false;
 
-  try { (document.documentElement as any).style.background = 'transparent'; } catch {}
-  try { (document.body as any).style.background = 'transparent'; } catch {}
+  try { document.documentElement.style.background = 'transparent'; } catch {}
+  try { document.body.style.background = 'transparent'; } catch {}
 
   const toPx = (v: any, fallback: string) => {
     if (v == null) return fallback;
@@ -69,7 +109,9 @@ export function setupElemMounter(opts: {
     return s ? s : fallback;
   };
 
-  const normalizeButtonStyle = (style: any): Record<string, string> | undefined => {
+  const normalizeButtonStyle = (
+    style: Record<string, string>
+  ): Record<string, string> | undefined => {
     if (!style || typeof style !== 'object') return undefined;
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(style)) {
@@ -80,7 +122,7 @@ export function setupElemMounter(opts: {
     return out;
   };
 
-  const removeBtn = () => {
+  const removeRegisterBtn = () => {
     try { btnEl?.remove(); } catch {}
     btnEl = null; busy = false;
   };
@@ -89,14 +131,14 @@ export function setupElemMounter(opts: {
     txBtnEl = null;
   };
 
-  const showBtn = async (cfg: any) => {
+  const showRegisterBtn = async (cfg: WalletIframeRegisterButtonHostProps) => {
     try { ensurePasskeyManager(); } catch {}
     const nearAccountId = String(cfg?.nearAccountId || '').trim();
     const text = String(cfg?.text || 'Create Passkey');
     const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
     const autoClose = cfg?.autoClose !== false;
     const className = cfg?.className ? String(cfg.className) : '';
-    const styleObj = normalizeButtonStyle(cfg?.style);
+    const styleObj = normalizeButtonStyle(cfg?.style as Record<string, string>);
     const width = toPx(cfg?.width, '220px');
     const height = toPx(cfg?.height, '44px');
 
@@ -105,18 +147,18 @@ export function setupElemMounter(opts: {
       return;
     }
 
-    // Remove any existing instance, then create the Lit element
-    removeBtn();
-    const el = document.createElement('embedded-register-button') as any;
+    // Remove existing instance, then create the Lit element
+    removeRegisterBtn();
+    const el = document.createElement('embedded-register-button') as EmbeddedRegisterButtonLitElementProps;
     el.text = text;
     el.theme = theme;
     el.width = width;
     el.height = height;
     // Ensure visible footprint even before custom-element upgrade
     try {
-      (el as HTMLElement).style.display = 'inline-block';
-      (el as HTMLElement).style.width = width;
-      (el as HTMLElement).style.height = height;
+      el.style.display = 'inline-block';
+      el.style.width = width;
+      el.style.height = height;
     } catch {}
     if (className) el.buttonClass = className;
     if (styleObj) el.buttonStyle = styleObj;
@@ -144,23 +186,23 @@ export function setupElemMounter(opts: {
             uiMode: 'skip',
             behavior: 'autoProceed',
             autoProceedDelay: 0,
-          } as any);
+          });
         } catch {}
 
-        const result = await pm!.registerPasskey(nearAccountId as any, {
-          onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {}
-        } as any);
+        const result = await pm!.registerPasskey(nearAccountId, {
+          onEvent: () => {},
+          onError: () => {},
+          beforeCall: async () => {},
+          afterCall: () => {}
+        });
 
         // Restore previous confirmation config
         try { if (prevConfig) pm?.setConfirmationConfig?.(prevConfig); } catch {}
         try {
           window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: !!result?.success, result } }, '*');
         } catch {}
-        if (autoClose) removeBtn();
+        if (autoClose) removeRegisterBtn();
       } catch (err: any) {
-        try { /* restore on error */ if (pm?.getConfirmationConfig && pm?.setConfirmationConfig) {
-          // Best-effort: if previous config exists in closure, it's restored above; otherwise leave as-is
-        } } catch {}
         try {
           window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: String(err?.message || err) } }, '*');
         } catch {}
@@ -174,15 +216,15 @@ export function setupElemMounter(opts: {
     btnEl = el;
   };
 
-  const showTxBtn = async (cfg: any) => {
+  const showTxBtn = async (cfg: WalletIframeTxButtonHostProps) => {
     try { ensurePasskeyManager(); } catch {}
     const nearAccountId = String(cfg?.nearAccountId || '').trim();
     const transactions = Array.isArray(cfg?.transactions) ? cfg.transactions : [];
     const className = cfg?.className ? String(cfg.className) : '';
     const buttonText = String(cfg?.text || 'Send Transaction');
     const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    const buttonStyle = normalizeButtonStyle(cfg?.buttonStyle) || {};
-    const buttonHoverStyle = normalizeButtonStyle(cfg?.buttonHoverStyle) || {};
+    const buttonStyle = normalizeButtonStyle(cfg?.buttonStyle as Record<string, string>);
+    const buttonHoverStyle = normalizeButtonStyle(cfg?.buttonHoverStyle as Record<string, string>);
     const tooltipPosition = cfg?.tooltipPosition || undefined;
 
     if (!nearAccountId || transactions.length === 0) {
@@ -190,14 +232,13 @@ export function setupElemMounter(opts: {
       return;
     }
 
-    // Remove any existing instance
+    // Remove existing instance
     removeTxBtn();
-    const el = document.createElement('iframe-button') as any;
+    const el = document.createElement('iframe-button') as IframeButtonLitElementProps;
     // Ensure footprint before upgrade
-    try { (el as HTMLElement).style.display = 'inline-block'; } catch {}
-    if (className) try { (el as HTMLElement).className = className; } catch {}
+    try { el.style.display = 'inline-block'; } catch {}
+    if (className) try { el.className = className; } catch {}
     // Set data attributes and props
-    el.invokedFrom = 'iframe';
     el.nearAccountId = nearAccountId;
     el.txSigningRequests = transactions;
     el.buttonTextElement = buttonText;
@@ -207,7 +248,7 @@ export function setupElemMounter(opts: {
     if (tooltipPosition) el.tooltipPosition = tooltipPosition;
 
     // Wire externalConfirm to local PasskeyManager inside wallet host
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: any) => {
+    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }) => {
       const pm = getPasskeyManager();
       return await pm!.signAndSendTransactions({
         nearAccountId,
@@ -218,10 +259,20 @@ export function setupElemMounter(opts: {
 
     // Proxy results back to parent for observability
     el.onSuccess = (result: any) => {
-      try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: true, result } }, '*'); } catch {}
+      try {
+        window.parent?.postMessage({
+          type: 'TX_BUTTON_RESULT',
+          payload: { ok: true, result }
+        }, '*');
+      } catch {}
     };
     el.onCancel = () => {
-      try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: false, cancelled: true } }, '*'); } catch {}
+      try {
+        window.parent?.postMessage({
+          type: 'TX_BUTTON_RESULT',
+          payload: { ok: false, cancelled: true }
+        }, '*');
+      } catch {}
     };
 
     const root = document.body || document.documentElement;
@@ -230,20 +281,20 @@ export function setupElemMounter(opts: {
   };
 
   window.addEventListener('message', (evt: MessageEvent) => {
-    const t = (evt?.data && (evt.data as any).type) || undefined;
-    const p = (evt?.data && (evt.data as any).payload) || undefined;
+    const t = evt?.data?.type;
+    const p = evt?.data?.payload ?? {};
     switch (t) {
       case 'WALLET_SET_CONFIG':
-        try { updateWalletConfigs(p || {}); } catch {}
+        try { updateWalletConfigs(p); } catch {}
         break;
       case 'WALLET_SHOW_REGISTER_BUTTON':
-        showBtn(p);
+        showRegisterBtn(p);
         break;
       case 'WALLET_SHOW_TX_BUTTON':
         showTxBtn(p);
         break;
       case 'WALLET_HIDE_REGISTER_BUTTON':
-        removeBtn();
+        removeRegisterBtn();
         break;
       case 'WALLET_HIDE_TX_BUTTON':
         removeTxBtn();

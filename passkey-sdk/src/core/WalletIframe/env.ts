@@ -1,5 +1,5 @@
-import type { WalletIframeClientOptions } from './client';
-import { WalletIframeClient } from './client';
+import type { WalletIframeRouterOptions } from './router';
+import { WalletIframeRouter } from './router';
 
 type PublicEnv = Record<string, string | undefined>;
 
@@ -67,14 +67,14 @@ export function readWalletConfigFromEnv(): WalletEnvConfig {
   return { walletOrigin, walletServicePath, sdkBasePath };
 }
 
-export function createWalletIframeClientFromEnv(overrides: Partial<WalletIframeClientOptions> = {}): WalletIframeClient {
+export function createWalletIframeRouterFromEnv(overrides: Partial<WalletIframeRouterOptions> = {}): WalletIframeRouter {
   const cfg = readWalletConfigFromEnv();
-  const opts: WalletIframeClientOptions = {
+  const opts: WalletIframeRouterOptions = {
     walletOrigin: cfg.walletOrigin || '',
     servicePath: cfg.walletServicePath || '/service',
     sdkBasePath: cfg.sdkBasePath || '/sdk',
     ...overrides,
-  } as WalletIframeClientOptions;
-  return new WalletIframeClient(opts);
+  } as WalletIframeRouterOptions;
+  return new WalletIframeRouter(opts);
 }
 

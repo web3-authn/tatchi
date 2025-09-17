@@ -66,8 +66,16 @@ export class ProgressBus {
     this.logger = logger;
   }
 
-  register(requestId: string, onProgress?: (p: ProgressPayload) => void, sticky: boolean = false): void {
-    this.subs.set(requestId, { onProgress, sticky, stats: { count: 0, lastPhase: null, lastAt: null } });
+  register({ requestId, onProgress, sticky = false }: {
+    requestId: string,
+    sticky: boolean,
+    onProgress?: (p: ProgressPayload) => void,
+  }): void {
+    this.subs.set(requestId, {
+      onProgress,
+      sticky,
+      stats: { count: 0, lastPhase: null, lastAt: null }
+    });
     this.log('register', { requestId, sticky });
   }
 
@@ -85,7 +93,11 @@ export class ProgressBus {
     return !!sub?.sticky;
   }
 
-  dispatch(requestId: string, payload: ProgressPayload): boolean {
+  dispatch({ requestId, payload }: {
+    requestId: string,
+    payload: ProgressPayload
+  }): boolean {
+
     const phase = String((payload || {}).phase || '');
     const action = this.heuristic(payload);
     if (action === 'show') { try { this.overlay.show(); } catch {} }
@@ -111,7 +123,11 @@ export class ProgressBus {
     return false;
   }
 
-  getStats(requestId: string): { count: number; lastPhase: string | null; lastAt: number | null } | null {
+  getStats(requestId: string): {
+    count: number;
+    lastPhase: string | null;
+    lastAt: number | null
+  } | null {
     const sub = this.subs.get(requestId);
     return sub ? sub.stats : null;
   }

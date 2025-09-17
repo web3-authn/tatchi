@@ -17,28 +17,41 @@ import type {
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
   BeforeCall,
-  AfterCall
+  AfterCall,
+  SignAndSendTransactionHooksOptions,
+  SendTransactionHooksOptions,
+  ActionHooksOptions,
+  ExportNearKeypairWithTouchIdResult,
+  GetRecentLoginsResult,
 } from '../types/passkeyManager';
-import type { TxExecutionStatus } from '../types/actions';
+import {
+  ActionArgs,
+  TransactionInput,
+  TxExecutionStatus
+} from '../types';
 import { IframeTransport } from './IframeTransport';
 import {
   DeviceLinkingQRData,
   LinkDeviceResult,
+  StartDevice2LinkingFlowArgs,
+  StartDevice2LinkingFlowResults,
 } from '../types/linkDevice'
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import type { AccessKeyList } from '../NearClient';
 import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../PasskeyManager';
+import { SignNep413Result } from '@/wasm_signer_worker/wasm_signer_worker';
+import { After } from 'v8';
 
 // Simple, framework-agnostic service iframe client.
 //
 // Responsibilities split:
 // - IframeTransport: low-level mount + load + CONNECT/READY handshake (MessagePort)
-// - WalletIframeClient (this): request/response correlation, progress events,
+// - WalletIframeRouter (this): request/response correlation, progress events,
 //   overlay display, and high-level wallet RPC helpers
 
-export interface WalletIframeClientOptions {
+export interface WalletIframeRouterOptions {
   walletOrigin?: string; // e.g., https://wallet.example.com (optional; empty => same-origin srcdoc)
   servicePath?: string; // default '/service'
   connectTimeoutMs?: number; // default 8000
@@ -69,8 +82,13 @@ type Pending = {
   onProgress?: (payload: ProgressPayload) => void;
 };
 
-export class WalletIframeClient {
-  private opts: Required<WalletIframeClientOptions>;
+type PostResult<T> = {
+  ok: boolean,
+  result: T
+}
+
+export class WalletIframeRouter {
+  private opts: Required<WalletIframeRouterOptions>;
   // Low-level transport handling iframe mount + handshake
   private transport: IframeTransport;
   private port: MessagePort | null = null;
@@ -87,7 +105,7 @@ export class WalletIframeClient {
   private progressBus: ProgressBus;
   private debug = false;
 
-  constructor(options: WalletIframeClientOptions) {
+  constructor(options: WalletIframeRouterOptions) {
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
@@ -95,8 +113,8 @@ export class WalletIframeClient {
       sdkBasePath: '/sdk',
       walletOrigin: '',
       ...options,
-    } as Required<WalletIframeClientOptions>;
-    this.debug = !!(this.opts as any).debug || !!(globalThis as any).__W3A_DEBUG__;
+    } as Required<WalletIframeRouterOptions>;
+    this.debug = !!this.opts.debug || !!(globalThis as any).__W3A_DEBUG__;
     // Encapsulate iframe mount + handshake logic in transport
     this.transport = new IframeTransport({
       walletOrigin: this.opts.walletOrigin,
@@ -107,12 +125,15 @@ export class WalletIframeClient {
 
     // Initialize progress router with overlay control and phase heuristics
     this.progressBus = new ProgressBus(
-      { show: () => this.showFrameForActivation(), hide: () => this.hideFrameForActivation() },
+      {
+        show: () => this.showFrameForActivation(),
+        hide: () => this.hideFrameForActivation()
+      },
       defaultPhaseHeuristics,
       this.debug
-        ? ((msg: string, data?: Record<string, unknown>) => {
-            try { console.debug('[WalletIframeClient][ProgressBus]', msg, data || {}); } catch {}
-          })
+        ? (msg: string, data?: Record<string, unknown>) => {
+            try { console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {}); } catch {}
+          }
         : undefined
     );
   }
@@ -148,12 +169,12 @@ export class WalletIframeClient {
     if (this.ready) return;
     if (this.initInFlight) { return this.initInFlight; }
     this.initInFlight = (async () => {
-      try { console.debug('[WalletIframeClient] init: connecting transport'); } catch {}
+      try { console.debug('[WalletIframeRouter] init: connecting transport'); } catch {}
       this.port = await this.transport.connect();
       this.port.onmessage = (ev) => this.onPortMessage(ev);
       this.port.start?.();
       this.ready = true;
-      try { console.debug('[WalletIframeClient] init: connected, sending PM_SET_CONFIG'); } catch {}
+      try { console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG'); } catch {}
       await this.post({
         type: 'PM_SET_CONFIG',
         payload: {
@@ -188,12 +209,20 @@ export class WalletIframeClient {
   // ===== Public RPC helpers =====
 
   // Subscribe to VRF status changes observed by this client
-  onVrfStatusChanged(listener: (status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void): () => void {
+  onVrfStatusChanged(listener: (status: {
+    active: boolean;
+    nearAccountId: string | null;
+    sessionDuration?: number
+  }) => void): () => void {
     this.vrfStatusListeners.add(listener);
     return () => { this.vrfStatusListeners.delete(listener); };
   }
 
-  private emitVrfStatusChanged(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }): void {
+  private emitVrfStatusChanged(status: {
+    active: boolean;
+    nearAccountId: string | null;
+    sessionDuration?: number
+  }): void {
     for (const cb of Array.from(this.vrfStatusListeners)) {
       try { cb(status); } catch {}
     }
@@ -203,10 +232,7 @@ export class WalletIframeClient {
 
   async signTransactionsWithActions(payload: {
     nearAccountId: string;
-    transactions: {
-      receiverId: string;
-      actions: unknown[]
-    }[];
+    transactions: TransactionInput[];
     options?: {
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
@@ -215,24 +241,15 @@ export class WalletIframeClient {
     }
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
-    const res = await this.post<any>({ type: 'PM_SIGN_TXS_WITH_ACTIONS', payload: { nearAccountId: payload.nearAccountId, transactions: payload.transactions } as any }, { onProgress: payload.options?.onEvent as any });
-    const arr: any[] = Array.isArray(res?.result) ? (res.result as any[]) : [];
-    const normalized = arr.map((entry: any) => {
-      if (entry?.signedTransaction) {
-        const st = entry.signedTransaction;
-        if (st && typeof st.base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
-          try {
-            entry.signedTransaction = new SignedTransaction({
-              transaction: st.transaction,
-              signature: st.signature,
-              borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
-            });
-          } catch {}
-        }
-      }
-      return entry;
+    const res = await this.post<VerifyAndSignTransactionResult>({
+      type: 'PM_SIGN_TXS_WITH_ACTIONS',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        transactions: payload.transactions
+      },
+      options: { onProgress: payload.options?.onEvent as any }
     });
-    return normalized as VerifyAndSignTransactionResult[];
+    return normalizeSignedTransactionObject(res.result)
   }
 
   async registerPasskey(payload: {
@@ -243,23 +260,18 @@ export class WalletIframeClient {
   }): Promise<RegistrationResult> {
     this.showFrameForActivation();
     try {
-      const safeOptions = payload.options
-        ? Object.fromEntries(Object.entries(payload.options).filter(([, v]) => typeof v !== 'function'))
-        : undefined;
-      const res = await this.post<any>({
-          type: 'PM_REGISTER',
-          payload: {
-            nearAccountId: payload.nearAccountId,
-            options: safeOptions
-          }
+      const safeOptions = removeFunctionsFromOptions(payload.options);
+      const res = await this.post<RegistrationResult>({
+        type: 'PM_REGISTER',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          options: safeOptions
         },
-        { onProgress: payload.options?.onEvent as any }
-      );
-      try {
-        const st = await this.getLoginState(payload.nearAccountId);
-        this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId || null, sessionDuration: st.vrfSessionDuration });
-      } catch {}
-      return (res?.result || { success: false, error: 'Registration failed' }) as RegistrationResult;
+        options: { onProgress: payload.options?.onEvent as any }
+      });
+      const st = await this.getLoginState(payload.nearAccountId);
+      this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+      return res?.result;
     } finally {
       this.hideFrameForActivation();
     }
@@ -273,43 +285,47 @@ export class WalletIframeClient {
   }): Promise<LoginResult> {
     this.showFrameForActivation();
     try {
-      const safeOptions = payload.options
-        ? Object.fromEntries(Object.entries(payload.options).filter(([, v]) => typeof v !== 'function'))
-        : undefined;
-      const res = await this.post<any>(
-        {
-          type: 'PM_LOGIN',
-          payload: {
-            nearAccountId: payload.nearAccountId,
-            options: safeOptions
-          }
+      const safeOptions = removeFunctionsFromOptions(payload.options);
+      const res = await this.post<LoginResult>({
+        type: 'PM_LOGIN',
+        payload: {
+          nearAccountId: payload.nearAccountId,
+          options: safeOptions
         },
-        { onProgress: payload.options?.onEvent as any }
-      );
-      try {
-        const st = await this.getLoginState(payload.nearAccountId);
-        this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId || null, sessionDuration: st.vrfSessionDuration });
-      } catch {}
-      return (res?.result || { success: false, error: 'Login failed' }) as LoginResult;
+        options: { onProgress: payload.options?.onEvent as any }
+      });
+      const st = await this.getLoginState(payload.nearAccountId);
+      this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+      return res?.result;
     } finally {
       this.hideFrameForActivation();
     }
   }
 
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
-    const res = await this.post<any>({ type: 'PM_GET_LOGIN_STATE', payload: nearAccountId ? { nearAccountId } : undefined as any });
-    return (res?.result as any) as LoginState;
+    const res = await this.post<LoginState>({
+      type: 'PM_GET_LOGIN_STATE',
+      payload: nearAccountId ? { nearAccountId } : undefined
+    });
+    return res.result;
   }
 
-  async checkVrfStatus(): Promise<{ ok: boolean; result: { active: boolean; nearAccountId: string | null; sessionDuration?: number } }> {
+  async checkVrfStatus(): Promise<PostResult<{ active: boolean; nearAccountId: string | null; sessionDuration?: number }>> {
     const st = await this.getLoginState();
-    return { ok: true, result: { active: !!st.vrfActive, nearAccountId: st.nearAccountId || null, sessionDuration: st.vrfSessionDuration } };
+    return {
+      ok: true,
+      result: {
+        active: !!st.vrfActive,
+        nearAccountId: st.nearAccountId,
+        sessionDuration: st.vrfSessionDuration
+      }
+    };
   }
 
-  async clearVrfSession(): Promise<{ ok: boolean }> {
-    await this.post<any>({ type: 'PM_LOGOUT' } as any);
-    try { this.emitVrfStatusChanged({ active: false, nearAccountId: null }); } catch {}
-    return { ok: true };
+  async clearVrfSession(): Promise<PostResult<void>> {
+    await this.post<void>({ type: 'PM_LOGOUT' });
+    this.emitVrfStatusChanged({ active: false, nearAccountId: null });
+    return { ok: true, result: undefined };
   }
 
   async signNep413Message(payload: {
@@ -319,109 +335,144 @@ export class WalletIframeClient {
     state?: string;
     options?: { onEvent?: (ev: ActionSSEEvent) => void }
   }): Promise<SignNEP413MessageResult> {
-    const res = await this.post<any>({ type: 'PM_SIGN_NEP413', payload: { nearAccountId: payload.nearAccountId, params: { message: payload.message, recipient: payload.recipient, state: payload.state } } }, { onProgress: payload.options?.onEvent as any });
-    return res?.result as SignNEP413MessageResult;
+    const res = await this.post<SignNEP413MessageResult>({
+      type: 'PM_SIGN_NEP413',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        params: {
+          message: payload.message,
+          recipient: payload.recipient,
+          state: payload.state
+        }
+      },
+      options: { onProgress: payload.options?.onEvent as any }
+    });
+    return res.result
   }
 
   async signTransactionWithKeyPair(payload: {
     signedTransaction: SignedTransaction;
     options?: {
       onEvent?: (ev: ActionSSEEvent) => void
-    } & Record<string, unknown>
+    }
   }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
-    const { options } = payload || {};
-    const safeOptions: Record<string, unknown> | undefined = options ? ({
-      ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
-    } as any) : undefined;
-    const res = await this.post<any>({ type: 'PM_SEND_TRANSACTION', payload: { signedTransaction: payload.signedTransaction, options: safeOptions } as any }, { onProgress: options?.onEvent as any });
-    return (res?.result as ActionResult);
+    const { options } = payload;
+    const res = await this.post<ActionResult>( {
+      type: 'PM_SEND_TRANSACTION',
+      payload: {
+        signedTransaction: payload.signedTransaction,
+        options: options
+      },
+      options: { onProgress: options?.onEvent as any }
+    });
+    return res.result;
   }
 
   async executeAction(payload: {
     nearAccountId: string;
     receiverId: string;
-    actionArgs: unknown | unknown[];
-    options?: {
-      onEvent?: (ev: ActionSSEEvent) => void
-    }
+    actionArgs: ActionArgs | ActionArgs[];
+    options?: ActionHooksOptions
   }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
-    const { options } = payload || {};
-    const safeOptions: Record<string, unknown> | undefined = options ? ({
-      ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
-    } as any) : undefined;
-    const res = await this.post<any>(
-      {
-        type: 'PM_EXECUTE_ACTION',
-        payload: { ...payload, options: safeOptions }
+    const { options } = payload;
+    const safeOptions = options
+      ? { waitUntil: options.waitUntil }
+      : undefined;
+
+    const res = await this.post<ActionResult>({
+      type: 'PM_EXECUTE_ACTION',
+      payload: {
+        ...payload,
+        options: safeOptions
       },
-      { onProgress: options?.onEvent as any }
-    );
-    return res?.result as ActionResult;
+      options: { onProgress: options?.onEvent as any }
+    });
+    return res.result;
   }
 
   async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
     if (!this.ready) {
       try { await this.init(); } catch {}
     }
-    let nearAccountId: string | undefined;
-    try { nearAccountId = (await this.getLoginState())?.nearAccountId || undefined; } catch {}
-    console.log("[WalletIframeClient] >>> setConfirmBehavior", behavior, nearAccountId);
-    await this.post<any>({ type: 'PM_SET_CONFIRM_BEHAVIOR', payload: { behavior, nearAccountId } as any });
+    let { nearAccountId } = await this.getLoginState();
+    await this.post<void>({
+      type: 'PM_SET_CONFIRM_BEHAVIOR',
+      payload: { behavior, nearAccountId }
+    });
   }
 
   async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
     if (!this.ready) {
       try { await this.init(); } catch {}
     }
-    let nearAccountId: string | undefined;
-    try { nearAccountId = (await this.getLoginState())?.nearAccountId || undefined; } catch {}
-    console.log("[WalletIframeClient] >>> setConfirmationConfig", config, nearAccountId);
-    await this.post<any>({ type: 'PM_SET_CONFIRMATION_CONFIG', payload: { config, nearAccountId } as any });
+    let { nearAccountId } = await this.getLoginState();
+    await this.post<void>({
+      type: 'PM_SET_CONFIRMATION_CONFIG',
+      payload: { config, nearAccountId }
+    });
   }
 
   async getConfirmationConfig(): Promise<ConfirmationConfig> {
-    const res = await this.post<any>({ type: 'PM_GET_CONFIRMATION_CONFIG' } as any);
-    return res?.result as ConfirmationConfig;
+    const res = await this.post<ConfirmationConfig>({ type: 'PM_GET_CONFIRMATION_CONFIG' });
+    return res.result
   }
 
   async setTheme(theme: 'dark' | 'light'): Promise<void> {
-    await this.post<any>({ type: 'PM_SET_THEME', payload: { theme } as any });
+    await this.post<void>({ type: 'PM_SET_THEME', payload: { theme } });
   }
 
   async prefetchBlockheight(): Promise<void> {
-    await this.post<any>({ type: 'PM_PREFETCH_BLOCKHEIGHT' } as any);
+    await this.post<void>({ type: 'PM_PREFETCH_BLOCKHEIGHT' } );
   }
 
-  async getRecentLogins(): Promise<any> {
-    const res = await this.post<any>({ type: 'PM_GET_RECENT_LOGINS' } as any);
-    return res?.result;
+  async getRecentLogins(): Promise<GetRecentLoginsResult> {
+    const res = await this.post<GetRecentLoginsResult>({ type: 'PM_GET_RECENT_LOGINS' } );
+    return res.result;
   }
 
   async signAndSendTransactions(payload: {
     nearAccountId: string;
-    transactions: { receiverId: string; actions: unknown[] }[];
-    options?: { executeSequentially?: boolean; waitUntil?: import('@near-js/types').TxExecutionStatus; onEvent?: (ev: ActionSSEEvent) => void } & Record<string, unknown>;
+    transactions: TransactionInput[];
+    options?: SignAndSendTransactionHooksOptions
   }): Promise<ActionResult[]> {
-    const { options } = payload || {};
-    const safeOptions: Record<string, unknown> | undefined = options ? ({
-      ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
-      ...(typeof (options as any).executeSequentially !== 'undefined' ? { executeSequentially: (options as any).executeSequentially } : {}),
-    } as any) : undefined;
-    const res = await this.post<any>({ type: 'PM_SIGN_AND_SEND_TXS', payload: { nearAccountId: payload.nearAccountId, transactions: payload.transactions, options: safeOptions } as any }, { onProgress: options?.onEvent as any });
-    const arr = Array.isArray(res?.result) ? res.result as any[] : [];
-    return arr as ActionResult[];
+
+    const { options } = payload;
+    // cannot send objects/functions through postMessage(), clean options first
+    const safeOptions = options
+      ? {
+          waitUntil: options.waitUntil,
+          executeSequentially: options.executeSequentially
+        }
+      : undefined;
+
+    const res = await this.post<ActionResult[]>({
+      type: 'PM_SIGN_AND_SEND_TXS',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        transactions: payload.transactions,
+        options: safeOptions
+      },
+      options: { onProgress: options?.onEvent as any }
+    });
+    return res.result;
   }
 
   async hasPasskeyCredential(nearAccountId: string): Promise<boolean> {
-    const res = await this.post<any>({ type: 'PM_HAS_PASSKEY', payload: { nearAccountId } as any });
+    const res = await this.post<boolean>({
+      type: 'PM_HAS_PASSKEY',
+      payload: { nearAccountId }
+    });
     return !!res?.result;
   }
 
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
-    const res = await this.post<any>({ type: 'PM_VIEW_ACCESS_KEYS', payload: { accountId } as any });
-    return res?.result as AccessKeyList;
+    const res = await this.post<AccessKeyList>({
+      type: 'PM_VIEW_ACCESS_KEYS',
+      payload: { accountId }
+    });
+    return res.result
   }
 
   async deleteDeviceKey(
@@ -429,50 +480,60 @@ export class WalletIframeClient {
     publicKeyToDelete: string,
     options?: { onEvent?: (ev: ActionSSEEvent) => void }
   ) : Promise<ActionResult> {
-    const res = await this.post<any>(
-      {
-        type: 'PM_DELETE_DEVICE_KEY',
-        payload: { accountId, publicKeyToDelete }
+    const res = await this.post<ActionResult>({
+      type: 'PM_DELETE_DEVICE_KEY',
+      payload: {
+        accountId,
+        publicKeyToDelete
       },
-      { onProgress: options?.onEvent as any }
-    );
-    return res?.result as ActionResult;
+      options: { onProgress: options?.onEvent as any }
+    });
+    return res.result
   }
 
   async sendTransaction(args: {
     signedTransaction: SignedTransaction;
-    options?: { onEvent?: (ev: ActionSSEEvent) => void } & Record<string, unknown>
+    options?: SendTransactionHooksOptions;
   }): Promise<ActionResult> {
     // Strip non-cloneable functions from options; host emits PROGRESS events
-    const { options } = args || {};
-    const safeOptions: Record<string, unknown> | undefined = options ? ({
-      ...(typeof (options as any).waitUntil !== 'undefined' ? { waitUntil: (options as any).waitUntil } : {}),
-    } as any) : undefined;
-    const res = await this.post<any>(
-      {
-        type: 'PM_SEND_TRANSACTION',
-        payload: { signedTransaction: args.signedTransaction, options: safeOptions } as any
-      }, { onProgress: options?.onEvent as any }
-    );
-    return res?.result as ActionResult;
+    const { options } = args;
+    const safeOptions = options
+      ? { waitUntil: options.waitUntil }
+      : undefined;
+
+    const res = await this.post<ActionResult>({
+      type: 'PM_SEND_TRANSACTION',
+      payload: {
+        signedTransaction: args.signedTransaction,
+        options: safeOptions
+      },
+      options: { onProgress: options?.onEvent as any }
+    });
+    return res.result
   }
 
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<{
-    accountId: string;
-    privateKey: string;
-    publicKey: string
-  }> {
-    const res = await this.post<any>({ type: 'PM_EXPORT_NEAR_KEYPAIR', payload: { nearAccountId } as any });
-    return res?.result as any;
+  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
+    const res = await this.post<ExportNearKeypairWithTouchIdResult>({
+      type: 'PM_EXPORT_NEAR_KEYPAIR',
+      payload: { nearAccountId }
+    });
+    return res?.result
   }
 
   // ===== Account Recovery (single-endpoint flow) =====
-  async recoverAccountFlow(payload: { accountId?: string; onEvent?: (ev: AccountRecoverySSEEvent) => void }): Promise<RecoveryResult> {
-    const res = await this.post<any>(
-      { type: 'PM_RECOVER_ACCOUNT_FLOW', payload: { accountId: payload.accountId } },
-      { onProgress: payload.onEvent as any, sticky: true }
-    );
-    return res?.result as RecoveryResult;
+  async recoverAccountFlow(payload: {
+    accountId?: string;
+    onEvent?: (ev: AccountRecoverySSEEvent) => void
+  }): Promise<RecoveryResult> {
+    const res = await this.post<RecoveryResult>({
+      type: 'PM_RECOVER_ACCOUNT_FLOW',
+      payload: { accountId: payload.accountId },
+      options: {
+        onProgress: payload.onEvent as any,
+        sticky: true
+      }
+    });
+    return res.result
   }
 
   // ===== Device Linking (iframe-hosted) =====
@@ -484,89 +545,79 @@ export class WalletIframeClient {
     // TouchID required within host
     this.showFrameForActivation();
     try {
-      const res = await this.post<any>(
-        {
-          type: 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA',
-          payload: {
-            qrData: payload.qrData,
-            fundingAmount: payload.fundingAmount
-          }
+      const res = await this.post<LinkDeviceResult>({
+        type: 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA',
+        payload: {
+          qrData: payload.qrData,
+          fundingAmount: payload.fundingAmount
         },
-        { onProgress: payload.options?.onEvent as any }
-      );
-      return res?.result as LinkDeviceResult;
+        options: {
+          onProgress: payload.options?.onEvent as any
+        }
+      });
+      return res.result
     } finally {
       this.hideFrameForActivation();
     }
   }
 
-  async startDevice2LinkingFlow(payload?: {
-    accountId?: string;
-    ui?: 'modal' | 'inline';
-    onEvent?: (ev: DeviceLinkingSSEEvent) => void
-  }): Promise<{
-    qrData: DeviceLinkingQRData;
-    qrCodeDataURL: string
-  }> {
-    // No user activation required at QR-generation step
-    if (this.device2StartPromise) return this.device2StartPromise as any;
-    const p = this.post<any>(
-      {
-        type: 'PM_START_DEVICE2_LINKING_FLOW',
-        payload: { accountId: payload?.accountId, ui: payload?.ui } as any
+  async startDevice2LinkingFlow(payload?: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
+    if (this.device2StartPromise) {
+      return this.device2StartPromise
+    }
+    const p = this.post<StartDevice2LinkingFlowResults>({
+      type: 'PM_START_DEVICE2_LINKING_FLOW',
+      payload: {
+        accountId: payload?.accountId,
+        ui: payload?.ui
       },
-      { onProgress: payload?.onEvent as any, sticky: true }
-    ).then((res) => (res?.result || {}) as { qrData: DeviceLinkingQRData; qrCodeDataURL: string })
+      options: {
+        onProgress: payload?.onEvent as any,
+        sticky: true
+      }
+    }).then((res) => res.result)
     .finally(() => { this.device2StartPromise = null; });
 
-    this.device2StartPromise = p as Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
-
-    return p as Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
+    this.device2StartPromise = p;
+    return p;
   }
 
   async stopDevice2LinkingFlow(): Promise<void> {
-    await this.post<any>({ type: 'PM_STOP_DEVICE2_LINKING_FLOW' } as any);
+    await this.post<void>({ type: 'PM_STOP_DEVICE2_LINKING_FLOW' });
     try { this.progressBus.clearAll(); } catch {}
   }
 
   // ===== Control APIs =====
   async cancelRequest(requestId: string): Promise<void> {
-    // Best-effort cancel. Host will attempt to close any open modal and mark the request as cancelled.
-    await this.post<any>({ type: 'PM_CANCEL', payload: { requestId } as any });
+    // Best-effort cancel. Host will attempt to close open modals and mark the request as cancelled.
+    await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } });
   }
 
   async cancelAll(): Promise<void> {
-    await this.post<any>({ type: 'PM_CANCEL', payload: {} as any });
+    await this.post<void>({ type: 'PM_CANCEL', payload: {} });
   }
-
-  // mount + handshake are handled by IframeTransport
 
   private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
     const msg = e.data as ChildToParentEnvelope;
-    if (!msg || typeof msg !== 'object') return;
+    const requestId = msg.requestId;
+    if (!requestId) return;
 
     // Bridge PROGRESS events to caller-provided onEvent callback via pending registry
     if (msg.type === 'PROGRESS') {
-      const rid = msg.requestId as string | undefined;
-      if (!rid) return;
       const payload = (msg.payload as ProgressPayload);
       // Route via ProgressBus (handles overlay + sticky delivery)
-      this.progressBus.dispatch(rid, payload);
+      this.progressBus.dispatch({ requestId: requestId, payload: payload });
       // Refresh timeout for long-running operations whenever progress is received
-      const pend = this.pending.get(rid);
+      const pend = this.pending.get(requestId);
       if (pend) {
-        try { if (pend.timer) window.clearTimeout(pend.timer as any); } catch {}
+        if (pend.timer) window.clearTimeout(pend.timer);
         pend.timer = window.setTimeout(() => {
-          this.pending.delete(rid);
+          this.pending.delete(requestId);
           pend.reject(new Error('Wallet request timeout'));
-        }, this.opts.requestTimeoutMs) as any;
+        }, this.opts.requestTimeoutMs);
       }
       return;
     }
-    try { console.debug('[WalletIframeClient] message:', msg); } catch {}
-
-    const requestId = (msg as any).requestId as string | undefined;
-    if (!requestId) return;
 
     const pending = this.pending.get(requestId);
     if (!pending) return;
@@ -574,56 +625,51 @@ export class WalletIframeClient {
     if (pending.timer) window.clearTimeout(pending.timer);
 
     // Hide iframe overlay when a request completes (success or error)
-    try { this.hideFrameForActivation(); } catch {}
+    this.hideFrameForActivation();
 
     if (msg.type === 'ERROR') {
-      const err = new Error((msg.payload as any)?.message || 'Wallet error');
-      (err as any).code = (msg.payload as any)?.code;
-      (err as any).details = (msg.payload as any)?.details;
+      const err = new Error(msg.payload?.message || 'Wallet error');
+      (err as any).code = msg.payload?.code;
+      (err as any).details = msg.payload?.details;
       // Deliver to pending promise if present
       pending.reject(err);
-      // Also notify any progress subscribers for this requestId
-      try {
-        const rid = (msg as any).requestId as string | undefined;
-        if (rid) {
-          this.progressBus.dispatch(rid, { step: 0, phase: 'error', status: 'error', message: (msg.payload as any)?.message });
-          this.progressBus.unregister(rid);
+      // Also notify all progress subscribers for this requestId
+      this.progressBus.dispatch({
+        requestId: requestId,
+        payload: {
+          step: 0,
+          phase: 'error',
+          status: 'error',
+          message: msg.payload?.message
         }
-      } catch {}
+      });
+      this.progressBus.unregister(requestId);
       return;
     }
 
     pending.resolve(msg.payload);
-    try {
-      if (requestId && !this.progressBus.isSticky(requestId)) {
-        this.progressBus.unregister(requestId);
-      }
-    } catch {}
+    if (!this.progressBus.isSticky(requestId)) {
+      this.progressBus.unregister(requestId);
+    }
   }
 
   /**
    * Post a typed envelope over the MessagePort with robust readiness handling.
    * If the port is not ready yet, lazily initializes the transport (awaits init()).
    */
-  private async post<T = any>(
+  private async post<T>(
     envelope: Omit<ParentToChildEnvelope, 'requestId'>,
-    opts?: {
-      onProgress?: (payload: ProgressPayload) => void;
-      sticky?: boolean
-    }
-  ): Promise<T> {
+  ): Promise<PostResult<T>> {
+
     // Lazily initialize the iframe/client if not ready yet
     if (!this.ready || !this.port) {
-      try {
-        await this.init();
-      } catch (e) {
-        throw (e instanceof Error) ? e : new Error('Wallet iframe init failed');
-      }
+      await this.init();
     }
     const requestId = `${Date.now()}-${++this.reqCounter}`;
     const full: ParentToChildEnvelope = { ...envelope, requestId } as any;
+    const { options } = full;
 
-    return new Promise<T>((resolve, reject) => {
+    return new Promise<PostResult<T>>((resolve, reject) => {
       const timer = window.setTimeout(() => {
         this.pending.delete(requestId);
         reject(new Error(`Wallet request timeout for ${envelope.type}`));
@@ -633,12 +679,20 @@ export class WalletIframeClient {
         resolve: resolve as any,
         reject,
         timer,
-        onProgress: opts?.onProgress
+        onProgress: options?.onProgress
       });
       // Register progress handler; overlay handled by ProgressBus
-      this.progressBus.register(requestId, (payload: ProgressPayload) => {
-        try { opts?.onProgress?.(payload); } catch {}
-      }, !!opts?.sticky);
+      this.progressBus.register({
+        requestId: requestId,
+        sticky: !!options?.sticky,
+        onProgress: (payload: ProgressPayload) => {
+          // link ProgressPayloads from WalletIframe, to onEvent calls in parent app
+          try {
+            options?.onProgress?.(payload);
+          } catch {}
+        },
+      });
+
       try {
         this.port!.postMessage(full);
       } catch (err) {
@@ -658,7 +712,7 @@ export class WalletIframeClient {
     this.activationOverlayVisible = true;
     try {
       iframe.style.position = 'fixed';
-      (iframe.style as any).inset = '0';
+      iframe.style.inset = '0';
       iframe.style.top = '0';
       iframe.style.left = '0';
       iframe.style.width = '100vw';
@@ -670,7 +724,7 @@ export class WalletIframeClient {
       iframe.style.zIndex = '2147483646';
       iframe.setAttribute('aria-hidden', 'false');
       iframe.removeAttribute('tabindex');
-      console.debug('[WalletIframeClient] Activation overlay applied:', {
+      console.debug('[WalletIframeRouter] Activation overlay applied:', {
         rect: iframe.getBoundingClientRect(),
         pointerEvents: iframe.style.pointerEvents,
         zIndex: iframe.style.zIndex,
@@ -695,13 +749,35 @@ export class WalletIframeClient {
     } catch {}
   }
 
-  // Public subscription API for observability/testing
-  subscribeProgress(requestId: string, handler: (payload: ProgressPayload) => void, opts?: { sticky?: boolean }): () => void {
-    this.progressBus.register(requestId, handler, !!opts?.sticky);
-    return () => { try { this.progressBus.unregister(requestId); } catch {} };
-  }
+}
 
-  getProgressStats(requestId: string): { count: number; lastPhase: string | null; lastAt: number | null } | null {
-    return this.progressBus.getStats(requestId);
-  }
+/**
+ * Strips out class functions as they cannot be sent over postMessage to iframe
+ */
+function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult) {
+  const arr = Array.isArray(result) ? result : [];
+  const normalized = arr.map(entry => {
+    if (entry?.signedTransaction) {
+      const st = entry.signedTransaction;
+      if (st && typeof st.base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
+        entry.signedTransaction = new SignedTransaction({
+          transaction: st.transaction,
+          signature: st.signature,
+          borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
+        });
+      }
+    }
+    return entry;
+  });
+  return normalized
+}
+
+/**
+ * Strips out functions as they cannot be sent over postMessage to iframe
+ */
+function removeFunctionsFromOptions(options?: Object): Object | undefined {
+  if (!options) return undefined;
+  return Object.fromEntries(
+    Object.entries(options).filter(([, v]) => typeof v !== 'function')
+  )
 }

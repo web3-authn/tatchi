@@ -1,4 +1,4 @@
-import { WalletIframeClient } from './client';
+import { WalletIframeRouter } from './router';
 import { PasskeyManager } from '../PasskeyManager';
 import { MinimalNearClient } from '../NearClient';
 import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
@@ -11,8 +11,12 @@ import type {
   BaseHooksOptions,
   ActionHooksOptions,
   AccountRecoveryHooksOptions,
+  GetRecentLoginsResult,
+  ActionResult,
+  SignAndSendTransactionHooksOptions,
 } from '../types/passkeyManager';
-import type { DeviceLinkingQRData, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
+import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
+import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
@@ -23,7 +27,7 @@ import type { RecoveryResult } from '../PasskeyManager';
 
 export class PasskeyManagerIframe {
   readonly configs: PasskeyManagerConfigs;
-  private client: WalletIframeClient;
+  private client: WalletIframeRouter;
   private fallbackLocal: PasskeyManager | null = null;
   private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
   private themeListeners: Set<(t: 'light' | 'dark') => void> = new Set();
@@ -56,7 +60,7 @@ export class PasskeyManagerIframe {
 
   constructor(configs: PasskeyManagerConfigs) {
     this.configs = configs;
-    this.client = new WalletIframeClient({
+    this.client = new WalletIframeRouter({
       walletOrigin: configs.walletOrigin || '',
       servicePath: configs.walletServicePath || '/service',
       connectTimeoutMs: 20000,
@@ -65,8 +69,8 @@ export class PasskeyManagerIframe {
       nearRpcUrl: configs.nearRpcUrl,
       nearNetwork: configs.nearNetwork,
       contractId: configs.contractId,
-      relayer: configs.relayer as any,
-      vrfWorkerConfigs: configs.vrfWorkerConfigs as any,
+      relayer: configs.relayer,
+      vrfWorkerConfigs: configs.vrfWorkerConfigs,
       rpIdOverride: configs.rpIdOverride,
       authenticatorOptions: configs.authenticatorOptions,
     });
@@ -76,10 +80,11 @@ export class PasskeyManagerIframe {
     await this.client.init();
     try {
       const cfg = await this.client.getConfirmationConfig();
-      if (cfg && typeof cfg === 'object') {
-        this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...(cfg as any) } as ConfirmationConfig;
-        this.notifyTheme(this.lastConfirmationConfig.theme);
-      }
+      this.lastConfirmationConfig = {
+        ...DEFAULT_CONFIRMATION_CONFIG,
+        ...cfg
+      } as ConfirmationConfig;
+      this.notifyTheme(this.lastConfirmationConfig.theme);
     } catch {}
   }
 
@@ -143,7 +148,7 @@ export class PasskeyManagerIframe {
 
   async signTransactionsWithActions(args: {
     nearAccountId: string;
-    transactions: { receiverId: string; actions: unknown[] }[];
+    transactions: TransactionInput[];
     options?: ActionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
     try { await args.options?.beforeCall?.(); } catch {}
@@ -155,7 +160,7 @@ export class PasskeyManagerIframe {
           onEvent: args.options?.onEvent
         }
       });
-      try { await args.options?.afterCall?.(true, res as any); } catch {}
+      try { await args.options?.afterCall?.(true, res); } catch {}
       return res;
     } catch (err: any) {
       try { args.options?.onError?.(err); } catch {}
@@ -176,10 +181,10 @@ export class PasskeyManagerIframe {
         message: args.params.message,
         recipient: args.params.recipient,
         state: args.params.state,
-        options: { onEvent: (args.options as any)?.onEvent }
+        options: { onEvent: args.options?.onEvent }
       });
-      try { await args.options?.afterCall?.(true, res as any); } catch {}
-      return res as SignNEP413MessageResult;
+      try { await args.options?.afterCall?.(true, res); } catch {}
+      return res;
     } catch (err: any) {
       try { args.options?.onError?.(err); } catch {}
       try { await args.options?.afterCall?.(false, err); } catch {}
@@ -196,6 +201,7 @@ export class PasskeyManagerIframe {
     return this.fallbackLocal;
   }
 
+  // TODO: refactor NearClient in WalletIframe
   // Provide a NearClient facade so hooks that call getNearClient() work with the iframe manager too
   getNearClient(): NearClient {
     const local = this.ensureFallbackLocal();
@@ -207,13 +213,19 @@ export class PasskeyManagerIframe {
         if (self.client.isReady()) return await self.client.viewAccessKeyList(accountId);
         return await base.viewAccessKeyList(accountId);
       },
-      async sendTransaction(signedTransaction: SignedTransaction, waitUntil?: import('@near-js/types').TxExecutionStatus) {
+      async sendTransaction(
+        signedTransaction: SignedTransaction,
+        waitUntil?: TxExecutionStatus
+      ) {
         if (self.client.isReady()) {
-          const res = await self.client.sendTransaction({ signedTransaction, options: { ...(typeof waitUntil !== 'undefined' ? { waitUntil } : {}) } as any });
+          const res = await self.client.sendTransaction({
+            signedTransaction,
+            options: { waitUntil }
+          });
           // Align with NearClient.sendTransaction returning FinalExecutionOutcome shape
-          return (res as any);
+          return res;
         }
-        return await (base as any).sendTransaction(signedTransaction, waitUntil);
+        return await base.sendTransaction(signedTransaction, waitUntil);
       },
       // Delegate remaining methods to local NearClient (used rarely in UI layer)
       viewAccessKey: base.viewAccessKey.bind(base),
@@ -226,12 +238,18 @@ export class PasskeyManagerIframe {
     } as NearClient;
   }
 
-  async recoverAccountFlow(args: { accountId?: string; options?: AccountRecoveryHooksOptions }): Promise<RecoveryResult> {
+  async recoverAccountFlow(args: {
+    accountId?: string;
+    options?: AccountRecoveryHooksOptions
+  }): Promise<RecoveryResult> {
     const options = args.options;
     if (this.client.isReady()) {
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await (this.client as any).recoverAccountFlow({ accountId: args.accountId, onEvent: options?.onEvent });
+        const res = await this.client.recoverAccountFlow({
+          accountId: args.accountId,
+          onEvent: options?.onEvent
+        });
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (e: any) {
@@ -240,27 +258,46 @@ export class PasskeyManagerIframe {
         throw e;
       }
     }
-    return await this.ensureFallbackLocal().recoverAccountFlow({ accountId: args.accountId, options: args.options } as any);
+    return await this.ensureFallbackLocal().recoverAccountFlow({
+      accountId: args.accountId,
+      options: args.options
+    });
   }
 
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
-  async startDevice2LinkingFlow(args?: { accountId?: string; ui?: 'modal' | 'inline' } & StartDeviceLinkingOptionsDevice2): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
+  async startDevice2LinkingFlow({
+    ui,
+    accountId,
+    beforeCall,
+    afterCall,
+    onError,
+    onEvent,
+  }: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
     // If iframe client present, prefer secure host flow; otherwise fallback to local QR generation
-    const optsAny = (args || {}) as any;
-    try { await optsAny?.beforeCall?.(); } catch {}
+    try { await beforeCall?.(); } catch {}
     try {
       if (this.client.isReady()) {
-        const res = await (this.client as any).startDevice2LinkingFlow({ accountId: args?.accountId, ui: args?.ui, onEvent: optsAny?.onEvent });
-        try { await optsAny?.afterCall?.(true, res); } catch {}
-        return res as any;
+        const res = await this.client.startDevice2LinkingFlow({
+          accountId: accountId,
+          ui: ui,
+          onEvent: onEvent
+        });
+        try { await afterCall?.(true, res); } catch {}
+        return res
       }
-      const { qrData, qrCodeDataURL } = await this.ensureFallbackLocal().startDevice2LinkingFlow({ accountId: args?.accountId, onEvent: optsAny?.onEvent, ensureUserActivation: (args as any)?.ensureUserActivation } as any);
-      const res = { qrData, qrCodeDataURL } as any;
-      try { await optsAny?.afterCall?.(true, res); } catch {}
+      const {
+        qrData,
+        qrCodeDataURL
+      } = await this.ensureFallbackLocal().startDevice2LinkingFlow({
+        accountId: accountId,
+        onEvent: onEvent,
+      });
+      const res = { qrData, qrCodeDataURL };
+      try { await afterCall?.(true, res); } catch {}
       return res;
     } catch (err: any) {
-      try { optsAny?.onError?.(err); } catch {}
-      try { await optsAny?.afterCall?.(false, err); } catch {}
+      try { onError?.(err); } catch {}
+      try { await afterCall?.(false, err); } catch {}
       throw err;
     }
   }
@@ -274,16 +311,28 @@ export class PasskeyManagerIframe {
   }
 
   // Device1: Link device in the host (AddKey + mapping) using scanned QR payload
-  async linkDeviceWithScannedQRData(qrData: DeviceLinkingQRData, options: ScanAndLinkDeviceOptionsDevice1): Promise<LinkDeviceResult> {
-    const optsAny = (options || {}) as any;
+  async linkDeviceWithScannedQRData(
+    qrData: DeviceLinkingQRData,
+    options: ScanAndLinkDeviceOptionsDevice1
+  ): Promise<LinkDeviceResult> {
+    const optsAny = options;
     try { await optsAny?.beforeCall?.(); } catch {}
     try {
       if (this.client.isReady()) {
-        const res = await this.client.linkDeviceWithScannedQRData({ qrData, fundingAmount: (optsAny as any).fundingAmount, options: { onEvent: (optsAny as any)?.onEvent } });
+        const res = await this.client.linkDeviceWithScannedQRData({
+          qrData,
+          fundingAmount: optsAny.fundingAmount,
+          options: {
+            onEvent: optsAny?.onEvent
+          }
+        });
         try { await optsAny?.afterCall?.(true, res); } catch {}
         return res as LinkDeviceResult;
       }
-      const res = await this.ensureFallbackLocal().linkDeviceWithScannedQRData(qrData, options as any);
+      const res = await this.ensureFallbackLocal().linkDeviceWithScannedQRData(
+        qrData,
+        options
+      );
       try { await optsAny?.afterCall?.(true, res); } catch {}
       return res as LinkDeviceResult;
     } catch (err: any) {
@@ -299,7 +348,11 @@ export class PasskeyManagerIframe {
   }
   setConfirmationConfig(config: ConfirmationConfig): void {
     // Update local cache synchronously for immediate reads
-    this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...this.lastConfirmationConfig, ...(config as any) } as ConfirmationConfig;
+    this.lastConfirmationConfig = {
+      ...DEFAULT_CONFIRMATION_CONFIG,
+      ...this.lastConfirmationConfig,
+      ...config
+    } as ConfirmationConfig;
     this.client.setConfirmationConfig(config);
   }
   setUserTheme(theme: 'dark' | 'light'): void {
@@ -314,7 +367,7 @@ export class PasskeyManagerIframe {
   async prefetchBlockheight(): Promise<void> {
     await this.client.prefetchBlockheight();
   }
-  async getRecentLogins(): Promise<any> {
+  async getRecentLogins(): Promise<GetRecentLoginsResult> {
     if (!this.client.isReady()) {
       return { accountIds: [], lastUsedAccountId: null };
     }
@@ -329,7 +382,11 @@ export class PasskeyManagerIframe {
   async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<import('../types/passkeyManager').ActionResult> {
     try { await options?.beforeCall?.(); } catch {}
     try {
-      const res = await this.client.deleteDeviceKey(accountId, publicKeyToDelete, { onEvent: options?.onEvent as any });
+      const res = await this.client.deleteDeviceKey(
+        accountId,
+        publicKeyToDelete,
+        { onEvent: options?.onEvent }
+      );
       try { await options?.afterCall?.(true, res); } catch {}
       return res;
     } catch (err: any) {
@@ -341,9 +398,9 @@ export class PasskeyManagerIframe {
   async executeAction(args: {
     nearAccountId: string;
     receiverId: string;
-    actionArgs: unknown | unknown[];
+    actionArgs: ActionArgs | ActionArgs[];
     options?: ActionHooksOptions
-  }): Promise<import('../types/passkeyManager').ActionResult> {
+  }): Promise<ActionResult> {
     // Route via iframe client with PROGRESS bridging
     try { await args.options?.beforeCall?.(); } catch {}
     try {
@@ -357,7 +414,7 @@ export class PasskeyManagerIframe {
             ? { waitUntil: args.options?.waitUntil }
             : {})
         }
-      } as any);
+      });
       try { await args.options?.afterCall?.(true, res); } catch {}
       return res;
     } catch (err: any) {
@@ -366,15 +423,18 @@ export class PasskeyManagerIframe {
       throw err;
     }
   }
-  async sendTransaction(args: { signedTransaction: SignedTransaction; options?: SendTransactionHooksOptions }): Promise<import('../types/passkeyManager').ActionResult> {
+  async sendTransaction(args: {
+    signedTransaction: SignedTransaction;
+    options?: SendTransactionHooksOptions
+  }): Promise<ActionResult> {
     // Route via iframe client with PROGRESS bridging
-    const options: any = args.options || {};
+    const options = args.options;
     options?.beforeCall?.();
     try {
       const res = await this.client.sendTransaction({
         signedTransaction: args.signedTransaction,
         options: {
-          onEvent: (options as any)?.onEvent,
+          onEvent: options?.onEvent,
           ...(typeof options?.waitUntil !== 'undefined'
             ? { waitUntil: options?.waitUntil }
             : {}
@@ -401,46 +461,23 @@ export class PasskeyManagerIframe {
   // Utility: sign and send in one call via wallet iframe (single before/after)
   async signAndSendTransactions(args: {
     nearAccountId: string;
-    transactions: { receiverId: string; actions: unknown[] }[];
-    options?: { executeSequentially?: boolean } & ActionHooksOptions;
-  }): Promise<import('../types/passkeyManager').ActionResult[]> {
-    const options: any = args.options || {};
+    transactions: TransactionInput[];
+    options?: SignAndSendTransactionHooksOptions;
+  }): Promise<ActionResult[]> {
+    const options = args.options;
     try { await options?.beforeCall?.(); } catch {}
     try {
-      const res = await (this.client as any).signAndSendTransactions({
+      const res = await this.client.signAndSendTransactions({
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
         options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
       });
-      try { await options?.afterCall?.(true, res as any); } catch {}
-      return res as import('../types/passkeyManager').ActionResult[];
+      try { await options?.afterCall?.(true, res); } catch {}
+      return res;
     } catch (err: any) {
       try { options?.onError?.(err); } catch {}
       try { await options?.afterCall?.(false, err); } catch {}
       throw err;
-    }
-  }
-
-  // === Theme sync helpers (iframe-host source of truth) ===
-  private ensureThemePolling(): void {
-    if (this.themePollTimer !== null) return;
-    const tick = async () => {
-      try {
-        const cfg = await this.client.getConfirmationConfig();
-        const theme = (cfg as any)?.theme as 'light' | 'dark' | undefined;
-        if (theme && theme !== this.lastConfirmationConfig.theme) {
-          this.lastConfirmationConfig = { ...DEFAULT_CONFIRMATION_CONFIG, ...(cfg as any) } as ConfirmationConfig;
-          this.notifyTheme(theme);
-        }
-      } catch {}
-    };
-    this.themePollTimer = window.setInterval(tick, this.themePollMs) as any;
-  }
-
-  private maybeStopThemePolling(): void {
-    if (this.themeListeners.size === 0 && this.themePollTimer !== null) {
-      try { window.clearInterval(this.themePollTimer as any); } catch {}
-      this.themePollTimer = null;
     }
   }
 

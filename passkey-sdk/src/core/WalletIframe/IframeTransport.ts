@@ -10,7 +10,7 @@
  * - Deduplicating concurrent connect() calls
  *
  * This module exposes a small surface area that the higher‑level
- * WalletIframeClient can depend on without worrying about browser quirks.
+ * WalletIframeRouter can depend on without worrying about browser quirks.
  */
 
 import type { ChildToParentEnvelope } from './messages';
@@ -159,15 +159,12 @@ export class IframeTransport {
           const port2 = channel.port2;
           const cleanup = () => { try { (port1 as any).onmessage = null as any; } catch {} };
 
-          (port1 as any).onmessage = (e: MessageEvent) => {
-            const data = e.data as ChildToParentEnvelope;
-            if (!data || typeof data !== 'object') return;
-            try { console.debug('[IframeTransport] onmessage (attempt %d):', attempt, data); } catch {}
+          port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
+            const data = e.data;
             if (data.type === 'READY') {
               resolved = true;
               cleanup();
               port1.start?.();
-              try { console.debug('[IframeTransport] READY received (attempt %d)', attempt); } catch {}
               return resolve(port1);
             }
           };
@@ -175,10 +172,8 @@ export class IframeTransport {
           const cw = iframe.contentWindow;
           if (!cw) {
             cleanup();
-            try { console.debug('[IframeTransport] contentWindow missing'); } catch {}
             return reject(new Error('Wallet iframe window missing'));
           }
-          try { console.debug('[IframeTransport] posting CONNECT (attempt %d)', attempt); } catch {}
           const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
           cw.postMessage({ type: 'CONNECT' }, target as any, [port2]);
 

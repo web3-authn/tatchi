@@ -1,5 +1,5 @@
 export * from './messages';
-export * from './client';
+export * from './router';
 export * from './env';
 export * from './sanitization';
 // Note: wallet-iframe-host is intended to be bundled into the wallet origin page.

@@ -1,12 +1,16 @@
 
 // Typed RPC messages for the wallet service iframe channel (PasskeyManager-first)
-import type {
-  RegistrationResult,
-  VerifyAndSignTransactionResult,
-  LoginResult,
-  ActionResult,
-  LoginState,
-} from '../types/passkeyManager';
+import { AuthenticatorOptions } from '@/server';
+import { ActionArgs, TransactionInput } from '../types';
+import {
+  BaseHooksOptions,
+  LoginHooksOptions,
+  ActionHooksOptions,
+  RegistrationHooksOptions,
+  SignAndSendTransactionHooksOptions,
+  ScanAndLinkDeviceOptionsDevice1,
+  StartDeviceLinkingOptionsDevice2
+} from '../types';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -52,6 +56,10 @@ export interface RpcEnvelope<T extends string = string, P = unknown> {
   type: T;
   requestId?: string;
   payload?: P;
+  options?: {
+    onProgress?(payload: ProgressPayload): void;
+    sticky?: boolean;
+  }
 }
 
 // ===== Payloads =====
@@ -69,6 +77,7 @@ export interface PMSetConfigPayload {
   relayer?: { initialUseRelayer?: boolean; accountId: string; url: string };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
+  authenticatorOptions?: AuthenticatorOptions;
   // Absolute base URL for SDK Lit component assets (e.g., https://app.example.com/sdk/)
   assetsBaseUrl?: string;
 }
@@ -77,15 +86,10 @@ export interface PMCancelPayload {
   requestId?: string; // when omitted, host may attempt best-effort global cancel (close UIs)
 }
 
-export interface TransactionInputLite {
-  receiverId: string;
-  actions: unknown[];
-}
-
 export interface PMRegisterPayload {
   nearAccountId: string;
-  options?: Record<string, unknown>;
   uiMode?: 'modal' | 'drawer';
+  options?: Record<string, unknown>;
 }
 
 export interface PMLoginPayload {
@@ -95,13 +99,13 @@ export interface PMLoginPayload {
 
 export interface PMSignTxsPayload {
   nearAccountId: string;
-  transactions: TransactionInputLite[];
+  transactions: TransactionInput[];
   options?: Record<string, unknown>;
 }
 
 export interface PMSignAndSendTxsPayload {
   nearAccountId: string;
-  transactions: TransactionInputLite[];
+  transactions: TransactionInput[];
   options?: {
     // Keep only serializable fields; functions are bridged via PROGRESS
     waitUntil?: 'NONE' | 'INCLUDED' | 'INCLUDED_FINAL' | 'EXECUTED' | 'FINAL' | 'EXECUTED_OPTIMISTIC';
@@ -111,14 +115,14 @@ export interface PMSignAndSendTxsPayload {
 }
 
 export interface PMSendTxPayload {
-  signedTransaction: unknown; // SignedTransaction-like POJO
+  signedTransaction: unknown; // SignedTransaction-like
   options?: Record<string, unknown>;
 }
 
 export interface PMExecuteActionPayload {
   nearAccountId: string;
   receiverId: string;
-  actionArgs: unknown | unknown[];
+  actionArgs: ActionArgs | ActionArgs[];
   options?: Record<string, unknown>;
 }
 

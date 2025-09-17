@@ -1,3 +1,5 @@
+
+// TODO: clean up wallet iframe initialization
 // Minimal service iframe host bootstrap (PasskeyManager‑first)
 // Ensure common Node-ish globals exist for browser bundles that expect them
 try { (globalThis as any).global = (globalThis as any).global || globalThis; } catch {}
@@ -44,7 +46,9 @@ import { MinimalNearClient, SignedTransaction } from '../NearClient';
 import { setupElemMounter } from './elem-mounter';
 import type { PasskeyManagerConfigs } from '../types/passkeyManager';
 import { PasskeyManager } from '../PasskeyManager';
+import { PasskeyManagerIframe } from './PasskeyManagerIframe';
 import type { DeviceLinkingQRData } from '../types/linkDevice';
+import type { TransactionInput } from '../types';
 import type { ProgressPayload } from './messages';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import type {
@@ -56,7 +60,10 @@ import type {
   BaseHooksOptions,
   AccountRecoveryHooksOptions,
 } from '../types/passkeyManager';
-import type { ScanAndLinkDeviceOptionsDevice1, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
+import type {
+  ScanAndLinkDeviceOptionsDevice1,
+  StartDeviceLinkingOptionsDevice2
+} from '../types/linkDevice';
 import { toAccountId } from '../types/accountIds';
 
 const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
@@ -64,7 +71,7 @@ const PROTOCOL: ReadyPayload['protocolVersion'] = '1.0.0';
 let port: MessagePort | null = null;
 let walletConfigs: PasskeyManagerConfigs | null = null;
 let nearClient: MinimalNearClient | null = null;
-let passkeyManager: PasskeyManager | null = null;
+let passkeyManager: PasskeyManagerIframe | PasskeyManager | null = null;
 let themeUnsubscribe: (() => void) | null = null;
 // Track request-level cancellations
 const cancelledRequests = new Set<string>();
@@ -78,8 +85,7 @@ function ensurePasskeyManager(): void {
   }
   if (!nearClient) nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   if (!passkeyManager) {
-    // Preserve rpIdOverride so WebAuthn in the wallet origin uses the correct RP ID
-    const cfg = { ...walletConfigs } as PasskeyManagerConfigs;
+    const cfg = { ...walletConfigs };
     passkeyManager = new PasskeyManager(cfg, nearClient);
     // Bridge theme changes to the host document so embedded UIs can react via CSS
     try {
@@ -109,7 +115,7 @@ function post(msg: ChildToParentEnvelope) {
     getPasskeyManager: () => passkeyManager,
     updateWalletConfigs: (patch) => {
       try {
-        walletConfigs = { ...(walletConfigs || {}), ...(patch || {}) } as any;
+        walletConfigs = { ...walletConfigs, ...patch } as PasskeyManagerConfigs;
         console.debug('[WalletHost:RegisterBtn] config updated via WALLET_SET_CONFIG');
       } catch {}
     },
@@ -119,24 +125,24 @@ function post(msg: ChildToParentEnvelope) {
 async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   const req = e.data as ParentToChildEnvelope;
   if (!req || typeof req !== 'object') return;
-  const requestId = (req as any).requestId as string | undefined;
+  const requestId = req.requestId;
 
   if (req.type === 'PING') { post({ type: 'PONG', requestId }); return; }
 
   if (req.type === 'PM_SET_CONFIG') {
-    const payload = (req.payload || {}) as PMSetConfigPayload;
+    const payload = req.payload as PMSetConfigPayload;
     walletConfigs = {
       nearRpcUrl: payload?.nearRpcUrl || walletConfigs?.nearRpcUrl || '',
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
       contractId: payload?.contractId || walletConfigs?.contractId || '',
       nearExplorerUrl: walletConfigs?.nearExplorerUrl,
-      relayer: payload?.relayer || walletConfigs?.relayer || { accountId: '', url: '' },
-      authenticatorOptions: (payload as any)?.authenticatorOptions || (walletConfigs as any)?.authenticatorOptions,
+      relayer: payload?.relayer || walletConfigs?.relayer,
+      authenticatorOptions: payload?.authenticatorOptions || walletConfigs?.authenticatorOptions,
       vrfWorkerConfigs: payload?.vrfWorkerConfigs || walletConfigs?.vrfWorkerConfigs,
       walletOrigin: undefined,
       walletServicePath: undefined,
-      walletTheme: payload?.theme || (walletConfigs as any)?.walletTheme,
-      rpIdOverride: payload?.rpIdOverride || (walletConfigs as any)?.rpIdOverride,
+      walletTheme: payload?.theme || walletConfigs?.walletTheme,
+      rpIdOverride: payload?.rpIdOverride || walletConfigs?.rpIdOverride,
     } as PasskeyManagerConfigs;
     // Configure SDK embedded asset base for Lit modal/embedded components
     try {
@@ -153,18 +159,23 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   }
 
   if (req.type === 'PM_CANCEL') {
-    // Best-effort cancel: mark rid and close any open modal inside the wallet host
-    const rid = ((req.payload || {}) as PMCancelPayload)?.requestId as string | undefined;
+    // Best-effort cancel: mark requestId and close any open modal inside the wallet host
+    const rid = req.payload?.requestId;
     markCancelled(rid);
-    try {
-      const els = Array.from(document.querySelectorAll('iframe-modal')) as HTMLElement[];
-      for (const el of els) {
-        try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
-      }
-    } catch {}
+    const els = Array.from(document.querySelectorAll('iframe-modal')) as HTMLElement[];
+    for (const el of els) {
+      try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+    }
     // Also cancel any device linking flow
-    try { ensurePasskeyManager(); await passkeyManager!.stopDevice2LinkingFlow(); } catch {}
-    try { if (rid) post({ type: 'PROGRESS', requestId: rid, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } }); } catch {}
+    ensurePasskeyManager();
+    await passkeyManager!.stopDevice2LinkingFlow();
+    if (rid) {
+      post({
+        type: 'PROGRESS',
+        requestId: rid,
+        payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+      });
+    }
     post({ type: 'PONG', requestId });
     return;
   }
@@ -173,19 +184,34 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     switch (req.type) {
       case 'PM_LOGIN': {
         ensurePasskeyManager();
-        const { nearAccountId, options } = (req.payload || {}) as PMLoginPayload;
+        const { nearAccountId, options } = req.payload as PMLoginPayload;
+
         if (isCancelled(requestId)) {
-          post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } });
-          post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
+          post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
+          post({
+            type: 'ERROR',
+            requestId,
+            payload: { code: 'CANCELLED', message: 'Request cancelled' }
+          });
           clearCancelled(requestId);
           return;
         }
+
         const result = await passkeyManager!.loginPasskey(nearAccountId, {
-          ...(options || {}),
+          ...options,
           onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
         } as LoginHooksOptions);
+
         if (isCancelled(requestId)) {
-          post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } });
+          post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
           post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
           clearCancelled(requestId);
           return;
@@ -203,7 +229,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
       case 'PM_GET_LOGIN_STATE': {
         ensurePasskeyManager();
-        const { nearAccountId } = (req.payload || {}) as PMGetLoginStatePayload;
+        const { nearAccountId } = req.payload as PMGetLoginStatePayload;
         const state = await passkeyManager!.getLoginState(nearAccountId);
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result: state } });
         return;
@@ -211,19 +237,27 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
       case 'PM_REGISTER': {
         ensurePasskeyManager();
-        const { nearAccountId, options } = (req.payload || {}) as PMRegisterPayload;
+        const { nearAccountId, options } = req.payload as PMRegisterPayload;
         if (isCancelled(requestId)) {
-          post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } });
+          post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
           post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
           clearCancelled(requestId);
           return;
         }
         const result = await passkeyManager!.registerPasskey(nearAccountId, {
-          ...(options || {}),
+          ...options,
           onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
         } as RegistrationHooksOptions);
         if (isCancelled(requestId)) {
-          post({ type: 'PROGRESS', requestId, payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' } });
+          post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
           post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
           clearCancelled(requestId);
           return;
@@ -234,16 +268,24 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
       case 'PM_SIGN_TXS_WITH_ACTIONS': {
         ensurePasskeyManager();
-        const { nearAccountId, transactions, options } = (req.payload || {}) as PMSignTxsPayload;
+        const { nearAccountId, transactions, options } = req.payload as PMSignTxsPayload;
         const results = await passkeyManager!.signTransactionsWithActions({
           nearAccountId,
-          transactions: transactions as unknown as import('../types/actions').TransactionInput[],
+          transactions: transactions,
           options: {
-            ...(options || {}),
+            ...options,
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as ActionHooksOptions,
         });
-        if (isCancelled(requestId)) { post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } }); clearCancelled(requestId); return; }
+        if (isCancelled(requestId)) {
+          post({
+            type: 'ERROR',
+            requestId,
+            payload: { code: 'CANCELLED', message: 'Request cancelled' }
+          });
+          clearCancelled(requestId);
+          return;
+        }
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result: results } });
         return;
       }
@@ -253,9 +295,9 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         const { nearAccountId, transactions, options } = (req.payload || {}) as PMSignAndSendTxsPayload;
         const results = await passkeyManager!.signAndSendTransactions({
           nearAccountId,
-          transactions: transactions as unknown as import('../types/actions').TransactionInput[],
+          transactions: transactions,
           options: {
-            ...(options || {}),
+            ...options,
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as SignAndSendTransactionHooksOptions,
         });
@@ -280,6 +322,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA': {
         // Device1: Scan QR in parent, authorize AddKey + mapping within iframe
         ensurePasskeyManager();
+        // TODO: fix typing for link device
         const { qrData, fundingAmount } = (req.payload || {}) as { qrData: DeviceLinkingQRData; fundingAmount: string };
         if (isCancelled(requestId)) {
           post({
@@ -325,7 +368,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           const { qrData, qrCodeDataURL } = await passkeyManager!.startDevice2LinkingFlow({
             accountId,
             onEvent: (ev: ProgressPayload) => { try { post({ type: 'PROGRESS', requestId, payload: ev }); } catch {} },
-          } as StartDeviceLinkingOptionsDevice2 & { accountId?: string; ui?: 'modal' | 'inline' });
+          });
           post({
             type: 'PM_RESULT', requestId,
             payload: { ok: true, result: { flowId: requestId, qrData, qrCodeDataURL } }
@@ -365,24 +408,45 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as SendTransactionHooksOptions,
         });
-        if (isCancelled(requestId)) { post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } }); clearCancelled(requestId); return; }
+        if (isCancelled(requestId)) {
+          post({
+            type: 'ERROR',
+            requestId,
+            payload: { code: 'CANCELLED', message: 'Request cancelled' }
+          });
+          clearCancelled(requestId);
+          return;
+        }
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
         return;
       }
 
       case 'PM_EXECUTE_ACTION': {
         ensurePasskeyManager();
-        const { nearAccountId, receiverId, actionArgs, options } = (req.payload || {}) as PMExecuteActionPayload & { options?: Record<string, unknown> };
+        const {
+          nearAccountId,
+          receiverId,
+          actionArgs,
+          options
+        } = (req.payload || {}) as PMExecuteActionPayload & { options?: Record<string, unknown> };
         const result = await passkeyManager!.executeAction({
           nearAccountId,
           receiverId,
-          actionArgs: actionArgs as unknown as import('../types/actions').ActionArgs | import('../types/actions').ActionArgs[],
+          actionArgs: actionArgs,
           options: {
             ...(options || {}),
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as ActionHooksOptions,
         });
-        if (isCancelled(requestId)) { post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } }); clearCancelled(requestId); return; }
+        if (isCancelled(requestId)) {
+          post({
+            type: 'ERROR',
+            requestId,
+            payload: { code: 'CANCELLED', message: 'Request cancelled' }
+          });
+          clearCancelled(requestId);
+          return;
+        }
         post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
         return;
       }
@@ -390,7 +454,14 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       case 'PM_SIGN_NEP413': {
         ensurePasskeyManager();
         const { nearAccountId, params, options } = (req.payload || {}) as PMSignNep413Payload;
-        const result = await passkeyManager!.signNEP413Message({ nearAccountId, params, options: { ...(options || {}), onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev }) } as BaseHooksOptions });
+        const result = await passkeyManager!.signNEP413Message({
+          nearAccountId,
+          params,
+          options: {
+            ...options,
+            onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
+          } as BaseHooksOptions
+        });
         if (isCancelled(requestId)) {
           post({
             type: 'PROGRESS',
