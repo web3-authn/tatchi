@@ -5,6 +5,7 @@ import type {
   LoginSSEvent,
   AfterCall,
   BeforeCall,
+  GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { LoginPhase, LoginStatus } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
@@ -320,20 +321,13 @@ export async function getLoginState(
 
 export async function getRecentLogins(
   context: PasskeyManagerContext
-): Promise<{
-  accountIds: string[],
-  lastUsedAccountId: {
-    nearAccountId: AccountId,
-    deviceNumber: number,
-  } | null
-}> {
+): Promise<GetRecentLoginsResult> {
   const { webAuthnManager } = context;
   // Get all user accounts from IndexDB
   const allUsersData = await webAuthnManager.getAllUserData();
   const accountIds = allUsersData.map(user => user.nearAccountId);
   // Get last used account for initial state
   const lastUsedAccountId = await webAuthnManager.getLastUsedNearAccountId();
-
   return {
     accountIds,
     lastUsedAccountId,

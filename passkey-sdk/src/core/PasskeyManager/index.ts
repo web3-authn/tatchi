@@ -28,6 +28,8 @@ import type {
   VerifyAndSignTransactionResult,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
+  ExportNearKeypairWithTouchIdResult,
+  GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
@@ -42,7 +44,9 @@ import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
   StartDeviceLinkingOptionsDevice2,
-  ScanAndLinkDeviceOptionsDevice1
+  ScanAndLinkDeviceOptionsDevice1,
+  StartDevice2LinkingFlowArgs,
+  StartDevice2LinkingFlowResults
 } from '../types/linkDevice';
 import { LinkDeviceFlow } from './linkDevice';
 import { linkDeviceWithScannedQRData } from './scanDevice';
@@ -58,7 +62,7 @@ import {
 } from './signNEP413';
 import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
-import { WalletIframeClient } from '../WalletIframe/client';
+import { WalletIframeRouter } from '../WalletIframe/router';
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -78,7 +82,7 @@ export class PasskeyManager {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
   readonly configs: PasskeyManagerConfigs;
-  private serviceClient: WalletIframeClient | null = null;
+  private iframeRouter: WalletIframeRouter | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
   private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
@@ -108,8 +112,8 @@ export class PasskeyManager {
    */
   async initWalletIframe(): Promise<void> {
     if (!this.configs.walletOrigin) return;
-    if (this.serviceClient) return;
-    this.serviceClient = new WalletIframeClient({
+    if (this.iframeRouter) return;
+    this.iframeRouter = new WalletIframeRouter({
       walletOrigin: this.configs.walletOrigin,
       servicePath: this.configs.walletServicePath || '/service',
       connectTimeoutMs: 20000,
@@ -123,11 +127,11 @@ export class PasskeyManager {
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
       rpIdOverride: this.configs.rpIdOverride,
     });
-    await this.serviceClient.init();
+    await this.iframeRouter.init();
   }
 
   /** Get the service iframe client if initialized. */
-  getServiceClient(): WalletIframeClient | null { return this.serviceClient; }
+  getServiceClient(): WalletIframeRouter | null { return this.iframeRouter; }
 
   getContext(): PasskeyManagerContext {
     return {
@@ -147,8 +151,8 @@ export class PasskeyManager {
    * @returns Promise resolving to access key list
    */
   async viewAccessKeyList(accountId: string): Promise<AccessKeyList> {
-    if (this.serviceClient) {
-      return await this.serviceClient.viewAccessKeyList(accountId);
+    if (this.iframeRouter) {
+      return await this.iframeRouter.viewAccessKeyList(accountId);
     }
     return this.nearClient.viewAccessKeyList(accountId);
   }
@@ -166,10 +170,10 @@ export class PasskeyManager {
     options: RegistrationHooksOptions = {}
   ): Promise<RegistrationResult> {
     // Route via wallet iframe when available so WebAuthn ceremony runs inside host
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (err: any) {
@@ -194,12 +198,12 @@ export class PasskeyManager {
     nearAccountId: string,
     options?: LoginHooksOptions
   ): Promise<LoginResult> {
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       // Keep local preferences in sync
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        const res = await this.iframeRouter.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (err: any) {
@@ -220,8 +224,8 @@ export class PasskeyManager {
     await logoutAndClearVrfSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
     try {
-      if (this.serviceClient) {
-        await this.serviceClient.clearVrfSession?.();
+      if (this.iframeRouter) {
+        await this.iframeRouter.clearVrfSession?.();
       }
     } catch {}
   }
@@ -231,8 +235,8 @@ export class PasskeyManager {
    * Uses AccountId for core account login state
    */
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
-    if (this.serviceClient) {
-      return this.serviceClient.getLoginState(nearAccountId);
+    if (this.iframeRouter) {
+      return this.iframeRouter.getLoginState(nearAccountId);
     }
     return getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
   }
@@ -241,8 +245,8 @@ export class PasskeyManager {
    * Get check if accountId has a passkey from IndexedDB
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
-    if (this.serviceClient) {
-      return this.serviceClient.hasPasskeyCredential(nearAccountId);
+    if (this.iframeRouter) {
+      return this.iframeRouter.hasPasskeyCredential(nearAccountId);
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -256,9 +260,9 @@ export class PasskeyManager {
    * Set confirmation behavior setting for the current user
    */
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
-      void this.serviceClient.setConfirmBehavior(behavior).catch(() => {});
+      void this.iframeRouter.setConfirmBehavior(behavior).catch(() => {});
       // Mirror locally so UI reads from preferences stay in sync immediately
       try { this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior); } catch {}
       return;
@@ -270,9 +274,9 @@ export class PasskeyManager {
    * Set the unified confirmation configuration
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       // Fire and forget; avoid unhandled rejections in consumers
-      void this.serviceClient.setConfirmationConfig(config).catch(() => {});
+      void this.iframeRouter.setConfirmationConfig(config).catch(() => {});
       // Mirror locally for immediate UI coherence
       try { this.webAuthnManager.getUserPreferences().setConfirmationConfig(config); } catch {}
       return;
@@ -281,7 +285,7 @@ export class PasskeyManager {
   }
 
   setUserTheme(theme: 'dark' | 'light'): void {
-    if (this.serviceClient) { void this.serviceClient.setTheme(theme); return; }
+    if (this.iframeRouter) { void this.iframeRouter.setTheme(theme); return; }
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
@@ -301,20 +305,14 @@ export class PasskeyManager {
    */
   async prefetchBlockheight(): Promise<void> {
     try {
-      if (this.serviceClient) { await this.serviceClient.prefetchBlockheight(); return; }
+      if (this.iframeRouter) { await this.iframeRouter.prefetchBlockheight(); return; }
       await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient);
     } catch {}
   }
 
-  async getRecentLogins(): Promise<{
-    accountIds: string[],
-    lastUsedAccountId: {
-      nearAccountId: AccountId,
-      deviceNumber: number,
-    } | null
-  }> {
-    if (this.serviceClient) {
-      return await this.serviceClient.getRecentLogins()
+  async getRecentLogins(): Promise<GetRecentLoginsResult> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.getRecentLogins()
     }
     return getRecentLogins(this.getContext());
   }
@@ -380,14 +378,18 @@ export class PasskeyManager {
     actionArgs: ActionArgs | ActionArgs[],
     options?: ActionHooksOptions
   }): Promise<ActionResult> {
-    if (this.serviceClient) {
+    // cross-origin iframe mode
+    if (this.iframeRouter) {
       try { await args.options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.executeAction({
+        const res = await this.iframeRouter.executeAction({
           nearAccountId: args.nearAccountId,
           receiverId: args.receiverId,
           actionArgs: args.actionArgs,
-          options: { onEvent: args.options?.onEvent, ...(typeof args.options?.waitUntil !== 'undefined' ? { waitUntil: args.options?.waitUntil } : {}) }
+          options: {
+            onEvent: args.options?.onEvent,
+            ...({ waitUntil: args.options?.waitUntil })
+          }
         });
         try { await args.options?.afterCall?.(true, res); } catch {}
         return res;
@@ -397,6 +399,7 @@ export class PasskeyManager {
         throw err;
       }
     }
+    // same-origin mode
     return executeAction({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
@@ -460,10 +463,10 @@ export class PasskeyManager {
     transactions: TransactionInput[],
     options?: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       await options?.beforeCall?.();
       try {
-        const res = await this.serviceClient.signAndSendTransactions({
+        const res = await this.iframeRouter.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
           options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
@@ -554,11 +557,11 @@ export class PasskeyManager {
     options?: ActionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
     // If a service iframe is initialized, route signing via wallet origin
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       try { await options?.beforeCall?.(); } catch {}
       try {
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
-        const result = await this.serviceClient.signTransactionsWithActions({
+        const result = await this.iframeRouter.signTransactionsWithActions({
           nearAccountId, transactions:
           txs,
           options: { onEvent: options?.onEvent }
@@ -613,10 +616,10 @@ export class PasskeyManager {
     signedTransaction: SignedTransaction,
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       try { await options?.beforeCall?.(); } catch {}
       try {
-        const res = await this.serviceClient.sendTransaction({
+        const res = await this.iframeRouter.sendTransaction({
           signedTransaction,
           options: {
             onEvent: options?.onEvent,
@@ -687,7 +690,7 @@ export class PasskeyManager {
     options?: BaseHooksOptions
   }): Promise<SignNEP413MessageResult> {
     // Route via wallet service if available for stronger isolation
-    if (this.serviceClient) {
+    if (this.iframeRouter) {
       const payload = {
         nearAccountId: args.nearAccountId,
         message: args.params.message,
@@ -695,7 +698,7 @@ export class PasskeyManager {
         state: args.params.state,
       };
       try { await args.options?.beforeCall?.(); } catch {}
-      const result = await this.serviceClient.signNep413Message({
+      const result = await this.iframeRouter.signNep413Message({
         ...payload,
         options: { onEvent: args.options?.onEvent }
       });
@@ -719,13 +722,9 @@ export class PasskeyManager {
    * Export key pair (both private and public keys)
    * Uses AccountId for consistent PRF salt derivation
    */
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<{
-    accountId: string;
-    privateKey: string;
-    publicKey: string
-  }> {
-    if (this.serviceClient) {
-      return await this.serviceClient.exportNearKeypairWithTouchId(nearAccountId);
+  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.exportNearKeypairWithTouchId(nearAccountId);
     }
     return await this.webAuthnManager.exportNearKeypairWithTouchId(toAccountId(nearAccountId))
   }
@@ -745,8 +744,8 @@ export class PasskeyManager {
     const accountIdInput = args?.accountId || '';
     const options = args?.options;
     // Prefer wallet-origin implementation when available
-    if (this.serviceClient?.isReady?.()) {
-      return await this.serviceClient.recoverAccountFlow({
+    if (this.iframeRouter?.isReady?.()) {
+      return await this.iframeRouter.recoverAccountFlow({
         accountId: accountIdInput,
         onEvent: options?.onEvent
       });
@@ -792,9 +791,9 @@ export class PasskeyManager {
    * Returns QR payload and data URL to render; emits onEvent during the flow.
    * Runs inside iframe when available for better isolation.
    */
-  async startDevice2LinkingFlow(args?: { accountId?: string; ui?: 'modal' | 'inline' } & StartDeviceLinkingOptionsDevice2): Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> {
-    if (this.serviceClient) {
-      return await this.serviceClient.startDevice2LinkingFlow({
+  async startDevice2LinkingFlow(args: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
+    if (this.iframeRouter) {
+      return await this.iframeRouter.startDevice2LinkingFlow({
         accountId: args?.accountId,
         ui: args?.ui,
         onEvent: args?.onEvent
@@ -804,7 +803,6 @@ export class PasskeyManager {
     try { this.activeDeviceLinkFlow?.cancel(); } catch {}
     const flow = new LinkDeviceFlow(this.getContext(), {
       onEvent: args?.onEvent,
-      ensureUserActivation: args?.ensureUserActivation
     });
     this.activeDeviceLinkFlow = flow;
     const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId ? toAccountId(args.accountId) : undefined);
@@ -815,8 +813,8 @@ export class PasskeyManager {
    * Device2: Stops device linking flow inside the iframe host.
    */
   async stopDevice2LinkingFlow(): Promise<void> {
-    if (this.serviceClient) {
-      await this.serviceClient.stopDevice2LinkingFlow();
+    if (this.iframeRouter) {
+      await this.iframeRouter.stopDevice2LinkingFlow();
       return;
     }
     try { this.activeDeviceLinkFlow?.cancel(); } catch {}
@@ -836,8 +834,8 @@ export class PasskeyManager {
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
-    if (this.serviceClient) {
-      const res = await this.serviceClient.linkDeviceWithScannedQRData({
+    if (this.iframeRouter) {
+      const res = await this.iframeRouter.linkDeviceWithScannedQRData({
         qrData,
         fundingAmount: options.fundingAmount,
         options: { onEvent: options.onEvent }
@@ -856,8 +854,8 @@ export class PasskeyManager {
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
     // Validate that we're not deleting the last key
-    const keysView = this.serviceClient
-      ? await this.serviceClient.viewAccessKeyList(accountId)
+    const keysView = this.iframeRouter
+      ? await this.iframeRouter.viewAccessKeyList(accountId)
       : await this.nearClient.viewAccessKeyList(toAccountId(accountId));
     if (keysView.keys.length <= 1) {
       throw new Error('Cannot delete the last access key from an account');
