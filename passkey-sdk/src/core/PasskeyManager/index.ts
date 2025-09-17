@@ -286,7 +286,12 @@ export class PasskeyManager {
   }
 
   setUserTheme(theme: 'dark' | 'light'): void {
-    if (this.iframeRouter) { void this.iframeRouter.setTheme(theme); return; }
+    if (this.iframeRouter) {
+      // Ensure local UI updates immediately while propagating to wallet host
+      try { void this.webAuthnManager.getUserPreferences().setUserTheme(theme); } catch {}
+      void this.iframeRouter.setTheme(theme);
+      return;
+    }
     this.webAuthnManager.getUserPreferences().setUserTheme(theme);
   }
 
