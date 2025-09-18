@@ -200,6 +200,15 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               />
             </div>
 
+            <div className="test-embedded-section">
+              <label className="test-embedded-section-label">Wallet Host Inline Button:</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 12, color: '#666' }}>
+                  Renders inline inside the wallet iframe, enabling non-modal flows cross-origin.
+                </span>
+              </div>
+            </div>
+
             {loading && (
               <div className="embedded-tx-status-section">
                 <label className="embedded-tx-status-label">Processing:</label>

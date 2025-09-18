@@ -3,7 +3,6 @@
 }
 
 # App (Vite dev server)
-
 example.localhost {
 	tls internal
 	encode gzip

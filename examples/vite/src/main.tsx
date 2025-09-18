@@ -12,33 +12,30 @@ import { WalletIframeDemoPage } from './pages/WalletIframeDemoPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
 
 // Simple App component to manage layout and potentially shared state later
 function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <PasskeyProvider
-          config={{
-            // nearRpcUrl: 'https://rpc.testnet.near.org',
-            nearRpcUrl: 'https://test.rpc.fastnear.com',
-            contractId: 'web3-authn-v5.testnet',
-            nearNetwork: 'testnet',
-            nearExplorerUrl: 'https://testnet.nearblocks.io',
-            // Route sensitive flows via cross-origin wallet service
-            // Route via Caddy reverse proxy (TLS provided by Caddy)
+        <PasskeyProvider config={{
+          // // Same-origin mode (App Wallet) by default for this example.
+          // // To demo cross-origin wallet hosting, use the vite-secure example
+          // // which serves the wallet service on a separate origin.
+          // ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+
+          // To demo cross-origin wallet hosting, use the vite-secure example
+          // which serves the wallet service on a separate origin.
+          ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+          // Enable Wallet-in-Iframe mode for local dev
+          iframeWallet: {
             walletOrigin: 'https://wallet.example.localhost',
             walletServicePath: '/wallet-service',
-            walletTheme: 'dark',
-            // Use wallet origin as RP ID so contract validation matches
-            // If you want a shared RP ID across subdomains, update contract/verification to accept it
-            rpIdOverride: 'wallet.example.localhost',
-            relayer: {
-              accountId: 'web3-authn-v5.testnet',
-              url: 'https://relay-server.localhost',
-            },
-          }}
-        >
+            // Optional: set RP ID base so passkeys work across local subpaths/origins
+            rpIdOverride: 'example.localhost',
+          },
+        }}>
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />

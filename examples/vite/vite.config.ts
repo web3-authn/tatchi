@@ -25,8 +25,7 @@ export default defineConfig({
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
-      // Allow WebAuthn in this app and delegate to wallet origin iframe
-      'Permissions-Policy': 'publickey-credentials-get=(self "https://wallet.example.localhost"), publickey-credentials-create=(self "https://wallet.example.localhost")',
+      // Note: Permissions-Policy is set by Caddy in examples/vite/Caddyfile to avoid duplicates
     }
   },
   plugins: [
