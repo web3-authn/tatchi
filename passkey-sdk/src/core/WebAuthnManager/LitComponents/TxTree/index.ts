@@ -726,31 +726,41 @@ export class TxTree extends LitElementWithProps {
             @click=${this.onSummaryClick}
           >
             <span class="indent"></span>
-          <span class="label label-action-node" style="${node.hideLabel ? 'display: none;' : ''}">
-            ${!node.hideChevron ? html`
-              <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
-                <path fill="currentColor" d="M6 3l5 5-5 5z" />
-              </svg>
-            ` : ''}
-            <span class="label-text" title=${this.computePlainLabel(node)}>
-              ${this.renderLabelWithSelectiveHighlight(node)}
+            <span class="label label-action-node" style="${node.hideLabel ? 'display: none;' : ''}">
+              ${
+                !node.hideChevron
+                ? html`
+                  <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
+                    <path fill="currentColor" d="M6 3l5 5-5 5z" />
+                  </svg>`
+                : ''
+              }
+              <span class="label-text" title=${this.computePlainLabel(node)}>
+                ${this.renderLabelWithSelectiveHighlight(node)}
+              </span>
+              ${
+                node.copyValue
+                ? html`
+                  <span class="copy-badge"
+                    data-copied=${this.isCopied(node.id)}
+                    @click=${(e: Event) => this.handleCopyClick(e, node)}
+                    title=${this.isCopied(node.id) ? 'Copied' : 'Copy'}
+                  >
+                    ${this.isCopied(node.id) ? 'copied' : 'copy'}
+                  </span>`
+                : ''
+              }
             </span>
-            ${node.copyValue ? html`
-              <span class="copy-badge"
-                data-copied=${this.isCopied(node.id)}
-                @click=${(e: Event) => this.handleCopyClick(e, node)}
-                title=${this.isCopied(node.id) ? 'Copied' : 'Copy'}
-              >${this.isCopied(node.id) ? 'copied' : 'copy'}</span>
-            ` : ''}
-          </span>
+            <!-- Move file-content into .summary-row so we can collapse it by default -->
+            <div class="file-content">${node.content}</div>
           </summary>
-          <div class="row file-row"
+          <!-- <div class="row file-row"
             style="--indent: ${indent}"
             data-no-elbow="${!!node.hideLabel}"
           >
             <span class="indent"></span>
             <div class="file-content">${node.content}</div>
-          </div>
+          </div> -->
         </details>
       `;
     }
@@ -759,6 +769,7 @@ export class TxTree extends LitElementWithProps {
       <div class="row file-row"
         style="--indent: ${indent}"
         data-no-elbow="${!!node.hideLabel}"
+        ?open=${!!node.open}
       >
         <span class="indent"></span>
         <span class="label label-action-node"

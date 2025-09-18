@@ -82,7 +82,7 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
           id: `a${idx}-args`,
           label: 'using args:',
           type: 'file',
-          open: true,
+          open: false,
           hideChevron: true,
           hideLabel: true, // hide "args:" row label
           content: formatArgs(action.args)
@@ -203,7 +203,7 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
     // Label is now computed at render time from action data
     label: '',
     type: 'folder',
-    open: true,
+    open: false,
     hideChevron: true,
     // Attach action data for the renderer
     action,
