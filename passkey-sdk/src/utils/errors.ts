@@ -19,6 +19,24 @@ export function errorMessage(err: unknown): string {
 }
 
 /**
+ * Normalize any thrown value into an Error instance.
+ * - preserves message/name/stack when available
+ * - best-effort copies optional code/details properties if present
+ */
+export function toError(e: unknown): Error {
+  if (e instanceof Error) return e;
+  const err = new Error(errorMessage(e));
+  try {
+    const src = e as { name?: unknown; stack?: unknown; code?: unknown; details?: unknown };
+    if (typeof src?.name === 'string') err.name = src.name;
+    if (typeof src?.stack === 'string') (err as { stack?: string }).stack = src.stack;
+    if (src && typeof src.code !== 'undefined') (err as { code?: unknown }).code = src.code;
+    if (src && typeof src.details !== 'undefined') (err as { details?: unknown }).details = src.details;
+  } catch {}
+  return err;
+}
+
+/**
  * Check if an error is related to user cancellation of TouchID/FaceID prompt
  * @param error - The error object or error message string
  * @returns true if the error indicates user cancellation
