@@ -12,6 +12,11 @@
       "require": "./dist/cjs/index.js",
       "types": "./dist/types/src/index.d.ts"
     },
+    "./vite": {
+      "import": "./dist/esm/vite/index.js",
+      "require": "./dist/cjs/vite/index.js",
+      "types": "./dist/types/src/vite/index.d.ts"
+    },
     "./server": {
       "import": "./dist/esm/server/index.js",
       "require": "./dist/cjs/server/index.js",

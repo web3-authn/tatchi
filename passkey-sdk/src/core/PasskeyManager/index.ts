@@ -317,8 +317,14 @@ export class PasskeyManager {
   }
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
+    // Ensure wallet iframe client is initialized when iframe mode is configured,
+    // so we read recent accounts from the wallet origin's IndexedDB rather than
+    // the app origin. This avoids empty lists before initWalletIframe() completes.
+    if (this.configs.iframeWallet?.walletOrigin && !this.iframeRouter) {
+      try { await this.initWalletIframe(); } catch {}
+    }
     if (this.iframeRouter) {
-      return await this.iframeRouter.getRecentLogins()
+      return await this.iframeRouter.getRecentLogins();
     }
     return getRecentLogins(this.getContext());
   }

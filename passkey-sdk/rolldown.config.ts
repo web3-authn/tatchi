@@ -23,6 +23,7 @@ const external = [
   'fs',
   'path',
   'url',
+  'module',
   'crypto',
   'util',
 
@@ -245,5 +246,37 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig,
     },
+  }
+  ,
+  // Vite plugin ESM build
+  {
+    input: 'src/vite/index.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/vite`,
+      format: 'esm',
+      preserveModules: true,
+      preserveModulesRoot: 'src/vite',
+      sourcemap: true
+    },
+    external,
+    resolve: {
+      alias: aliasConfig
+    }
+  },
+  // Vite plugin CJS build
+  {
+    input: 'src/vite/index.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/vite`,
+      format: 'cjs',
+      preserveModules: true,
+      preserveModulesRoot: 'src/vite',
+      sourcemap: true,
+      exports: 'named'
+    },
+    external,
+    resolve: {
+      alias: aliasConfig
+    }
   }
 ]);

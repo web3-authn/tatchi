@@ -1,0 +1,12 @@
+.passkey-login-container-root {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .passkey-login-container-root {
+    margin: 0rem;
+  }
+}

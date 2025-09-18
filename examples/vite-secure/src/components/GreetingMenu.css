@@ -1,0 +1,337 @@
+/* Web3Authn SDK Style Guide Implementation for GreetingMenu */
+
+/* Base Layout */
+.greeting-container-root {
+  display: flex;
+  max-width: 480px;
+  margin-top: 2rem;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* Translucent outer shell wrapping solid content */
+.greeting-translucent-container {
+  background: transparent;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  padding: var(--fe-gap-2);
+  max-width: 860px;
+  width: 100%;
+  box-shadow: 0 4px 20px var(--fe-shadow-strong);
+}
+
+/* Solid content area inside translucent shell */
+.greeting-content-area {
+  background: var(--fe-surface-solid);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius);
+  padding: var(--fe-gap-4);
+  box-shadow: 0 2px 4px var(--fe-shadow);
+  position: relative;
+}
+
+/* Header Section */
+.greeting-header {
+  padding: var(--fe-gap-6);
+  border-bottom: 1px solid var(--fe-border);
+  text-align: center;
+}
+
+.greeting-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
+}
+
+.greeting-caption {
+  font-size: 0.9rem;
+  color: var(--fe-text-dim);
+  margin: 0;
+}
+
+/* Content Section */
+.greeting-content {
+  padding: var(--fe-gap-6);
+}
+
+/* Greeting Controls Box */
+.greeting-controls-box {
+  display: flex;
+  flex-direction: column;
+}
+
+/* WebAuthn Contract Link */
+.webauthn-contract-link {
+  font-size: 0.9rem;
+  color: var(--fe-text-dim);
+  margin-bottom: var(--fe-gap-2);
+}
+
+.webauthn-contract-link a {
+  color: #2E54D3;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.webauthn-contract-link a:hover {
+  text-decoration: underline;
+}
+
+/* On-chain Greeting Box */
+.on-chain-greeting-box {
+  display: flex;
+  align-items: center;
+  gap: var(--fe-gap-3);
+  padding: var(--fe-gap-2);
+  background: #f8fafc;
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  margin-bottom: var(--fe-gap-2);
+}
+
+.on-chain-greeting-box p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--fe-text);
+  flex: 1;
+}
+
+/* Refresh Icon Button */
+.refresh-icon-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--fe-gap-2);
+  border-radius: var(--fe-radius-sm);
+  transition: background var(--fe-fast) var(--fe-ease);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.refresh-icon-button:hover:not(:disabled) {
+  background: var(--fe-border);
+}
+
+.refresh-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Greeting Input Group */
+.greeting-input-group {
+  display: flex;
+  gap: var(--fe-gap-2);
+  margin-bottom: var(--fe-gap-6);
+}
+
+.greeting-input-group input {
+  flex: 1;
+  padding: var(--fe-gap-3) var(--fe-gap-4);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  background-color: var(--fe-bg-dark-3);
+  color: var(--slate-grey-200);
+  font-size: 0.9rem;
+  font-family: var(--fe-font-sans);
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.greeting-input-group input:focus {
+  outline: none;
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+}
+
+.greeting-input-group input::placeholder {
+  color: var(--fe-text-dim);
+}
+
+/* Transfer Section */
+.transfer-section {
+  padding-top: var(--fe-gap-6);
+  border-top: 1px solid var(--fe-border);
+}
+
+.transfer-section h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-4) 0;
+}
+
+/* Transfer Input Group */
+.transfer-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-3);
+}
+
+.transfer-input-group input {
+  padding: var(--fe-gap-3) var(--fe-gap-4);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  font-size: 0.9rem;
+  font-family: var(--fe-font-sans);
+  background-color: var(--fe-bg-dark-3);
+  color: var(--slate-grey-200);
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.transfer-input-group input:focus {
+  outline: none;
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+}
+
+.transfer-input-group input::placeholder {
+  color: var(--fe-text-dim);
+}
+
+/* Button System */
+.greeting-btn {
+  padding: var(--fe-gap-3) var(--fe-gap-4);
+  border: none;
+  border-radius: var(--fe-radius-sm);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--fe-fast) var(--fe-ease);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--fe-gap-2);
+  font-family: var(--fe-font-sans);
+  white-space: nowrap;
+}
+
+.greeting-btn-primary {
+  background: var(--cobalt-primary);
+  color: white;
+}
+
+.greeting-btn-primary:hover:not(:disabled) {
+  background: var(--cobalt-primary-hover);
+  color: white;
+  box-shadow: 0 2px 4px var(--cobalt-shadow);
+}
+
+.greeting-btn-primary:disabled {
+  background: #718096;
+  color: white;
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.greeting-btn-secondary {
+  background: #6F8DDF;
+  color: white;
+  border: 1px solid #6F8DDF;
+}
+
+.greeting-btn-secondary:hover:not(:disabled) {
+  background: #99AEE8;
+  color: white;
+  border-color: #99AEE8;
+}
+
+.greeting-btn-secondary:disabled {
+  background: #718096;
+  color: white;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Error Message */
+.error-message {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: var(--fe-radius-sm);
+  padding: var(--fe-gap-3);
+  color: #dc2626;
+  font-size: 0.9rem;
+  margin-top: var(--fe-gap-4);
+}
+
+/* Typography */
+.greeting-heading {
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--fe-text);
+  margin-bottom: var(--fe-gap-4);
+}
+
+.greeting-body {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--fe-text-dim);
+}
+
+.greeting-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--fe-text-dim);
+}
+
+.greeting-mono {
+  font-family: var(--fe-font-mono);
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--fe-text);
+}
+
+/* Focus Ring */
+.greeting-focus-ring {
+  outline: none;
+}
+
+.greeting-focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.18);
+  border-color: var(--fe-border-strong);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .greeting-container-root {
+    margin: 1rem;
+  }
+
+  .greeting-header,
+  .greeting-content {
+    padding: var(--fe-gap-4);
+  }
+
+  .greeting-input-group {
+    flex-direction: column;
+  }
+
+  .transfer-input-group {
+    gap: var(--fe-gap-2);
+  }
+}
+
+/* Scrollbar Styling */
+.greeting-container-root::-webkit-scrollbar {
+  width: 6px;
+}
+
+.greeting-container-root::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.greeting-container-root::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+.greeting-container-root::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}

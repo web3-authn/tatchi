@@ -1,0 +1,285 @@
+/* Web3Authn SDK Style Guide Implementation for EmbeddedTxConfirmPage */
+
+/* Base Layout */
+.embedded-tx-page-root {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  margin-top: 1rem;
+  padding: var(--fe-gap-4);
+  font-family: var(--fe-font-sans);
+}
+
+/* Translucent outer shell wrapping solid content */
+.embedded-tx-translucent-container {
+  background: transparent;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  padding: var(--fe-gap-2);
+  width: 100%;
+  box-shadow: 0 4px 20px var(--fe-shadow-strong);
+}
+
+/* Solid content area inside translucent shell */
+.embedded-tx-content-area {
+  background: var(--fe-surface-solid);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius);
+  padding: var(--fe-gap-6);
+  box-shadow: 0 2px 4px var(--fe-shadow);
+  position: relative;
+}
+
+/* Header Section */
+.embedded-tx-header {
+  text-align: center;
+  margin-bottom: var(--fe-gap-6);
+  border-bottom: 1px solid var(--fe-border);
+  padding-bottom: var(--fe-gap-4);
+}
+
+.embedded-tx-title {
+  font-size: var(--fe-text-2xl);
+  font-weight: var(--fe-font-bold);
+  color: var(--fe-text-primary);
+  margin: 0 0 var(--fe-gap-2) 0;
+}
+
+.embedded-tx-caption {
+  font-size: var(--fe-text-sm);
+  color: var(--fe-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* Content Section */
+.embedded-tx-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-6);
+}
+
+/* Login Prompt */
+.embedded-tx-login-prompt {
+  text-align: center;
+  padding: var(--fe-gap-6);
+}
+
+.embedded-tx-login-prompt h2 {
+  font-size: var(--fe-text-xl);
+  font-weight: var(--fe-font-semibold);
+  color: var(--fe-text-primary);
+  margin: 0 0 var(--fe-gap-3) 0;
+}
+
+.embedded-tx-login-prompt p {
+  font-size: var(--fe-text-sm);
+  color: var(--fe-text-secondary);
+  margin: 0;
+}
+
+/* Input Section */
+.embedded-tx-input-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-4);
+}
+
+.embedded-tx-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-2);
+}
+
+.embedded-tx-input-label {
+  font-size: var(--fe-text-sm);
+  font-weight: var(--fe-font-semibold);
+  color: var(--fe-text-primary);
+  margin: 0;
+}
+
+.embedded-tx-input {
+  width: 100%;
+  padding: var(--fe-gap-3) var(--fe-gap-4);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-sm);
+  font-size: var(--fe-text-base);
+  font-family: var(--fe-font-sans);
+  background: var(--fe-bg);
+  color: var(--fe-text-primary);
+  transition: all var(--fe-fast) var(--fe-ease);
+  box-sizing: border-box;
+}
+
+.embedded-tx-input:focus {
+  outline: none;
+  border-color: var(--fe-border-strong);
+  box-shadow: 0 0 0 3px var(--cerulean-focus);
+}
+
+.embedded-tx-input-help {
+  font-size: var(--fe-text-xs);
+  color: var(--fe-text-secondary);
+  margin: 0;
+}
+
+/* Component Section */
+.test-embedded-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.test-embedded-section-label {
+  font-size: var(--fe-text-sm);
+  font-weight: var(--fe-font-semibold);
+  color: var(--fe-text-primary);
+  margin: 0;
+  margin-bottom: var(--fe-gap-2);
+}
+
+/* Status Sections */
+.embedded-tx-status-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fe-gap-4);
+}
+
+.embedded-tx-status-label {
+  font-size: var(--fe-text-sm);
+  font-weight: var(--fe-font-semibold);
+  color: var(--fe-text-primary);
+  margin: 0;
+}
+
+/* Loading State */
+.embedded-tx-loading {
+  background: #e8f5e8;
+  padding: var(--fe-gap-3);
+  border-radius: var(--fe-radius-sm);
+  color: #2d5a2d;
+  display: flex;
+  align-items: center;
+  gap: var(--fe-gap-3);
+}
+
+.embedded-tx-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid #2d5a2d;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Success State */
+.embedded-tx-success {
+  background: #e8f5e8;
+  padding: var(--fe-gap-3);
+  border-radius: var(--fe-radius-sm);
+  color: #2d5a2d;
+}
+
+.embedded-tx-success pre {
+  margin: 0;
+  font-size: var(--fe-text-xs);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Error State */
+.embedded-tx-error {
+  background: #ffe8e8;
+  padding: var(--fe-gap-3);
+  border-radius: var(--fe-radius-sm);
+  color: #5a2d2d;
+}
+
+.embedded-tx-error pre {
+  margin: 0;
+  font-size: var(--fe-text-xs);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Typography */
+.embedded-tx-heading {
+  font-size: var(--fe-text-lg);
+  font-weight: var(--fe-font-semibold);
+  color: var(--fe-text-primary);
+  margin: 0 0 var(--fe-gap-3) 0;
+}
+
+.embedded-tx-body {
+  font-size: var(--fe-text-sm);
+  color: var(--fe-text-secondary);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.embedded-tx-label {
+  font-size: var(--fe-text-xs);
+  font-weight: var(--fe-font-medium);
+  color: var(--fe-text-secondary);
+  margin: 0;
+}
+
+.embedded-tx-mono {
+  font-family: var(--fe-font-mono);
+  font-size: var(--fe-text-xs);
+  color: var(--fe-text-primary);
+  margin: 0;
+}
+
+/* Focus Ring */
+.embedded-tx-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--cerulean-focus);
+  border-color: var(--fe-border-strong);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .embedded-tx-page-root {
+    padding: var(--fe-gap-3);
+  }
+
+  .embedded-tx-content-area {
+    padding: var(--fe-gap-4);
+  }
+
+  .embedded-tx-title {
+    font-size: var(--fe-text-xl);
+  }
+}
+
+/* Scrollbar Styling */
+.embedded-tx-page-root::-webkit-scrollbar {
+  width: 6px;
+}
+
+.embedded-tx-page-root::-webkit-scrollbar-track {
+  background: var(--fe-bg-secondary);
+  border-radius: var(--fe-radius-sm);
+}
+
+.embedded-tx-page-root::-webkit-scrollbar-thumb {
+  background: var(--fe-border-strong);
+  border-radius: var(--fe-radius-sm);
+}
+
+.embedded-tx-page-root::-webkit-scrollbar-thumb:hover {
+  background: var(--fe-text-secondary);
+}

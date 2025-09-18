@@ -1,6 +1,6 @@
 # Wallet Secure Dev Server (examples/vite-secure)
 
-This app runs a dedicated wallet/service origin for local development. It serves a cross-origin WalletIframe page that hosts the Web3Authn SDK, wasm signers, and related workers.
+This app runs a dedicated wallet/service origin for local development. It serves a cross-origin WalletIframe page that hosts the Web3Authn SDK, wasm signers, and related workers. The Vite dev plugin `@web3authn/passkey/vite` wires up the service route and SDK assets.
 
 - Dev server: `http://localhost:5174`
 - Wallet origin (via Caddy): `https://wallet.example.localhost`
@@ -26,6 +26,6 @@ Open:
 
 ## Notes
 
-- The route `/wallet-service` renders HTML using the SDK helper `getWalletServiceHtml('/sdk')`, which references the embedded service host at `/sdk/esm/react/embedded/wallet-iframe-host.js`.
-- The dev server includes strict cross-origin isolation headers (COEP/COOP) and a WebAuthn `Permissions-Policy`.
-- The `/sdk/*` path is served directly from the workspace `passkey-sdk/dist` folder (zero-copy). Keep the SDK in `dev` or re-run `build` after changes.
+- The route `/wallet-service` is provided by the Vite plugin and loads `/sdk/esm/react/embedded/wallet-iframe-host.js`.
+- The dev server includes cross-origin isolation headers (COEP/COOP) and a WebAuthn `Permissions-Policy` (via `server.headers` and Caddy). Avoid setting conflicting headers in multiple places.
+- The `/sdk/*` path is mapped by the plugin to the workspace `passkey-sdk/dist` (zero-copy). Keep the SDK in `dev` or re-run `build` after changes.
