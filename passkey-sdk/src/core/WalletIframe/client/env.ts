@@ -5,7 +5,7 @@ type PublicEnv = Record<string, string | undefined>;
 
 function readViteEnv(): PublicEnv {
   try {
-    const env = (import.meta as any)?.env || {};
+    const env = (import.meta as unknown as { env?: Record<string, string | undefined> })?.env || {};
     return env as PublicEnv;
   } catch {
     return {};
@@ -15,7 +15,7 @@ function readViteEnv(): PublicEnv {
 function readProcessEnv(): PublicEnv {
   try {
     // Browser builds usually inline these; in Node this is process.env
-    const env = (typeof process !== 'undefined' && (process as any)?.env) || {};
+    const env = (typeof process !== 'undefined' && process?.env) || {};
     return env as PublicEnv;
   } catch {
     return {};

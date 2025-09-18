@@ -12,8 +12,15 @@ import { EmbeddedRegisterButton as __EmbeddedRegisterButtonKeep } from '../../We
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
+import { ConfirmationConfig } from '../../types/signer-worker';
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
+import { EmbeddedTxButtonTheme } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
+import {
+  SignAndSendTransactionHooksOptions,
+  ActionResult,
+} from '../../types/passkeyManager';
 import { uiBuiltinRegistry, type WalletUIRegistry } from './lit-element-registry';
+import { errorMessage } from '../../../utils/errors';
 import { isObject, isString, isFiniteNumber } from '../validation';
 import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
@@ -37,21 +44,18 @@ type IframeButtonLitElementProps = HTMLElement & {
   style: Record<string, string> | CSSStyleDeclaration;
   nearAccountId: string,
   txSigningRequests: TransactionInput[],
-  buttonTextElement: HTMLElement | string | any;
-  txTreeTheme: any;
+  buttonTextElement: string;
+  txTreeTheme: EmbeddedTxButtonTheme;
   buttonStyle?: Record<string, string> | CSSStyleDeclaration;
   buttonHoverStyle?: Record<string, string> | CSSStyleDeclaration;
   tooltipPosition: Record<string, string>,
   externalConfirm(args: {
     nearAccountId: string,
     txSigningRequests: TransactionInput[],
-    options: {
-      beforeCall(): void;
-      onEvent(e: BaseSSEEvent): void;
-      afterCall(a: any, result: any): void;
-    }
-  }): void
-  onSuccess(result: any): void;
+    options?: SignAndSendTransactionHooksOptions,
+    theme?: 'dark' | 'light'
+  }): Promise<ActionResult[]>;
+  onSuccess(result: ActionResult[]): void;
   onCancel(): void;
 }
 
@@ -199,15 +203,17 @@ export function setupLitElemMounter(opts: {
       try {
         ensurePasskeyManager();
         // Temporarily force skip UI for registration so no modal is shown.
-        let prevConfig: any;
+        let prevConfig: ConfirmationConfig | undefined;
         try {
           prevConfig = pm?.getConfirmationConfig?.();
-          pm?.setConfirmationConfig?.({
-            ...(prevConfig || {}),
+          const base = prevConfig || { uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0, theme: 'dark' as const };
+          const next: ConfirmationConfig = {
+            ...base,
             uiMode: 'skip',
             behavior: 'autoProceed',
             autoProceedDelay: 0,
-          });
+          };
+          pm?.setConfirmationConfig?.(next);
         } catch {}
 
         const result = await pm!.registerPasskey(nearAccountId, {
@@ -223,16 +229,16 @@ export function setupLitElemMounter(opts: {
           window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: !!result?.success, result } }, '*');
         } catch {}
         if (autoClose) removeRegisterBtn();
-      } catch (err: any) {
+      } catch (err: unknown) {
         try {
-          window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: String(err?.message || err) } }, '*');
+          window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: errorMessage(err) } }, '*');
         } catch {}
       } finally {
         setBusy(false);
       }
     });
 
-    pickRoot((cfg as any)?.targetSelector).appendChild(el);
+    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
     btnEl = el;
   };
 
@@ -245,7 +251,7 @@ export function setupLitElemMounter(opts: {
       return;
     }
     removeRegisterHost();
-    const el = document.createElement(getTag('registerHost')) as any;
+    const el = document.createElement(getTag('registerHost')) as HTMLElement & { busy?: boolean; styleMap?: Record<string, string>; nearAccountId?: string; text?: string; theme?: 'dark' | 'light'; width?: string; height?: string };
     // Map props
     el.nearAccountId = nearAccountId;
     el.text = cfg?.text || 'Create Passkey';
@@ -266,10 +272,22 @@ export function setupLitElemMounter(opts: {
       const pm = getPasskeyManager();
       try {
         ensurePasskeyManager();
-        let prevConfig: any;
+        let prevConfig: ConfirmationConfig | undefined;
         try {
           prevConfig = pm?.getConfirmationConfig?.();
-          pm?.setConfirmationConfig?.({ ...(prevConfig || {}), uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0 });
+          const base = prevConfig || {
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'dark' as const
+          };
+          const next: ConfirmationConfig = {
+            ...base,
+            uiMode: 'skip',
+            behavior: 'autoProceed',
+            autoProceedDelay: 0
+          };
+          pm?.setConfirmationConfig?.(next);
         } catch {}
 
         const result = await pm!.registerPasskey(nearAccountId, {
@@ -278,26 +296,46 @@ export function setupLitElemMounter(opts: {
         try { if (prevConfig) pm?.setConfirmationConfig?.(prevConfig); } catch {}
         try { window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: !!result?.success, result } }, '*'); } catch {}
         if (autoClose) removeRegisterHost();
-      } catch (err: any) {
-        try { window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: String(err?.message || err) } }, '*'); } catch {}
+      } catch (err: unknown) {
+        try { window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: errorMessage(err) } }, '*'); } catch {}
       } finally { setBusy(false); }
     });
 
-    pickRoot((cfg as any)?.targetSelector).appendChild(el);
+    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
     hostRegEl = el;
   };
 
   // Mount tx host wrapper (Lit) that mirrors the React host API
   const showTxHost = async (cfg: WalletIframeTxButtonHostProps) => {
+
     try { ensurePasskeyManager(); } catch {}
     const nearAccountId = String(cfg?.nearAccountId || '').trim();
     const transactions = Array.isArray(cfg?.transactions) ? cfg.transactions : [];
+
     if (!nearAccountId || transactions.length === 0) {
       console.warn('[ElemMounter:TxHost] missing nearAccountId or transactions');
       return;
     }
+
     removeTxHost();
-    const el = document.createElement(getTag('txHost')) as any;
+
+    const el = document.createElement(getTag('txHost')) as HTMLElement & {
+      externalConfirm?: (args: {
+        nearAccountId: string;
+        txSigningRequests: TransactionInput[];
+        options?: SignAndSendTransactionHooksOptions
+      }) => Promise<ActionResult[]>;
+      onSuccess?: (result: ActionResult[]) => void;
+      onCancel?: () => void;
+      buttonStyle?: Record<string, string>;
+      buttonHoverStyle?: Record<string, string>;
+      tooltipPosition?: Record<string, string>;
+      nearAccountId?: string;
+      transactions?: TransactionInput[];
+      text?: string;
+      theme?: 'dark' | 'light';
+    };
+
     el.style.display = 'inline-block';
     el.className = cfg?.className ? String(cfg.className) : '';
     el.nearAccountId = nearAccountId;
@@ -310,18 +348,22 @@ export function setupLitElemMounter(opts: {
     if (bhs) el.buttonHoverStyle = bhs;
     if (cfg?.tooltipPosition) el.tooltipPosition = cfg.tooltipPosition;
 
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: any) => {
+    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: {
+      nearAccountId: string;
+      txSigningRequests: TransactionInput[];
+      options?: SignAndSendTransactionHooksOptions
+    }) => {
       const pm = getPasskeyManager();
       return await pm!.signAndSendTransactions({ nearAccountId, transactions: txSigningRequests, options });
     };
-    el.onSuccess = (result: any) => {
+    el.onSuccess = (result: ActionResult[]) => {
       try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: true, result } }, '*'); } catch {}
     };
     el.onCancel = () => {
       try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: false, cancelled: true } }, '*'); } catch {}
     };
 
-    pickRoot((cfg as any)?.targetSelector).appendChild(el);
+    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
     hostTxEl = el;
   };
 
@@ -357,7 +399,11 @@ export function setupLitElemMounter(opts: {
     if (tooltipPosition) el.tooltipPosition = tooltipPosition;
 
     // Wire externalConfirm to local PasskeyManager inside wallet host
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }) => {
+    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: {
+      nearAccountId: string;
+      txSigningRequests: TransactionInput[];
+      options?: SignAndSendTransactionHooksOptions
+    }) => {
       const pm = getPasskeyManager();
       return await pm!.signAndSendTransactions({
         nearAccountId,
@@ -367,7 +413,7 @@ export function setupLitElemMounter(opts: {
     };
 
     // Proxy results back to parent for observability
-    el.onSuccess = (result: any) => {
+    el.onSuccess = (result: ActionResult[]) => {
       try {
         window.parent?.postMessage({
           type: 'TX_BUTTON_RESULT',
@@ -384,29 +430,41 @@ export function setupLitElemMounter(opts: {
       } catch {}
     };
 
-    pickRoot((cfg as any)?.targetSelector).appendChild(el);
+    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
     txBtnEl = el;
   };
 
   // ===== Generic UI registry mount helpers =====
-  const applyProps = (el: any, props: Record<string, unknown>) => {
+  const applyProps = (el: HTMLElement & Record<string, unknown>, props: Record<string, unknown>) => {
     if (!props) return;
     for (const [k, v] of Object.entries(props)) {
-      try { (el as any)[k] = v as any; } catch {}
+      try { (el as unknown as Record<string, unknown>)[k] = v as unknown; } catch {}
     }
   };
 
-  const runPmAction = async (action: string, args: any): Promise<any> => {
+  const runPmAction = async (action: string, args: Record<string, unknown>): Promise<unknown> => {
     const pm = getPasskeyManager();
     ensurePasskeyManager();
     switch (action) {
       case 'registerPasskey': {
         const accountId = String(args?.nearAccountId || '').trim();
         if (!accountId) throw new Error('nearAccountId required');
-        let prevConfig: any;
+        let prevConfig: ConfirmationConfig | undefined;
         try {
           prevConfig = pm?.getConfirmationConfig?.();
-          pm?.setConfirmationConfig?.({ ...(prevConfig || {}), uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0 });
+          const base = prevConfig || {
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'dark' as const
+          };
+          const next: ConfirmationConfig = {
+            ...base,
+            uiMode: 'skip',
+            behavior: 'autoProceed',
+            autoProceedDelay: 0
+          };
+          pm?.setConfirmationConfig?.(next);
         } catch {}
         try {
           return await pm!.registerPasskey(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} });
@@ -415,9 +473,12 @@ export function setupLitElemMounter(opts: {
         }
       }
       case 'signAndSendTransactions': {
-        const nearAccountId = String(args?.nearAccountId || '').trim();
-        const transactions = Array.isArray(args?.transactions || args?.txSigningRequests) ? (args?.transactions || args?.txSigningRequests) : [];
-        const options = args?.options || {};
+        const nearAccountId = String((args as { nearAccountId?: unknown })?.nearAccountId || '').trim();
+        const txsCandidate = (args as { transactions?: unknown; txSigningRequests?: unknown });
+        const transactions: TransactionInput[] = Array.isArray(txsCandidate?.transactions || txsCandidate?.txSigningRequests)
+          ? (txsCandidate?.transactions || txsCandidate?.txSigningRequests) as TransactionInput[]
+          : [];
+        const options = (args as { options?: import('../../types/passkeyManager').SignAndSendTransactionHooksOptions })?.options || {};
         if (!nearAccountId || transactions.length === 0) throw new Error('nearAccountId and transactions required');
         return await pm!.signAndSendTransactions({ nearAccountId, transactions, options });
       }
@@ -427,13 +488,13 @@ export function setupLitElemMounter(opts: {
   };
 
   const mountUiComponent = (payload: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }) => {
-    const { key } = payload || ({} as any);
+    const { key } = payload || ({} as Record<string, unknown>);
     const def = uiRegistry[key];
     if (!def || !def.tag) {
       console.warn('[ElemMounter:UI] Unknown component key:', key);
       return null;
     }
-    const el = document.createElement(def.tag) as any;
+    const el = document.createElement(def.tag) as HTMLElement & Record<string, unknown>;
     try { el.style.display = 'inline-block'; } catch {}
     const props = { ...(def.propDefaults || {}), ...(payload?.props || {}) } as Record<string, unknown>;
     applyProps(el, props);
@@ -444,19 +505,19 @@ export function setupLitElemMounter(opts: {
         try {
           el.addEventListener(b.event, async () => {
             try {
-              const args: any = {};
+              const args: Record<string, unknown> = {};
               if (b.argsFromProps) {
                 for (const [argName, propKey] of Object.entries(b.argsFromProps)) {
-                  args[argName] = (el as any)[propKey];
+                  args[argName] = (el as unknown as Record<string, unknown>)[propKey];
                 }
               }
               const result = await runPmAction(b.action, args);
               if (b.resultMessageType) {
-                try { window.parent?.postMessage({ type: b.resultMessageType, payload: { ok: !!(result?.success ?? true), result } }, '*'); } catch {}
+                try { window.parent?.postMessage({ type: b.resultMessageType, payload: { ok: true, result } }, '*'); } catch {}
               }
-            } catch (err: any) {
+            } catch (err: unknown) {
               const type = b.resultMessageType || 'UI_ACTION_RESULT';
-              try { window.parent?.postMessage({ type, payload: { ok: false, error: String(err?.message || err) } }, '*'); } catch {}
+              try { window.parent?.postMessage({ type, payload: { ok: false, error: errorMessage(err) } }, '*'); } catch {}
             }
           });
         } catch {}
@@ -467,7 +528,7 @@ export function setupLitElemMounter(opts: {
     if (Array.isArray(def.propBindings)) {
       for (const pb of def.propBindings) {
         try {
-          (el as any)[pb.prop] = async (args: any) => {
+          (el as unknown as Record<string, unknown>)[pb.prop] = async (args: Record<string, unknown>) => {
             const res = await runPmAction(pb.action, args);
             return res;
           };
@@ -479,14 +540,14 @@ export function setupLitElemMounter(opts: {
     if (def.bridgeProps) {
       const { successProp, cancelProp, messageType } = def.bridgeProps;
       if (successProp) {
-        try { (el as any)[successProp] = (result: any) => { try { window.parent?.postMessage({ type: messageType, payload: { ok: true, result } }, '*'); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { window.parent?.postMessage({ type: messageType, payload: { ok: true, result } }, '*'); } catch {} }; } catch {}
       }
       if (cancelProp) {
-        try { (el as any)[cancelProp] = () => { try { window.parent?.postMessage({ type: messageType, payload: { ok: false, cancelled: true } }, '*'); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { window.parent?.postMessage({ type: messageType, payload: { ok: false, cancelled: true } }, '*'); } catch {} }; } catch {}
       }
     }
 
-    const root = pickRoot((payload?.props as any)?.targetSelector || payload?.targetSelector);
+    const root = pickRoot((payload?.props as unknown as { targetSelector?: string })?.targetSelector || (payload as { targetSelector?: string } | undefined)?.targetSelector);
     root.appendChild(el);
     const id = payload?.id || `w3a-ui-${++uidCounter}`;
     mountedById.set(id, el);
@@ -494,7 +555,7 @@ export function setupLitElemMounter(opts: {
   };
 
   const updateUiComponent = (payload: { id: string; props?: Record<string, unknown> }) => {
-    const el = mountedById.get(payload.id) as any;
+    const el = mountedById.get(payload.id) as (HTMLElement & Record<string, unknown>) | undefined;
     if (!el) return false;
     applyProps(el, payload.props || {});
     return true;
@@ -515,8 +576,10 @@ export function setupLitElemMounter(opts: {
       case 'WALLET_SET_CONFIG':
         try { updateWalletConfigs(p); } catch {}
         try {
-          const iw = (isObject(p) && isObject((p as any).iframeWallet)) ? (p as any).iframeWallet as Record<string, unknown> : undefined;
-          const reg = (iw && isObject((iw as any).uiRegistry)) ? ((iw as any).uiRegistry as WalletUIRegistry) : undefined;
+          const iw = (isObject(p) && isObject((p as { iframeWallet?: unknown }).iframeWallet))
+            ? (p as { iframeWallet?: Record<string, unknown> }).iframeWallet
+            : undefined;
+          const reg = (iw && isObject((iw as { uiRegistry?: unknown }).uiRegistry)) ? ((iw as { uiRegistry?: WalletUIRegistry }).uiRegistry) : undefined;
           if (reg) {
             uiRegistry = { ...uiRegistry, ...reg };
           }

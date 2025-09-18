@@ -2,8 +2,8 @@
 // TODO: clean up wallet iframe initialization
 // Minimal service iframe host bootstrap (PasskeyManager‑first)
 // Ensure common Node-ish globals exist for browser bundles that expect them
-try { (globalThis as any).global = (globalThis as any).global || globalThis; } catch {}
-try { (globalThis as any).process = (globalThis as any).process || { env: {} }; } catch {}
+try { (globalThis as unknown as { global?: unknown }).global = (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown); } catch {}
+try { (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} }; } catch {}
 try { window.parent?.postMessage({ type: 'SERVICE_HOST_BOOTED' }, '*'); } catch {}
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
 try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
@@ -44,6 +44,7 @@ import { MinimalNearClient, SignedTransaction } from '../../NearClient';
 import { setupLitElemMounter } from './lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
 import { isObject, isString, isFiniteNumber } from '../validation';
+import { errorMessage, toError } from '../../../utils/errors';
 import { PasskeyManager } from '../../PasskeyManager';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import type { DeviceLinkingQRData } from '../../types/linkDevice';
@@ -160,14 +161,14 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
       if (isString(assetsBaseUrl)) {
         const norm = assetsBaseUrl.endsWith('/') ? assetsBaseUrl : assetsBaseUrl + '/';
-        (window as any).__W3A_EMBEDDED_BASE__ = norm + 'embedded/';
-        try { console.debug('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
+        window.__W3A_EMBEDDED_BASE__ = norm + 'embedded/';
+        try { console.debug('[WalletHost] assets base set:', window.__W3A_EMBEDDED_BASE__); } catch {}
       }
     } catch {}
     nearClient = null; passkeyManager = null;
     // Forward UI registry to lit-elem-mounter if provided
     try {
-      const uiRegistry = (payload as any)?.uiRegistry;
+      const uiRegistry = payload?.uiRegistry;
       if (uiRegistry && isObject(uiRegistry)) {
         window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
       }
@@ -392,11 +393,8 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
             type: 'PM_RESULT', requestId,
             payload: { ok: true, result: { flowId: requestId, qrData, qrCodeDataURL } }
           });
-        } catch (e: any) {
-          post({
-            type: 'ERROR', requestId,
-            payload: { code: 'LINK_DEVICE_INIT_FAILED', message: e?.message || String(e) }
-          });
+        } catch (e: unknown) {
+          post({ type: 'ERROR', requestId, payload: { code: 'LINK_DEVICE_INIT_FAILED', message: errorMessage(e) } });
         }
         return;
       }
@@ -410,18 +408,19 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       case 'PM_SEND_TRANSACTION': {
         ensurePasskeyManager();
         const { signedTransaction, options } = (req.payload || {}) as PMSendTxPayload & { options?: Record<string, unknown> };
-        let st: any = signedTransaction;
+        let st: SignedTransaction | unknown = signedTransaction;
         try {
-          if (st && typeof (st as any).base64Encode !== 'function' && (st.borsh_bytes || st.borshBytes)) {
+          const s = st as { base64Encode?: unknown; borsh_bytes?: number[]; borshBytes?: Uint8Array; transaction?: unknown; signature?: unknown };
+          if (s && typeof s.base64Encode !== 'function' && (s.borsh_bytes || s.borshBytes)) {
             st = new SignedTransaction({
-              transaction: st.transaction,
-              signature: st.signature,
-              borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
+              transaction: (s as any).transaction,
+              signature: (s as any).signature,
+              borsh_bytes: Array.isArray(s.borsh_bytes) ? s.borsh_bytes : Array.from(s.borshBytes || []),
             });
           }
         } catch {}
         const result = await passkeyManager!.sendTransaction({
-          signedTransaction: st,
+          signedTransaction: st as SignedTransaction,
           options: {
             ...(options || {}),
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
@@ -530,8 +529,8 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           }
           passkeyManager!.setConfirmBehavior(behavior);
           post({ type: 'PM_RESULT', requestId, payload: { ok: true } });
-        } catch (e: any) {
-          post({ type: 'ERROR', requestId, payload: { code: 'SET_CONFIRM_BEHAVIOR_FAILED', message: e?.message || String(e) } });
+        } catch (e: unknown) {
+          post({ type: 'ERROR', requestId, payload: { code: 'SET_CONFIRM_BEHAVIOR_FAILED', message: errorMessage(e) } });
         }
         return;
       }
@@ -551,15 +550,8 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           const normalized: ConfirmationConfig = normalizeConfirmationConfig(base, patch);
           passkeyManager!.setConfirmationConfig(normalized);
           post({ type: 'PM_RESULT', requestId, payload: { ok: true } });
-        } catch (e: any) {
-          post({
-            type: 'ERROR',
-            requestId,
-            payload: {
-              code: 'SET_CONFIRMATION_CONFIG_FAILED',
-              message: e?.message || String(e)
-            }
-          });
+        } catch (e: unknown) {
+          post({ type: 'ERROR', requestId, payload: { code: 'SET_CONFIRMATION_CONFIG_FAILED', message: errorMessage(e) } });
         }
         return;
       }
@@ -584,13 +576,14 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         const { nearAccountId } = (req.payload || {}) as PMHasPasskeyPayload;
         // Gather additional diagnostics from IndexedDB
         try {
-          const ctx = (passkeyManager as any)?.getContext?.();
+          const ctx = (passkeyManager as unknown as { getContext?: () => { webAuthnManager?: { getUser: (id: string) => Promise<unknown>; getAuthenticatorsByUser: (id: string) => Promise<unknown[]> } } })?.getContext?.();
           const web = ctx?.webAuthnManager;
           if (web) {
-            let user: any = null;
-            let auths: any[] = [];
+            let user: unknown = null;
+            let auths: unknown[] = [];
             try { user = await web.getUser(toAccountId(nearAccountId)); } catch {}
             try { auths = await web.getAuthenticatorsByUser(toAccountId(nearAccountId)); } catch {}
+            void user; void auths; // diagnostics only
           }
         } catch {}
         const result = await passkeyManager!.hasPasskeyCredential(toAccountId(nearAccountId));
@@ -640,29 +633,21 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
             options: { onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev }) } as AccountRecoveryHooksOptions,
           });
           post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
-        } catch (e: any) {
-          post({
-            type: 'ERROR',
-            requestId,
-            payload: { code: 'RECOVERY_FAILED', message: e?.message || String(e) }
-          });
+        } catch (e: unknown) {
+          post({ type: 'ERROR', requestId, payload: { code: 'RECOVERY_FAILED', message: errorMessage(e) } });
         }
         return;
       }
 
     }
-  } catch (err: any) {
-    post({
-      type: 'ERROR',
-      requestId,
-      payload: { code: 'HOST_ERROR', message: err?.message || String(err) }
-    });
+  } catch (err: unknown) {
+    post({ type: 'ERROR', requestId, payload: { code: 'HOST_ERROR', message: errorMessage(err) } });
   }
 }
 
 function adoptPort(p: MessagePort) {
   port = p;
-  port.onmessage = onPortMessage as any;
+  port.onmessage = (ev) => onPortMessage(ev as MessageEvent<ParentToChildEnvelope>);
   port.start?.();
   post({ type: 'READY', payload: { protocolVersion: PROTOCOL } });
 }
@@ -670,7 +655,7 @@ function adoptPort(p: MessagePort) {
 function onWindowMessage(e: MessageEvent) {
   const { data, ports } = e;
   if (!data || !isObject(data)) return;
-  if ((data as any).type === 'CONNECT' && ports && ports[0]) {
+  if ((data as { type?: unknown }).type === 'CONNECT' && ports && ports[0]) {
     adoptPort(ports[0]);
   }
 }
@@ -681,7 +666,7 @@ export {};
 
 // Normalize an arbitrary patch object into a valid ConfirmationConfig object using base as defaults
 function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<string, unknown>): ConfirmationConfig {
-  const p: any = patch || {};
+  const p: Record<string, unknown> = patch || {};
   const uiModeCand = isString(p.uiMode) ? p.uiMode : undefined;
   const behaviorCand = isString(p.behavior) ? p.behavior : undefined;
   let delayCand: number | undefined;

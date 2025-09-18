@@ -39,6 +39,7 @@ import {
 import { IframeTransport } from './IframeTransport';
 import { isObject } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
+import { toError } from '../../../utils/errors';
 import {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -51,7 +52,6 @@ import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../../PasskeyManager';
 import { SignNep413Result } from '@/wasm_signer_worker/wasm_signer_worker';
-import { After } from 'v8';
 
 // Simple, framework-agnostic service iframe client.
 //
@@ -125,7 +125,7 @@ export class WalletIframeRouter {
       walletOrigin: '',
       ...options,
     } as Required<WalletIframeRouterOptions>;
-    this.debug = !!this.opts.debug || !!(globalThis as any).__W3A_DEBUG__;
+    this.debug = !!this.opts.debug || !!((globalThis as unknown as { __W3A_DEBUG__?: boolean }).__W3A_DEBUG__);
     // Encapsulate iframe mount + handshake logic in transport
     this.transport = new IframeTransport({
       walletOrigin: this.opts.walletOrigin,
@@ -224,7 +224,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target as any); } catch {}
+    try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target); } catch {}
   }
 
   mountUiComponent(params: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }): void {
@@ -232,7 +232,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target as any); } catch {}
+    try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target); } catch {}
   }
 
   updateUiComponent(params: { id: string; props?: Record<string, unknown> }): void {
@@ -240,7 +240,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target as any); } catch {}
+    try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target); } catch {}
   }
 
   unmountUiComponent(id: string): void {
@@ -248,7 +248,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target as any); } catch {}
+    try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target); } catch {}
   }
 
   // ===== Public RPC helpers =====
@@ -689,9 +689,9 @@ export class WalletIframeRouter {
     this.hideFrameForActivation();
 
     if (msg.type === 'ERROR') {
-      const err = new Error(msg.payload?.message || 'Wallet error');
-      (err as any).code = msg.payload?.code;
-      (err as any).details = msg.payload?.details;
+      const err: Error & { code?: string; details?: unknown } = new Error(msg.payload?.message || 'Wallet error');
+      err.code = msg.payload?.code;
+      err.details = msg.payload?.details;
       // Deliver to pending promise if present
       pending.reject(err);
       // Also notify all progress subscribers for this requestId
@@ -737,7 +737,7 @@ export class WalletIframeRouter {
       }, this.opts.requestTimeoutMs);
 
       this.pending.set(requestId, {
-        resolve: resolve as any,
+        resolve: (v) => resolve(v as PostResult<T>),
         reject,
         timer,
         onProgress: options?.onProgress
@@ -757,8 +757,8 @@ export class WalletIframeRouter {
       try {
         // Strip non-cloneable fields (functions) from envelope options before posting
         const wireOptions = (options && isObject(options))
-          ? (('sticky' in options && (options as any).sticky !== undefined)
-              ? { sticky: (options as any).sticky }
+          ? (('sticky' in options && typeof (options as { sticky?: unknown }).sticky !== 'undefined')
+              ? { sticky: (options as { sticky?: boolean }).sticky }
               : undefined)
           : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
@@ -767,7 +767,7 @@ export class WalletIframeRouter {
         this.pending.delete(requestId);
         window.clearTimeout(timer);
         try { this.progressBus.unregister(requestId); } catch {}
-        reject(err);
+        reject(toError(err));
       }
     });
   }
@@ -853,23 +853,27 @@ function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEE
 /**
  * Strips out class functions as they cannot be sent over postMessage to iframe
  */
-function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult) {
-  const arr = Array.isArray(result) ? result : [];
-  const normalized = arr.map(entry => {
-    if (entry?.signedTransaction) {
-      const st = entry.signedTransaction;
-      if (st && (typeof (st as any).base64Encode !== 'function') && (st.borsh_bytes || st.borshBytes)) {
-        entry.signedTransaction = new SignedTransaction({
-          transaction: st.transaction,
-          signature: st.signature,
-          borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
-        });
+  function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult) {
+    const arr = Array.isArray(result) ? result : [];
+    const normalized = arr.map(entry => {
+      if (entry?.signedTransaction) {
+        const st = entry.signedTransaction;
+      if (
+          st &&
+          (typeof (st as { base64Encode?: unknown }).base64Encode !== 'function') &&
+          ((st as { borsh_bytes?: unknown }).borsh_bytes || (st as { borshBytes?: unknown }).borshBytes)
+        ) {
+          entry.signedTransaction = new SignedTransaction({
+            transaction: st.transaction,
+            signature: st.signature,
+            borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
+          });
+        }
       }
-    }
-    return entry;
-  });
-  return normalized
-}
+      return entry;
+    });
+    return normalized
+  }
 
 /**
  * Strips out functions as they cannot be sent over postMessage to iframe

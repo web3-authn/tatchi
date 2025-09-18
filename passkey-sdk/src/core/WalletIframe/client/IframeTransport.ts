@@ -46,7 +46,12 @@ export class IframeTransport {
       if (walletOrigin) {
         window.addEventListener('message', (e) => {
           const data = e.data as unknown;
-          if (e.origin === walletOrigin && isObject(data) && (data as any).type === 'SERVICE_HOST_BOOTED') {
+          // Narrow to expected boot message shape without using any
+          if (
+            e.origin === walletOrigin &&
+            isObject(data) &&
+            (data as { type?: unknown }).type === 'SERVICE_HOST_BOOTED'
+          ) {
             try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
             this.serviceBooted = true;
           }
@@ -93,8 +98,8 @@ export class IframeTransport {
 
     // Track load state to guard against races where we post before content is listening
     try {
-      (iframe as any)._svc_loaded = false;
-      iframe.addEventListener('load', () => { (iframe as any)._svc_loaded = true; }, { once: true } as any);
+      iframe._svc_loaded = false;
+      iframe.addEventListener('load', () => { iframe._svc_loaded = true; }, { once: true });
     } catch {}
 
     // Choose source based on origin configuration
@@ -158,7 +163,7 @@ export class IframeTransport {
           const channel = new MessageChannel();
           const port1 = channel.port1;
           const port2 = channel.port2;
-          const cleanup = () => { try { (port1 as any).onmessage = null as any; } catch {} };
+          const cleanup = () => { try { port1.onmessage = null; } catch {} };
 
           port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
             const data = e.data;
@@ -175,8 +180,13 @@ export class IframeTransport {
             cleanup();
             return reject(new Error('Wallet iframe window missing'));
           }
-          const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-          cw.postMessage({ type: 'CONNECT' }, target as any, [port2]);
+          // Use '*' for target origin when posting the initial CONNECT with a MessagePort.
+          // We are addressing the iframe's contentWindow directly, so there is no
+          // risk of delivering the message to an unintended window, and some
+          // environments have shown brittleness when specifying an explicit
+          // origin during early boot (e.g., port not delivered). The host-side
+          // listener already validates the envelope shape before adopting the port.
+          cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
           const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
@@ -198,10 +208,10 @@ export class IframeTransport {
 
   /** Guard against posting to the iframe before it has fired load. */
   private async waitForLoad(iframe: HTMLIFrameElement): Promise<void> {
-    if ((iframe as any)._svc_loaded) return;
+    if (iframe._svc_loaded) return;
     await new Promise<void>((resolve) => {
       try {
-        iframe.addEventListener?.('load', () => resolve(), { once: true } as any);
+        iframe.addEventListener?.('load', () => resolve(), { once: true });
         // Safety net: resolve shortly even if load listener fails to attach
         setTimeout(() => resolve(), 150);
       } catch {

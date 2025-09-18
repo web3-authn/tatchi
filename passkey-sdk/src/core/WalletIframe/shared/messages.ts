@@ -1,6 +1,7 @@
 
 // Typed RPC messages for the wallet service iframe channel (PasskeyManager-first)
 import { AuthenticatorOptions } from '@/server';
+import type { WalletUIRegistry } from '../host/lit-element-registry';
 import { ActionArgs, TransactionInput } from '../../types';
 import {
   BaseHooksOptions,
@@ -80,6 +81,8 @@ export interface PMSetConfigPayload {
   authenticatorOptions?: AuthenticatorOptions;
   // Absolute base URL for SDK Lit component assets (e.g., https://app.example.com/sdk/)
   assetsBaseUrl?: string;
+  // Optional: register wallet-host UI components (Lit tags + bindings)
+  uiRegistry?: WalletUIRegistry;
 }
 
 export interface PMCancelPayload {
@@ -201,7 +204,7 @@ export type ParentToChildEnvelope =
       ui?: 'modal' | 'inline';
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
-  | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string; options?: any }>;
+  | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>;
 
 export type ChildToParentEnvelope =
   | RpcEnvelope<'READY', ReadyPayload>

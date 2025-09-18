@@ -23,6 +23,7 @@ import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../PasskeyManager';
+import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/lit-element-registry';
 
 
@@ -74,7 +75,7 @@ export class PasskeyManagerIframe {
       vrfWorkerConfigs: configs.vrfWorkerConfigs,
       rpIdOverride: configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: configs.authenticatorOptions,
-      uiRegistry: configs.iframeWallet?.uiRegistry as any,
+      uiRegistry: configs.iframeWallet?.uiRegistry,
     });
   }
 
@@ -123,10 +124,11 @@ export class PasskeyManagerIframe {
       });
       try { await options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { options?.onError?.(err); } catch {}
-      try { await options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { options?.onError?.(e); } catch {}
+      try { await options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -136,10 +138,11 @@ export class PasskeyManagerIframe {
       const res = await this.client.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent } });
       try { await options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { options?.onError?.(err); } catch {}
-      try { await options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { options?.onError?.(e); } catch {}
+      try { await options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -174,10 +177,11 @@ export class PasskeyManagerIframe {
       });
       try { await args.options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { args.options?.onError?.(err); } catch {}
-      try { await args.options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { args.options?.onError?.(e); } catch {}
+      try { await args.options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -197,10 +201,11 @@ export class PasskeyManagerIframe {
       });
       try { await args.options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { args.options?.onError?.(err); } catch {}
-      try { await args.options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { args.options?.onError?.(e); } catch {}
+      try { await args.options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -264,7 +269,8 @@ export class PasskeyManagerIframe {
         });
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
-      } catch (e: any) {
+      } catch (err: unknown) {
+        const e = toError(err);
         try { options?.onError?.(e); } catch {}
         try { await options?.afterCall?.(false, e); } catch {}
         throw e;
@@ -307,10 +313,11 @@ export class PasskeyManagerIframe {
       const res = { qrData, qrCodeDataURL };
       try { await afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { onError?.(err); } catch {}
-      try { await afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { onError?.(e); } catch {}
+      try { await afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -327,30 +334,30 @@ export class PasskeyManagerIframe {
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
-    const optsAny = options;
-    try { await optsAny?.beforeCall?.(); } catch {}
+    try { await options?.beforeCall?.(); } catch {}
     try {
       if (this.client.isReady()) {
         const res = await this.client.linkDeviceWithScannedQRData({
           qrData,
-          fundingAmount: optsAny.fundingAmount,
+          fundingAmount: options.fundingAmount,
           options: {
-            onEvent: optsAny?.onEvent
+            onEvent: options?.onEvent
           }
         });
-        try { await optsAny?.afterCall?.(true, res); } catch {}
-        return res as LinkDeviceResult;
+        try { await options?.afterCall?.(true, res); } catch {}
+        return res;
       }
       const res = await this.ensureFallbackLocal().linkDeviceWithScannedQRData(
         qrData,
         options
       );
-      try { await optsAny?.afterCall?.(true, res); } catch {}
-      return res as LinkDeviceResult;
-    } catch (err: any) {
-      try { optsAny?.onError?.(err); } catch {}
-      try { await optsAny?.afterCall?.(false, err); } catch {}
-      throw err;
+      try { await options?.afterCall?.(true, res); } catch {}
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { options?.onError?.(e); } catch {}
+      try { await options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
@@ -385,12 +392,12 @@ export class PasskeyManagerIframe {
     let remote: GetRecentLoginsResult | null = null;
     try {
       remote = await this.client.getRecentLogins();
-    } catch (err) {
+    } catch (err: unknown) {
       // Wallet host may be on older bundle (IDB VersionError). Fallback to local.
       try {
         return await this.ensureFallbackLocal().getRecentLogins();
       } catch {}
-      throw err;
+      throw toError(err);
     }
     // If wallet-origin has no last user yet (common in first-run dev),
     // fall back to local IndexedDB for lastUsedAccountId so the UI can prefill.
@@ -421,10 +428,11 @@ export class PasskeyManagerIframe {
       );
       try { await options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { options?.onError?.(err); } catch {}
-      try { await options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { options?.onError?.(e); } catch {}
+      try { await options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
   async executeAction(args: {
@@ -447,10 +455,11 @@ export class PasskeyManagerIframe {
       });
       try { await args.options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { args.options?.onError?.(err); } catch {}
-      try { await args.options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { args.options?.onError?.(e); } catch {}
+      try { await args.options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
   async sendTransaction(args: {
@@ -470,10 +479,11 @@ export class PasskeyManagerIframe {
       });
       await options?.afterCall?.(true, res);
       return res;
-    } catch (err: any) {
-      options?.onError?.(err);
-      options?.afterCall?.(false, err);
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      options?.onError?.(e);
+      options?.afterCall?.(false, e);
+      throw e;
     }
   }
 
@@ -502,10 +512,11 @@ export class PasskeyManagerIframe {
       });
       try { await options?.afterCall?.(true, res); } catch {}
       return res;
-    } catch (err: any) {
-      try { options?.onError?.(err); } catch {}
-      try { await options?.afterCall?.(false, err); } catch {}
-      throw err;
+    } catch (err: unknown) {
+      const e = toError(err);
+      try { options?.onError?.(e); } catch {}
+      try { await options?.afterCall?.(false, e); } catch {}
+      throw e;
     }
   }
 
