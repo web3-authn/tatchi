@@ -14,7 +14,7 @@
  */
 
 import type { ChildToParentEnvelope } from '../shared/messages';
-import { isRecord } from '../validation';
+import { isObject } from '../validation';
 import { sanitizeSdkBasePath, escapeHtmlAttribute } from '../sanitization';
 
 export interface IframeTransportOptions {
@@ -46,7 +46,7 @@ export class IframeTransport {
       if (walletOrigin) {
         window.addEventListener('message', (e) => {
           const data = e.data as unknown;
-          if (e.origin === walletOrigin && isRecord(data) && (data as any).type === 'SERVICE_HOST_BOOTED') {
+          if (e.origin === walletOrigin && isObject(data) && (data as any).type === 'SERVICE_HOST_BOOTED') {
             try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
             this.serviceBooted = true;
           }

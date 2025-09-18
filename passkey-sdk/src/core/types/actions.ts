@@ -1,5 +1,3 @@
-import { AccountId } from "./accountIds";
-
 // === TRANSACTION INPUT INTERFACES ===
 
 export interface TransactionInput {
@@ -145,7 +143,7 @@ export type ActionArgsWasm =
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
 
 export function isActionArgsWasm(a?: any): a is ActionArgsWasm {
-  return a && typeof a === 'object' && 'action_type' in a
+  return isObject(a) && 'action_type' in a;
 }
 
 export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
@@ -289,6 +287,14 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
 
 // === CONVERSIONS: WASM -> JS ACTIONS ===
 
+interface FunctionCallPermissionView {
+    FunctionCall: {
+        allowance: string;
+        receiver_id: string;
+        method_names: string[];
+    };
+}
+
 /**
  * Convert a single ActionArgsWasm (snake_case, stringified fields) to ActionArgs (camelCase, typed fields)
  */
@@ -335,25 +341,26 @@ export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
       };
     case ActionType.AddKey: {
       // access_key is a JSON string of { nonce, permission: { FullAccess: {} } | { FunctionCall: {...} } }
-      let accessKey: any;
+      let accessKey: { nonce: bigint; permission: 'FullAccess' | FunctionCallPermissionView; }
       try {
         accessKey = JSON.parse(a.access_key);
       } catch {
-        accessKey = { nonce: 0, permission: { FullAccess: {} } };
+        accessKey = { nonce: BigInt(0), permission: 'FullAccess' };
       }
       // Normalize permission back to SDK shape
-      const permission: any = accessKey?.permission;
-      let normalizedPermission: 'FullAccess' | { FunctionCall: { allowance?: string; receiverId?: string; methodNames?: string[] } } = 'FullAccess';
-      if (permission && typeof permission === 'object') {
+      const permission = accessKey?.permission;
+      let normalizedPermission: 'FullAccess' | FunctionCallPermissionView = 'FullAccess';
+
+      if (isObject(permission)) {
         if ('FullAccess' in permission) {
           normalizedPermission = 'FullAccess';
         } else if ('FunctionCall' in permission) {
-          const fc = permission.FunctionCall || {};
+          const fc = (permission as FunctionCallPermissionView).FunctionCall;
           normalizedPermission = {
             FunctionCall: {
               allowance: fc.allowance,
-              receiverId: fc.receiver_id ?? fc.receiverId,
-              methodNames: fc.method_names ?? fc.methodNames
+              receiver_id: fc.receiver_id,
+              method_names: fc.method_names
             }
           };
         }
@@ -395,3 +402,5 @@ export function fromTransactionInputWasm(tx: TransactionInputWasm): TransactionI
 export function fromTransactionInputsWasm(txs: TransactionInputWasm[]): TransactionInput[] {
   return (txs || []).map(fromTransactionInputWasm);
 }
+import { isObject } from '../WalletIframe/validation';import { AccessKey } from "@near-js/transactions";
+

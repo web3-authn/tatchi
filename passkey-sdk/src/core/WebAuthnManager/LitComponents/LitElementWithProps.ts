@@ -1,4 +1,5 @@
 import { LitElement } from 'lit';
+import { isObject } from '../../../core/WalletIframe/validation';
 
 export type CSSProperties = Record<string, string | Record<string, string> | undefined>;
 
@@ -158,7 +159,7 @@ export class LitElementWithProps extends LitElement {
 
     // Apply component-specific variables
     Object.entries(styles).forEach(([section, sectionStyles]) => {
-      if (sectionStyles && typeof sectionStyles === 'object' && !baseVars.includes(section)) {
+      if (sectionStyles && isObject(sectionStyles) && !baseVars.includes(section)) {
         Object.entries(sectionStyles).forEach(([prop, value]) => {
           const kebabSection = this.camelToKebab(section);
           const kebabProp = this.camelToKebab(prop);

@@ -318,7 +318,10 @@ export async function signAndSendTransactionsInternal({
       confirmationConfigOverride
     });
 
-    if (options?.executeSequentially) {
+    // Default to sequential execution unless explicitly disabled.
+    // This avoids InvalidNonce errors when multiple broadcasts race.
+    const executeSequentially = options?.executeSequentially !== false;
+    if (executeSequentially) {
       // Note: sendTransaction handles nonce release on failure centrally
       const txResults = [];
       for (const tx of signedTxs) {

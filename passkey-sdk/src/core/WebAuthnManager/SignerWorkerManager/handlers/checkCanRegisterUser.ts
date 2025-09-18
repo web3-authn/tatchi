@@ -11,6 +11,7 @@ import { VRFChallenge } from '../../../types/vrf-worker';
 import type { onProgressEvents } from '../../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
+import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 
 
 export async function checkCanRegisterUser({
@@ -24,7 +25,7 @@ export async function checkCanRegisterUser({
 }: {
   ctx: SignerWorkerManagerContext,
   vrfChallenge: VRFChallenge,
-  credential: any,
+  credential: WebAuthnRegistrationCredential,
   contractId: string;
   nearRpcUrl: string;
   authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration check
@@ -44,13 +45,15 @@ export async function checkCanRegisterUser({
 }> {
   try {
     // Accept either a real PublicKeyCredential or an already-serialized credential
-    const isSerialized = (cred: any) => !!cred && typeof cred === 'object'
-      && typeof cred?.response?.clientDataJSON === 'string'
-      && typeof cred?.response?.attestationObject === 'string';
+    const isSerialized = (cred: unknown): cred is WebAuthnRegistrationCredential => {
+      return !!cred && typeof cred === 'object'
+        && typeof (cred as WebAuthnRegistrationCredential).response?.clientDataJSON === 'string'
+        && typeof (cred as WebAuthnRegistrationCredential).response?.attestationObject === 'string';
+    };
 
-    const serializedCredential = isSerialized(credential)
+    const serializedCredential: WebAuthnRegistrationCredential = isSerialized(credential)
       ? credential
-      : serializeRegistrationCredentialWithPRF({ credential: credential as PublicKeyCredential });
+      : serializeRegistrationCredentialWithPRF({ credential: credential });
 
     const response = await ctx.sendMessage<WorkerRequestType.CheckCanRegisterUser>({
       message: {
@@ -92,13 +95,15 @@ export async function checkCanRegisterUser({
       logs: wasmResult.logs,
       error: wasmResult.error,
     };
-  } catch (error: any) {
+  } catch (error) {
     // Preserve the detailed error message instead of converting to generic error
     console.error('checkCanRegisterUser failed:', error);
     return {
       success: false,
       verified: false,
-      error: error.message || 'Unknown error occurred',
+      error: (error && typeof (error as { message?: unknown }).message === 'string')
+        ? (error as { message: string }).message
+        : 'Unknown error occurred',
       logs: [],
     };
   }

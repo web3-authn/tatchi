@@ -3,18 +3,34 @@
  */
 
 /**
+ * Best-effort error message extractor without relying on `any`.
+ * Always returns a string (may be empty when nothing usable can be derived).
+ */
+export function errorMessage(err: unknown): string {
+  try {
+    if (typeof err === 'string') return err;
+    if (err && typeof (err as { message?: unknown }).message === 'string') {
+      return (err as { message: string }).message;
+    }
+    return String(err ?? '');
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Check if an error is related to user cancellation of TouchID/FaceID prompt
  * @param error - The error object or error message string
  * @returns true if the error indicates user cancellation
  */
-export function isTouchIdCancellationError(error: any): boolean {
-  const errorMessage = typeof error === 'string' ? error : error?.message || '';
+export function isTouchIdCancellationError(error: unknown): boolean {
+  const msg = errorMessage(error);
 
-  return errorMessage.includes('The operation either timed out or was not allowed') ||
-         errorMessage.includes('NotAllowedError') ||
-         errorMessage.includes('AbortError') ||
-         errorMessage.includes('user cancelled') ||
-         errorMessage.includes('user aborted');
+  return msg.includes('The operation either timed out or was not allowed') ||
+         msg.includes('NotAllowedError') ||
+         msg.includes('AbortError') ||
+         msg.includes('user cancelled') ||
+         msg.includes('user aborted');
 }
 
 /**
@@ -41,11 +57,11 @@ export function getTouchIdCancellationMessage(context: 'registration' | 'login')
  * @returns A user-friendly error message
  */
 export function getUserFriendlyErrorMessage(
-  error: any,
+  error: unknown,
   context: 'registration' | 'login' = 'registration',
   nearAccountId?: string
 ): string {
-  const errorMessage = typeof error === 'string' ? error : error?.message || '';
+  const msg = errorMessage(error);
 
   // Handle TouchID/FaceID cancellation
   if (isTouchIdCancellationError(error)) {
@@ -53,22 +69,22 @@ export function getUserFriendlyErrorMessage(
   }
 
   // Handle other common errors
-  if (errorMessage.includes('one of the credentials already registered')) {
+  if (msg.includes('one of the credentials already registered')) {
     return `A passkey for '${nearAccountId || 'this account'}' already exists. Please try logging in instead.`;
   }
 
-  if (errorMessage.includes('Cannot deserialize the contract state')) {
+  if (msg.includes('Cannot deserialize the contract state')) {
     return `Contract state deserialization failed. This may be due to a contract upgrade. Please try again or contact support.`;
   }
 
-  if (errorMessage.includes('Web3Authn contract registration check failed')) {
-    return `Contract registration check failed: ${errorMessage.replace('Web3Authn contract registration check failed: ', '')}`;
+  if (msg.includes('Web3Authn contract registration check failed')) {
+    return `Contract registration check failed: ${msg.replace('Web3Authn contract registration check failed: ', '')}`;
   }
 
-  if (errorMessage.includes('Unknown error occurred')) {
+  if (msg.includes('Unknown error occurred')) {
     return `${context === 'registration' ? 'Registration' : 'Login'} failed due to an unknown error. Please check your connection and try again.`;
   }
 
   // Return the original error message if no specific handling is needed
-  return errorMessage;
+  return msg;
 }

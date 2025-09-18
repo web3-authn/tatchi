@@ -22,7 +22,8 @@ import {
 } from "@near-js/types";
 import { PublicKey } from "@near-js/crypto";
 import { base64Encode } from "../utils";
-import { DEFAULT_WAIT_STATUS } from "./types/rpc";
+import { errorMessage } from "../utils/errors";
+import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
 import {
   WasmTransaction,
   WasmSignature,
@@ -45,7 +46,7 @@ export type FunctionCallAccessKey = Omit<AccessKeyInfoView, 'access_key'>
   & { access_key: Omit<AccessKeyView, 'permission'> & { permission: FunctionCallPermissionView } }
 
 export interface ContractResult<T> extends QueryResponseKind {
-  result?: T | string | number | any;
+  result?: T | string | number;
   logs: string[];
 }
 
@@ -92,28 +93,24 @@ export class SignedTransaction {
  * Accepts either our SignedTransaction instance or a plain object
  * with borsh bytes (borsh_bytes | borshBytes) from cross-origin RPC.
  */
-export function encodeSignedTransactionBase64(
-  signed: SignedTransaction | { borsh_bytes?: number[]; borshBytes?: number[]; encode?: () => ArrayBuffer }
-): string {
+type EncodableSignedTx =
+  | SignedTransaction
+  | { borsh_bytes?: number[]; borshBytes?: number[]; encode?: () => ArrayBuffer; base64Encode?: () => string };
+
+export function encodeSignedTransactionBase64(signed: EncodableSignedTx): string {
   try {
-    // Prefer instance method when available
-    const anySigned: any = signed as any;
-    if (typeof anySigned?.base64Encode === 'function') {
-      return anySigned.base64Encode();
+    if (typeof signed.base64Encode === 'function') {
+      return signed.base64Encode();
     }
-    // If encode() returns ArrayBuffer
-    if (typeof anySigned?.encode === 'function') {
-      const buf = anySigned.encode();
-      return base64Encode(buf);
+    if (typeof signed.encode === 'function') {
+      return base64Encode(signed.encode());
     }
-    // Fallback to raw borsh bytes arrays
-    const bytes = (anySigned?.borsh_bytes || anySigned?.borshBytes) as number[] | undefined;
+    const bytes = signed.borsh_bytes;
     if (Array.isArray(bytes)) {
-      const buf = new Uint8Array(bytes).buffer;
-      return base64Encode(buf);
+      return base64Encode(new Uint8Array(bytes).buffer);
     }
-  } catch (e) {
-    // fallthrough to error below
+  } catch {
+    // fall through
   }
   throw new Error('Invalid signed transaction payload: cannot serialize to base64');
 }
@@ -158,9 +155,9 @@ export class MinimalNearClient implements NearClient {
   /**
    * Execute RPC call with proper error handling and result extraction
    */
-  private async makeRpcCall<T>(
+  private async makeRpcCall<P, T>(
     method: string,
-    params: any,
+    params: P,
     operationName: string
   ): Promise<T> {
 
@@ -175,9 +172,9 @@ export class MinimalNearClient implements NearClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
-    }).catch(e => {
-      console.error(e);
-      throw new Error(e);
+    }).catch(err => {
+      console.error(err);
+      throw new Error(errorMessage(err) || 'RPC request failed');
     });
 
     if (!response.ok) {
@@ -189,17 +186,18 @@ export class MinimalNearClient implements NearClient {
       throw new Error('Empty response from RPC server');
     }
 
-    const result = JSON.parse(responseText);
+    const result = JSON.parse(responseText) as RpcResponse;
     if (result.error) {
-      throw result.error;
+      const msg = result.error?.data?.message || result.error?.message || 'RPC error';
+      throw new Error(msg);
     }
 
     // Check for query-specific errors in result.result
-    if (result.result?.error) {
-      throw new Error(`${operationName} Error: ${result.result.error}`);
+    if ((result.result as any)?.error) {
+      throw new Error(`${operationName} Error: ${(result.result as any).error}`);
     }
 
-    return result.result;
+    return result.result as T;
   }
 
   // ===========================
@@ -207,33 +205,33 @@ export class MinimalNearClient implements NearClient {
   // ===========================
 
   async query<T extends QueryResponseKind>(params: RpcQueryRequest): Promise<T> {
-    return this.makeRpcCall<T>(RpcCallType.Query, params, 'Query');
+    return this.makeRpcCall<RpcQueryRequest, T>(RpcCallType.Query, params, 'Query');
   }
 
   async viewAccessKey(accountId: string, publicKey: PublicKey | string, finalityQuery?: FinalityReference): Promise<AccessKeyView> {
     const publicKeyStr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
     const finality = finalityQuery?.finality || 'final';
-
     const params = {
       request_type: 'view_access_key',
       finality: finality,
       account_id: accountId,
       public_key: publicKeyStr
     };
-
-    return this.makeRpcCall<AccessKeyView>(RpcCallType.Query, params, 'View Access Key');
+    return this.makeRpcCall<typeof params, AccessKeyView>(
+      RpcCallType.Query,
+      params,
+      'View Access Key'
+    );
   }
 
   async viewAccessKeyList(accountId: string, finalityQuery?: FinalityReference): Promise<AccessKeyList> {
     const finality = finalityQuery?.finality || 'final';
-
     const params = {
       request_type: 'view_access_key_list',
       finality: finality,
       account_id: accountId
     };
-
-    return this.makeRpcCall<AccessKeyList>(RpcCallType.Query, params, 'View Access Key List');
+    return this.makeRpcCall<typeof params, AccessKeyList>(RpcCallType.Query, params, 'View Access Key List');
   }
 
   async viewAccount(accountId: string): Promise<AccountView> {
@@ -242,26 +240,22 @@ export class MinimalNearClient implements NearClient {
       finality: 'final',
       account_id: accountId
     };
-
-    return this.makeRpcCall<AccountView>(RpcCallType.Query, params, 'View Account');
+    return this.makeRpcCall<typeof params, AccountView>(RpcCallType.Query, params, 'View Account');
   }
 
   async viewBlock(params: BlockReference): Promise<BlockResult> {
-    return this.makeRpcCall<BlockResult>(RpcCallType.Block, params, 'View Block');
+    return this.makeRpcCall<BlockReference, BlockResult>(RpcCallType.Block, params, 'View Block');
   }
 
   async sendTransaction(
     signedTransaction: SignedTransaction,
     waitUntil: TxExecutionStatus = DEFAULT_WAIT_STATUS.executeAction
   ): Promise<FinalExecutionOutcome> {
-    return await this.makeRpcCall<FinalExecutionOutcome>(
-      RpcCallType.Send,
-      {
-        signed_tx_base64: encodeSignedTransactionBase64(signedTransaction as any),
-        wait_until: waitUntil
-      },
-      'Send Transaction'
-    );
+    const params = {
+      signed_tx_base64: encodeSignedTransactionBase64(signedTransaction),
+      wait_until: waitUntil
+    }
+    return await this.makeRpcCall<typeof params, FinalExecutionOutcome>(RpcCallType.Send, params, 'Send Transaction');
   }
 
   async callFunction<A, T>(
@@ -277,8 +271,7 @@ export class MinimalNearClient implements NearClient {
       method_name: method,
       args_base64: base64Encode(new TextEncoder().encode(JSON.stringify(args)).buffer)
     };
-
-    const result = await this.makeRpcCall<ContractResult<T>>(
+    const result = await this.makeRpcCall<typeof rpcParams, ContractResult<T>>(
       RpcCallType.Query,
       rpcParams,
       'View Function'
@@ -319,7 +312,7 @@ export class MinimalNearClient implements NearClient {
     functionCallAccessKeys: FunctionCallAccessKey[];
   }> {
     // Build RPC parameters similar to the official implementation
-    const params: any = {
+    const params: Record<string, unknown> = {
       request_type: 'view_access_key_list',
       account_id: account,
       finality: 'final'
@@ -332,7 +325,7 @@ export class MinimalNearClient implements NearClient {
     }
 
     // Make the RPC call directly to match the official implementation
-    const accessKeyList = await this.makeRpcCall<AccessKeyList>(
+    const accessKeyList = await this.makeRpcCall<typeof params, AccessKeyList>(
       RpcCallType.Query,
       params,
       'View Access Key List'
@@ -359,3 +352,5 @@ export class MinimalNearClient implements NearClient {
     };
   }
 }
+
+// errorMessage moved to utils/errors

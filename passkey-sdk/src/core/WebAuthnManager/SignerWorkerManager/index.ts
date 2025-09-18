@@ -79,6 +79,8 @@ export class SignerWorkerManager {
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
 
+  private readonly iframeModeDefault: boolean;
+
   constructor(
     vrfWorkerManager: VrfWorkerManager,
     nearClient: NearClient,
@@ -94,7 +96,7 @@ export class SignerWorkerManager {
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
     // Store default UI mode as a boolean
-    (this as any)._iframeModeDefault = !!iframeModeDefault;
+    this.iframeModeDefault = !!iframeModeDefault;
   }
 
   private getContext(): SignerWorkerManagerContext {
@@ -106,8 +108,8 @@ export class SignerWorkerManager {
       nearClient: this.nearClient,
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
-      rpIdOverride: (this.touchIdPrompt as any)?.rpIdOverride,
-      iframeModeDefault: (this as any)._iframeModeDefault,
+      rpIdOverride: this.touchIdPrompt.getRpId(),
+      iframeModeDefault: this.iframeModeDefault,
     };
   }
 
@@ -284,20 +286,8 @@ export class SignerWorkerManager {
           const response = event.data as WorkerResponseForRequest<T>;
           responses.push(response);
 
-          // Intercept secure confirm handshake (Phase A: pluggable UI)
+          // Intercept secure confirm handshake
           if (event.data.type === SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD) {
-            try {
-              const req = (event.data as any)?.data;
-              const keys = req && typeof req === 'object' ? Object.keys(req) : [];
-              console.debug('[SignerWorkerManager] Received PROMPT_USER_CONFIRM', {
-                hasData: !!req,
-                reqType: typeof req,
-                keys,
-                requestId: req?.requestId,
-                schemaVersion: req?.schemaVersion,
-                type: req?.type,
-              });
-            } catch {}
             await handlePromptUserConfirmInJsMainThread(
               this.getContext(),
               event.data as {
@@ -338,13 +328,13 @@ export class SignerWorkerManager {
           console.error('Unexpected worker response format:', {
             response,
             responseType: typeof response,
-            isObject: typeof response === 'object',
-            hasType: response && typeof response === 'object' && 'type' in response,
+            isObject: isObject(response),
+            hasType: isObject(response) && 'type' in response,
             type: (response as any)?.type
           });
 
           // Check if it's a generic Error object
-          if (response && typeof response === 'object' && 'message' in response && 'stack' in response) {
+          if (isObject(response) && 'message' in response && 'stack' in response) {
             clearTimeout(timeoutId);
             this.terminateAndReplaceWorker(worker);
             console.error('Worker sent generic Error object:', response);
@@ -567,3 +557,4 @@ export class SignerWorkerManager {
   }
 
 }
+import { isObject } from '../../WalletIframe/validation';

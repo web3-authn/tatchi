@@ -16,10 +16,13 @@ import {
   RegisterAccountPayload,
 } from './types';
 import { TransactionContext, VRFChallenge } from '../../../types';
+import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
 import { W3A_TX_BUTTON_ID } from '../../LitComponents/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
+import { isObject, isFunction } from '../../../WalletIframe/validation';
+import { errorMessage } from '../../../../utils/errors';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -45,7 +48,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     summary = parsed.summary;
     confirmationConfig = parsed.confirmationConfig;
     transactionSummary = parsed.transactionSummary;
-  } catch (e: any) {
+  } catch (e) {
     console.error('[SecureConfirm][Host] validateAndParseRequest failed', e);
     // Attempt to send a structured error back to the worker to avoid hard failure
     try {
@@ -53,7 +56,7 @@ export async function handlePromptUserConfirmInJsMainThread(
       sendWorkerResponse(worker, {
         requestId: rid,
         confirmed: false,
-        error: e?.message || 'Invalid secure confirm request'
+        error: errorMessage(e) || 'Invalid secure confirm request'
       });
       return;
     } catch (_) {
@@ -269,26 +272,31 @@ async function performNearRpcCalls(
     }
 
     return { transactionContext, reservedNonces };
-  } catch (error: any) {
+  } catch (error) {
     // Registration or pre-login flows may not have NonceManager initialized.
     // Fallback: fetch latest block info directly; nonces are not required for registration/link flows.
     try {
-      const block = await ctx.nearClient.viewBlock({ finality: 'final' } as any);
+      const block = await ctx.nearClient.viewBlock({ finality: 'final' } as BlockReference);
       const txBlockHeight = String(block?.header?.height ?? '');
       const txBlockHash = String(block?.header?.hash ?? '');
       const fallback: TransactionContext = {
         nearPublicKeyStr: '', // not needed for registration VRF challenge
-        accessKeyInfo: { nonce: 0 } as any, // minimal shape; not used in registration/link flows
+        accessKeyInfo: ({
+          nonce: 0,
+          permission: 'FullAccess',
+          block_height: 0,
+          block_hash: ''
+        } as unknown) as AccessKeyView, // minimal shape; not used in registration/link flows
         nextNonce: '0',       // placeholder; not used in registration/link flows
         txBlockHeight,
         txBlockHash,
       } as TransactionContext;
       return { transactionContext: fallback };
-    } catch (e: any) {
+    } catch (e) {
       return {
         transactionContext: null,
         error: 'NEAR_RPC_FAILED',
-        details: e?.message || error?.message,
+        details: errorMessage(e) || errorMessage(error),
       };
     }
   }
@@ -564,7 +572,7 @@ async function collectTouchIdCredentials({
 /**
  * Safely parses transaction summary data, handling both string and object formats
  */
-function parseTransactionSummary(summaryData: string | object | undefined): SummaryType {
+function parseTransactionSummary(summaryData: string | SummaryType | undefined): SummaryType {
   if (!summaryData) {
     return {};
   }
@@ -576,11 +584,8 @@ function parseTransactionSummary(summaryData: string | object | undefined): Summ
       return {};
     }
   }
-  if (typeof summaryData === 'object' && summaryData !== null) {
-    return summaryData;
-  }
-  console.warn('[SignerWorkerManager]: Unexpected summary data type:', typeof summaryData);
-  return {};
+  // Already an object-like summary; trust the caller (shape is loose by design)
+  return summaryData as SummaryType;
 }
 
 /**
@@ -619,14 +624,20 @@ type ShallowPostMessageSafe<T> = T extends object
   : T;
 
 function sanitizeForPostMessage<T>(data: T): ShallowPostMessageSafe<T> {
-  if (data == null || typeof data !== 'object') return data as ShallowPostMessageSafe<T>;
-  // Drop private handles and any functions (non-cloneable)
-  const out: Record<string, unknown> | unknown[] = Array.isArray(data) ? [] : {};
-  for (const key of Object.keys(data as any)) {
-    if (key === '_confirmHandle') continue;
-    const value = (data as any)[key];
-    if (typeof value === 'function') continue;
-    (out as any)[key] = value;
+  if (data == null) return data as ShallowPostMessageSafe<T>;
+  if (Array.isArray(data)) {
+    return data.map((v) => v) as unknown as ShallowPostMessageSafe<T>;
   }
-  return out as ShallowPostMessageSafe<T>;
+  if (isObject(data)) {
+    const src = data as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(src)) {
+      if (key === '_confirmHandle') continue;
+      const value = src[key];
+      if (isFunction(value)) continue;
+      out[key] = value;
+    }
+    return out as ShallowPostMessageSafe<T>;
+  }
+  return data as ShallowPostMessageSafe<T>;
 }

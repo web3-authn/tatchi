@@ -43,7 +43,7 @@ import type {
 import { MinimalNearClient, SignedTransaction } from '../../NearClient';
 import { setupLitElemMounter } from './lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
-import { isRecord, isString, isFiniteNumber } from '../validation';
+import { isObject, isString, isFiniteNumber } from '../validation';
 import { PasskeyManager } from '../../PasskeyManager';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import type { DeviceLinkingQRData } from '../../types/linkDevice';
@@ -132,7 +132,7 @@ function post(msg: ChildToParentEnvelope) {
 
 async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   const req = e.data as ParentToChildEnvelope;
-  if (!req || !isRecord(req)) return;
+  if (!req || !isObject(req)) return;
   const requestId = req.requestId;
 
   if (req.type === 'PING') { post({ type: 'PONG', requestId }); return; }
@@ -168,7 +168,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Forward UI registry to lit-elem-mounter if provided
     try {
       const uiRegistry = (payload as any)?.uiRegistry;
-      if (uiRegistry && isRecord(uiRegistry)) {
+      if (uiRegistry && isObject(uiRegistry)) {
         window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
       }
     } catch {}
@@ -316,6 +316,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           transactions: transactions,
           options: {
             ...options,
+            executeSequentially: options?.executeSequentially ?? true,
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as SignAndSendTransactionHooksOptions,
         });
@@ -668,7 +669,7 @@ function adoptPort(p: MessagePort) {
 
 function onWindowMessage(e: MessageEvent) {
   const { data, ports } = e;
-  if (!data || !isRecord(data)) return;
+  if (!data || !isObject(data)) return;
   if ((data as any).type === 'CONNECT' && ports && ports[0]) {
     adoptPort(ports[0]);
   }

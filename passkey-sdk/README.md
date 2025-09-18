@@ -121,7 +121,7 @@ rolldown.config.mjs   # Rolldown bundler configuration
 This SDK mounts a hidden, sandboxed “service iframe” that runs sensitive logic (WebAuthn orchestration, workers, IndexedDB) without relying on any external server or copied HTML files.
 
 - Same‑origin by default: The iframe is created with `srcdoc` and loads an embedded ESM bundle (service‑host) resolved by your bundler (`?url` import). No manual copying.
-- Optional cross‑origin: If you want to run the service on a separate wallet origin, set `walletOrigin` (and optionally `walletServicePath`) in `PasskeyManager` configs. This is not required.
+- Optional cross‑origin: If you want to run the service on a separate wallet origin, set `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `PasskeyManager` configs. This is not required.
 - UI/gesture: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn; the service iframe remains headless.
 
 ### React usage
@@ -134,9 +134,13 @@ function App() {
     <PasskeyProvider
       config={{
         ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-        // Optional: set a custom wallet origin if you need a separate domain
-        // walletOrigin: 'https://wallet.example.com',
-        // walletServicePath: '/service',
+        // Optional cross‑origin wallet host
+        // iframeWallet: {
+        //   walletOrigin: 'https://wallet.example.com',
+        //   walletServicePath: '/service',
+        //   // If using subdomains, set RP base so passkeys work across them
+        //   // rpIdOverride: 'example.localhost'
+        // }
       }}
     >
       <YourApp />
@@ -154,9 +158,13 @@ const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'web3-authn-v5.testnet',
-  // Optional: walletOrigin for a separate wallet site. Omit to stay same‑origin.
-  // walletOrigin: 'https://wallet.example.com',
-  // walletServicePath: '/service',
+  // Optional cross‑origin wallet site. Omit iframeWallet to stay same‑origin.
+  // iframeWallet: {
+  //   walletOrigin: 'https://wallet.example.com',
+  //   walletServicePath: '/service',
+  //   // Optional: rpIdOverride for subdomain credentials
+  //   // rpIdOverride: 'example.localhost'
+  // }
 });
 
 await pm.initWalletIframe();
@@ -185,7 +193,7 @@ You do not need to copy files into your app bundle, you can serve them directly 
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getWalletServiceHtml } from '@web3authn/passkey/core/WalletIframe/html';
+import { getWalletServiceHtml } from '@web3authn/passkey/core/WalletIframe/client/html';
 
 const app = express();
 
@@ -215,8 +223,11 @@ const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'web3-authn-v5.testnet',
-  walletOrigin: 'http://localhost:8080', // your wallet site
-  walletServicePath: '/service',         // must match the route above
+  iframeWallet: {
+    walletOrigin: 'http://localhost:8080', // your wallet site
+    walletServicePath: '/service',         // must match the route above
+    // rpIdOverride: 'example.localhost',  // optional
+  }
 });
 await pm.initWalletIframe();
 ```
@@ -225,3 +236,8 @@ With this approach, you don’t copy HTML into the integrator’s app and you do
 
 - Use the default same‑origin `srcdoc` mounting (zero configuration), or
 - Host the wallet service on your own separate origin by exposing `/sdk` and `/service` as shown.
+
+### Examples
+
+- `examples/vite`: same‑origin App Wallet demo (default). No env toggles.
+- `examples/vite-secure`: dedicated wallet host exposing `/wallet-service` and `/sdk` on `https://wallet.example.localhost` for cross‑origin demos.

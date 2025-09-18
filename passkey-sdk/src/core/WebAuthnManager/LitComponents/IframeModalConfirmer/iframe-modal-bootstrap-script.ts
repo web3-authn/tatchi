@@ -10,6 +10,7 @@ import {
   computeUiIntentDigestFromTxs,
   orderActionForDigest
 } from '../common/tx-digest';
+import { isObject } from '../../../WalletIframe/validation';
 
 
 // Parent communication configuration
@@ -75,21 +76,21 @@ function ensureElement(): ModalElementType {
  * Type guards for iframe message payloads
  */
 function isSetInitPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_INIT'] {
-  return typeof payload === 'object' && payload !== null;
+  return isObject(payload);
 }
 
 function isSetTxDataPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_TX_DATA'] {
-  return typeof payload === 'object' && payload !== null &&
+  return isObject(payload) &&
     typeof (payload as any).nearAccountId === 'string' &&
     Array.isArray((payload as any).txSigningRequests);
 }
 
 function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePayloads['CLOSE_MODAL'] {
-  return typeof payload === 'object' && payload !== null;
+  return isObject(payload);
 }
 
 function issTransactionInput(x: unknown): x is { receiverId: string; actions: unknown[] } {
-  if (!x || typeof x !== 'object') return false;
+  if (!x || !isObject(x)) return false;
   const obj = x as Record<string, unknown>;
   return typeof obj.receiverId === 'string' && Array.isArray(obj.actions);
 }
@@ -100,7 +101,7 @@ function isSetLoadingPayload(payload: unknown): payload is boolean {
 
 function onMessage(e: MessageEvent<IframeModalMessage>): void {
   const data = e.data;
-  if (!data || typeof data !== 'object' || !('type' in data)) return;
+  if (!data || !isObject(data) || !('type' in data)) return;
 
   const { type, payload } = data as IframeModalMessage;
   const el = ensureElement();

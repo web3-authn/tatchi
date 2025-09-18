@@ -5,61 +5,56 @@ import type { SecureConfirmRequest } from './types';
 /**
  * determineConfirmationConfig
  *
- * helper to compute the confirmation UI behavior used by the
- * secure-confirmation flow. It takes the caller/user-provided
- * ConfirmationConfig, examines the current runtime, and returns a safe,
- * effective configuration to use.
+ * Computes the effective confirmation UI behavior used by the secure‑confirmation
+ * flow by merging inputs and applying safe runtime rules.
  *
- * Behavior summary
- * - Wallet-iframe mode (aka wallet host running inside an iframe): force the
- *   modal confirmer and require an explicit user click. This guarantees
- *   WebAuthn user-activation happens in the correct browsing context and avoids
- *   brittle autoProceed flows across frames.
- * - Non-iframe / nested-iframe mode (SDK embedded in the dApp with its own
- *   nested iframe modal): keep the provided configuration unchanged.
- * - Theme and unrelated visual options are preserved in all cases.
+ * Order of precedence (highest → lowest):
+ * 1) Request‑level override (request.confirmationConfig), when explicitly set.
+ * 2) User preferences stored in the wallet host (from IndexedDB via ctx.userPreferencesManager).
+ * 3) Runtime safety rules (wallet‑iframe registration/link flows) that may clamp behavior.
  *
- * Wallet-iframe mode detection
- * - We consider the app to be in wallet-iframe mode when:
- *   1) We are running in an iframe: window.self !== window.top
- *   2) The SignerWorkerManagerContext indicates that the default UI does not
- *      rely on a nested iframe modal (ctx.iframeModeDefault is falsy). In this
- *      configuration the wallet host itself renders the modal directly.
+ * Wallet‑iframe registration/link safety rule:
+ * - We allow callers to explicitly opt‑in to auto‑proceed (or skip) for these flows
+ *   when they already captured a fresh activation inside the wallet iframe (e.g., via a
+ *   register button rendered in the wallet host). This keeps the default safe, while
+ *   enabling a one‑click UX for trusted entry points.
+ *   Concretely: if the effective config resolves to { uiMode: 'skip' } or
+ *   { uiMode: 'modal', behavior: 'autoProceed' }, we honor it; otherwise we clamp to
+ *   { uiMode: 'modal', behavior: 'requireClick' } for registration/link flows.
  *
  * Notes
- * - The function is pure (does not mutate the input object) and safe to call
- *   multiple times; callers may “re-check” at render-time.
- * - A warning is logged when forcing overrides so developers understand why
- *   user-provided options were ignored in wallet-iframe mode.
- *
- * @param ctx     Signer flow context containing runtime flags and preferences
- * @param request The current secure-confirm request (used only for diagnostic log)
- * @param input   The base user/caller-provided ConfirmationConfig
- * @returns       A new, effective ConfirmationConfig (input is not mutated)
+ * - The function is pure (does not mutate the input object) and safe to call multiple times.
+ * - Theme and unrelated visual options are preserved in all cases.
  */
 export function determineConfirmationConfig(
   ctx: SignerWorkerManagerContext,
   request: SecureConfirmRequest | undefined,
 ): ConfirmationConfig {
+  // Merge request‑level override over user preferences
   let cfg: ConfirmationConfig = {
+    ...ctx.userPreferencesManager.getConfirmationConfig(),
     ...request?.confirmationConfig,
-    ...ctx.userPreferencesManager.getConfirmationConfig()
   };
   // Detect if running inside an iframe (wallet host context)
   const inIframe = (() => {
     try { return window.self !== window.top; } catch { return true; }
   })();
 
-  // In wallet-iframe host context, require an explicit user click for
-  // registration/link-device to ensure a user activation before WebAuthn
-  // create(). Keep theme from user prefs, ignore autoProceed for these flows.
+  // In wallet‑iframe host context: registration/link flows default to an explicit click.
+  // However, if the effective config explicitly opts into auto‑proceed (or skip), honor it.
   if (inIframe && request?.type && (request.type === 'registerAccount' || request.type === 'linkDevice')) {
-    return {
-      uiMode: 'modal',
-      behavior: 'requireClick',
-      autoProceedDelay: undefined,
-      theme: cfg.theme || 'dark',
-    } as ConfirmationConfig;
+    const wantsSkip = cfg.uiMode === 'skip';
+    const wantsAutoProceed = (cfg.uiMode === 'modal' && cfg.behavior === 'autoProceed');
+    if (!(wantsSkip || wantsAutoProceed)) {
+      return {
+        uiMode: 'modal',
+        behavior: 'requireClick',
+        autoProceedDelay: undefined,
+        theme: cfg.theme || 'dark',
+      } as ConfirmationConfig;
+    }
+    // Otherwise, caller explicitly requested auto‑proceed/skip; return cfg as is.
+    return cfg;
   }
 
   // Otherwise honor caller/user configuration

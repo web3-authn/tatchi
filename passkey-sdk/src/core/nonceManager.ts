@@ -2,6 +2,9 @@ import type { NearClient } from './NearClient';
 import type { AccountId } from './types/accountIds';
 import { fetchNonceBlockHashAndHeight } from './rpcCalls';
 import type { TransactionContext } from './types/rpc';
+import type { AccessKeyView, BlockResult } from '@near-js/types';
+import { isObject } from './WalletIframe/validation';
+import { errorMessage } from '../utils/errors';
 
 /**
  * NonceManager - Singleton for managing NEAR transaction context
@@ -176,14 +179,14 @@ export class NonceManager {
         const fetchBlock = isBlockStale || !txBlockHeight || !txBlockHash;
 
         // Fetch required parts with tolerance for missing access key just after creation
-        let maybeAccessKey: any = null;
-        let maybeBlock: any = null;
+        let maybeAccessKey: unknown = null;
+        let maybeBlock: unknown = null;
 
         if (fetchAccessKey) {
           try {
             maybeAccessKey = await nearClient.viewAccessKey(capturedAccountId!, capturedPublicKey!);
-          } catch (akErr: any) {
-            const msg = (akErr?.message || String(akErr || '')).toString();
+          } catch (akErr: unknown) {
+            const msg = errorMessage(akErr);
             const missingAk = msg.includes('does not exist while viewing')
               || msg.includes('Access key not found')
               || msg.includes('unknown public key')
@@ -208,26 +211,25 @@ export class NonceManager {
         }
 
         if (fetchAccessKey) {
-          if (maybeAccessKey && (maybeAccessKey as any).nonce !== undefined) {
-            accessKeyInfo = maybeAccessKey!;
+          if (isAccessKeyView(maybeAccessKey)) {
+            accessKeyInfo = maybeAccessKey;
           } else {
             // Keep previous accessKeyInfo if present; else set minimal placeholder
-            accessKeyInfo = this.transactionContext?.accessKeyInfo || ({ nonce: 0 } as any);
+            accessKeyInfo = this.transactionContext?.accessKeyInfo || makePlaceholderAccessKey();
           }
         }
 
         if (fetchBlock) {
-          const blockInfo = maybeBlock as any;
-          if (!blockInfo?.header?.hash || blockInfo?.header?.height === undefined) {
+          if (!isBlockResult(maybeBlock)) {
             throw new Error('Failed to fetch Block Info');
           }
-          txBlockHeight = String(blockInfo.header.height);
-          txBlockHash = blockInfo.header.hash;
+          txBlockHeight = String(maybeBlock.header.height);
+          txBlockHash = maybeBlock.header.hash;
         }
 
         // Derive nextNonce from access key info + current context + reservations
         let nextCandidate = this.maxBigInt(
-          accessKeyInfo && (accessKeyInfo as any).nonce !== undefined ? (BigInt(accessKeyInfo!.nonce) + 1n) : 0n,
+          accessKeyInfo?.nonce !== undefined ? (BigInt(accessKeyInfo.nonce) + 1n) : 0n,
           this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
           this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n
         );
@@ -455,27 +457,27 @@ export class NonceManager {
         `[NonceManager]: Updated from chain nonce=${chainNonceBigInt} actual=${actualNonceBigInt} next=${this.transactionContext!.nextNonce}`
       );
 
-    } catch (error: any) {
-      const msg = (error?.message || String(error || '')).toString();
-      // Tolerate missing/rotated keys: avoid noisy error and advance nextNonce optimistically
-      if (msg.includes('does not exist while viewing') || msg.includes('Access key not found')) {
-        try {
-          const actualNonceBigInt = BigInt(actualNonce);
-          const candidateNext = this.maxBigInt(
-            actualNonceBigInt + 1n,
-            this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
-            this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n,
-          );
-          if (this.transactionContext) {
-            this.transactionContext.nextNonce = candidateNext.toString();
-          } else {
+      } catch (error: unknown) {
+        const msg = errorMessage(error);
+        // Tolerate missing/rotated keys: avoid noisy error and advance nextNonce optimistically
+        if (msg.includes('does not exist while viewing') || msg.includes('Access key not found')) {
+          try {
+            const actualNonceBigInt = BigInt(actualNonce);
+            const candidateNext = this.maxBigInt(
+              actualNonceBigInt + 1n,
+              this.transactionContext?.nextNonce ? BigInt(this.transactionContext.nextNonce) : 0n,
+              this.lastReservedNonce ? BigInt(this.lastReservedNonce) + 1n : 0n,
+            );
+            if (this.transactionContext) {
+              this.transactionContext.nextNonce = candidateNext.toString();
+            } else {
             this.transactionContext = {
               nearPublicKeyStr: this.nearPublicKeyStr!,
-              accessKeyInfo: undefined as any,
+              accessKeyInfo: makePlaceholderAccessKey(),
               nextNonce: candidateNext.toString(),
               txBlockHeight: '0',
               txBlockHash: '',
-            } as any;
+            } as TransactionContext;
           }
           this.lastNonceUpdate = Date.now();
           console.debug('[NonceManager]: Access key missing; advanced nextNonce optimistically to', this.transactionContext?.nextNonce);
@@ -537,6 +539,31 @@ export class NonceManager {
     };
   }
 
+}
+
+// ===== Type guards for NEAR RPC return shapes =====
+function isAccessKeyView(x: unknown): x is AccessKeyView {
+  if (!isObject(x)) return false;
+  // Only validate the fields we actually use
+  return typeof (x as { nonce?: unknown }).nonce === 'number';
+}
+
+function isBlockResult(x: unknown): x is BlockResult {
+  if (!isObject(x)) return false;
+  const h = (x as { header?: unknown }).header;
+  if (!isObject(h)) return false;
+  const height = (h as { height?: unknown }).height;
+  const hash = (h as { hash?: unknown }).hash;
+  return typeof height === 'number' && typeof hash === 'string';
+}
+
+function makePlaceholderAccessKey(): AccessKeyView {
+  return {
+    nonce: BigInt(0),
+    permission: 'FullAccess',
+    block_hash: '',
+    block_height: 0
+  }
 }
 
 // Create and export singleton instance

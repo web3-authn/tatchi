@@ -42,6 +42,7 @@ import {
 // Import WASM binary directly
 import init, * as wasmModule from '../wasm_signer_worker/wasm_signer_worker.js';
 import { resolveWasmUrl } from './wasmLoader';
+import { errorMessage } from '../utils/errors';
 
 /**
  * WASM Asset Path Resolution for Signer Worker
@@ -116,7 +117,7 @@ function sendProgressMessage(
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
       payload: {
-        error: `Progress message failed: ${extractErrorMessage(error)}`,
+        error: `Progress message failed: ${errorMessage(error)}`,
         context: { messageType, step, message }
       },
     });
@@ -137,7 +138,7 @@ async function initializeWasm(): Promise<void> {
     await init({ module_or_path: wasmUrl });
   } catch (error: any) {
     console.error('[signer-worker]: WASM initialization failed:', error);
-    throw new Error(`WASM initialization failed: ${extractErrorMessage(error)}`);
+    throw new Error(`WASM initialization failed: ${errorMessage(error)}`);
   }
 }
 
@@ -170,7 +171,7 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
     self.postMessage({
       type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
       payload: {
-        error: extractErrorMessage(error),
+        error: errorMessage(error),
         context: { type: event.data.type }
       }
     });
@@ -246,17 +247,7 @@ function safeJsonParse(jsonString: string, fallback: any = {}): any {
   }
 }
 
-/**
- * Helper function to extract error message from various error types
- */
-function extractErrorMessage(error: any): string {
-  if (error && typeof error === 'object') {
-    if (error.message) return error.message;
-    if (error.toString) return error.toString();
-    return JSON.stringify(error);
-  }
-  return typeof error === 'string' ? error : 'Unknown error occurred';
-}
+// Error string extraction handled by errorMessage() in utils/errors
 
 // Expose the V2 confirmation bridge function globally for WASM glue to call
 // Rust side binds to js_name = awaitSecureConfirmationV2

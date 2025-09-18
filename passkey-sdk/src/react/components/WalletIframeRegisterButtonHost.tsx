@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePasskeyContext } from '@/react/context';
 import { ArrowUpIcon } from './PasskeyAuthMenu/icons';
 import type { PasskeyManagerConfigs, RegistrationResult } from '@/core/types/passkeyManager';
-import { isRecord, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
+import { isObject, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
 
 export interface WalletIframeRegisterButtonHostProps {
   nearAccountId: string;
@@ -45,11 +45,11 @@ export function WalletIframeRegisterButtonHost({
   useEffect(() => {
     const onMessage = (evt: MessageEvent) => {
       const data = evt.data as unknown;
-      const type = isRecord(data) && isString((data as any).type) ? (data as any).type : undefined;
-      const payload = isRecord(data) && isRecord(data.payload) ? data.payload : undefined;
+      const type = isObject(data) && isString((data as any).type) ? (data as any).type : undefined;
+      const payload = isObject(data) && isObject((data as any).payload) ? (data as any).payload : undefined;
       if (type === 'SERVICE_HOST_BOOTED') {
         setReady(true);
-      } else if (type === 'REGISTER_RESULT' && isRecord(payload)) {
+      } else if (type === 'REGISTER_RESULT' && isObject(payload)) {
         const ok = payload.ok as boolean | undefined;
         if (ok) {
           const result = (payload as { result?: RegistrationResult }).result;

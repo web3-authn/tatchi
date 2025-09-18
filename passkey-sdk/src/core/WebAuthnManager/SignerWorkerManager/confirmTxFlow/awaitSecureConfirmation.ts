@@ -3,11 +3,9 @@ import {
   SecureConfirmMessageType,
   SecureConfirmRequest,
 } from './types';
+import { isObject } from '@/core/WalletIframe/validation';
 
-// Narrowing helpers for robust message/JSON handling
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === 'object';
-}
+// Narrowing helpers now use shared validator isObject
 
 type ConfirmResponsePayload = {
   requestId: string;
@@ -26,10 +24,10 @@ type ConfirmResponseEnvelope = {
 };
 
 function isConfirmResponseEnvelope(msg: unknown): msg is ConfirmResponseEnvelope {
-  if (!isRecord(msg)) return false;
+  if (!isObject(msg)) return false;
   if ((msg as any).type !== SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return false;
   const data = (msg as any).data;
-  return isRecord(data)
+  return isObject(data)
     && typeof (data as any).requestId === 'string'
     && ((data as any).confirmed === true || (data as any).confirmed === false);
 }
@@ -143,7 +141,7 @@ function deepClonePlain<T>(obj: T): T {
 
 function validateRequestJson(requestJson: string): SecureConfirmRequest {
   const parsed = JSON.parse(requestJson) as unknown;
-  if (!isRecord(parsed)) throw new Error('parsed is not an object');
+  if (!isObject(parsed)) throw new Error('parsed is not an object');
   if ((parsed as any).schemaVersion !== 2) throw new Error('schemaVersion must be 2');
   if (!('requestId' in parsed) || !(parsed as any).requestId) throw new Error('missing requestId');
   if (!('type' in parsed) || !(parsed as any).type) throw new Error('missing type');

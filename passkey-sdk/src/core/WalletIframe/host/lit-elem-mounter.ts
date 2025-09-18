@@ -14,7 +14,7 @@ import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
 import { uiBuiltinRegistry, type WalletUIRegistry } from './lit-element-registry';
-import { isRecord, isString, isFiniteNumber } from '../validation';
+import { isObject, isString, isFiniteNumber } from '../validation';
 import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -105,7 +105,7 @@ export function setupLitElemMounter(opts: {
   try { document.documentElement.style.background = 'transparent'; } catch {}
   try { document.body.style.background = 'transparent'; } catch {}
 
-  const toPx = (v: any, fallback: string) => {
+  const toPx = (v: unknown, fallback: string) => {
     if (v == null) return fallback;
     if (isFiniteNumber(v)) return `${v}px`;
     const s = String(v).trim();
@@ -115,7 +115,7 @@ export function setupLitElemMounter(opts: {
   const normalizeButtonStyle = (
     style: Record<string, string>
   ): Record<string, string> | undefined => {
-    if (!style || !isRecord(style)) return undefined;
+    if (!style || !isObject(style)) return undefined;
     const out: Record<string, string> = {};
     for (const [k, v] of Object.entries(style)) {
       if (v == null) continue;
@@ -515,8 +515,8 @@ export function setupLitElemMounter(opts: {
       case 'WALLET_SET_CONFIG':
         try { updateWalletConfigs(p); } catch {}
         try {
-          const iw = (isRecord(p) && isRecord((p as any).iframeWallet)) ? (p as any).iframeWallet as Record<string, unknown> : undefined;
-          const reg = (iw && isRecord((iw as any).uiRegistry)) ? ((iw as any).uiRegistry as WalletUIRegistry) : undefined;
+          const iw = (isObject(p) && isObject((p as any).iframeWallet)) ? (p as any).iframeWallet as Record<string, unknown> : undefined;
+          const reg = (iw && isObject((iw as any).uiRegistry)) ? ((iw as any).uiRegistry as WalletUIRegistry) : undefined;
           if (reg) {
             uiRegistry = { ...uiRegistry, ...reg };
           }
@@ -524,7 +524,7 @@ export function setupLitElemMounter(opts: {
         break;
       // Generic registry operations
       case 'WALLET_UI_REGISTER_TYPES':
-        try { if (isRecord(p)) uiRegistry = { ...uiRegistry, ...(p as WalletUIRegistry) }; } catch {}
+        try { if (isObject(p)) uiRegistry = { ...uiRegistry, ...(p as WalletUIRegistry) }; } catch {}
         break;
       case 'WALLET_UI_MOUNT':
         try { mountUiComponent(p); } catch {}

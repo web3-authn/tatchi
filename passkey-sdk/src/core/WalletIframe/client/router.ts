@@ -37,6 +37,7 @@ import {
   TxExecutionStatus
 } from '../../types';
 import { IframeTransport } from './IframeTransport';
+import { isObject } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
 import {
   DeviceLinkingQRData,
@@ -755,7 +756,7 @@ export class WalletIframeRouter {
 
       try {
         // Strip non-cloneable fields (functions) from envelope options before posting
-        const wireOptions = (options && typeof options === 'object')
+        const wireOptions = (options && isObject(options))
           ? (('sticky' in options && (options as any).sticky !== undefined)
               ? { sticky: (options as any).sticky }
               : undefined)

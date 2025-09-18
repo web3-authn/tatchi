@@ -497,7 +497,8 @@ export class PasskeyManagerIframe {
       const res = await this.client.signAndSendTransactions({
         nearAccountId: args.nearAccountId,
         transactions: args.transactions,
-        options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
+        // Default to sequential execution unless explicitly disabled
+        options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially ?? true }
       });
       try { await options?.afterCall?.(true, res); } catch {}
       return res;

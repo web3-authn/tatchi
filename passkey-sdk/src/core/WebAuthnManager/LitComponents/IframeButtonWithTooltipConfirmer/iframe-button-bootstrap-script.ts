@@ -9,6 +9,7 @@ import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
 import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
+import { isObject } from '../../../WalletIframe/validation';
 
 /**
  * Iframe Button Bootstrap Script (ESM)
@@ -141,15 +142,15 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
  * Type guards for iframe message payloads
  */
 function isInitPayload(payload: unknown): payload is IframeInitData {
-  return typeof payload === 'object' && payload !== null;
+  return isObject(payload);
 }
 
 function isSetTxDataPayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_TX_DATA'] {
-  return typeof payload === 'object' && payload !== null;
+  return isObject(payload);
 }
 
 function isSetStylePayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_STYLE'] {
-  return typeof payload === 'object' && payload !== null;
+  return isObject(payload);
 }
 
 function isSetLoadingPayload(payload: unknown): payload is boolean {
@@ -167,7 +168,7 @@ function isRequestUiDigestPayload(payload: unknown): payload is undefined {
  */
 function onMessage(e: MessageEvent<IframeButtonMessage>): void {
   const data = e.data;
-  if (!data || typeof data !== 'object' || !('type' in data)) return;
+  if (!data || !isObject(data) || !('type' in data)) return;
 
   const { type, payload } = data as IframeButtonMessage;
   const el = document.getElementById('etx') as EmbeddedTxButtonElType | null;

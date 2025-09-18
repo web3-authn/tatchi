@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { usePasskeyContext } from '@/react/context';
 import { TransactionInput } from '../../core/types';
 import type { PasskeyManagerConfigs, ActionResult } from '@/core/types/passkeyManager';
-import { isRecord, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
+import { isObject, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
 
 export interface WalletIframeTxButtonHostProps {
   nearAccountId: string;
@@ -60,18 +60,18 @@ export function WalletIframeTxButtonHost({
   useEffect(() => {
     const onMessage = (evt: MessageEvent) => {
       const data = evt.data as unknown;
-      const type = isRecord(data) && isString((data as any).type) ? (data as any).type : undefined;
-      const payload = isRecord(data) && isRecord(data.payload) ? data.payload : undefined;
+      const type = isObject(data) && isString((data as any).type) ? (data as any).type : undefined;
+      const payload = isObject(data) && isObject((data as any).payload) ? (data as any).payload : undefined;
       if (type === 'SERVICE_HOST_BOOTED') {
         setReady(true);
       } else if (type === 'TX_BUTTON_RESULT') {
-        const ok = isRecord(payload) ? (payload.ok as boolean | undefined) : undefined;
+        const ok = isObject(payload) ? (payload.ok as boolean | undefined) : undefined;
         if (ok) {
           const result = (payload as { result?: ActionResult[] }).result;
           if (result) onSuccess?.(result);
-        } else if (isRecord(payload) && payload.cancelled) {
+        } else if (isObject(payload) && (payload as { cancelled?: boolean }).cancelled) {
           onCancel?.();
-        } else if (isRecord(payload)) {
+        } else if (isObject(payload)) {
           const msg = (payload as { error?: string }).error || 'Tx button action failed';
           onError?.(new Error(msg));
         }

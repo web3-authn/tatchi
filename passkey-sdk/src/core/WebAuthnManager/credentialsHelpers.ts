@@ -1,4 +1,5 @@
 import { base64UrlEncode } from "../../utils";
+import { isObject } from '../WalletIframe/validation';
 import {
   type WebAuthnAuthenticationCredential,
   type WebAuthnRegistrationCredential,
@@ -224,7 +225,7 @@ function isArray(x: any): x is any[] { return Array.isArray(x); }
  * Populates missing optional arrays like transports with [].
  */
 export function normalizeRegistrationCredential(input: any): WebAuthnRegistrationCredential {
-  if (!input || typeof input !== 'object') throw new Error('Invalid credential: not an object');
+  if (!isObject(input)) throw new Error('Invalid credential: not an object');
   const out: any = { ...input };
 
   if (!isString(out.id)) throw new Error('Invalid credential.id');
@@ -233,15 +234,15 @@ export function normalizeRegistrationCredential(input: any): WebAuthnRegistratio
   if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
     out.authenticatorAttachment = String(out.authenticatorAttachment);
   }
-  if (!out.response || typeof out.response !== 'object') out.response = {};
+  if (!isObject(out.response)) out.response = {};
   if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
   if (!isString(out.response.attestationObject)) out.response.attestationObject = '';
   if (!isArray(out.response.transports)) out.response.transports = [];
 
   // Ensure PRF results shape exists and normalize to string | undefined
-  out.clientExtensionResults = (typeof out.clientExtensionResults === 'object' && out.clientExtensionResults) || { prf: { results: {} } };
-  out.clientExtensionResults.prf = (typeof out.clientExtensionResults.prf === 'object' && out.clientExtensionResults.prf) || { results: {} } as any;
-  const rReg: any = (typeof out.clientExtensionResults.prf.results === 'object' && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
+  out.clientExtensionResults = (isObject(out.clientExtensionResults) && out.clientExtensionResults) || { prf: { results: {} } };
+  out.clientExtensionResults.prf = (isObject(out.clientExtensionResults.prf) && out.clientExtensionResults.prf) || { results: {} } as any;
+  const rReg: any = (isObject(out.clientExtensionResults.prf.results) && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
   rReg.first = isString(rReg.first) ? rReg.first : undefined;
   rReg.second = isString(rReg.second) ? rReg.second : undefined;
 
@@ -253,7 +254,7 @@ export function normalizeRegistrationCredential(input: any): WebAuthnRegistratio
  * Ensures required fields exist and have the expected primitive types.
  */
 export function normalizeAuthenticationCredential(input: any): WebAuthnAuthenticationCredential {
-  if (!input || typeof input !== 'object') throw new Error('Invalid credential: not an object');
+  if (!isObject(input)) throw new Error('Invalid credential: not an object');
   const out: any = { ...input };
 
   if (!isString(out.id)) throw new Error('Invalid credential.id');
@@ -262,16 +263,16 @@ export function normalizeAuthenticationCredential(input: any): WebAuthnAuthentic
   if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
     out.authenticatorAttachment = String(out.authenticatorAttachment);
   }
-  if (!out.response || typeof out.response !== 'object') out.response = {};
+  if (!isObject(out.response)) out.response = {};
   if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
   if (!isString(out.response.authenticatorData)) out.response.authenticatorData = '';
   if (!isString(out.response.signature)) out.response.signature = '';
   if (out.response.userHandle !== undefined && !isString(out.response.userHandle)) out.response.userHandle = undefined;
 
   // Ensure PRF results shape exists and normalize to string | undefined
-  out.clientExtensionResults = (typeof out.clientExtensionResults === 'object' && out.clientExtensionResults) || { prf: { results: {} } };
-  out.clientExtensionResults.prf = (typeof out.clientExtensionResults.prf === 'object' && out.clientExtensionResults.prf) || { results: {} } as any;
-  const rAuth: any = (typeof out.clientExtensionResults.prf.results === 'object' && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
+  out.clientExtensionResults = (isObject(out.clientExtensionResults) && out.clientExtensionResults) || { prf: { results: {} } };
+  out.clientExtensionResults.prf = (isObject(out.clientExtensionResults.prf) && out.clientExtensionResults.prf) || { results: {} } as any;
+  const rAuth: any = (isObject(out.clientExtensionResults.prf.results) && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
   rAuth.first = isString(rAuth.first) ? rAuth.first : undefined;
   rAuth.second = isString(rAuth.second) ? rAuth.second : undefined;
 

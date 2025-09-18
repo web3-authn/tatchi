@@ -1,6 +1,6 @@
 // Shared runtime validation helpers for Wallet Iframe code.
 
-export function isRecord(x: unknown): x is Record<string, unknown> {
+export function isObject(x: unknown): x is Record<string, unknown> {
   return x !== null && typeof x === 'object';
 }
 
@@ -26,11 +26,10 @@ export function isFunction(x: unknown): x is Function {
 
 // Shallowly remove function-valued properties (postMessage/clone safety)
 export function stripFunctionsShallow<T extends Record<string, unknown>>(obj?: T): Partial<T> | undefined {
-  if (!obj || !isRecord(obj)) return undefined;
+  if (!obj || !isObject(obj)) return undefined;
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(obj)) {
     if (!isFunction(v)) out[k] = v as unknown;
   }
   return out as Partial<T>;
 }
-

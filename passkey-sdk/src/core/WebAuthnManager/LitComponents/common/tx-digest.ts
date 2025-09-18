@@ -1,6 +1,7 @@
 // Canonical transaction digest helpers for UI/host validation
 // Uses Web Crypto API (crypto.subtle). Import a minimal base64url helper that does not pull bs58.
 import { ActionArgsWasm, TransactionInputWasm } from '@/core/types';
+import { isObject } from '../../../WalletIframe/validation';
 import { base64UrlEncode } from '@/utils/base64';
 
 // Deterministic stringify by alphabetizing object keys recursively.
@@ -11,7 +12,7 @@ export function alphabetizeStringify(input: unknown): string {
       return value.map(normalizeValue);
     }
     // Objects: sort keys alphabetically and normalize each nested value
-    if (value !== null && typeof value === 'object') {
+    if (isObject(value)) {
       const obj = value as Record<string, unknown>;
       const sortedKeys = Object.keys(obj).sort();
       const result: Record<string, unknown> = {};

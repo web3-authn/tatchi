@@ -65,7 +65,7 @@ export async function createAccountAndRegisterWithRelayServer(
 
     // Serialize the WebAuthn credential properly for the contract.
     // Accept both live PublicKeyCredential and already-serialized credentials from secureConfirm.
-    const isSerialized = !!credential && typeof credential === 'object'
+    const isSerialized = isObject(credential)
       && typeof (credential as any)?.response?.attestationObject === 'string';
 
     // Ensure proper serialization + normalization regardless of source
@@ -141,7 +141,7 @@ export async function createAccountAndRegisterWithRelayServer(
       transactionId: result.transactionHash,
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Atomic registration failed:', error);
 
     onEvent?.({
@@ -149,12 +149,12 @@ export async function createAccountAndRegisterWithRelayServer(
       phase: RegistrationPhase.REGISTRATION_ERROR,
       status: RegistrationStatus.ERROR,
       message: 'Registration failed',
-      error: error.message,
+      error: errorMessage(error),
     });
 
     return {
       success: false,
-      error: error.message,
+      error: errorMessage(error),
     };
   }
 }
@@ -181,3 +181,5 @@ function generateTransactionHash(signedTransaction: SignedTransaction): string {
     return 'hash-generation-failed';
   }
 }
+import { isObject } from '../../WalletIframe/validation';
+import { errorMessage } from '../../../utils/errors';
