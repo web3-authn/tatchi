@@ -13,6 +13,9 @@ import {
 // Phases that should temporarily SHOW the overlay (to capture activation)
 const SHOW_PHASES = new Set<string>([
   // Gate overlay to moments of imminent activation only.
+  // Show early during user confirmation so the modal inside the wallet iframe is visible
+  // and can capture the required click when behavior === 'requireClick'.
+  ActionPhase.STEP_2_USER_CONFIRMATION,
   ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
   // Registration requires a WebAuthn create() ceremony at step 1
   RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
