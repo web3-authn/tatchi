@@ -36,6 +36,13 @@ export class DrawerElement extends LitElementWithProps {
   private lastDragTime = 0;
   private velocity = 0;
   private drawerElement: HTMLElement | null = null;
+  private overlayElement: HTMLElement | null = null;
+  private drawerHeight = 0;
+  private startTranslateYPx = 0; // translateY at gesture start, in px
+  private openRestTranslateYPx = 0; // translateY for the default "open" rest position, in px
+  private dragStartTime = 0; // ms
+  private isClosing = false;
+  private suppressExternalOpenUntil = 0; // ms epoch
 
   static styles = css`
     :host { display: contents; }
@@ -100,8 +107,28 @@ export class DrawerElement extends LitElementWithProps {
     this.removeDragListeners();
   }
 
+  // Ensure visual state resets immediately when `open` attribute flips
+  attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
+    super.attributeChangedCallback?.(name, oldVal, newVal);
+    if (name === 'open' && newVal !== oldVal) {
+      // When opening, clear inline styles so CSS can apply open transform/opacity
+      if (newVal !== null) {
+        if (this.drawerElement) {
+          this.drawerElement.style.transition = '';
+          this.drawerElement.style.removeProperty('transform');
+        }
+        if (this.overlayElement) {
+          this.overlayElement.style.removeProperty('opacity');
+          this.overlayElement.style.pointerEvents = '';
+        }
+        this.isClosing = false;
+      }
+    }
+  }
+
   firstUpdated() {
     this.drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+    this.overlayElement = this.shadowRoot?.querySelector('.overlay') as HTMLElement;
     this.setupDragListeners();
   }
 
@@ -111,6 +138,24 @@ export class DrawerElement extends LitElementWithProps {
     // Debug open property changes
     if (changedProperties.has('open')) {
       console.log('Drawer open property changed to:', this.open);
+      // If an external re-render tries to force open=true immediately after a close,
+      // ignore it within a short suppression window to avoid bounce-back.
+      if (this.open && Date.now() < this.suppressExternalOpenUntil) {
+        this.open = false;
+        return;
+      }
+      // When externally toggled open, clear any inline overrides so CSS can control
+      if (this.drawerElement && this.open) {
+        this.drawerElement.style.transition = '';
+        this.drawerElement.style.removeProperty('transform');
+      }
+      if (this.overlayElement && this.open) {
+        this.overlayElement.style.pointerEvents = '';
+        this.overlayElement.style.removeProperty('opacity');
+      }
+      if (this.open) {
+        this.isClosing = false;
+      }
     }
 
     // Re-setup drag listeners if dragToClose property changed
@@ -212,17 +257,23 @@ export class DrawerElement extends LitElementWithProps {
     this.startY = y;
     this.currentY = y;
     this.dragDistance = 0;
-    this.lastDragTime = Date.now();
+    this.dragStartTime = Date.now();
+    this.lastDragTime = this.dragStartTime;
     this.velocity = 0;
 
     if (this.drawerElement) {
+      this.drawerHeight = this.drawerElement.offsetHeight;
+      // Default "open" rest position is translateY(20% of drawer height)
+      this.openRestTranslateYPx = this.drawerHeight * 0.20;
+
+      // Determine current translateY in px to support starting drags from any snapped position
+      const computed = getComputedStyle(this.drawerElement);
+      const transform = computed.transform || '';
+      const ty = this.parseTranslateY(transform);
+      // If transform is 'none', use the rest position
+      this.startTranslateYPx = Number.isFinite(ty) ? ty : this.openRestTranslateYPx;
+
       this.drawerElement.classList.add('dragging');
-      // Store the initial transform value to maintain position continuity
-      const currentTransform = this.drawerElement.style.transform;
-      if (!currentTransform) {
-        // If no transform is set, the drawer is at its default position (20% submerged)
-        this.drawerElement.style.transform = 'translateY(20%)';
-      }
     }
   }
 
@@ -233,28 +284,29 @@ export class DrawerElement extends LitElementWithProps {
     const deltaTime = now - this.lastDragTime;
     const deltaY = y - this.currentY;
 
-    // Calculate velocity
     if (deltaTime > 0) {
       this.velocity = deltaY / deltaTime;
     }
 
     this.currentY = y;
-    this.dragDistance = y - this.startY; // Allow negative values for upward dragging
+    this.dragDistance = y - this.startY; // negative = upward, positive = downward
 
-    // Apply drag transform - calculate relative to the initial 20% position
-    const initialPositionPercent = 20; // 20% submerged position
-    const maxUpwardPercent = 10; // Allow dragging up to 10% above initial position (10% from top)
-    // No downward limit - allow dragging to any position
+    // Elastic overdrag only when crossing above the fully-open rest position
+    // Allow up to 20% of drawer height with progressive resistance
+    const maxOverdragUpPx = this.drawerHeight * 0.20;
 
-    // Calculate the new position: start from initial position and add drag distance
-    // Convert drag distance to percentage of viewport height
-    const dragDistancePercent = (this.dragDistance / window.innerHeight) * 100;
-    const newPositionPercent = initialPositionPercent + dragDistancePercent;
-    const translateYPercent = Math.max(maxUpwardPercent, newPositionPercent); // Only limit upward movement
+    const rawTargetTranslateY = this.startTranslateYPx + this.dragDistance;
+    let targetTranslateY = rawTargetTranslateY;
 
-    // Ensure no transition during active dragging for immediate response
+    // openRestTranslateYPx is the minimal (most open) resting translateY.
+    // If the user drags above this (smaller translateY), apply elastic.
+    if (rawTargetTranslateY < this.openRestTranslateYPx) {
+      const overdragUp = this.openRestTranslateYPx - rawTargetTranslateY; // positive px
+      const elasticUp = maxOverdragUpPx * (1 - 1 / (overdragUp / maxOverdragUpPx + 1));
+      targetTranslateY = this.openRestTranslateYPx - elasticUp;
+    }
     this.drawerElement.style.transition = '';
-    this.drawerElement.style.transform = `translateY(${translateYPercent}%)`;
+    this.drawerElement.style.transform = `translateY(${targetTranslateY}px)`;
 
     this.lastDragTime = now;
   }
@@ -265,89 +317,118 @@ export class DrawerElement extends LitElementWithProps {
     this.isDragging = false;
     this.drawerElement.classList.remove('dragging');
 
-    const openPositionPercent = 20; // 20% submerged position
-    const pullUpToCloseThreshold = -10; // 10% up from open position to close (in percentage)
+    const drawerHeight = this.drawerHeight || this.drawerElement.offsetHeight;
+    const openRestPx = this.openRestTranslateYPx || drawerHeight * 0.20;
 
-    // Convert drag distance to percentage
-    const dragDistancePercent = (this.dragDistance / window.innerHeight) * 100;
+    // Compute effective velocities (instantaneous and average over gesture)
+    const now = Date.now();
+    const gestureMs = Math.max(1, now - this.dragStartTime);
+    const totalDeltaPx = this.currentY - this.startY; // positive = down, negative = up
+    const avgVelocity = totalDeltaPx / gestureMs; // px/ms
+    const effectiveDownV = Math.max(this.velocity, avgVelocity);
+    const effectiveUpV = Math.min(this.velocity, avgVelocity);
 
-    // Close if pulled up more than 10% from open position (pull up to close)
-    if (dragDistancePercent < pullUpToCloseThreshold) {
+    // Velocity-based flick-to-close (upward flick)
+    // negative means upward movement
+    const flickUpCloseThreshold = -0.6; // ~600 px/s upward
+    if (effectiveUpV <= flickUpCloseThreshold) {
       this.closeDrawer();
+      this.resetDragState();
       return;
     }
 
-    // For downward dragging, implement snap-to-points every 100px
-    const currentPositionPercent = openPositionPercent + dragDistancePercent;
-    const currentPositionPixels = (currentPositionPercent / 100) * window.innerHeight;
-    const drawerHeight = this.drawerElement.offsetHeight;
-    const distanceFromBottom = window.innerHeight - (currentPositionPixels + drawerHeight);
-    const closeThreshold = 50; // Close when drawer bottom is within 50px of screen bottom
-
-    if (distanceFromBottom <= closeThreshold) {
+    // Velocity-based flick-to-close (downward flick)
+    const flickDownCloseThreshold = 0.7; // ~700 px/s downward
+    if (effectiveDownV >= flickDownCloseThreshold) {
       this.closeDrawer();
-    } else {
-      // Snap to nearest 100px point
-      const initialPositionPixels = (openPositionPercent / 100) * window.innerHeight;
-      const snapInterval = 100; // Snap every 100px
-
-      // Calculate how far we've dragged from the initial position
-      const dragDistancePixels = currentPositionPixels - initialPositionPixels;
-
-      // Find the nearest snap point
-      const snapPoint = Math.round(dragDistancePixels / snapInterval) * snapInterval;
-      const finalPositionPixels = initialPositionPixels + snapPoint;
-      const finalPositionPercent = (finalPositionPixels / window.innerHeight) * 100;
-
-      console.log('Snap calculation:', {
-        currentPositionPixels,
-        initialPositionPixels,
-        dragDistancePixels,
-        snapPoint,
-        finalPositionPixels,
-        finalPositionPercent
-      });
-
-      // Animate to the snap point
-      this.drawerElement.style.transition = 'transform 0.3s ease-out';
-      this.drawerElement.style.transform = `translateY(${finalPositionPercent}%)`;
-
-      // Remove transition after animation completes
-      setTimeout(() => {
-        if (this.drawerElement) {
-          this.drawerElement.style.transition = '';
-        }
-      }, 300);
+      this.resetDragState();
+      return;
     }
 
-    // Reset drag state
+    // If overdragged above the open rest position by >10% of height, close
+    const currentTransformTy = this.parseTranslateY(getComputedStyle(this.drawerElement).transform);
+    const currentTranslatePx = Number.isFinite(currentTransformTy) ? currentTransformTy : openRestPx;
+    const overdragUpAtRelease = Math.max(0, openRestPx - currentTranslatePx);
+    const closeActivationUpPx = drawerHeight * 0.10; // 10% of drawer height
+    if (overdragUpAtRelease >= closeActivationUpPx) {
+      this.closeDrawer();
+      this.resetDragState();
+      return;
+    }
+
+    // If near fully closed (bottom within 50px), close
+    const closeThresholdPx = 50;
+    if (currentTranslatePx >= drawerHeight - closeThresholdPx) {
+      this.closeDrawer();
+      this.resetDragState();
+      return;
+    }
+
+    // No snapping: let the drawer rest where released.
+    // Ensure no transition is active to avoid unintended easing.
+    this.drawerElement.style.transition = '';
+    this.resetDragState();
+  }
+
+  private resetDragState() {
     this.dragDistance = 0;
     this.velocity = 0;
   }
 
-  private closeDrawer() {
-    console.log('closeDrawer called, setting open to false');
-
-    // Clear any inline transform styles to allow CSS transition to work
-    if (this.drawerElement) {
-      this.drawerElement.style.transform = '';
+  // Parse translateY value from CSS transform string (matrix or matrix3d)
+  private parseTranslateY(transform: string): number {
+    if (!transform || transform === 'none') return NaN;
+    // matrix(a, b, c, d, tx, ty)
+    if (transform.startsWith('matrix(')) {
+      const values = transform.slice(7, -1).split(',').map(v => parseFloat(v.trim()));
+      return values.length === 6 ? values[5] : NaN;
     }
+    // matrix3d(a1..a16) -> ty is value 14 (index 13)
+    if (transform.startsWith('matrix3d(')) {
+      const values = transform.slice(9, -1).split(',').map(v => parseFloat(v.trim()));
+      return values.length === 16 ? values[13] : NaN;
+    }
+    // translateY(XXpx/%)
+    const match = transform.match(/translateY\(([-\d.]+)px\)/);
+    if (match) return parseFloat(match[1]);
+    return NaN;
+  }
 
+  private closeDrawer() {
+    if (this.isClosing) return;
+    this.isClosing = true;
+    // Remove inline transforms so CSS can drive the close state
+    if (this.drawerElement) {
+      this.drawerElement.classList.remove('dragging');
+      this.drawerElement.style.removeProperty('transition');
+      this.drawerElement.style.removeProperty('transform');
+    }
+    // Flip the `open` property so CSS applies the closed transform and overlay state
+    this.suppressExternalOpenUntil = Date.now() + 350;
     this.open = false;
+    // Notify host after state change
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+    // Reset closing guard after a short delay to avoid duplicate cancels
+    setTimeout(() => { this.isClosing = false; }, 300);
   }
 
   private onCancel = () => {
     console.log('onCancel called, loading:', this.loading);
     if (this.loading) return;
+    if (this.isClosing) return;
 
-    // Clear any inline transform styles to allow CSS transition to work
+    // Remove inline transforms so CSS can drive the close state
     if (this.drawerElement) {
-      this.drawerElement.style.transform = '';
+      this.drawerElement.classList.remove('dragging');
+      this.drawerElement.style.removeProperty('transition');
+      this.drawerElement.style.removeProperty('transform');
     }
-
-    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+    // Flip open then notify host
+    this.suppressExternalOpenUntil = Date.now() + 350;
     this.open = false;
+    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+    this.isClosing = true;
+    setTimeout(() => { this.isClosing = false; }, 300);
   };
 
   private onConfirm = () => {
@@ -384,4 +465,3 @@ export default (function ensureDefined() {
   }
   return DrawerElement;
 })();
-
