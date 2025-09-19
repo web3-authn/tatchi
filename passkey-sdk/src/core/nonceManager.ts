@@ -3,7 +3,7 @@ import type { AccountId } from './types/accountIds';
 import { fetchNonceBlockHashAndHeight } from './rpcCalls';
 import type { TransactionContext } from './types/rpc';
 import type { AccessKeyView, BlockResult } from '@near-js/types';
-import { isObject } from './WalletIframe/validation';
+import { isObject, isNumber, isString } from './WalletIframe/validation';
 import { errorMessage } from '../utils/errors';
 
 /**
@@ -111,7 +111,9 @@ export class NonceManager {
     if (!this.nearAccountId || !this.nearPublicKeyStr) {
       throw new Error('NonceManager not initialized with user data');
     }
-    return await this.fetchFreshData(nearClient, true);
+    // Respect caller's intent to force or use freshness thresholds
+    const force = opts?.force === true;
+    return await this.fetchFreshData(nearClient, force);
   }
 
   /**
@@ -179,37 +181,58 @@ export class NonceManager {
         const fetchBlock = isBlockStale || !txBlockHeight || !txBlockHash;
 
         // Fetch required parts with tolerance for missing access key just after creation
-        let maybeAccessKey: unknown = null;
+        let maybeAccessKey: unknown = accessKeyInfo ?? null;
         let maybeBlock: unknown = null;
 
+        // Run RPC calls in parallel where applicable, while preserving tolerant error handling
+        let accessKeyError: unknown = null;
+        let blockError: unknown = null;
+        const tasks: Promise<void>[] = [];
+
         if (fetchAccessKey) {
-          try {
-            maybeAccessKey = await nearClient.viewAccessKey(capturedAccountId!, capturedPublicKey!);
-          } catch (akErr: unknown) {
-            const msg = errorMessage(akErr);
-            const missingAk = msg.includes('does not exist while viewing')
-              || msg.includes('Access key not found')
-              || msg.includes('unknown public key')
-              || msg.includes('does not exist');
-            if (missingAk) {
-              // Non-fatal: proceed without live AK; compute nextNonce conservatively
-              console.debug('[NonceManager]: Access key missing during fetch; proceeding with block-only context');
-              maybeAccessKey = null;
-            } else {
-              throw akErr;
+          tasks.push((async () => {
+            try {
+              maybeAccessKey = await nearClient.viewAccessKey(capturedAccountId!, capturedPublicKey!);
+            } catch (akErr: unknown) {
+              const msg = errorMessage(akErr);
+              const missingAk = msg.includes('does not exist while viewing')
+                || msg.includes('Access key not found')
+                || msg.includes('unknown public key')
+                || msg.includes('does not exist');
+              if (missingAk) {
+                // Non-fatal: proceed without live AK; compute nextNonce conservatively
+                console.debug('[NonceManager]: Access key missing during fetch; proceeding with block-only context');
+                maybeAccessKey = null;
+              } else {
+                accessKeyError = akErr;
+              }
             }
-          }
+          })());
         }
 
-        try {
-          if (fetchBlock) {
-            maybeBlock = await nearClient.viewBlock({ finality: 'final' });
-          }
-        } catch (blockErr) {
-          // Block info is required
-          throw blockErr;
+        if (fetchBlock) {
+          tasks.push((async () => {
+            try {
+              maybeBlock = await nearClient.viewBlock({ finality: 'final' });
+            } catch (err: unknown) {
+              // Block info is required
+              blockError = err;
+            }
+          })());
         }
 
+        if (tasks.length > 0) {
+          await Promise.all(tasks);
+        }
+
+        if (accessKeyError) {
+          throw accessKeyError;
+        }
+        if (blockError) {
+          throw blockError;
+        }
+
+        // Commit results
         if (fetchAccessKey) {
           if (isAccessKeyView(maybeAccessKey)) {
             accessKeyInfo = maybeAccessKey;
@@ -433,13 +456,13 @@ export class NonceManager {
       } else {
         // If no context exists (should be rare here), construct a minimal one
         this.transactionContext = {
-          nearPublicKeyStr: this.nearPublicKeyStr,
+          nearPublicKeyStr: this.nearPublicKeyStr!,
           accessKeyInfo: accessKeyInfo,
           nextNonce: candidateNext.toString(),
           // Block values are unknown here; leave stale ones to be refreshed later
           txBlockHeight: '0',
           txBlockHash: '',
-        } as any; // We'll refresh these via fetchFreshData when needed
+        } as TransactionContext; // We'll refresh these via fetchFreshData when needed
       }
       this.lastNonceUpdate = Date.now();
 
@@ -545,7 +568,7 @@ export class NonceManager {
 function isAccessKeyView(x: unknown): x is AccessKeyView {
   if (!isObject(x)) return false;
   // Only validate the fields we actually use
-  return typeof (x as { nonce?: unknown }).nonce === 'number';
+  return isNumber((x as { nonce?: unknown }).nonce);
 }
 
 function isBlockResult(x: unknown): x is BlockResult {
@@ -554,7 +577,7 @@ function isBlockResult(x: unknown): x is BlockResult {
   if (!isObject(h)) return false;
   const height = (h as { height?: unknown }).height;
   const hash = (h as { hash?: unknown }).hash;
-  return typeof height === 'number' && typeof hash === 'string';
+  return isNumber(height) && isString(hash);
 }
 
 function makePlaceholderAccessKey(): AccessKeyView {
