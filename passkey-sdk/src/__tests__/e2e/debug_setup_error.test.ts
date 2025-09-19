@@ -24,14 +24,10 @@ test.describe('Debug Setup Errors', () => {
             'bs58': 'https://esm.sh/bs58@6.0.0',
             'idb': 'https://esm.sh/idb@8.0.0',
             'js-sha256': 'https://esm.sh/js-sha256@0.11.1',
-            '@near-js/crypto': 'https://esm.sh/@near-js/crypto@2.0.1',
-            '@near-js/transactions': 'https://esm.sh/@near-js/transactions@2.0.1',
+            '@noble/ed25519': 'https://esm.sh/@noble/ed25519@3.0.0',
             '@near-js/types': 'https://esm.sh/@near-js/types@2.0.1',
-            '@near-js/accounts': 'https://esm.sh/@near-js/accounts@2.0.1',
-            '@near-js/client': 'https://esm.sh/@near-js/client@2.0.1',
-            '@near-js/keystores': 'https://esm.sh/@near-js/keystores@2.0.1',
-            '@near-js/providers': 'https://esm.sh/@near-js/providers@2.0.1',
-            '@near-js/signers': 'https://esm.sh/@near-js/signers@2.0.1',
+            'qrcode': 'https://esm.sh/qrcode@1.5.4',
+            'jsqr': 'https://esm.sh/jsqr@1.4.0',
             'tslib': 'https://esm.sh/tslib@2.8.1',
             'buffer': 'https://esm.sh/buffer@6.0.3'
           }

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePasskeyContext } from '../../context';
 import { HaloBorder } from './HaloBorder';
 import './AccessKeysModal.css';
-import { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
+import type { AccessKeyInfoView, FunctionCallPermissionView } from '@near-js/types';
 import { useTheme } from '../theme';
 import PasskeyHaloLoading from './PasskeyHaloLoading';
 import LitPasskeyHaloLoading from '../LitPasskeyHaloLoading';

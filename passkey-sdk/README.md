@@ -241,3 +241,57 @@ With this approach, you don’t copy HTML into the integrator’s app and you do
 
 - `examples/vite`: same‑origin App Wallet demo (default). No env toggles.
 - `examples/vite-secure`: dedicated wallet host exposing `/wallet-service` and `/sdk` on `https://wallet.example.localhost` for cross‑origin demos.
+
+## Vite Dev Plugin
+
+For a zero‑friction local setup (same‑origin or cross‑origin iframe wallet) use the built‑in Vite plugin. It wires up the wallet service route, maps SDK assets under `/sdk`, enforces WASM MIME, and can add dev headers.
+
+Minimal usage:
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { web3authnDev } from '@web3authn/passkey/vite'
+
+export default defineConfig({
+  plugins: [react(), web3authnDev()],
+})
+```
+
+Options:
+- `mode`: `'self-contained' | 'front-only' | 'wallet-only'` (default `'self-contained'`)
+- `sdkBasePath`: mount path for assets (default `'/sdk'`)
+- `walletServicePath`: route for the wallet service page (default `'/wallet-service'`)
+- `walletOrigin`: used in Permissions‑Policy (default `process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'`)
+- `setDevHeaders`: set COOP/COEP/Permissions‑Policy in dev (default `true`)
+- `enableDebugRoutes`: add `GET /__sdk-root` to verify asset resolution (default `false`)
+
+Advanced composition:
+
+```ts
+import { defineConfig } from 'vite'
+import {
+  web3authnServeSdk,
+  web3authnWalletService,
+  web3authnWasmMime,
+  web3authnDevHeaders,
+} from '@web3authn/passkey/vite'
+
+export default defineConfig({
+  plugins: [
+    web3authnServeSdk({ sdkBasePath: '/sdk' }),
+    web3authnWalletService({ walletServicePath: '/wallet-service', sdkBasePath: '/sdk' }),
+    web3authnWasmMime(),
+    web3authnDevHeaders({ walletOrigin: process.env.VITE_WALLET_ORIGIN }),
+  ]
+})
+```
+
+Dev headers and proxies:
+- If your reverse proxy (e.g., Caddy) already sets COOP/COEP/Permissions‑Policy, pass `setDevHeaders: false` to avoid duplicates.
+- The wallet host should opt into cross‑origin embedding; set `Cross-Origin-Resource-Policy: cross-origin` for its static assets.
+
+Debugging:
+- `GET /__sdk-root` returns the resolved SDK `dist` root used by the plugin.
+- Wallet service is served at `GET /wallet-service` and loads `/sdk/esm/react/embedded/wallet-iframe-host.js`.

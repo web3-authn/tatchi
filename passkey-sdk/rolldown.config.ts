@@ -30,6 +30,9 @@ const external = [
   // Core dependencies that should be provided by consuming application
   'borsh',
   'bs58',
+  '@noble/ed25519',
+  'qrcode',
+  'jsqr',
   'js-sha256',
   'idb',
   'near-api-js',
@@ -37,7 +40,7 @@ const external = [
   // Other common packages
   'tslib',
   // UI libs used by React components should be provided by the app bundler
-  'lucide-react'
+  'lucide-react',
 ];
 
 // External dependencies for embedded components.

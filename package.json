@@ -7,11 +7,7 @@
     "frontend": "pnpm -C examples/vite dev",
     "frontend-secure": "pnpm -C examples/vite-secure dev",
     "server": "pnpm -C examples/relay-server dev",
-    "gen:shamir": "pnpm -C examples/relay-server run gen:shamir",
-    "dev:same-origin": "concurrently --kill-others \"pnpm -C passkey-sdk dev\" \"pnpm -C examples/vite dev\"",
-    "dev:wallet-only": "concurrently --kill-others \"pnpm -C passkey-sdk dev\" \"pnpm -C examples/vite-secure dev\"",
-    "dev:iframe": "concurrently --kill-others \"pnpm -C passkey-sdk dev\" \"pnpm -C examples/vite dev\" \"pnpm -C examples/vite-secure vite --port 5174 --strictPort\"",
-    "dev:trust-ca": "caddy trust || true"
+    "gen:shamir": "pnpm -C examples/relay-server run gen:shamir"
   },
   "devDependencies": {
     "@types/node": "^24.1.0",

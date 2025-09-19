@@ -250,14 +250,10 @@ async function injectImportMap(page: Page): Promise<void> {
         'bs58': 'https://esm.sh/bs58@6.0.0',
         'idb': 'https://esm.sh/idb@8.0.0',
         'js-sha256': 'https://esm.sh/js-sha256@0.11.1',
-        '@near-js/crypto': 'https://esm.sh/@near-js/crypto@2.0.1',
-        '@near-js/transactions': 'https://esm.sh/@near-js/transactions@2.0.1',
+        '@noble/ed25519': 'https://esm.sh/@noble/ed25519@3.0.0',
+        'qrcode': 'https://esm.sh/qrcode@1.5.4',
+        'jsqr': 'https://esm.sh/jsqr@1.4.0',
         '@near-js/types': 'https://esm.sh/@near-js/types@2.0.1',
-        '@near-js/accounts': 'https://esm.sh/@near-js/accounts@2.0.1',
-        '@near-js/client': 'https://esm.sh/@near-js/client@2.0.1',
-        '@near-js/keystores': 'https://esm.sh/@near-js/keystores@2.0.1',
-        '@near-js/providers': 'https://esm.sh/@near-js/providers@2.0.1',
-        '@near-js/signers': 'https://esm.sh/@near-js/signers@2.0.1',
         'tslib': 'https://esm.sh/tslib@2.8.1',
         'buffer': 'https://esm.sh/buffer@6.0.3'
       }
@@ -507,14 +503,14 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
       // This ensures the contract will store and lookup the credential using the same format
       const credentialIdBytes = new TextEncoder().encode(credentialIdString);
 
-      // Generate real Ed25519 keypair using @near-js/crypto
-      const { KeyPair } = await import('@near-js/crypto');
-      const keyPair = KeyPair.fromRandom('ed25519');
-      const publicKeyBytes = keyPair.getPublicKey().data;
+      // Generate Ed25519 keypair using @noble/ed25519 (browser-safe)
+      const ed25519 = await import('@noble/ed25519');
+      const seed = ed25519.utils.randomPrivateKey(); // 32 bytes
+      const publicKeyBytes = await ed25519.getPublicKeyAsync(seed); // 32 bytes
 
-      // Store the private key for later signature generation
+      // Store the seed for later signature generation
       (window as any).__testKeyPairs = (window as any).__testKeyPairs || {};
-      (window as any).__testKeyPairs[credentialIdString] = keyPair;
+      (window as any).__testKeyPairs[credentialIdString] = { seed };
 
       console.log('Generated real Ed25519 keypair for credential:', credentialIdString);
       console.log('Public key bytes:', Array.from(publicKeyBytes));
@@ -761,8 +757,9 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
             signature: await (async () => {
               // Generate proper WebAuthn signature using the stored Ed25519 keypair
               try {
-                const keyPair = (window as any).__testKeyPairs?.[credentialIdString];
-                if (!keyPair) {
+                const ed25519 = await import('@noble/ed25519');
+                const entry = (window as any).__testKeyPairs?.[credentialIdString];
+                if (!entry?.seed) {
                   console.warn('No stored keypair for credential:', credentialIdString);
                   return new Uint8Array(64).fill(0x99); // Fallback signature
                 }
@@ -801,9 +798,8 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
                 dataToSign.set(authenticatorData, 0);
                 dataToSign.set(clientDataHash, authenticatorData.length);
 
-                // Sign with the Ed25519 keypair
-                const signatureResult = keyPair.sign(dataToSign);
-                const signatureBytes = signatureResult.signature || signatureResult;
+                // Sign with the Ed25519 seed using noble
+                const signatureBytes = await ed25519.sign(dataToSign, entry.seed);
 
                 console.log('Generated proper WebAuthn signature for credential:', credentialIdString);
                 console.log('Signature bytes length:', signatureBytes.length);

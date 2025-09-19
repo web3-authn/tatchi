@@ -1,11 +1,8 @@
-import { Account } from '@near-js/accounts';
-import { getSignerFromKeystore } from '@near-js/client';
-import { KeyPairEd25519, PublicKey } from '@near-js/crypto';
-import { InMemoryKeyStore, type KeyStore } from '@near-js/keystores';
-import { JsonRpcProvider, type Provider } from '@near-js/providers';
-import type { Signer } from '@near-js/signers';
-import { actionCreators } from '@near-js/transactions';
 import type { FinalExecutionOutcome } from '@near-js/types';
+import { MinimalNearClient } from '../../core/NearClient';
+import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
+import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
+import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
 import { validateConfigs } from './config';
 import {
   Shamir3PassUtils,
@@ -32,11 +29,10 @@ import type {
  */
 export class AuthService {
   private config: AuthServiceConfig;
-  private keyStore: KeyStore;
   private isInitialized = false;
-  private rpcProvider: Provider;
-  private relayerAccount: Account = null!;
-  private signer: Signer = null!;
+  private nearClient: MinimalNearClient;
+  private relayerPublicKey: string = '';
+  private signerWasmReady = false;
 
   // Transaction queue to prevent nonce conflicts
   private transactionQueue: Promise<any> = Promise.resolve();
@@ -64,13 +60,13 @@ export class AuthService {
       shamir_e_s_b64u: config.shamir_e_s_b64u,
       shamir_d_s_b64u: config.shamir_d_s_b64u,
     };
-    this.keyStore = new InMemoryKeyStore();
-    this.rpcProvider = new JsonRpcProvider({ url: config.nearRpcUrl }) as Provider;
+    this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
   }
 
-  async getRelayerAccount(): Promise<Account> {
+  // Backward-compat getter, no longer returns near-js Account
+  async getRelayerAccount(): Promise<{ accountId: string; publicKey: string }> {
     await this._ensureSignerAndRelayerAccount();
-    return this.relayerAccount;
+    return { accountId: this.config.relayerAccountId, publicKey: this.relayerPublicKey };
   }
 
   private async _ensureSignerAndRelayerAccount(): Promise<void> {
@@ -87,12 +83,17 @@ export class AuthService {
       });
     }
 
-    const privateKeyString = this.config.relayerPrivateKey.substring(8);
-    const keyPair = new KeyPairEd25519(privateKeyString);
-    await this.keyStore.setKey(this.config.networkId, this.config.relayerAccountId, keyPair);
+    // Derive public key from configured relayer private key
+    try {
+      const { seed, pub } = parseNearSecretKey(this.config.relayerPrivateKey);
+      this.relayerPublicKey = toPublicKeyString(pub);
+    } catch (e) {
+      console.warn('Failed to derive public key from relayerPrivateKey; ensure it is in ed25519:<base58> format');
+      this.relayerPublicKey = '';
+    }
 
-    this.signer = await getSignerFromKeystore(this.config.relayerAccountId, this.config.networkId, this.keyStore);
-    this.relayerAccount = new Account(this.config.relayerAccountId, this.rpcProvider, this.signer);
+    // Prepare signer WASM for transaction building/signing
+    await this.ensureSignerWasm();
     this.isInitialized = true;
     console.log(`
     AuthService initialized with:
@@ -106,6 +107,18 @@ export class AuthService {
     • shamir_e_s_b64u: ${this.config.shamir_e_s_b64u.slice(0, 10)}...
     • shamir_d_s_b64u: ${this.config.shamir_d_s_b64u.slice(0, 10)}...
     `);
+  }
+
+  private async ensureSignerWasm(): Promise<void> {
+    if (this.signerWasmReady) return;
+    try {
+      const wasmUrl = new URL('../../wasm_signer_worker/wasm_signer_worker_bg.wasm', import.meta.url);
+      await initSignerWasm({ module_or_path: wasmUrl as any });
+      this.signerWasmReady = true;
+    } catch (e) {
+      console.error('Failed to initialize signer WASM:', e);
+      throw e;
+    }
   }
   /**
    * Shamir 3-pass: apply server exponent (registration step)
@@ -159,24 +172,42 @@ export class AuthService {
         }
         console.log(`Account ${request.accountId} is available for creation`);
 
-        const initialBalance = BigInt(this.config.accountInitialBalance);
-        const publicKey = PublicKey.fromString(request.publicKey);
+        const initialBalance = this.config.accountInitialBalance;
 
         console.log(`Creating account: ${request.accountId}`);
-        console.log(`Initial balance: ${initialBalance.toString()} yoctoNEAR`);
+        console.log(`Initial balance: ${initialBalance} yoctoNEAR`);
 
-        // Create account using actionCreators
-        const result: FinalExecutionOutcome = await this.relayerAccount.signAndSendTransaction({
+        // Build actions for CreateAccount + Transfer + AddKey(FullAccess)
+        const actions: ActionArgsWasm[] = [
+          { action_type: ActionType.CreateAccount },
+          { action_type: ActionType.Transfer, deposit: initialBalance },
+          {
+            action_type: ActionType.AddKey,
+            public_key: request.publicKey,
+            access_key: JSON.stringify({ nonce: 0, permission: { FullAccess: {} } })
+          }
+        ];
+
+        actions.forEach(validateActionArgsWasm);
+
+        // Fetch nonce and block hash for relayer
+        const { nextNonce, blockHash } = await this.fetchTxContext(this.config.relayerAccountId, this.relayerPublicKey);
+
+        // Sign with relayer private key using WASM
+        const signed = await this.signWithPrivateKey({
+          nearPrivateKey: this.config.relayerPrivateKey,
+          signerAccountId: this.config.relayerAccountId,
           receiverId: request.accountId,
-          actions: [
-            actionCreators.createAccount(),
-            actionCreators.transfer(initialBalance),
-            actionCreators.addKey(publicKey, actionCreators.fullAccessKey()),
-          ]
+          nonce: nextNonce,
+          blockHash: blockHash,
+          actions
         });
 
+        // Broadcast transaction via MinimalNearClient
+        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
+
         console.log(`Account creation completed: ${result.transaction.hash}`);
-        const nearAmount = (Number(initialBalance) / 1e24).toFixed(6);
+        const nearAmount = (Number(BigInt(initialBalance)) / 1e24).toFixed(6);
         return {
           success: true,
           transactionHash: result.transaction.hash,
@@ -227,18 +258,28 @@ export class AuthService {
           authenticator_options: request.authenticator_options,
         };
 
-        // Call the contract's atomic function
-        const result: FinalExecutionOutcome = await this.relayerAccount.signAndSendTransaction({
+        // Build single FunctionCall action
+        const actions: ActionArgsWasm[] = [
+          {
+            action_type: ActionType.FunctionCall,
+            method_name: 'create_account_and_register_user',
+            args: JSON.stringify(contractArgs),
+            gas: this.config.createAccountAndRegisterGas,
+            deposit: this.config.accountInitialBalance
+          }
+        ];
+        actions.forEach(validateActionArgsWasm);
+
+        const { nextNonce, blockHash } = await this.fetchTxContext(this.config.relayerAccountId, this.relayerPublicKey);
+        const signed = await this.signWithPrivateKey({
+          nearPrivateKey: this.config.relayerPrivateKey,
+          signerAccountId: this.config.relayerAccountId,
           receiverId: this.config.webAuthnContractId,
-          actions: [
-            actionCreators.functionCall(
-              'create_account_and_register_user',
-              contractArgs,
-              BigInt(this.config.createAccountAndRegisterGas),
-              BigInt(this.config.accountInitialBalance) // Initial balance
-            )
-          ]
+          nonce: nextNonce,
+          blockHash,
+          actions
         });
+        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
 
         // Parse contract execution results to detect failures
         const contractError = this.parseContractExecutionError(result, request.new_account_id);
@@ -277,17 +318,32 @@ export class AuthService {
     try {
       await this._ensureSignerAndRelayerAccount();
 
-      // Call the contract's verify_authentication_response method
-      const result = await this.relayerAccount.functionCall({
-        contractId: this.config.webAuthnContractId,
-        methodName: 'verify_authentication_response',
-        args: {
-          vrf_data: request.vrf_data,
-          webauthn_authentication: request.webauthn_authentication,
-        },
-        gas: BigInt('30000000000000'), // 30 TGas
-        attachedDeposit: BigInt('0'),
+      // Call the contract's verify_authentication_response via signed FunctionCall
+      const args = {
+        vrf_data: request.vrf_data,
+        webauthn_authentication: request.webauthn_authentication,
+      };
+      const actions: ActionArgsWasm[] = [
+        {
+          action_type: ActionType.FunctionCall,
+          method_name: 'verify_authentication_response',
+          args: JSON.stringify(args),
+          gas: '30000000000000',
+          deposit: '0'
+        }
+      ];
+      actions.forEach(validateActionArgsWasm);
+
+      const { nextNonce, blockHash } = await this.fetchTxContext(this.config.relayerAccountId, this.relayerPublicKey);
+      const signed = await this.signWithPrivateKey({
+        nearPrivateKey: this.config.relayerPrivateKey,
+        signerAccountId: this.config.relayerAccountId,
+        receiverId: this.config.webAuthnContractId,
+        nonce: nextNonce,
+        blockHash,
+        actions
       });
+      const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
 
       // Parse the contract response
       const contractResponse = this.parseContractResponse(result);
@@ -455,6 +511,57 @@ export class AuthService {
     return validPattern.test(accountId);
   }
 
+  // === Internal helpers for signing & RPC ===
+  private async fetchTxContext(accountId: string, publicKey: string): Promise<{ nextNonce: string; blockHash: string }> {
+    // Access key (if missing, assume nonce=0)
+    let nonce = 0n;
+    try {
+      const ak = await this.nearClient.viewAccessKey(accountId, publicKey);
+      nonce = BigInt(ak?.nonce ?? 0);
+    } catch {
+      nonce = 0n;
+    }
+    // Block
+    const block = await this.nearClient.viewBlock({ finality: 'final' });
+    const txBlockHash = block.header.hash;
+    const nextNonce = (nonce + 1n).toString();
+    return { nextNonce, blockHash: txBlockHash };
+  }
+
+  private async signWithPrivateKey(input: {
+    nearPrivateKey: string;
+    signerAccountId: string;
+    receiverId: string;
+    nonce: string;
+    blockHash: string;
+    actions: ActionArgsWasm[];
+  }): Promise<{ borshBytes: number[] }>
+  {
+    await this.ensureSignerWasm();
+    const message = {
+      type: WorkerRequestType.SignTransactionWithKeyPair,
+      payload: {
+        nearPrivateKey: input.nearPrivateKey,
+        signerAccountId: input.signerAccountId,
+        receiverId: input.receiverId,
+        nonce: input.nonce,
+        blockHash: input.blockHash,
+        actions: JSON.stringify(input.actions)
+      }
+    };
+    const responseJson = await handle_signer_message(JSON.stringify(message));
+    const response = JSON.parse(responseJson);
+    if (response.type !== WorkerResponseType.SignTransactionWithKeyPairSuccess) {
+      throw new Error(response?.payload?.error || 'Signing failed');
+    }
+    const signedTxs = response?.payload?.signedTransactions || [];
+    if (!signedTxs.length) throw new Error('No signed transaction returned');
+    const signed = signedTxs[0];
+    const borshBytes = signed?.borshBytes || signed?.borsh_bytes;
+    if (!Array.isArray(borshBytes)) throw new Error('Missing borsh bytes');
+    return { borshBytes };
+  }
+
   /**
    * Framework-agnostic: handle verify-authentication request
    * Converts a generic ServerRequest to ServerResponse using this service
@@ -562,15 +669,11 @@ export class AuthService {
   async checkAccountExists(accountId: string): Promise<boolean> {
     await this._ensureSignerAndRelayerAccount();
     try {
-      await this.rpcProvider.query({
-        request_type: 'view_account',
-        finality: 'final',
-        account_id: accountId,
-      });
-      return true;
+      const view = await this.nearClient.viewAccount(accountId);
+      return !!view;
     } catch (error: any) {
-      if (error.type === 'AccountDoesNotExist' ||
-          (error.cause && error.cause.name === 'UNKNOWN_ACCOUNT')) {
+      const msg = error?.message || '';
+      if (msg.includes('does not exist') || msg.includes('UNKNOWN_ACCOUNT')) {
         return false;
       }
       console.error(`Error checking account existence for ${accountId}:`, error);

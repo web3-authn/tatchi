@@ -1,4 +1,5 @@
-// Minimal Vite dev plugin(s) to support Passkey Manager modes per docs/passkey-manager-modes-plugins.md
+// Minimal Vite dev plugin(s) to support Passkey Manager modes
+// See docs/passkey-manager-modes.md (Vite Plugin section)
 // The plugin serves SDK assets under a base path, exposes a wallet service route,
 // adds dev headers (COOP/COEP + Permissions-Policy), and enforces WASM MIME type.
 

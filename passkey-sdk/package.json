@@ -2,7 +2,7 @@
   "name": "@web3authn/passkey",
   "version": "0.1.0",
   "type": "module",
-  "description": "Web3 Authn passkeys built on NEAR protocol",
+  "description": "An embedded passkey wallet SDK built on NEAR protocol",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "types": "./dist/types/src/index.d.ts",
@@ -72,15 +72,18 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/web3-authn/passkey.git"
+    "url": "https://github.com/web3-authn/sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/web3-authn/passkey/issues"
+    "url": "https://github.com/web3-authn/sdk/issues"
   },
   "homepage": "https://github.com/web3-authn",
   "peerDependencies": {
     "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react-dom": ">=16.8.0",
+    "lucide-react": ">=0.541.0",
+    "qrcode": ">=1.5.4",
+    "jsqr": ">=1.4.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -88,33 +91,33 @@
     },
     "react-dom": {
       "optional": true
+    },
+    "lucide-react": {
+      "optional": true
+    },
+    "qrcode": {
+      "optional": true
+    },
+    "jsqr": {
+      "optional": true
     }
   },
   "dependencies": {
     "@lit/react": "^1.0.8",
-    "@near-js/transactions": "^2.0.1",
-    "@near-js/types": "^2.0.1",
-    "@types/qrcode": "^1.5.5",
-    "jsqr": "^1.4.0",
+    "@noble/ed25519": "^2.1.0",
+    "idb": "^8.0.3",
+    "bs58": "^6.0.0",
     "lit": "^3.3.1",
-    "lucide-react": "^0.541.0",
-    "qrcode": "^1.5.4",
     "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "@near-js/accounts": "^2.0.1",
-    "@near-js/client": "^2.0.1",
-    "@near-js/crypto": "^2.0.1",
-    "@near-js/keystores": "^2.0.1",
-    "@near-js/providers": "^2.0.1",
-    "@near-js/signers": "^2.0.1",
+    "@near-js/types": "^2.0.1",
+    "@types/qrcode": "^1.5.5",
     "@playwright/test": "^1.40.0",
     "@types/node": "^20.19.9",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "borsh": "^2.0.0",
-    "bs58": "^6.0.0",
-    "idb": "^8.0.3",
     "js-sha256": "^0.11.1",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

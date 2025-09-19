@@ -1,4 +1,3 @@
-// import { LogOut } from 'lucide-react';
 import LogOutIcon from './LogOutIcon2';
 import { memo } from 'react';
 import type { LogoutMenuItemProps } from './types';
