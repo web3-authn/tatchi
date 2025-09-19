@@ -4,6 +4,7 @@ import { IFRAME_MODAL_ID } from './tags';
 import type IframeModalHost from './IframeModalConfirmer/IframeModalHost';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
+import { isBoolean } from '../../WalletIframe/validation';
 
 export { ModalTxConfirmElement } from './IframeModalConfirmer/ModalTxConfirmer';
 export type {
@@ -253,7 +254,7 @@ export async function mountModalTxConfirmer({
   nearAccountIdOverride?: string,
   iframeMode?: boolean,
 }): Promise<{ element: any; close: (confirmed: boolean) => void }> {
-  const useIframe = typeof iframeMode === 'boolean' ? iframeMode : !!ctx?.iframeModeDefault;
+  const useIframe = isBoolean(iframeMode) ? iframeMode : !!ctx?.iframeModeDefault;
   if (useIframe) {
     return await mountIframeModalHostWithHandle({
       ctx,

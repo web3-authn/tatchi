@@ -816,7 +816,7 @@ export class IframeButtonHost extends LitElementWithProps {
             onEvent: this.options?.onEvent,
             onError: this.options?.onError,
             waitUntil: this.options?.waitUntil,
-            executeSequentially: this.options?.executeSequentially
+            executionWait: this.options?.executionWait
           },
           theme: this.txTreeTheme
         });

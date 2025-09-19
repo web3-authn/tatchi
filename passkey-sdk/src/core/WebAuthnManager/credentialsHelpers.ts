@@ -1,8 +1,10 @@
 import { base64UrlEncode } from "../../utils";
-import { isObject } from '../WalletIframe/validation';
+import { isObject, isString, isArray } from '../WalletIframe/validation';
 import {
   type WebAuthnAuthenticationCredential,
   type WebAuthnRegistrationCredential,
+  type AuthenticationExtensionsClientOutputs,
+  type CredentialPropertiesOutput,
 } from '../types/webauthn';
 
 /**
@@ -221,8 +223,7 @@ export function serializeAuthenticationCredentialWithPRF({
 // RUNTIME VALIDATION / NORMALIZATION
 /////////////////////////////////////////
 
-function isString(x: unknown): x is string { return typeof x === 'string'; }
-function isArray<T = unknown>(x: unknown): x is T[] { return Array.isArray(x); }
+// Use shared type guards (isString/isArray) from WalletIframe/validation
 
 /**
  * Validates and normalizes a serialized WebAuthn registration credential.
@@ -244,12 +245,9 @@ export function normalizeRegistrationCredential(input: unknown): WebAuthnRegistr
   if (!isString(resp.attestationObject)) resp.attestationObject = '';
   if (!isArray<string>(resp.transports)) resp.transports = [];
 
-  // Ensure PRF results shape exists and normalize to string | undefined
-  const cer = (isObject(out.clientExtensionResults) ? out.clientExtensionResults as Record<string, unknown> : (out.clientExtensionResults = { prf: { results: {} } } as Record<string, unknown>)) as Record<string, unknown>;
-  const prf = (isObject(cer.prf) ? cer.prf as Record<string, unknown> : (cer.prf = { results: {} } as Record<string, unknown>)) as Record<string, unknown>;
-  const results = (isObject(prf.results) ? prf.results as Record<string, unknown> : (prf.results = {} as Record<string, unknown>)) as Record<string, unknown>;
-  results.first = isString(results.first) ? results.first : undefined;
-  results.second = isString(results.second) ? results.second : undefined;
+  // Normalize client extension results to SDK-local type
+  const normalizedExtensions = normalizeClientExtensionOutputs(out.clientExtensionResults);
+  out.clientExtensionResults = normalizedExtensions as unknown;
 
   return out as unknown as WebAuthnRegistrationCredential;
 }
@@ -274,12 +272,9 @@ export function normalizeAuthenticationCredential(input: unknown): WebAuthnAuthe
   if (!isString(resp.signature)) resp.signature = '';
   if (resp.userHandle !== undefined && !isString(resp.userHandle)) resp.userHandle = undefined;
 
-  // Ensure PRF results shape exists and normalize to string | undefined
-  const cer = (isObject(out.clientExtensionResults) ? out.clientExtensionResults as Record<string, unknown> : (out.clientExtensionResults = { prf: { results: {} } } as Record<string, unknown>)) as Record<string, unknown>;
-  const prf = (isObject(cer.prf) ? cer.prf as Record<string, unknown> : (cer.prf = { results: {} } as Record<string, unknown>)) as Record<string, unknown>;
-  const results = (isObject(prf.results) ? prf.results as Record<string, unknown> : (prf.results = {} as Record<string, unknown>)) as Record<string, unknown>;
-  results.first = isString(results.first) ? results.first : undefined;
-  results.second = isString(results.second) ? results.second : undefined;
+  // Normalize client extension results to SDK-local type
+  const normalizedExtensions = normalizeClientExtensionOutputs(out.clientExtensionResults);
+  out.clientExtensionResults = normalizedExtensions as unknown;
 
   return out as unknown as WebAuthnAuthenticationCredential;
 }
@@ -303,4 +298,91 @@ export function removePrfOutputGuard<C extends SerializableCredential>(credentia
     }
   } as C;
   return credentialWithoutPrf;
+}
+
+/////////////////////////////////////////
+// EXTENSION OUTPUTS NORMALIZATION
+/////////////////////////////////////////
+
+/**
+ * Normalize WebAuthn client extension outputs into an SDK‑local, clone‑safe shape.
+ *
+ * Purpose:
+ * - Browsers return extension results on PublicKeyCredential in a variety of
+ *   shapes and with optional presence. This helper takes an unknown value
+ *   (either a live `credential.getClientExtensionResults()` object or a
+ *   serialized snapshot) and produces a strictly typed
+ *   `AuthenticationExtensionsClientOutputs` compatible with our WASM workers
+ *   and cross‑window message passing (structured‑clone safe).
+ *
+ * Validation/normalization per field:
+ * - `appid` (boolean): U2F/AppID extension indicator for authentication. If the
+ *   source value is a boolean, it is copied; otherwise omitted.
+ * - `appidExclude` (boolean): U2F/AppID exclude behavior indicator for
+ *   registration. Copied when the source is a boolean; otherwise omitted.
+ * - `hmacCreateSecret` (boolean): CTAP2 hmac‑secret usage indicator. Copied when
+ *   boolean; otherwise omitted.
+ * - `credProps` (object): Copies the `rk` (resident key) boolean if present.
+ *   Unknown sub‑fields are ignored.
+ * - `uvm` (array): User Verification Methods. Kept as an array of numeric
+ *   triples `[uvm, keyProtection, matcherProtection]`. Any entry that is not a
+ *   3‑tuple of numbers is discarded.
+ * - `prf.results.first/second` (strings | undefined): PRF outputs are expected
+ *   to be base64url‑encoded strings when present. Non‑string values are coerced
+ *   to `undefined`. Missing `prf`/`results` are synthesized with both values
+ *   `undefined` so downstream code can rely on the shape.
+ *
+ * Notes:
+ * - Unknown/unsupported extension keys are intentionally ignored to keep the
+ *   output minimal and stable.
+ * - This function does NOT attempt to derive or verify PRF values; callers that
+ *   need PRF outputs should use `extractPrfFromCredential` against the live
+ *   `PublicKeyCredential` prior to serialization.
+ */
+function normalizeClientExtensionOutputs(input: unknown): AuthenticationExtensionsClientOutputs {
+  const out: AuthenticationExtensionsClientOutputs = {
+    prf: { results: { first: undefined, second: undefined } },
+  } as AuthenticationExtensionsClientOutputs;
+
+  const src = isObject(input) ? (input as Record<string, unknown>) : {};
+  // appid
+  if (typeof src.appid === 'boolean') out.appid = src.appid as boolean;
+  // appidExclude
+  if (typeof src.appidExclude === 'boolean') out.appidExclude = src.appidExclude as boolean;
+  // hmacCreateSecret
+  if (typeof src.hmacCreateSecret === 'boolean') out.hmacCreateSecret = src.hmacCreateSecret as boolean;
+  // credProps
+  if (isObject(src.credProps)) {
+    const cp = src.credProps as Record<string, unknown>;
+    const outCp: CredentialPropertiesOutput = {};
+    if (typeof cp.rk === 'boolean') outCp.rk = cp.rk as boolean;
+    out.credProps = outCp;
+  }
+  // uvm: expect array of 3-number tuples; tolerate nested arrays loosely
+  if (isArray(src.uvm)) {
+    const uvmArr = (src.uvm as unknown[]).filter(isArray).map((t) => {
+      const a = t as unknown[];
+      const n0 = typeof a[0] === 'number' ? (a[0] as number) : undefined;
+      const n1 = typeof a[1] === 'number' ? (a[1] as number) : undefined;
+      const n2 = typeof a[2] === 'number' ? (a[2] as number) : undefined;
+      return (typeof n0 === 'number' && typeof n1 === 'number' && typeof n2 === 'number')
+        ? [n0, n1, n2] as [number, number, number]
+        : undefined;
+    }).filter((x): x is [number, number, number] => Array.isArray(x));
+    if (uvmArr.length > 0) out.uvm = uvmArr;
+  }
+  // prf
+  if (isObject(src.prf)) {
+    const prf = src.prf as Record<string, unknown>;
+    const results = isObject(prf.results) ? (prf.results as Record<string, unknown>) : {};
+    const first = results.first;
+    const second = results.second;
+    out.prf = {
+      results: {
+        first: isString(first) ? first : undefined,
+        second: isString(second) ? second : undefined,
+      },
+    };
+  }
+  return out;
 }

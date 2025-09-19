@@ -4,6 +4,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
+import { isNumber, isString } from '../../../WalletIframe/validation';
 // Re-export for backward compatibility
 export type { TxTreeStyles } from './tx-tree-themes';
 
@@ -643,7 +644,7 @@ export class TxTree extends LitElementWithProps {
           const codeSize = formatCodeSize(a.code);
           return `Deploying Contract of size ${codeSize}`;
         default: {
-          const idxText = typeof treeNode.actionIndex === 'number' ? ` ${treeNode.actionIndex + 1}` : '';
+          const idxText = isNumber(treeNode.actionIndex) ? ` ${treeNode.actionIndex + 1}` : '';
           const typeText = a.type || 'Unknown';
           return `Action ${idxText}: ${typeText}`;
         }
@@ -693,7 +694,7 @@ export class TxTree extends LitElementWithProps {
         case 'DeployContract':
           return 'Deploying Contract';
         default: {
-          const idxText = typeof treeNode.actionIndex === 'number' ? ` ${treeNode.actionIndex + 1}` : '';
+          const idxText = isNumber(treeNode.actionIndex) ? ` ${treeNode.actionIndex + 1}` : '';
           const typeText = a.type || 'Unknown';
           return `Action${idxText}: ${typeText}`;
         }
@@ -717,7 +718,7 @@ export class TxTree extends LitElementWithProps {
     const indent = `${Math.max(0, depth - 1)}rem`;
 
     // If content exists, render a collapsible details with the content
-    if (typeof node.content === 'string' && node.content.length > 0) {
+    if (isString(node.content) && node.content.length > 0) {
       return html`
         <details class="tree-node file" ?open=${!!node.open}>
           <summary class="row summary-row"

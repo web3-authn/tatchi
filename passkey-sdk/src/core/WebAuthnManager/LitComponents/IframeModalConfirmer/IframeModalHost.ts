@@ -15,6 +15,7 @@ import {
   MODAL_TX_CONFIRM_BUNDLE
 } from '../tags';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
+import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 
 type MessageType = IframeModalMessageType | 'MODAL_IFRAME_BOOT' | 'MODAL_IFRAME_DOM_READY' | 'MODAL_TIMEOUT';
 
@@ -178,20 +179,33 @@ export class IframeModalHost extends LitElementWithProps {
   // Messaging Helpers
   // ==============================
   private setupMessageHandling() {
-    const onMessage = (event: MessageEvent) => {
+    const isUIIntentDigestPayload = (x: unknown): x is MessagePayloads['UI_INTENT_DIGEST'] => {
+      if (!isObject(x)) return false;
+      const ok = (x as { ok?: unknown }).ok;
+      const digest = (x as { digest?: unknown }).digest;
+      const error = (x as { error?: unknown }).error;
+      const okBool = isBoolean(ok);
+      const digestOk = digest == null || isString(digest);
+      const errorOk = error == null || isString(error);
+      return okBool && digestOk && errorOk;
+    };
 
+    const onMessage = (event: MessageEvent) => {
       const { data } = event || {};
-      const type: MessageType | undefined = data?.type;
-      const payload = data?.payload;
+      if (!isObject(data) || !isString((data as { type?: unknown }).type)) return;
+      const type: MessageType | undefined = (data as { type?: string }).type as MessageType;
+      const payload = (data as { payload?: unknown }).payload;
 
       switch (type) {
         case 'MODAL_IFRAME_BOOT':
           return;
 
         case 'IFRAME_ERROR':
-        case 'IFRAME_UNHANDLED_REJECTION':
-          console.error('[IframeModal] iframe error:', payload);
+        case 'IFRAME_UNHANDLED_REJECTION': {
+          const msg = isString(payload) ? payload : String(payload ?? '');
+          console.error('[IframeModal] iframe error:', msg);
           return;
+        }
 
         case 'READY':
           console.debug('[IframeModalHost] child READY');
@@ -227,7 +241,7 @@ export class IframeModalHost extends LitElementWithProps {
           return;
 
         case 'MODAL_TIMEOUT': {
-          const msg = typeof payload === 'string' && payload ? payload : 'Operation timed out';
+          const msg = isString(payload) && payload ? payload : 'Operation timed out';
           // Stop any loading state and show error in child modal
           try { this.showLoading = false; } catch {}
           this.postToIframe('SET_LOADING', false);
@@ -236,11 +250,12 @@ export class IframeModalHost extends LitElementWithProps {
         }
 
         case 'UI_INTENT_DIGEST': {
-          const p = payload as MessagePayloads['UI_INTENT_DIGEST'];
-          if (p?.ok && p?.digest && this.pendingUiDigestResolve) {
+          if (!isUIIntentDigestPayload(payload)) return;
+          const p = payload;
+          if (p.ok && p.digest && this.pendingUiDigestResolve) {
             this.pendingUiDigestResolve(p.digest);
-          } else if (!p?.ok && this.pendingUiDigestReject) {
-            this.pendingUiDigestReject(new Error(p?.error || 'UI digest failed'));
+          } else if (!p.ok && this.pendingUiDigestReject) {
+            this.pendingUiDigestReject(new Error(p.error || 'UI digest failed'));
           }
           this.pendingUiDigestResolve = undefined;
           this.pendingUiDigestReject = undefined;

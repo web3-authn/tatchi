@@ -1,6 +1,7 @@
 import { TxTreeStyles } from './tx-tree-themes';
 import type { ActionArgs, TransactionInput } from '../../../types/actions';
 import { formatArgs, formatDeposit, shortenPubkey, formatCodeSize } from '../common/formatters';
+import { isString } from '../../../WalletIframe/validation';
 
 export type TreeNodeType = 'folder' | 'file';
 
@@ -129,7 +130,7 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
       const ak = action.accessKey;
       let permissions = '';
       try {
-        const accessKeyObj = typeof ak === 'string' ? JSON.parse(ak) : ak;
+        const accessKeyObj = isString(ak) ? JSON.parse(ak) : ak;
         permissions = accessKeyObj.permission === 'FullAccess'
           ? 'Full Access'
           : 'Function Call';

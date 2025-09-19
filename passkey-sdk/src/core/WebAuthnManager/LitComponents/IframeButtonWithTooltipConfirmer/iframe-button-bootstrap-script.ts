@@ -9,7 +9,7 @@ import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
 import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
-import { isObject } from '../../../WalletIframe/validation';
+import { isObject, isString, isNumber, isBoolean } from '../../../WalletIframe/validation';
 
 /**
  * Iframe Button Bootstrap Script (ESM)
@@ -146,16 +146,31 @@ function isInitPayload(payload: unknown): payload is IframeInitData {
 }
 
 function isSetTxDataPayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_TX_DATA'] {
-  return isObject(payload);
+  if (!isObject(payload)) return false;
+  const p = payload as { nearAccountId?: unknown; txSigningRequests?: unknown };
+  return isString(p.nearAccountId) && Array.isArray(p.txSigningRequests);
 }
 
 function isSetStylePayload(payload: unknown): payload is IframeButtonMessagePayloads['SET_STYLE'] {
-  return isObject(payload);
+  if (!isObject(payload)) return false;
+  const p = payload as {
+    buttonSizing?: { width?: unknown; height?: unknown };
+    tooltipPosition?: unknown;
+    tooltipTreeStyles?: unknown;
+    embeddedButtonTheme?: unknown;
+    theme?: unknown;
+    activationMode?: unknown;
+  };
+  const sizeOk = !p.buttonSizing
+    || (isObject(p.buttonSizing)
+      && (p.buttonSizing.width == null || isString(p.buttonSizing.width) || isNumber(p.buttonSizing.width))
+      && (p.buttonSizing.height == null || isString(p.buttonSizing.height) || isNumber(p.buttonSizing.height)));
+  const themeOk = p.theme == null || p.theme === 'dark' || p.theme === 'light';
+  const modeOk = p.activationMode == null || p.activationMode === 'tap' || p.activationMode === 'press';
+  return sizeOk && themeOk && modeOk;
 }
 
-function isSetLoadingPayload(payload: unknown): payload is boolean {
-  return typeof payload === 'boolean';
-}
+function isSetLoadingPayload(payload: unknown): payload is boolean { return isBoolean(payload); }
 
 function isRequestUiDigestPayload(payload: unknown): payload is undefined {
   return payload === undefined;

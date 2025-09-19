@@ -10,7 +10,7 @@ import {
   computeUiIntentDigestFromTxs,
   orderActionForDigest
 } from '../common/tx-digest';
-import { isObject } from '../../../WalletIframe/validation';
+import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 
 
 // Parent communication configuration
@@ -82,7 +82,7 @@ function isSetInitPayload(payload: unknown): payload is IframeModalMessagePayloa
 function isSetTxDataPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_TX_DATA'] {
   if (!isObject(payload)) return false;
   const p = payload as { nearAccountId?: unknown; txSigningRequests?: unknown };
-  return typeof p.nearAccountId === 'string' && Array.isArray(p.txSigningRequests);
+  return isString(p.nearAccountId) && Array.isArray(p.txSigningRequests);
 }
 
 function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePayloads['CLOSE_MODAL'] {
@@ -92,11 +92,11 @@ function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePay
 function issTransactionInput(x: unknown): x is { receiverId: string; actions: unknown[] } {
   if (!x || !isObject(x)) return false;
   const obj = x as Record<string, unknown>;
-  return typeof obj.receiverId === 'string' && Array.isArray(obj.actions);
+  return isString(obj.receiverId) && Array.isArray(obj.actions);
 }
 
 function isSetLoadingPayload(payload: unknown): payload is boolean {
-  return typeof payload === 'boolean';
+  return isBoolean(payload);
 }
 
 function onMessage(e: MessageEvent<IframeModalMessage>): void {
@@ -128,7 +128,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         if (payload.vrfChallenge) {
           el.vrfChallenge = payload.vrfChallenge;
         }
-        if (payload.theme && typeof payload.theme === 'string') {
+        if (payload.theme && isString(payload.theme)) {
           el.theme = payload.theme;
         }
         el.requestUpdate?.();
@@ -144,7 +144,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     }
     case 'SET_ERROR': {
       try {
-        if (typeof payload === 'string') {
+        if (isString(payload)) {
           el.errorMessage = payload;
           el.loading = false;
           el.requestUpdate?.();
