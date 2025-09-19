@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { TouchIdWithText, usePasskeyContext } from '@web3authn/passkey/react';
 import { SecureSendTxButton, ActionType } from '@web3authn/passkey/react';
 import { TxExecutionStatus } from '@web3authn/passkey/react';
@@ -28,8 +28,8 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
   // State for transaction results
   const [loading, setLoading] = useState(false);
 
-  // State for LitDrawer
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Imperative ref for LitDrawer (uncontrolled)
+  const drawerRef = useRef<any>(null);
 
   // Create transaction data for setting greeting
   const createGreetingAction = (): ActionArgs => {
@@ -50,13 +50,12 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
 
   const handleDrawerConfirm = () => {
     setResult('Drawer confirmed!');
-    setDrawerOpen(false);
+    drawerRef.current?.hide('confirm');
   };
 
   const handleDrawerCancel = () => {
-    console.log('handleDrawerCancel called in React component, setting drawerOpen to false');
+    console.log('handleDrawerCancel called in React component');
     setResult('Drawer cancelled');
-    setDrawerOpen(false);
   };
 
   if (!loginState.isLoggedIn) {
@@ -107,7 +106,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               <label className="test-embedded-section-label">LitDrawer Demo:</label>
               <div style={{ marginBottom: '16px' }}>
                 <button
-                  onClick={() => setDrawerOpen(true)}
+                  onClick={() => drawerRef.current?.show()}
                   style={{
                     background: '#4DAFFE',
                     color: '#0b1220',
@@ -242,7 +241,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
 
       {/* LitDrawer Component */}
       <LitDrawer
-        open={drawerOpen}
+        ref={drawerRef}
         theme="light"
         title="Test Drawer with Drag"
         subtitle="Drag down to close or use the buttons. This demonstrates the new drag-to-close functionality!"

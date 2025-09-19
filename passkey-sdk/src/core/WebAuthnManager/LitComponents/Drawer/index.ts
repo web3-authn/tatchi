@@ -42,7 +42,6 @@ export class DrawerElement extends LitElementWithProps {
   private openRestTranslateYPx = 0; // translateY for the default "open" rest position, in px
   private dragStartTime = 0; // ms
   private isClosing = false;
-  private suppressExternalOpenUntil = 0; // ms epoch
 
   static styles = css`
     :host { display: contents; }
@@ -138,12 +137,7 @@ export class DrawerElement extends LitElementWithProps {
     // Debug open property changes
     if (changedProperties.has('open')) {
       console.log('Drawer open property changed to:', this.open);
-      // If an external re-render tries to force open=true immediately after a close,
-      // ignore it within a short suppression window to avoid bounce-back.
-      if (this.open && Date.now() < this.suppressExternalOpenUntil) {
-        this.open = false;
-        return;
-      }
+      // Uncontrolled: no suppression; trust imperative calls
       // When externally toggled open, clear any inline overrides so CSS can control
       if (this.drawerElement && this.open) {
         this.drawerElement.style.transition = '';
@@ -364,9 +358,10 @@ export class DrawerElement extends LitElementWithProps {
       return;
     }
 
-    // No snapping: let the drawer rest where released.
-    // Ensure no transition is active to avoid unintended easing.
+    // No snapping: let the drawer rest under parent control.
+    // Clear inline transform so CSS (via `[open]`) governs final position.
     this.drawerElement.style.transition = '';
+    this.drawerElement.style.removeProperty('transform');
     this.resetDragState();
   }
 
@@ -404,7 +399,6 @@ export class DrawerElement extends LitElementWithProps {
       this.drawerElement.style.removeProperty('transform');
     }
     // Flip the `open` property so CSS applies the closed transform and overlay state
-    this.suppressExternalOpenUntil = Date.now() + 350;
     this.open = false;
     // Notify host after state change
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
@@ -424,7 +418,6 @@ export class DrawerElement extends LitElementWithProps {
       this.drawerElement.style.removeProperty('transform');
     }
     // Flip open then notify host
-    this.suppressExternalOpenUntil = Date.now() + 350;
     this.open = false;
     this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
     this.isClosing = true;
@@ -435,6 +428,32 @@ export class DrawerElement extends LitElementWithProps {
     if (this.loading) return;
     this.dispatchEvent(new CustomEvent('confirm', { bubbles: true, composed: true }));
   };
+
+  // Imperative API (uncontrolled usage)
+  public show() {
+    if (this.drawerElement) {
+      this.drawerElement.classList.remove('dragging');
+      this.drawerElement.style.removeProperty('transition');
+      this.drawerElement.style.removeProperty('transform');
+    }
+    this.open = true;
+  }
+
+  public hide(reason: string = 'programmatic') {
+    if (this.drawerElement) {
+      this.drawerElement.classList.remove('dragging');
+      this.drawerElement.style.removeProperty('transition');
+      this.drawerElement.style.removeProperty('transform');
+    }
+    this.open = false;
+    // Dispatch cancel to keep back-compat with existing listeners
+    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true, detail: { reason } }));
+  }
+
+  public toggle(force?: boolean) {
+    const target = typeof force === 'boolean' ? force : !this.open;
+    if (target) this.show(); else this.hide('toggle');
+  }
 
   render() {
     return html`
