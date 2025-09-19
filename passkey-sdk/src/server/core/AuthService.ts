@@ -4,6 +4,23 @@ import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../c
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
 import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
 import { validateConfigs } from './config';
+import { isObject, isString } from '../../core/WalletIframe/validation';
+
+// =============================
+// WASM URL CONSTANTS + HELPERS
+// =============================
+
+// Primary location (preserveModules output)
+const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/wasm_signer_worker_bg.wasm';
+// Fallback location (dist/workers copy step)
+const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
+
+function getSignerWasmUrls(): URL[] {
+  return [
+    new URL(SIGNER_WASM_MAIN_PATH, import.meta.url),
+    new URL(SIGNER_WASM_FALLBACK_PATH, import.meta.url),
+  ];
+}
 import {
   Shamir3PassUtils,
 } from './shamirWorker';
@@ -112,12 +129,12 @@ export class AuthService {
   private async ensureSignerWasm(): Promise<void> {
     if (this.signerWasmReady) return;
     try {
-      const wasmUrl = new URL('../../wasm_signer_worker/wasm_signer_worker_bg.wasm', import.meta.url);
+      const candidates = getSignerWasmUrls();
       if (this.isNodeEnvironment()) {
-        await this.initSignerWasmForNode([wasmUrl, new URL('../../../workers/wasm_signer_worker_bg.wasm', import.meta.url)]);
+        await this.initSignerWasmForNode(candidates);
       } else {
         // Browser-like environment: URL fetch works
-        await initSignerWasm({ module_or_path: wasmUrl as any });
+        await initSignerWasm({ module_or_path: candidates[0] as any });
       }
       this.signerWasmReady = true;
       return;
@@ -144,7 +161,10 @@ export class AuthService {
       try {
         const filePath = fileURLToPath(url);
         const bytes = await readFile(filePath);
-        const module = await WebAssembly.compile(bytes);
+        // Ensure we pass an ArrayBuffer, not a Node Buffer (type mismatch)
+        const u8 = bytes instanceof Uint8Array ? new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) : new Uint8Array(bytes as any);
+        const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+        const module = await WebAssembly.compile(ab as ArrayBuffer);
         await initSignerWasm({ module_or_path: module as any });
         return;
       } catch (_) { /* try next */ }
@@ -188,7 +208,7 @@ export class AuthService {
 
   // Convert yoctoNEAR to NEAR for display
   private formatYoctoToNear(yoctoAmount: string | bigint): string {
-    const amount = typeof yoctoAmount === 'string' ? BigInt(yoctoAmount) : yoctoAmount;
+    const amount = isString(yoctoAmount) ? BigInt(yoctoAmount) : yoctoAmount;
     const nearAmount = Number(amount) / 1e24;
     return nearAmount.toFixed(3);
   }
@@ -475,7 +495,7 @@ export class AuthService {
   private parseContractExecutionError(result: FinalExecutionOutcome, accountId: string): string | null {
     try {
       // Check main transaction status
-      if (result.status && typeof result.status === 'object' && 'Failure' in result.status) {
+      if (result.status && isObject(result.status) && 'Failure' in result.status) {
         console.log(`Transaction failed:`, result.status.Failure);
         return `Transaction failed: ${JSON.stringify(result.status.Failure)}`;
       }
@@ -519,7 +539,7 @@ export class AuthService {
         // Check logs for error keywords
         const logs = receipt.outcome?.logs || [];
         for (const log of logs) {
-          if (typeof log === 'string') {
+          if (isString(log)) {
             if (log.includes('AccountAlreadyExists') || log.includes('account already exists')) {
               return `Account ${accountId} already exists`;
             }
@@ -649,7 +669,7 @@ export class AuthService {
           body: JSON.stringify({ error: 'Missing body' })
         };
       }
-      if (typeof request.body.kek_c_b64u !== 'string' || !request.body.kek_c_b64u) {
+      if (!isString(request.body.kek_c_b64u) || !request.body.kek_c_b64u) {
         return {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
@@ -685,7 +705,7 @@ export class AuthService {
           body: JSON.stringify({ error: 'Missing body' })
         };
       }
-      if (typeof request.body.kek_cs_b64u !== 'string' || !request.body.kek_cs_b64u) {
+      if (!isString(request.body.kek_cs_b64u) || !request.body.kek_cs_b64u) {
         return {
           status: 400,
           headers: { 'Content-Type': 'application/json' },
