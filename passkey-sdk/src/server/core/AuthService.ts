@@ -113,12 +113,53 @@ export class AuthService {
     if (this.signerWasmReady) return;
     try {
       const wasmUrl = new URL('../../wasm_signer_worker/wasm_signer_worker_bg.wasm', import.meta.url);
-      await initSignerWasm({ module_or_path: wasmUrl as any });
+      if (this.isNodeEnvironment()) {
+        await this.initSignerWasmForNode([wasmUrl, new URL('../../../workers/wasm_signer_worker_bg.wasm', import.meta.url)]);
+      } else {
+        // Browser-like environment: URL fetch works
+        await initSignerWasm({ module_or_path: wasmUrl as any });
+      }
       this.signerWasmReady = true;
+      return;
     } catch (e) {
       console.error('Failed to initialize signer WASM:', e);
       throw e;
     }
+  }
+
+  private isNodeEnvironment(): boolean {
+    return typeof window === 'undefined' || Boolean((globalThis as any).process?.versions?.node);
+  }
+
+  /**
+   * Initialize signer WASM in Node by loading the wasm file from disk.
+   * Tries multiple candidate locations and falls back to path-based init if needed.
+   */
+  private async initSignerWasmForNode(candidates: URL[]): Promise<void> {
+    const { fileURLToPath } = await import('url');
+    const { readFile } = await import('fs/promises');
+
+    // 1) Try reading and compiling bytes
+    for (const url of candidates) {
+      try {
+        const filePath = fileURLToPath(url);
+        const bytes = await readFile(filePath);
+        const module = await WebAssembly.compile(bytes);
+        await initSignerWasm({ module_or_path: module as any });
+        return;
+      } catch (_) { /* try next */ }
+    }
+
+    // 2) Fallback: pass file path directly (supported in some environments)
+    for (const url of candidates) {
+      try {
+        const filePath = fileURLToPath(url);
+        await initSignerWasm({ module_or_path: filePath as any });
+        return;
+      } catch (_) { /* try next */ }
+    }
+
+    throw new Error('[AuthService] Failed to initialize signer WASM from filesystem candidates');
   }
   /**
    * Shamir 3-pass: apply server exponent (registration step)
