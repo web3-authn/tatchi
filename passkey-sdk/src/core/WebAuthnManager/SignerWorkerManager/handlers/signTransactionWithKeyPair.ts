@@ -89,7 +89,7 @@ export async function signTransactionWithKeyPair({
     console.debug('SignerWorkerManager: Transaction signing with private key successful');
     return result;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('SignerWorkerManager: Transaction signing with private key error:', error);
     throw error;
   }

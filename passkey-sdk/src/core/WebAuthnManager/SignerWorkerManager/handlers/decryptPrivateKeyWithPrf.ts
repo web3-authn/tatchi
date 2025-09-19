@@ -74,7 +74,7 @@ export async function decryptPrivateKeyWithPrf({
       decryptedPrivateKey: response.payload.privateKey,
       nearAccountId: toAccountId(response.payload.nearAccountId)
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('WebAuthnManager: Dual PRF private key decryption error:', error);
     throw error;
   }

@@ -28,29 +28,34 @@ export function extractPrfFromCredential({
   firstPrfOutput = true,
   secondPrfOutput = false,
 }: {
-  credential: any,
+  credential: PublicKeyCredential | { clientExtensionResults?: unknown; getClientExtensionResults?: () => unknown };
   firstPrfOutput?: boolean | undefined,
   secondPrfOutput?: boolean,
 }): DualPrfOutputs {
   // Support both live PublicKeyCredential and already-serialized credential objects
-  let extensionResults: any | undefined;
+  let extensionResults: unknown | undefined;
   try {
-    const fn = (credential as any)?.getClientExtensionResults;
+    const fn = (credential as { getClientExtensionResults?: () => unknown })?.getClientExtensionResults;
     if (typeof fn === 'function') {
       extensionResults = fn.call(credential);
     } else {
-      extensionResults = (credential as any)?.clientExtensionResults;
+      extensionResults = (credential as { clientExtensionResults?: unknown })?.clientExtensionResults;
     }
   } catch {
-    extensionResults = (credential as any)?.clientExtensionResults;
+    extensionResults = (credential as { clientExtensionResults?: unknown })?.clientExtensionResults;
   }
 
-  const prfResults = extensionResults?.prf?.results;
+  const prfResults = ((): { first?: unknown; second?: unknown } | undefined => {
+    try {
+      const prf = (extensionResults as { prf?: { results?: { first?: unknown; second?: unknown } } })?.prf;
+      return prf?.results;
+    } catch { return undefined; }
+  })();
   if (!prfResults) {
     throw new Error('Missing PRF results from credential, use a PRF-enabled Authenticator');
   }
 
-  const normalizeToB64u = (val: any): string | undefined => {
+  const normalizeToB64u = (val: unknown): string | undefined => {
     if (!val) return undefined;
     if (typeof val === 'string') return val; // already base64url in serialized shape
     if (val instanceof ArrayBuffer) return base64UrlEncode(val);
@@ -59,7 +64,7 @@ export function extractPrfFromCredential({
       // Attempt to treat as ArrayBuffer-like
       return base64UrlEncode(val as ArrayBufferLike);
     } catch {
-      try { return base64UrlEncode((new Uint8Array(val as any).buffer)); } catch { return undefined; }
+      try { return base64UrlEncode((new Uint8Array(val as ArrayBufferLike).buffer)); } catch { return undefined; }
     }
   };
 
@@ -95,7 +100,7 @@ export function serializeRegistrationCredential(
   // Safari and some platforms may not implement getTransports(); guard it.
   let transports: string[] = [];
   try {
-    const fn: any = (response as any)?.getTransports;
+    const fn = (response as { getTransports?: () => string[] })?.getTransports;
     if (typeof fn === 'function') {
       transports = fn.call(response) || [];
     }
@@ -216,67 +221,67 @@ export function serializeAuthenticationCredentialWithPRF({
 // RUNTIME VALIDATION / NORMALIZATION
 /////////////////////////////////////////
 
-function isString(x: any): x is string { return typeof x === 'string'; }
-function isArray(x: any): x is any[] { return Array.isArray(x); }
+function isString(x: unknown): x is string { return typeof x === 'string'; }
+function isArray<T = unknown>(x: unknown): x is T[] { return Array.isArray(x); }
 
 /**
  * Validates and normalizes a serialized WebAuthn registration credential.
  * Ensures required fields exist and have the expected primitive types.
  * Populates missing optional arrays like transports with [].
  */
-export function normalizeRegistrationCredential(input: any): WebAuthnRegistrationCredential {
+export function normalizeRegistrationCredential(input: unknown): WebAuthnRegistrationCredential {
   if (!isObject(input)) throw new Error('Invalid credential: not an object');
-  const out: any = { ...input };
+  const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
 
   if (!isString(out.id)) throw new Error('Invalid credential.id');
   if (!isString(out.type)) throw new Error('Invalid credential.type');
-  if (!isString(out.rawId)) out.rawId = '';
+  if (!isString(out.rawId)) (out as { rawId?: string }).rawId = '';
   if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
-    out.authenticatorAttachment = String(out.authenticatorAttachment);
+    (out as { authenticatorAttachment?: string }).authenticatorAttachment = String(out.authenticatorAttachment);
   }
-  if (!isObject(out.response)) out.response = {};
-  if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
-  if (!isString(out.response.attestationObject)) out.response.attestationObject = '';
-  if (!isArray(out.response.transports)) out.response.transports = [];
+  const resp = (isObject(out.response) ? out.response as Record<string, unknown> : (out.response = {} as Record<string, unknown>)) as Record<string, unknown>;
+  if (!isString(resp.clientDataJSON)) resp.clientDataJSON = '';
+  if (!isString(resp.attestationObject)) resp.attestationObject = '';
+  if (!isArray<string>(resp.transports)) resp.transports = [];
 
   // Ensure PRF results shape exists and normalize to string | undefined
-  out.clientExtensionResults = (isObject(out.clientExtensionResults) && out.clientExtensionResults) || { prf: { results: {} } };
-  out.clientExtensionResults.prf = (isObject(out.clientExtensionResults.prf) && out.clientExtensionResults.prf) || { results: {} } as any;
-  const rReg: any = (isObject(out.clientExtensionResults.prf.results) && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
-  rReg.first = isString(rReg.first) ? rReg.first : undefined;
-  rReg.second = isString(rReg.second) ? rReg.second : undefined;
+  const cer = (isObject(out.clientExtensionResults) ? out.clientExtensionResults as Record<string, unknown> : (out.clientExtensionResults = { prf: { results: {} } } as Record<string, unknown>)) as Record<string, unknown>;
+  const prf = (isObject(cer.prf) ? cer.prf as Record<string, unknown> : (cer.prf = { results: {} } as Record<string, unknown>)) as Record<string, unknown>;
+  const results = (isObject(prf.results) ? prf.results as Record<string, unknown> : (prf.results = {} as Record<string, unknown>)) as Record<string, unknown>;
+  results.first = isString(results.first) ? results.first : undefined;
+  results.second = isString(results.second) ? results.second : undefined;
 
-  return out as WebAuthnRegistrationCredential;
+  return out as unknown as WebAuthnRegistrationCredential;
 }
 
 /**
  * Validates and normalizes a serialized WebAuthn authentication credential.
  * Ensures required fields exist and have the expected primitive types.
  */
-export function normalizeAuthenticationCredential(input: any): WebAuthnAuthenticationCredential {
+export function normalizeAuthenticationCredential(input: unknown): WebAuthnAuthenticationCredential {
   if (!isObject(input)) throw new Error('Invalid credential: not an object');
-  const out: any = { ...input };
+  const out: Record<string, unknown> = { ...(input as Record<string, unknown>) };
 
   if (!isString(out.id)) throw new Error('Invalid credential.id');
   if (!isString(out.type)) throw new Error('Invalid credential.type');
-  if (!isString(out.rawId)) out.rawId = '';
+  if (!isString(out.rawId)) (out as { rawId?: string }).rawId = '';
   if (out.authenticatorAttachment !== undefined && !isString(out.authenticatorAttachment)) {
-    out.authenticatorAttachment = String(out.authenticatorAttachment);
+    (out as { authenticatorAttachment?: string }).authenticatorAttachment = String(out.authenticatorAttachment);
   }
-  if (!isObject(out.response)) out.response = {};
-  if (!isString(out.response.clientDataJSON)) out.response.clientDataJSON = '';
-  if (!isString(out.response.authenticatorData)) out.response.authenticatorData = '';
-  if (!isString(out.response.signature)) out.response.signature = '';
-  if (out.response.userHandle !== undefined && !isString(out.response.userHandle)) out.response.userHandle = undefined;
+  const resp = (isObject(out.response) ? out.response as Record<string, unknown> : (out.response = {} as Record<string, unknown>)) as Record<string, unknown>;
+  if (!isString(resp.clientDataJSON)) resp.clientDataJSON = '';
+  if (!isString(resp.authenticatorData)) resp.authenticatorData = '';
+  if (!isString(resp.signature)) resp.signature = '';
+  if (resp.userHandle !== undefined && !isString(resp.userHandle)) resp.userHandle = undefined;
 
   // Ensure PRF results shape exists and normalize to string | undefined
-  out.clientExtensionResults = (isObject(out.clientExtensionResults) && out.clientExtensionResults) || { prf: { results: {} } };
-  out.clientExtensionResults.prf = (isObject(out.clientExtensionResults.prf) && out.clientExtensionResults.prf) || { results: {} } as any;
-  const rAuth: any = (isObject(out.clientExtensionResults.prf.results) && out.clientExtensionResults.prf.results) || (out.clientExtensionResults.prf.results = {});
-  rAuth.first = isString(rAuth.first) ? rAuth.first : undefined;
-  rAuth.second = isString(rAuth.second) ? rAuth.second : undefined;
+  const cer = (isObject(out.clientExtensionResults) ? out.clientExtensionResults as Record<string, unknown> : (out.clientExtensionResults = { prf: { results: {} } } as Record<string, unknown>)) as Record<string, unknown>;
+  const prf = (isObject(cer.prf) ? cer.prf as Record<string, unknown> : (cer.prf = { results: {} } as Record<string, unknown>)) as Record<string, unknown>;
+  const results = (isObject(prf.results) ? prf.results as Record<string, unknown> : (prf.results = {} as Record<string, unknown>)) as Record<string, unknown>;
+  results.first = isString(results.first) ? results.first : undefined;
+  results.second = isString(results.second) ? results.second : undefined;
 
-  return out as WebAuthnAuthenticationCredential;
+  return out as unknown as WebAuthnAuthenticationCredential;
 }
 
 /**

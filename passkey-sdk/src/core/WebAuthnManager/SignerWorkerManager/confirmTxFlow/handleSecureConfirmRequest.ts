@@ -22,7 +22,7 @@ import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitC
 import { W3A_TX_BUTTON_ID } from '../../LitComponents/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 import { isObject, isFunction } from '../../../WalletIframe/validation';
-import { errorMessage } from '../../../../utils/errors';
+import { errorMessage, toError, isTouchIdCancellationError } from '../../../../utils/errors';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -48,7 +48,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     summary = parsed.summary;
     confirmationConfig = parsed.confirmationConfig;
     transactionSummary = parsed.transactionSummary;
-  } catch (e) {
+  } catch (e: unknown) {
     console.error('[SecureConfirm][Host] validateAndParseRequest failed', e);
     // Attempt to send a structured error back to the worker to avoid hard failure
     try {
@@ -59,8 +59,8 @@ export async function handlePromptUserConfirmInJsMainThread(
         error: errorMessage(e) || 'Invalid secure confirm request'
       });
       return;
-    } catch (_) {
-      throw e;
+    } catch (_err: unknown) {
+      throw toError(e);
     }
   }
 
@@ -140,9 +140,9 @@ export async function handlePromptUserConfirmInJsMainThread(
     // Release any reserved nonces for this modal request
     try {
       nearRpcResult.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
-    } catch (e) {
-      console.warn('[SignerWorkerManager]: Failed to release reserved nonces on cancel:', e);
-    }
+  } catch (e: unknown) {
+    console.warn('[SignerWorkerManager]: Failed to release reserved nonces on cancel:', e);
+  }
     closeModalSafely(false, confirmHandle);
     sendWorkerResponse(worker, {
       requestId: request.requestId,
@@ -170,19 +170,21 @@ export async function handlePromptUserConfirmInJsMainThread(
     const result = await collectTouchIdCredentials({ ctx, request, decision });
     decisionWithCredentials = result.decisionWithCredentials;
     touchIdSuccess = decisionWithCredentials?.confirmed ?? false;
-  } catch (touchIdError) {
+  } catch (touchIdError: unknown) {
     console.error('[SignerWorkerManager]: Failed to collect credentials:', touchIdError);
-    const isCancelled = touchIdError instanceof DOMException &&
-      (touchIdError.name === 'NotAllowedError' || touchIdError.name === 'AbortError');
+    const cancelled = isTouchIdCancellationError(touchIdError) || (() => {
+      const err = toError(touchIdError);
+      return err.name === 'NotAllowedError' || err.name === 'AbortError';
+    })();
 
-    if (isCancelled) {
+    if (cancelled) {
       console.log('[SignerWorkerManager]: User cancelled secure confirm request');
     }
 
     decisionWithCredentials = {
       ...decision,
       confirmed: false,
-      error: isCancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+      error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
       _confirmHandle: undefined,
     };
     touchIdSuccess = false;
@@ -197,7 +199,7 @@ export async function handlePromptUserConfirmInJsMainThread(
     if (!decisionWithCredentials?.confirmed) {
       nearRpcResult.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     }
-  } catch (e) {
+  } catch (e: unknown) {
     console.warn('[SignerWorkerManager]: Failed to release reserved nonces after decision:', e);
   }
   sendWorkerResponse(worker, decisionWithCredentials);
@@ -427,7 +429,9 @@ async function renderUserConfirmUI({
         const handle = await mountModalTxConfirmer({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? request.payload.txSigningRequests : [],
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
+            ? (request.payload as SignTransactionPayload).txSigningRequests
+            : [],
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
@@ -440,7 +444,9 @@ async function renderUserConfirmUI({
         const { confirmed, handle } = await awaitModalTxConfirmerDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION ? request.payload.txSigningRequests : [],
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
+            ? (request.payload as SignTransactionPayload).txSigningRequests
+            : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
           nearAccountIdOverride: nearAccountIdForUi,
@@ -455,7 +461,9 @@ async function renderUserConfirmUI({
       const handle = await mountModalTxConfirmer({
         ctx,
         summary: transactionSummary,
-        txSigningRequests: request.payload.txSigningRequests,
+        txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
+          ? (request.payload as SignTransactionPayload).txSigningRequests
+          : [],
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
@@ -507,9 +515,10 @@ async function collectTouchIdCredentials({
     };
     try {
       credential = await tryCreate(deviceNumber);
-    } catch (e: any) {
-      const name = (e?.name || '').toString();
-      const msg = (e?.message || '').toString();
+    } catch (e: unknown) {
+      const err = toError(e);
+      const name = String(err?.name || '');
+      const msg = String(err?.message || '');
       const isDuplicate = name === 'InvalidStateError' || /excluded|already\s*registered/i.test(msg);
       if (isDuplicate) {
         const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber))
@@ -519,11 +528,11 @@ async function collectTouchIdCredentials({
           credential = await tryCreate(nextDeviceNumber);
           // Update deviceNumber used downstream (naming/UI only)
           (request.payload as RegisterAccountPayload).deviceNumber = nextDeviceNumber;
-        } catch (e2) {
-          throw e; // rethrow original error if retry also fails
+        } catch (_e2: unknown) {
+          throw err; // rethrow original error if retry also fails
         }
       } else {
-        throw e;
+        throw err;
       }
     }
   } else {
@@ -572,7 +581,7 @@ async function collectTouchIdCredentials({
 /**
  * Safely parses transaction summary data, handling both string and object formats
  */
-function parseTransactionSummary(summaryData: string | SummaryType | undefined): SummaryType {
+function parseTransactionSummary(summaryData: unknown): SummaryType {
   if (!summaryData) {
     return {};
   }

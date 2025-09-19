@@ -294,40 +294,22 @@ export class IframeButtonHost extends LitElementWithProps {
     if (this.buttonStyle.border) {
       style.setProperty('--btn-border', String(this.buttonStyle.border));
     }
-    if ((this.buttonStyle as any).boxShadow) {
-      style.setProperty('--btn-box-shadow', String((this.buttonStyle as any).boxShadow));
-    }
-    if ((this.buttonStyle as any).transition) {
-      style.setProperty('--btn-transition', String((this.buttonStyle as any).transition));
-    }
-    if ((this.buttonStyle as any).color) {
-      style.setProperty('--btn-color-text', String((this.buttonStyle as any).color));
-    }
-    if ((this.buttonStyle as any).fontSize) {
-      style.setProperty('--btn-font-size', String((this.buttonStyle as any).fontSize));
-    }
-    if ((this.buttonStyle as any).fontWeight) {
-      style.setProperty('--btn-font-weight', String((this.buttonStyle as any).fontWeight));
-    }
+    const bs = (this.buttonStyle as Record<string, unknown>);
+    if (bs.boxShadow != null) style.setProperty('--btn-box-shadow', String(bs.boxShadow));
+    if (bs.transition != null) style.setProperty('--btn-transition', String(bs.transition));
+    if (bs.color != null) style.setProperty('--btn-color-text', String(bs.color));
+    if (bs.fontSize != null) style.setProperty('--btn-font-size', String(bs.fontSize));
+    if (bs.fontWeight != null) style.setProperty('--btn-font-weight', String(bs.fontWeight));
 
     // Map hover style to CSS vars; used by [data-hovered="true"] selectors
     if (this.buttonHoverStyle) {
-      const h = this.buttonHoverStyle as any;
-      if (h.background || h.backgroundColor) {
-        style.setProperty('--btn-hover-background', String(h.background || h.backgroundColor));
-      }
-      if (h.color) {
-        style.setProperty('--btn-hover-color', String(h.color));
-      }
-      if (h.border) {
-        style.setProperty('--btn-hover-border', String(h.border));
-      }
-      if (h.boxShadow) {
-        style.setProperty('--btn-hover-box-shadow', String(h.boxShadow));
-      }
-      if (h.transform) {
-        style.setProperty('--btn-hover-transform', String(h.transform));
-      }
+      const h = this.buttonHoverStyle as Record<string, unknown>;
+      const bg = (h.background ?? h.backgroundColor);
+      if (bg != null) style.setProperty('--btn-hover-background', String(bg));
+      if (h.color != null) style.setProperty('--btn-hover-color', String(h.color));
+      if (h.border != null) style.setProperty('--btn-hover-border', String(h.border));
+      if (h.boxShadow != null) style.setProperty('--btn-hover-box-shadow', String(h.boxShadow));
+      if (h.transform != null) style.setProperty('--btn-hover-transform', String(h.transform));
     }
   }
 
@@ -572,19 +554,17 @@ export class IframeButtonHost extends LitElementWithProps {
         case 'TOOLTIP_STATE':
           this.handleTooltipState(payload as IframeButtonMessagePayloads['TOOLTIP_STATE']);
           return;
-        case 'BUTTON_HOVER':
-          this.handleButtonHover(payload as IframeButtonMessagePayloads['BUTTON_HOVER']);
-          try {
-            const el = this.hostRef.value;
-            if (el) el.dataset.hovered = (payload as any)?.hovering ? 'true' : 'false';
-          } catch {}
+        case 'BUTTON_HOVER': {
+          const p = payload as IframeButtonMessagePayloads['BUTTON_HOVER'];
+          this.handleButtonHover(p);
+          try { const el = this.hostRef.value; if (el) el.dataset.hovered = p?.hovering ? 'true' : 'false'; } catch {}
           return;
-        case 'BUTTON_FOCUS':
-          try {
-            const el = this.hostRef.value;
-            if (el) el.dataset.focused = (payload as any)?.focused ? 'true' : 'false';
-          } catch {}
+        }
+        case 'BUTTON_FOCUS': {
+          const p = payload as IframeButtonMessagePayloads['BUTTON_FOCUS'];
+          try { const el = this.hostRef.value; if (el) el.dataset.focused = p?.focused ? 'true' : 'false'; } catch {}
           return;
+        }
         case 'UI_INTENT_DIGEST': {
           const p = payload as IframeButtonMessagePayloads['UI_INTENT_DIGEST'];
           if (p?.ok && p?.digest && this.pendingUiDigestResolve) {

@@ -1,20 +1,28 @@
-import { KeyPair } from '@near-js/crypto';
-
+import { createNearKeypair } from '../nearCrypto';
 import type { PasskeyManagerContext } from './index';
 import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
-import { generateBootstrapVrfChallenge } from './registration';
-import { base64UrlEncode } from '../../utils';
 import { DEVICE_LINKING_CONFIG } from '../../config';
-
 import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
-
 import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
-import QRCode from 'qrcode'; // jsQR will be dynamically imported when needed
+
+// Lazy-load QRCode to keep it an optional peer and reduce baseline bundle size
+async function generateQRCodeDataURL(data: string): Promise<string> {
+  const { default: QRCode } = await import('qrcode');
+  return QRCode.toDataURL(data, {
+    width: 256,
+    margin: 2,
+    color: {
+      dark: '#000000',
+      light: '#ffffff'
+    },
+    errorCorrectionLevel: 'M'
+  });
+}
 import type {
   DeviceLinkingQRData,
   DeviceLinkingSession,
@@ -26,17 +34,7 @@ import type { DeviceLinkingSSEEvent } from '../types/passkeyManager';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 
 
-async function generateQRCodeDataURL(data: string): Promise<string> {
-  return QRCode.toDataURL(data, {
-    width: 256,
-    margin: 2,
-    color: {
-      dark: '#000000',
-      light: '#ffffff'
-    },
-    errorCorrectionLevel: 'M'
-  });
-}
+// jsQR is dynamically imported where used (see utils/qrScanner.ts)
 
 /**
  * Device linking flow class - manages the complete device linking process
@@ -232,10 +230,8 @@ export class LinkDeviceFlow {
    * Includes memory cleanup and automatic expiration
    */
   private async generateTemporaryNearKeypair(): Promise<{ publicKey: string; privateKey: string }> {
-    // Generate a temporary random NEAR Ed25519 keypair
-    const keyPair = KeyPair.fromRandom('ed25519');
-    const publicKeyNear = keyPair.getPublicKey().toString();
-    const privateKeyNear = keyPair.toString();
+    // Generate a temporary random NEAR Ed25519 keypair (browser-safe)
+    const { publicKey: publicKeyNear, privateKey: privateKeyNear } = await createNearKeypair();
 
     console.log(`LinkDeviceFlow: Generated temporary Ed25519 keypair with automatic cleanup`);
 

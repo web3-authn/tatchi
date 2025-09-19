@@ -37,7 +37,7 @@ import {
   TxExecutionStatus
 } from '../../types';
 import { IframeTransport } from './IframeTransport';
-import { isObject } from '../validation';
+import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
 import { toError } from '../../../utils/errors';
 import {
@@ -51,7 +51,6 @@ import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../../PasskeyManager';
-import { SignNep413Result } from '@/wasm_signer_worker/wasm_signer_worker';
 
 // Simple, framework-agnostic service iframe client.
 //
@@ -857,16 +856,12 @@ function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEE
     const arr = Array.isArray(result) ? result : [];
     const normalized = arr.map(entry => {
       if (entry?.signedTransaction) {
-        const st = entry.signedTransaction;
-      if (
-          st &&
-          (typeof (st as { base64Encode?: unknown }).base64Encode !== 'function') &&
-          ((st as { borsh_bytes?: unknown }).borsh_bytes || (st as { borshBytes?: unknown }).borshBytes)
-        ) {
-          entry.signedTransaction = new SignedTransaction({
-            transaction: st.transaction,
-            signature: st.signature,
-            borsh_bytes: Array.isArray(st.borsh_bytes) ? st.borsh_bytes : Array.from(st.borshBytes || []),
+        const st = entry.signedTransaction as unknown;
+        if (isPlainSignedTransactionLike(st)) {
+          entry.signedTransaction = SignedTransaction.fromPlain({
+            transaction: (st as { transaction: unknown }).transaction,
+            signature: (st as { signature: unknown }).signature,
+            borsh_bytes: extractBorshBytesFromPlainSignedTx(st),
           });
         }
       }

@@ -1,9 +1,10 @@
-import { FinalExecutionOutcome, TxExecutionStatus } from "@near-js/types";
+import type { FinalExecutionOutcome, TxExecutionStatus } from "@near-js/types";
 import type { EncryptedVRFKeypair } from './vrf-worker';
 import { AccountId } from "./accountIds";
 import { SignedTransaction } from "../NearClient";
 import type { AuthenticatorOptions } from './authenticatorOptions';
 import { ClientUserData } from ".";
+import { RecoveryResult } from '../PasskeyManager';
 
 //////////////////////////
 // Progress Events Enums
@@ -144,9 +145,15 @@ export interface onProgressEvents extends BaseActionSSEEvent {
   step: number;
   status: ActionStatus;
   message: string;
-  data?: any;
+  // Generic metadata bag for progress payloads
+  data?: Record<string, unknown>;
   logs?: string[];
 }
+
+// Optional, phase-specific data shapes used where we can commit to fields
+// Intentionally keep progress payloads generic to avoid duplicating
+// worker-side data shapes. Concrete fields can be added in future PRs
+// by normalizing worker payloads in one place.
 
 /////////////////////////////////////////////
 // SDK-Sent-Events: Registration Event Types
@@ -277,27 +284,28 @@ export interface ActionEventStep3 extends BaseActionSSEEvent {
 export interface ActionEventStep4 extends BaseActionSSEEvent {
   step: 4;
   phase: ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION;
-  data?: any;
+  data?: Record<string, unknown>;
   logs?: string[];
 }
 
 export interface ActionEventStep5 extends BaseActionSSEEvent {
   step: 5;
   phase: ActionPhase.STEP_5_AUTHENTICATION_COMPLETE;
-  data?: any;
+  data?: Record<string, unknown>;
   logs?: string[];
 }
 
 export interface ActionEventStep6 extends BaseActionSSEEvent {
   step: 6;
   phase: ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS;
+  data?: Record<string, unknown>;
 }
 
 export interface ActionEventStep7 extends BaseActionSSEEvent {
   step: 7;
   phase: ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE;
   status: ActionStatus.SUCCESS;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export interface ActionEventStep8 extends BaseActionSSEEvent {
@@ -309,7 +317,7 @@ export interface ActionEventStep9 extends BaseActionSSEEvent {
   step: 9;
   phase: ActionPhase.STEP_9_ACTION_COMPLETE;
   status: ActionStatus.SUCCESS;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export interface ActionEventError extends BaseActionSSEEvent {
@@ -509,7 +517,7 @@ export interface SendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<ActionResult>;
   waitUntil?: TxExecutionStatus;
 }
 
@@ -518,7 +526,7 @@ export interface AccountRecoveryHooksOptions {
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<RecoveryResult>;
 }
 
 //////////////////////////////////
@@ -602,7 +610,7 @@ export interface PasskeyManagerConfigs {
     isWalletIframeHost?: boolean;
     // Optional: register wallet-host UI components (Lit tags + bindings)
     // Allows mounting custom surfaces via generic messages without hardcoding.
-    uiRegistry?: Record<string, any>;
+    uiRegistry?: Record<string, unknown>;
     // Force WebAuthn rpId to a base domain so credentials work across subdomains
     // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
     rpIdOverride?: string;
@@ -629,7 +637,7 @@ export interface PasskeyManagerConfigs {
 export interface TransactionParams {
   receiverId: string;
   methodName: string;
-  args: Record<string, any>;
+  args: Record<string, unknown>;
   gas?: string;
   deposit?: string;
 }

@@ -125,7 +125,7 @@ export class IframeModalHost extends LitElementWithProps {
   private generateIframeHtml() {
     const modalBundle = MODAL_TX_CONFIRM_BUNDLE;
     const iframeBootstrap = IFRAME_MODAL_BOOTSTRAP_MODULE;
-    const base = (window as any).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
+    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
     return `<!DOCTYPE html>
       <html>
         <head>

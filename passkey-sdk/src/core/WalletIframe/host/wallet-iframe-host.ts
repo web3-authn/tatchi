@@ -43,12 +43,11 @@ import type {
 import { MinimalNearClient, SignedTransaction } from '../../NearClient';
 import { setupLitElemMounter } from './lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
-import { isObject, isString, isFiniteNumber } from '../validation';
+import { isObject, isString, isFiniteNumber, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
 import { errorMessage, toError } from '../../../utils/errors';
 import { PasskeyManager } from '../../PasskeyManager';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import type { DeviceLinkingQRData } from '../../types/linkDevice';
-import type { TransactionInput } from '../../types';
 import type { ProgressPayload } from '../shared/messages';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type {
@@ -409,13 +408,14 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         ensurePasskeyManager();
         const { signedTransaction, options } = (req.payload || {}) as PMSendTxPayload & { options?: Record<string, unknown> };
         let st: SignedTransaction | unknown = signedTransaction;
+        const isPlainSignedTransaction = isPlainSignedTransactionLike;
         try {
-          const s = st as { base64Encode?: unknown; borsh_bytes?: number[]; borshBytes?: Uint8Array; transaction?: unknown; signature?: unknown };
-          if (s && typeof s.base64Encode !== 'function' && (s.borsh_bytes || s.borshBytes)) {
-            st = new SignedTransaction({
-              transaction: (s as any).transaction,
-              signature: (s as any).signature,
-              borsh_bytes: Array.isArray(s.borsh_bytes) ? s.borsh_bytes : Array.from(s.borshBytes || []),
+          if (isPlainSignedTransaction(st)) {
+            const s = st as { transaction: unknown; signature: unknown };
+            st = SignedTransaction.fromPlain({
+              transaction: s.transaction,
+              signature: s.signature,
+              borsh_bytes: extractBorshBytesFromPlainSignedTx(st as Parameters<typeof extractBorshBytesFromPlainSignedTx>[0]),
             });
           }
         } catch {}

@@ -2,8 +2,12 @@ import {
   WorkerConfirmationResponse,
   SecureConfirmMessageType,
   SecureConfirmRequest,
+  SerializableCredential,
 } from './types';
 import { isObject } from '@/core/WalletIframe/validation';
+import { errorMessage, toError } from '@/utils/errors';
+import { VRFChallenge } from '../../../types';
+import { TransactionContext } from '../../../types/rpc';
 
 // Narrowing helpers now use shared validator isObject
 
@@ -11,10 +15,10 @@ type ConfirmResponsePayload = {
   requestId: string;
   confirmed: boolean;
   intentDigest?: string;
-  credential?: unknown;
+  credential?: SerializableCredential;
   prfOutput?: string;
-  vrfChallenge?: unknown;
-  transactionContext?: unknown;
+  vrfChallenge?: VRFChallenge;
+  transactionContext?: TransactionContext;
   error?: string;
 };
 
@@ -25,11 +29,12 @@ type ConfirmResponseEnvelope = {
 
 function isConfirmResponseEnvelope(msg: unknown): msg is ConfirmResponseEnvelope {
   if (!isObject(msg)) return false;
-  if ((msg as any).type !== SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return false;
-  const data = (msg as any).data;
-  return isObject(data)
-    && typeof (data as any).requestId === 'string'
-    && ((data as any).confirmed === true || (data as any).confirmed === false);
+  const type = (msg as { type?: unknown }).type;
+  if (type !== SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) return false;
+  const data = (msg as { data?: unknown }).data;
+  if (!isObject(data)) return false;
+  const d = data as { requestId?: unknown; confirmed?: unknown };
+  return typeof d.requestId === 'string' && typeof d.confirmed === 'boolean';
 }
 
 /**
@@ -61,8 +66,8 @@ export function awaitSecureConfirmationV2(
     let request: SecureConfirmRequest;
     try {
       request = validateRequestJson(requestJson);
-    } catch (e) {
-      return reject(new Error(`[signer-worker]: invalid V2 request JSON: ${(e as Error).message}`));
+    } catch (e: unknown) {
+      return reject(new Error(`[signer-worker]: invalid V2 request JSON: ${errorMessage(e)}`));
     }
 
     // 2) Setup cleanup utilities
@@ -88,12 +93,12 @@ export function awaitSecureConfirmationV2(
       cleanup();
       const response: WorkerConfirmationResponse = {
         request_id: request.requestId,
-        intent_digest: (env.data as any).intentDigest,
+        intent_digest: env.data.intentDigest,
         confirmed: env.data.confirmed,
         credential: env.data.credential,
-        prf_output: (env.data as any).prfOutput,
-        vrf_challenge: (env.data as any).vrfChallenge,
-        transaction_context: (env.data as any).transactionContext,
+        prf_output: env.data.prfOutput,
+        vrf_challenge: env.data.vrfChallenge,
+        transaction_context: env.data.transactionContext,
         error: env.data.error
       };
       return resolve(response);
@@ -122,10 +127,10 @@ export function awaitSecureConfirmationV2(
         type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
         data: safeRequest
       });
-    } catch (postErr) {
+    } catch (postErr: unknown) {
       cleanup();
       console.error('[signer-worker][V2] postMessage failed', postErr);
-      return reject(postErr);
+      return reject(toError(postErr));
     }
   });
 }
@@ -142,9 +147,10 @@ function deepClonePlain<T>(obj: T): T {
 function validateRequestJson(requestJson: string): SecureConfirmRequest {
   const parsed = JSON.parse(requestJson) as unknown;
   if (!isObject(parsed)) throw new Error('parsed is not an object');
-  if ((parsed as any).schemaVersion !== 2) throw new Error('schemaVersion must be 2');
-  if (!('requestId' in parsed) || !(parsed as any).requestId) throw new Error('missing requestId');
-  if (!('type' in parsed) || !(parsed as any).type) throw new Error('missing type');
-  if (!('payload' in parsed) || !(parsed as any).payload) throw new Error('missing payload');
+  const p = parsed as { schemaVersion?: unknown; requestId?: unknown; type?: unknown; payload?: unknown };
+  if (p.schemaVersion !== 2) throw new Error('schemaVersion must be 2');
+  if (!p.requestId) throw new Error('missing requestId');
+  if (!p.type) throw new Error('missing type');
+  if (!p.payload) throw new Error('missing payload');
   return parsed as unknown as SecureConfirmRequest;
 }

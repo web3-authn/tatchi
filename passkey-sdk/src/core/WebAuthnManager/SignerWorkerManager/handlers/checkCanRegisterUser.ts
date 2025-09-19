@@ -12,6 +12,7 @@ import type { onProgressEvents } from '../../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
+import { errorMessage } from '@/utils/errors';
 
 
 export async function checkCanRegisterUser({
@@ -95,15 +96,13 @@ export async function checkCanRegisterUser({
       logs: wasmResult.logs,
       error: wasmResult.error,
     };
-  } catch (error) {
+  } catch (error: unknown) {
     // Preserve the detailed error message instead of converting to generic error
     console.error('checkCanRegisterUser failed:', error);
     return {
       success: false,
       verified: false,
-      error: (error && typeof (error as { message?: unknown }).message === 'string')
-        ? (error as { message: string }).message
-        : 'Unknown error occurred',
+      error: errorMessage(error) || 'Unknown error occurred',
       logs: [],
     };
   }

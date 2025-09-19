@@ -6,7 +6,7 @@
  * functionality and type definitions
  */
 
-import {
+import type {
   FinalExecutionOutcome,
   QueryResponseKind,
   TxExecutionStatus,
@@ -20,7 +20,6 @@ import {
   RpcQueryRequest,
   FinalityReference,
 } from "@near-js/types";
-import { PublicKey } from "@near-js/crypto";
 import { base64Encode } from "../utils";
 import { errorMessage } from "../utils/errors";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
@@ -73,6 +72,14 @@ export class SignedTransaction {
     this.borsh_bytes = data.borsh_bytes;
   }
 
+  static fromPlain(input: { transaction: unknown; signature: unknown; borsh_bytes: number[] }): SignedTransaction {
+    return new SignedTransaction({
+      transaction: input.transaction as WasmTransaction,
+      signature: input.signature as WasmSignature,
+      borsh_bytes: input.borsh_bytes,
+    });
+  }
+
   encode(): ArrayBuffer {
     // If borsh_bytes are already available, use them
     return (new Uint8Array(this.borsh_bytes)).buffer;
@@ -119,7 +126,7 @@ export function encodeSignedTransactionBase64(signed: EncodableSignedTx): string
  * MinimalNearClient provides a simplified interface for NEAR protocol interactions
  */
 export interface NearClient {
-  viewAccessKey(accountId: string, publicKey: PublicKey | string, finalityQuery?: FinalityReference): Promise<AccessKeyView>;
+  viewAccessKey(accountId: string, publicKey: string, finalityQuery?: FinalityReference): Promise<AccessKeyView>;
   viewAccessKeyList(accountId: string, finalityQuery?: FinalityReference): Promise<AccessKeyList>;
   viewAccount(accountId: string): Promise<AccountView>;
   viewBlock(params: BlockReference): Promise<BlockResult>;
@@ -208,8 +215,8 @@ export class MinimalNearClient implements NearClient {
     return this.makeRpcCall<RpcQueryRequest, T>(RpcCallType.Query, params, 'Query');
   }
 
-  async viewAccessKey(accountId: string, publicKey: PublicKey | string, finalityQuery?: FinalityReference): Promise<AccessKeyView> {
-    const publicKeyStr = typeof publicKey === 'string' ? publicKey : publicKey.toString();
+  async viewAccessKey(accountId: string, publicKey: string, finalityQuery?: FinalityReference): Promise<AccessKeyView> {
+    const publicKeyStr = publicKey;
     const finality = finalityQuery?.finality || 'final';
     const params = {
       request_type: 'view_access_key',

@@ -8,6 +8,10 @@ import {
 import { AccountId, toAccountId } from "../../../types/accountIds";
 import { getDeviceNumberForAccount } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
+import type { WebAuthnRegistrationCredential } from '@/core/types/webauthn';
+import type { VRFChallenge } from '../../../types/vrf-worker';
+import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
+import { toError } from '@/utils/errors';
 
 /**
  * Same as deriveNearKeypairAndEncrypt, but takes a serialized WebAuthn registration credential
@@ -20,10 +24,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   options,
 }: {
   ctx: SignerWorkerManagerContext,
-  credential: any; // SerializedRegistrationCredential
+  credential: WebAuthnRegistrationCredential;
   nearAccountId: AccountId,
   options?: {
-    vrfChallenge?: any;
+    vrfChallenge?: VRFChallenge;
     deterministicVrfPublicKey?: string;
     contractId?: string;
     nonce?: string;
@@ -59,10 +63,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
             deterministicVrfPublicKey: options.deterministicVrfPublicKey,
           } : undefined,
           authenticatorOptions: options?.authenticatorOptions ? {
-            userVerification: (options.authenticatorOptions as any)?.userVerification,
+            userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
           } : undefined
-        } as any
+        }
       }
     });
 
@@ -99,7 +103,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       publicKey: wasmResult.publicKey,
       signedTransaction
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('WebAuthnManager: deriveNearKeypairAndEncryptFromSerialized error:', error);
     return {
       success: false,

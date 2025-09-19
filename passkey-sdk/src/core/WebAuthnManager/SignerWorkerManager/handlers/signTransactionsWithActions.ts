@@ -125,7 +125,7 @@ export async function signTransactionsWithActions({
 
     return results;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('WebAuthnManager: Batch transaction signing error:', error);
     throw error;
   }

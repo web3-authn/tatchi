@@ -438,7 +438,7 @@ export class TxTree extends LitElementWithProps {
 
   private async handleCopyClick(e: Event, node: TreeNode) {
     e.stopPropagation();
-    const value = (node as any)?.copyValue as string | undefined;
+    const value = node.copyValue;
     if (!value) return;
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -670,7 +670,7 @@ export class TxTree extends LitElementWithProps {
   private computePlainLabel(treeNode: TreeNode): string {
     // Action-level labels
     if (treeNode.action) {
-      const a = treeNode.action as any;
+      const a = treeNode.action;
       switch (a.type) {
         case 'FunctionCall': {
           const method = a.methodName;

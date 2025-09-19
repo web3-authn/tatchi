@@ -1,4 +1,4 @@
-import { AccessKeyView, TxExecutionStatus } from "@near-js/types";
+import type { AccessKeyView, TxExecutionStatus } from "@near-js/types";
 
 export const DEFAULT_WAIT_STATUS = {
   executeAction: "EXECUTED_OPTIMISTIC" as TxExecutionStatus,

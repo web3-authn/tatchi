@@ -426,7 +426,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     super.disconnectedCallback();
     try { this.tooltipResizeObserver?.disconnect(); } catch {}
     try { this.buttonResizeObserver?.disconnect(); } catch {}
-    try { window.removeEventListener('keydown', this.handleKeyDown as any); } catch {}
+    try { window.removeEventListener('keydown', this.handleKeyDown as unknown as EventListener); } catch {}
     if (this.pressTimer) {
       try { clearTimeout(this.pressTimer); } catch {}
       this.pressTimer = null;

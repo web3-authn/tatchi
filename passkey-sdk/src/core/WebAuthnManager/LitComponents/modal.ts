@@ -22,7 +22,7 @@ export async function ensureIframeModalDefined(): Promise<void> {
       existing.addEventListener('error', (e) => reject(e), { once: true });
       return;
     }
-    const base = (window as any).__W3A_EMBEDDED_BASE__ || '/sdk/embedded/';
+    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || '/sdk/embedded/';
     const script = document.createElement('script');
     script.type = 'module';
     script.async = true;
@@ -45,6 +45,17 @@ async function ensureHostModalDefined(): Promise<void> {
   await import('./IframeModalConfirmer/ModalTxConfirmer');
 }
 
+type PasskeyModalConfirmElement = HTMLElement & {
+  nearAccountId?: string;
+  txSigningRequests?: TransactionInputWasm[];
+  intentDigest?: string;
+  vrfChallenge?: VRFChallenge;
+  theme?: 'dark' | 'light';
+  loading?: boolean;
+  deferClose?: boolean;
+  close?: (confirmed: boolean) => void;
+};
+
 export async function mountHostModalWithHandle({
   ctx,
   summary,
@@ -62,19 +73,19 @@ export async function mountHostModalWithHandle({
   theme?: 'dark' | 'light',
   nearAccountIdOverride?: string,
 }): Promise<{
-  element: HTMLElement & { close: (confirmed: boolean) => void };
+  element: PasskeyModalConfirmElement;
   close: (confirmed: boolean) => void
 }> {
   await ensureHostModalDefined();
-  const el = document.createElement('passkey-modal-confirm') as any;
-  (el as any).nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
-  (el as any).txSigningRequests = txSigningRequests || [];
-  (el as any).intentDigest = summary?.intentDigest;
-  if (vrfChallenge) (el as any).vrfChallenge = vrfChallenge;
-  if (theme) (el as any).theme = theme;
-  if (loading != null) (el as any).loading = !!loading;
+  const el = document.createElement('passkey-modal-confirm') as unknown as PasskeyModalConfirmElement;
+  el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
+  el.txSigningRequests = txSigningRequests || [];
+  el.intentDigest = summary?.intentDigest;
+  if (vrfChallenge) el.vrfChallenge = vrfChallenge;
+  if (theme) el.theme = theme;
+  if (loading != null) el.loading = !!loading;
   // Two-phase close: let caller control removal
-  (el as any).deferClose = true;
+  el.deferClose = true;
   document.body.appendChild(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   return { element: el, close };
@@ -96,11 +107,11 @@ export async function awaitHostModalDecisionWithHandle({
   nearAccountIdOverride?: string,
 }): Promise<{
   confirmed: boolean;
-  handle: { element: any; close: (confirmed: boolean) => void };
+  handle: { element: PasskeyModalConfirmElement; close: (confirmed: boolean) => void };
 }> {
   await ensureHostModalDefined();
   return new Promise((resolve) => {
-    const el = document.createElement('passkey-modal-confirm') as any;
+    const el = document.createElement('passkey-modal-confirm') as unknown as PasskeyModalConfirmElement;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;

@@ -80,9 +80,9 @@ function isSetInitPayload(payload: unknown): payload is IframeModalMessagePayloa
 }
 
 function isSetTxDataPayload(payload: unknown): payload is IframeModalMessagePayloads['SET_TX_DATA'] {
-  return isObject(payload) &&
-    typeof (payload as any).nearAccountId === 'string' &&
-    Array.isArray((payload as any).txSigningRequests);
+  if (!isObject(payload)) return false;
+  const p = payload as { nearAccountId?: unknown; txSigningRequests?: unknown };
+  return typeof p.nearAccountId === 'string' && Array.isArray(p.txSigningRequests);
 }
 
 function isCloseModalPayload(payload: unknown): payload is IframeModalMessagePayloads['CLOSE_MODAL'] {
@@ -210,8 +210,8 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
 
 // Proxy modal decision events to parent (composed+bubbling custom events)
 function hookDecisionEvents(): void {
-  const forward = (type: 'CONFIRM' | 'CANCEL', payload?: any): void => {
-    const message: IframeModalMessage = { type: type as any, payload } as any;
+  const forward = (type: 'CONFIRM' | 'CANCEL'): void => {
+    const message: IframeModalMessage = { type } as IframeModalMessage;
     try { window.parent.postMessage(message, PARENT_ORIGIN || '*'); } catch {}
   };
   // On confirm, simply forward to parent (host prompts WebAuthn)

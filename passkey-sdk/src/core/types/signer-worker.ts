@@ -9,6 +9,8 @@ export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums direc
 import { StripFree } from "./index.js";
 import type { onProgressEvents } from "./passkeyManager.js";
 
+export type WasmTransaction = wasmModule.WasmTransaction;
+export type WasmSignature = wasmModule.WasmSignature;
 export type TransactionPayload = StripFree<wasmModule.TransactionPayload>;
 export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
 /**
@@ -211,14 +213,14 @@ export interface SignerWorkerMessage<T extends WorkerRequestType, R extends Wasm
 export type ProgressMessage = wasmModule.WorkerProgressMessage;
 
 // Type guard for basic progress message validation during development
-export function isProgressMessage(obj: any): obj is ProgressMessage {
+export function isProgressMessage(obj: unknown): obj is ProgressMessage {
   return (
     typeof obj === 'object' &&
     obj !== null &&
-    typeof obj.message_type === 'string' &&
-    typeof obj.step === 'string' &&
-    typeof obj.message === 'string' &&
-    typeof obj.status === 'string'
+    typeof (obj as { message_type?: unknown }).message_type === 'string' &&
+    typeof (obj as { step?: unknown }).step === 'string' &&
+    typeof (obj as { message?: unknown }).message === 'string' &&
+    typeof (obj as { status?: unknown }).status === 'string'
   );
 }
 
@@ -256,7 +258,7 @@ export interface ProgressStepMap {
 // Base interface for all worker responses
 export interface BaseWorkerResponse {
   type: WorkerResponseType;
-  payload: Record<string, any>;
+  payload: unknown;
 }
 
 // Map request types to their expected success response payloads (WASM types)
@@ -284,7 +286,7 @@ export interface WorkerErrorResponse extends BaseWorkerResponse {
   payload: {
     error: string;
     errorCode?: WorkerErrorCode;
-    context?: Record<string, any>;
+    context?: Record<string, unknown>;
   };
 }
 

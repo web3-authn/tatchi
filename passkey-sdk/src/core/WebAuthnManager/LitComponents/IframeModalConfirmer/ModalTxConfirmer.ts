@@ -641,7 +641,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   private updateTheme() {
     // Update styles based on the current theme
     const selectedTheme = MODAL_CONFIRMER_THEMES[this.theme] || MODAL_CONFIRMER_THEMES.dark;
-    const host = (selectedTheme as any)?.host || {};
+    const host = selectedTheme.host || {};
     // Promote essential host values to base variables so global tokens are populated
     this.styles = {
       ...selectedTheme,
@@ -665,7 +665,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   }
 
   disconnectedCallback() {
-    try { window.removeEventListener('resize', this._onResize as any); } catch {}
+    try { window.removeEventListener('resize', this._onResize as unknown as EventListener); } catch {}
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
     super.disconnectedCallback();
   }
@@ -677,14 +677,15 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     // Initialize styles based on theme
     this.updateTheme();
     this._updateTxTreeWidth();
-    try { window.addEventListener('resize', this._onResize, { passive: true } as any); } catch {}
+    try { window.addEventListener('resize', this._onResize as unknown as EventListener, { passive: true } as AddEventListenerOptions); } catch {}
     // Listen globally so Escape works regardless of focus target
     try { window.addEventListener('keydown', this._onKeyDown); } catch {}
     // Ensure this iframe/host receives keyboard focus so ESC works immediately
     try {
       // Make host focusable and focus it without scrolling
-      (this as HTMLElement).tabIndex = (this as HTMLElement).tabIndex ?? -1;
-      (this as HTMLElement).focus({ preventScroll: true } as any);
+      const hostEl = this as unknown as HTMLElement;
+      hostEl.tabIndex = hostEl.tabIndex ?? -1;
+      hostEl.focus({ preventScroll: true } as FocusOptions);
       // Also attempt to focus the frame window in case we're inside an iframe
       if (typeof window.focus === 'function') {
         window.focus();

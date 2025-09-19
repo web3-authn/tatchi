@@ -130,7 +130,7 @@ export async function deriveNearKeypairAndEncrypt({
       publicKey: wasmResult.publicKey,
       signedTransaction
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('WebAuthnManager: Dual PRF registration error:', error);
     return {
       success: false,

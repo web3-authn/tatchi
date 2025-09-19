@@ -72,14 +72,16 @@ export async function signNep413Message({ ctx, payload }: {
       state: response.payload.state || undefined
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('SignerWorkerManager: NEP-413 signing error:', error);
     return {
       success: false,
       accountId: '',
       publicKey: '',
       signature: '',
-      error: error.message || 'Unknown error'
+      error: (error && typeof (error as { message?: unknown }).message === 'string')
+        ? (error as { message: string }).message
+        : 'Unknown error'
     };
   }
 }

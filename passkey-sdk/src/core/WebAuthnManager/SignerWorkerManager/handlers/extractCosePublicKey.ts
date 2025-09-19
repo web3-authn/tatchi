@@ -26,7 +26,7 @@ export async function extractCosePublicKey({ ctx, attestationObjectBase64url }: 
     } else {
       throw new Error('COSE public key extraction failed in WASM worker');
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     throw error;
   }
 }

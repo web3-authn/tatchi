@@ -42,6 +42,9 @@ import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
 import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
+import type { RegistrationCredentialConfirmationPayload } from './handlers/validation';
+import type { TransactionContext } from '../../types/rpc';
+import { toError } from '@/utils/errors';
 
 
 export interface SignerWorkerManagerContext {
@@ -191,7 +194,7 @@ export class SignerWorkerManager {
       } else {
         worker.terminate();
       }
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn('SignerWorkerManager: Failed to create replacement worker:', error);
     }
   }
@@ -234,9 +237,9 @@ export class SignerWorkerManager {
               reject(new Error('Pre-warm timeout'));
             }, 5000);
 
-          } catch (error) {
+          } catch (error: unknown) {
             console.error(`WebAuthnManager: Failed to create worker ${i + 1}:`, error);
-            reject(error);
+            reject(toError(error));
           }
         })
       );
@@ -244,7 +247,7 @@ export class SignerWorkerManager {
 
     try {
       await Promise.allSettled(promises);
-    } catch (error) {
+    } catch (error: unknown) {
       console.warn('WebAuthnManager: Some workers failed to pre-warm:', error);
     }
   }
@@ -330,7 +333,7 @@ export class SignerWorkerManager {
             responseType: typeof response,
             isObject: isObject(response),
             hasType: isObject(response) && 'type' in response,
-            type: (response as any)?.type
+            type: (isObject(response) && 'type' in response) ? (response as { type?: unknown }).type : undefined
           });
 
           // Check if it's a generic Error object
@@ -346,11 +349,12 @@ export class SignerWorkerManager {
           clearTimeout(timeoutId);
           this.terminateAndReplaceWorker(worker);
           reject(new Error(`Unknown worker response format: ${JSON.stringify(response)}`));
-        } catch (error) {
+        } catch (error: unknown) {
           clearTimeout(timeoutId);
           this.terminateAndReplaceWorker(worker);
           console.error('Error processing worker message:', error);
-          reject(new Error(`Worker message processing error: ${error instanceof Error ? error.message : String(error)}`));
+          const err = toError(error);
+          reject(new Error(`Worker message processing error: ${err.message}`));
         }
       };
 
@@ -406,9 +410,17 @@ export class SignerWorkerManager {
    * Derive NEAR keypair from a serialized WebAuthn registration credential
    */
   async deriveNearKeypairAndEncryptFromSerialized(args: {
-    credential: any;
+    credential: WebAuthnRegistrationCredential;
     nearAccountId: AccountId;
-    options?: any;
+    options?: {
+      vrfChallenge?: VRFChallenge;
+      deterministicVrfPublicKey?: string;
+      contractId?: string;
+      nonce?: string;
+      blockHash?: string;
+      authenticatorOptions?: AuthenticatorOptions;
+      deviceNumber?: number;
+    };
   }): Promise<{
     success: boolean;
     nearAccountId: AccountId;
@@ -441,7 +453,7 @@ export class SignerWorkerManager {
   }): Promise<{
     success: boolean;
     verified?: boolean;
-    registrationInfo?: any;
+    registrationInfo?: unknown;
     logs?: string[];
     signedTransactionBorsh?: number[];
     error?: string;
@@ -543,16 +555,7 @@ export class SignerWorkerManager {
     deviceNumber: number;
     contractId: string;
     nearRpcUrl: string;
-  }): Promise<{
-    confirmed: boolean;
-    requestId: string;
-    intentDigest: string;
-    credential?: any;
-    prfOutput?: string;
-    vrfChallenge?: any;
-    transactionContext?: any;
-    error?: string;
-  }> {
+  }): Promise<RegistrationCredentialConfirmationPayload> {
     return requestRegistrationCredentialConfirmation({ ctx: this.getContext(), ...args });
   }
 

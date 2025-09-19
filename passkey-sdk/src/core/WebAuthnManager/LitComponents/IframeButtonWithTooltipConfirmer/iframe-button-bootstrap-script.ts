@@ -222,19 +222,20 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
       if (isSetStylePayload(payload) && payload) {
         if (el.updateButtonStyles) {
           el.updateButtonStyles(
-            payload.buttonSizing || ({} as any),
+            (payload.buttonSizing || {}),
             payload.tooltipPosition,
             payload.embeddedButtonTheme,
             payload.theme,
             payload.activationMode
           );
         } else {
-          el.buttonSizing = payload.buttonSizing || ({} as any);
+          if (payload.buttonSizing) el.buttonSizing = payload.buttonSizing;
           if (payload.tooltipPosition) {
             el.tooltipPosition = payload.tooltipPosition;
           }
-          if (payload.activationMode && 'activationMode' in el) {
-            (el as any).activationMode = payload.activationMode;
+          // activationMode is optional on element; set only if present on element
+          if (payload.activationMode && (el as unknown as { activationMode?: 'tap' | 'press' }).activationMode !== undefined) {
+            (el as unknown as { activationMode?: 'tap' | 'press' }).activationMode = payload.activationMode;
           }
         }
 

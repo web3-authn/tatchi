@@ -43,5 +43,5 @@ export async function requestRegistrationCredentialConfirmation({
     throw new Error('Unexpected worker response');
   }
 
-  return parseAndValidateRegistrationCredentialConfirmationPayload(res.payload as any);
+  return parseAndValidateRegistrationCredentialConfirmationPayload(res.payload as unknown);
 }

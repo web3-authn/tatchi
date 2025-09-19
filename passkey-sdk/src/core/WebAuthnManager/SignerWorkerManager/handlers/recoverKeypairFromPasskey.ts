@@ -58,7 +58,7 @@ export async function recoverKeypairFromPasskey({
       accountIdHint: response.payload.accountIdHint
     };
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('SignerWorkerManager: Dual PRF keypair recovery error:', error);
     throw error;
   }

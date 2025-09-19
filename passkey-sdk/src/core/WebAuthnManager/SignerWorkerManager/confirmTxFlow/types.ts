@@ -3,6 +3,7 @@ import { TransactionInputWasm } from '../../../types';
 import { ConfirmationConfig } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
 import { RpcCallPayload } from '../../../types/signer-worker';
+import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
 
 // === SECURE CONFIRM TYPES (V2) ===
 
@@ -15,7 +16,7 @@ export interface SecureConfirmDecision {
   requestId: string;
   intentDigest?: string;
   confirmed: boolean;
-  credential?: any; // Serialized WebAuthn credential
+  credential?: SerializableCredential; // Serialized WebAuthn credential
   prfOutput?: string; // Base64url-encoded PRF output
   vrfChallenge?: VRFChallenge; // VRF challenge generated during confirmation
   transactionContext?: TransactionContext; // NEAR data fetched during confirmation
@@ -34,8 +35,8 @@ export interface TransactionSummary {
     deviceNumber: number;
     deterministicVrfPublicKey?: string;
   };
-  vrfChallenge?: any;
-  summary?: any;
+  vrfChallenge?: VRFChallenge;
+  summary?: unknown;
 }
 
 // Payload to return to Rust WASM is snake_case
@@ -43,7 +44,7 @@ export interface WorkerConfirmationResponse {
   request_id: string;
   intent_digest?: string;
   confirmed: boolean;
-  credential?: any;
+  credential?: SerializableCredential;
   prf_output?: string;
   vrf_challenge?: VRFChallenge;     // VRF challenge generated during confirmation
   transaction_context?: TransactionContext; // NEAR data fetched during confirmation
@@ -61,7 +62,7 @@ export enum SecureConfirmationType {
 }
 
 // V2 request envelope (preferred for new call sites)
-export interface SecureConfirmRequest<TPayload = any, TSummary = any> {
+export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
   schemaVersion: 2;
   requestId: string;
   type: SecureConfirmationType;
@@ -104,6 +105,13 @@ export interface ExportSummary { operation: 'Export Private Key'; accountId: str
 export interface Nep413Summary { operation: 'Sign NEP-413 Message'; message: string; recipient: string; accountId: string }
 
 // Type guards
-export function isSecureConfirmRequestV2(x: any): x is SecureConfirmRequest {
-  return !!x && typeof x === 'object' && x.schemaVersion === 2 && typeof x.type === 'string' && typeof x.requestId === 'string';
+export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
+  return !!x
+    && typeof x === 'object'
+    && (x as { schemaVersion?: unknown }).schemaVersion === 2
+    && typeof (x as { type?: unknown }).type === 'string'
+    && typeof (x as { requestId?: unknown }).requestId === 'string';
 }
+
+// Serialized WebAuthn credential (authentication or registration)
+export type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;

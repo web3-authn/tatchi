@@ -402,5 +402,4 @@ export function fromTransactionInputWasm(tx: TransactionInputWasm): TransactionI
 export function fromTransactionInputsWasm(txs: TransactionInputWasm[]): TransactionInput[] {
   return (txs || []).map(fromTransactionInputWasm);
 }
-import { isObject } from '../WalletIframe/validation';import { AccessKey } from "@near-js/transactions";
-
+import { isObject } from '../WalletIframe/validation';

@@ -13,7 +13,8 @@ import type { TransactionContext } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
 import type { NearClient, SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
-import { ActionPhase, ActionStatus } from '../types/passkeyManager';
+import { ActionPhase, ActionStatus, ActionSSEEvent, onProgressEvents } from '../types/passkeyManager';
+import { toError } from '../../utils/errors';
 
 //////////////////////////////
 // === PUBLIC API ===
@@ -48,8 +49,8 @@ export async function executeAction(args: {
       options: args.options,
       confirmationConfigOverride: undefined
     });
-  } catch (error: any) {
-    throw error;
+  } catch (error: unknown) {
+    throw toError(error);
   }
 }
 
@@ -101,8 +102,8 @@ export async function signTransactionsWithActions(args: {
       confirmationConfigOverride: undefined
       // Public API always uses undefined override (respects user settings)
     });
-  } catch (error: any) {
-    throw error;
+  } catch (error: unknown) {
+    throw toError(error);
   }
 }
 
@@ -193,7 +194,7 @@ export async function sendTransaction({
       status: ActionStatus.SUCCESS,
       message: `Transaction ${txId} completed `
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('[sendTransaction] failed:', error);
     // Centralized cleanup: release reserved nonce on failure (idempotent)
     try {
@@ -202,7 +203,7 @@ export async function sendTransaction({
     } catch (nonceError) {
       console.warn('[sendTransaction]: Failed to release nonce after failure:', nonceError);
     }
-    throw error;
+    throw toError(error);
   }
 
   const actionResult: ActionResult = {
@@ -278,18 +279,18 @@ export async function executeActionInternal({
     afterCall?.(true, txResult);
     return txResult;
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[executeAction] Error during execution:', error);
-    onError?.(error);
+    const e = toError(error);
+    onError?.(e);
     onEvent?.({
       step: 0,
       phase: ActionPhase.ACTION_ERROR,
       status: ActionStatus.ERROR,
-      message: `Action failed: ${error.message}`,
-      error: error.message
+      message: `Action failed: ${e.message}`,
+      error: e.message
     });
-
-    const result = { success: false, error: error.message, transactionId: undefined } as any;
+    const result: ActionResult = { success: false, error: e.message, transactionId: undefined };
     afterCall?.(false, result);
     return result;
   }
@@ -344,10 +345,10 @@ export async function signAndSendTransactionsInternal({
         })
       ));
     }
-  } catch (error) {
+  } catch (error: unknown) {
     // If signing fails, release all reserved nonces
     context.webAuthnManager.getNonceManager().releaseAllNonces();
-    throw error;
+    throw toError(error);
   }
 }
 
@@ -507,7 +508,7 @@ async function wasmAuthenticateAndSignTransactions(
     // VRF challenge and NEAR data computed in confirmation flow
     confirmationConfigOverride: confirmationConfigOverride,
     // Pass through the onEvent callback for progress updates
-    onEvent: onEvent ? (progressEvent) => {
+    onEvent: onEvent ? (progressEvent: onProgressEvents) => {
       if (progressEvent.phase === ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION) {
         onEvent?.({
           step: 4,
@@ -540,7 +541,8 @@ async function wasmAuthenticateAndSignTransactions(
           message: 'Transaction signed successfully',
         });
       }
-      onEvent({ ...progressEvent } as any);
+      // Bridge worker onProgressEvents (generic) to ActionSSEEvent expected by public hooks
+      onEvent(progressEvent as ActionSSEEvent);
     } : undefined,
   });
 
