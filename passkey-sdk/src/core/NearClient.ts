@@ -23,6 +23,7 @@ import type {
 import { base64Encode } from "../utils";
 import { errorMessage } from "../utils/errors";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
+import { isFunction } from './WalletIframe/validation';
 import {
   WasmTransaction,
   WasmSignature,
@@ -106,11 +107,11 @@ type EncodableSignedTx =
 
 export function encodeSignedTransactionBase64(signed: EncodableSignedTx): string {
   try {
-    if (typeof signed.base64Encode === 'function') {
-      return signed.base64Encode();
+    if (isFunction((signed as { base64Encode?: unknown }).base64Encode)) {
+      return (signed as { base64Encode: () => string }).base64Encode();
     }
-    if (typeof signed.encode === 'function') {
-      return base64Encode(signed.encode());
+    if (isFunction((signed as { encode?: unknown }).encode)) {
+      return base64Encode((signed as { encode: () => ArrayBuffer }).encode());
     }
     const bytes = signed.borsh_bytes;
     if (Array.isArray(bytes)) {
@@ -261,8 +262,29 @@ export class MinimalNearClient implements NearClient {
     const params = {
       signed_tx_base64: encodeSignedTransactionBase64(signedTransaction),
       wait_until: waitUntil
+    };
+
+    // Retry a few times on transient RPC errors commonly seen with concurrent broadcasts
+    const maxAttempts = 3;
+    let lastError: unknown = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await this.makeRpcCall<typeof params, FinalExecutionOutcome>(RpcCallType.Send, params, 'Send Transaction');
+      } catch (err: unknown) {
+        lastError = err;
+        const msg = errorMessage(err);
+        const retryable = /server error|internal|temporar|timeout|too many requests|429/i.test(msg || '');
+        if (!retryable || attempt === maxAttempts) {
+          throw err;
+        }
+        // Exponential backoff with jitter (100–400ms approx)
+        const base = 100 * Math.pow(2, attempt - 1);
+        const jitter = Math.floor(Math.random() * 75);
+        await new Promise(r => setTimeout(r, base + jitter));
+      }
     }
-    return await this.makeRpcCall<typeof params, FinalExecutionOutcome>(RpcCallType.Send, params, 'Send Transaction');
+    // Should be unreachable
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
   async callFunction<A, T>(

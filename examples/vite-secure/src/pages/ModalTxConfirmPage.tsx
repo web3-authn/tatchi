@@ -223,7 +223,7 @@ export const ModalTxConfirmPage: React.FC = () => {
           }
         ],
         options: {
-          executeSequentially: false,
+          executionWait: { mode: 'parallelStaggered', staggerMs: 250 },
           onEvent: (event) => {
             console.log('send TX event:', event);
             switch (event.phase) {

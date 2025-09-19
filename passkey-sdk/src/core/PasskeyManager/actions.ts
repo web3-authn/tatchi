@@ -5,8 +5,10 @@ import type {
   VerifyAndSignTransactionResult,
   ActionHooksOptions,
   ActionResult,
-  SignAndSendTransactionHooksOptions
+  SignAndSendTransactionHooksOptions,
+  ExecutionWaitOption
 } from '../types/passkeyManager';
+import type { TxExecutionStatus } from '@near-js/types';
 import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import type { TransactionContext } from '../types/rpc';
@@ -52,6 +54,59 @@ export async function executeAction(args: {
   } catch (error: unknown) {
     throw toError(error);
   }
+}
+
+// Helper: parallel broadcast with per-item stagger. Keeps UI snappy while avoiding RPC bursts.
+async function sendTransactionsParallelStaggered({
+  context,
+  signedTxs,
+  options,
+  staggerMs,
+}: {
+  context: PasskeyManagerContext,
+  signedTxs: VerifyAndSignTransactionResult[],
+  options?: SignAndSendTransactionHooksOptions,
+  staggerMs: number,
+}): Promise<ActionResult[]> {
+  return Promise.all(signedTxs.map(async (tx, i) => {
+    if (i > 0 && staggerMs > 0) {
+      await new Promise(r => setTimeout(r, i * staggerMs));
+    }
+    return sendTransaction({
+      context,
+      signedTransaction: tx.signedTransaction,
+      options
+    });
+  }));
+}
+
+// Execution plan types for broadcasting multiple transactions
+interface SequentialExecutionPlan {
+  mode: 'sequential';
+  waitUntil?: TxExecutionStatus;
+}
+interface ParallelStaggeredExecutionPlan {
+  mode: 'parallelStaggered';
+  staggerMs: number;
+}
+type ExecutionPlan = SequentialExecutionPlan | ParallelStaggeredExecutionPlan;
+
+// Helper: parse executionWait into a clear execution plan
+function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): ExecutionPlan {
+  const ew = options?.executionWait as ExecutionWaitOption | undefined;
+  if (!ew) {
+    return { mode: 'sequential', waitUntil: options?.waitUntil };
+  }
+  if ('mode' in ew) {
+    if (ew.mode === 'sequential') {
+      return { mode: 'sequential', waitUntil: ew.waitUntil };
+    }
+    // parallelStaggered
+    const ms = Math.max(0, Number(ew.staggerMs ?? 75));
+    return { mode: 'parallelStaggered', staggerMs: ms };
+  }
+  // Fallback: treat unknown shapes as sequential using provided waitUntil
+  return { mode: 'sequential', waitUntil: options?.waitUntil };
 }
 
 /**
@@ -319,32 +374,27 @@ export async function signAndSendTransactionsInternal({
       confirmationConfigOverride
     });
 
-    // Default to sequential execution unless explicitly disabled.
-    // This avoids InvalidNonce errors when multiple broadcasts race.
-    const executeSequentially = options?.executeSequentially !== false;
-    if (executeSequentially) {
-      // Note: sendTransaction handles nonce release on failure centrally
-      const txResults = [];
-      for (const tx of signedTxs) {
+    // Determine execution strategy from the new executionWait option.
+    const plan = parseExecutionWait(options);
+    if (plan.mode === 'sequential') {
+      const txResults: ActionResult[] = [];
+      for (let i = 0; i < signedTxs.length; i++) {
+        const tx = signedTxs[i];
         const txResult = await sendTransaction({
           context,
           signedTransaction: tx.signedTransaction,
-          options
+          options: {
+            ...options,
+            waitUntil: plan.waitUntil ?? options?.waitUntil,
+          }
         });
         txResults.push(txResult);
       }
       return txResults;
-
-    } else {
-      // Parallel execution; sendTransaction handles failure cleanup per tx
-      return Promise.all(signedTxs.map(async (tx) =>
-        sendTransaction({
-          context,
-          signedTransaction: tx.signedTransaction,
-          options
-        })
-      ));
     }
+
+    // Parallel execution with configurable staggering to reduce transient RPC failures
+    return await sendTransactionsParallelStaggered({ context, signedTxs, options, staggerMs: plan.staggerMs });
   } catch (error: unknown) {
     // If signing fails, release all reserved nonces
     context.webAuthnManager.getNonceManager().releaseAllNonces();
@@ -490,14 +540,7 @@ async function wasmAuthenticateAndSignTransactions(
     }
   });
 
-  // Use the unified action-based WASM worker transaction signing
-  // Ensure freshest nonce+block context before entering confirmation flow
-  try {
-    await webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient, { force: true });
-  } catch (e) {
-    console.warn('[wasmAuthenticateAndSignTransactions]: Nonce prefetch (force) failed:', e);
-  }
-
+  // Nonce will be fetched within the confirmation flow
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
     transactions: transactionInputsWasm,
     rpcCall: {

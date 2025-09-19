@@ -23,13 +23,14 @@ export const DebugBanner: React.FC = () => {
     return () => { mounted = false; };
   }, [passkeyManager]);
 
-  const status = walletIframeConnected ? 'iframe connected' : (connecting ? 'initializing…' : 'waiting for READY');
+  const status = walletIframeConnected ? 'connected' : (connecting ? 'initializing…' : 'waiting for READY');
 
   return (
     <div style={{
       position: 'fixed', bottom: 0, zIndex: 2147483647,
       background: walletIframeConnected ? 'rgba(16,185,129,0.15)' : 'rgba(234,179,8,0.15)',
       borderBottom: '1px solid rgba(0,0,0,0.1)',
+      borderRadius: '0px 4px 0px 0px',
       padding: '6px 10px', fontSize: '12px', display: 'flex', gap: '12px', alignItems: 'center'
     }}>
       <strong>Wallet Iframe:</strong> <span>{status}</span>

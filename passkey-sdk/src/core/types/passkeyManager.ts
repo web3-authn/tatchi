@@ -496,11 +496,18 @@ export interface ActionHooksOptions {
   afterCall?: AfterCall<any>;
 }
 
+export type ExecutionWaitOption =
+  | { mode: 'sequential'; waitUntil?: TxExecutionStatus }
+  | { mode: 'parallelStaggered'; staggerMs: number };
+
 export interface SignAndSendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
-  executeSequentially?: boolean;
+  // Execution control for multi-transaction broadcasts:
+  // - { mode: 'sequential', waitUntil?: TxExecutionStatus }
+  // - { mode: 'parallelStaggered', staggerMs: number }
+  executionWait?: ExecutionWaitOption;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<any>;
 }

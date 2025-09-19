@@ -128,6 +128,8 @@ export class PasskeyManager {
       rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
     });
     await this.iframeRouter.init();
+    // Opportunistically warm remote NonceManager (no-op if user not initialized yet)
+    try { await this.iframeRouter.prefetchBlockheight(); } catch {}
   }
 
   /** Get the service iframe client if initialized. */
@@ -143,6 +145,23 @@ export class PasskeyManager {
 
   getNearClient(): NearClient {
     return this.nearClient;
+  }
+
+  /**
+   * Warm critical resources: delegates to WebAuthnManager and ensures iframe handshake when configured.
+   */
+  async warmCriticalResources(nearAccountId?: string): Promise<void> {
+    try {
+      // Core warm-up (NonceManager, IndexedDB, signer workers)
+      await this.webAuthnManager.warmCriticalResources(nearAccountId);
+      // Ensure iframe client is initialized and handshake completed (iframe mode only)
+      if (this.configs.iframeWallet?.walletOrigin) {
+        try {
+          if (!this.iframeRouter) await this.initWalletIframe();
+          await this.getLoginState(nearAccountId);
+        } catch {}
+      }
+    } catch {}
   }
 
   /**
@@ -204,6 +223,8 @@ export class PasskeyManager {
       try { await options?.beforeCall?.(); } catch {}
       try {
         const res = await this.iframeRouter.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        // Best-effort warm-up after successful login (non-blocking)
+        try { void this.warmCriticalResources(nearAccountId); } catch {}
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (err: any) {
@@ -214,7 +235,10 @@ export class PasskeyManager {
     }
     // Initialize current user before login
     await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient);
-    return loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
+    const res = await loginPasskey(this.getContext(), toAccountId(nearAccountId), options);
+    // Best-effort warm-up after successful login (non-blocking)
+    try { void this.warmCriticalResources(nearAccountId); } catch {}
+    return res;
   }
 
   /**
@@ -236,7 +260,10 @@ export class PasskeyManager {
    */
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
     if (this.iframeRouter) {
-      return this.iframeRouter.getLoginState(nearAccountId);
+      const state = await this.iframeRouter.getLoginState(nearAccountId);
+      // Best-effort prefetch of latest block context at wallet origin
+      try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+      return state;
     }
     return getLoginState(this.getContext(), nearAccountId ? toAccountId(nearAccountId) : undefined);
   }
@@ -469,7 +496,7 @@ export class PasskeyManager {
   async signAndSendTransactions({
     nearAccountId,
     transactions,
-    options = { executeSequentially: true }
+    options = {}
   }: {
     nearAccountId: string,
     transactions: TransactionInput[],
@@ -481,7 +508,10 @@ export class PasskeyManager {
         const res = await this.iframeRouter.signAndSendTransactions({
           nearAccountId,
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
-          options: { onEvent: options?.onEvent, executeSequentially: options?.executeSequentially }
+          options: {
+            onEvent: options?.onEvent,
+            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil }
+          }
         });
         // Emit completion
         const txIds = (res || []).map(r => r?.transactionId).filter(Boolean).join(', ');
@@ -635,8 +665,8 @@ export class PasskeyManager {
           signedTransaction,
           options: {
             onEvent: options?.onEvent,
-            ...(typeof options?.waitUntil !== 'undefined'
-              ? { waitUntil: options?.waitUntil }
+            ...(options && ('waitUntil' in options)
+              ? { waitUntil: options.waitUntil }
               : {})
           }
         });

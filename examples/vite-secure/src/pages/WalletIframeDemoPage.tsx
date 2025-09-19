@@ -178,7 +178,7 @@ export const WalletIframeDemoPage: React.FC = () => {
           },
         ],
         options: {
-          executeSequentially: true,
+          executionWait: { mode: 'sequential' },
           onEvent: (event) => {
             if (event?.message) toast.loading(event.message, { id: toastId });
             if (event?.phase === ActionPhase.STEP_9_ACTION_COMPLETE && event?.status === ActionStatus.SUCCESS) {
