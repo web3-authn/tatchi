@@ -1,0 +1,55 @@
+
+
+/* Translucent outer shell wrapping solid content */
+.glass-border-root {
+  box-sizing: border-box;
+  background: transparent;
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-xl);
+  padding: var(--fe-gap-2);
+  max-width: 860px;
+  width: 100%;
+  box-shadow: 2px 6px 10px var(--fe-shadow-strong);
+}
+
+.glass-border-inner {
+  box-sizing: border-box;
+  background: var(--fe-surface-solid);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
+  padding: 2rem;
+  box-shadow: 0 2px 4px var(--fe-shadow);
+  position: relative;
+}
+
+.black-gradient-border {
+  --border-angle: 0deg;
+  background: linear-gradient(#ffffff, #ffffff) padding-box,
+    conic-gradient(
+      from var(--border-angle),
+      rgba(0, 0, 0, 0.0) 0%,
+      rgba(0, 0, 0, 0.35) 10%,
+      rgba(0, 0, 0, 0.0) 20%,
+      rgba(0, 0, 0, 0.0) 100%
+    ) border-box;
+  border: 1px solid transparent;
+  border-radius: var(--fe-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 2px 4px var(--fe-shadow);
+  position: relative;
+  animation: border-angle-rotate 4s infinite linear;
+}
+
+/* Animated border system for lists */
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes border-angle-rotate {
+  from { --border-angle: 0deg; }
+  to { --border-angle: 360deg; }
+}

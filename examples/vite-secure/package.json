@@ -1,0 +1,36 @@
+{
+  "name": "wallet-secure",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --kill-others \"VITE_WALLET_ORIGIN=https://wallet.example.localhost VITE_WALLET_SERVICE_PATH=/wallet-service vite\" \"sh run_caddy.sh\"",
+    "build": "vite build",
+    "preview": "vite preview --host --port 5174"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "^5.76.1",
+    "@web3authn/passkey": "workspace:*",
+    "borsh": "^2.0.0",
+    "bs58": "^6.0.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.542.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-hot-toast": "^2.5.2",
+    "react-router-dom": "^7.6.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "@types/react": "^19.1.12",
+    "@types/react-dom": "^19.1.9",
+    "@vitejs/plugin-react": "^4.4.1",
+    "concurrently": "^9.1.2",
+    "globals": "^16.0.0",
+    "typescript": "~5.8.3",
+    "unenv": "^1.10.0",
+    "vite": "^6.3.5",
+    "vite-plugin-mkcert": "^1.17.8",
+    "vite-plugin-node-polyfills": "^0.24.0"
+  }
+}

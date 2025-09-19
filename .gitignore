@@ -1,7 +1,6 @@
 # Node modules
 node_modules
-frontend/node_modules
-relay-server/node_modules
+**/node_modules
 
 # All environment files
 .env
@@ -9,12 +8,25 @@ relay-server/node_modules
 **/.env.*
 
 # Frontend test certs
-frontend/certs
+examples/vite/certs
+examples/vite-secure/certs
+examples/nextjs/certs
+
+# Build output
+examples/vite/public
+examples/vite/dist
+
+examples/vite-secure/public
+examples/vite-secure/dist
+
+examples/nextjs/public
+examples/nextjs/dist
+
+examples/relay-server/dist
 
 # Playwright report
 packages/passkey/playwright-report
 test-results
-frontend/public
 
 # WASM worker outputs
 packages/passkey/dist
@@ -33,11 +45,6 @@ packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm.d.ts
 packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.js
 packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.d.ts
 
-frontend/public/workers
-
-# Build output
-frontend/dist
-relay-server/dist
 
 # editor configs
 .vscode/*

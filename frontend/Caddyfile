@@ -1,4 +1,0 @@
-example.localhost {
-  tls certs/example.localhost.pem certs/example.localhost-key.pem
-  reverse_proxy localhost:5173
-}

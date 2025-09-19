@@ -1,0 +1,101 @@
+.qr-code-container {
+}
+
+/* Modal Header */
+.qr-header {
+  position: relative;
+  display: grid;
+  place-content: center;
+  padding: 0rem;
+}
+
+.qr-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--w3a-colors-textPrimary, #1e293b);
+  padding-top: 0rem;
+  margin: 0;
+}
+
+.qr-body {
+  padding: 0rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-code-section {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* QR Code Display */
+.qr-code-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0rem;
+  padding: 1rem;
+  border-radius: 1.5rem;
+  width: 100%;
+  max-width: 300px;
+}
+
+.qr-instruction, .qr-status {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--w3a-colors-textSecondary, #1e293b);
+  text-align: center;
+}
+
+.animated-ellipsis {
+  display: inline-block;
+  width: 1.2em;
+  text-align: left;
+}
+
+.animated-ellipsis::after {
+  content: "...";
+  animation: ellipsis 1.5s infinite;
+}
+
+@keyframes ellipsis {
+  0% { content: "..."; }
+  25% { content: ""; }
+  50% { content: "."; }
+  75% { content: ".."; }
+  100% { content: "..."; }
+}
+
+.qr-code-image {
+  max-width: 200px;
+  height: auto;
+  border-radius: var(--w3a-border-radius-md, 0.5rem);
+}
+
+.qr-loading {
+  text-align: center;
+  padding: 2rem;
+  color: var(--w3a-colors-textSecondary, #64748b);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .qr-modal-content {
+    margin: 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+
+  .qr-code-image {
+    max-width: 200px;
+  }
+
+  .qr-code-display {
+    padding: var(--w3a-spacing-lg, 1.5rem);
+  }
+}
