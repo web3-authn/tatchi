@@ -4,6 +4,7 @@ import { ConfirmationConfig } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
 import { RpcCallPayload } from '../../../types/signer-worker';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../../types/webauthn';
+import { isObject, isString } from '../../../WalletIframe/validation';
 
 // === SECURE CONFIRM TYPES (V2) ===
 
@@ -106,11 +107,10 @@ export interface Nep413Summary { operation: 'Sign NEP-413 Message'; message: str
 
 // Type guards
 export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest {
-  return !!x
-    && typeof x === 'object'
+  return isObject(x)
     && (x as { schemaVersion?: unknown }).schemaVersion === 2
-    && typeof (x as { type?: unknown }).type === 'string'
-    && typeof (x as { requestId?: unknown }).requestId === 'string';
+    && isString((x as { type?: unknown }).type)
+    && isString((x as { requestId?: unknown }).requestId);
 }
 
 // Serialized WebAuthn credential (authentication or registration)

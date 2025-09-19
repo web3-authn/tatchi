@@ -21,7 +21,7 @@ import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
 import { W3A_TX_BUTTON_ID } from '../../LitComponents/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
-import { isObject, isFunction } from '../../../WalletIframe/validation';
+import { isObject, isFunction, isString } from '../../../WalletIframe/validation';
 import { errorMessage, toError, isTouchIdCancellationError } from '../../../../utils/errors';
 
 /**
@@ -161,6 +161,16 @@ export async function handlePromptUserConfirmInJsMainThread(
     vrfChallenge, // Generated here
     transactionContext: transactionContext, // Generated here
   };
+
+  // Refresh VRF challenge just-in-time and reflect it in the modal UI (cosmetic)
+  try {
+    const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
+    decision.vrfChallenge = refreshed;
+    decision.transactionContext = latestCtx;
+    try { if (confirmHandle?.element) { (confirmHandle.element as any).vrfChallenge = refreshed; } } catch {}
+  } catch (jitErr) {
+    console.debug('[SecureConfirm] JIT VRF refresh skipped:', jitErr);
+  }
 
   // 8. Collect credentials using generated VRF challenge
   let decisionWithCredentials: SecureConfirmDecision;
@@ -489,13 +499,24 @@ async function collectTouchIdCredentials({
   const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
     ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
     : (request.payload as RegisterAccountPayload).nearAccountId;
-  const vrfChallenge = decision.vrfChallenge; // Now comes from confirmation flow
+  let vrfChallenge = decision.vrfChallenge; // Comes from confirmation flow; may be refreshed below
 
   if (!nearAccountId) {
     throw new Error('nearAccountId not available for credential collection');
   }
   if (!vrfChallenge) {
     throw new Error('VRF challenge not available for credential collection');
+  }
+
+  // Refresh NEAR context and regenerate VRF challenge right before credential collection
+  // to avoid StaleChallenge errors when the user lingers in the confirm UI or in batched flows.
+  try {
+    const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
+    vrfChallenge = refreshed;
+    decision.vrfChallenge = refreshed;
+    decision.transactionContext = latestCtx;
+  } catch (e: unknown) {
+    console.warn('[SecureConfirm]: VRF refresh failed; proceeding with initial challenge/context', e);
   }
 
   let credential: PublicKeyCredential | undefined = undefined;
@@ -585,7 +606,7 @@ function parseTransactionSummary(summaryData: unknown): SummaryType {
   if (!summaryData) {
     return {};
   }
-  if (typeof summaryData === 'string') {
+  if (isString(summaryData)) {
     try {
       return JSON.parse(summaryData);
     } catch (parseError) {
@@ -649,4 +670,33 @@ function sanitizeForPostMessage<T>(data: T): ShallowPostMessageSafe<T> {
     return out as ShallowPostMessageSafe<T>;
   }
   return data as ShallowPostMessageSafe<T>;
+}
+
+// === Helpers ===
+async function refreshVrfChallenge(
+  ctx: SignerWorkerManagerContext,
+  request: SecureConfirmRequest,
+  nearAccountId: string,
+): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
+  const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+  const rpId = ctx.touchIdPrompt.getRpId();
+  const vrfWorkerManager = ctx.vrfWorkerManager;
+  if (!vrfWorkerManager) throw new Error('VrfWorkerManager not available');
+  const vrfChallenge = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
+    ? (await vrfWorkerManager.generateVrfKeypairBootstrap({
+        vrfInputData: {
+          userId: nearAccountId,
+          rpId,
+          blockHeight: latestCtx.txBlockHeight,
+          blockHash: latestCtx.txBlockHash,
+        },
+        saveInMemory: true,
+      })).vrfChallenge
+    : await vrfWorkerManager.generateVrfChallenge({
+        userId: nearAccountId,
+        rpId,
+        blockHeight: latestCtx.txBlockHeight,
+        blockHash: latestCtx.txBlockHash,
+      });
+  return { vrfChallenge, transactionContext: latestCtx };
 }

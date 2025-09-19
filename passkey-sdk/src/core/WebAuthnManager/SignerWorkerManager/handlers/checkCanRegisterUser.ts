@@ -13,6 +13,7 @@ import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { errorMessage } from '@/utils/errors';
+import { isObject, isString } from '../../../WalletIframe/validation';
 
 
 export async function checkCanRegisterUser({
@@ -47,9 +48,11 @@ export async function checkCanRegisterUser({
   try {
     // Accept either a real PublicKeyCredential or an already-serialized credential
     const isSerialized = (cred: unknown): cred is WebAuthnRegistrationCredential => {
-      return !!cred && typeof cred === 'object'
-        && typeof (cred as WebAuthnRegistrationCredential).response?.clientDataJSON === 'string'
-        && typeof (cred as WebAuthnRegistrationCredential).response?.attestationObject === 'string';
+      if (!isObject(cred)) return false;
+      const resp = (cred as { response?: unknown }).response;
+      if (!isObject(resp)) return false;
+      return isString((resp as { clientDataJSON?: unknown }).clientDataJSON)
+        && isString((resp as { attestationObject?: unknown }).attestationObject);
     };
 
     const serializedCredential: WebAuthnRegistrationCredential = isSerialized(credential)

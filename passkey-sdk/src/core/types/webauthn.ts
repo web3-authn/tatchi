@@ -73,6 +73,8 @@ export interface WebAuthnRegistrationCredential {
 export interface AuthenticationExtensionsClientOutputs {
   /** Application Identifier Extension output */
   appid?: boolean;
+  /** Application Identifier Exclude Extension output */
+  appidExclude?: boolean;
 
   /** Credential Properties Extension output */
   credProps?: CredentialPropertiesOutput;
@@ -82,6 +84,9 @@ export interface AuthenticationExtensionsClientOutputs {
 
   /** PRF (Pseudo-Random Function) Extension output */
   prf: AuthenticationExtensionsPRFOutputs;
+
+  /** User Verification Methods extension output (array of [uvm, keyProt, matcherProt]) */
+  uvm?: [number, number, number][];
 }
 
 /**

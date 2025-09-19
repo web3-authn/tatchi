@@ -178,7 +178,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
         onError: options?.onError,
         onEvent: options?.onEvent,
         waitUntil: options?.waitUntil,
-        executeSequentially: options?.executeSequentially
+        executionWait: options?.executionWait
       }}
       onSuccess={onSuccess}
       onCancel={onCancel}

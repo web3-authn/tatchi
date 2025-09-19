@@ -4,7 +4,7 @@ import {
   SecureConfirmRequest,
   SerializableCredential,
 } from './types';
-import { isObject } from '@/core/WalletIframe/validation';
+import { isObject, isString, isBoolean } from '@/core/WalletIframe/validation';
 import { errorMessage, toError } from '@/utils/errors';
 import { VRFChallenge } from '../../../types';
 import { TransactionContext } from '../../../types/rpc';
@@ -34,7 +34,7 @@ function isConfirmResponseEnvelope(msg: unknown): msg is ConfirmResponseEnvelope
   const data = (msg as { data?: unknown }).data;
   if (!isObject(data)) return false;
   const d = data as { requestId?: unknown; confirmed?: unknown };
-  return typeof d.requestId === 'string' && typeof d.confirmed === 'boolean';
+  return isString(d.requestId) && isBoolean(d.confirmed);
 }
 
 /**

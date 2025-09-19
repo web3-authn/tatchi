@@ -96,6 +96,33 @@ export class WebAuthnManager {
     } catch {}
   }
 
+  /**
+   * Warm critical resources to reduce first-action latency.
+   * - Initialize current user (sets up NonceManager and local state)
+   * - Prefetch latest block context (and nonce if missing)
+   * - Pre-open IndexedDB and warm encrypted key for the active account (best-effort)
+   * - Pre-warm signer workers in the background
+   */
+  async warmCriticalResources(nearAccountId?: string): Promise<void> {
+    try {
+      // Initialize current user first (best-effort)
+      if (nearAccountId) {
+        try { await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+      }
+
+      // Prefetch latest block/nonce context
+      try { await this.nonceManager.prefetchBlockheight(this.nearClient); } catch {}
+
+      // Best-effort: open IndexedDB and warm key data for the account
+      if (nearAccountId) {
+        try { await IndexedDBManager.getUserWithKeys(toAccountId(nearAccountId)); } catch {}
+      }
+
+      // Warm signer workers in background
+      try { this.prewarmSignerWorkers(); } catch {}
+    } catch {}
+  }
+
   getAuthenticationCredentialsSerialized({
     nearAccountId,
     challenge,

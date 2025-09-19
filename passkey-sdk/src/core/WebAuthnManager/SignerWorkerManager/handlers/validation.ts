@@ -2,6 +2,7 @@ import { normalizeRegistrationCredential } from '../../credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { validateVRFChallenge, type VRFChallenge } from '../../../types/vrf-worker';
 import type { TransactionContext } from '../../../types/rpc';
+import { isObject, assertString } from '../../../WalletIframe/validation';
 
 // Strongly typed payload expected from the WASM → JS boundary
 export interface RegistrationCredentialConfirmationPayload {
@@ -13,15 +14,6 @@ export interface RegistrationCredentialConfirmationPayload {
   vrfChallenge?: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
-}
-
-function isObject(x: unknown): x is Record<string, unknown> {
-  return x !== null && typeof x === 'object';
-}
-
-function assertString(val: unknown, name: string): string {
-  if (typeof val !== 'string') throw new Error(`Invalid ${name}: expected string`);
-  return val;
 }
 
 function validateTransactionContextMaybe(input: unknown): TransactionContext | undefined {
