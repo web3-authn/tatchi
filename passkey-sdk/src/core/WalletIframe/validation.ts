@@ -24,6 +24,41 @@ export function isFunction(x: unknown): x is Function {
   return typeof x === 'function';
 }
 
+export function isBoolean(x: unknown): x is boolean {
+  return typeof x === 'boolean';
+}
+
+export function isArray<T = unknown>(x: unknown): x is T[] {
+  return Array.isArray(x);
+}
+
+// ========= Assertions (throw on mismatch) =========
+
+export function assertString(val: unknown, name = 'value'): string {
+  if (typeof val !== 'string') throw new Error(`Invalid ${name}: expected string`);
+  return val;
+}
+
+export function assertNumber(val: unknown, name = 'value'): number {
+  if (typeof val !== 'number' || !Number.isFinite(val)) throw new Error(`Invalid ${name}: expected finite number`);
+  return val;
+}
+
+export function assertBoolean(val: unknown, name = 'value'): boolean {
+  if (typeof val !== 'boolean') throw new Error(`Invalid ${name}: expected boolean`);
+  return val;
+}
+
+export function assertObject<T extends Record<string, unknown> = Record<string, unknown>>(val: unknown, name = 'value'): T {
+  if (!isObject(val)) throw new Error(`Invalid ${name}: expected object`);
+  return val as T;
+}
+
+export function assertArray<T = unknown>(val: unknown, name = 'value'): T[] {
+  if (!Array.isArray(val)) throw new Error(`Invalid ${name}: expected array`);
+  return val as T[];
+}
+
 // Shallowly remove function-valued properties (postMessage/clone safety)
 export function stripFunctionsShallow<T extends Record<string, unknown>>(obj?: T): Partial<T> | undefined {
   if (!obj || !isObject(obj)) return undefined;

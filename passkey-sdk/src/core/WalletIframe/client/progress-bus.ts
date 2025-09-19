@@ -12,8 +12,10 @@ import {
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
 const SHOW_PHASES = new Set<string>([
-  ActionPhase.STEP_2_USER_CONFIRMATION,
+  // Gate overlay to moments of imminent activation only.
   ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
+  // Registration requires a WebAuthn create() ceremony at step 1
+  RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
   // Device1: TouchID authorization (host needs overlay to capture activation)
   DeviceLinkingPhase.STEP_3_AUTHORIZATION,
   // Device2: Registration inside wallet host (collects passkey via ModalTxConfirmer)
@@ -36,7 +38,18 @@ const HIDE_PHASES = new Set<string>([
   DeviceLinkingPhase.REGISTRATION_ERROR,
   DeviceLinkingPhase.LOGIN_ERROR,
   DeviceLinkingPhase.DEVICE_LINKING_ERROR,
+  // Registration: hide once contract work starts or flow completes/errors
   RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
+  RegistrationPhase.STEP_7_REGISTRATION_COMPLETE,
+  RegistrationPhase.REGISTRATION_ERROR,
+  // Login: hide after assertion leads to VRF unlock or completion/errors
+  LoginPhase.STEP_3_VRF_UNLOCK,
+  LoginPhase.STEP_4_LOGIN_COMPLETE,
+  LoginPhase.LOGIN_ERROR,
+  // Account recovery: hide after authentication completes or on completion/errors
+  AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED,
+  AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE,
+  AccountRecoveryPhase.ERROR,
 ]);
 
 export type ProgressPayload = MessageProgressPayload;

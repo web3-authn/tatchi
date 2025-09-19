@@ -37,7 +37,7 @@ import {
   TxExecutionStatus
 } from '../../types';
 import { IframeTransport } from './IframeTransport';
-import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
+import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
 import { toError } from '../../../utils/errors';
 import {
@@ -503,7 +503,7 @@ export class WalletIframeRouter {
     const safeOptions = options
       ? {
           waitUntil: options.waitUntil,
-          executeSequentially: options.executeSequentially
+          executionWait: options.executionWait
         }
       : undefined;
 
@@ -756,9 +756,10 @@ export class WalletIframeRouter {
       try {
         // Strip non-cloneable fields (functions) from envelope options before posting
         const wireOptions = (options && isObject(options))
-          ? (('sticky' in options && typeof (options as { sticky?: unknown }).sticky !== 'undefined')
-              ? { sticky: (options as { sticky?: boolean }).sticky }
-              : undefined)
+          ? (() => {
+              const stickyVal = (options as { sticky?: unknown }).sticky;
+              return isBoolean(stickyVal) ? { sticky: stickyVal } : undefined;
+            })()
           : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
         this.port!.postMessage(serializableFull as ParentToChildEnvelope);

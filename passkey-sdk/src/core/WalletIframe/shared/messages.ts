@@ -112,7 +112,7 @@ export interface PMSignAndSendTxsPayload {
   options?: {
     // Keep only serializable fields; functions are bridged via PROGRESS
     waitUntil?: 'NONE' | 'INCLUDED' | 'INCLUDED_FINAL' | 'EXECUTED' | 'FINAL' | 'EXECUTED_OPTIMISTIC';
-    executeSequentially?: boolean;
+    executionWait?: Record<string, unknown>;
     [key: string]: unknown;
   };
 }

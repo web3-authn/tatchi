@@ -43,7 +43,7 @@ import type {
 import { MinimalNearClient, SignedTransaction } from '../../NearClient';
 import { setupLitElemMounter } from './lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
-import { isObject, isString, isFiniteNumber, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
+import { isObject, isString, isNumber, isFiniteNumber, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
 import { errorMessage, toError } from '../../../utils/errors';
 import { PasskeyManager } from '../../PasskeyManager';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
@@ -316,7 +316,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           transactions: transactions,
           options: {
             ...options,
-            executeSequentially: options?.executeSequentially ?? true,
+            // Prefer new executionWait; default remains sequential when omitted
             onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev })
           } as SignAndSendTransactionHooksOptions,
         });
@@ -690,7 +690,7 @@ function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<str
     ? themeCand
     : base.theme;
 
-  const autoProceedDelay = typeof delayCand === 'number' ? delayCand : base.autoProceedDelay;
+  const autoProceedDelay = isNumber(delayCand) ? delayCand : base.autoProceedDelay;
 
   return { uiMode, behavior, autoProceedDelay, theme };
 }

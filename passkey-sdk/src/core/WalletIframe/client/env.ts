@@ -1,5 +1,6 @@
 import type { WalletIframeRouterOptions } from './router';
 import { WalletIframeRouter } from './router';
+import { isString } from '../validation';
 
 type PublicEnv = Record<string, string | undefined>;
 
@@ -26,7 +27,7 @@ function pickFirst(envs: PublicEnv[], keys: string[]): string | undefined {
   for (const env of envs) {
     for (const key of keys) {
       const v = env[key];
-      if (typeof v === 'string' && v.length > 0) return v;
+      if (isString(v) && v.length > 0) return v;
     }
   }
   return undefined;
