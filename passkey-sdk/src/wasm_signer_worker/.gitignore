@@ -1,4 +1,4 @@
-./target
+/target
 ./wasm_signer_worker_bg.wasm
 ./wasm_signer_worker_bg.wasm.d.ts
 ./wasm_signer_worker.d.ts
