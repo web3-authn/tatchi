@@ -2,7 +2,7 @@
  * VRF Types for Web Worker Communication
  */
 
-import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { StripFree } from "./index.js";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
@@ -212,4 +212,3 @@ export interface Shamir3PassRegisterWrapResult {
   enc_s_k_b64u: string;
   vrfPublicKey: string;
 }
-

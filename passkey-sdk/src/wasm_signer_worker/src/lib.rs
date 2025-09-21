@@ -229,6 +229,11 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             let result = handlers::handle_request_registration_credential_confirmation(request).await?;
             result.to_json()
         },
+        WorkerRequestType::ExportNearKeypairUI => {
+            let request = msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
+            let result = handlers::handle_export_near_keypair_ui(request).await?;
+            result.to_json()
+        },
     };
 
     // Handle the result and determine response type
@@ -245,6 +250,7 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairSuccess,
                 WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
                 WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
+                WorkerRequestType::ExportNearKeypairUI => WorkerResponseType::ExportNearKeypairUiSuccess,
             };
             (success_response_type, message)
         },
@@ -260,6 +266,7 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairFailure,
                 WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageFailure,
                 WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationFailure,
+                WorkerRequestType::ExportNearKeypairUI => WorkerResponseType::ExportNearKeypairUiFailure,
             };
             let error_payload = serde_json::json!({
                 "error": error,
@@ -300,6 +307,7 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
         WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
+        WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
     }
 }
 
@@ -316,6 +324,7 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::SignTransactionWithKeyPairSuccess => "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS",
         WorkerResponseType::SignNep413MessageSuccess => "SIGN_NEP413_MESSAGE_SUCCESS",
         WorkerResponseType::RegistrationCredentialConfirmationSuccess => "REGISTRATION_CREDENTIAL_CONFIRMATION_SUCCESS",
+        WorkerResponseType::ExportNearKeypairUiSuccess => "EXPORT_NEAR_KEYPAIR_UI_SUCCESS",
 
         // Failure responses
         WorkerResponseType::DeriveNearKeypairAndEncryptFailure => "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_FAILURE",
@@ -327,6 +336,7 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::SignTransactionWithKeyPairFailure => "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE",
         WorkerResponseType::SignNep413MessageFailure => "SIGN_NEP413_MESSAGE_FAILURE",
         WorkerResponseType::RegistrationCredentialConfirmationFailure => "REGISTRATION_CREDENTIAL_CONFIRMATION_FAILURE",
+        WorkerResponseType::ExportNearKeypairUiFailure => "EXPORT_NEAR_KEYPAIR_UI_FAILURE",
 
         // Progress responses - for real-time updates during operations
         WorkerResponseType::RegistrationProgress => "REGISTRATION_PROGRESS",

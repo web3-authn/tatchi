@@ -1,5 +1,2 @@
 /target
-./wasm_vrf_worker_bg.wasm
-./wasm_vrf_worker_bg.wasm.d.ts
-./wasm_vrf_worker.d.ts
-./wasm_vrf_worker.js
+pkg

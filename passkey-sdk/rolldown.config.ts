@@ -160,9 +160,9 @@ export default defineConfig([
   },
   // WASM VRF Worker build for server usage - includes WASM binary
   {
-    input: 'src/wasm_vrf_worker/wasm_vrf_worker.js',
+    input: 'src/wasm_vrf_worker/pkg/wasm_vrf_worker.js',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg`,
       format: 'esm',
       assetFileNames: '[name][extname]'
     },
@@ -174,14 +174,41 @@ export default defineConfig([
           // Copy WASM file alongside the JS bundle
           const fs = require('fs');
           const path = require('path');
-          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm');
-          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/wasm_vrf_worker_bg.wasm`);
+          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm');
+          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm`);
 
           try {
             fs.copyFileSync(wasmSource, wasmDest);
             console.log('✅ WASM file copied to dist/esm/wasm_vrf_worker/');
           } catch (error) {
             console.warn('⚠️ Could not copy WASM file:', error.message);
+          }
+        }
+      }
+    ]
+  },
+  // WASM Signer Worker build for server usage - includes WASM binary
+  {
+    input: 'src/wasm_signer_worker/pkg/wasm_signer_worker.js',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg`,
+      format: 'esm',
+      assetFileNames: '[name][extname]'
+    },
+    plugins: [
+      {
+        name: 'copy-wasm-signer',
+        generateBundle() {
+          const fs = require('fs');
+          const path = require('path');
+          const wasmSource = path.join(process.cwd(), 'src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm');
+          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm`);
+
+          try {
+            fs.copyFileSync(wasmSource, wasmDest);
+            console.log('✅ WASM file copied to dist/esm/wasm_signer_worker/pkg/');
+          } catch (error) {
+            console.warn('⚠️ Could not copy signer WASM file:', error.message);
           }
         }
       }
@@ -223,6 +250,8 @@ export default defineConfig([
       'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
+      // Export viewer host + bootstrap
+      'iframe-export-bootstrap': 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
@@ -232,6 +261,19 @@ export default defineConfig([
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
+    },
+  },
+  // Export Private Key viewer bundle (Lit element rendered inside iframe)
+  {
+    input: 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: 'export-private-key-viewer.js',
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
     },
   },
   // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)

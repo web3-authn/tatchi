@@ -2,8 +2,8 @@
 // === IMPORT AUTO-GENERATED WASM TYPES ===
 // These are the source of truth generated from Rust structs via wasm-bindgen
 // Import as instance types from the WASM module classes
-import * as wasmModule from '../../wasm_signer_worker/wasm_signer_worker.js';
-import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
+import * as wasmModule from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import { WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums directly
 
 import { StripFree } from "./index.js";
@@ -40,6 +40,7 @@ export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRe
 export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
 export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
 export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest>;
+export type WasmExportNearKeypairUiRequest = StripFree<wasmModule.ExportNearKeypairUiRequest>;
 
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmRecoverKeypairRequest
@@ -48,7 +49,8 @@ export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmDecryptPrivateKeyRequest
   | WasmExtractCosePublicKeyRequest
   | WasmSignNep413MessageRequest
-  | WasmSignTransactionWithKeyPairRequest;
+  | WasmSignTransactionWithKeyPairRequest
+  | WasmExportNearKeypairUiRequest;
 
 // WASM Worker Response Types
 export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
@@ -60,6 +62,7 @@ export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModu
 // wasm-bindgen generates some classes with private constructors, which breaks
 // `InstanceType<typeof Class>`. Use the class name directly for the instance type.
 export type WasmRegistrationCredentialConfirmationResult = wasmModule.RegistrationCredentialConfirmationResult;
+export type WasmExportNearKeypairUiResult = wasmModule.ExportNearKeypairUiResult;
 
 
 export type WasmSignerWorkerRequest = {
@@ -116,30 +119,33 @@ export interface WorkerRequestTypeMap {
     request: WasmRegistrationCredentialConfirmationRequest;
     result: wasmModule.RegistrationCredentialConfirmationResult;
   };
+  [WorkerRequestType.ExportNearKeypairUI]: {
+    type: WorkerRequestType.ExportNearKeypairUI;
+    request: WasmExportNearKeypairUiRequest;
+    result: WasmExportNearKeypairUiResult;
+  };
 }
 
 /**
  * Validation rules for ConfirmationConfig to ensure behavior conforms to UI mode:
  *
- * - uiMode: 'skip' | 'embedded' → behavior is ignored, autoProceedDelay is ignored
- * - uiMode: 'modal' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
+ * - uiMode: 'skip' → behavior is ignored, autoProceedDelay is ignored
+ * - uiMode: 'modal' | 'drawer' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
  *
  * The WASM worker automatically validates and overrides these settings:
- * - For 'skip' and 'embedded' modes: behavior is set to 'autoProceed' with autoProceedDelay: 0
- * - For 'modal' mode: behavior and autoProceedDelay are used as specified
+ * - For 'skip' mode: behavior is set to 'autoProceed' with autoProceedDelay: 0
+ * - For 'modal' and 'drawer' modes: behavior and autoProceedDelay are used as specified
  *
  * The actual type would be the following, but we use the flat interface for simplicity:
  * export interface ConfirmationConfig {
- *   uiMode: 'skip'
- *     | 'embedded'
- *     | { modal: { behavior: { requireClick: true } |  { autoProceed: { autoProceedDelay: 0 }}}}
+ *   uiMode: 'skip' | 'modal' | 'drawer'
  *
  * }
  */
-export type ConfirmationUIMode = 'skip' | 'modal' | 'embedded';
+export type ConfirmationUIMode = 'skip' | 'modal' | 'drawer';
 export type ConfirmationBehavior = 'requireClick' | 'autoProceed';
 export interface ConfirmationConfig {
-  /** Type of UI to display for confirmation: 'skip' | 'modal' | 'embedded' */
+  /** Type of UI to display for confirmation: 'skip' | 'modal' | 'drawer' */
   uiMode: ConfirmationUIMode;
   /** How the confirmation UI behaves: 'requireClick' | 'autoProceed' */
   behavior: ConfirmationBehavior;
@@ -147,6 +153,8 @@ export interface ConfirmationConfig {
   autoProceedDelay?: number;
   /** Theme for the confirmation UI: 'dark' | 'light' */
   theme: 'dark' | 'light';
+  /** Visual container variant for modal UIs: 'modal' | 'drawer' (optional; host-only) */
+  variant?: 'modal' | 'drawer';
 }
 
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
@@ -165,7 +173,8 @@ export const mapUIModeToWasm = (uiMode: ConfirmationUIMode): number => {
   switch (uiMode) {
     case 'skip': return wasmModule.ConfirmationUIMode.Skip;
     case 'modal': return wasmModule.ConfirmationUIMode.Modal;
-    case 'embedded': return wasmModule.ConfirmationUIMode.Embedded;
+    // Drawer now has a dedicated WASM enum variant
+    case 'drawer': return (wasmModule as any).ConfirmationUIMode.Drawer ?? wasmModule.ConfirmationUIMode.Modal;
     default: return wasmModule.ConfirmationUIMode.Modal;
   }
 };
@@ -182,6 +191,7 @@ export type WasmRequestResult = WasmRecoverKeypairResult
   | WasmSignedTransaction
   | WasmTransactionSignResult
   | WasmDecryptPrivateKeyResult
+  | WasmExportNearKeypairUiResult
 
 export interface SignerWorkerMessage<T extends WorkerRequestType, R extends WasmRequestPayload> {
   type: T;
@@ -272,6 +282,7 @@ export interface RequestResponseMap {
   [WorkerRequestType.SignTransactionWithKeyPair]: WasmTransactionSignResult;
   [WorkerRequestType.SignNep413Message]: wasmModule.SignNep413Result;
   [WorkerRequestType.RegistrationCredentialConfirmation]: wasmModule.RegistrationCredentialConfirmationResult;
+  [WorkerRequestType.ExportNearKeypairUI]: WasmExportNearKeypairUiResult;
 }
 
 // Generic success response type that uses WASM types
@@ -308,7 +319,9 @@ export interface WorkerProgressResponse extends BaseWorkerResponse {
 
 // === MAIN RESPONSE TYPE ===
 
-export type WorkerResponseForRequest<T extends WorkerRequestType> =
+type RequestTypeKey = keyof RequestResponseMap;
+
+export type WorkerResponseForRequest<T extends RequestTypeKey> =
   | WorkerSuccessResponse<T>
   | WorkerErrorResponse
   | WorkerProgressResponse;
@@ -325,7 +338,7 @@ export type Nep413SigningResponse = WorkerResponseForRequest<typeof WorkerReques
 
 // === TYPE GUARDS FOR GENERIC RESPONSES ===
 
-export function isWorkerProgress<T extends WorkerRequestType>(
+export function isWorkerProgress<T extends RequestTypeKey>(
   response: WorkerResponseForRequest<T>
 ): response is WorkerProgressResponse {
   return (
@@ -336,7 +349,7 @@ export function isWorkerProgress<T extends WorkerRequestType>(
   );
 }
 
-export function isWorkerSuccess<T extends WorkerRequestType>(
+export function isWorkerSuccess<T extends RequestTypeKey>(
   response: WorkerResponseForRequest<T>
 ): response is WorkerSuccessResponse<T> {
   return (
@@ -348,11 +361,12 @@ export function isWorkerSuccess<T extends WorkerRequestType>(
     response.type === WorkerResponseType.ExtractCosePublicKeySuccess ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess ||
     response.type === WorkerResponseType.SignNep413MessageSuccess ||
-    response.type === WorkerResponseType.RegistrationCredentialConfirmationSuccess
+    response.type === WorkerResponseType.RegistrationCredentialConfirmationSuccess ||
+    response.type === WorkerResponseType.ExportNearKeypairUiSuccess
   );
 }
 
-export function isWorkerError<T extends WorkerRequestType>(
+export function isWorkerError<T extends RequestTypeKey>(
   response: WorkerResponseForRequest<T>
 ): response is WorkerErrorResponse {
   return (
@@ -364,7 +378,8 @@ export function isWorkerError<T extends WorkerRequestType>(
     response.type === WorkerResponseType.ExtractCosePublicKeyFailure ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairFailure ||
     response.type === WorkerResponseType.SignNep413MessageFailure ||
-    response.type === WorkerResponseType.RegistrationCredentialConfirmationFailure
+    response.type === WorkerResponseType.RegistrationCredentialConfirmationFailure ||
+    response.type === WorkerResponseType.ExportNearKeypairUiFailure
   );
 }
 

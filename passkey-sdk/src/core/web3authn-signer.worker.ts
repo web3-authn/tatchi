@@ -40,7 +40,7 @@ import {
   WasmRequestPayload,
 } from './types/signer-worker';
 // Import WASM binary directly
-import init, * as wasmModule from '../wasm_signer_worker/wasm_signer_worker.js';
+import init, * as wasmModule from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { resolveWasmUrl } from './wasmLoader';
 import { errorMessage } from '../utils/errors';
 

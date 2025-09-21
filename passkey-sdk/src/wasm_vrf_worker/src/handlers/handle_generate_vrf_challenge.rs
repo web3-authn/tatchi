@@ -23,7 +23,6 @@ pub fn handle_generate_vrf_challenge(
 ) -> VrfWorkerResponse {
 
     let manager_ref = manager.borrow();
-    info!("Generating VRF challenge");
 
     return match manager_ref.generate_vrf_challenge(payload.vrf_input_data) {
         Ok(challenge_data) => {

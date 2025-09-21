@@ -138,8 +138,8 @@ pub enum ConfirmationUIMode {
     Skip,
     #[serde(rename = "modal")]
     Modal,
-    #[serde(rename = "embedded")]
-    Embedded,
+    #[serde(rename = "drawer")]
+    Drawer,
 }
 
 /// Behavior mode for confirmation flow

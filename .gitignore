@@ -25,25 +25,13 @@ examples/nextjs/dist
 examples/relay-server/dist
 
 # Playwright report
-packages/passkey/playwright-report
+passkey-sdk/playwright-report
 test-results
 
 # WASM worker outputs
-packages/passkey/dist
-
-packages/passkey/src/wasm_signer_worker/pkg
-packages/passkey/src/wasm_signer_worker/target
-packages/passkey/src/wasm_signer_worker/wasm_signer_worker_bg.wasm
-packages/passkey/src/wasm_signer_worker/wasm_signer_worker_bg.wasm.d.ts
-packages/passkey/src/wasm_signer_worker/wasm_signer_worker.js
-packages/passkey/src/wasm_signer_worker/wasm_signer_worker.d.ts
-
-packages/passkey/src/wasm_vrf_worker/pkg
-packages/passkey/src/wasm_vrf_worker/target
-packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm
-packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm.d.ts
-packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.js
-packages/passkey/src/wasm_vrf_worker/wasm_vrf_worker.d.ts
+passkey-sdk/dist
+passkey-sdk/src/wasm_signer_worker/pkg
+passkey-sdk/src/wasm_vrf_worker/pkg
 
 
 # editor configs

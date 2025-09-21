@@ -43,7 +43,7 @@ echo "Running cargo check first..."
 cargo check
 
 echo "Running wasm-pack build..."
-wasm-pack build --target web --out-dir ../wasm_signer_worker --out-name wasm_signer_worker
+wasm-pack build --target web --out-dir pkg --out-name wasm_signer_worker
 
 cd ../..
 
@@ -55,13 +55,13 @@ echo "Running cargo check first..."
 cargo check
 
 echo "Running wasm-pack build..."
-wasm-pack build --target web --out-dir ../wasm_vrf_worker --out-name wasm_vrf_worker
+wasm-pack build --target web --out-dir pkg --out-name wasm_vrf_worker
 
 cd ../..
 
 # 3. Check if wasm-bindgen generated types exist
-SIGNER_TYPES="$SOURCE_WASM_SIGNER/wasm_signer_worker.d.ts"
-VRF_TYPES="$SOURCE_WASM_VRF/wasm_vrf_worker.d.ts"
+SIGNER_TYPES="$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker.d.ts"
+VRF_TYPES="$SOURCE_WASM_VRF/pkg/wasm_vrf_worker.d.ts"
 
 if [ ! -f "$SIGNER_TYPES" ]; then
     echo "❌ Signer worker TypeScript definitions not found at $SIGNER_TYPES"

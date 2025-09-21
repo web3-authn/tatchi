@@ -27,7 +27,7 @@ import { isFunction } from './WalletIframe/validation';
 import {
   WasmTransaction,
   WasmSignature,
-} from "../wasm_signer_worker/wasm_signer_worker.js";
+} from "../wasm_signer_worker/pkg/wasm_signer_worker.js";
 // import { Provider } from "@near-js/providers";
 
 // re-export near-js types

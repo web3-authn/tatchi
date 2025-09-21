@@ -253,13 +253,9 @@ pub async fn handle_sign_transactions_with_actions(
         c.intent_digest.clone().unwrap_or_default()
     ));
 
-    // Log validation success for embedded mode
-    if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
-        if confirmation_config.ui_mode == crate::types::handlers::ConfirmationUIMode::Embedded {
-            logs.push("[WASM] Embedded mode: Transaction details validation completed successfully".to_string());
-        } else {
-            logs.push("[WASM] User has confirmed transaction details".to_string());
-        }
+    // Log validation success
+    if tx_batch_request.confirmation_config.is_some() {
+        logs.push("[WASM] User has confirmed transaction details".to_string());
     }
 
     confirmation_result_opt = Some(c);

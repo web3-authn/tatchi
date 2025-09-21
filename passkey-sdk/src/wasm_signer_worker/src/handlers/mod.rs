@@ -13,6 +13,7 @@ pub mod handle_request_registration_credential_confirmation;
 // Handler functions
 pub use handle_check_can_register_user::handle_check_can_register_user;
 pub use handle_decrypt_private_key_with_prf::handle_decrypt_private_key_with_prf;
+pub use handle_decrypt_private_key_with_prf::handle_export_near_keypair_ui;
 pub use handle_derive_near_keypair_and_encrypt::handle_derive_near_keypair_and_encrypt;
 pub use handle_extract_cose_public_key::handle_extract_cose_public_key;
 pub use handle_recover_keypair_from_passkey::handle_recover_keypair_from_passkey;
@@ -50,6 +51,10 @@ pub use handle_request_registration_credential_confirmation::{
     RegistrationCredentialConfirmationRequest,
     RegistrationCredentialConfirmationResult,
 };
+pub use handle_decrypt_private_key_with_prf::{
+    ExportNearKeypairUiRequest,
+    ExportNearKeypairUiResult,
+};
 
 // Transaction confirmation utilities
 pub use confirm_tx_details::{
@@ -67,5 +72,4 @@ pub use crate::types::handlers::{
     ConfirmationUIMode,
     ConfirmationBehavior,
 };
-
 

@@ -54,7 +54,7 @@
     "build": "./scripts/build.sh",
     "build:rolldown": "rolldown -c rolldown.config.ts",
     "dev": "rolldown -c rolldown.config.ts -w",
-    "test": "npm run build:check:fresh || (npm run build && mkdir -p ../../examples/vite/public/sdk && cp -r dist/* ../../examples/vite/public/sdk/ && echo 'SDK built and copied to examples/vite for testing') && playwright test",
+    "test": "npm run build:check:fresh || npm run build && playwright test",
     "build:check:fresh": "./scripts/check-build-freshness.sh",
     "type-check": "tsc --noEmit"
   },
