@@ -43,3 +43,14 @@ This module handles the secure transaction confirmation flow between WASM worker
 3. **Main Thread** shows UI (modal/embedded) and collects TouchID credentials
 4. **Main Thread** sends `USER_PASSKEY_CONFIRM_RESPONSE` back to worker via `postMessage()`
 5. **Worker** resolves promise and returns result to WASM
+
+## Overlay dependency note (wallet iframe)
+
+The visible confirmation modal is rendered inside the wallet iframe (or a nested iframe in that origin). For `behavior: 'requireClick'` to work, the wallet iframe overlay must expand before the modal mounts so the user can see and click it.
+
+Rule of thumb for `ProgressBus` heuristics:
+
+- Show on: `ActionPhase.STEP_2_USER_CONFIRMATION` and `ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION`.
+- Hide after: `ActionPhase.STEP_5_AUTHENTICATION_COMPLETE` and during non‑interactive phases (e.g., `transaction-signing-progress`, `contract-verification`, `broadcasting`, completion/error phases for other flows).
+
+Removing `STEP_2_USER_CONFIRMATION` from the show list will break `requireClick` flows: the modal mounts out of view and cannot receive the click.

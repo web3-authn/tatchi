@@ -21,9 +21,11 @@ import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
 import { ConfirmationConfig } from '../../types/signer-worker';
+import { toAccountId } from '../../types/accountIds';
+import { getDeviceNumberForAccount } from './getDeviceNumber';
+import { isObject } from '../../WalletIframe/validation';
 
 import {
-  deriveNearKeypairAndEncrypt,
   decryptPrivateKeyWithPrf,
   checkCanRegisterUser,
   signTransactionsWithActions,
@@ -43,7 +45,6 @@ import { UserPreferencesManager } from '../userPreferences';
 import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
 import type { RegistrationCredentialConfirmationPayload } from './handlers/validation';
-import type { TransactionContext } from '../../types/rpc';
 import { toError } from '@/utils/errors';
 
 
@@ -57,7 +58,7 @@ export interface SignerWorkerManagerContext {
   rpIdOverride?: string;
   // Default for using nested iframe modal when walletOrigin is configured
   iframeModeDefault?: boolean;
-  sendMessage: <T extends WorkerRequestType>(args: {
+  sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
       payload: WorkerRequestTypeMap[T]['request']
@@ -383,30 +384,6 @@ export class SignerWorkerManager {
   }
 
   /**
-   * Secure registration flow with dual PRF: WebAuthn + WASM worker encryption using dual PRF
-   * Optionally signs a link_device_register_user transaction if VRF data is provided
-   */
-  async deriveNearKeypairAndEncrypt(args: {
-    credential: PublicKeyCredential,
-    nearAccountId: AccountId,
-    options?: {
-      vrfChallenge: VRFChallenge;
-      deterministicVrfPublicKey: string; // Add VRF public key for registration transactions
-      contractId: string;
-      nonce: string;
-      blockHash: string;
-      authenticatorOptions?: AuthenticatorOptions; // Authenticator options for registration
-    }
-  }): Promise<{
-    success: boolean;
-    nearAccountId: AccountId;
-    publicKey: string;
-    signedTransaction?: SignedTransaction;
-  }> {
-    return deriveNearKeypairAndEncrypt({ ctx: this.getContext(), ...args });
-  }
-
-  /**
    * Derive NEAR keypair from a serialized WebAuthn registration credential
    */
   async deriveNearKeypairAndEncryptFromSerialized(args: {
@@ -559,5 +536,38 @@ export class SignerWorkerManager {
     return requestRegistrationCredentialConfirmation({ ctx: this.getContext(), ...args });
   }
 
+  /**
+   * Two-phase export (worker-driven):
+   *  - Phase 1: collect PRF (uiMode: 'skip')
+   *  - Decrypt inside worker
+   *  - Phase 2: show export UI with decrypted key (kept open until user closes)
+   */
+  async exportNearKeypairUi(args: { nearAccountId: AccountId, variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
+    const ctx = this.getContext();
+    const accountId = toAccountId(args.nearAccountId);
+    // Gather encrypted key + IV and public key from IndexedDB
+    const deviceNumber = await getDeviceNumberForAccount(ctx, accountId);
+    const [keyData, user] = await Promise.all([
+      ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
+      ctx.indexedDB.clientDB.getUser(accountId),
+    ]);
+    const publicKey = user?.clientNearPublicKey || '';
+    if (!keyData || !publicKey) {
+      throw new Error('Missing local key material for export');
+    }
+    await (ctx as any).sendMessage({
+      message: {
+        type: WorkerRequestType.ExportNearKeypairUI,
+        payload: {
+          nearAccountId: accountId,
+          publicKey,
+          encryptedPrivateKeyData: keyData.encryptedData,
+          encryptedPrivateKeyIv: keyData.iv,
+          variant: args.variant,
+          theme: args.theme,
+        } as any,
+      },
+    });
+  }
+
 }
-import { isObject } from '../../WalletIframe/validation';

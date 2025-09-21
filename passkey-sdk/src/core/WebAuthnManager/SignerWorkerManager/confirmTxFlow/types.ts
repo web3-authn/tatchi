@@ -60,6 +60,7 @@ export enum SecureConfirmationType {
   LINK_DEVICE = 'linkDevice',
   DECRYPT_PRIVATE_KEY_WITH_PRF = 'decryptPrivateKeyWithPrf',
   SIGN_NEP413_MESSAGE = 'signNep413Message',
+  SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
 }
 
 // V2 request envelope (preferred for new call sites)
@@ -91,6 +92,14 @@ export interface RegisterAccountPayload {
 export interface DecryptPrivateKeyWithPrfPayload {
   nearAccountId: string;
   publicKey: string;
+}
+
+export interface ShowSecurePrivateKeyUiPayload {
+  nearAccountId: string;
+  publicKey: string;
+  privateKey: string;
+  variant?: 'drawer' | 'modal';
+  theme?: 'dark' | 'light';
 }
 
 export interface SignNep413Payload {

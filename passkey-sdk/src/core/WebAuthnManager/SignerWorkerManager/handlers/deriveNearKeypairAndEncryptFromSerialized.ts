@@ -14,8 +14,8 @@ import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOption
 import { toError } from '@/utils/errors';
 
 /**
- * Same as deriveNearKeypairAndEncrypt, but takes a serialized WebAuthn registration credential
- * (shape compatible with SerializedRegistrationCredential from WASM) and extracts PRF outputs from it.
+ * Derive NEAR keypair and encrypt it from a serialized WebAuthn registration credential
+ * (shape compatible with SerializedRegistrationCredential from WASM) by extracting PRF outputs from it.
  */
 export async function deriveNearKeypairAndEncryptFromSerialized({
   ctx,

@@ -16,7 +16,7 @@ import type { SecureConfirmRequest } from './types';
  * Wallet‑iframe registration/link safety rule:
  * - We allow callers to explicitly opt‑in to auto‑proceed (or skip) for these flows
  *   when they already captured a fresh activation inside the wallet iframe (e.g., via a
- *   register button rendered in the wallet host). This keeps the default safe, while
+ *   host-rendered embedded control). This keeps the default safe, while
  *   enabling a one‑click UX for trusted entry points.
  *   Concretely: if the effective config resolves to { uiMode: 'skip' } or
  *   { uiMode: 'modal', behavior: 'autoProceed' }, we honor it; otherwise we clamp to
@@ -35,6 +35,17 @@ export function determineConfirmationConfig(
     ...ctx.userPreferencesManager.getConfirmationConfig(),
     ...request?.confirmationConfig,
   };
+  // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
+  // WebAuthn credentials silently and the worker may follow up with a
+  // SHOW_SECURE_PRIVATE_KEY_UI request to display the key.
+  if (request?.type === 'decryptPrivateKeyWithPrf') {
+    return {
+      uiMode: 'skip',
+      behavior: cfg.behavior,
+      autoProceedDelay: cfg.autoProceedDelay,
+      theme: cfg.theme || 'dark',
+    } as ConfirmationConfig;
+  }
   // Detect if running inside an iframe (wallet host context)
   const inIframe = (() => {
     try { return window.self !== window.top; } catch { return true; }

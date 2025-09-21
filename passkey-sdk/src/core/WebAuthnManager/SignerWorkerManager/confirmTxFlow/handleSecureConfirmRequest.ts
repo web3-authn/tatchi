@@ -4,7 +4,7 @@ import {
   serializeAuthenticationCredentialWithPRF,
 } from '../../credentialsHelpers';
 import type { SignerWorkerManagerContext } from '../index';
-import type { ConfirmationConfig } from '../../../types/signer-worker';
+import type { ConfirmationConfig, ConfirmationUIMode } from '../../../types/signer-worker';
 import { determineConfirmationConfig } from './determineConfirmationConfig';
 import {
   SecureConfirmDecision,
@@ -16,13 +16,19 @@ import {
   RegisterAccountPayload,
 } from './types';
 import { TransactionContext, VRFChallenge } from '../../../types';
+import { createRandomVRFChallenge } from '../../../types/vrf-worker';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { toAccountId } from '../../../types/accountIds';
 import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
-import { W3A_TX_BUTTON_ID } from '../../LitComponents/tags';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 import { isObject, isFunction, isString } from '../../../WalletIframe/validation';
 import { errorMessage, toError, isTouchIdCancellationError } from '../../../../utils/errors';
+// Do not rely solely on side‑effect import for custom element definition.
+// Some bundlers tree‑shake side‑effect modules under certain sideEffects configs.
+// We keep the static import for type/dependency graph, and will also perform a
+// dynamic import at use‑site to guarantee the element is defined before use.
+import '../../LitComponents/ExportPrivateKey/host';
+// SHOW_SECURE_PRIVATE_KEY_UI rendering handled locally; decryption handled in worker
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -75,11 +81,15 @@ export async function handlePromptUserConfirmInJsMainThread(
     return;
   }
 
-  // 2. Perform NEAR RPC calls first (needed for VRF challenge)
+  // 2. Perform NEAR RPC calls first (needed for VRF challenge). Skip for local-only flows
   const nearAccountId = getNearAccountId(request);
   const txCount = getTxCount(request);
+  const isLocalOnly = request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF
+    || request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI;
 
-  const nearRpcResult = await performNearRpcCalls(ctx, { nearAccountId, txCount });
+  const nearRpcResult = isLocalOnly
+    ? { transactionContext: null as TransactionContext | null, reservedNonces: undefined as string[] | undefined }
+    : await performNearRpcCalls(ctx, { nearAccountId, txCount });
 
   // 3. If NEAR RPC failed entirely, return error. Otherwise, proceed with whatever
   //    transactionContext we could obtain (fallback includes block info for registration flows).
@@ -95,8 +105,8 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   const transactionContext = nearRpcResult.transactionContext as TransactionContext;
 
-  // 4. Generate VRF challenge with NEAR data
-  if (!ctx.vrfWorkerManager) {
+  // 4. Generate VRF challenge with NEAR data (or a local random challenge for local-only flows)
+  if (!ctx.vrfWorkerManager && !isLocalOnly) {
     throw new Error('VrfWorkerManager not available in context');
   }
   // For registration/link flows, there is no unlocked VRF keypair yet.
@@ -107,12 +117,15 @@ export async function handlePromptUserConfirmInJsMainThread(
   // the WebAuthn ceremony rpId exactly.
   // Use the TouchIdPrompt's resolved rpId so WebAuthn and VRF share the same value
   const rpId = ctx.touchIdPrompt.getRpId();
-  let vrfChallenge: VRFChallenge;
-  if (
+  let uiVrfChallenge: VRFChallenge;
+  if (isLocalOnly) {
+    // For decrypt/export, no network-dependent VRF is needed to drive UI/flow; use a local random challenge only for UI plumbing.
+    uiVrfChallenge = createRandomVRFChallenge() as VRFChallenge;
+  } else if (
     request.type === SecureConfirmationType.REGISTER_ACCOUNT ||
     request.type === SecureConfirmationType.LINK_DEVICE
   ) {
-    const bootstrap = await ctx.vrfWorkerManager.generateVrfKeypairBootstrap({
+    const bootstrap = await ctx.vrfWorkerManager!.generateVrfKeypairBootstrap({
       vrfInputData: {
         userId: nearAccountId,
         rpId,
@@ -121,9 +134,9 @@ export async function handlePromptUserConfirmInJsMainThread(
       },
       saveInMemory: true,
     });
-    vrfChallenge = bootstrap.vrfChallenge;
+    uiVrfChallenge = bootstrap.vrfChallenge;
   } else {
-    vrfChallenge = await ctx.vrfWorkerManager.generateVrfChallenge({
+    uiVrfChallenge = await ctx.vrfWorkerManager!.generateVrfChallenge({
       userId: nearAccountId,
       rpId,
       blockHeight: transactionContext.txBlockHeight,
@@ -132,7 +145,7 @@ export async function handlePromptUserConfirmInJsMainThread(
   }
 
   // 5. Render user confirmation UI with VRF challenge
-  const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, request, vrfChallenge });
+  const userConfirmResult = await renderUserConfirmUI({ ctx, confirmationConfig, transactionSummary, request, vrfChallenge: uiVrfChallenge });
   const { confirmed, confirmHandle, error: uiError } = userConfirmResult;
 
   // 6. If user rejected (confirmed === false), exit early
@@ -158,28 +171,42 @@ export async function handlePromptUserConfirmInJsMainThread(
     requestId: request.requestId,
     intentDigest: getIntentDigest(request),
     confirmed: true,
-    vrfChallenge, // Generated here
-    transactionContext: transactionContext, // Generated here
+    // For local-only flows, omit vrfChallenge and transactionContext entirely
+    ...(isLocalOnly ? {} : { vrfChallenge: uiVrfChallenge, transactionContext: transactionContext }),
   };
 
-  // Refresh VRF challenge just-in-time and reflect it in the modal UI (cosmetic)
-  try {
-    const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
-    decision.vrfChallenge = refreshed;
-    decision.transactionContext = latestCtx;
-    try { if (confirmHandle?.element) { (confirmHandle.element as any).vrfChallenge = refreshed; } } catch {}
-  } catch (jitErr) {
-    console.debug('[SecureConfirm] JIT VRF refresh skipped:', jitErr);
+  // Refresh VRF challenge just-in-time and reflect it in the modal UI (cosmetic) — skip for local-only flows
+  if (!isLocalOnly) {
+    try {
+      const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
+      decision.vrfChallenge = refreshed;
+      decision.transactionContext = latestCtx;
+      try { if (confirmHandle?.element) { (confirmHandle.element as any).vrfChallenge = refreshed; } } catch {}
+    } catch (jitErr) {
+      console.debug('[SecureConfirm] JIT VRF refresh skipped:', jitErr);
+    }
   }
 
   // 8. Collect credentials using generated VRF challenge
   let decisionWithCredentials: SecureConfirmDecision;
   let touchIdSuccess = false;
+  let keepUiOpen = false;
 
   try {
-    const result = await collectTouchIdCredentials({ ctx, request, decision });
-    decisionWithCredentials = result.decisionWithCredentials;
-    touchIdSuccess = decisionWithCredentials?.confirmed ?? false;
+    if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
+      // No credentials needed for pure UI display
+      decisionWithCredentials = {
+        ...decision,
+        confirmed: true,
+      };
+      touchIdSuccess = true;
+      keepUiOpen = true;
+    } else {
+      const result = await collectTouchIdCredentials({ ctx, request, decision });
+      decisionWithCredentials = result.decisionWithCredentials;
+      touchIdSuccess = decisionWithCredentials?.confirmed ?? false;
+      // For decrypt flow, we only collect PRF and return it to the worker; UI is handled in a second call
+    }
   } catch (touchIdError: unknown) {
     console.error('[SignerWorkerManager]: Failed to collect credentials:', touchIdError);
     const cancelled = isTouchIdCancellationError(touchIdError) || (() => {
@@ -199,8 +226,10 @@ export async function handlePromptUserConfirmInJsMainThread(
     };
     touchIdSuccess = false;
   } finally {
-    // Always close the modal after TouchID attempt (success or failure)
-    closeModalSafely(touchIdSuccess, confirmHandle);
+    // Close only when not displaying export viewer output
+    if (!keepUiOpen) {
+      closeModalSafely(touchIdSuccess, confirmHandle);
+    }
   }
 
   // 9. Send confirmation response back to wasm-signer-worker
@@ -235,9 +264,23 @@ function isRegistrableSuffix(host: string, cand: string): boolean {
 
 // ===== Small helpers to centralize request shape access =====
 function getNearAccountId(request: SecureConfirmRequest): string {
-  return request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
-    : (request.payload as RegisterAccountPayload).nearAccountId;
+  switch (request.type) {
+    case SecureConfirmationType.SIGN_TRANSACTION:
+      return (request.payload as SignTransactionPayload).rpcCall.nearAccountId;
+    case SecureConfirmationType.REGISTER_ACCOUNT:
+    case SecureConfirmationType.LINK_DEVICE:
+      return (request.payload as RegisterAccountPayload).nearAccountId;
+    case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF: {
+      const p = request.payload as { nearAccountId?: string };
+      return p?.nearAccountId || '';
+    }
+    case SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI: {
+      const p = request.payload as { nearAccountId?: string };
+      return p?.nearAccountId || '';
+    }
+    default:
+      return '';
+  }
 }
 
 function getTxCount(request: SecureConfirmRequest): number {
@@ -378,63 +421,41 @@ async function renderUserConfirmUI({
   const nearAccountIdForUi = getNearAccountId(request);
   // runtimeMode retained for future selection but not needed for confirm UI
 
-  switch (confirmationConfig.uiMode) {
+  // Show-only export viewer: mount with provided key and return immediately
+  if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
+    // Ensure the export viewer iframe host custom element is defined
+    try { await import('../../LitComponents/ExportPrivateKey/host'); } catch {}
+    const host = document.createElement('w3a-export-viewer-iframe') as HTMLElement & {
+      theme?: 'dark' | 'light'; variant?: 'drawer' | 'modal'; accountId?: string; publicKey?: string; privateKey?: string; loading?: boolean; errorMessage?: string;
+    };
+    try { host.theme = confirmationConfig.theme || 'dark'; } catch {}
+    try { host.variant = (confirmationConfig as any)?.variant || 'drawer'; } catch {}
+    try {
+      const p = request.payload as { nearAccountId?: string; publicKey?: string; privateKey?: string };
+      if (p?.nearAccountId) host.accountId = p.nearAccountId;
+      if (p?.publicKey) host.publicKey = p.publicKey;
+      if (p?.privateKey) host.privateKey = p.privateKey;
+      host.loading = false;
+    } catch {}
+    try { window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*'); } catch {}
+    document.body.appendChild(host);
+    try {
+      const onCancel = () => { try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}; try { host.remove(); } catch {} };
+      host.addEventListener('cancel', onCancel as EventListener, { once: true });
+    } catch {}
+    return Promise.resolve({ confirmed: true, confirmHandle: { element: host, close: (_c: boolean) => { try { host.remove(); } catch {} } } });
+  }
+
+  const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
+  switch (uiMode) {
     case 'skip': {
       // Bypass UI entirely - automatically confirm
       return { confirmed: true, confirmHandle: undefined };
     }
 
-    case 'embedded': {
-      // For embedded mode, validate that the UI displayed transactions match
-      // the worker-provided transactions by comparing canonical digests.
-      // Registration/link-device flows do not display a tx tree; enforce modal instead.
-      if (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE) {
-        // Fall back to modal-confirm-with-click
-        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
-          ctx,
-          summary: transactionSummary,
-          txSigningRequests: [],
-          vrfChallenge: vrfChallenge,
-          theme: confirmationConfig.theme,
-          nearAccountIdOverride: nearAccountIdForUi,
-          useIframe: !!ctx.iframeModeDefault
-        });
-        return { confirmed, confirmHandle: handle };
-      }
-      try {
-        const hostEl = document.querySelector(W3A_TX_BUTTON_ID) as HTMLElement & {
-          tooltipTheme?: string;
-          requestUiIntentDigest?: () => Promise<string | null>;
-        };
-
-        // Apply theme to existing embedded component if theme is specified
-        if (hostEl && confirmationConfig.theme) {
-          hostEl.tooltipTheme = confirmationConfig.theme;
-        }
-
-        let uiDigest: string | null = null;
-        if (hostEl?.requestUiIntentDigest) {
-          uiDigest = await hostEl.requestUiIntentDigest();
-          const intentDigest = getIntentDigest(request);
-          console.log('[SecureConfirm] digest check', { uiDigest, intentDigest });
-        } else {
-          console.error('[SecureConfirm]: missing requestUiIntentDigest on secure element');
-        }
-        // Debug: show UI digest and WASM worker's provided intentDigest for comparison
-        const expectedDigest = getIntentDigest(request);
-        if (uiDigest !== expectedDigest) {
-          console.error('[SecureConfirm]: INTENT_DIGEST_MISMATCH', { uiDigest, expectedDigest });
-          // Return explicit error code so upstream does not misclassify as user cancel
-          return { confirmed: false, confirmHandle: undefined, error: 'INTENT_DIGEST_MISMATCH' };
-        }
-        return { confirmed: true, confirmHandle: undefined };
-      } catch (e) {
-        console.error('[SecureConfirm]: Failed to validate UI digest', e);
-        return { confirmed: false, confirmHandle: undefined, error: 'ui_digest_validation_failed' };
-      }
-    }
-
-    case 'modal': {
+    case 'drawer': {
+      // Drawer is a modal-style flow with a drawer container
+      const variant = 'drawer';
       if (confirmationConfig.behavior === 'autoProceed') {
         const handle = await mountModalTxConfirmer({
           ctx,
@@ -445,6 +466,7 @@ async function renderUserConfirmUI({
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
+          variant,
           nearAccountIdOverride: nearAccountIdForUi,
         });
         const delay = confirmationConfig.autoProceedDelay ?? 1000;
@@ -459,6 +481,41 @@ async function renderUserConfirmUI({
             : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
+          variant,
+          nearAccountIdOverride: nearAccountIdForUi,
+          useIframe: !!ctx.iframeModeDefault
+        });
+        return { confirmed, confirmHandle: handle };
+      }
+    }
+
+    case 'modal': {
+      if (confirmationConfig.behavior === 'autoProceed') {
+        const handle = await mountModalTxConfirmer({
+          ctx,
+          summary: transactionSummary,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
+            ? (request.payload as SignTransactionPayload).txSigningRequests
+            : [],
+          vrfChallenge,
+          loading: true,
+          theme: confirmationConfig.theme,
+          variant: confirmationConfig.variant,
+          nearAccountIdOverride: nearAccountIdForUi,
+        });
+        const delay = confirmationConfig.autoProceedDelay ?? 1000;
+        await new Promise((r) => setTimeout(r, delay));
+        return { confirmed: true, confirmHandle: handle };
+      } else {
+        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
+          ctx,
+          summary: transactionSummary,
+          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
+            ? (request.payload as SignTransactionPayload).txSigningRequests
+            : [],
+          vrfChallenge,
+          theme: confirmationConfig.theme,
+          variant: confirmationConfig.variant,
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault
         });
@@ -477,6 +534,7 @@ async function renderUserConfirmUI({
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
+        variant: confirmationConfig.variant,
         nearAccountIdOverride: nearAccountIdForUi,
       });
       return { confirmed: true, confirmHandle: handle };
@@ -496,27 +554,44 @@ async function collectTouchIdCredentials({
   request: SecureConfirmRequest,
   decision: SecureConfirmDecision,
 }): Promise<{ decisionWithCredentials: SecureConfirmDecision }> {
-  const nearAccountId = request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? (request.payload as SignTransactionPayload).rpcCall.nearAccountId
-    : (request.payload as RegisterAccountPayload).nearAccountId;
+  const nearAccountId = (() => {
+    switch (request.type) {
+      case SecureConfirmationType.SIGN_TRANSACTION:
+        return (request.payload as SignTransactionPayload).rpcCall.nearAccountId;
+      case SecureConfirmationType.REGISTER_ACCOUNT:
+      case SecureConfirmationType.LINK_DEVICE:
+        return (request.payload as RegisterAccountPayload).nearAccountId;
+      case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF:
+        return (request.payload as { nearAccountId?: string }).nearAccountId || '';
+      default:
+        return (request.payload as { nearAccountId?: string }).nearAccountId || '';
+    }
+  })();
   let vrfChallenge = decision.vrfChallenge; // Comes from confirmation flow; may be refreshed below
 
   if (!nearAccountId) {
     throw new Error('nearAccountId not available for credential collection');
   }
+  const isLocalOnly = request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF
+    || request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI;
   if (!vrfChallenge) {
-    throw new Error('VRF challenge not available for credential collection');
+    if (isLocalOnly) {
+      vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
+    } else {
+      throw new Error('VRF challenge not available for credential collection');
+    }
   }
 
-  // Refresh NEAR context and regenerate VRF challenge right before credential collection
-  // to avoid StaleChallenge errors when the user lingers in the confirm UI or in batched flows.
-  try {
-    const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
-    vrfChallenge = refreshed;
-    decision.vrfChallenge = refreshed;
-    decision.transactionContext = latestCtx;
-  } catch (e: unknown) {
-    console.warn('[SecureConfirm]: VRF refresh failed; proceeding with initial challenge/context', e);
+  // Refresh NEAR context/VRF only for network-dependent flows
+  if (!isLocalOnly) {
+    try {
+      const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
+      vrfChallenge = refreshed;
+      decision.vrfChallenge = refreshed;
+      decision.transactionContext = latestCtx;
+    } catch (e: unknown) {
+      console.warn('[SecureConfirm]: VRF refresh failed; proceeding with initial challenge/context', e);
+    }
   }
 
   let credential: PublicKeyCredential | undefined = undefined;

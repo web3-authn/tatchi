@@ -214,6 +214,9 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const permissionsPolicy = [
     `publickey-credentials-get=(self "${walletOrigin}")`,
     `publickey-credentials-create=(self "${walletOrigin}")`,
+    // Allow clipboard for top-level and wallet origin, so nested iframes can delegate
+    `clipboard-read=(self "${walletOrigin}")`,
+    `clipboard-write=(self "${walletOrigin}")`,
   ].join(', ')
 
   return {
