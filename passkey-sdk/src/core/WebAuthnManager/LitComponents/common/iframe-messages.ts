@@ -52,7 +52,8 @@ export interface IframeModalMessagePayloads {
     nearAccountId: string;
     txSigningRequests: TransactionInputWasm[];
     vrfChallenge?: VRFChallenge;
-    theme?: 'dark' | 'light'
+    theme?: 'dark' | 'light';
+    variant?: 'modal' | 'drawer';
   };
   SET_LOADING: boolean;
   REQUEST_UI_DIGEST: undefined;

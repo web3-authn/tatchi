@@ -15,6 +15,9 @@ export class DrawerElement extends LitElementWithProps {
     loading: { type: Boolean },
     errorMessage: { type: String },
     dragToClose: { type: Boolean, attribute: 'drag-to-close' },
+    showCloseButton: { type: Boolean, attribute: 'show-close-button' },
+    // Controls the bottom actions area: 'confirm-cancel' | 'close-only' | 'none'
+    actions: { type: String },
   } as const;
 
   declare open: boolean;
@@ -27,6 +30,8 @@ export class DrawerElement extends LitElementWithProps {
   declare loading: boolean;
   declare errorMessage?: string;
   declare dragToClose: boolean;
+  declare showCloseButton: boolean;
+  declare actions: 'confirm-cancel' | 'close-only' | 'none';
 
   // Drag state
   private isDragging = false;
@@ -45,43 +50,67 @@ export class DrawerElement extends LitElementWithProps {
 
   static styles = css`
     :host { display: contents; }
-    .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 2147483646; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+    .overlay {
+      position: fixed;
+      inset: 0;
+      /* Match modal backdrop look */
+      background: oklch(0.2 0.01 240 / 0.8);
+      z-index: 2147483646;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s ease;
+    }
     :host([open]) .overlay { opacity: 1; pointer-events: auto; }
 
     .drawer {
       position: fixed;
       left: 0; right: 0; bottom: 0;
       z-index: 2147483647;
-      background: var(--w3a-modal__card__background, #111);
-      color: var(--w3a-modal__card__color, #f6f7f8);
-      border-top-left-radius: 16px;
-      border-top-right-radius: 16px;
-      border: 1px solid var(--w3a-modal__card__border, rgba(255,255,255,0.08));
+      /* Use AccessKeysModal token set */
+      background: var(--w3a-colors-colorBackground, #111);
+      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      font-size: 1rem;
+      border-top-left-radius: 2rem;
+      border-top-right-radius: 2rem;
+      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
       transform: translateY(100%);
-      transition: transform 0.5s cubic-bezier(0.32, 0.72, 0, 1);
+      transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
-      padding: 14px 16px calc(16px + 20vh);
-      height: 70vh;
-      max-height: 70vh;
+      padding: 2rem;
+      /* 62.5vh with open translateY(20%) => ~50vh visible */
+      height: 62.5vh;
+      max-height: 62.5vh;
       display: grid;
       grid-template-rows: auto 1fr auto;
       touch-action: none;
     }
     :host([open]) .drawer { transform: translateY(20%); }
     .drawer.dragging { transition: none; }
-    .handle { width: 36px; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.25); margin: 6px auto 10px; }
-    .title { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
-    .subtitle { font-size: 13px; opacity: 0.85; margin: 0 0 8px; }
-    .account { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; opacity: 0.92; margin-bottom: 8px; }
-    .body { overflow: auto; padding: 6px 2px; }
+    .handle {
+      width: 36px; height: 4px; border-radius: 2px;
+      background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.25));
+      margin: 6px auto 10px;
+    }
+    .title { font-size: 24px; font-weight: 700; margin: 1rem 0rem; }
+    .subtitle { font-size: 20px; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); margin: 0 0 10px; }
+    .account { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 20px; opacity: 0.92; margin-bottom: 10px; }
+    .body { overflow: auto; padding: 0; }
     .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 10px; }
     button { border: 0; border-radius: 8px; padding: 9px 13px; font-weight: 600; cursor: pointer; }
-    .cancel { background: #2b2b2b; color: #ddd; }
-    .confirm { background: #4DAFFE; color: #0b1220; }
-    .error { color: #ff7a7a; font-size: 13px; margin-top: 6px; }
-    :host([theme="light"]) .drawer { background: #fff; color: #181a1f; border-color: rgba(0,0,0,0.08); }
+    .cancel { background: var(--w3a-colors-colorSurface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
+    .confirm { background: var(--w3a-btn-primary, #4DAFFE); color: var(--w3a-btn-text, #0b1220); }
+    .close-btn {
+      position:absolute;right:8px;top:8px;
+      background: none; border: none; color: var(--w3a-colors-textMuted, #99a0aa);
+      font-size: 28px; line-height: 1; cursor: pointer; width: 48px; height: 48px; border-radius: 2rem; display:flex; align-items:center; justify-content:center;
+      transition: all .2s ease;
+    }
+    .close-btn:hover { color: var(--w3a-colors-textPrimary, #f6f7f8); background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)); }
+    .error { color: var(--w3a-colors-error, #ff7a7a); font-size: 13px; margin-top: 6px; }
+    :host([theme="light"]) .drawer { background: var(--w3a-colors-colorBackground, #fff); color: var(--w3a-colors-textPrimary, #181a1f); border-color: var(--w3a-colors-borderPrimary, rgba(0,0,0,0.08)); }
     :host([theme="light"]) .cancel { background: #f3f4f6; color: #111; }
-    :host([theme="light"]) .confirm { background: #2563eb; color: #fff; }
+    :host([theme="light"]) .confirm { background: var(--w3a-btn-primary, #2563eb); color: var(--w3a-btn-text, #fff); }
   `;
 
   constructor() {
@@ -93,6 +122,8 @@ export class DrawerElement extends LitElementWithProps {
     this.cancelText = 'Cancel';
     this.loading = false;
     this.dragToClose = true;
+    this.showCloseButton = true;
+    this.actions = 'confirm-cancel';
   }
 
   protected getComponentPrefix(): string { return 'modal'; }
@@ -459,19 +490,29 @@ export class DrawerElement extends LitElementWithProps {
     return html`
       <div class="overlay" @click=${this.onCancel}></div>
       <section class="drawer" role="dialog" aria-modal="true" aria-label="Registration">
+        <div style="position: relative;">
         <div class="handle"></div>
         <div>
           <h2 class="title">${this.title}</h2>
           ${this.subtitle ? html`<p class="subtitle">${this.subtitle}</p>` : null}
           ${this.accountId ? html`<div class="account">${this.accountId}</div>` : null}
         </div>
+        ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${this.onCancel}>×</button>` : null}
+        </div>
         <div class="body">
           ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
+          <slot></slot>
         </div>
-        <div class="actions">
-          <button class="cancel" @click=${this.onCancel}>${this.cancelText}</button>
-          <button class="confirm" @click=${this.onConfirm}>${this.confirmText}</button>
-        </div>
+        ${this.actions === 'none' ? null : html`
+          <div class="actions">
+            ${this.actions === 'confirm-cancel' ? html`
+              <button class="cancel" @click=${this.onCancel}>${this.cancelText}</button>
+              <button class="confirm" @click=${this.onConfirm}>${this.confirmText}</button>
+            ` : html`
+              <button class="confirm" @click=${this.onCancel}>Close</button>
+            `}
+          </div>
+        `}
       </section>
     `;
   }
@@ -482,5 +523,11 @@ export default (function ensureDefined() {
   if (!customElements.get(TAG)) {
     customElements.define(TAG, DrawerElement);
   }
+  // Also expose a generic alias for broader reuse across product surfaces
+  try {
+    if (!customElements.get('w3a-drawer')) {
+      customElements.define('w3a-drawer', DrawerElement);
+    }
+  } catch {}
   return DrawerElement;
 })();

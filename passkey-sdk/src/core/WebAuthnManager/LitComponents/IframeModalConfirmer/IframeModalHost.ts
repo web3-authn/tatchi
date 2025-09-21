@@ -34,6 +34,7 @@ export class IframeModalHost extends LitElementWithProps {
     txSigningRequests: { type: Array },
     vrfChallenge: { type: Object },
     theme: { type: String, attribute: 'theme' },
+    variant: { type: String, attribute: 'variant' },
     showLoading: { type: Boolean, attribute: 'show-loading' },
     intentDigest: { type: String, attribute: 'intent-digest' },
     options: { type: Object },
@@ -55,6 +56,7 @@ export class IframeModalHost extends LitElementWithProps {
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
   declare theme: 'dark' | 'light';
+  declare variant: 'modal' | 'drawer';
   declare showLoading: boolean;
   declare intentDigest: string | undefined;
   declare options: SignAndSendTransactionHooksOptions | undefined;
@@ -69,6 +71,7 @@ export class IframeModalHost extends LitElementWithProps {
     this.txSigningRequests = [];
     this.vrfChallenge = undefined;
     this.theme = 'light';
+    this.variant = 'modal';
     this.showLoading = false;
     this.intentDigest = undefined;
     this.options = {};
@@ -168,7 +171,8 @@ export class IframeModalHost extends LitElementWithProps {
       nearAccountId: this.nearAccountId,
       txSigningRequests: this.txSigningRequests,
       vrfChallenge: this.vrfChallenge,
-      theme: this.theme
+      theme: this.theme,
+      variant: this.variant
     });
     if (changed.has('showLoading')) {
       this.postToIframe('SET_LOADING', this.showLoading);
@@ -219,7 +223,8 @@ export class IframeModalHost extends LitElementWithProps {
             nearAccountId: this.nearAccountId,
             txSigningRequests: this.txSigningRequests,
             vrfChallenge: this.vrfChallenge,
-            theme: this.theme
+            theme: this.theme,
+            variant: this.variant
           });
           this.postToIframe('SET_LOADING', this.showLoading);
           return;
@@ -368,7 +373,7 @@ export class IframeModalHost extends LitElementWithProps {
         <iframe
           ${ref(this.iframeRef)}
           sandbox="allow-scripts allow-same-origin"
-          allow="publickey-credentials-get; publickey-credentials-create"
+          allow="publickey-credentials-get; publickey-credentials-create; clipboard-read; clipboard-write"
         ></iframe>
       </div>
     `;

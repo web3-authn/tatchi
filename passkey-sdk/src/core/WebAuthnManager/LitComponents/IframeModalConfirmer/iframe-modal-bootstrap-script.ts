@@ -11,6 +11,9 @@ import {
   orderActionForDigest
 } from '../common/tx-digest';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+// Ensure the drawer custom element is available when variant === 'drawer'
+// This side-effect import defines the <w3a-drawer-tx-confirm> element.
+import '../DrawerTxConfirmer';
 
 
 // Parent communication configuration
@@ -46,6 +49,19 @@ function whenDefined(tag: string): Promise<void> {
   return Promise.resolve();
 }
 
+function whenAnyDefined(tags: string[]): Promise<void> {
+  if (!window.customElements?.whenDefined) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    let resolved = false;
+    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+    for (const t of tags) {
+      window.customElements.whenDefined(t).then(done).catch(() => {});
+    }
+  });
+}
+
+type Variant = 'modal' | 'drawer';
+
 interface ModalElementShape extends HTMLElement {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
@@ -60,15 +76,27 @@ interface ModalElementShape extends HTMLElement {
 
 type ModalElementType = HTMLElement & ModalElementShape;
 
+let CURRENT_VARIANT: Variant = 'modal';
+
 function ensureElement(): ModalElementType {
-  let el = document.getElementById('mtx') as ModalElementType | null;
-  if (!el) {
-    el = document.createElement('passkey-modal-confirm') as ModalElementType;
-    el.id = 'mtx';
-    document.body.appendChild(el);
+  const id = 'mtx';
+  let el = document.getElementById(id) as ModalElementType | null;
+  const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+
+  // If an element exists but the tag does not match the desired variant, replace it
+  if (el && el.tagName.toLowerCase() !== desiredTag) {
+    try { el.remove(); } catch {}
+    el = null;
   }
-  // Ensure two-phase close: do not remove on confirm/cancel; wait for CLOSE_MODAL
-  try { el.deferClose = true; } catch {}
+
+  if (!el) {
+    // Create based on current variant
+    el = document.createElement(desiredTag) as ModalElementType;
+    el.id = id;
+    document.body.appendChild(el);
+    // Two-phase close: do not remove on confirm/cancel; wait for CLOSE_MODAL
+    try { (el as any).deferClose = true; } catch {}
+  }
   return el;
 }
 
@@ -111,8 +139,8 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         PARENT_ORIGIN = payload.targetOrigin;
         window.__MTX_PARENT_ORIGIN = PARENT_ORIGIN;
       }
-      // Announce when element is defined
-      whenDefined('passkey-modal-confirm').then(() => {
+      // Announce when either modal or drawer element is defined
+      whenAnyDefined(['passkey-modal-confirm', 'w3a-drawer-tx-confirm']).then(() => {
         if (MTX_DEFINED_POSTED) return;
         MTX_DEFINED_POSTED = true;
         const definedMessage: IframeModalMessage = { type: 'ETX_DEFINED' };
@@ -123,6 +151,11 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     case 'SET_TX_DATA': {
       // Set data properties on modal for rendering; digest will read from element on demand
       if (isSetTxDataPayload(payload) && payload) {
+        // Switch variant when provided (modal|drawer)
+        const variant = (payload as any).variant;
+        if (variant === 'drawer' || variant === 'modal') {
+          CURRENT_VARIANT = variant;
+        }
         el.nearAccountId = payload.nearAccountId;
         el.txSigningRequests = payload.txSigningRequests;
         if (payload.vrfChallenge) {

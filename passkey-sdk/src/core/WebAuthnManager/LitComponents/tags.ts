@@ -6,18 +6,14 @@ export const BUTTON_WITH_TOOLTIP_ID = 'button-with-tooltip';
 
 // Preferred aliases for top-level elements used by WalletIframe host
 export const W3A_TX_BUTTON_ID = 'w3a-tx-button';
-export const W3A_REGISTER_BUTTON_ID = 'w3a-register-button';
-export const W3A_REGISTER_BUTTON_HOST_ID = 'w3a-register-button-host';
 export const W3A_TX_BUTTON_HOST_ID = 'w3a-tx-button-host';
 // Legacy host element ids (back-compat aliases)
-// legacy-only aliases (not exported): 'w3a-wallet-register-host', 'w3a-wallet-tx-host'
+// legacy-only aliases (not exported): 'w3a-wallet-tx-host'
 
 // Consolidated tag registry and helpers
 export type TagDef = { id: string; aliases?: string[] };
 export const TAG_DEFS = {
-  registerButton: { id: W3A_REGISTER_BUTTON_ID, aliases: ['embedded-register-button'] },
   txButton: { id: W3A_TX_BUTTON_ID, aliases: ['iframe-button'] },
-  registerHost: { id: W3A_REGISTER_BUTTON_HOST_ID, aliases: ['w3a-wallet-register-host'] },
   txHost: { id: W3A_TX_BUTTON_HOST_ID, aliases: ['w3a-wallet-tx-host'] },
 } as const;
 export type TagKey = keyof typeof TAG_DEFS;
@@ -46,6 +42,11 @@ export const IFRAME_BOOTSTRAP_MODULE = 'iframe-button-bootstrap.js';
 export const IFRAME_MODAL_ID = 'iframe-modal';
 export const IFRAME_MODAL_BOOTSTRAP_MODULE = 'iframe-modal-bootstrap.js';
 export const MODAL_TX_CONFIRM_BUNDLE = 'modal-tx-confirm.js';
+
+// Export viewer iframe host + bootstrap + viewer bundle
+export const IFRAME_EXPORT_BOOTSTRAP_MODULE = 'iframe-export-bootstrap.js';
+export const EXPORT_VIEWER_BUNDLE = 'export-private-key-viewer.js';
+export const EXPORT_DRAWER_BUNDLE = 'export-private-key-drawer.js';
 
 // CSS Class Names - Centralized for type safety and maintainability
 export const CSS_CLASSES = {

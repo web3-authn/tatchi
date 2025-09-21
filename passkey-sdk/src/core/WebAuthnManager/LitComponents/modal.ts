@@ -153,6 +153,7 @@ export async function mountIframeModalHostWithHandle({
   vrfChallenge,
   loading,
   theme,
+  variant,
   nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
@@ -161,6 +162,7 @@ export async function mountIframeModalHostWithHandle({
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
   theme?: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
 }): Promise<{ element: IframeModalHost; close: (confirmed: boolean) => void }> {
   await ensureIframeModalDefined();
@@ -175,6 +177,9 @@ export async function mountIframeModalHostWithHandle({
   if (theme) {
     el.theme = theme;
   }
+  if (variant) {
+    (el as any).variant = variant;
+  }
   document.body.appendChild(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   return { element: el, close };
@@ -186,6 +191,7 @@ export async function awaitIframeModalDecisionWithHandle({
   txSigningRequests,
   vrfChallenge,
   theme,
+  variant,
   nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
@@ -193,6 +199,7 @@ export async function awaitIframeModalDecisionWithHandle({
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
   theme?: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
 }): Promise<{ confirmed: boolean; handle: { element: IframeModalHost; close: (confirmed: boolean) => void } }>{
   await ensureIframeModalDefined();
@@ -203,6 +210,7 @@ export async function awaitIframeModalDecisionWithHandle({
     el.intentDigest = summary?.intentDigest;
     el.vrfChallenge = vrfChallenge;
     if (theme) { el.theme = theme; }
+    if (variant) { (el as any).variant = variant; }
 
     const onConfirm = (e: Event) => {
       const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
@@ -242,6 +250,7 @@ export async function mountModalTxConfirmer({
   vrfChallenge,
   loading,
   theme,
+  variant,
   nearAccountIdOverride,
   iframeMode,
 }: {
@@ -251,6 +260,7 @@ export async function mountModalTxConfirmer({
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
   theme?: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
   iframeMode?: boolean,
 }): Promise<{ element: any; close: (confirmed: boolean) => void }> {
@@ -263,6 +273,7 @@ export async function mountModalTxConfirmer({
       vrfChallenge,
       loading,
       theme,
+      variant,
       nearAccountIdOverride,
     });
   }
@@ -283,6 +294,7 @@ export async function awaitModalTxConfirmerDecision({
   txSigningRequests,
   vrfChallenge,
   theme,
+  variant,
   nearAccountIdOverride,
   useIframe,
 }: {
@@ -291,6 +303,7 @@ export async function awaitModalTxConfirmerDecision({
   txSigningRequests: TransactionInputWasm[],
   vrfChallenge: VRFChallenge,
   theme: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride: string,
   useIframe: boolean,
 }): Promise<{
@@ -304,6 +317,7 @@ export async function awaitModalTxConfirmerDecision({
       txSigningRequests,
       vrfChallenge,
       theme,
+      variant,
       nearAccountIdOverride,
     });
   }

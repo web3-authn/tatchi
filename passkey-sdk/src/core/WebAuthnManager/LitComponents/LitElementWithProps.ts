@@ -15,8 +15,8 @@ export class LitElementWithProps extends LitElement {
    * to prevent bundlers from tree-shaking those definitions when they are only used
    * through side effects (e.g., nested custom elements inside templates).
    * Example usage in a subclass:
-   *   import { EmbeddedRegisterButton } from '../EmbeddedRegisterButton';
-   *   static keepDefinitions = [EmbeddedRegisterButton];
+   *   import TxTree from '../TxTree';
+   *   static keepDefinitions = [TxTree];
    */
   static keepDefinitions?: unknown[];
 
@@ -24,7 +24,7 @@ export class LitElementWithProps extends LitElement {
    * Optional: Tag names that should be defined before this component renders.
    * When missing, a console.warn is emitted to remind developers to import/keep the child.
    * Example:
-   *   static requiredChildTags = ['embedded-register-button'];
+   *   static requiredChildTags = ['w3a-tx-button'];
    */
   static requiredChildTags?: string[];
 

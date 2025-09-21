@@ -65,11 +65,19 @@ When renaming Lit component files, several files must be updated to maintain con
   }
   ```
 
-### 2. Update Build Scripts
+### 2. Dev Asset Serving
 
-#### SDK Asset Copy Script (`packages/passkey/scripts/copy-sdk-assets.sh`)
-- This script typically doesn't need updates as it copies based on build output names
-- Verify that the build output names match expectations
+Use the Vite dev plugin to serve SDK assets at `/sdk/*` directly from the SDK `dist/` directory (no manual copy):
+- Plugin: `@web3authn/passkey/vite`
+- Example usage (in `vite.config.ts`):
+  ```ts
+  import { web3authnDev } from '@web3authn/passkey/vite'
+  export default defineConfig({
+    plugins: [
+      web3authnDev({ mode: 'self-contained', setDevHeaders: false }),
+    ],
+  })
+  ```
 
 
 ### 3. Update Class Names and Exports
@@ -107,7 +115,7 @@ export default IframeButtonHost;
 
 - `packages/passkey/rolldown.config.ts` - Build entry points
 - `packages/passkey/src/core/types/components.ts` - Component exports
-- `packages/passkey/scripts/copy-sdk-assets.sh` - Asset copying (usually no changes needed)
+- Dev server config (Vite) that serves `/sdk/*` via the plugin
 - `packages/passkey/docs/*.md` - Documentation files
 - Any test files in `packages/passkey/src/__tests__/`
 
@@ -117,3 +125,82 @@ export default IframeButtonHost;
 - **IframeButtonWithTooltipConfirmer/**: Transaction confirmation components with iframe isolation
 - **ModalTxConfirmElement.ts**: Modal transaction confirmation dialog
 - **renderUtils.ts**: Shared rendering utilities for Lit components
+
+
+## Wallet-Iframe Lit Integration: Gotchas & Checklist
+
+When adding a new Lit component that must render inside the wallet iframe host (e.g., a new drawer or modal), there are a few integration pitfalls that can make the custom element appear in the DOM but never upgrade (empty UI). This section documents the fixes and a repeatable checklist.
+
+### Core issue we hit
+
+- The wallet host appended a custom element tag (e.g., `<w3a-export-viewer-iframe>`), but the defining module that calls `customElements.define()` was not executed in that runtime. Depending on bundler tree‑shaking and sideEffects settings, a pure side‑effect import may be omitted. Result: element never upgrades, so the inner iframe/bootstrap never runs.
+
+### The fix
+
+- Do not rely solely on a static, side‑effect import. Perform a dynamic import at the use‑site right before creating the element. This guarantees the defining module runs:
+
+  ```ts
+  // Before creating the element
+  await import('../../LitComponents/ExportPrivateKey/host');
+  const host = document.createElement('w3a-export-viewer-iframe');
+  document.body.appendChild(host);
+  ```
+
+- Keep the static import too (for type graphs and when bundlers honor side‑effects), but the dynamic import makes it robust.
+
+Implementation reference:
+- `src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts` (SHOW_SECURE_PRIVATE_KEY_UI path) dynamically imports the iframe host module before creating the element.
+
+### Embedded asset serving (dev)
+
+- Embedded UIs that render in a child srcdoc iframe must import their bundles from `/sdk/embedded/` (viewer + bootstrap). Rolldown produces these under `dist/esm/react/embedded/`.
+- The Vite dev plugin serves `/sdk/**` by probing `dist/`, `dist/esm/`, and `dist/esm/react/` so no manual copy is needed:
+  - `/sdk/embedded/export-private-key-viewer.js`
+  - `/sdk/embedded/iframe-export-bootstrap.js`
+- Wallet host initializes the base: `window.__W3A_EMBEDDED_BASE__ = '/sdk/embedded/'` during `PM_SET_CONFIG` handling.
+
+Sanity checks in the wallet origin devtools:
+- Network 200 for `/sdk/embedded/<bundle>.js` requests
+- Console: no “Unknown custom element” warnings; the element should upgrade and post READY back to parent
+
+### Sticky overlay for two‑phase flows
+
+- Some flows are two‑phase (e.g., decrypt private key with PRF, then show the viewer). The PM request that kicks off the flow should mark the overlay sticky so the wallet iframe isn’t hidden before the second UI phase mounts:
+
+  ```ts
+  // In wallet iframe client router
+  await this.post({
+    type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
+    payload: { nearAccountId, variant, theme },
+    options: { sticky: true },
+  });
+
+  // Only hide overlay if request is not sticky
+  if (!this.progressBus.isSticky(requestId)) this.hideFrameForActivation();
+  ```
+
+Implementation reference:
+- `src/core/WalletIframe/client/router.ts` sets `options: { sticky: true }` for the export‑UI call and guards overlay hiding with `isSticky()`.
+
+### Rolldown entries to include
+
+- For any new iframe‑hosted UI:
+  - Add a bundle for the child iframe bootstrap (e.g., `iframe-<feature>-bootstrap.js`)
+  - Add a bundle for the viewer element (`<feature>-viewer.js`)
+  - Ensure both end up under `dist/esm/react/embedded/`
+
+Implementation reference:
+- `rolldown.config.ts` entries for:
+  - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts`
+  - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts`
+
+### Quick checklist (copy/paste for new components)
+
+1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/react/embedded)
+2) In the wallet host code path that uses it, add a dynamic `await import('<module>')` before `document.createElement('<tag>')`
+3) Ensure the child iframe HTML (srcdoc) loads the viewer and bootstrap with `type="module"` under `__W3A_EMBEDDED_BASE__`
+4) Add rolldown entries so both viewer and bootstrap bundles are emitted
+5) For two‑phase or long‑lived UIs, mark the wallet request sticky and hide the overlay only on WALLET_UI_CLOSED
+6) Dev validate: Network 200 for `/sdk/embedded/*.js`; element upgrades; READY/SET_* messages flow between parent and child
+
+Following this checklist prevents “empty custom element” regressions when introducing new Lit components into the wallet‑iframe architecture.
