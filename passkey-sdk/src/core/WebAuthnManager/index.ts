@@ -27,6 +27,7 @@ import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
+import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 
 
 /**
@@ -183,7 +184,7 @@ export class WebAuthnManager {
     deviceNumber: number;
     contractId: string;
     nearRpcUrl: string;
-  }): Promise<import('./SignerWorkerManager/handlers').RegistrationCredentialConfirmationPayload> {
+  }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.signerWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber,
@@ -588,37 +589,6 @@ export class WebAuthnManager {
   ///////////////////////////////////////
 
   /**
-   * Secure registration flow with PRF: WebAuthn + WASM worker encryption using PRF
-   * Optionally signs a link_device_register_user transaction if VRF data is provided
-   */
-  async deriveNearKeypairAndEncrypt({
-    nearAccountId,
-    credential,
-    options
-  }: {
-    credential: PublicKeyCredential;
-    nearAccountId: AccountId;
-    options?: {
-      vrfChallenge: VRFChallenge;
-      deterministicVrfPublicKey: string; // Add VRF public key for registration transactions
-      contractId: string;
-      nonce: string;
-      blockHash: string;
-    };
-  }): Promise<{
-    success: boolean;
-    nearAccountId: AccountId;
-    publicKey: string;
-    signedTransaction?: SignedTransaction;
-  }> {
-    return await this.signerWorkerManager.deriveNearKeypairAndEncrypt({
-      credential,
-      nearAccountId,
-      options,
-    });
-  }
-
-  /**
    * Export private key using PRF-based decryption. Requires TouchId
    */
   async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<ExportNearKeypairWithTouchIdResult> {
@@ -734,6 +704,29 @@ export class WebAuthnManager {
    */
   async extractCosePublicKey(attestationObjectBase64url: string): Promise<Uint8Array> {
     return await this.signerWorkerManager.extractCosePublicKey(attestationObjectBase64url);
+  }
+
+  ///////////////////////////////////////
+  // PRIVATE KEY EXPORT (Drawer/Modal in sandboxed iframe)
+  ///////////////////////////////////////
+
+  /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
+  async exportNearKeypairWithUIWorkerDriven(nearAccountId: AccountId, options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
+    await this.signerWorkerManager.exportNearKeypairUi({ nearAccountId, variant: options?.variant, theme: options?.theme });
+  }
+
+  async exportNearKeypairWithUI(
+    nearAccountId: AccountId,
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+  ): Promise<{ accountId: string; publicKey: string; privateKey: string }>{
+    // Route to worker-driven two-phase flow. UI is shown inside the wallet host; no secrets are returned.
+    await this.exportNearKeypairWithUIWorkerDriven(nearAccountId, options);
+    const userData = await this.getUser(nearAccountId);
+    return {
+      accountId: String(nearAccountId),
+      publicKey: String(userData?.clientNearPublicKey || ''),
+      privateKey: '',
+    };
   }
 
   ///////////////////////////////////////
