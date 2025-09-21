@@ -273,8 +273,7 @@ export class PasskeyManager {
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
     if (this.iframeRouter) {
-      try { return await this.iframeRouter.hasPasskeyCredential(nearAccountId); }
-      catch { /* fall through to local */ }
+      return await this.iframeRouter.hasPasskeyCredential(nearAccountId);
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -769,6 +768,18 @@ export class PasskeyManager {
       return await this.iframeRouter.exportNearKeypairWithTouchId(nearAccountId);
     }
     return await this.webAuthnManager.exportNearKeypairWithTouchId(toAccountId(nearAccountId))
+  }
+
+  /**
+   * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
+   */
+  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
+    // Prefer wallet-origin flow when iframe router is available for stronger isolation
+    if (this.iframeRouter?.isReady?.()) {
+      await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
+      return;
+    }
+    await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
   }
 
   ///////////////////////////////////////
