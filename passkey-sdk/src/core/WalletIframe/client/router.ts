@@ -200,9 +200,19 @@ export class WalletIframeRouter {
           // for embedded Lit components
           assetsBaseUrl: (() => {
             try {
-              const base = new URL(this.opts.sdkBasePath, window.location.origin).toString();
+              // When wallet runs cross-origin, ensure embedded assets resolve under the wallet origin
+              const origin = this.opts.walletOrigin || window.location.origin;
+              const base = new URL(this.opts.sdkBasePath, origin).toString();
               return base.endsWith('/') ? base : base + '/';
-            } catch { return '/sdk/'; }
+            } catch {
+              // Fallbacks: prefer walletOrigin if available
+              if (this.opts.walletOrigin) {
+                const o = this.opts.walletOrigin.endsWith('/') ? this.opts.walletOrigin.slice(0, -1) : this.opts.walletOrigin;
+                const b = this.opts.sdkBasePath.startsWith('/') ? this.opts.sdkBasePath : '/' + this.opts.sdkBasePath;
+                return o + b + '/';
+              }
+              return '/sdk/';
+            }
           })(),
         }
       });
@@ -580,6 +590,32 @@ export class WalletIframeRouter {
     return res?.result
   }
 
+  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
+    // Make the wallet iframe visible while the export viewer is open.
+    // Unlike request/response flows, the wallet host renders UI and manages
+    // its own lifecycle; it will notify us when to hide via window message.
+    this.showFrameForActivation();
+    const onUiClosed = (ev: MessageEvent) => {
+      try {
+        const origin = this.opts.walletOrigin || window.location.origin;
+        if (ev.origin !== origin) return;
+        const data = ev.data as unknown;
+        if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
+        this.hideFrameForActivation();
+        window.removeEventListener('message', onUiClosed);
+      } catch {}
+    };
+    try { window.addEventListener('message', onUiClosed); } catch {}
+
+    await this.post<void>({
+      type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
+      payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
+      // Keep the iframe visible after this request resolves; the wallet host
+      // will drive the UI lifecycle and send WALLET_UI_CLOSED when done.
+      options: { sticky: true }
+    });
+  }
+
   // ===== Account Recovery (single-endpoint flow) =====
   async recoverAccountFlow(payload: {
     accountId?: string;
@@ -684,8 +720,11 @@ export class WalletIframeRouter {
     this.pending.delete(requestId);
     if (pending.timer) window.clearTimeout(pending.timer);
 
-    // Hide iframe overlay when a request completes (success or error)
-    this.hideFrameForActivation();
+    // Hide iframe overlay when a request completes (success or error),
+    // unless this request was registered as sticky (UI-managed lifecycle).
+    if (!this.progressBus.isSticky(requestId)) {
+      this.hideFrameForActivation();
+    }
 
     if (msg.type === 'ERROR') {
       const err: Error & { code?: string; details?: unknown } = new Error(msg.payload?.message || 'Wallet error');
@@ -783,6 +822,8 @@ export class WalletIframeRouter {
       iframe.style.inset = '0';
       iframe.style.top = '0';
       iframe.style.left = '0';
+      // Ensure no visible border interferes with viewport fit
+      iframe.style.border = 'none';
       iframe.style.width = '100vw';
       iframe.style.height = '100vh';
       iframe.style.opacity = '1';

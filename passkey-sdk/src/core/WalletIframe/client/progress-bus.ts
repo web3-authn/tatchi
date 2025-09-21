@@ -11,6 +11,9 @@ import {
 } from '../../types/passkeyManager';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
+// IMPORTANT: STEP_2_USER_CONFIRMATION must remain in this list. Without it,
+// modal confirmation with behavior: 'requireClick' will never be visible in
+// iframe mode, because the wallet iframe is still 0×0 when the modal mounts.
 const SHOW_PHASES = new Set<string>([
   // Gate overlay to moments of imminent activation only.
   // Show early during user confirmation so the modal inside the wallet iframe is visible

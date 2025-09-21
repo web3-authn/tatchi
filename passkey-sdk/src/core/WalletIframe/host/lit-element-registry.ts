@@ -35,17 +35,6 @@ export type WalletUIRegistry = Record<string, UIComponentDef>;
 // Built-in components available out of the box inside the wallet host.
 export const uiBuiltinRegistry: WalletUIRegistry = {
   // Preferred keys/tags
-  'w3a-register-button-host': {
-    tag: W3A_REGISTER_BUTTON_HOST_ID,
-    eventBindings: [
-      {
-        event: 'w3a-register-click',
-        action: 'registerPasskey',
-        argsFromProps: { nearAccountId: 'nearAccountId' },
-        resultMessageType: 'REGISTER_RESULT'
-      }
-    ],
-  },
   'w3a-tx-button-host': {
     tag: W3A_TX_BUTTON_HOST_ID,
     propBindings: [
@@ -56,17 +45,6 @@ export const uiBuiltinRegistry: WalletUIRegistry = {
       cancelProp: 'onCancel',
       messageType: 'TX_BUTTON_RESULT'
     }
-  },
-  'w3a-register-button': {
-    tag: W3A_REGISTER_BUTTON_ID,
-    eventBindings: [
-      {
-        event: 'w3a-register-click',
-        action: 'registerPasskey',
-        argsFromProps: { nearAccountId: 'nearAccountId' },
-        resultMessageType: 'REGISTER_RESULT'
-      }
-    ]
   },
   'w3a-tx-button': {
     tag: W3A_TX_BUTTON_ID,
@@ -81,14 +59,7 @@ export const uiBuiltinRegistry: WalletUIRegistry = {
   },
 
   // Back-compat alias keys mapping to preferred ones
-  'register-host': { tag: W3A_REGISTER_BUTTON_HOST_ID },
   'tx-host': { tag: W3A_TX_BUTTON_HOST_ID },
-  'register-button': { tag: W3A_REGISTER_BUTTON_ID },
   'tx-button': { tag: W3A_TX_BUTTON_ID },
 };
-import {
-  W3A_REGISTER_BUTTON_HOST_ID,
-  W3A_TX_BUTTON_HOST_ID,
-  W3A_REGISTER_BUTTON_ID,
-  W3A_TX_BUTTON_ID,
-} from '../../WebAuthnManager/LitComponents/tags';
+import { W3A_TX_BUTTON_HOST_ID, W3A_TX_BUTTON_ID } from '../../WebAuthnManager/LitComponents/tags';

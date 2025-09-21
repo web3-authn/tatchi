@@ -495,6 +495,10 @@ export class PasskeyManagerIframe {
     return this.client.exportNearKeypairWithTouchId(nearAccountId);
   }
 
+  async exportNearKeypairWithUI(nearAccountId: string): Promise<void> {
+    return this.client.exportNearKeypairWithUI(nearAccountId);
+  }
+
   // Utility: sign and send in one call via wallet iframe (single before/after)
   async signAndSendTransactions(args: {
     nearAccountId: string;

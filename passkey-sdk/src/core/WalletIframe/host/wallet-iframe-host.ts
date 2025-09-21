@@ -32,6 +32,7 @@ import type {
   PMExecuteActionPayload,
   PMSignNep413Payload,
   PMExportNearKeypairPayload,
+  PMExportNearKeypairUiPayload,
   PMSetConfirmBehaviorPayload,
   PMSetConfirmationConfigPayload,
   PMGetLoginStatePayload,
@@ -116,10 +117,10 @@ function post(msg: ChildToParentEnvelope) {
   try { port?.postMessage(msg); } catch {}
 }
 
-// Lightweight cross-origin control channel for small UI surfaces like a register button.
+// Lightweight cross-origin control channel for small embedded UI surfaces (e.g., tx button).
 // This channel uses window.postMessage directly (not MessagePort) so that a standalone
-// iframe can instruct this host to render a clickable button that performs WebAuthn
-// create() within the same browsing context (satisfying user activation requirements).
+// iframe can instruct this host to render a clickable control that performs WebAuthn
+// operations within the same browsing context (satisfying user activation requirements).
 (() => {
   setupLitElemMounter({
     ensurePasskeyManager,
@@ -158,11 +159,26 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Configure SDK embedded asset base for Lit modal/embedded components
     try {
       const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
+      // Default to serving embedded assets from this wallet origin under /sdk/embedded/
+      const defaultRoot = (() => {
+        try {
+          const base = new URL('/sdk/', window.location.origin).toString();
+          return base.endsWith('/') ? base : base + '/';
+        } catch { return '/sdk/'; }
+      })();
+      let resolvedBase = defaultRoot + 'embedded/';
       if (isString(assetsBaseUrl)) {
-        const norm = assetsBaseUrl.endsWith('/') ? assetsBaseUrl : assetsBaseUrl + '/';
-        window.__W3A_EMBEDDED_BASE__ = norm + 'embedded/';
-        try { console.debug('[WalletHost] assets base set:', window.__W3A_EMBEDDED_BASE__); } catch {}
+        try {
+          const u = new URL(assetsBaseUrl, window.location.origin);
+          // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
+          if (u.origin === window.location.origin) {
+            const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
+            resolvedBase = norm + 'embedded/';
+          }
+        } catch {}
       }
+      (window as any).__W3A_EMBEDDED_BASE__ = resolvedBase;
+      try { console.debug('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
     } catch {}
     nearClient = null; passkeyManager = null;
     // Forward UI registry to lit-elem-mounter if provided
@@ -506,6 +522,19 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         return;
       }
 
+      case 'PM_EXPORT_NEAR_KEYPAIR_UI': {
+        ensurePasskeyManager();
+        const { nearAccountId, variant, theme } = (req.payload || {}) as PMExportNearKeypairUiPayload;
+        try {
+          // Fire-and-forget; PasskeyManager.exportNearKeypairWithUI prefers worker-driven two‑phase flow.
+          void (passkeyManager as any).exportNearKeypairWithUI(nearAccountId, { variant, theme });
+          post({ type: 'PM_RESULT', requestId, payload: { ok: true } });
+        } catch (e: unknown) {
+          post({ type: 'ERROR', requestId, payload: { code: 'EXPORT_NEAR_KEYPAIR_UI_FAILED', message: errorMessage(e) } });
+        }
+        return;
+      }
+
       case 'PM_GET_RECENT_LOGINS': {
         ensurePasskeyManager();
         const result = await passkeyManager!.getRecentLogins();
@@ -678,7 +707,7 @@ function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<str
   }
   const themeCand = isString(p.theme) ? p.theme : undefined;
 
-  const uiMode: ConfirmationConfig['uiMode'] = (uiModeCand === 'skip' || uiModeCand === 'modal' || uiModeCand === 'embedded')
+  const uiMode: ConfirmationConfig['uiMode'] = (uiModeCand === 'skip' || uiModeCand === 'modal' || uiModeCand === 'drawer')
     ? uiModeCand
     : base.uiMode;
 

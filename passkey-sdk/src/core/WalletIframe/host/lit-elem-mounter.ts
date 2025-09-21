@@ -2,12 +2,10 @@
 // Mounts minimal Lit components inside the wallet-iframe document to capture
 // user activation (click) within the wallet origin, enabling WebAuthn
 // without additional popups and clicks. It exposes a
-// tiny postMessage API so the parent can request elements like a Register
-// button to appear/disappear while the sensitive logic runs here.
+// tiny postMessage API so the parent can request embedded UI elements
+// to appear/disappear while the sensitive logic runs here.
 
 // Import and retain a reference to ensure bundlers don’t treeshake the element
-import '../../WebAuthnManager/LitComponents/EmbeddedRegisterButton';
-import { EmbeddedRegisterButton as __EmbeddedRegisterButtonKeep } from '../../WebAuthnManager/LitComponents/EmbeddedRegisterButton/index';
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
@@ -25,15 +23,13 @@ import { isObject, isString, isFiniteNumber } from '../validation';
 import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensureTreeDefinition = [__EmbeddedRegisterButtonKeep, __IframeButtonKeep];
+const __ensureTreeDefinition = [__IframeButtonKeep];
 // Define the element defensively in case the side-effect define was optimized away
 
 import { type WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
-import { WalletIframeRegisterButtonHostProps, type WalletIframeRegisterButtonHost } from '../../../react/components/WalletIframeRegisterButtonHost';
 // Wallet host lit wrappers (no nested wallet iframe)
 import './WalletHostElements';
 
-try { defineTag('registerButton', __EmbeddedRegisterButtonKeep as unknown as CustomElementConstructor); } catch {}
 try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
 
 export type EnsurePasskeyManager = () => void;
@@ -59,16 +55,7 @@ type IframeButtonLitElementProps = HTMLElement & {
   onCancel(): void;
 }
 
-type EmbeddedRegisterButtonLitElementProps = HTMLElement & {
-  text: string;
-  theme: 'dark' | 'light';
-  width: string | number;
-  height: string | number;
-  style: Record<string, string> | CSSStyleDeclaration;
-  buttonClass: string;
-  buttonStyle: Record<string, string> | CSSStyleDeclaration;
-  busy: boolean;
-}
+// Removed EmbeddedRegisterButton types and usage
 
 export function setupLitElemMounter(opts: {
   ensurePasskeyManager: EnsurePasskeyManager;
@@ -89,16 +76,14 @@ export function setupLitElemMounter(opts: {
    *     style?: Record<string, string|number>,
    *     autoClose?: boolean
    *   }
-   *   Renders an <embedded-register-button> Lit component inline and wires its click
+   *   Renders an embedded control inline and wires its click
    *   to PasskeyManager.registerPasskey. No modals are used; confirmation config
    *   is temporarily forced to { uiMode: 'skip', behavior: 'autoProceed' }.
    * - WALLET_HIDE_REGISTER_BUTTON: removes the element if present.
    */
   const { ensurePasskeyManager, getPasskeyManager, updateWalletConfigs } = opts;
 
-  let btnEl: HTMLElement | null = null;
   let txBtnEl: HTMLElement | null = null;
-  let hostRegEl: HTMLElement | null = null;
   let hostTxEl: HTMLElement | null = null;
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
@@ -139,170 +124,13 @@ export function setupLitElemMounter(opts: {
     return document.body || document.documentElement;
   };
 
-  const removeRegisterBtn = () => {
-    try { btnEl?.remove(); } catch {}
-    btnEl = null; busy = false;
-  };
   const removeTxBtn = () => {
     try { txBtnEl?.remove(); } catch {}
     txBtnEl = null;
   };
-  const removeRegisterHost = () => {
-    try { hostRegEl?.remove(); } catch {}
-    hostRegEl = null; busy = false;
-  };
   const removeTxHost = () => {
     try { hostTxEl?.remove(); } catch {}
     hostTxEl = null;
-  };
-
-  const showRegisterBtn = async (cfg: WalletIframeRegisterButtonHostProps) => {
-    try { ensurePasskeyManager(); } catch {}
-    const nearAccountId = String(cfg?.nearAccountId || '').trim();
-    const text = String(cfg?.text || 'Create Passkey');
-    const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    const autoClose = cfg?.autoClose !== false;
-    const className = cfg?.className ? String(cfg.className) : '';
-    const styleObj = normalizeButtonStyle(cfg?.style as Record<string, string>);
-    const width = toPx(cfg?.width, '220px');
-    const height = toPx(cfg?.height, '44px');
-
-    if (!nearAccountId) {
-      console.warn('[ElemMounter:RegisterBtn] missing nearAccountId');
-      return;
-    }
-
-    // Remove existing instance, then create the Lit element
-    removeRegisterBtn();
-    const el = document.createElement(getTag('registerButton')) as EmbeddedRegisterButtonLitElementProps;
-    el.text = text;
-    el.theme = theme;
-    el.width = width;
-    el.height = height;
-    // Ensure visible footprint even before custom-element upgrade
-    try {
-      el.style.display = 'inline-block';
-      el.style.width = width;
-      el.style.height = height;
-    } catch {}
-    if (className) el.buttonClass = className;
-    if (styleObj) el.buttonStyle = styleObj;
-
-    const setBusy = (b: boolean) => {
-      busy = b;
-      try { el.busy = b; } catch {}
-    };
-
-    // Ensure upgrade before relying on events or layout
-    try { await customElements.whenDefined(getTag('registerButton')); } catch {}
-
-    el.addEventListener('w3a-register-click', async () => {
-      if (busy) return;
-      setBusy(true);
-      const pm = getPasskeyManager();
-      try {
-        ensurePasskeyManager();
-        // Temporarily force skip UI for registration so no modal is shown.
-        let prevConfig: ConfirmationConfig | undefined;
-        try {
-          prevConfig = pm?.getConfirmationConfig?.();
-          const base = prevConfig || { uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0, theme: 'dark' as const };
-          const next: ConfirmationConfig = {
-            ...base,
-            uiMode: 'skip',
-            behavior: 'autoProceed',
-            autoProceedDelay: 0,
-          };
-          pm?.setConfirmationConfig?.(next);
-        } catch {}
-
-        const result = await pm!.registerPasskey(nearAccountId, {
-          onEvent: () => {},
-          onError: () => {},
-          beforeCall: async () => {},
-          afterCall: () => {}
-        });
-
-        // Restore previous confirmation config
-        try { if (prevConfig) pm?.setConfirmationConfig?.(prevConfig); } catch {}
-        try {
-          window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: !!result?.success, result } }, '*');
-        } catch {}
-        if (autoClose) removeRegisterBtn();
-      } catch (err: unknown) {
-        try {
-          window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: errorMessage(err) } }, '*');
-        } catch {}
-      } finally {
-        setBusy(false);
-      }
-    });
-
-    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
-    btnEl = el;
-  };
-
-  // Mount register host wrapper (Lit) that mirrors the React host API
-  const showRegisterHost = async (cfg: WalletIframeRegisterButtonHostProps) => {
-    try { ensurePasskeyManager(); } catch {}
-    const nearAccountId = String(cfg?.nearAccountId || '').trim();
-    if (!nearAccountId) {
-      console.warn('[ElemMounter:RegisterHost] missing nearAccountId');
-      return;
-    }
-    removeRegisterHost();
-    const el = document.createElement(getTag('registerHost')) as HTMLElement & { busy?: boolean; styleMap?: Record<string, string>; nearAccountId?: string; text?: string; theme?: 'dark' | 'light'; width?: string; height?: string };
-    // Map props
-    el.nearAccountId = nearAccountId;
-    el.text = cfg?.text || 'Create Passkey';
-    el.theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    el.width = toPx(cfg?.width, '220px');
-    el.height = toPx(cfg?.height, '44px');
-    el.className = cfg?.className ? String(cfg.className) : '';
-    el.style.display = 'inline-block';
-    const styleObj = normalizeButtonStyle(cfg?.style as Record<string, string>);
-    if (styleObj) el.styleMap = styleObj;
-
-    const autoClose = cfg?.autoClose !== false;
-    const setBusy = (b: boolean) => { busy = b; try { el.busy = b; } catch {} };
-
-    // Delegate to local PasskeyManager
-    el.addEventListener('w3a-register-click', async () => {
-      if (busy) return; setBusy(true);
-      const pm = getPasskeyManager();
-      try {
-        ensurePasskeyManager();
-        let prevConfig: ConfirmationConfig | undefined;
-        try {
-          prevConfig = pm?.getConfirmationConfig?.();
-          const base = prevConfig || {
-            uiMode: 'modal',
-            behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark' as const
-          };
-          const next: ConfirmationConfig = {
-            ...base,
-            uiMode: 'skip',
-            behavior: 'autoProceed',
-            autoProceedDelay: 0
-          };
-          pm?.setConfirmationConfig?.(next);
-        } catch {}
-
-        const result = await pm!.registerPasskey(nearAccountId, {
-          onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {}
-        });
-        try { if (prevConfig) pm?.setConfirmationConfig?.(prevConfig); } catch {}
-        try { window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: !!result?.success, result } }, '*'); } catch {}
-        if (autoClose) removeRegisterHost();
-      } catch (err: unknown) {
-        try { window.parent?.postMessage({ type: 'REGISTER_RESULT', payload: { ok: false, error: errorMessage(err) } }, '*'); } catch {}
-      } finally { setBusy(false); }
-    });
-
-    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
-    hostRegEl = el;
   };
 
   // Mount tx host wrapper (Lit) that mirrors the React host API
@@ -599,21 +427,11 @@ export function setupLitElemMounter(opts: {
         try { unmountUiComponent(p); } catch {}
         break;
       // New: host wrappers (no nested wallet iframe)
-      case 'WALLET_SHOW_REGISTER_HOST':
-        showRegisterHost(p);
-        break;
       case 'WALLET_SHOW_TX_HOST':
         showTxHost(p);
         break;
-      case 'WALLET_HIDE_REGISTER_HOST':
-        removeRegisterHost();
-        break;
       case 'WALLET_HIDE_TX_HOST':
         removeTxHost();
-        break;
-      case 'WALLET_SHOW_REGISTER_BUTTON':
-        // Prefer host wrapper to keep a single approach (no nested wallet iframe)
-        showRegisterHost(p);
         break;
       case 'WALLET_SHOW_TX_BUTTON':
         // If caller hints renderMode: 'inline', prefer host wrapper
@@ -621,9 +439,6 @@ export function setupLitElemMounter(opts: {
           if (p?.renderMode === 'inline') { showTxHost(p); break; }
         } catch {}
         showTxBtn(p);
-        break;
-      case 'WALLET_HIDE_REGISTER_BUTTON':
-        removeRegisterBtn();
         break;
       case 'WALLET_HIDE_TX_BUTTON':
         removeTxBtn();

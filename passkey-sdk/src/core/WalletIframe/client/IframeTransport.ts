@@ -70,6 +70,7 @@ export class IframeTransport {
     const iframe = document.createElement('iframe');
     // Hidden by default; higher layers can temporarily show for activation.
     iframe.style.position = 'fixed';
+    iframe.style.border = 'none';
     iframe.style.width = '0px';
     iframe.style.height = '0px';
     iframe.style.opacity = '0';
@@ -83,17 +84,17 @@ export class IframeTransport {
       iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
     }
 
-    // Delegate WebAuthn capabilities to the wallet origin frame when cross-origin
+    // Delegate WebAuthn + clipboard capabilities to the wallet origin frame when cross-origin
     try {
       if (this.opts.walletOrigin) {
         const origin = new URL(this.opts.walletOrigin).origin;
-        const allow = `publickey-credentials-get ${origin}; publickey-credentials-create ${origin}`;
+        const allow = `publickey-credentials-get ${origin}; publickey-credentials-create ${origin}; clipboard-read; clipboard-write`;
         iframe.setAttribute('allow', allow);
       } else {
-        iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'");
+        iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
       }
     } catch {
-      iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'");
+      iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
     }
 
     // Track load state to guard against races where we post before content is listening

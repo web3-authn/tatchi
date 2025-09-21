@@ -30,6 +30,7 @@ export type ParentToChildType =
   | 'PM_EXECUTE_ACTION'
   | 'PM_SIGN_NEP413'
   | 'PM_EXPORT_NEAR_KEYPAIR'
+  | 'PM_EXPORT_NEAR_KEYPAIR_UI'
   | 'PM_GET_RECENT_LOGINS'
   | 'PM_PREFETCH_BLOCKHEIGHT'
   | 'PM_SET_CONFIRM_BEHAVIOR'
@@ -136,6 +137,7 @@ export interface PMSignNep413Payload {
 }
 
 export interface PMExportNearKeypairPayload { nearAccountId: string }
+export interface PMExportNearKeypairUiPayload { nearAccountId: string; variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }
 
 export interface PMSetConfirmBehaviorPayload { behavior: 'requireClick' | 'autoProceed'; nearAccountId?: string }
 
@@ -185,6 +187,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_EXECUTE_ACTION', PMExecuteActionPayload>
   | RpcEnvelope<'PM_SIGN_NEP413', PMSignNep413Payload>
   | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR', PMExportNearKeypairPayload>
+  | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR_UI', PMExportNearKeypairUiPayload>
   | RpcEnvelope<'PM_GET_RECENT_LOGINS'>
   | RpcEnvelope<'PM_PREFETCH_BLOCKHEIGHT'>
   | RpcEnvelope<'PM_SET_CONFIRM_BEHAVIOR', PMSetConfirmBehaviorPayload>

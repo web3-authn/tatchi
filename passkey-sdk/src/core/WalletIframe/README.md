@@ -73,6 +73,7 @@ The wallet iframe mounts as an invisible 0×0 element and temporarily expands to
   - `passkey-sdk/src/core/WalletIframe/progress-bus.ts:101` contains `defaultPhaseHeuristics` that decides when to show/hide based on `payload.phase` from PROGRESS events.
   - Behavior (tuned to minimize blocking time):
     - Show only for: `user-confirmation`, `webauthn-authentication`, `authorization`.
+      - Important: `user-confirmation` must remain in the show list so the modal rendered inside the wallet iframe is visible and can capture a click when `behavior: 'requireClick'`.
     - Hide for: `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `contract-verification`, `broadcasting`, `action-complete`, `registration`.
 
 ### Why the overlay may block clicks after sending
