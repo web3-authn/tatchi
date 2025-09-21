@@ -9,6 +9,7 @@ import { QRCodeScanner } from '../QRCodeScanner';
 import { AccessKeysModal } from './AccessKeysModal';
 import './Web3AuthProfileButton.css';
 import { ThemeProvider, ThemeScope, useTheme } from '../theme';
+import { toAccountId } from '@/core/types';
 
 
 /**
@@ -63,7 +64,6 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   // Local state for modals/expanded sections
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [showAccessKeys, setShowAccessKeys] = useState(false);
-  const [isLoadingKeys, setIsLoadingKeys] = useState(false);
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
 
@@ -76,11 +76,11 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   }, [passkeyManager]);
 
   // Handlers for transaction settings
-  const handleToggleShowDetails = () => {
+  const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
     if (!currentConfirmConfig) return;
-    const newUIMode = currentConfirmConfig.uiMode === 'modal' ? 'skip' : 'modal';
-    passkeyManager.setConfirmationConfig({ ...currentConfirmConfig, uiMode: newUIMode });
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: newUIMode } : prev);
+    const patch = { ...currentConfirmConfig, uiMode: mode };
+    passkeyManager.setConfirmationConfig(patch);
+    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : prev);
   };
 
   const handleToggleSkipClick = () => {
@@ -108,34 +108,21 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
     {
       icon: <Key />,
       label: 'Export Keys',
-      description: 'Export your NEAR keys',
-      disabled: false,
+      description: 'View your private keys',
+      disabled: !loginState.isLoggedIn,
       onClick: async () => {
         try {
-          const {
-            accountId,
-            privateKey,
-            publicKey
-          } = await passkeyManager.exportNearKeypairWithTouchId(nearAccountId!);
-
-          // Small delay to allow document to regain focus after WebAuthn
-          await new Promise(resolve => setTimeout(resolve, 150));
-
-          const keypair_msg = `Account ID:\n${accountId}\n\nPublic key:\n${publicKey}\n\nPrivate key:\n${privateKey}`;
-
-          // Simple clipboard approach with single fallback
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(keypair_msg);
-            alert(`NEAR keys copied to clipboard!\n${keypair_msg}`);
-          } else {
-            // Simple fallback: show keys for manual copy
-            alert(`Your NEAR Keys (copy manually):\n${keypair_msg}`);
-          }
+          await passkeyManager.exportNearKeypairWithUI(nearAccountId!);
         } catch (error: any) {
           console.error('Key export failed:', error);
-          alert(`Key export failed: ${error.message}`);
+          const msg = String(error?.message || 'Unknown error');
+          const friendly = /No user data found|No public key found/i.test(msg)
+            ? 'No local key material found for this account on this device. Please complete registration or recovery here first.'
+            : msg;
+          alert(`Key export failed: ${friendly}`);
         }
-      }
+      },
+      keepOpenOnClick: false,
     },
     {
       icon: <Scan />,
@@ -210,7 +197,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
           menuItemsRef={refs.menuItemsRef}
           toggleColors={toggleColors}
           currentConfirmConfig={currentConfirmConfig}
-          onToggleShowDetails={handleToggleShowDetails}
+          onSetUiMode={handleSetUiMode}
           onToggleSkipClick={handleToggleSkipClick}
           onSetDelay={handleSetDelay}
           onToggleTheme={handleToggleTheme}

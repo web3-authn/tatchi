@@ -120,7 +120,7 @@ export function WalletIframeTxButtonHost({
       style={{ border: 'none', width: w, height: h, ...style }}
       src={src}
       sandbox="allow-scripts allow-same-origin"
-      allow="publickey-credentials-create; publickey-credentials-get"
+      allow="publickey-credentials-create; publickey-credentials-get; clipboard-read; clipboard-write"
     />
   );
 }

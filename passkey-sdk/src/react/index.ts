@@ -55,10 +55,6 @@ export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
 export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
 export {
-  WalletIframeRegisterButtonHost,
-  type WalletIframeRegisterButtonHostProps,
-} from './components/WalletIframeRegisterButtonHost';
-export {
   WalletIframeTxButtonHost,
   type WalletIframeTxButtonHostProps,
 } from './components/WalletIframeTxButtonHost';

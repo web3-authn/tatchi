@@ -64,6 +64,7 @@ export interface ProfileDropdownProps {
   toggleColors?: ToggleColorProps;
   theme?: EmbeddedTxButtonTheme;
   currentConfirmConfig?: any;
+  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
   onToggleSkipClick?: () => void;
   onSetDelay?: (delay: number) => void;
@@ -97,7 +98,8 @@ export interface ProfileRelayerToggleSectionProps {
 
 export interface TransactionSettingsSectionProps {
   currentConfirmConfig: any;
-  onToggleShowDetails: () => void;
+  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
+  onToggleShowDetails?: () => void;
   onToggleSkipClick: () => void;
   onSetDelay: (delay: number) => void;
   onToggleTheme?: () => void;

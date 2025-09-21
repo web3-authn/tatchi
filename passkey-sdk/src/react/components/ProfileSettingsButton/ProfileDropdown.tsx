@@ -9,6 +9,7 @@ interface ProfileDropdownWithRefs extends Omit<ProfileDropdownProps, 'menuItemsR
   menuItemsRef: React.MutableRefObject<(HTMLElement | null)[]>;
   // Transaction settings props
   currentConfirmConfig?: any;
+  onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
   onToggleSkipClick?: () => void;
   onSetDelay?: (delay: number) => void;
@@ -25,6 +26,7 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
     menuItemsRef,
     toggleColors,
     currentConfirmConfig,
+    onSetUiMode,
     onToggleShowDetails,
     onToggleSkipClick,
     onSetDelay,
@@ -63,9 +65,10 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
           ))}
 
           {/* Transaction Settings Section - Always render with animation */}
-          {currentConfirmConfig && onToggleShowDetails && onToggleSkipClick && onSetDelay && (
+          {currentConfirmConfig && (onSetUiMode || onToggleShowDetails) && onToggleSkipClick && onSetDelay && (
             <TransactionSettingsSection
               currentConfirmConfig={currentConfirmConfig}
+              onSetUiMode={onSetUiMode}
               onToggleShowDetails={onToggleShowDetails}
               onToggleSkipClick={onToggleSkipClick}
               onSetDelay={onSetDelay}
