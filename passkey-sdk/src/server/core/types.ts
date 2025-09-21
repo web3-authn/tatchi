@@ -4,7 +4,7 @@ import {
   UserVerificationPolicy,
   OriginPolicyInput
 } from '../../core/types/authenticatorOptions';
-import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 
 /**
  * WASM Bindgen generates a `free` method on all structs.

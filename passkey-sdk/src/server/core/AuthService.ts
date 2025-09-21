@@ -2,7 +2,7 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import { MinimalNearClient } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
-import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
+import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { validateConfigs } from './config';
 import { isObject, isString } from '../../core/WalletIframe/validation';
 
@@ -11,7 +11,7 @@ import { isObject, isString } from '../../core/WalletIframe/validation';
 // =============================
 
 // Primary location (preserveModules output)
-const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/wasm_signer_worker_bg.wasm';
+const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
 // Fallback location (dist/workers copy step)
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 

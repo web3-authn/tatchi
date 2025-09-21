@@ -10,7 +10,7 @@ import initWasm, {
   configure_shamir_p,
   get_shamir_p_b64u,
   SHAMIR_P_B64U,
-} from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+} from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import {
   VRFWorkerMessage,
   WasmVrfWorkerRequestType,
@@ -34,13 +34,13 @@ async function ensureWasmInitialized(): Promise<void> {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = dirname(__filename);
   const candidates = [
-    join(__dirname, '../../wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../../../src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../../../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
     // Dev fallback path when running from the monorepo
-    join(__dirname, '../../../../../../passkey-sdk/src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm'),
+    join(__dirname, '../../../../../../passkey-sdk/src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
   ];
   let bytes: Buffer | undefined;
   for (const p of candidates) {
