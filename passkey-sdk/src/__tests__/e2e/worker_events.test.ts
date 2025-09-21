@@ -63,25 +63,29 @@ test.describe('Worker Communication Protocol', () => {
         // Wait for registration to settle
         await new Promise(resolve => setTimeout(resolve, 5000));
 
-        // Now test executeAction with detailed progress tracking
-        const actionResult = await passkeyManager.executeAction(testAccountId, {
-          type: ActionType.FunctionCall,
+        // Now test executeAction with detailed progress tracking (new SDK signature)
+        const actionResult = await passkeyManager.executeAction({
+          nearAccountId: testAccountId,
           receiverId: (window as any).testUtils.configs.testReceiverAccountId, // Use centralized configuration
-          methodName: 'set_greeting',
-          args: { greeting: 'Test progress message' },
-          gas: '30000000000000',
-          deposit: '0'
-        }, {
-          onEvent: (event: any) => {
-            progressEvents.push({
-              step: event.step,
-              phase: event.phase,
-              status: event.status,
-              message: event.message,
-              timestamp: event.timestamp,
-              hasData: !!event.data
-            });
-            console.log(`Action Progress [${event.step}]: ${event.phase} - ${event.message}`);
+          actionArgs: {
+            type: ActionType.FunctionCall,
+            methodName: 'set_greeting',
+            args: { greeting: 'Test progress message' },
+            gas: '30000000000000',
+            deposit: '0'
+          },
+          options: {
+            onEvent: (event: any) => {
+              progressEvents.push({
+                step: event.step,
+                phase: event.phase,
+                status: event.status,
+                message: event.message,
+                timestamp: event.timestamp,
+                hasData: !!event.data
+              });
+              console.log(`Action Progress [${event.step}]: ${event.phase} - ${event.message}`);
+            }
           }
         });
 

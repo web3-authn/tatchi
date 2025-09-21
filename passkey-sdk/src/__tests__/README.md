@@ -13,7 +13,7 @@ Playwright end-to-end testing for the PasskeyManager SDK with WebAuthn virtual a
 
 ## Test Architecture
 
-The test suite uses Playwright with a Chromium browser to test real WebAuthn functionality using virtual authenticators. Tests run against a local development server and import the built SDK from copied assets.
+The test suite uses Playwright with a Chromium browser to test real WebAuthn functionality using virtual authenticators. Tests run against a local development server and import the built SDK served at `/sdk/*` by the Vite dev plugin (no file copying).
 
 ### Key Components
 
@@ -38,32 +38,15 @@ When you run `npm test`, the following happens in order:
    npm run build
    ```
 
-3. **Asset Copying**: Copy built files to frontend directory:
-   ```bash
-   # Copy complete SDK (including workers) to frontend
-   mkdir -p ../../frontend/public/sdk
-   cp -r dist/* ../../frontend/public/sdk/
-   ```
-
-4. **Run Tests**: `playwright test`
+3. **Run Tests**: `playwright test` (the Vite plugin serves `/sdk/*` directly from `dist/`)
 
 ### Asset Locations
 
-**All SDK Files** (`dist/` → `frontend/public/sdk/`):
-- `esm/` - ES modules (main SDK)
-- `cjs/` - CommonJS modules
-- `types/` - TypeScript definitions
-- `workers/` - Worker files directory
-  - `web3authn-signer.worker.js` - Transaction signing worker
-  - `web3authn-vrf.worker.js` - VRF operations worker
-  - `wasm_signer_worker.js` - WASM signer bindings
-  - `wasm_signer_worker_bg.wasm` - WASM signer binary
-  - `wasm_vrf_worker.js` - WASM VRF bindings
-  - `wasm_vrf_worker_bg.wasm` - WASM VRF binary
-
-> **Note**: All files are copied to a single location (`frontend/public/sdk/`) for simple organization. Worker files are in the `workers/` subdirectory for better separation.
-
-> **Important**: If the frontend moves from `frontend/public/` to another directory, update the copy commands in the `test` script and `copy-wasm-assets.sh`.
+SDK assets live under `dist/` and are served at `/sdk/*` by the dev plugin:
+- `dist/esm/**` - ES modules (main SDK and embedded bundles)
+- `dist/cjs/**` - CommonJS modules
+- `dist/types/**` - TypeScript definitions
+- `dist/workers/**` - Worker bundles and WASM binaries
 
 ## Test Environment Setup
 
@@ -107,7 +90,7 @@ await page.waitForFunction(() => {
 
 #### Step 4: PasskeyManager Loading
 ```typescript
-// Dynamically load PasskeyManager from copied SDK
+// Dynamically load PasskeyManager from served SDK assets
 const { PasskeyManager } = await import('/sdk/esm/index.js');
 const passkeyManager = new PasskeyManager(config);
 ```
@@ -171,10 +154,10 @@ npm test -- --reporter=line
 npm test -- --video=on
 ```
 
-### Manual Build & Copy (without tests)
+### Manual Build (without tests)
 ```bash
-# Just build and copy assets
-npm run build:check:fresh || (npm run build && mkdir -p ../../frontend/public/sdk && cp -r dist/* ../../frontend/public/sdk/)
+# Just build the SDK (dev server will serve from dist/)
+npm run build
 ```
 
 ## Test Files Overview

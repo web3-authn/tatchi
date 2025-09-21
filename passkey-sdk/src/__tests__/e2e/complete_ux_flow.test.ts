@@ -128,8 +128,8 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         // Test VRF worker initialization
         console.log('Testing VRF worker initialization...');
         try {
-          // Check current URL and base path
-          const currentUrl = await page.url();
+          // Check current URL and base path (browser context)
+          const currentUrl = window.location.href;
           console.log('Current test URL:', currentUrl);
 
           // Check if worker files exist

@@ -11,7 +11,9 @@ export default defineConfig({
   reporter: 'html',
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'https://example.localhost',
+    baseURL: 'http://localhost:5173',
+    /* Caddy serves self-signed certs for example.localhost */
+    ignoreHTTPSErrors: true,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
     /* Enable verbose console logging for debugging */
@@ -31,10 +33,10 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: 'cd ../../frontend && npm run dev',
-    url: 'https://example.localhost',
+    // Start Vite dev server only (no Caddy); tests use http://localhost:5173
+    command: 'pnpm -C ../examples/vite dev',
+    url: 'http://localhost:5173',
     reuseExistingServer: true,
     timeout: 120000, // Increased timeout to allow for build
-    ignoreHTTPSErrors: true,
   },
 });
