@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu } from '@web3authn/passkey/react'
+import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu, AuthMenuMode } from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -154,7 +154,7 @@ export function PasskeyLoginMenu() {
     <div className="passkey-login-container-root" style={{
     }}>
       <PasskeyAuthMenu
-        defaultMode={accountExists ? 'login' : 'register'}
+        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
         socialLogin={{}}
         // socialLogin={{
         //   google: () => 'username is: <gmail_email@gmail>',

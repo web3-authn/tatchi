@@ -1,11 +1,11 @@
 
 import React, { useState, useCallback } from 'react';
 import { ActionStatus, usePasskeyContext } from '@web3authn/passkey/react';
-import type { ActionArgs, FunctionCallAction, TransferAction, CreateAccountAction, DeployContractAction, StakeAction, AddKeyAction, DeleteKeyAction, DeleteAccountAction } from '@web3authn/passkey/react';
+import type { ActionArgs } from '@web3authn/passkey/react';
 import { ActionType, ActionPhase, TxExecutionStatus } from '@web3authn/passkey/react';
-import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
+import { WEBAUTHN_CONTRACT_ID } from '../config';
 import toast from 'react-hot-toast';
-import './ModalTxConfirmPage.css';
+import './MultiTxConfirmPage.css';
 import { GlassBorder } from '../components/GlassBorder';
 import { LoadingButton } from '../components/LoadingButton';
 
@@ -19,7 +19,7 @@ import { LoadingButton } from '../components/LoadingButton';
  * 4. WASM worker processes the transaction without additional confirmation
  * 5. Transaction result is returned to the main thread
  */
-export const ModalTxConfirmPage: React.FC = () => {
+export const MultiTxConfirmPage: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     passkeyManager,
