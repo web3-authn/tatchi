@@ -54,15 +54,8 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       backgroundColor: DARK_THEME.colorBackground
     },
 
+    // Main tooltip container
     tooltipBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
-    // Main tooltip container - the glass-like container around the content
-    tooltipBorderInner: {
       borderRadius: '24px',
       border: `1px solid transparent`,
       boxShadow: '0 1px 3px 0px rgba(5, 5, 5, 0.4)'
@@ -184,15 +177,8 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       backgroundColor: LIGHT_THEME.colorBackground
     },
 
+    // Main tooltip container
     tooltipBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
-    // Main tooltip container - the glass-like container around the content
-    tooltipBorderInner: {
       borderRadius: '24px',
       border: `1px solid ${LIGHT_THEME.slate300}`,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'

@@ -3,6 +3,7 @@ import { html, css, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { EMBEDDED_SDK_BASE_PATH, IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
+import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 
 type MessageType =
@@ -147,7 +148,7 @@ export class IframeExportHost extends LitElementWithProps {
           <script type="module" src="${base}${bootstrap}"></script>
         </head>
         <body>
-          <w3a-registration-drawer id="exp" theme="dark" title="Export Private Key" confirm-text="Close" actions="none"></w3a-registration-drawer>
+          <w3a-drawer id="exp" theme="dark"></w3a-drawer>
         </body>
       </html>`;
   }
@@ -231,7 +232,17 @@ export class IframeExportHost extends LitElementWithProps {
   }
 }
 
+// Strongly-typed element shape for 'w3a-export-viewer-iframe'
+export type ExportViewerIframeElement = HTMLElement & {
+  theme?: ExportViewerTheme;
+  variant?: ExportViewerVariant;
+  accountId?: string;
+  publicKey?: string;
+  privateKey?: string;
+  loading?: boolean;
+  errorMessage?: string;
+};
+
 customElements.define('w3a-export-viewer-iframe', IframeExportHost);
 
 export default IframeExportHost;
-

@@ -40,9 +40,13 @@ export async function ensureIframeModalDefined(): Promise<void> {
 
 // ========= Host Modal helpers (no nested iframe) =========
 
-async function ensureHostModalDefined(): Promise<void> {
+async function ensureHostElementDefined(variant: 'modal' | 'drawer' = 'modal'): Promise<void> {
+  if (variant === 'drawer') {
+    if (customElements.get('w3a-drawer-tx-confirm')) return;
+    await import('./IframeModalConfirmer/DrawerTxConfirmer');
+    return;
+  }
   if (customElements.get('passkey-modal-confirm')) return;
-  // Dynamically import the modal element definition into the host context
   await import('./IframeModalConfirmer/ModalTxConfirmer');
 }
 
@@ -57,13 +61,14 @@ type PasskeyModalConfirmElement = HTMLElement & {
   close?: (confirmed: boolean) => void;
 };
 
-export async function mountHostModalWithHandle({
+export async function mountHostUiWithHandle({
   ctx,
   summary,
   txSigningRequests,
   vrfChallenge,
   loading,
   theme,
+  variant,
   nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
@@ -72,13 +77,13 @@ export async function mountHostModalWithHandle({
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
   theme?: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
-}): Promise<{
-  element: PasskeyModalConfirmElement;
-  close: (confirmed: boolean) => void
-}> {
-  await ensureHostModalDefined();
-  const el = document.createElement('passkey-modal-confirm') as unknown as PasskeyModalConfirmElement;
+}): Promise<{ element: any; close: (confirmed: boolean) => void }> {
+  const v: 'modal' | 'drawer' = variant || 'modal';
+  await ensureHostElementDefined(v);
+  const tag = v === 'drawer' ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+  const el = document.createElement(tag) as any;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
   el.intentDigest = summary?.intentDigest;
@@ -86,18 +91,19 @@ export async function mountHostModalWithHandle({
   if (theme) el.theme = theme;
   if (loading != null) el.loading = !!loading;
   // Two-phase close: let caller control removal
-  el.deferClose = true;
+  try { el.deferClose = true; } catch {}
   document.body.appendChild(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   return { element: el, close };
 }
 
-export async function awaitHostModalDecisionWithHandle({
+export async function awaitHostUiDecisionWithHandle({
   ctx,
   summary,
   txSigningRequests,
   vrfChallenge,
   theme,
+  variant,
   nearAccountIdOverride,
 }: {
   ctx: SignerWorkerManagerContext,
@@ -105,20 +111,20 @@ export async function awaitHostModalDecisionWithHandle({
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
   theme?: 'dark' | 'light',
+  variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
-}): Promise<{
-  confirmed: boolean;
-  handle: { element: PasskeyModalConfirmElement; close: (confirmed: boolean) => void };
-}> {
-  await ensureHostModalDefined();
+}): Promise<{ confirmed: boolean; handle: { element: any; close: (confirmed: boolean) => void } }> {
+  const v: 'modal' | 'drawer' = variant || 'modal';
+  await ensureHostElementDefined(v);
   return new Promise((resolve) => {
-    const el = document.createElement('passkey-modal-confirm') as unknown as PasskeyModalConfirmElement;
+    const tag = v === 'drawer' ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+    const el = document.createElement(tag) as any;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;
     if (vrfChallenge) el.vrfChallenge = vrfChallenge;
     if (theme) el.theme = theme;
-    el.deferClose = true;
+    try { el.deferClose = true; } catch {}
 
     const onConfirm = (e: Event) => {
       cleanup();
@@ -277,13 +283,14 @@ export async function mountModalTxConfirmer({
       nearAccountIdOverride,
     });
   }
-  return await mountHostModalWithHandle({
+  return await mountHostUiWithHandle({
     ctx,
     summary,
     txSigningRequests,
     vrfChallenge,
     loading,
     theme,
+    variant,
     nearAccountIdOverride,
   });
 }
@@ -321,12 +328,13 @@ export async function awaitModalTxConfirmerDecision({
       nearAccountIdOverride,
     });
   }
-  return await awaitHostModalDecisionWithHandle({
+  return await awaitHostUiDecisionWithHandle({
     ctx,
     summary,
     txSigningRequests,
     vrfChallenge,
     theme,
+    variant,
     nearAccountIdOverride,
   });
 }

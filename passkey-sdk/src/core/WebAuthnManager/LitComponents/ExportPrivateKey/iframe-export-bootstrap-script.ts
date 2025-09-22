@@ -50,14 +50,13 @@ function isSetExportDataPayload(payload: unknown): payload is MessagePayloads['S
 }
 
 // Ensure a drawer element exists in body; use id 'exp'
-function getDrawer(): HTMLElement & { theme?: string; title?: string; confirmText?: string; cancelText?: string; open?: boolean; actions?: 'confirm-cancel' | 'close-only' | 'none' } {
+function getDrawer(): HTMLElement & { theme?: string; open?: boolean; height?: string; showCloseButton?: boolean; overpullPx?: number; dragToClose?: boolean } {
   let el = document.getElementById('exp') as any;
   if (!el) {
-    el = document.createElement('w3a-registration-drawer');
+    el = document.createElement('w3a-drawer');
     el.id = 'exp';
     document.body.appendChild(el);
   }
-  try { (el as any).actions = 'none'; } catch {}
   return el;
 }
 
@@ -99,12 +98,11 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
 
       const drawer = getDrawer();
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;
-      drawer.title = 'Export Private Key';
-      // Hide actions so drawer only has a single close affordance (the ×)
-      try { (drawer as any).actions = 'none'; } catch {}
-      // Confirm/Cancel texts not needed when actions are hidden, but keep set defensively
-      drawer.confirmText = 'Close';
-      drawer.cancelText = '';
+      // Show just the top portion above the fold; allow closing via overlay/×
+      drawer.height = '50vh';
+      drawer.showCloseButton = true;
+      drawer.dragToClose = true;
+      drawer.overpullPx = 160;
       drawer.open = true;
       break;
     }
@@ -162,4 +160,3 @@ document.addEventListener('copy', (e: Event) => {
 window.addEventListener('message', onMessage);
 // signal ready to parent immediately
 try { postToParent('READY'); } catch {}
-

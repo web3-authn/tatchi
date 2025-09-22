@@ -13,7 +13,7 @@ import {
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 // Ensure the drawer custom element is available when variant === 'drawer'
 // This side-effect import defines the <w3a-drawer-tx-confirm> element.
-import '../DrawerTxConfirmer';
+import './DrawerTxConfirmer';
 
 
 // Parent communication configuration
@@ -132,7 +132,6 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
   if (!data || !isObject(data) || !('type' in data)) return;
 
   const { type, payload } = data as IframeModalMessage;
-  const el = ensureElement();
   switch (type) {
     case 'SET_INIT': {
       if (isSetInitPayload(payload) && payload) {
@@ -151,11 +150,12 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     case 'SET_TX_DATA': {
       // Set data properties on modal for rendering; digest will read from element on demand
       if (isSetTxDataPayload(payload) && payload) {
-        // Switch variant when provided (modal|drawer)
+        // Switch variant when provided (modal|drawer) BEFORE creating/ensuring the element
         const variant = (payload as any).variant;
         if (variant === 'drawer' || variant === 'modal') {
           CURRENT_VARIANT = variant;
         }
+        const el = ensureElement();
         el.nearAccountId = payload.nearAccountId;
         el.txSigningRequests = payload.txSigningRequests;
         if (payload.vrfChallenge) {
@@ -170,6 +170,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     }
     case 'SET_LOADING': {
       if (isSetLoadingPayload(payload)) {
+        const el = ensureElement();
         el.loading = payload;
         el.requestUpdate?.();
       }
@@ -178,6 +179,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     case 'SET_ERROR': {
       try {
         if (isString(payload)) {
+          const el = ensureElement();
           el.errorMessage = payload;
           el.loading = false;
           el.requestUpdate?.();
@@ -187,6 +189,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     }
     case 'CLOSE_MODAL': {
       try {
+        const el = ensureElement();
         const confirmed = isCloseModalPayload(payload) && payload ? payload.confirmed : false;
         el.close ? el.close(confirmed) : el.remove();
       } catch {}
@@ -194,16 +197,17 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
     }
     case 'REQUEST_UI_DIGEST': {
       try {
+        const el = ensureElement();
         // Normalize actions to wasm shape if needed (supports both UI + wasm inputs)
-        const raw = Array.isArray(el?.txSigningRequests) ? el.txSigningRequests : [];
-        const txs = raw
+        const raw = (Array.isArray((el as any)?.txSigningRequests) ? (el as any).txSigningRequests : []) as TransactionInputWasm[];
+        const txs: TransactionInputWasm[] = raw
           .filter(issTransactionInput)
-          .map((tx) => ({
+          .map((tx: any) => ({
             receiverId: tx.receiverId,
-            actions: tx.actions.map((a) => isActionArgsWasm(a) ? a : toActionArgsWasm(a as ActionArgs))
+            actions: tx.actions.map((a: any) => isActionArgsWasm(a) ? a : toActionArgsWasm(a as ActionArgs))
           }) as TransactionInputWasm);
 
-        const wasmShapedOrdered = txs.map(tx => ({
+        const wasmShapedOrdered: TransactionInputWasm[] = txs.map(tx => ({
           receiverId: tx.receiverId,
           actions: tx.actions.map(orderActionForDigest)
         }) as TransactionInputWasm);

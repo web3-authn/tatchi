@@ -205,14 +205,12 @@ export class ModalTxConfirmElement extends LitElementWithProps {
     }
 
     .rpid-wrapper {
-      // margin-top: 2px;
       border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
     }
     .rpid {
       display: flex;
       align-items: center;
       gap: 6px;
-      // padding: 4px 1.25rem;
       margin-top: 2px;
       font-size: 0.7rem;
       color: var(--w3a-modal__label__color);

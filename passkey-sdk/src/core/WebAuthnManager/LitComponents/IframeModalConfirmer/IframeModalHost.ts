@@ -141,7 +141,7 @@ export class IframeModalHost extends LitElementWithProps {
           <script type="module" src="${base}${iframeBootstrap}"></script>
         </head>
         <body>
-          <passkey-modal-confirm id="mtx"></passkey-modal-confirm>
+          <!-- Modal/Drawer element is created dynamically by iframe bootstrap based on variant -->
         </body>
       </html>`;
   }

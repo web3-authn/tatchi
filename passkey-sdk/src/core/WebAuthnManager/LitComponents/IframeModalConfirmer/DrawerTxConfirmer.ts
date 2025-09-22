@@ -1,0 +1,293 @@
+import { html, css, type PropertyValues } from 'lit';
+import { LitElementWithProps } from '../LitElementWithProps';
+import DrawerElement from '../Drawer';
+import TxTree from '../TxTree';
+import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
+import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
+import type { TransactionInputWasm, VRFChallenge } from '../../../types';
+import { fromTransactionInputsWasm } from '../../../types/actions';
+
+/**
+ * DrawerTxConfirmer: Drawer variant of the transaction confirmer
+ * Emits 'w3a:modal-confirm' and 'w3a:modal-cancel' for compatibility with iframe host bootstrap.
+ */
+export class DrawerTxConfirmerElement extends LitElementWithProps {
+  static properties = {
+    nearAccountId: { type: String, attribute: 'near-account-id' },
+    txSigningRequests: { type: Array },
+    vrfChallenge: { type: Object },
+    theme: { type: String },
+    loading: { type: Boolean },
+    errorMessage: { type: String },
+    title: { type: String },
+    confirmText: { type: String },
+    cancelText: { type: String },
+    // Two‑phase close: when true, host controls removal
+    deferClose: { type: Boolean, attribute: 'defer-close' },
+  } as const;
+
+  declare nearAccountId: string;
+  declare txSigningRequests: TransactionInputWasm[];
+  declare vrfChallenge?: VRFChallenge;
+  declare theme: 'dark' | 'light';
+  declare loading: boolean;
+  declare errorMessage?: string;
+  declare title: string;
+  declare confirmText: string;
+  declare cancelText: string;
+  declare deferClose: boolean;
+
+  private _treeNode: any | null = null;
+  // Keep essential custom elements from being tree-shaken
+  private _ensureDrawerDefinition = DrawerElement;
+  private _ensureTreeDefinition = TxTree;
+  private _drawerEl: any | null = null;
+
+  private _computeTreeFromInputs(): void {
+    try {
+      const inputs = Array.isArray(this.txSigningRequests) ? this.txSigningRequests : [];
+      if (inputs.length === 0) { this._treeNode = null; return; }
+      const uiTxs = fromTransactionInputsWasm(inputs);
+      this._treeNode = buildDisplayTreeFromTxPayloads(uiTxs, TX_TREE_THEMES[this.theme]);
+    } catch (e) {
+      console.warn('[DrawerTxConfirmer] failed to build tree', e);
+      this._treeNode = null;
+    }
+  }
+
+  static styles = css`
+    :host { display: contents; }
+    .drawer-tx-confirmer-root {
+      display: grid;
+      place-content: center;
+    }
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      gap: 12px;
+    }
+    .drawer-title { margin: 0; font-size: 20px; font-weight: 700; }
+    .drawer-actions { display: flex; gap: 8px; }
+    .drawer-btn {
+      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
+      background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.06));
+      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .drawer-btn.primary {
+      background: var(--w3a-btn-primary, #4DAFFE);
+      color: var(--w3a-btn-text, #0b1220);
+      border-color: transparent;
+    }
+    .footer-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .section {
+      margin: 8px 0;
+      max-width: 600px;
+    }
+    .responsive-card {
+      position: relative;
+      min-width: 320px;
+      max-width: 600px;
+      overflow: visible;
+      border-radius: 1rem;
+      z-index: 1;
+      padding: var(--w3a-modal__responsive-card__padding, 0rem);
+      margin: var(--w3a-modal__responsive-card__margin, 0px);
+    }
+
+    .rpid-wrapper {
+      border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
+      margin-bottom: 1rem;
+    }
+    .rpid {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+      font-size: 0.7rem;
+      color: var(--w3a-modal__label__color);
+      font-weight: 400;
+    }
+    .secure-indicator {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .padlock-icon {
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+      color: var(--w3a-modal__padlock-icon__color, rgba(255, 255, 255, 0.6));
+    }
+    .block-height-icon {
+      width: 12px;
+      height: 12px;
+      margin-right: 4px;
+      color: var(--w3a-modal__block-height-icon__color, rgba(255, 255, 255, 0.6));
+    }
+    .divider { width: 1px; height: 12px; background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18)); margin: 0 4px; }
+  `;
+
+  constructor() {
+    super();
+    this.nearAccountId = '';
+    this.txSigningRequests = [];
+    this.theme = 'dark';
+    this.loading = false;
+    this.title = 'Sign transaction with Passkey';
+    this.confirmText = 'Confirm';
+    this.cancelText = 'Cancel';
+    this.deferClose = false;
+  }
+
+  protected getComponentPrefix(): string { return 'drawer-tx'; }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    // Compute initial tree with current property values after upgradeProperty runs
+    this._computeTreeFromInputs();
+  }
+
+  firstUpdated(): void {
+    this._drawerEl = this.shadowRoot?.querySelector('w3a-drawer') as any;
+  }
+
+  updated(changed: PropertyValues) {
+    super.updated(changed);
+    if (changed.has('txSigningRequests') || changed.has('theme')) {
+      this._computeTreeFromInputs();
+    }
+  }
+
+  private onDrawerCancel = () => {
+    if (this.loading) return;
+    try {
+      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+    } catch {}
+  };
+
+  private onConfirmClick = () => {
+    if (this.loading) return;
+    try {
+      // Host will proceed to Touch ID prompt when it receives this event
+      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true }));
+    } catch {}
+  };
+
+  private onCancelClick = () => {
+    if (this.loading) return;
+    try { this._drawerEl?.handleClose(); } catch {}
+    try {
+      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+    } catch {}
+  };
+
+  // Public method for two‑phase close from host/bootstrap
+  close(_confirmed: boolean) {
+    try { this.remove(); } catch {}
+  }
+
+  render() {
+    const block = this.vrfChallenge?.blockHeight || '';
+
+    return html`
+      <w3a-drawer
+        .open=${true}
+        .theme=${this.theme}
+        .loading=${this.loading}
+        .errorMessage=${this.errorMessage || ''}
+        .height=${'auto'}
+        .overpullPx=${160}
+        .dragToClose=${true}
+        .showCloseButton=${true}
+        @cancel=${this.onDrawerCancel}
+      >
+        <div class="drawer-tx-confirmer-root">
+          <div class="section responsive-card">
+            <div class="drawer-header">
+              <h2 class="drawer-title">${this.title}</h2>
+            </div>
+          </div>
+
+          <div class="section responsive-card">
+            <div class="rpid-wrapper">
+              <div class="rpid">
+                <div class="secure-indicator">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                    class="padlock-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                  </svg>
+                  ${this.vrfChallenge?.rpId
+                    ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
+                    : ''}
+                </div>
+                <span class="security-details">
+                  <svg xmlns="http://www.w3.org/2000/svg"
+                    class="block-height-icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+                    <path d="m3.3 7 8.7 5 8.7-5"/>
+                    <path d="M12 22V12"/>
+                  </svg>
+                  ${this.vrfChallenge?.rpId
+                    ? html`block ${this.vrfChallenge.blockHeight}`
+                    : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div class="section responsive-card">
+            ${
+              this._treeNode
+              ? html`
+                  <tx-tree
+                    .node=${this._treeNode}
+                    .theme=${this.theme}
+                    .styles=${TX_TREE_THEMES[this.theme]}
+                  ></tx-tree>`
+              : null
+            }
+          </div>
+
+          <div class="section responsive-card">
+            <div class="footer-actions">
+              <button class="drawer-btn" @click=${this.onCancelClick}>Cancel</button>
+              <button class="drawer-btn primary" @click=${this.onConfirmClick}>Confirm</button>
+            </div>
+          </div>
+
+        </div>
+      </w3a-drawer>
+    `;
+  }
+}
+
+customElements.define('w3a-drawer-tx-confirm', DrawerTxConfirmerElement);
+
+export default DrawerTxConfirmerElement;

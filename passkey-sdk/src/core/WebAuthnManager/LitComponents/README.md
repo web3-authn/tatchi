@@ -198,6 +198,22 @@ Implementation reference:
 
 1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/react/embedded)
 2) In the wallet host code path that uses it, add a dynamic `await import('<module>')` before `document.createElement('<tag>')`
+3) Prevent tree-shaking of required sub-elements when composing
+   - If your component composes other custom elements (e.g., Drawer, TxTree), reference them in a private field so bundlers don’t drop the import:
+     ```ts
+     import DrawerElement from '../Drawer';
+     import TxTree from '../TxTree';
+     export class MyElement extends LitElementWithProps {
+       private _ensureDrawerDefinition = DrawerElement;
+       private _ensureTreeDefinition = TxTree;
+       // ...
+     }
+     ```
+   - For iframe bootstraps, import side-effect modules for variants you may dynamically create (e.g., `'./DrawerTxConfirmer'`).
+4) Set variant before creating elements in iframe bootstraps
+   - Apply any `variant`/mode flags before calling your `ensureElement()` function so the correct tag is created on first paint.
+5) Two‑phase close in embedded flows
+   - Set `deferClose = true` on the inner element and have the bootstrap/host call `close(confirmed)` after animations complete.
 3) Ensure the child iframe HTML (srcdoc) loads the viewer and bootstrap with `type="module"` under `__W3A_EMBEDDED_BASE__`
 4) Add rolldown entries so both viewer and bootstrap bundles are emitted
 5) For two‑phase or long‑lived UIs, mark the wallet request sticky and hide the overlay only on WALLET_UI_CLOSED
