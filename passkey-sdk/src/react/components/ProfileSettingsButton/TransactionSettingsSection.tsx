@@ -78,7 +78,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   labels={{ [AuthMenuMode.Register]: 'skip', [AuthMenuMode.Login]: 'modal', [AuthMenuMode.Recover]: 'drawer' }}
                   height={44}
                   buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-colorSurface)' }}
+                  containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />
@@ -103,7 +103,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   options={[AuthMenuMode.Register, AuthMenuMode.Login]}
                   height={44}
                   buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-colorSurface)' }}
+                  containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />

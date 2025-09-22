@@ -53,6 +53,7 @@ export interface DesignTokens {
     colorBackground: string;
     colorSurface: string;
     colorSurface2: string;
+    colorSurface3: string;
     colorBorder: string;
 
     // Interactive states
@@ -189,6 +190,7 @@ export const LIGHT_TOKENS: DesignTokens = {
     colorBackground: LIGHT_THEME.colorBackground,
     colorSurface: LIGHT_THEME.colorSurface,
     colorSurface2: LIGHT_THEME.colorSurface2,
+    colorSurface3: LIGHT_THEME.colorSurface3,
     colorBorder: LIGHT_THEME.colorBorder,
 
     // Interactive states
@@ -296,6 +298,7 @@ export const DARK_TOKENS: DesignTokens = {
     colorBackground: DARK_THEME.colorBackground,
     colorSurface: DARK_THEME.colorSurface,
     colorSurface2: DARK_THEME.colorSurface2,
+    colorSurface3: DARK_THEME.colorSurface3,
     colorBorder: DARK_THEME.colorBorder,
 
     // Interactive states

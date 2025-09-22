@@ -195,8 +195,9 @@ export const DARK_THEME = {
   textMuted: GREY_COLORS.grey650,
 
   colorBackground: GREY_COLORS.grey800,
-  colorSurface: GREY_COLORS.grey750,
-  colorSurface2: GREY_COLORS.slate700,
+  colorSurface: GREY_COLORS.slate700,
+  colorSurface2: GREY_COLORS.slate750,
+  colorSurface3: GREY_COLORS.slate800,
   colorBorder: GREY_COLORS.grey700,
 
   grey25: GREY_COLORS.grey25,
@@ -260,8 +261,9 @@ export const LIGHT_THEME = {
   textMuted: GREY_COLORS.grey350,
 
   colorBackground: GREY_COLORS.grey50,
-  colorSurface: GREY_COLORS.grey150,
-  colorSurface2: GREY_COLORS.slate150,
+  colorSurface: GREY_COLORS.slate150,
+  colorSurface2: GREY_COLORS.slate200,
+  colorSurface3: GREY_COLORS.slate250,
   colorBorder: GREY_COLORS.grey200,
 
   grey25: GREY_COLORS.grey25,
