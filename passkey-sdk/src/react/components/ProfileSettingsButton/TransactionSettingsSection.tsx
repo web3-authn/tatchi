@@ -72,10 +72,14 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               </div>
               <div style={{ width: '100%', maxWidth: 260 }}>
                 <SegmentedControl
-                  mode={segMode}
-                  onChange={handleSegChange}
+                  items={[
+                    { value: 'skip', label: 'skip' },
+                    { value: 'modal', label: 'modal' },
+                    { value: 'drawer', label: 'drawer' },
+                  ]}
+                  value={(currentConfirmConfig?.uiMode ?? 'modal')}
+                  onValueChange={(v) => onSetUiMode?.(v as 'skip' | 'modal' | 'drawer')}
                   activeBg={'var(--w3a-colors-primary)'}
-                  labels={{ [AuthMenuMode.Register]: 'skip', [AuthMenuMode.Login]: 'modal', [AuthMenuMode.Recover]: 'drawer' }}
                   height={44}
                   buttonFontSize={13}
                   containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}
@@ -92,15 +96,17 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
             >
               <div style={{ width: '100%', maxWidth: 260 }}>
                 <SegmentedControl
-                  mode={(currentConfirmConfig?.behavior === 'autoProceed' ? AuthMenuMode.Register : AuthMenuMode.Login)}
-                  onChange={(m: AuthMenuMode) => {
-                    const wantsAuto = m === AuthMenuMode.Register;
+                  items={[
+                    { value: 'auto', label: 'auto proceed' },
+                    { value: 'require', label: 'require click' },
+                  ]}
+                  value={(currentConfirmConfig?.behavior === 'autoProceed') ? 'auto' : 'require'}
+                  onValueChange={(v) => {
+                    const wantsAuto = v === 'auto';
                     const isAuto = currentConfirmConfig?.behavior === 'autoProceed';
                     if (wantsAuto !== isAuto) onToggleSkipClick?.();
                   }}
                   activeBg={'var(--w3a-colors-primary)'}
-                  labels={{ [AuthMenuMode.Register]: 'auto proceed', [AuthMenuMode.Login]: 'require click' }}
-                  options={[AuthMenuMode.Register, AuthMenuMode.Login]}
                   height={44}
                   buttonFontSize={13}
                   containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}

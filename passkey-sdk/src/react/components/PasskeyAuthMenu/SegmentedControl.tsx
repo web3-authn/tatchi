@@ -1,17 +1,16 @@
 import React from 'react';
-import { AuthMenuMode, AuthMenuModeMap } from '.';
 
 export interface SegmentedControlProps {
-  mode: AuthMenuMode;
-  onChange: (mode: AuthMenuMode) => void;
+  // Generic API
+  items: Array<{
+    value: unknown;
+    label?: React.ReactNode;
+    className?: string;
+    disabled?: boolean;
+  }>;
+  value: unknown;
+  onValueChange: (value: unknown) => void;
   activeBg: string;
-  /** Optional labels per tab (defaults provided) */
-  labels?: Partial<Record<AuthMenuMode, React.ReactNode>>;
-  /**
-   * Optional list of options to render, in order. Defaults to
-   * [0,1,2] (register, login, recover). Use a subset to render 2 options.
-   */
-  options?: AuthMenuMode[];
   /** Optional container height (e.g., 54, '54px') */
   height?: number | string;
   /** Optional border radius for container/active pill */
@@ -38,11 +37,10 @@ const toCssDim = (v?: number | string): string | undefined => {
 };
 
 export const SegmentedControl: React.FC<SegmentedControlProps> = ({
-  mode,
-  onChange,
+  items,
+  value,
+  onValueChange,
   activeBg,
-  labels,
-  options,
   height,
   radius,
   buttonFontSize,
@@ -53,27 +51,11 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   className,
   buttonClassName,
 }) => {
-  const handleModeChange = (newMode: AuthMenuMode) => {
-    if (newMode !== mode) onChange(newMode);
-  };
+  // Compute layout metrics
+  const count = Math.max(1, items.length);
+  const activeIndex = Math.max(0, items.findIndex((it) => Object.is(it.value, value)));
+  const pct = activeIndex * 100;
 
-  const opts: AuthMenuMode[] = Array.isArray(options) && options.length > 0
-    ? options
-    : [AuthMenuMode.Register, AuthMenuMode.Login, AuthMenuMode.Recover];
-
-  const index = Math.max(0, opts.indexOf(mode as AuthMenuMode));
-  const pct = index * 100;
-  const count = Math.max(1, opts.length);
-
-  const labelFor = (key: AuthMenuMode): React.ReactNode => {
-    if (labels && labels[key] !== undefined) return labels[key]!;
-    const DEFAULT_LABELS: Record<'register'|'login'|'recover', string> = {
-      register: 'Register',
-      login: 'Login',
-      recover: 'Recover',
-    };
-    return DEFAULT_LABELS[AuthMenuModeMap[key]];
-  };
 
   const rootStyle: React.CSSProperties = {
     height: toCssDim(height),
@@ -98,21 +80,25 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
     <div className={`w3a-seg${className ? ` ${className}` : ''}`} style={rootStyle}>
       <div className="w3a-seg-active" style={activeStyle} />
       <div className="w3a-seg-grid" style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}>
-        {opts.map((key) => (
-          <button
-            key={key}
-            type="button"
-            aria-pressed={mode === key}
-            className={`w3a-seg-btn ${AuthMenuModeMap[key]}${mode === key ? ' is-active' : ''}${buttonClassName ? ` ${buttonClassName}` : ''}`}
-            onClick={() => handleModeChange(key)}
-            style={{
-              ...btnBaseStyle,
-              ...(mode === key ? (activeButtonStyle || {}) : {}),
-            }}
-          >
-            {labelFor(key)}
-          </button>
-        ))}
+        {items.map((it, i) => {
+          const isActive = i === activeIndex;
+          return (
+            <button
+              key={i}
+              type="button"
+              aria-pressed={isActive}
+              className={`w3a-seg-btn${isActive ? ' is-active' : ''}${buttonClassName ? ` ${buttonClassName}` : ''}${it.className ? ` ${it.className}` : ''}`}
+              onClick={() => onValueChange(it.value)}
+              disabled={!!it.disabled}
+              style={{
+                ...btnBaseStyle,
+                ...(isActive ? (activeButtonStyle || {}) : {}),
+              }}
+            >
+              {it.label ?? String(it.value)}
+            </button>
+          );
+        })}
       </div>
     </div>
   );

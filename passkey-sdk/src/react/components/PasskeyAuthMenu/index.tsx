@@ -249,8 +249,17 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           secure={secure}
         />
 
-        {/* Segmented control: Register | Login */}
-        <SegmentedControl mode={mode} onChange={onSegmentChange} activeBg={segActiveBg} />
+        {/* Segmented control: Register | Login | Recover (generic API) */}
+        <SegmentedControl
+          items={[
+            { value: AuthMenuMode.Register, label: 'Register', className: 'register' },
+            { value: AuthMenuMode.Login, label: 'Login', className: 'login' },
+            { value: AuthMenuMode.Recover, label: 'Recover', className: 'recover' },
+          ]}
+          value={mode}
+          onValueChange={(v) => onSegmentChange(v as AuthMenuMode)}
+          activeBg={segActiveBg}
+        />
 
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
