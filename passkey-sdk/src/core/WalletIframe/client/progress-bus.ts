@@ -203,6 +203,8 @@ export const defaultPhaseHeuristics: PhaseHeuristics = (payload: ProgressPayload
     // Back-compat: hide on legacy/custom completion markers if present.
     const raw = phase.toLowerCase();
     if (raw === 'user-confirmation-complete') return 'hide';
+    // Extra hardening: hide overlay when a route reports explicit cancellation via PROGRESS.
+    if (raw === 'cancelled') return 'hide';
 
     return 'none';
   } catch { return 'none'; }

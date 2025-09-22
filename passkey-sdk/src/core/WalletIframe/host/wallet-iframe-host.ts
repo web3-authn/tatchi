@@ -198,7 +198,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     markCancelled(rid);
     const els = Array.from(document.querySelectorAll('iframe-modal')) as HTMLElement[];
     for (const el of els) {
-      try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+      try {
+        // New canonical + legacy alias
+        el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
+        el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+      } catch {}
     }
     // Also cancel any device linking flow
     ensurePasskeyManager();
@@ -208,6 +212,13 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         type: 'PROGRESS',
         requestId: rid,
         payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+      });
+      // Immediately emit a terminal cancellation for the original request.
+      // Handlers may also emit their own CANCELLED error; router tolerates duplicates.
+      post({
+        type: 'ERROR',
+        requestId: rid,
+        payload: { code: 'CANCELLED', message: 'Request cancelled' }
       });
     }
     post({ type: 'PONG', requestId });
@@ -313,6 +324,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         });
         if (isCancelled(requestId)) {
           post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
+          post({
             type: 'ERROR',
             requestId,
             payload: { code: 'CANCELLED', message: 'Request cancelled' }
@@ -400,6 +416,16 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         ensurePasskeyManager();
         const { accountId } = (req.payload || {}) as { accountId?: string };
         try {
+          if (isCancelled(requestId)) {
+            post({
+              type: 'PROGRESS',
+              requestId,
+              payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+            });
+            post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
+            clearCancelled(requestId);
+            return;
+          }
           const { qrData, qrCodeDataURL } = await passkeyManager!.startDevice2LinkingFlow({
             accountId,
             onEvent: (ev: ProgressPayload) => { try { post({ type: 'PROGRESS', requestId, payload: ev }); } catch {} },
@@ -444,6 +470,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         });
         if (isCancelled(requestId)) {
           post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
+          post({
             type: 'ERROR',
             requestId,
             payload: { code: 'CANCELLED', message: 'Request cancelled' }
@@ -473,6 +504,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           } as ActionHooksOptions,
         });
         if (isCancelled(requestId)) {
+          post({
+            type: 'PROGRESS',
+            requestId,
+            payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+          });
           post({
             type: 'ERROR',
             requestId,
@@ -657,10 +693,30 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         ensurePasskeyManager();
         const { accountId } = (req.payload || {}) as { accountId?: string };
         try {
+          if (isCancelled(requestId)) {
+            post({
+              type: 'PROGRESS',
+              requestId,
+              payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+            });
+            post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
+            clearCancelled(requestId);
+            return;
+          }
           const result = await passkeyManager?.recoverAccountFlow({
             accountId,
             options: { onEvent: (ev: ProgressPayload) => post({ type: 'PROGRESS', requestId, payload: ev }) } as AccountRecoveryHooksOptions,
           });
+          if (isCancelled(requestId)) {
+            post({
+              type: 'PROGRESS',
+              requestId,
+              payload: { step: 0, phase: 'cancelled', status: 'error', message: 'Cancelled by user' }
+            });
+            post({ type: 'ERROR', requestId, payload: { code: 'CANCELLED', message: 'Request cancelled' } });
+            clearCancelled(requestId);
+            return;
+          }
           post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } });
         } catch (e: unknown) {
           post({ type: 'ERROR', requestId, payload: { code: 'RECOVERY_FAILED', message: errorMessage(e) } });

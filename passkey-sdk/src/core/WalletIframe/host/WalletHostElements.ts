@@ -4,7 +4,7 @@ import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../../WebAuthnManager/LitComponents/LitElementWithProps';
 
 // Ensure underlying lit elements are defined and not tree‑shaken
-import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost';
+import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 
 // Types mirrored from React hosts to smooth interop
 import type { WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';

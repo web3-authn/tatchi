@@ -7,7 +7,7 @@
 
 // Import and retain a reference to ensure bundlers don’t treeshake the element
 // Import iframe tooltip confirmer button and keep reference
-import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost';
+import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
 import { ConfirmationConfig } from '../../types/signer-worker';

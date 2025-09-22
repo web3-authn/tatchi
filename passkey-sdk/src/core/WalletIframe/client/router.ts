@@ -716,15 +716,27 @@ export class WalletIframeRouter {
     }
 
     const pending = this.pending.get(requestId);
-    if (!pending) return;
-    this.pending.delete(requestId);
-    if (pending.timer) window.clearTimeout(pending.timer);
-
     // Hide iframe overlay when a request completes (success or error),
     // unless this request was registered as sticky (UI-managed lifecycle).
     if (!this.progressBus.isSticky(requestId)) {
       this.hideFrameForActivation();
     }
+    if (!pending) {
+      // Even if no pending exists (e.g., early cancel or pre-resolved),
+      // ensure any lingering progress subscriber is removed.
+      try {
+        if (this.debug) {
+          console.debug('[WalletIframeRouter] Non-PROGRESS without pending → hide + unregister', {
+            requestId,
+            type: (msg as unknown as { type?: unknown })?.type || 'unknown'
+          });
+        }
+      } catch {}
+      try { this.progressBus.unregister(requestId); } catch {}
+      return;
+    }
+    this.pending.delete(requestId);
+    if (pending.timer) window.clearTimeout(pending.timer);
 
     if (msg.type === 'ERROR') {
       const err: Error & { code?: string; details?: unknown } = new Error(msg.payload?.message || 'Wallet error');
