@@ -269,3 +269,4 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
 
 // Named exports for advanced composition
 export default web3authnDev
+

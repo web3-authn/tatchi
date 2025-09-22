@@ -294,14 +294,14 @@ export default defineConfig([
     },
   }
   ,
-  // Vite plugin ESM build
+  // Vite plugin ESM build (source moved to src/plugins)
   {
-    input: 'src/vite/index.ts',
+    input: 'src/plugins/vite.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/vite`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
       format: 'esm',
       preserveModules: true,
-      preserveModulesRoot: 'src/vite',
+      preserveModulesRoot: 'src/plugins',
       sourcemap: true
     },
     external,
@@ -309,14 +309,14 @@ export default defineConfig([
       alias: aliasConfig
     }
   },
-  // Vite plugin CJS build
+  // Vite plugin CJS build (source moved to src/plugins)
   {
-    input: 'src/vite/index.ts',
+    input: 'src/plugins/vite.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/vite`,
+      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
       format: 'cjs',
       preserveModules: true,
-      preserveModulesRoot: 'src/vite',
+      preserveModulesRoot: 'src/plugins',
       sourcemap: true,
       exports: 'named'
     },

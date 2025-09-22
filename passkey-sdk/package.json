@@ -13,9 +13,9 @@
       "types": "./dist/types/src/index.d.ts"
     },
     "./vite": {
-      "import": "./dist/esm/vite/index.js",
-      "require": "./dist/cjs/vite/index.js",
-      "types": "./dist/types/src/vite/index.d.ts"
+      "import": "./dist/esm/plugins/vite.js",
+      "require": "./dist/cjs/plugins/vite.js",
+      "types": "./dist/types/src/plugins/vite.d.ts"
     },
     "./server": {
       "import": "./dist/esm/server/index.js",
