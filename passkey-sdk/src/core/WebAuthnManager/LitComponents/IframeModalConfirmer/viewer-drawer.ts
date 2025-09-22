@@ -70,7 +70,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       align-items: center;
       justify-content: space-between;
       margin-top: 2rem;
-      margin-bottom: 1rem;
+      margin-bottom: 0.5rem;
       gap: 12px;
     }
     .drawer-title { margin: 0; font-size: 20px; font-weight: 700; }
@@ -98,6 +98,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     .section {
       margin: 8px 0;
       max-width: 600px;
+      // display: grid;
+      // place-content: center;
     }
     .responsive-card {
       position: relative;
@@ -108,6 +110,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       z-index: 1;
       padding: var(--w3a-modal__responsive-card__padding, 0rem);
       margin: var(--w3a-modal__responsive-card__margin, 0px);
+    }
+    .margin-left1 {
+      margin-left: 1rem;
     }
 
     .rpid-wrapper {
@@ -217,8 +222,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 
   render() {
-    const block = this.vrfChallenge?.blockHeight || '';
-
     return html`
       <w3a-drawer
         .open=${true}
@@ -232,13 +235,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         @cancel=${this.onDrawerCancel}
       >
         <div class="drawer-tx-confirmer-root">
-          <div class="section responsive-card">
+          <div class="section responsive-card margin-left1">
             <div class="drawer-header">
               <h2 class="drawer-title">${this.title}</h2>
             </div>
           </div>
 
-          <div class="section responsive-card">
+          <div class="section responsive-card margin-left1">
             <div class="rpid-wrapper">
               <div class="rpid">
                 <div class="secure-indicator">

@@ -81,7 +81,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: DARK_THEME.colorSurface,
+      background: DARK_THEME.colorSurface2,
       borderColor: DARK_THEME.textSecondary,
     },
     row: {
