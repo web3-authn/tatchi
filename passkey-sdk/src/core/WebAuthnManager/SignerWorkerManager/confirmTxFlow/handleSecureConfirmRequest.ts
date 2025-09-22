@@ -28,7 +28,7 @@ import { errorMessage, toError, isTouchIdCancellationError } from '../../../../u
 // We keep the static import for type/dependency graph, and will also perform a
 // dynamic import at use‑site to guarantee the element is defined before use.
 import '../../LitComponents/ExportPrivateKey/host';
-// SHOW_SECURE_PRIVATE_KEY_UI rendering handled locally; decryption handled in worker
+import { ExportViewerIframeElement} from '../../LitComponents/ExportPrivateKey/host';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -425,11 +425,10 @@ async function renderUserConfirmUI({
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
     // Ensure the export viewer iframe host custom element is defined
     try { await import('../../LitComponents/ExportPrivateKey/host'); } catch {}
-    const host = document.createElement('w3a-export-viewer-iframe') as HTMLElement & {
-      theme?: 'dark' | 'light'; variant?: 'drawer' | 'modal'; accountId?: string; publicKey?: string; privateKey?: string; loading?: boolean; errorMessage?: string;
-    };
+    const host = document.createElement('w3a-export-viewer-iframe') as ExportViewerIframeElement;
     try { host.theme = confirmationConfig.theme || 'dark'; } catch {}
-    try { host.variant = (confirmationConfig as any)?.variant || 'drawer'; } catch {}
+    // Map confirmation UI preference to export viewer container
+    try { host.variant = (confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal'; } catch {}
     try {
       const p = request.payload as { nearAccountId?: string; publicKey?: string; privateKey?: string };
       if (p?.nearAccountId) host.accountId = p.nearAccountId;
@@ -455,7 +454,6 @@ async function renderUserConfirmUI({
 
     case 'drawer': {
       // Drawer is a modal-style flow with a drawer container
-      const variant = 'drawer';
       if (confirmationConfig.behavior === 'autoProceed') {
         const handle = await mountModalTxConfirmer({
           ctx,
@@ -466,7 +464,7 @@ async function renderUserConfirmUI({
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
-          variant,
+          variant: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
         });
         const delay = confirmationConfig.autoProceedDelay ?? 1000;
@@ -481,7 +479,7 @@ async function renderUserConfirmUI({
             : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
-          variant,
+          variant: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault
         });
@@ -500,7 +498,7 @@ async function renderUserConfirmUI({
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
-          variant: confirmationConfig.variant,
+          variant: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
         });
         const delay = confirmationConfig.autoProceedDelay ?? 1000;
@@ -515,7 +513,7 @@ async function renderUserConfirmUI({
             : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
-          variant: confirmationConfig.variant,
+          variant: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault
         });
@@ -534,7 +532,7 @@ async function renderUserConfirmUI({
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
-        variant: confirmationConfig.variant,
+        variant: 'modal',
         nearAccountIdOverride: nearAccountIdForUi,
       });
       return { confirmed: true, confirmHandle: handle };

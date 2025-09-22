@@ -35,6 +35,8 @@ export function determineConfirmationConfig(
     ...ctx.userPreferencesManager.getConfirmationConfig(),
     ...request?.confirmationConfig,
   };
+  // Normalize theme default
+  cfg = { ...cfg, theme: cfg.theme || 'dark' } as ConfirmationConfig;
   // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
   // WebAuthn credentials silently and the worker may follow up with a
   // SHOW_SECURE_PRIVATE_KEY_UI request to display the key.
@@ -44,6 +46,7 @@ export function determineConfirmationConfig(
       behavior: cfg.behavior,
       autoProceedDelay: cfg.autoProceedDelay,
       theme: cfg.theme || 'dark',
+      // container selection handled by uiMode only
     } as ConfirmationConfig;
   }
   // Detect if running inside an iframe (wallet host context)

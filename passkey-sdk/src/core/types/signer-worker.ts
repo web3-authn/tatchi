@@ -153,8 +153,6 @@ export interface ConfirmationConfig {
   autoProceedDelay?: number;
   /** Theme for the confirmation UI: 'dark' | 'light' */
   theme: 'dark' | 'light';
-  /** Visual container variant for modal UIs: 'modal' | 'drawer' (optional; host-only) */
-  variant?: 'modal' | 'drawer';
 }
 
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
