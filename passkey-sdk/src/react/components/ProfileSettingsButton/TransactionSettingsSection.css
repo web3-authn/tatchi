@@ -36,4 +36,7 @@
   transform: translateY(0);
 }
 
-/* Segmented styles for this section are applied inline in TSX. */
+.w3a-confirmation-options {
+  font-size: 12px;
+  margin-bottom: 6px;
+}

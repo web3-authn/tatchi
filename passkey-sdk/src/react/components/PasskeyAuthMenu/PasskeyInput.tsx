@@ -138,14 +138,12 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
               {postfixText}
             </span>
           )}
-          {mode && typeof secure === 'boolean' && (
-            <AccountExistsBadge
-              id={statusId}
-              isUsingExistingAccount={isUsingExistingAccount}
-              mode={mode}
-              secure={secure}
-            />
-          )}
+          <AccountExistsBadge
+            id={statusId}
+            isUsingExistingAccount={isUsingExistingAccount}
+            mode={mode}
+            secure={secure}
+          />
         </div>
       </div>
 

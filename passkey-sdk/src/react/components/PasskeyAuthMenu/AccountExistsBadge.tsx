@@ -6,7 +6,7 @@ export interface AccountExistsBadgeProps {
   /** Whether the account domain/postfix corresponds to an existing account */
   isUsingExistingAccount?: boolean;
   /** Current signup mode */
-  mode: AuthMenuMode;
+  mode?: AuthMenuMode;
   /** Whether the current context is secure (HTTPS) */
   secure?: boolean;
   /** Optional extra class name for message styling/location */
@@ -20,7 +20,7 @@ export interface AccountExistsBadgeProps {
  */
 export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
   isUsingExistingAccount,
-  mode,
+  mode = AuthMenuMode.Register,
   secure = true,
   className,
   id,
@@ -30,16 +30,16 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
 
   type Tone = 'error' | 'success' | 'neutral';
   const getStatus = (): { message: string; tone: Tone } => {
-    if (mode === 'register') {
+    if (mode === AuthMenuMode.Register) {
       if (!secure) return { message: 'HTTPS required', tone: 'error' };
       if (isUsingExistingAccount) return { message: 'name taken', tone: 'error' };
       return { message: '', tone: 'neutral' };
     }
-    if (mode === 'login') {
+    if (mode === AuthMenuMode.Login) {
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: 'Account not found', tone: 'error' };
     }
-    if (mode === 'recover') {
+    if (mode === AuthMenuMode.Recover) {
       if (isUsingExistingAccount) return { message: '', tone: 'success' };
       return { message: '', tone: 'neutral' };
     }

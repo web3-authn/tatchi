@@ -1,5 +1,5 @@
 import React from 'react';
-import { AuthMenuMode } from '.';
+import { AuthMenuMode, AuthMenuModeMap } from '.';
 
 export interface SegmentedControlProps {
   mode: AuthMenuMode;
@@ -9,7 +9,7 @@ export interface SegmentedControlProps {
   labels?: Partial<Record<AuthMenuMode, React.ReactNode>>;
   /**
    * Optional list of options to render, in order. Defaults to
-   * ['register','login','recover']. Use a subset to render 2 options.
+   * [0,1,2] (register, login, recover). Use a subset to render 2 options.
    */
   options?: AuthMenuMode[];
   /** Optional container height (e.g., 54, '54px') */
@@ -59,7 +59,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
 
   const opts: AuthMenuMode[] = Array.isArray(options) && options.length > 0
     ? options
-    : ['register', 'login', 'recover'];
+    : [AuthMenuMode.Register, AuthMenuMode.Login, AuthMenuMode.Recover];
 
   const index = Math.max(0, opts.indexOf(mode as AuthMenuMode));
   const pct = index * 100;
@@ -67,11 +67,12 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
 
   const labelFor = (key: AuthMenuMode): React.ReactNode => {
     if (labels && labels[key] !== undefined) return labels[key]!;
-    switch (key) {
-      case 'register': return 'Register';
-      case 'login': return 'Login';
-      case 'recover': return 'Recover';
-    }
+    const DEFAULT_LABELS: Record<'register'|'login'|'recover', string> = {
+      register: 'Register',
+      login: 'Login',
+      recover: 'Recover',
+    };
+    return DEFAULT_LABELS[AuthMenuModeMap[key]];
   };
 
   const rootStyle: React.CSSProperties = {
@@ -102,7 +103,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
             key={key}
             type="button"
             aria-pressed={mode === key}
-            className={`w3a-seg-btn ${key}${mode === key ? ' is-active' : ''}${buttonClassName ? ` ${buttonClassName}` : ''}`}
+            className={`w3a-seg-btn ${AuthMenuModeMap[key]}${mode === key ? ' is-active' : ''}${buttonClassName ? ` ${buttonClassName}` : ''}`}
             onClick={() => handleModeChange(key)}
             style={{
               ...btnBaseStyle,

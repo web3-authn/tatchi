@@ -3,6 +3,7 @@ import { Toggle } from './Toggle';
 import { Slider } from './Slider';
 import type { TransactionSettingsSectionProps } from './types';
 import { SegmentedControl } from '../PasskeyAuthMenu/SegmentedControl';
+import { AuthMenuMode } from '../PasskeyAuthMenu';
 
 export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProps> = ({
   currentConfirmConfig,
@@ -25,16 +26,17 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
   const disableDelaySlider = disableRequireClick || currentConfirmConfig?.behavior !== 'autoProceed';
 
   // Map uiMode <-> segmented control modes (reuse SegmentedControl)
-  const segMode = ((): 'register' | 'login' | 'recover' => {
+  const segMode = ((): AuthMenuMode => {
     switch (currentConfirmConfig?.uiMode) {
-      case 'skip': return 'register';
-      case 'modal': return 'login';
-      case 'drawer': return 'recover';
-      default: return 'login';
+      case 'skip': return AuthMenuMode.Register; // 0
+      case 'modal': return AuthMenuMode.Login;   // 1
+      case 'drawer': return AuthMenuMode.Recover; // 2
+      default: return AuthMenuMode.Login;
     }
   })();
-  const handleSegChange = (m: 'register' | 'login' | 'recover') => {
-    const next = m === 'register' ? 'skip' : m === 'login' ? 'modal' : 'drawer';
+
+  const handleSegChange = (m: AuthMenuMode) => {
+    const next = m === AuthMenuMode.Register ? 'skip' : m === AuthMenuMode.Login ? 'modal' : 'drawer';
     onSetUiMode?.(next as 'skip' | 'modal' | 'drawer');
   };
 
@@ -65,13 +67,15 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               </div>
             )}
             <div>
-              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Confirmation UI</div>
+              <div className="w3a-confirmation-options">
+                Confirmation Options
+              </div>
               <div style={{ width: '100%', maxWidth: 260 }}>
                 <SegmentedControl
-                  mode={segMode as any}
-                  onChange={handleSegChange as any}
+                  mode={segMode}
+                  onChange={handleSegChange}
                   activeBg={'var(--w3a-colors-primary)'}
-                  labels={{ register: 'skip', login: 'modal', recover: 'drawer' }}
+                  labels={{ [AuthMenuMode.Register]: 'skip', [AuthMenuMode.Login]: 'modal', [AuthMenuMode.Recover]: 'drawer' }}
                   height={44}
                   buttonFontSize={13}
                   containerStyle={{ background: 'var(--w3a-colors-colorSurface)' }}
@@ -86,18 +90,17 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 pointerEvents: disableRequireClick ? 'none' : 'auto'
               }}
             >
-              <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Confirmation behavior</div>
               <div style={{ width: '100%', maxWidth: 260 }}>
                 <SegmentedControl
-                  mode={(currentConfirmConfig?.behavior === 'autoProceed' ? 'register' : 'login') as any}
-                  onChange={(m: any) => {
-                    const wantsAuto = m === 'register';
+                  mode={(currentConfirmConfig?.behavior === 'autoProceed' ? AuthMenuMode.Register : AuthMenuMode.Login)}
+                  onChange={(m: AuthMenuMode) => {
+                    const wantsAuto = m === AuthMenuMode.Register;
                     const isAuto = currentConfirmConfig?.behavior === 'autoProceed';
                     if (wantsAuto !== isAuto) onToggleSkipClick?.();
                   }}
                   activeBg={'var(--w3a-colors-primary)'}
-                  labels={{ register: 'skip click', login: 'require click' }}
-                  options={['register', 'login']}
+                  labels={{ [AuthMenuMode.Register]: 'auto proceed', [AuthMenuMode.Login]: 'require click' }}
+                  options={[AuthMenuMode.Register, AuthMenuMode.Login]}
                   height={44}
                   buttonFontSize={13}
                   containerStyle={{ background: 'var(--w3a-colors-colorSurface)' }}

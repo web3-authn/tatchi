@@ -11,15 +11,15 @@ export function useProceedEligibility({
   accountExists: boolean;
   secure: boolean;
 }) {
-  const canShowContinue = mode === 'register'
+  const canShowContinue = mode === AuthMenuMode.Register
     ? (currentValue.length > 0 && !accountExists)
-    : mode === 'login'
+    : mode === AuthMenuMode.Login
     ? (currentValue.length > 0 && !!accountExists)
     : true; // In recover mode, show Continue even when input is empty
 
-  const canSubmit = mode === 'register'
+  const canSubmit = mode === AuthMenuMode.Register
     ? (currentValue.length > 0 && secure && !accountExists)
-    : mode === 'login'
+    : mode === AuthMenuMode.Login
     ? (currentValue.length > 0 && !!accountExists)
     : true; // In recover mode, allow submitting even with empty input (will prompt to select a passkey)
 

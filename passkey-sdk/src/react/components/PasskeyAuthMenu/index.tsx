@@ -12,7 +12,20 @@ import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
 
-export type AuthMenuMode = 'register' | 'login' | 'recover';
+// Enum-based auth modes for clearer usage without naked numbers
+export enum AuthMenuMode {
+  Register = 0,
+  Login = 1,
+  Recover = 2,
+}
+
+// Numeric → label mapping, kept for UI and classNames
+export const AuthMenuModeMap = {
+  [AuthMenuMode.Register]: 'register',
+  [AuthMenuMode.Login]: 'login',
+  [AuthMenuMode.Recover]: 'recover',
+} as const;
+export type AuthMenuModeLabel = typeof AuthMenuModeMap[keyof typeof AuthMenuModeMap];
 
 export interface SignupMenuProps {
   onLogin?: () => void;
@@ -74,7 +87,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   const accountExistsResolved = (typeof accountExists === 'boolean')
     ? accountExists
     : (ctx?.accountInputState?.accountExists ?? false);
-  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? 'login' : 'register')) as AuthMenuMode;
+  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? AuthMenuMode.Login : AuthMenuMode.Register)) as AuthMenuMode;
 
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
@@ -131,9 +144,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     // No transitions; switch immediately
 
     try {
-      if (mode === 'recover') {
+      if (mode === AuthMenuMode.Recover) {
         await onRecoverAccount?.();
-      } else if (mode === 'login') {
+      } else if (mode === AuthMenuMode.Login) {
         await onLogin?.();
       } else {
         await onRegister?.();
@@ -220,9 +233,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           value={currentValue}
           onChange={onInputChange}
           placeholder={
-            mode === 'register'
+            mode === AuthMenuMode.Register
               ? 'Pick a username'
-              : mode === 'recover'
+              : mode === AuthMenuMode.Recover
               ? 'Leave blank to discover accounts'
               : 'Enter your username'
           }
@@ -231,7 +244,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           canProceed={canShowContinue}
           onProceed={onArrowClick}
           variant="both"
-          primaryLabel={mode === 'login' ? 'Login' : mode === 'recover' ? 'Recover account' : 'Register'}
+          primaryLabel={mode === AuthMenuMode.Login ? 'Login' : mode === AuthMenuMode.Recover ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
         />
@@ -242,9 +255,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
           <div className="w3a-seg-help" aria-live="polite">
-            {mode === 'login' && 'Sign in with your passkey this device'}
-            {mode === 'register' && 'Create a new account'}
-            {mode === 'recover' && 'Recover an account (iCloud/Chrome passkey sync)'}
+            {mode === AuthMenuMode.Login && 'Sign in with your passkey this device'}
+            {mode === AuthMenuMode.Register && 'Create a new account'}
+            {mode === AuthMenuMode.Recover && 'Recover an account (iCloud/Chrome passkey sync)'}
           </div>
         </div>
 

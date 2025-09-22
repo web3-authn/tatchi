@@ -60,6 +60,8 @@ export {
 } from './components/WalletIframeTxButtonHost';
 // Sign Up / Sign In menu
 export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
+export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu';
+export type { AuthMenuModeLabel } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples
 export { default as TouchIcon } from './components/ProfileSettingsButton/TouchIcon';
 export { default as QRCodeIcon } from './components/QRCodeIcon';
