@@ -1,4 +1,4 @@
-export { IframeButtonHost } from './IframeButtonHost';
+export { IframeButtonHost } from './iframe-host';
 export { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 export type {
   TooltipPosition,

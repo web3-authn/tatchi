@@ -3,17 +3,16 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import { when } from 'lit/directives/when.js';
 
 import { TransactionInputWasm } from '../../../types';
-import { fromTransactionInputsWasm } from '../../../types/actions';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
-import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
+import TxConfirmContentElement from './tx-content';
 import { formatDeposit, formatGas } from '../common/formatters';
 import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
 import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
+import type { ConfirmUIElement } from '../confirm-ui-types';
 
 export interface SecureTxSummary {
   to?: string;
@@ -36,9 +35,14 @@ export interface TxAction {
  * Modal transaction confirmation component with multiple display variants.
  * Built with Lit for automatic XSS protection and reactive updates.
  */
-export class ModalTxConfirmElement extends LitElementWithProps {
+export class ModalTxConfirmElement extends LitElementWithProps implements ConfirmUIElement {
+  static requiredChildTags = ['tx-confirm-content'];
+  static strictChildDefinitions = true;
+  // Prevent bundlers from dropping nested custom element definitions used via templates
+  static keepDefinitions = [TxConfirmContentElement];
   // Component properties (automatically reactive)
   static properties = {
+    nearAccountId: { type: String, attribute: 'near-account-id' },
     to: { type: String },
     totalAmount: { type: String },
     method: { type: String },
@@ -66,6 +70,7 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   errorMessage: string | undefined = undefined;
   styles?: ModalTxConfirmerStyles;
   theme: ModalConfirmerTheme = 'dark';
+  declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
   deferClose = false;
@@ -797,58 +802,19 @@ export class ModalTxConfirmElement extends LitElementWithProps {
           </div>
 
           <div class="responsive-card">
-            <!-- Tx Tree Section -->
-            ${when(this.txSigningRequests.length > 0, () => {
-              const jsTxs = fromTransactionInputsWasm(this.txSigningRequests);
-              const tree = buildDisplayTreeFromTxPayloads(jsTxs, TX_TREE_THEMES[this.theme]);
-              return html`
-                <tx-tree
-                  .node=${tree}
-                  .depth=${0}
-                  .styles=${TX_TREE_THEMES[this.theme]}
-                  .theme=${this.theme}
-                  .width=${this._txTreeWidth}
-                  .class=${'modal-scroll'}
-                ></tx-tree>`;
-            })}
-          </div>
-
-          <div class="responsive-card">
-            <div class="buttons ${this.loading || this.errorMessage ? 'single' : ''}">
-              ${this.loading ? html`
-                <!-- Loading mode: show only cancel button with loading indicator -->
-                <button
-                  class="btn btn-cancel loading"
-                  @click=${this._handleCancel}
-                >
-                  <span class="loading-indicator"></span>
-                  ${((this.txSigningRequests?.length || 0) === 0) ? 'Creating…' : 'Signing'}
-                </button>
-              ` : this.errorMessage ? html`
-                <!-- Error mode: show only Close button in soft red -->
-                <button
-                  class="btn btn-danger"
-                  @click=${this._handleCancel}
-                >
-                  Close
-                </button>
-              ` : html`
-                <!-- Normal mode: show both cancel and confirm buttons -->
-                <button
-                  class="btn btn-cancel"
-                  @click=${this._handleCancel}
-                >
-                  ${this.cancelText}
-                </button>
-                <button
-                  class="btn btn-confirm"
-                  @click=${this._handleConfirm}
-                >
-                  ${((this.txSigningRequests?.length || 0) === 0) ? 'Create Passkey' : this.confirmText}
-                </button>
-              `}
-            </div>
-
+            <tx-confirm-content
+              .nearAccountId=${this['nearAccountId'] || ''}
+              .txSigningRequests=${this.txSigningRequests || []}
+              .vrfChallenge=${this.vrfChallenge}
+              .theme=${this.theme}
+              .loading=${this.loading}
+              .errorMessage=${this.errorMessage || ''}
+              .title=${this.title}
+              .confirmText=${this.confirmText}
+              .cancelText=${this.cancelText}
+              @confirm=${this._handleConfirm}
+              @cancel=${this._handleCancel}
+            ></tx-confirm-content>
           </div>
         </div>
       </div>
@@ -856,14 +822,24 @@ export class ModalTxConfirmElement extends LitElementWithProps {
   }
 
   private _handleCancel() {
-    try { this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+    try {
+      // New canonical event name
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
+      // Legacy alias for back-compat
+      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+    } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(false);
     }
   }
 
   private _handleConfirm() {
-    try { this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true })); } catch {}
+    try {
+      // New canonical event name
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
+      // Legacy alias for back-compat
+      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true }));
+    } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(true);
     }

@@ -1,4 +1,4 @@
-export * from './IframeModalHost';
-export * from './ModalTxConfirmer';
+export * from './iframe-host';
+export * from './viewer-modal';
 export * from './modal-confirmer-themes';
-export * from './DrawerTxConfirmer';
+export * from './viewer-drawer';

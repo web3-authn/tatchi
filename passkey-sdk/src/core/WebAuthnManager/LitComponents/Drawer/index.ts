@@ -85,11 +85,14 @@ export class DrawerElement extends LitElementWithProps {
       transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
       padding: 2rem;
+      /* Constrain width and center horizontally */
+      max-width: 600px;
+      margin-left: auto;
+      margin-right: auto;
       /* Use a tall sheet so we can overpull without clipping */
       height: var(--w3a-drawer__sheet-height, 100vh);
       display: grid;
       grid-template-rows: auto 1fr;
-      touch-action: none;
     }
     /* Default to closed (100%) until JS computes the open translate.
        This avoids a flash at 0% then shrinking to content. */
@@ -287,12 +290,12 @@ export class DrawerElement extends LitElementWithProps {
       // Remove any existing listeners first
       this.removeDragListeners();
 
-      // Attach listeners to the entire drawer for mouse events
+      // Generic drawer: start drag from anywhere inside the drawer
       drawerElement.addEventListener('mousedown', this.handleMouseDown);
       document.addEventListener('mousemove', this.handleMouseMove);
       document.addEventListener('mouseup', this.handleMouseUp);
 
-      // Attach touch events to the drawer
+      // Touch start on the drawer; move/end on document
       drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false });
       document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
       document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
@@ -304,8 +307,8 @@ export class DrawerElement extends LitElementWithProps {
     if (!drawerElement) return;
 
     // Remove listeners from drawer element
-    drawerElement.removeEventListener('touchstart', this.handleTouchStart);
-    drawerElement.removeEventListener('mousedown', this.handleMouseDown);
+    drawerElement.removeEventListener('touchstart', this.handleTouchStart as EventListener);
+    drawerElement.removeEventListener('mousedown', this.handleMouseDown as EventListener);
 
     // Remove listeners from document
     document.removeEventListener('touchmove', this.handleTouchMove);

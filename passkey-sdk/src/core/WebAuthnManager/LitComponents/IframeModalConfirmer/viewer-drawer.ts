@@ -1,17 +1,20 @@
 import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
-import TxTree from '../TxTree';
-import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
+import TxConfirmContentElement from './tx-content';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
-import { fromTransactionInputsWasm } from '../../../types/actions';
+import type { ConfirmUIElement } from '../confirm-ui-types';
+// Fallback color set explicitly to palette's blue500 without unsafeCSS
 
 /**
  * DrawerTxConfirmer: Drawer variant of the transaction confirmer
  * Emits 'w3a:modal-confirm' and 'w3a:modal-cancel' for compatibility with iframe host bootstrap.
  */
-export class DrawerTxConfirmerElement extends LitElementWithProps {
+export class DrawerTxConfirmerElement extends LitElementWithProps implements ConfirmUIElement {
+  static requiredChildTags = ['tx-confirm-content', 'w3a-drawer'];
+  static strictChildDefinitions = true;
+  // Prevent bundlers from dropping nested custom element definitions used via templates
+  static keepDefinitions = [TxConfirmContentElement];
   static properties = {
     nearAccountId: { type: String, attribute: 'near-account-id' },
     txSigningRequests: { type: Array },
@@ -37,23 +40,24 @@ export class DrawerTxConfirmerElement extends LitElementWithProps {
   declare cancelText: string;
   declare deferClose: boolean;
 
-  private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
-  private _ensureTreeDefinition = TxTree;
   private _drawerEl: any | null = null;
-
-  private _computeTreeFromInputs(): void {
-    try {
-      const inputs = Array.isArray(this.txSigningRequests) ? this.txSigningRequests : [];
-      if (inputs.length === 0) { this._treeNode = null; return; }
-      const uiTxs = fromTransactionInputsWasm(inputs);
-      this._treeNode = buildDisplayTreeFromTxPayloads(uiTxs, TX_TREE_THEMES[this.theme]);
-    } catch (e) {
-      console.warn('[DrawerTxConfirmer] failed to build tree', e);
-      this._treeNode = null;
+  private _onKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Escape' || e.key === 'Esc') {
+      if (this.loading) return;
+      e.preventDefault();
+      try { this._drawerEl?.handleClose(); } catch {}
+      if (!this._drawerEl) {
+        try {
+          // New canonical + legacy alias
+          this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+        } catch {}
+      }
+      // Rely on drawer's `cancel` event -> onDrawerCancel to emit w3a:modal-cancel
     }
-  }
+  };
 
   static styles = css`
     :host { display: contents; }
@@ -129,13 +133,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps {
       width: 12px;
       height: 12px;
       margin-right: 4px;
-      color: var(--w3a-modal__padlock-icon__color, rgba(255, 255, 255, 0.6));
+      color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255));
     }
     .block-height-icon {
       width: 12px;
       height: 12px;
       margin-right: 4px;
-      color: var(--w3a-modal__block-height-icon__color, rgba(255, 255, 255, 0.6));
+      color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
     }
     .divider { width: 1px; height: 12px; background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18)); margin: 0 4px; }
   `;
@@ -156,40 +160,53 @@ export class DrawerTxConfirmerElement extends LitElementWithProps {
 
   connectedCallback(): void {
     super.connectedCallback();
-    // Compute initial tree with current property values after upgradeProperty runs
-    this._computeTreeFromInputs();
+    try { window.addEventListener('keydown', this._onKeyDown); } catch {}
+    // Ensure immediate keyboard handling (e.g., ESC) by focusing host/iframe
+    try {
+      const hostEl = this as unknown as HTMLElement;
+      if (hostEl.tabIndex === undefined || hostEl.tabIndex === null) {
+        (hostEl as any).tabIndex = -1;
+      }
+      hostEl.focus({ preventScroll: true } as FocusOptions);
+      if (typeof window.focus === 'function') { window.focus(); }
+    } catch {}
   }
 
   firstUpdated(): void {
     this._drawerEl = this.shadowRoot?.querySelector('w3a-drawer') as any;
   }
 
+  disconnectedCallback(): void {
+    try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
+    super.disconnectedCallback();
+  }
+
   updated(changed: PropertyValues) {
     super.updated(changed);
-    if (changed.has('txSigningRequests') || changed.has('theme')) {
-      this._computeTreeFromInputs();
-    }
   }
 
   private onDrawerCancel = () => {
     if (this.loading) return;
     try {
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
       this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
     } catch {}
   };
 
-  private onConfirmClick = () => {
+  private onContentConfirm = () => {
     if (this.loading) return;
+    // Bridge semantic event to canonical events (new + legacy)
     try {
-      // Host will proceed to Touch ID prompt when it receives this event
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
       this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true }));
     } catch {}
   };
 
-  private onCancelClick = () => {
+  private onContentCancel = () => {
     if (this.loading) return;
     try { this._drawerEl?.handleClose(); } catch {}
     try {
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
       this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
     } catch {}
   };
@@ -263,23 +280,19 @@ export class DrawerTxConfirmerElement extends LitElementWithProps {
             </div>
           </div>
           <div class="section responsive-card">
-            ${
-              this._treeNode
-              ? html`
-                  <tx-tree
-                    .node=${this._treeNode}
-                    .theme=${this.theme}
-                    .styles=${TX_TREE_THEMES[this.theme]}
-                  ></tx-tree>`
-              : null
-            }
-          </div>
-
-          <div class="section responsive-card">
-            <div class="footer-actions">
-              <button class="drawer-btn" @click=${this.onCancelClick}>Cancel</button>
-              <button class="drawer-btn primary" @click=${this.onConfirmClick}>Confirm</button>
-            </div>
+            <tx-confirm-content
+              .nearAccountId=${this.nearAccountId || ''}
+              .txSigningRequests=${this.txSigningRequests || []}
+              .vrfChallenge=${this.vrfChallenge}
+              .theme=${this.theme}
+              .loading=${this.loading}
+              .errorMessage=${this.errorMessage || ''}
+              .title=${this.title}
+              .confirmText=${this.confirmText}
+              .cancelText=${this.cancelText}
+              @confirm=${this.onContentConfirm}
+              @cancel=${this.onContentCancel}
+            ></tx-confirm-content>
           </div>
 
         </div>

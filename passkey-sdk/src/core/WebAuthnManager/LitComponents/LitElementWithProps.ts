@@ -29,6 +29,13 @@ export class LitElementWithProps extends LitElement {
   static requiredChildTags?: string[];
 
   /**
+   * When true, missing requiredChildTags trigger a thrown Error (instead of a warn).
+   * Useful in development to fail fast when a nested custom element definition
+   * has been tree‑shaken or not imported.
+   */
+  static strictChildDefinitions?: boolean;
+
+  /**
    * Handles the custom element upgrade race for a specific property.
    * This method ensures that any property values set before the custom element
    * fully upgrades are correctly re-applied through Lit's property system.
@@ -103,11 +110,20 @@ export class LitElementWithProps extends LitElement {
         for (const tag of req) {
           try {
             if (typeof tag === 'string' && tag.includes('-') && !customElements.get(tag)) {
-              // Non-fatal: helps remind that a child element import/keep is missing
-              console.warn(`[W3A] Required child custom element not defined: <${tag}>. ` +
-                'Import it and keep a reference via `static keepDefinitions` to avoid tree-shaking.');
+              const msg = `[W3A] Required child custom element not defined: <${tag}>. ` +
+                'Import the module that defines it and keep a reference via `static keepDefinitions` ' +
+                'or a private field to avoid tree-shaking. See LitComponents/README.md (tree-shake checklist).';
+              if ((ctor as any).strictChildDefinitions) {
+                throw new Error(msg);
+              } else {
+                // Elevate to error for visibility without breaking execution
+                console.error(msg);
+              }
             }
-          } catch {}
+          } catch (err) {
+            // In strict mode, surface the failure to developers immediately
+            if ((ctor as any).strictChildDefinitions) { throw err; }
+          }
         }
       }
     } catch {}

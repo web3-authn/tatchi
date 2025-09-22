@@ -34,17 +34,24 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   static styles = css`
     :host { display: block; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
     .content { display: flex; flex-direction: column; gap: 12px; }
+    .title { margin: 0 0 4px 0; font-size: 20px; font-weight: 700; }
     .warning {
       background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.06));
       border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
       color: var(--w3a-colors-textPrimary, #f6f7f8);
       padding: 12px;
       border-radius: 1rem;
-      font-size: 0.8rem;
+      font-size: 0.9rem;
       margin: 1rem 0rem;
       box-shadow: var(--w3a-shadows-sm, 0 4px 12px rgba(0, 0, 0, 0.15));
     }
-    .row { display: grid; grid-template-columns: 105px 1fr auto; align-items: center; gap: 8px; }
+    .row {
+      display: grid;
+      grid-template-columns: 105px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.9rem;
+    }
     .key-row {
       background: var(--w3a-colors-colorSurface);
       border: 1px solid var(--w3a-colors-borderPrimary);
@@ -52,16 +59,39 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       padding: 0;
       transition: all 0.2s ease;
     }
-    .key-row:hover { border-color: var(--w3a-colors-borderHover, var(--w3a-colors-borderPrimary)); box-shadow: var(--w3a-shadows-sm, 0 4px 12px rgba(0, 0, 0, 0.15)); }
-    .label { color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); font-size: 1rem; }
-    .value { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 1rem; word-break: break-all; }
+
+    .key-row:hover {
+      border-color: var(--w3a-colors-borderHover, var(--w3a-colors-borderPrimary));
+      box-shadow: var(--w3a-shadows-sm, 0 4px 12px rgba(0, 0, 0, 0.15));
+    }
+
+    .label {
+      color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7));
+      font-size: 1rem;
+    }
+
+    .value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 1rem;
+      word-break: break-all;
+    }
+
+    /* Make all text inside key rows smaller for readability */
+    .key-row .label,
+    .key-row .value,
+    .key-row .btn {
+      font-size: 0.8rem;
+    }
+
     .btn { border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; font-size: 1rem; }
     .btn-primary { background: var(--w3a-btn-primary, #4DAFFE); color: var(--w3a-btn-text, #0b1220); }
     .btn-surface { background: var(--w3a-colors-colorSurface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
     .btn:hover { filter: brightness(1.05); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn.copied { color: var(--w3a-colors-success, #34d399); border-color: var(--w3a-colors-success, #34d399); animation: copiedPulse .3s ease; }
+
     .muted { opacity: 0.8; }
+
     @keyframes copiedPulse {
       0% { transform: scale(1); }
       50% { transform: scale(1.05); }
@@ -137,6 +167,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     return html`
       ${this.showCloseButton ? html`<button aria-label="Close" title="Close" style="position:absolute;right:8px;top:8px;background:transparent;border:none;color:inherit;font-size:28px;line-height:1;cursor:pointer;width:48px;height:48px;border-radius:2rem;display:flex;align-items:center;justify-content:center;" @click=${() => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))}>×</button>` : null}
       <div class="content">
+        <h2 class="title">Export Private Keys</h2>
         <div class="warning">
           Warning: Revealing your private key grants full control of your account. Only proceed if you fully trust this application and environment.
         </div>
@@ -172,4 +203,3 @@ try {
 
 // Ensure DrawerElement is kept by bundlers (used as container in iframe bootstrap)
 export default ExportPrivateKeyViewer;
-

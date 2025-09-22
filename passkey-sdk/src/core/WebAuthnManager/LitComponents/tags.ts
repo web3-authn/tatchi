@@ -41,7 +41,7 @@ export const IFRAME_BOOTSTRAP_MODULE = 'iframe-button-bootstrap.js';
 // Modal iframe host + bootstrap + modal bundle
 export const IFRAME_MODAL_ID = 'iframe-modal';
 export const IFRAME_MODAL_BOOTSTRAP_MODULE = 'iframe-modal-bootstrap.js';
-export const MODAL_TX_CONFIRM_BUNDLE = 'modal-tx-confirm.js';
+export const MODAL_TX_CONFIRM_BUNDLE = 'tx-confirm-ui.js';
 
 // Export viewer iframe host + bootstrap + viewer bundle
 export const IFRAME_EXPORT_BOOTSTRAP_MODULE = 'iframe-export-bootstrap.js';

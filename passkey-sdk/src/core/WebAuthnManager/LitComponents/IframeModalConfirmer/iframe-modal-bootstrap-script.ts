@@ -13,7 +13,7 @@ import {
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 // Ensure the drawer custom element is available when variant === 'drawer'
 // This side-effect import defines the <w3a-drawer-tx-confirm> element.
-import './DrawerTxConfirmer';
+import './viewer-drawer';
 
 
 // Parent communication configuration
@@ -252,10 +252,11 @@ function hookDecisionEvents(): void {
     try { window.parent.postMessage(message, PARENT_ORIGIN || '*'); } catch {}
   };
   // On confirm, simply forward to parent (host prompts WebAuthn)
-  document.addEventListener('w3a:modal-confirm', () => {
+  // Listen to new canonical event names from containers
+  document.addEventListener('w3a:tx-confirmer-confirm', () => {
     forward('CONFIRM');
   });
-  document.addEventListener('w3a:modal-cancel', () => forward('CANCEL'));
+  document.addEventListener('w3a:tx-confirmer-cancel', () => forward('CANCEL'));
 }
 
 window.addEventListener('message', onMessage);

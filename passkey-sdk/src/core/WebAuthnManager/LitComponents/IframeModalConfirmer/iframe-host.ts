@@ -236,9 +236,14 @@ export class IframeModalHost extends LitElementWithProps {
         case 'CANCEL':
           this.onCancel?.();
           try {
-            this.dispatchEvent(new CustomEvent('w3a:modal-cancel', {
+            // New canonical + legacy alias for back-compat
+            this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', {
               bubbles: true, // bubble up to parent
               composed: true // cross Shadow DOM boundaries to host
+            }));
+            this.dispatchEvent(new CustomEvent('w3a:modal-cancel', {
+              bubbles: true,
+              composed: true
             }));
           } catch {}
           // Two-phase: explicitly close inner modal
@@ -338,10 +343,16 @@ export class IframeModalHost extends LitElementWithProps {
     }
 
     try {
+      // New canonical + legacy alias for back-compat
+      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', {
+        detail: { confirmed, error },
+        bubbles: true,
+        composed: true
+      }));
       this.dispatchEvent(new CustomEvent('w3a:modal-confirm', {
         detail: { confirmed, error },
-        bubbles: true, // bubble up to parent
-        composed: true // cross Shadow DOM boundaries to host
+        bubbles: true,
+        composed: true
       }));
     } catch {}
   }

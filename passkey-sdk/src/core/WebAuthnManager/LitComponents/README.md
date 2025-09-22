@@ -44,6 +44,51 @@ For guidance on editing properties, style sections, and the CSS variable naming 
 Tip: When changing dimensions (tooltip width/height or modal size), prefer updating the theme objects or the `tooltipPosition` prop so geometry and clip‑path remain aligned.
 
 
+## Confirm UI API
+
+- File: `passkey-sdk/src/core/WebAuthnManager/LitComponents/confirm-ui.ts`
+- Element contract: `passkey-sdk/src/core/WebAuthnManager/LitComponents/confirm-ui-types.ts`
+
+Confirm UI is container‑agnostic and driven by `uiMode: 'skip' | 'modal' | 'drawer'`.
+
+- ConfirmUIElement: Minimal element API implemented by both containers.
+  - deferClose: When true, host controls removal (two‑phase close).
+  - close(confirmed): Optional programmatic close.
+
+Example usage (host vs iframe chosen automatically):
+
+```ts
+import { mountConfirmUI, awaitConfirmUIDecision } from '@/core/WebAuthnManager/LitComponents/confirm-ui';
+
+// Mount + auto‑proceed (e.g., show loading then close)
+const handle = await mountConfirmUI({
+  ctx,
+  summary,                // TransactionSummary
+  txSigningRequests,      // optional
+  vrfChallenge,           // optional
+  loading: true,
+  theme: 'dark',
+  uiMode: 'drawer',       // 'modal' | 'drawer' | 'skip'
+  nearAccountIdOverride: accountId, // optional
+});
+// ... do work, then close
+handle.close(true);
+
+// Or await an explicit decision from the UI
+const { confirmed, handle: h } = await awaitConfirmUIDecision({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  theme: 'dark',
+  uiMode: 'modal',
+  nearAccountIdOverride: accountId,
+  useIframe: !!ctx.iframeModeDefault,
+});
+if (!confirmed) h.close(false);
+```
+
+
 ## Lit Components: Editing Guide
 
 When renaming Lit component files, several files must be updated to maintain consistency across the build system. Follow this checklist:
