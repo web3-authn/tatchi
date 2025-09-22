@@ -227,13 +227,14 @@ export default defineConfig([
       alias: aliasConfig
     },
   },
-  // Modal Transaction Confirm element bundle for iframe usage
+  // Confirm UI helpers and elements bundle for iframe usage
+  // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
-    input: 'src/core/WebAuthnManager/LitComponents/modal.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/confirm-ui.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'modal-tx-confirm.js'
+      entryFileNames: 'tx-confirm-ui.js'
     },
     external: embeddedExternal,
     resolve: {
@@ -243,10 +244,10 @@ export default defineConfig([
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
     input: {
-      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
-      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
+      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
+      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
       'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
-      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
+      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-host.ts',
       'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
