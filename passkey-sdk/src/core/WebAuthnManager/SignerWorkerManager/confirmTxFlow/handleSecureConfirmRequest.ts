@@ -19,7 +19,7 @@ import { TransactionContext, VRFChallenge } from '../../../types';
 import { createRandomVRFChallenge } from '../../../types/vrf-worker';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { toAccountId } from '../../../types/accountIds';
-import { awaitModalTxConfirmerDecision, mountModalTxConfirmer } from '../../LitComponents/modal';
+import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../LitComponents/confirm-ui';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 import { isObject, isFunction, isString } from '../../../WalletIframe/validation';
 import { errorMessage, toError, isTouchIdCancellationError } from '../../../../utils/errors';
@@ -27,8 +27,8 @@ import { errorMessage, toError, isTouchIdCancellationError } from '../../../../u
 // Some bundlers tree‑shake side‑effect modules under certain sideEffects configs.
 // We keep the static import for type/dependency graph, and will also perform a
 // dynamic import at use‑site to guarantee the element is defined before use.
-import '../../LitComponents/ExportPrivateKey/host';
-import { ExportViewerIframeElement} from '../../LitComponents/ExportPrivateKey/host';
+import '../../LitComponents/ExportPrivateKey/iframe-host';
+import { ExportViewerIframeElement} from '../../LitComponents/ExportPrivateKey/iframe-host';
 
 /**
  * Handles secure confirmation requests from the worker with robust error handling
@@ -181,7 +181,7 @@ export async function handlePromptUserConfirmInJsMainThread(
       const { vrfChallenge: refreshed, transactionContext: latestCtx } = await refreshVrfChallenge(ctx, request, nearAccountId);
       decision.vrfChallenge = refreshed;
       decision.transactionContext = latestCtx;
-      try { if (confirmHandle?.element) { (confirmHandle.element as any).vrfChallenge = refreshed; } } catch {}
+      try { confirmHandle?.update?.({ vrfChallenge: refreshed }); } catch {}
     } catch (jitErr) {
       console.debug('[SecureConfirm] JIT VRF refresh skipped:', jitErr);
     }
@@ -413,18 +413,14 @@ async function renderUserConfirmUI({
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
   vrfChallenge: VRFChallenge;
-}): Promise<{
-  confirmed: boolean;
-  confirmHandle?: { element: HTMLElement, close: (confirmed: boolean) => void };
-  error?: string;
-}> {
+}): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
   // runtimeMode retained for future selection but not needed for confirm UI
 
   // Show-only export viewer: mount with provided key and return immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
     // Ensure the export viewer iframe host custom element is defined
-    try { await import('../../LitComponents/ExportPrivateKey/host'); } catch {}
+    try { await import('../../LitComponents/ExportPrivateKey/iframe-host'); } catch {}
     const host = document.createElement('w3a-export-viewer-iframe') as ExportViewerIframeElement;
     try { host.theme = confirmationConfig.theme || 'dark'; } catch {}
     // Map confirmation UI preference to export viewer container
@@ -442,7 +438,9 @@ async function renderUserConfirmUI({
       const onCancel = () => { try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}; try { host.remove(); } catch {} };
       host.addEventListener('cancel', onCancel as EventListener, { once: true });
     } catch {}
-    return Promise.resolve({ confirmed: true, confirmHandle: { element: host, close: (_c: boolean) => { try { host.remove(); } catch {} } } });
+    const close = (_c: boolean) => { try { host.remove(); } catch {} };
+    const update = (_props: any) => { /* no-op for export viewer */ };
+    return Promise.resolve({ confirmed: true, confirmHandle: { close, update } });
   }
 
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
@@ -455,7 +453,7 @@ async function renderUserConfirmUI({
     case 'drawer': {
       // Drawer is a modal-style flow with a drawer container
       if (confirmationConfig.behavior === 'autoProceed') {
-        const handle = await mountModalTxConfirmer({
+        const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -464,14 +462,14 @@ async function renderUserConfirmUI({
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
-          variant: 'drawer',
+          uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
         });
         const delay = confirmationConfig.autoProceedDelay ?? 1000;
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
+        const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -479,7 +477,7 @@ async function renderUserConfirmUI({
             : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
-          variant: 'drawer',
+          uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault
         });
@@ -489,7 +487,7 @@ async function renderUserConfirmUI({
 
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        const handle = await mountModalTxConfirmer({
+        const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -498,14 +496,14 @@ async function renderUserConfirmUI({
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
-          variant: 'modal',
+          uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
         });
         const delay = confirmationConfig.autoProceedDelay ?? 1000;
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        const { confirmed, handle } = await awaitModalTxConfirmerDecision({
+        const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -513,7 +511,7 @@ async function renderUserConfirmUI({
             : [],
           vrfChallenge,
           theme: confirmationConfig.theme,
-          variant: 'modal',
+          uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault
         });
@@ -523,7 +521,7 @@ async function renderUserConfirmUI({
 
     default: {
       // Fallback to modal with explicit confirm for unknown UI modes
-      const handle = await mountModalTxConfirmer({
+      const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,
         txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -532,7 +530,7 @@ async function renderUserConfirmUI({
         vrfChallenge: vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
-        variant: 'modal',
+        uiMode: 'modal',
         nearAccountIdOverride: nearAccountIdForUi,
       });
       return { confirmed: true, confirmHandle: handle };
@@ -696,7 +694,7 @@ function parseTransactionSummary(summaryData: unknown): SummaryType {
  */
 function closeModalSafely(
   confirmed: boolean,
-  confirmHandle?: { element: HTMLElement; close: (confirmed: boolean) => void; },
+  confirmHandle?: ConfirmUIHandle,
 ): void {
   if (confirmHandle?.close) {
     try {
