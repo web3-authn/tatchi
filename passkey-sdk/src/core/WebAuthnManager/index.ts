@@ -445,6 +445,8 @@ export class WebAuthnManager {
       await this.setLastUser(nearAccountId);
       // Set as current user for immediate use (includes NonceManager initialization)
       this.userPreferencesManager.setCurrentUser(nearAccountId);
+      // Ensure confirmation preferences are loaded before callers read them
+      try { await this.userPreferencesManager.reloadUserSettings(); } catch {}
 
       // Initialize NonceManager with the selected user's public key (if available)
       try {

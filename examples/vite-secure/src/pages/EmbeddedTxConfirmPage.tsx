@@ -48,16 +48,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
     setError('');
   };
 
-  const handleDrawerConfirm = () => {
-    setResult('Drawer confirmed!');
-    drawerRef.current?.hide('confirm');
-  };
-
-  const handleDrawerCancel = () => {
-    console.log('handleDrawerCancel called in React component');
-    setResult('Drawer cancelled');
-  };
-
   if (!loginState.isLoggedIn) {
     return (
       <div className="embedded-tx-page-root">
@@ -99,31 +89,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                 <p className="embedded-tx-input-help">
                   This will be the greeting message that gets set on the smart contract.
                 </p>
-              </div>
-            </div>
-
-            <div className="test-embedded-section">
-              <label className="test-embedded-section-label">LitDrawer Demo:</label>
-              <div style={{ marginBottom: '16px' }}>
-                <button
-                  onClick={() => drawerRef.current?.show()}
-                  style={{
-                    background: '#4DAFFE',
-                    color: '#0b1220',
-                    border: 'none',
-                    borderRadius: '8px',
-                    padding: '10px 16px',
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    marginRight: '8px'
-                  }}
-                >
-                  Open Drawer
-                </button>
-                <span style={{ fontSize: '14px', color: '#666' }}>
-                  Click to test the LitDrawer component with drag-to-close
-                </span>
               </div>
             </div>
 
@@ -199,15 +164,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
               />
             </div>
 
-            <div className="test-embedded-section">
-              <label className="test-embedded-section-label">Wallet Host Inline Button:</label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12, color: '#666' }}>
-                  Renders inline inside the wallet iframe, enabling non-modal flows cross-origin.
-                </span>
-              </div>
-            </div>
-
             {loading && (
               <div className="embedded-tx-status-section">
                 <label className="embedded-tx-status-label">Processing:</label>
@@ -239,19 +195,6 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
         </div>
       </div>
 
-      {/* LitDrawer Component */}
-      <LitDrawer
-        ref={drawerRef}
-        theme="light"
-        title="Test Drawer with Drag"
-        subtitle="Drag down to close or use the buttons. This demonstrates the new drag-to-close functionality!"
-        accountId={loginState.nearAccountId || 'test.near'}
-        confirmText="Confirm"
-        cancelText="Cancel"
-        dragToClose={true}
-        onConfirm={handleDrawerConfirm}
-        onCancel={handleDrawerCancel}
-      />
     </div>
   );
 };

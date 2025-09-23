@@ -255,17 +255,16 @@
 
 /* Registered timestamp styling */
 .w3a-registered {
-  font-size: 0.825rem;
-  color: var(--w3a-colors-textMuted);
+  font-size: 0.9rem;
+  color: var(--w3a-colors-textPrimary);
 }
 
 /* Theme-specific contrast for registered timestamps */
 .theme-dark .w3a-registered {
   color: var(--w3a-colors-textPrimary);
-  opacity: 0.9;
 }
 .theme-light .w3a-registered {
-  color: var(--w3a-colors-textSecondary, var(--w3a-colors-textMuted));
+  color: var(--w3a-colors-textPrimary);
 }
 
 /* Inline device row layout */
