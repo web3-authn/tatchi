@@ -3,6 +3,7 @@ import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
+import { TX_TREE_THEMES } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
 import { isNumber, isString } from '../../../WalletIframe/validation';
 // Re-export for backward compatibility
@@ -571,9 +572,16 @@ export class TxTree extends LitElementWithProps {
    */
   protected updated(changedProperties: Map<string | number | symbol, unknown>): void {
     super.updated(changedProperties);
-    // Apply styles whenever the styles prop changes
+    // 1) Apply explicit styles when provided
     if (changedProperties.has('styles') && this.styles) {
       this.applyStyles(this.styles);
+    }
+    // 2) Fall back to theme-driven defaults when styles are not provided/changed
+    // This makes <tx-tree theme="dark|light"> responsive even if a parent forgets
+    // to pass a styles object for the theme.
+    if (changedProperties.has('theme') && !this.styles && this.theme) {
+      const preset = TX_TREE_THEMES[this.theme] || TX_TREE_THEMES.dark;
+      this.applyStyles(preset);
     }
   }
 
@@ -856,6 +864,7 @@ export class TxTree extends LitElementWithProps {
   }
 }
 
-customElements.define('tx-tree', TxTree);
+import { TX_TREE_ID } from '../tags';
+customElements.define(TX_TREE_ID, TxTree);
 
 export default TxTree;

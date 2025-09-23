@@ -254,10 +254,12 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
           }
         }
 
-        // Handle direct tooltip theme updates
-        if (payload.theme && el.tooltipTheme !== payload.theme) {
-          el.tooltipTheme = payload.theme;
-          if (el.requestUpdate) el.requestUpdate();
+        // Handle direct tooltip theme updates (robust across element versions)
+        // Newer builds expose updateButtonStyles() which already handled theme above.
+        // For safety and for older builds, also set the canonical property that the element reacts to.
+        if (payload.theme) {
+          try { (el as any).TxTreeTheme = payload.theme; } catch {}
+          if ((el as any).requestUpdate) (el as any).requestUpdate();
         }
 
         // Pass tooltip tree styles if available (maps to EmbeddedTxButton.styles)
