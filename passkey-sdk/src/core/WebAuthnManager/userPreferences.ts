@@ -7,8 +7,6 @@ export class UserPreferencesManager {
   private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
-  // Notify consumers (React UI, iframe hosts) when confirmation config changes
-  private confirmationChangeListeners: Set<(config: ConfirmationConfig) => void> = new Set();
 
   constructor() {
     // Load user settings asynchronously - don't block constructor
@@ -49,26 +47,7 @@ export class UserPreferencesManager {
     });
   }
 
-  /**
-   * Register a callback for confirmation config changes
-   */
-  onConfirmationConfigChange(callback: (config: ConfirmationConfig) => void): () => void {
-    this.confirmationChangeListeners.add(callback);
-    return () => {
-      this.confirmationChangeListeners.delete(callback);
-    };
-  }
-
-  /**
-   * Notify listeners when confirmation config changes
-   */
-  private notifyConfirmationConfigChange(): void {
-    if (this.confirmationChangeListeners.size === 0) return;
-    const snapshot = { ...this.confirmationConfig };
-    this.confirmationChangeListeners.forEach((cb) => {
-      try { cb(snapshot); } catch {}
-    });
-  }
+  
 
   private async initializeUserSettings(): Promise<void> {
     try {
@@ -100,7 +79,6 @@ export class UserPreferencesManager {
           // Check if this affects the current user
           if (event.accountId === this.currentUserAccountId) {
             await this.reloadUserSettings();
-            this.notifyConfirmationConfigChange();
           }
           break;
 
@@ -108,7 +86,6 @@ export class UserPreferencesManager {
           // Check if this affects the current user
           if (event.accountId === this.currentUserAccountId) {
             await this.reloadUserSettings();
-            this.notifyConfirmationConfigChange();
           }
           break;
 
@@ -117,7 +94,6 @@ export class UserPreferencesManager {
           if (event.accountId === this.currentUserAccountId) {
             this.currentUserAccountId = undefined;
             this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
-            this.notifyConfirmationConfigChange();
           }
           break;
       }
@@ -141,8 +117,6 @@ export class UserPreferencesManager {
     }
     // Clear all theme change listeners
     this.themeChangeListeners.clear();
-    // Clear confirmation config listeners
-    this.confirmationChangeListeners.clear();
   }
 
   getCurrentUserAccountId(): AccountId {
@@ -159,9 +133,7 @@ export class UserPreferencesManager {
   setCurrentUser(nearAccountId: AccountId): void {
     this.currentUserAccountId = nearAccountId;
     // Load settings for the new user
-    this.loadSettingsForUser(nearAccountId).then(() => {
-      this.notifyConfirmationConfigChange();
-    }).catch(() => {});
+    this.loadSettingsForUser(nearAccountId);
   }
 
   /**
@@ -182,7 +154,6 @@ export class UserPreferencesManager {
    */
   async reloadUserSettings(): Promise<void> {
     await this.loadSettingsForUser(this.getCurrentUserAccountId());
-    this.notifyConfirmationConfigChange();
   }
 
   /**
@@ -194,7 +165,6 @@ export class UserPreferencesManager {
       behavior
     };
     this.saveUserSettings();
-    this.notifyConfirmationConfigChange();
   }
 
   /**
@@ -206,7 +176,6 @@ export class UserPreferencesManager {
       ...config
     };
     this.saveUserSettings();
-    this.notifyConfirmationConfigChange();
   }
 
   /**
@@ -222,7 +191,6 @@ export class UserPreferencesManager {
           ...this.confirmationConfig,
           ...user.preferences.confirmationConfig
         };
-        this.notifyConfirmationConfigChange();
       } else {
         console.debug('[WebAuthnManager]: No user preferences found, using defaults');
       }

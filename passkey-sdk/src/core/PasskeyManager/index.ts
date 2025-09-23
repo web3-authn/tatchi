@@ -130,11 +130,6 @@ export class PasskeyManager {
     await this.iframeRouter.init();
     // Opportunistically warm remote NonceManager (no-op if user not initialized yet)
     try { await this.iframeRouter.prefetchBlockheight(); } catch {}
-    // Mirror wallet-host confirmation preferences into local cache for UI coherence
-    try {
-      const remoteCfg = await this.iframeRouter.getConfirmationConfig();
-      try { this.webAuthnManager.getUserPreferences().setConfirmationConfig(remoteCfg); } catch {}
-    } catch {}
   }
 
   /** Get the service iframe client if initialized. */
@@ -158,8 +153,7 @@ export class PasskeyManager {
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
     try {
       // Core warm-up (NonceManager, IndexedDB, signer workers)
-      // await this.webAuthnManager.warmCriticalResources(nearAccountId);
-      await this.webAuthnManager.warmCriticalResources(nearAccountId, { skipReloadPreferences: !!this.configs.iframeWallet?.walletOrigin });
+      await this.webAuthnManager.warmCriticalResources(nearAccountId);
       // Ensure iframe client is initialized and handshake completed (iframe mode only)
       if (this.configs.iframeWallet?.walletOrigin) {
         try {
