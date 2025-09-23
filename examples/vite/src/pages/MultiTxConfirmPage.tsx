@@ -25,7 +25,7 @@ export const MultiTxConfirmPage: React.FC = () => {
     passkeyManager,
   } = usePasskeyContext();
 
-  const [greetingInput, setGreetingInput] = useState('Hello from Modal Tx Confirm!');
+  const [greetingInput, setGreetingInput] = useState('Hello from Multi Tx Confirm!');
   const [transferRecipient, setTransferRecipient] = useState('web3-authn-v5.testnet');
   const [transferAmount, setTransferAmount] = useState('0.001');
   const [stakeAmount, setStakeAmount] = useState('0.1');
@@ -261,7 +261,7 @@ export const MultiTxConfirmPage: React.FC = () => {
         <div className="modal-tx-translucent-container">
           <div className="modal-tx-content-area">
             <div className="modal-tx-login-prompt">
-              <h2 className="modal-tx-heading">Log in to see the Modal Tx Confirm Page</h2>
+              <h2 className="modal-tx-heading">Log in to see the Multi Tx Confirm Page</h2>
               <p className="modal-tx-body">You must be logged in to test the modal transaction confirmation feature.</p>
             </div>
           </div>
@@ -274,7 +274,7 @@ export const MultiTxConfirmPage: React.FC = () => {
     <div className="modal-tx-confirm-page">
       <GlassBorder>
         <div className="modal-tx-confirm-page-content">
-          <h1>Modal Tx Confirm Page - Combined Transaction</h1>
+          <h1>Multi Tx Confirm Page - Combined Transaction</h1>
           <p>Configure all NEAR actions and execute them in a single transaction</p>
 
           <div className="action-section">

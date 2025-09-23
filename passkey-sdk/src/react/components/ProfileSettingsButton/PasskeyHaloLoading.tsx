@@ -1,4 +1,4 @@
-import TouchIcon from "./TouchIcon"
+import TouchIcon from "./icons/TouchIcon"
 import { HaloBorder } from "./HaloBorder"
 import LitHaloBorder from "../LitHaloBorder"
 import { useTheme } from "../theme";

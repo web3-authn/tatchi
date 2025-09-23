@@ -1,16 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Key, Scan, Shield, Sliders } from 'lucide-react';
+import { Key, Scan, Link, Sliders } from 'lucide-react';
+import { SunIcon } from './icons/SunIcon';
+import { MoonIcon } from './icons/MoonIcon';
 import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
 import { usePasskeyContext } from '../../context';
 import type { MenuItem, ProfileButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
-import { AccessKeysModal } from './AccessKeysModal';
+import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
 import { ThemeProvider, ThemeScope, useTheme } from '../theme';
-import { toAccountId } from '@/core/types';
-
 
 /**
  * Profile Settings Button Component
@@ -63,9 +63,20 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
 
   // Local state for modals/expanded sections
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [showAccessKeys, setShowAccessKeys] = useState(false);
+  const [showLinkedDevices, setShowLinkedDevices] = useState(false);
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
+
+  // State management
+  const {
+    isOpen,
+    refs,
+    handleToggle,
+    handleClose,
+  } = useProfileState();
+
+  // Read current theme from ThemeProvider (falls back to system preference)
+  const { theme } = useTheme();
 
   // Load confirmation config on mount
   useEffect(() => {
@@ -136,11 +147,19 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
       keepOpenOnClick: true,
     },
     {
-      icon: <Shield />,
-      label: 'Access Keys',
-      description: 'View your account access keys',
+      icon: <Link />,
+      label: 'Linked Devices',
+      description: 'View linked devices',
       disabled: !loginState.isLoggedIn,
-      onClick: () => setShowAccessKeys(true),
+      onClick: () => setShowLinkedDevices(true),
+      keepOpenOnClick: true,
+    },
+    {
+      icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />,
+      label: 'Toggle Theme',
+      description: theme === 'dark' ? 'Dark Mode' : 'Light Mode',
+      disabled: false,
+      onClick: handleToggleTheme,
       keepOpenOnClick: true,
     },
     {
@@ -151,18 +170,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
       onClick: () => setTransactionSettingsOpen((v) => !v),
       keepOpenOnClick: true,
     },
-  ], [passkeyManager, nearAccountId, loginState.isLoggedIn]);
-
-  // State management
-  const {
-    isOpen,
-    refs,
-    handleToggle,
-    handleClose,
-  } = useProfileState();
-
-  // Read current theme from ThemeProvider (falls back to system preference)
-  const { theme } = useTheme();
+  ], [passkeyManager, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
 
   // Handlers
   const handleLogout = () => {
@@ -206,7 +214,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
         />
       </div>
 
-      {/* QR Scanner Modal - Always rendered to prevent unmount/remount, controlled by isOpen */}
+      {/* QR Scanner Modal */}
       <QRCodeScanner
         key="profile-qr-scanner" // Force stable identity
         isOpen={showQRScanner}
@@ -229,11 +237,11 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
         onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
       />
 
-      {/* Access Keys Modal - Rendered outside of ProfileDropdown */}
-      <AccessKeysModal
+      {/* Linked Devices Modal */}
+      <LinkedDevicesModal
         nearAccountId={nearAccountId!}
-        isOpen={showAccessKeys}
-        onClose={() => setShowAccessKeys(false)}
+        isOpen={showLinkedDevices}
+        onClose={() => setShowLinkedDevices(false)}
       />
     </div>
   );

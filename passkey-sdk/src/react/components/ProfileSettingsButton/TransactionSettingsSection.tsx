@@ -1,9 +1,7 @@
 import React from 'react';
-import { Toggle } from './Toggle';
 import { Slider } from './Slider';
 import type { TransactionSettingsSectionProps } from './types';
 import { SegmentedControl } from '../PasskeyAuthMenu/SegmentedControl';
-import { AuthMenuMode } from '../PasskeyAuthMenu';
 
 export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProps> = ({
   currentConfirmConfig,
@@ -11,7 +9,6 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
   onToggleShowDetails,
   onToggleSkipClick,
   onSetDelay,
-  onToggleTheme,
   className,
   style,
   isOpen = true,
@@ -24,21 +21,6 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
 
   const disableRequireClick = currentConfirmConfig?.uiMode === 'skip';
   const disableDelaySlider = disableRequireClick || currentConfirmConfig?.behavior !== 'autoProceed';
-
-  // Map uiMode <-> segmented control modes (reuse SegmentedControl)
-  const segMode = ((): AuthMenuMode => {
-    switch (currentConfirmConfig?.uiMode) {
-      case 'skip': return AuthMenuMode.Register; // 0
-      case 'modal': return AuthMenuMode.Login;   // 1
-      case 'drawer': return AuthMenuMode.Recover; // 2
-      default: return AuthMenuMode.Login;
-    }
-  })();
-
-  const handleSegChange = (m: AuthMenuMode) => {
-    const next = m === AuthMenuMode.Register ? 'skip' : m === AuthMenuMode.Login ? 'modal' : 'drawer';
-    onSetUiMode?.(next as 'skip' | 'modal' | 'drawer');
-  };
 
   return (
     <div
@@ -54,18 +36,6 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
             flexDirection: 'column',
             gap: 8
           }}>
-            {onToggleTheme && (
-              <div>
-                <Toggle
-                  checked={currentConfirmConfig?.theme === 'dark'}
-                  onChange={onToggleTheme}
-                  label="Dark mode"
-                  size="large"
-                  textPosition="left"
-                  theme={theme}
-                />
-              </div>
-            )}
             <div>
               <div className="w3a-confirmation-options">
                 Confirmation Options

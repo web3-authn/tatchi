@@ -31,7 +31,7 @@ export const Navbar: React.FC = () => {
         <Link to="/embedded">
           Embedded Demo
         </Link>
-        <Link to="/modal">
+        <Link to="/multitx">
           Modal Demo
         </Link>
         <Link to="/wallet-demo">

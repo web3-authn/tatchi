@@ -1,5 +1,5 @@
 
-import TouchIcon from './TouchIcon';
+import TouchIcon from './icons/TouchIcon';
 import type { UserAccountButtonProps } from './types';
 
 export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
