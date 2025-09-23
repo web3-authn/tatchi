@@ -5,7 +5,6 @@ import { useTheme } from '../theme';
 import { getAuthenticatorsByUser } from '@/core/rpcCalls';
 import type { ContractStoredAuthenticator } from '@/core/PasskeyManager/recoverAccount';
 import { toAccountId } from '@/core/types/accountIds';
-import type { FunctionCallPermissionView } from '@near-js/types';
 
 interface LinkedDevicesModalProps {
   nearAccountId: string;
@@ -75,10 +74,8 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         const registered = Number.isFinite(tsNum) ? new Date(tsNum).toISOString() : '';
         rows.push({ credentialId, registered, deviceNumber: dn });
       }
-      // Slight delay for nicer skeleton transition
-      setTimeout(() => {
-        setAuthRows(rows.length > 0 ? rows : []);
-      }, 300);
+      setAuthRows(rows.length > 0 ? rows : []);
+
     } catch (err: any) {
       setError(err.message || 'Failed to load authenticators');
     } finally {
@@ -116,32 +113,6 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
     } catch (err) {
       console.error('Failed to copy to clipboard:', err);
     }
-  };
-
-  // Access Key helpers (restored for future use)
-  const getPermissionType = (permission: "FullAccess" | FunctionCallPermissionView) => {
-    if (permission === "FullAccess") return 'Full Access';
-    if (
-      'FunctionCall' in permission &&
-      'receiver_id' in (permission as any)?.FunctionCall &&
-      'method_names' in (permission as any)?.FunctionCall &&
-      (permission as any)?.FunctionCall?.method_names?.length > 0
-    ) {
-      return 'Function Call';
-    }
-    return 'Unknown';
-  };
-
-  const getPermissionDetails = (permission: any) => {
-    if (permission.FunctionCall) {
-      const { allowance, receiver_id, method_names } = permission.FunctionCall;
-      return {
-        allowance: allowance || '0',
-        receiverId: receiver_id,
-        methodNames: method_names || []
-      };
-    }
-    return null;
   };
 
   if (!isOpen) return null;

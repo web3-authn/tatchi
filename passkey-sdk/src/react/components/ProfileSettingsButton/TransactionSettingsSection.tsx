@@ -52,7 +52,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   activeBg={'var(--w3a-colors-primary)'}
                   height={44}
                   buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}
+                  containerStyle={{ background: 'var(--w3a-colors-surface2)' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />
@@ -79,7 +79,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   activeBg={'var(--w3a-colors-primary)'}
                   height={44}
                   buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-colorSurface2)' }}
+                  containerStyle={{ background: 'var(--w3a-colors-surface2)' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />

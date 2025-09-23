@@ -31,7 +31,7 @@
   line-height: 0;
   border-radius: 50%;
   color: var(--w3a-colors-textPrimary);
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   cursor: pointer;
   border: none;
   z-index: 3;
@@ -165,7 +165,7 @@
   color: var(--w3a-colors-textSecondary, #64748b);
   overflow: hidden;
   border: 1px solid var(--w3a-colors-borderPrimary);
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border-radius: var(--w3a-border-radius-xl);
   /* no shadow requested */
   box-shadow: none;
@@ -174,7 +174,7 @@
   color: var(--w3a-colors-textSecondary, #64748b);
 }
 .w3a-social-btn:hover {
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   box-shadow: var(--w3a-shadows-sm);
 }
 .w3a-social-btn:hover svg {
@@ -198,7 +198,7 @@
   height: 54px;
   gap: 8px;
   border: none;
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border-radius: 2rem 2rem 2rem 2rem;
   box-shadow: none;
   overflow-x: hidden;
@@ -331,7 +331,7 @@
   overflow: hidden;
   padding: 5px;
   border: none;
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   border-radius: var(--w3a-border-radius-xl);
 }
 .w3a-seg-active {
@@ -502,7 +502,7 @@
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
   opacity: 0;
   transform: translateX(50px) scale(0.9);
@@ -556,7 +556,7 @@
   height: 48px;
   width: 100%;
   max-width: 100%;
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   box-shadow: var(--w3a-shadows-sm);
   border-radius: 2rem;

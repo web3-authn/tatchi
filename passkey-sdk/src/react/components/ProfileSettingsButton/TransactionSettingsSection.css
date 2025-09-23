@@ -1,6 +1,6 @@
 /* Expander (TransactionSettingsSection) */
 .w3a-dropdown-tx-settings-root {
-  background-color: var(--w3a-colors-colorSurface);
+  background-color: var(--w3a-colors-surface);
   transform-origin: top;
   display: grid;
   grid-template-rows: 0fr;
@@ -10,7 +10,7 @@
 .w3a-dropdown-tx-settings-root.is-expanded {
   border-top: 1px solid var(--w3a-colors-borderPrimary);
   border-bottom: 1px solid var(--w3a-colors-borderPrimary);
-  background-color: var(--w3a-colors-colorSurface);
+  background-color: var(--w3a-colors-surface);
   grid-template-rows: 1fr;
 }
 

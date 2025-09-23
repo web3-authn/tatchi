@@ -195,10 +195,35 @@ export const DARK_THEME = {
   textMuted: GREY_COLORS.grey650,
 
   colorBackground: GREY_COLORS.grey800,
-  colorSurface: GREY_COLORS.slate700,
-  colorSurface2: GREY_COLORS.slate750,
-  colorSurface3: GREY_COLORS.slate800,
-  colorBorder: GREY_COLORS.grey700,
+  surface: GREY_COLORS.slate700,
+  surface2: GREY_COLORS.slate750,
+  surface3: GREY_COLORS.slate800,
+
+  // Canonical palette aliases (align with React tokens)
+  primary: CHROMA_COLORS.blue500,
+  primaryHover: CHROMA_COLORS.blue600,
+  secondary: GREY_COLORS.grey400,
+  accent: CHROMA_COLORS.blue300,
+
+  // Interactive states
+  hover: GREY_COLORS.grey850,
+  active: GREY_COLORS.grey650,
+  focus: CHROMA_COLORS.blue400,
+
+  // Status colors
+  success: CHROMA_COLORS.blue400,
+  warning: CHROMA_COLORS.yellow400,
+  error: CHROMA_COLORS.red400,
+  info: CHROMA_COLORS.blue400,
+
+  // Border colors
+  borderPrimary: GREY_COLORS.grey650,
+  borderSecondary: GREY_COLORS.grey750,
+  borderHover: GREY_COLORS.grey750,
+
+  // Background Gradients
+  backgroundGradientPrimary: GRADIENTS.blue,
+  backgroundGradientSecondary: GRADIENTS.blueWhite,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
@@ -245,10 +270,6 @@ export const DARK_THEME = {
   highlightMethodNameBackground: GRADIENTS.aqua,
   highlightAmountBackground: GRADIENTS.peach,
 
-  // Misc
-  colorPrimary: CHROMA_COLORS.blue500,
-  gradientPeach: GRADIENTS.peach,
-  gradientAqua: GRADIENTS.aqua,
 } as const;
 
 // Light Theme Colors - Using ONLY colors from Guidelines.md
@@ -261,10 +282,35 @@ export const LIGHT_THEME = {
   textMuted: GREY_COLORS.grey350,
 
   colorBackground: GREY_COLORS.grey50,
-  colorSurface: GREY_COLORS.slate150,
-  colorSurface2: GREY_COLORS.slate200,
-  colorSurface3: GREY_COLORS.slate250,
-  colorBorder: GREY_COLORS.grey200,
+  surface: GREY_COLORS.slate150,
+  surface2: GREY_COLORS.slate200,
+  surface3: GREY_COLORS.slate250,
+
+  // Canonical palette aliases (align with React tokens)
+  primary: CHROMA_COLORS.blue500,
+  primaryHover: CHROMA_COLORS.blue600,
+  secondary: GREY_COLORS.grey600,
+  accent: CHROMA_COLORS.blue300,
+
+  // Interactive states
+  hover: GREY_COLORS.grey100,
+  active: GREY_COLORS.grey200,
+  focus: CHROMA_COLORS.blue400,
+
+  // Status colors
+  success: CHROMA_COLORS.blue500,
+  warning: CHROMA_COLORS.yellow500,
+  error: CHROMA_COLORS.red500,
+  info: CHROMA_COLORS.blue500,
+
+  // Border colors
+  borderPrimary: GREY_COLORS.slate300,
+  borderSecondary: GREY_COLORS.grey300,
+  borderHover: GREY_COLORS.slate350,
+
+  // Background Gradients
+  backgroundGradientPrimary: GRADIENTS.blue,
+  backgroundGradientSecondary: GRADIENTS.blueWhite,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
@@ -317,8 +363,4 @@ export const LIGHT_THEME = {
   highlightMethodNameBackground: GRADIENTS.aqua,
   highlightAmountBackground: GRADIENTS.peach,
 
-  // Misc
-  colorPrimary: CHROMA_COLORS.blue500,
-  gradientPeach: GRADIENTS.peach,
-  gradientAqua: GRADIENTS.aqua,
 } as const;

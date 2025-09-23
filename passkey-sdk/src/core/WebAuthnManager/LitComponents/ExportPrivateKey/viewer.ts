@@ -54,11 +54,11 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       justify-content: center;
       transition: all 0.2s ease;
     }
-    .close-btn:hover { color: var(--w3a-text-primary, #f6f7f8); background: var(--w3a-color-surface, rgba(255,255,255,0.08)); }
+    .close-btn:hover { color: var(--w3a-colors-textPrimary, #f6f7f8); background: var(--w3a-colors-surface, rgba(255,255,255,0.08)); }
     .warning {
-      background: var(--w3a-color-surface, rgba(255,255,255,0.06));
-      border: 1px solid var(--w3a-color-border, rgba(255,255,255,0.12));
-      color: var(--w3a-text-secondary, rgba(255,255,255,0.7));
+      background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
+      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
+      color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
       padding: 12px;
       border-radius: 1rem;
       font-size: 0.9rem;
@@ -76,9 +76,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       padding: 0;
     }
 
-    .label {
-      color: var(--w3a-text-primary, #f6f7f8);
-    }
+    .label { color: var(--w3a-colors-textPrimary, #f6f7f8); }
 
     .value {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -103,7 +101,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
 
     .btn {
       border: 0;
-      border-radius: 8px;
+      border-radius: 2rem;
       width: 90px;
       padding: 8px 14px;
       font-weight: 600;
@@ -112,8 +110,8 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       margin-right: 0.5rem;
       font-size: 1rem;
     }
-    .btn-primary { background: var(--w3a-color-primary, #4DAFFE); color: var(--w3a-color-background, #0b1220); }
-    .btn-surface { background: var(--w3a-color-surface, #2b2b2b); color: var(--w3a-text-primary, #ddd); border: 1px solid var(--w3a-color-border, rgba(255,255,255,0.12)); }
+    .btn-primary { background: var(--w3a-colors-primary, #4DAFFE); color: var(--w3a-colors-colorBackground, #0b1220); }
+    .btn-surface { background: var(--w3a-colors-surface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
     .btn:hover { filter: brightness(1.05); }
     .btn:active { transform: scale(0.96); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -179,7 +177,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
         color: t.textPrimary,
         backgroundColor: t.colorBackground,
         // Also expose a primary color alias for buttons
-        colorPrimary: t.colorPrimary,
+        primary: t.primary,
       } as any;
       this.applyStyles(styles, 'export');
     } catch {}

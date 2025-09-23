@@ -93,7 +93,7 @@ export class TxTree extends LitElementWithProps {
       height: var(--w3a-tree__tooltip-border-outer__height, auto);
       overflow: var(--w3a-tree__tooltip-border-outer__overflow, hidden);
       box-shadow: var(--w3a-tree__tooltip-border-outer__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
-      background: var(--w3a-tree__tooltip-border-outer__background, var(--w3a-color-surface));
+      background: var(--w3a-tree__tooltip-border-outer__background, var(--w3a-colors-surface));
     }
 
     .tooltip-tree-root {
@@ -364,7 +364,7 @@ export class TxTree extends LitElementWithProps {
     }
 
     .file-content::-webkit-scrollbar-track {
-      background: var(--w3a-tree__file-content__scrollbar-track__background, var(--w3a-color-surface, #f8fafc));
+      background: var(--w3a-tree__file-content__scrollbar-track__background, var(--w3a-colors-surface, #f8fafc));
       border-radius: var(--w3a-tree__file-content__scrollbar-track__border-radius, 2px);
     }
 

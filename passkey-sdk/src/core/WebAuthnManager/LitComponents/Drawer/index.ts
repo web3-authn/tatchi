@@ -138,7 +138,7 @@ export class DrawerElement extends LitElementWithProps {
       transition: all .2s ease;
       z-index: 3;
     }
-    .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8)); background: var(--w3a-colors-colorSurface, var(--w3a-color-surface, rgba(255,255,255,0.08))); }
+    .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8)); background: var(--w3a-colors-surface, var(--w3a-color-surface, rgba(255,255,255,0.08))); }
     .close-btn:active { transform: scale(0.96); }
     .close-btn:focus-visible {
       outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, var(--w3a-color-primary, #3b82f6)));
@@ -146,14 +146,20 @@ export class DrawerElement extends LitElementWithProps {
     }
     /* Light theme adjustments */
     :host([theme="light"]) .close-btn { color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #667085)); }
-    :host([theme="light"]) .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); background: var(--w3a-colors-colorSurface, var(--w3a-color-surface, rgba(0,0,0,0.06))); }
+    :host([theme="light"]) .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); background: var(--w3a-colors-surface, var(--w3a-color-surface, rgba(0,0,0,0.06))); }
     .error { color: var(--w3a-colors-error, var(--w3a-red400, #ff7a7a)); font-size: 13px; margin-top: 6px; }
     :host([theme="light"]) .drawer { background: var(--w3a-colors-colorBackground, var(--w3a-color-background, #fff)); color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); border-color: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(0,0,0,0.08))); }
     /* confirm/cancel button styles removed */
 
     /* Responsive adjustments */
     @media (max-width: 640px) {
-      .drawer { padding: 0; }
+      .drawer {
+        padding: 0;
+        border-radius: 2rem;
+      }
+      .handle {
+        margin: 2rem auto 0rem auto;
+      }
       .close-btn { right: 1rem; top: 1rem; width: 44px; height: 44px; font-size: 26px; }
     }
   `;

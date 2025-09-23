@@ -28,7 +28,7 @@ export const PasskeyHaloLoading: React.FC<PasskeyHaloLoadingProps> = ({
         ringWidth={4}
         ringBorderRadius="1.5rem"
         innerPadding={`${innerPadding}px`}
-        innerBackground="var(--w3a-colors-colorSurface)"
+        innerBackground="var(--w3a-colors-surface)"
         ringBackground={
           theme === 'dark'
           ? `transparent 0%, var(--w3a-colors-green400) 10%, var(--w3a-colors-green500) 25%, transparent 35%`

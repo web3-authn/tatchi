@@ -138,7 +138,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
     {
       icon: <Scan />,
       label: 'Scan and Link Device',
-      description: 'Scan a QR to link a device',
+      description: 'Scan QR to link a device',
       disabled: !loginState.isLoggedIn,
       onClick: () => {
         console.log('ProfileSettingsButton: Opening QR Scanner');

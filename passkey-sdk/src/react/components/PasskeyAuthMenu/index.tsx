@@ -279,11 +279,11 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
             onClick={() => setShowScanDevice(true)}
             className="w3a-link-device-btn"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = tokens.colors.colorSurface2;
+              e.currentTarget.style.background = tokens.colors.surface2;
               e.currentTarget.style.boxShadow = tokens.shadows.md;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = tokens.colors.colorSurface;
+              e.currentTarget.style.background = tokens.colors.surface;
               e.currentTarget.style.boxShadow = tokens.shadows.sm;
             }}
           >

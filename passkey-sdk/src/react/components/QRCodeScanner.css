@@ -59,7 +59,7 @@
 }
 
 .qr-scanner-camera-container {
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   position: relative;
   display: inline-block;
   border: 1px solid var(--w3a-colors-borderPrimary);
@@ -189,7 +189,7 @@
 }
 
 .qr-scanner-camera-selector {
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   color: var(--w3a-colors-textPrimary);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 12px;
@@ -209,7 +209,7 @@
   position: absolute;
   top: 20px;
   right: 20px;
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   color: var(--w3a-colors-textSecondary);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 50%;
@@ -228,7 +228,7 @@
 }
 
 .qr-scanner-close:hover {
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
 }
 
 .qr-scanner-error-container {

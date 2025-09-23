@@ -10,7 +10,6 @@ import {
   ThemeScope,
   useTheme,
 } from '@web3authn/passkey/react';
-import { DarkModeToggle } from './DarkModeToggle';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
@@ -53,7 +52,6 @@ export const Navbar: React.FC = () => {
         <Link to="/multitx">
           Modal Demo
         </Link>
-        <DarkModeToggle />
       </div>
 
       {

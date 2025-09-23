@@ -100,7 +100,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     .drawer-actions { display: flex; gap: 8px; }
     .drawer-btn {
       border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
-      background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.06));
+      background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
       color: var(--w3a-colors-textPrimary, #f6f7f8);
       border-radius: 10px;
       padding: 8px 12px;

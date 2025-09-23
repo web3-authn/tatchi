@@ -146,40 +146,54 @@ export class LitElementWithProps extends LitElement {
     if (!styles) return;
 
     const prefix = componentPrefix || this.getComponentPrefix();
+    const setVar = (name: string, val: string) => this.style.setProperty(name, val);
+    const toKebab = (s: string) => this.camelToKebab(s);
 
-    // 1) Apply base design tokens (legacy predictable list)
-    const baseVars = [
-      'fontFamily', 'fontSize', 'color', 'backgroundColor',
-      'colorPrimary', 'colorSecondary', 'colorSuccess', 'colorWarning', 'colorError',
-      'colorBackground', 'colorSurface', 'colorBorder', 'textPrimary', 'textSecondary',
-      'fontSizeSm', 'fontSizeBase', 'fontSizeLg', 'fontSizeXl',
-      'radiusSm', 'radiusMd', 'radiusLg', 'radiusXl',
-      'gap2', 'gap3', 'gap4', 'gap6',
-      'shadowSm', 'shadowMd'
-    ];
-    baseVars.forEach((varName) => {
-      const v = styles[varName as keyof ComponentStyles];
-      if (typeof v === 'string') {
-        this.style.setProperty(`--w3a-${this.camelToKebab(varName)}`, v);
-      }
-    });
+    // Map known tokens to canonical CSS variables
+    const colorMappings: Record<string, string> = {
+      colorSecondary: '--w3a-colors-secondary',
+      colorSuccess: '--w3a-colors-success',
+      colorWarning: '--w3a-colors-warning',
+      colorError: '--w3a-colors-error',
+      colorBackground: '--w3a-colors-colorBackground',
+      surface: '--w3a-colors-surface',
+      surface2: '--w3a-colors-surface2',
+      surface3: '--w3a-colors-surface3',
+      borderPrimary: '--w3a-colors-borderPrimary',
+      borderSecondary: '--w3a-colors-borderSecondary',
+      borderHover: '--w3a-colors-borderHover',
+      textPrimary: '--w3a-colors-textPrimary',
+      textSecondary: '--w3a-colors-textSecondary',
+      textMuted: '--w3a-colors-textMuted',
+    };
 
-    // 2) Promote any other top-level string values to host CSS vars automatically.
-    // This ensures all palette keys from base-styles (e.g., DARK_THEME) become available
-    // as --w3a-<kebab-name> without maintaining a static allowlist.
+    const radiusMatcher = /^radius([A-Z].*)$/;
+    const shadowMatcher = /^shadow([A-Z].*)$/;
+
     Object.entries(styles).forEach(([key, value]) => {
-      if (typeof value === 'string') {
-        this.style.setProperty(`--w3a-${this.camelToKebab(key)}`, value);
+      if (typeof value !== 'string') return;
+
+      if (key in colorMappings) {
+        setVar(colorMappings[key], value);
+        return;
       }
+
+      const r = key.match(radiusMatcher);
+      if (r) { setVar(`--w3a-border-radius-${r[1].toLowerCase()}`, value); return; }
+
+      const s = key.match(shadowMatcher);
+      if (s) { setVar(`--w3a-shadows-${s[1].toLowerCase()}`, value); return; }
+
+      // No legacy gap variables; rely on spacing tokens only.
+      setVar(`--w3a-${toKebab(key)}`, value);
     });
 
-    // Apply component-specific variables
+    // Component-scoped CSS variables
     Object.entries(styles).forEach(([section, sectionStyles]) => {
-      if (sectionStyles && isObject(sectionStyles) && !baseVars.includes(section)) {
+      if (sectionStyles && isObject(sectionStyles)) {
         Object.entries(sectionStyles).forEach(([prop, value]) => {
-          const kebabSection = this.camelToKebab(section);
-          const kebabProp = this.camelToKebab(prop);
-          // New convention with double underscores
+          const kebabSection = toKebab(section);
+          const kebabProp = toKebab(prop);
           const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
           this.style.setProperty(cssVarNew, String(value));
         });
@@ -206,14 +220,16 @@ export interface ComponentStyles extends CSSProperties{
   backgroundColor?: string;
 
   // Core color variables
-  colorPrimary?: string;
+  primary?: string;
   colorSecondary?: string;
   colorSuccess?: string;
   colorWarning?: string;
   colorError?: string;
   colorBackground?: string;
-  colorSurface?: string;
-  colorBorder?: string;
+  surface?: string;
+  surface2?: string;
+  surface3?: string;
+  borderPrimary?: string;
   textPrimary?: string;
   textSecondary?: string;
 
@@ -228,10 +244,7 @@ export interface ComponentStyles extends CSSProperties{
   radiusMd?: string;
   radiusLg?: string;
   radiusXl?: string;
-  gap2?: string;
-  gap3?: string;
-  gap4?: string;
-  gap6?: string;
+  // Use spacing tokens via theme; no legacy gap vars
   shadowSm?: string;
   shadowMd?: string;
 

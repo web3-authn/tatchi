@@ -256,7 +256,7 @@ export class SignerWorkerManager {
   private async sendMessage<T extends WorkerRequestType>({
     message,
     onEvent,
-    timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT // 10s
+    timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT // 60s
   }: {
     message: { type: T; payload: WorkerRequestTypeMap[T]['request'] };
     onEvent?: (update: onProgressEvents) => void;

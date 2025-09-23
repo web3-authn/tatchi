@@ -67,7 +67,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
 
     button { font: inherit; border-radius: 14px; padding: 10px 14px; cursor: pointer; }
     .cancel {
-      background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)));
+      background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.08)));
       color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary, #f6f7f8));
       border: var(--w3a-modal__btn-cancel__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)));
       min-width: 80px;
@@ -79,7 +79,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
       min-width: 80px;
     }
     .cancel:hover {
-      background: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-colorSurface, rgba(255,255,255,0.12)));
+      background: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.12)));
       border: var(--w3a-modal__btn-cancel-hover__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.2)));
     }
     .confirm:hover {

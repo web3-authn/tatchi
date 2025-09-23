@@ -89,7 +89,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     modalContainerRoot: {
       // background: DARK_THEME.grey750,
-      // border: `1px solid ${DARK_THEME.colorBorder}`,
+      // border: `1px solid ${DARK_THEME.borderPrimary}`,
       // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: 'none',
       border: 'none',
@@ -103,7 +103,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     cardBackgroundBorder: {
       borderRadius: '2rem',
       background: DARK_THEME.colorBackground,
-      border: `1px solid ${DARK_THEME.colorBorder}`,
+      border: `1px solid ${DARK_THEME.borderPrimary}`,
     },
 
     rpidWrapper: {
@@ -143,7 +143,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME.textSecondary
     },
     actionItem: {
-      background: DARK_THEME.colorSurface
+      background: DARK_THEME.surface
     },
     actionRow: {
       color: DARK_THEME.textPrimary
@@ -179,9 +179,9 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'transparent'
     },
     btn: {
-      backgroundColor: DARK_THEME.colorSurface,
+      backgroundColor: DARK_THEME.surface,
       color: DARK_THEME.textPrimary,
-      focusOutlineColor: DARK_THEME.colorPrimary,
+      focusOutlineColor: DARK_THEME.primary,
     },
     btnConfirm: {
       padding: '0.5rem',
@@ -195,7 +195,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btnCancel: {
       color: DARK_THEME.textPrimary,
       backgroundColor: DARK_THEME.colorBackground,
-      border: `1px solid ${DARK_THEME.colorBorder}`,
+      border: `1px solid ${DARK_THEME.borderPrimary}`,
     },
     btnCancelHover: {
       backgroundColor: DARK_THEME.grey700,
@@ -208,8 +208,8 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: DARK_THEME.red500,
     },
     loadingIndicator: {
-      borderColor: DARK_THEME.colorBorder,
-      borderTopColor: DARK_THEME.colorPrimary
+      borderColor: DARK_THEME.borderPrimary,
+      borderTopColor: DARK_THEME.primary
     },
 
     // PasskeyHaloLoading CSS variables
@@ -265,11 +265,11 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       background: 'transparent'
     },
     btnMobile: {
-      backgroundColor: DARK_THEME.colorSurface,
+      backgroundColor: DARK_THEME.surface,
       color: DARK_THEME.textPrimary
     },
     actionContentScrollbarTrack: {
-      background: DARK_THEME.colorSurface
+      background: DARK_THEME.surface
     },
     actionContentScrollbarThumb: {
       background: DARK_THEME.textSecondary
@@ -304,7 +304,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     modalContainerRoot: {
       // background: DARK_THEME.grey100,
-      // border: `1px solid ${LIGHT_THEME.colorBorder}`,
+      // border: `1px solid ${LIGHT_THEME.borderPrimary}`,
       // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
       background: 'none',
       border: 'none',
@@ -318,7 +318,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     },
     cardBackgroundBorder: {
       background: LIGHT_THEME.colorBackground,
-      border: `1px solid ${LIGHT_THEME.colorBorder}`,
+      border: `1px solid ${LIGHT_THEME.borderPrimary}`,
     },
 
     rpidWrapper: {
@@ -396,7 +396,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btn: {
       backgroundColor: LIGHT_THEME.colorBackground,
       color: LIGHT_THEME.textPrimary,
-      focusOutlineColor: LIGHT_THEME.colorPrimary,
+      focusOutlineColor: LIGHT_THEME.primary,
     },
     btnHover: {
       boxShadow: 'none'
@@ -413,8 +413,8 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     btnCancel: {
       color: LIGHT_THEME.textPrimary,
       backgroundColor: LIGHT_THEME.colorBackground,
-      borderColor: LIGHT_THEME.colorBorder,
-      border: `1px solid ${LIGHT_THEME.colorBorder}`,
+      borderColor: LIGHT_THEME.borderPrimary,
+      border: `1px solid ${LIGHT_THEME.borderPrimary}`,
     },
     btnCancelHover: {
       backgroundColor: LIGHT_THEME.grey100,
@@ -427,8 +427,8 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       backgroundColor: LIGHT_THEME.red500,
     },
     loadingIndicator: {
-      borderColor: LIGHT_THEME.colorBorder,
-      borderTopColor: LIGHT_THEME.colorPrimary
+      borderColor: LIGHT_THEME.borderPrimary,
+      borderTopColor: LIGHT_THEME.primary
     },
 
     // PasskeyHaloLoading CSS variables
@@ -487,10 +487,10 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME.textPrimary
     },
     actionContentScrollbarTrack: {
-      background: LIGHT_THEME.colorSurface
+      background: LIGHT_THEME.surface
     },
     actionContentScrollbarThumb: {
-      background: LIGHT_THEME.colorBorder
+      background: LIGHT_THEME.borderPrimary
     }
   }
 };

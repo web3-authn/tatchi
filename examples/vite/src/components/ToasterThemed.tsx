@@ -11,7 +11,7 @@ export const ToasterThemed: React.FC = () => {
       toastOptions={{
         duration: 3500,
         style: {
-          background: tokens.colors.colorSurface,
+          background: tokens.colors.surface,
           color: tokens.colors.textPrimary,
           border: `1px solid ${tokens.colors.borderPrimary}`,
           boxShadow: tokens.shadows.sm,
@@ -26,13 +26,13 @@ export const ToasterThemed: React.FC = () => {
         success: {
           iconTheme: {
             primary: tokens.colors.success,
-            secondary: tokens.colors.colorSurface,
+            secondary: tokens.colors.surface,
           },
         },
         error: {
           iconTheme: {
             primary: tokens.colors.error,
-            secondary: tokens.colors.colorSurface,
+            secondary: tokens.colors.surface,
           },
         },
       }}

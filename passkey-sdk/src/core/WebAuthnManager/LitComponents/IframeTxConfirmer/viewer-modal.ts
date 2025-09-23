@@ -123,9 +123,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       --w3a-radius-lg: 0.75rem;
       --w3a-radius-xl: 1rem;
 
-      --w3a-gap-2: 0.5rem;
-      --w3a-gap-3: 0.75rem;
-      --w3a-gap-4: 1rem;
+      /* Spacing tokens only; no legacy gap vars */
 
       /* Component display */
       display: block;
@@ -134,8 +132,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       font-family: var(--w3a-modal__host__font-family, var(--w3a-font-family));
       font-size: var(--w3a-modal__host__font-size, var(--w3a-font-size-base));
       line-height: 1.5;
-      color: var(--w3a-modal__host__color, var(--w3a-color-text));
-      background-color: var(--w3a-modal__host__background-color, var(--w3a-color-background));
+      color: var(--w3a-modal__host__color, var(--w3a-colors-textPrimary));
+      background-color: var(--w3a-modal__host__background-color, var(--w3a-colors-colorBackground));
 
       scrollbar-width: thin;
       scrollbar-color: rgba(25, 25, 25, 0.2);
@@ -303,10 +301,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
     .summary-grid {
       display: grid;
-      gap: var(--w3a-gap-2);
+      gap: var(--w3a-spacing-sm);
       grid-template-columns: 1fr;
-      margin-top: var(--w3a-gap-2);
-      margin-bottom: var(--w3a-gap-2);
+      margin-top: var(--w3a-spacing-sm);
+      margin-bottom: var(--w3a-spacing-sm);
       position: relative;
       z-index: 1;
     }
@@ -314,7 +312,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       display: grid;
       grid-template-columns: 115px 1fr;
       align-items: center;
-      gap: var(--w3a-gap-2);
+      gap: var(--w3a-spacing-sm);
       background: transparent;
       border-radius: 0;
       transition: all 100ms cubic-bezier(0.2, 0.6, 0.2, 1);
@@ -336,7 +334,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Transactions section */
 
     .action-item {
-      margin-bottom: var(--w3a-gap-2);
+      margin-bottom: var(--w3a-spacing-sm);
       overflow: hidden;
       position: relative;
     }
@@ -349,7 +347,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       display: grid;
       grid-template-columns: var(--w3a-modal__action-row__grid-template-columns, 100px 1fr);
       align-items: center;
-      gap: var(--w3a-gap-2);
+      gap: var(--w3a-spacing-sm);
       padding: 0;
       margin-bottom: 0;
       background: transparent;
@@ -409,8 +407,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
 
     .action-subitem {
-      margin-bottom: var(--w3a-modal__action-subitem__margin-bottom, var(--w3a-gap-2));
-      padding: 0rem 0rem 0rem var(--w3a-modal__action-subitem__padding, var(--w3a-gap-4));
+      margin-bottom: var(--w3a-modal__action-subitem__margin-bottom, var(--w3a-spacing-sm));
+      padding: 0rem 0rem 0rem var(--w3a-modal__action-subitem__padding, var(--w3a-spacing-md));
       background: var(--w3a-modal__action-subitem__background, unset);
       position: relative;
     }
@@ -431,7 +429,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
       /* dimensions */
       margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
-      padding: var(--w3a-modal__code-block__padding, var(--w3a-gap-2));
+      padding: var(--w3a-modal__code-block__padding, var(--w3a-spacing-sm));
       min-height: calc(1.4em * 3);
       max-height: var(--w3a-modal__code-block__max-height, 400px);
       height: auto;
@@ -485,7 +483,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       align-items: center;
       height: 48px;
       width: 100%;
-      padding: var(--w3a-gap-3);
+      padding: calc(var(--w3a-spacing-sm) + var(--w3a-spacing-xs));
       font-size: var(--w3a-font-size-base);
       display: inline-flex;
       cursor: pointer;
@@ -518,14 +516,14 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
     .btn-cancel {
       box-shadow: none;
-      color: var(--w3a-modal__btn-cancel__color, var(--w3a-color-text));
-      background-color: var(--w3a-modal__btn-cancel__background-color, var(--w3a-color-surface));
+      color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary));
+      background-color: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface));
       border: var(--w3a-modal__btn-cancel__border, none);
     }
 
     .btn-cancel:hover {
-      color: var(--w3a-modal__btn-cancel-hover__color, var(--w3a-color-text));
-      background-color: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-color-border));
+      color: var(--w3a-modal__btn-cancel-hover__color, var(--w3a-colors-textPrimary));
+      background-color: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-borderPrimary));
       border: var(--w3a-modal__btn-cancel-hover__border, none);
     }
 
@@ -571,7 +569,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       .summary-row {
         grid-template-columns: 1fr;
         gap: var(--w3a-modal__responsive-row__gap, 0.25rem);
-        padding: var(--w3a-gap-3);
+        padding: calc(var(--w3a-spacing-sm) + var(--w3a-spacing-xs));
       }
 
       .summary-label {
@@ -582,7 +580,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       .action-row {
         grid-template-columns: var(--w3a-modal__action-row__template-columns, 100px 1fr);
         gap: var(--w3a-modal__responsive-action-row__gap, 0.25rem);
-        padding: var(--w3a-gap-2);
+        padding: var(--w3a-spacing-sm);
       }
 
       .buttons {
@@ -591,7 +589,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
       .btn {
         width: 100%;
-        padding: var(--w3a-gap-4) var(--w3a-gap-5);
+        padding: var(--w3a-spacing-md) calc(var(--w3a-spacing-md) + var(--w3a-spacing-xs));
       }
 
       .action-content {
@@ -625,7 +623,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       border-radius: 50%;
       border-top-color: var(--w3a-modal__loading-indicator__border-top-color);
       animation: spin 1s ease-in-out infinite;
-      margin-right: var(--w3a-gap-2);
+      margin-right: var(--w3a-spacing-sm);
     }
 
     @keyframes spin {

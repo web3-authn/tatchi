@@ -32,7 +32,7 @@ export const DarkModeToggle: React.FC = () => {
     <button
       onClick={onToggle}
       style={{
-        background: tokens.colors.colorSurface2,
+        background: tokens.colors.surface2,
         border: `1px solid ${tokens.colors.borderPrimary}`,
         cursor: 'pointer',
         borderRadius: '20px',
@@ -47,11 +47,11 @@ export const DarkModeToggle: React.FC = () => {
         justifyContent: 'center',
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = tokens.colors.colorSurface2;
+        e.currentTarget.style.background = tokens.colors.surface2;
         e.currentTarget.style.boxShadow = tokens.shadows.md;
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = tokens.colors.colorSurface;
+        e.currentTarget.style.background = tokens.colors.surface;
         e.currentTarget.style.boxShadow = tokens.shadows.sm;
       }}
       title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}
