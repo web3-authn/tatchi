@@ -129,7 +129,6 @@ export function PasskeyLoginMenu() {
     // Return the promise so caller can await and catch
     return loginPasskey(targetAccountId, {
       onEvent: (event) => {
-        console.log("LOGIN EVENT:", event);
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
             toast.loading(`Logging in as ${targetAccountId}...`, { id: 'login' });
