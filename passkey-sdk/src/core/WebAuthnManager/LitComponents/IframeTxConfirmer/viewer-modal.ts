@@ -6,7 +6,7 @@ import { TransactionInputWasm } from '../../../types';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
-import TxConfirmContentElement from './tx-content';
+import TxConfirmContentElement from './tx-confirm-content';
 import { formatDeposit, formatGas } from '../common/formatters';
 import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
@@ -36,7 +36,7 @@ export interface TxAction {
  * Built with Lit for automatic XSS protection and reactive updates.
  */
 export class ModalTxConfirmElement extends LitElementWithProps implements ConfirmUIElement {
-  static requiredChildTags = ['tx-confirm-content'];
+  static requiredChildTags = ['w3a-tx-confirm-content'];
   static strictChildDefinitions = true;
   // Prevent bundlers from dropping nested custom element definitions used via templates
   static keepDefinitions = [TxConfirmContentElement];
@@ -63,7 +63,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   fingerprint = '';
   title = 'Sign Transaction';
   cancelText = 'Cancel';
-  confirmText = 'Confirm and Sign';
+  confirmText = 'Next';
   txSigningRequests: TransactionInputWasm[] = [];
   vrfChallenge?: VRFChallenge;
   loading = false;
@@ -87,6 +87,21 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       e.preventDefault();
       this._handleCancel();
     }
+  };
+  private _onWindowMessage = (ev: MessageEvent) => {
+    try {
+      const data = (ev && ev.data) || {};
+      if (!data || typeof (data as any).type !== 'string') return;
+      if ((data as any).type === 'MODAL_TIMEOUT') {
+        const msg = typeof (data as any).payload === 'string' && (data as any).payload
+          ? (data as any).payload
+          : 'Operation timed out';
+        try { this.loading = false; } catch {}
+        try { this.errorMessage = msg; } catch {}
+        // Emit cancel so the host resolves and removes this element via two‑phase close
+        this._handleCancel();
+      }
+    } catch {}
   };
   // Guard to prevent immediate backdrop-cancel due to the click that mounted the modal
   private _backdropArmed = false;
@@ -670,6 +685,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   disconnectedCallback() {
     try { window.removeEventListener('resize', this._onResize as unknown as EventListener); } catch {}
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
+    try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
     super.disconnectedCallback();
   }
 
@@ -683,6 +699,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     try { window.addEventListener('resize', this._onResize as unknown as EventListener, { passive: true } as AddEventListenerOptions); } catch {}
     // Listen globally so Escape works regardless of focus target
     try { window.addEventListener('keydown', this._onKeyDown); } catch {}
+    // Listen for global timeout notification (posted by SignerWorkerManager on operation timeout)
+    try { window.addEventListener('message', this._onWindowMessage as EventListener); } catch {}
     // Ensure this iframe/host receives keyboard focus so ESC works immediately
     try {
       // Make host focusable and focus it without scrolling
@@ -802,7 +820,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
           </div>
 
           <div class="responsive-card">
-            <tx-confirm-content
+            <w3a-tx-confirm-content
               .nearAccountId=${this['nearAccountId'] || ''}
               .txSigningRequests=${this.txSigningRequests || []}
               .vrfChallenge=${this.vrfChallenge}
@@ -814,7 +832,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               .cancelText=${this.cancelText}
               @confirm=${this._handleConfirm}
               @cancel=${this._handleCancel}
-            ></tx-confirm-content>
+            ></w3a-tx-confirm-content>
           </div>
         </div>
       </div>
@@ -867,4 +885,5 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 }
 
 // Register the custom element
-customElements.define('passkey-modal-confirm', ModalTxConfirmElement);
+import { MODAL_TX_CONFIRM_ID } from '../tags';
+customElements.define(MODAL_TX_CONFIRM_ID, ModalTxConfirmElement);

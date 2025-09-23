@@ -52,16 +52,44 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private _onResize = () => this._updateTxTreeWidth();
 
   static styles = css`
-    :host { display: block; color: inherit; touch-action: auto; }
+    :host {
+      display: block;
+      color: inherit;
+      touch-action: auto;
+      width: fit-content;
+    }
     .section { margin: 8px 0; }
     .summary-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
     .label { font-size: 12px; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
     .value { font-size: 13px; color: var(--w3a-colors-textPrimary, #f6f7f8); word-break: break-word; }
     :host([theme="light"]) .value { color: var(--w3a-colors-textPrimary, #181a1f); }
     .actions { display: grid; grid-auto-flow: column; gap: 10px; justify-content: end; margin-top: 12px; }
+
     button { font: inherit; border-radius: 14px; padding: 10px 14px; cursor: pointer; }
-    .cancel { background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)); color: var(--w3a-colors-textPrimary, #f6f7f8); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)); }
-    .confirm { background: var(--w3a-colors-accent, #3b82f6); color: #fff; border: 1px solid transparent; }
+    .cancel {
+      background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)));
+      color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary, #f6f7f8));
+      border: var(--w3a-modal__btn-cancel__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)));
+      min-width: 80px;
+    }
+    .confirm {
+      background: var(--w3a-modal__btn-confirm__background-color, var(--w3a-colors-accent, #3b82f6));
+      color: var(--w3a-modal__btn-confirm__color, #fff);
+      border: var(--w3a-modal__btn-confirm__border, 1px solid transparent);
+      min-width: 80px;
+    }
+    .cancel:hover {
+      background: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-colorSurface, rgba(255,255,255,0.12)));
+      border: var(--w3a-modal__btn-cancel-hover__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.2)));
+    }
+    .confirm:hover {
+      background: var(--w3a-modal__btn-confirm-hover__background-color, var(--w3a-colors-accent, #3b82f6));
+      border: var(--w3a-modal__btn-confirm-hover__border, 1px solid transparent);
+    }
+    .cancel:focus-visible, .confirm:focus-visible {
+      outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, #3b82f6));
+      outline-offset: 3px;
+    }
     .error { color: var(--w3a-colors-error, #ff7a7a); font-size: 13px; margin: 8px 0; }
     .muted { color: var(--w3a-colors-textMuted, rgba(255,255,255,0.6)); font-size: 12px; }
   `;
@@ -158,23 +186,38 @@ export class TxConfirmContentElement extends LitElementWithProps {
   render() {
     return html`
       ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
-      ${this._treeNode
+      ${
+        this._treeNode
         ? html`<div style="width:${this._txTreeWidth}">
-                <tx-tree .node=${this._treeNode}
+                <tx-tree
+                  .node=${this._treeNode}
                   .theme=${this.theme}
                   .styles=${TX_TREE_THEMES[this.theme]}
                 ></tx-tree>
               </div>`
-        : html`<div class="muted">No actions</div>`}
+        : html`<div class="muted">No actions</div>`
+      }
       <div class="actions">
-        <button class="cancel" @click=${this.onCancel} ?disabled=${this.loading}>${this.cancelText}</button>
-        <button class="confirm" @click=${this.onConfirm} ?disabled=${this.loading}>${this.confirmText}</button>
+        <button
+          class="cancel"
+          @click=${this.onCancel}
+          ?disabled=${this.loading}
+        >
+          ${this.cancelText}
+        </button>
+        <button
+          class="confirm"
+          @click=${this.onConfirm}
+          ?disabled=${this.loading}
+        >
+          ${this.confirmText}
+        </button>
       </div>
     `;
   }
 }
 
-customElements.define('tx-confirm-content', TxConfirmContentElement);
+import { TX_CONFIRM_CONTENT_ID } from '../tags';
+customElements.define(TX_CONFIRM_CONTENT_ID, TxConfirmContentElement);
 
 export default TxConfirmContentElement;
-

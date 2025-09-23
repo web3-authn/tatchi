@@ -782,7 +782,12 @@ export class WalletIframeRouter {
 
     return new Promise<PostResult<T>>((resolve, reject) => {
       const timer = window.setTimeout(() => {
-        this.pending.delete(requestId);
+        // Timeout: clean up local state and best-effort cancel on host
+        try { this.pending.delete(requestId); } catch {}
+        try { this.progressBus.unregister(requestId); } catch {}
+        try { this.hideFrameForActivation(); } catch {}
+        // Ask the wallet host to cancel any UI/flow associated with the original request
+        try { this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
         reject(new Error(`Wallet request timeout for ${envelope.type}`));
       }, this.opts.requestTimeoutMs);
 

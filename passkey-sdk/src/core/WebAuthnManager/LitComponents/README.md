@@ -18,7 +18,7 @@ The parent page never directly manipulates DOM inside the iframe. Instead, it se
 
 Files:
 - `IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates.
-- `IframeModalConfirmer/iframe-modal-bootstrap-script.ts`: Same pattern for the modal variant.
+- `IframeTxConfirmer/iframe-modal-bootstrap-script.ts`: Same pattern for the modal variant.
 
 ## Prop Flow and Data Updates
 

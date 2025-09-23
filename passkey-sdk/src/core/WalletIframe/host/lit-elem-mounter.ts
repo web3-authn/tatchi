@@ -1,9 +1,25 @@
 
-// Mounts minimal Lit components inside the wallet-iframe document to capture
-// user activation (click) within the wallet origin, enabling WebAuthn
-// without additional popups and clicks. It exposes a
-// tiny postMessage API so the parent can request embedded UI elements
-// to appear/disappear while the sensitive logic runs here.
+// Wallet Host Lit Element Mounter
+//
+// Purpose:
+// - Runs inside the wallet iframe and mounts compact Lit UI components that
+//   need to exist within the wallet origin (e.g., to capture user activation
+//   for WebAuthn).
+// - Exposes a minimal window.postMessage API consumed by the parent app to
+//   request mounting, updating, and unmounting of those components.
+//
+// Responsibilities:
+// - Define and keep alive essential custom elements (prevents tree‑shaking).
+// - Translate parent messages into concrete element instances using the
+//   declarative registry from `lit-element-registry.ts`.
+// - Wire mounted elements to PasskeyManager methods (e.g.,
+//   `signAndSendTransactions`) via typed prop/event bridges.
+// - Clean up previous instances to avoid duplicates when remounting.
+//
+// Non-goals:
+// - It does not own modal Tx confirmation UI (that is managed by the signer
+//   flow and LitComponents/confirm-ui). This module only handles small,
+//   embedded controls like the Tx button host.
 
 // Import and retain a reference to ensure bundlers don’t treeshake the element
 // Import iframe tooltip confirmer button and keep reference

@@ -1,4 +1,3 @@
-import { css } from 'lit';
 import { html as htmlDyn, unsafeStatic } from 'lit/static-html.js';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../../WebAuthnManager/LitComponents/LitElementWithProps';

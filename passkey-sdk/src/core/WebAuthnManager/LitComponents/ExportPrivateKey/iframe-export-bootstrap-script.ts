@@ -1,4 +1,5 @@
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
 
 type MessageType =
   | 'READY'
@@ -53,7 +54,7 @@ function isSetExportDataPayload(payload: unknown): payload is MessagePayloads['S
 function getDrawer(): HTMLElement & { theme?: string; open?: boolean; height?: string; showCloseButton?: boolean; overpullPx?: number; dragToClose?: boolean } {
   let el = document.getElementById('exp') as any;
   if (!el) {
-    el = document.createElement('w3a-drawer');
+    el = document.createElement(W3A_DRAWER_ID);
     el.id = 'exp';
     document.body.appendChild(el);
   }
@@ -63,9 +64,9 @@ function getDrawer(): HTMLElement & { theme?: string; open?: boolean; height?: s
 // Ensure viewer element is a child of drawer
 function getViewer(): HTMLElement & { theme?: string; variant?: string; accountId?: string; publicKey?: string; privateKey?: string; loading?: boolean; errorMessage?: string } {
   const drawer = getDrawer();
-  let viewer = drawer.querySelector('w3a-export-key-viewer') as any;
+  let viewer = drawer.querySelector(W3A_EXPORT_KEY_VIEWER_ID) as any;
   if (!viewer) {
-    viewer = document.createElement('w3a-export-key-viewer');
+    viewer = document.createElement(W3A_EXPORT_KEY_VIEWER_ID);
     drawer.appendChild(viewer);
   }
   return viewer;
@@ -85,7 +86,7 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
           PARENT_ORIGIN = p.targetOrigin;
         }
       }
-      whenDefined('w3a-export-key-viewer').then(() => postToParent('ETX_DEFINED'));
+      whenDefined(W3A_EXPORT_KEY_VIEWER_ID).then(() => postToParent('ETX_DEFINED'));
       break;
     }
     case 'SET_EXPORT_DATA': {

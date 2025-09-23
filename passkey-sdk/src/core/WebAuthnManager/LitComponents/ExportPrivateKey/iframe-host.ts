@@ -243,6 +243,7 @@ export type ExportViewerIframeElement = HTMLElement & {
   errorMessage?: string;
 };
 
-customElements.define('w3a-export-viewer-iframe', IframeExportHost);
+import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../tags';
+customElements.define(W3A_EXPORT_VIEWER_IFRAME_ID, IframeExportHost);
 
 export default IframeExportHost;

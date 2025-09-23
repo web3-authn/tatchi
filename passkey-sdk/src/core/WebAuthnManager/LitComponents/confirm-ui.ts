@@ -1,13 +1,13 @@
 import { TransactionInputWasm, VRFChallenge } from '../../types';
-import { IFRAME_MODAL_ID } from './tags';
+import { IFRAME_MODAL_ID, CONFIRM_UI_ELEMENT_SELECTORS, MODAL_TX_CONFIRM_ID, DRAWER_TX_CONFIRM_ID, CONFIRM_PORTAL_ID } from './tags';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 import { isBoolean } from '../../WalletIframe/validation';
-import type IframeModalHost from './IframeModalConfirmer/iframe-host';
+import type IframeModalHost from './IframeTxConfirmer/iframe-host';
 
 // Ensure the modal element is defined when this bundle is loaded in an iframe
 // The drawer variant is imported by the iframe bootstrap script.
-import './IframeModalConfirmer/viewer-modal';
+import './IframeTxConfirmer/viewer-modal';
 
 // ========= Iframe Modal helpers =========
 async function ensureIframeModalDefined(): Promise<void> {
@@ -37,12 +37,53 @@ async function ensureIframeModalDefined(): Promise<void> {
 // ========= Host Modal helpers (no nested iframe) =========
 async function ensureHostElementDefined(variant: 'modal' | 'drawer' = 'modal'): Promise<void> {
   if (variant === 'drawer') {
-    if (customElements.get('w3a-drawer-tx-confirm')) return;
-    await import('./IframeModalConfirmer/viewer-drawer');
+    if (customElements.get(DRAWER_TX_CONFIRM_ID)) return;
+    await import('./IframeTxConfirmer/viewer-drawer');
     return;
   }
-  if (customElements.get('passkey-modal-confirm')) return;
-  await import('./IframeModalConfirmer/viewer-modal');
+  if (customElements.get(MODAL_TX_CONFIRM_ID)) return;
+  await import('./IframeTxConfirmer/viewer-modal');
+}
+
+function cleanupExistingConfirmers(): void {
+  try {
+    // First, prefer clearing the portal container which guarantees singleton behavior
+    const portal = document.getElementById(CONFIRM_PORTAL_ID);
+    if (portal) {
+      try {
+        const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
+        for (const el of existing) {
+          try { el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true })); } catch {}
+          try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+        }
+        portal.replaceChildren();
+        return;
+      } catch {}
+    }
+    // Fallback: scan the document for any confirmer elements and remove them
+    const selectors = (CONFIRM_UI_ELEMENT_SELECTORS as readonly string[]);
+    const els = selectors.flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
+    for (const el of els) {
+      try { el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true })); } catch {}
+      try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+      try { el.remove(); } catch {}
+    }
+  } catch {}
+}
+
+function ensureConfirmPortal(): HTMLElement {
+  let portal = document.getElementById(CONFIRM_PORTAL_ID) as HTMLElement | null;
+  if (!portal) {
+    portal = document.createElement('div');
+    portal.id = CONFIRM_PORTAL_ID;
+    // Keep the portal inert except for stacking; children handle their own overlay
+    try {
+      portal.style.position = 'relative';
+      portal.style.zIndex = '2147483647';
+    } catch {}
+    document.body.appendChild(portal);
+  }
+  return portal;
 }
 
 async function mountHostUiWithHandle({
@@ -66,7 +107,8 @@ async function mountHostUiWithHandle({
 }): Promise<ConfirmUIHandle> {
   const v: 'modal' | 'drawer' = variant || 'modal';
   await ensureHostElementDefined(v);
-  const tag = v === 'drawer' ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+  cleanupExistingConfirmers();
+  const tag = v === 'drawer' ? DRAWER_TX_CONFIRM_ID : MODAL_TX_CONFIRM_ID;
   const el = document.createElement(tag) as any;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
@@ -76,7 +118,8 @@ async function mountHostUiWithHandle({
   if (loading != null) el.loading = !!loading;
   // Two-phase close: let caller control removal
   try { el.deferClose = true; } catch {}
-  document.body.appendChild(el);
+  const portal = ensureConfirmPortal();
+  portal.replaceChildren(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   const update = (props: ConfirmUIUpdate) => {
     try {
@@ -112,7 +155,8 @@ async function awaitHostUiDecisionWithHandle({
   const v: 'modal' | 'drawer' = variant || 'modal';
   await ensureHostElementDefined(v);
   return new Promise((resolve) => {
-    const tag = v === 'drawer' ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+    cleanupExistingConfirmers();
+    const tag = v === 'drawer' ? DRAWER_TX_CONFIRM_ID : MODAL_TX_CONFIRM_ID;
     const el = document.createElement(tag) as any;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
@@ -165,7 +209,8 @@ async function awaitHostUiDecisionWithHandle({
     el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
     el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
 
-    document.body.appendChild(el);
+    const portal = ensureConfirmPortal();
+    portal.replaceChildren(el);
   });
 }
 
@@ -189,6 +234,7 @@ async function mountIframeHostUiWithHandle({
   nearAccountIdOverride?: string,
 }): Promise<ConfirmUIHandle> {
   await ensureIframeModalDefined();
+  cleanupExistingConfirmers();
   const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
@@ -203,7 +249,8 @@ async function mountIframeHostUiWithHandle({
   if (variant) {
     (el as any).variant = variant;
   }
-  document.body.appendChild(el);
+  const portal = ensureConfirmPortal();
+  portal.replaceChildren(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   const update = (props: ConfirmUIUpdate) => {
     try {
@@ -237,6 +284,7 @@ async function awaitIframeHostUiDecisionWithHandle({
 }): Promise<{ confirmed: boolean; handle: ConfirmUIHandle }>{
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
+    cleanupExistingConfirmers();
     const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
@@ -291,7 +339,8 @@ async function awaitIframeHostUiDecisionWithHandle({
     el.addEventListener('w3a:tx-confirmer-cancel', onCancel as EventListener);
     el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
     el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
-    document.body.appendChild(el);
+    const portal = ensureConfirmPortal();
+    portal.replaceChildren(el);
   });
 }
 
@@ -402,5 +451,5 @@ export async function awaitConfirmUIDecision({
 }
 
 // Types and element export for consumers that need the iframe element handle
-export type { default as IframeModalHost } from './IframeModalConfirmer/iframe-host';
+export type { default as IframeModalHost } from './IframeTxConfirmer/iframe-host';
 export { IFRAME_MODAL_ID };

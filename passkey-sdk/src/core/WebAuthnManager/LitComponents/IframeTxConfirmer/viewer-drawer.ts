@@ -1,9 +1,12 @@
 import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
-import TxConfirmContentElement from './tx-content';
+import { W3A_DRAWER_ID } from '../tags';
+import TxConfirmContentElement from './tx-confirm-content';
+import PadlockIconElement from '../common/PadlockIcon';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ConfirmUIElement } from '../confirm-ui-types';
+import { MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme, type ModalTxConfirmerStyles } from './modal-confirmer-themes';
 // Fallback color set explicitly to palette's blue500 without unsafeCSS
 
 /**
@@ -11,10 +14,10 @@ import type { ConfirmUIElement } from '../confirm-ui-types';
  * Emits 'w3a:modal-confirm' and 'w3a:modal-cancel' for compatibility with iframe host bootstrap.
  */
 export class DrawerTxConfirmerElement extends LitElementWithProps implements ConfirmUIElement {
-  static requiredChildTags = ['tx-confirm-content', 'w3a-drawer'];
+  static requiredChildTags = ['w3a-tx-confirm-content', 'w3a-drawer'];
   static strictChildDefinitions = true;
   // Prevent bundlers from dropping nested custom element definitions used via templates
-  static keepDefinitions = [TxConfirmContentElement];
+  static keepDefinitions = [TxConfirmContentElement, PadlockIconElement];
   static properties = {
     nearAccountId: { type: String, attribute: 'near-account-id' },
     txSigningRequests: { type: Array },
@@ -33,6 +36,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
   declare theme: 'dark' | 'light';
+  styles?: ModalTxConfirmerStyles;
   declare loading: boolean;
   declare errorMessage?: string;
   declare title: string;
@@ -43,6 +47,25 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
   private _drawerEl: any | null = null;
+  private _onWindowMessage = (ev: MessageEvent) => {
+    try {
+      const data = (ev && ev.data) || {};
+      if (!data || typeof (data as any).type !== 'string') return;
+      if ((data as any).type === 'MODAL_TIMEOUT') {
+        const msg = typeof (data as any).payload === 'string' && (data as any).payload
+          ? (data as any).payload
+          : 'Operation timed out';
+        try { this.loading = false; } catch {}
+        try { this.errorMessage = msg; } catch {}
+        // Best-effort close and emit cancel so host resolves and cleans up
+        try { this._drawerEl?.handleClose?.(); } catch {}
+        try {
+          this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+        } catch {}
+      }
+    } catch {}
+  };
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       if (this.loading) return;
@@ -98,8 +121,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     .section {
       margin: 8px 0;
       max-width: 600px;
-      // display: grid;
-      // place-content: center;
     }
     .responsive-card {
       position: relative;
@@ -134,12 +155,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       align-items: center;
       justify-content: center;
     }
-    .padlock-icon {
-      width: 12px;
-      height: 12px;
-      margin-right: 4px;
-      color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255));
-    }
+    .padlock-icon { width: 12px; height: 12px; margin-right: 4px; color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255)); }
     .block-height-icon {
       width: 12px;
       height: 12px;
@@ -156,16 +172,22 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.theme = 'dark';
     this.loading = false;
     this.title = 'Sign transaction with Passkey';
-    this.confirmText = 'Confirm';
+    this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;
   }
 
   protected getComponentPrefix(): string { return 'drawer-tx'; }
 
+  // Align variable prefixing with modal variables used in CSS
+  protected applyStyles(styles: ModalTxConfirmerStyles): void {
+    super.applyStyles(styles, 'modal');
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     try { window.addEventListener('keydown', this._onKeyDown); } catch {}
+    try { window.addEventListener('message', this._onWindowMessage as EventListener); } catch {}
     // Ensure immediate keyboard handling (e.g., ESC) by focusing host/iframe
     try {
       const hostEl = this as unknown as HTMLElement;
@@ -175,19 +197,40 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       hostEl.focus({ preventScroll: true } as FocusOptions);
       if (typeof window.focus === 'function') { window.focus(); }
     } catch {}
+    // Initialize theme styles
+    this.updateTheme();
   }
 
   firstUpdated(): void {
-    this._drawerEl = this.shadowRoot?.querySelector('w3a-drawer') as any;
+    this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
   }
 
   disconnectedCallback(): void {
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
+    try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
     super.disconnectedCallback();
   }
 
   updated(changed: PropertyValues) {
     super.updated(changed);
+    if (changed.has('theme')) {
+      this.updateTheme();
+    }
+  }
+
+  private updateTheme() {
+    const t = (this.theme as ModalConfirmerTheme) || 'dark';
+    const selectedTheme = MODAL_CONFIRMER_THEMES[t] || MODAL_CONFIRMER_THEMES.dark;
+    const host = selectedTheme.host || {};
+    // Promote essential host values to base variables so global tokens are populated
+    this.styles = {
+      ...selectedTheme,
+      fontFamily: host.fontFamily,
+      fontSizeBase: host.fontSize,
+      color: host.color,
+      backgroundColor: host.backgroundColor,
+    };
+    this.applyStyles(this.styles);
   }
 
   private onDrawerCancel = () => {
@@ -225,7 +268,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     return html`
       <w3a-drawer
         .open=${true}
-        .theme=${this.theme}
+        theme=${this.theme}
         .loading=${this.loading}
         .errorMessage=${this.errorMessage || ''}
         .height=${'auto'}
@@ -245,18 +288,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
             <div class="rpid-wrapper">
               <div class="rpid">
                 <div class="secure-indicator">
-                  <svg xmlns="http://www.w3.org/2000/svg"
-                    class="padlock-icon"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
+                      <w3a-padlock-icon class="padlock-icon"></w3a-padlock-icon>
                   ${this.vrfChallenge?.rpId
                     ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
                     : ''}
@@ -283,11 +315,11 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
             </div>
           </div>
           <div class="section responsive-card">
-            <tx-confirm-content
+            <w3a-tx-confirm-content
               .nearAccountId=${this.nearAccountId || ''}
               .txSigningRequests=${this.txSigningRequests || []}
               .vrfChallenge=${this.vrfChallenge}
-              .theme=${this.theme}
+              theme=${this.theme}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
               .title=${this.title}
@@ -295,7 +327,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               .cancelText=${this.cancelText}
               @confirm=${this.onContentConfirm}
               @cancel=${this.onContentCancel}
-            ></tx-confirm-content>
+            ></w3a-tx-confirm-content>
           </div>
 
         </div>
@@ -304,6 +336,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 }
 
-customElements.define('w3a-drawer-tx-confirm', DrawerTxConfirmerElement);
+import { DRAWER_TX_CONFIRM_ID } from '../tags';
+customElements.define(DRAWER_TX_CONFIRM_ID, DrawerTxConfirmerElement);
 
 export default DrawerTxConfirmerElement;

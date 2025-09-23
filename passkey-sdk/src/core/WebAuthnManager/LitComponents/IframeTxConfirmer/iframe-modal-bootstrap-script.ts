@@ -81,7 +81,7 @@ let CURRENT_VARIANT: Variant = 'modal';
 function ensureElement(): ModalElementType {
   const id = 'mtx';
   let el = document.getElementById(id) as ModalElementType | null;
-  const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirm' : 'passkey-modal-confirm';
+  const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirm' : 'w3a-modal-tx-confirm';
 
   // If an element exists but the tag does not match the desired variant, replace it
   if (el && el.tagName.toLowerCase() !== desiredTag) {
@@ -139,7 +139,7 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         window.__MTX_PARENT_ORIGIN = PARENT_ORIGIN;
       }
       // Announce when either modal or drawer element is defined
-      whenAnyDefined(['passkey-modal-confirm', 'w3a-drawer-tx-confirm']).then(() => {
+      whenAnyDefined(['w3a-modal-tx-confirm', 'w3a-drawer-tx-confirm']).then(() => {
         if (MTX_DEFINED_POSTED) return;
         MTX_DEFINED_POSTED = true;
         const definedMessage: IframeModalMessage = { type: 'ETX_DEFINED' };

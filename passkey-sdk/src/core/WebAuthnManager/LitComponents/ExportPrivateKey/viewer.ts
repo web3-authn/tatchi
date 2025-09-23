@@ -1,6 +1,7 @@
-import { html, css } from 'lit';
+import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
+import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';
@@ -53,16 +54,15 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       justify-content: center;
       transition: all 0.2s ease;
     }
-    .close-btn:hover { color: var(--w3a-colors-textPrimary, #f6f7f8); background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)); }
+    .close-btn:hover { color: var(--w3a-text-primary, #f6f7f8); background: var(--w3a-color-surface, rgba(255,255,255,0.08)); }
     .warning {
-      background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.06));
-      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
-      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      background: var(--w3a-color-surface, rgba(255,255,255,0.06));
+      border: 1px solid var(--w3a-color-border, rgba(255,255,255,0.12));
+      color: var(--w3a-text-secondary, rgba(255,255,255,0.7));
       padding: 12px;
       border-radius: 1rem;
       font-size: 0.9rem;
       margin: 1rem 0rem;
-      box-shadow: var(--w3a-shadows-sm, 0 4px 12px rgba(0, 0, 0, 0.15));
     }
     .row {
       display: grid;
@@ -72,31 +72,26 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       font-size: 0.9rem;
     }
     .key-row {
-      background: var(--w3a-colors-colorSurface);
-      border: 1px solid var(--w3a-colors-borderPrimary);
       border-radius: 1rem;
       padding: 0;
-      transition: all 0.2s ease;
-    }
-
-    .key-row:hover {
-      border-color: var(--w3a-colors-borderHover, var(--w3a-colors-borderPrimary));
-      box-shadow: var(--w3a-shadows-sm, 0 4px 12px rgba(0, 0, 0, 0.15));
     }
 
     .label {
-      color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7));
+      color: var(--w3a-text-primary, #f6f7f8);
     }
 
     .value {
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       word-break: break-all;
+      user-select: text;
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
     }
 
     /* Masked middle portion (no blur) */
     .private-key .mask-chunk {
       opacity: 0.9;
-      letter-spacing: 0.04em;
     }
 
     /* Make all text inside key rows smaller for readability */
@@ -114,11 +109,13 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
+      margin-right: 0.5rem;
       font-size: 1rem;
     }
-    .btn-primary { background: var(--w3a-btn-primary, #4DAFFE); color: var(--w3a-btn-text, #0b1220); }
-    .btn-surface { background: var(--w3a-colors-colorSurface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
+    .btn-primary { background: var(--w3a-color-primary, #4DAFFE); color: var(--w3a-color-background, #0b1220); }
+    .btn-surface { background: var(--w3a-color-surface, #2b2b2b); color: var(--w3a-text-primary, #ddd); border: 1px solid var(--w3a-color-border, rgba(255,255,255,0.12)); }
     .btn:hover { filter: brightness(1.05); }
+    .btn:active { transform: scale(0.96); }
     .btn:disabled { opacity: 0.6; cursor: not-allowed; }
     .btn.copied { color: var(--w3a-colors-success, #34d399); border-color: var(--w3a-colors-success, #34d399); animation: copiedPulse .3s ease; }
 
@@ -140,6 +137,53 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   }
 
   protected getComponentPrefix(): string { return 'export'; }
+
+  protected updated(changed: PropertyValues) {
+    super.updated(changed);
+    if (changed.has('theme')) this.updateTheme();
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    this.updateTheme();
+    // Prevent drawer drag initiation from content area so text can be selected
+    try {
+      this.addEventListener('pointerdown', this._stopDragStart as EventListener);
+      this.addEventListener('mousedown', this._stopDragStart as EventListener);
+      this.addEventListener('touchstart', this._stopDragStart as EventListener, { passive: false } as AddEventListenerOptions);
+    } catch {}
+  }
+
+  disconnectedCallback(): void {
+    try {
+      this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
+      this.removeEventListener('mousedown', this._stopDragStart as EventListener);
+      this.removeEventListener('touchstart', this._stopDragStart as EventListener);
+    } catch {}
+    super.disconnectedCallback();
+  }
+
+  private _stopDragStart = (e: Event) => {
+    // Do not preventDefault to allow text selection, just stop bubbling to drawer
+    e.stopPropagation();
+  };
+
+  private updateTheme() {
+    try {
+      const t = this.theme === 'light' ? LIGHT_THEME : DARK_THEME;
+      // Promote essential host values to base variables so global tokens are populated
+      const styles: Record<string, string> = {
+        ...t,
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontSize: '1rem',
+        color: t.textPrimary,
+        backgroundColor: t.colorBackground,
+        // Also expose a primary color alias for buttons
+        colorPrimary: t.colorPrimary,
+      } as any;
+      this.applyStyles(styles, 'export');
+    } catch {}
+  }
 
   private async copy(type: 'publicKey' | 'privateKey', value?: string) {
     if (!value) return;
@@ -229,7 +273,16 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     const pk = this.publicKey || '';
     const sk = this.privateKey || '';
     return html`
-      ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${() => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))}>×</button>` : null}
+      ${
+        this.showCloseButton
+        ? html`<button
+          aria-label="Close"
+          title="Close"
+          class="close-btn"
+          @click=${() => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))}
+          >×</button>`
+        : null
+      }
       <div class="content">
         <h2 class="title">Export Private Keys</h2>
         <div class="warning">

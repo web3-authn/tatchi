@@ -17,7 +17,7 @@ function clamp(n: number, min: number, max: number): number { return Math.max(mi
 export class DrawerElement extends LitElementWithProps {
   static properties = {
     open: { type: Boolean, reflect: true },
-    theme: { type: String },
+    theme: { type: String, reflect: true },
     loading: { type: Boolean },
     errorMessage: { type: String },
     dragToClose: { type: Boolean, attribute: 'drag-to-close' },
@@ -73,14 +73,14 @@ export class DrawerElement extends LitElementWithProps {
       position: fixed;
       left: 0; right: 0; bottom: 0;
       z-index: 2147483647;
-      /* Use AccessKeysModal token set */
-      background: var(--w3a-colors-colorBackground, #111);
-      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      /* Use AccessKeysModal token set; fall back to Lit host vars */
+      background: var(--w3a-colors-colorBackground, var(--w3a-color-background, #111));
+      color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8));
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
       font-size: 1rem;
-      border-top-left-radius: 2rem;
-      border-top-right-radius: 2rem;
-      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
+      border-top-left-radius: 3rem;
+      border-top-right-radius: 3rem;
+      border: 1px solid var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.12)));
       transform: translateY(100%);
       transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
@@ -94,6 +94,7 @@ export class DrawerElement extends LitElementWithProps {
       display: grid;
       grid-template-rows: auto 1fr;
     }
+
     /* Default to closed (100%) until JS computes the open translate.
        This avoids a flash at 0% then shrinking to content. */
     :host([open]) .drawer { transform: translateY(var(--w3a-drawer__open-translate, 100%)); }
@@ -101,11 +102,13 @@ export class DrawerElement extends LitElementWithProps {
     .drawer.dragging { transition: none; }
     .handle {
       width: 36px; height: 4px; border-radius: 2px;
-      background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.25));
+      background: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.25)));
       margin: 6px auto 10px;
     }
+
     /* Ensure the body can actually shrink so overflow works inside grid */
     .body { overflow: auto; padding: 0; min-height: 0; }
+
     /* Child container to keep content visible above the fold when fully open */
     .above-fold {
       position: sticky;
@@ -114,18 +117,45 @@ export class DrawerElement extends LitElementWithProps {
       z-index: 1;
       padding-bottom: max(16px, env(safe-area-inset-bottom));
     }
+
     /* full-open removed */
     .close-btn {
-      position:absolute;right:-1rem;top:-1rem;
-      background: none; border: none; color: var(--w3a-colors-textMuted, #99a0aa);
-      font-size: 28px; line-height: 1; cursor: pointer; width: 48px; height: 48px; border-radius: 2rem; display:flex; align-items:center; justify-content:center;
+      position: absolute;
+      right: 0rem;
+      top: 0rem;
+      background: none;
+      border: none;
+      color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #99a0aa));
+      font-size: 28px;
+      line-height: 1;
+      cursor: pointer;
+      width: 48px;
+      height: 48px;
+      border-radius: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       transition: all .2s ease;
       z-index: 3;
     }
-    .close-btn:hover { color: var(--w3a-colors-textPrimary, #f6f7f8); background: var(--w3a-colors-colorSurface, rgba(255,255,255,0.08)); }
-    .error { color: var(--w3a-colors-error, #ff7a7a); font-size: 13px; margin-top: 6px; }
-    :host([theme="light"]) .drawer { background: var(--w3a-colors-colorBackground, #fff); color: var(--w3a-colors-textPrimary, #181a1f); border-color: var(--w3a-colors-borderPrimary, rgba(0,0,0,0.08)); }
+    .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8)); background: var(--w3a-colors-colorSurface, var(--w3a-color-surface, rgba(255,255,255,0.08))); }
+    .close-btn:active { transform: scale(0.96); }
+    .close-btn:focus-visible {
+      outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, var(--w3a-color-primary, #3b82f6)));
+      outline-offset: 3px;
+    }
+    /* Light theme adjustments */
+    :host([theme="light"]) .close-btn { color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #667085)); }
+    :host([theme="light"]) .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); background: var(--w3a-colors-colorSurface, var(--w3a-color-surface, rgba(0,0,0,0.06))); }
+    .error { color: var(--w3a-colors-error, var(--w3a-red400, #ff7a7a)); font-size: 13px; margin-top: 6px; }
+    :host([theme="light"]) .drawer { background: var(--w3a-colors-colorBackground, var(--w3a-color-background, #fff)); color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); border-color: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(0,0,0,0.08))); }
     /* confirm/cancel button styles removed */
+
+    /* Responsive adjustments */
+    @media (max-width: 640px) {
+      .drawer { padding: 0; }
+      .close-btn { right: 1rem; top: 1rem; width: 44px; height: 44px; font-size: 26px; }
+    }
   `;
 
   constructor() {
@@ -588,16 +618,11 @@ export class DrawerElement extends LitElementWithProps {
   }
 }
 
+import { W3A_DRAWER_ID } from '../tags';
 export default (function ensureDefined() {
-  const TAG = 'w3a-drawer';
+  const TAG = W3A_DRAWER_ID;
   if (!customElements.get(TAG)) {
     customElements.define(TAG, DrawerElement);
   }
-  // Also expose a generic alias for broader reuse across product surfaces
-  try {
-    if (!customElements.get('w3a-drawer')) {
-      customElements.define('w3a-drawer', DrawerElement);
-    }
-  } catch {}
   return DrawerElement;
 })();
