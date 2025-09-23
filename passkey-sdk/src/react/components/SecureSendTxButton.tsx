@@ -16,7 +16,7 @@ import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SecureSendTxButtonProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
-import TouchIcon from './ProfileSettingsButton/TouchIcon';
+import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
 
 
