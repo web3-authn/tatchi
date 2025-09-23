@@ -78,13 +78,19 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   // Read current theme from ThemeProvider (falls back to system preference)
   const { theme } = useTheme();
 
-  // Load confirmation config on mount
+  // Load and subscribe to confirmation config changes
   useEffect(() => {
+    let unsub: (() => void) | undefined;
+    // Initialize with current snapshot
+    const cfg = passkeyManager.getConfirmationConfig();
+    console.log("cfg1: ", cfg)
+    setCurrentConfirmConfig(cfg)
+    // Subscribe to live updates if available (normal mode exposes the method; iframe shim may not)
     try {
-      const cfg = passkeyManager.getConfirmationConfig();
-      setCurrentConfirmConfig(cfg);
-    } catch (_) {}
-  }, [passkeyManager]);
+      unsub = passkeyManager.userPreferences.onConfirmationConfigChange(cfg => setCurrentConfirmConfig(cfg));
+    } catch {}
+    return () => { try { unsub && unsub(); } catch {} };
+  }, [passkeyManager, loginState.nearAccountId]);
 
   // Handlers for transaction settings
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {

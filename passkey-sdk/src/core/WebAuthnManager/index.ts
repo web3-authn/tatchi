@@ -104,11 +104,15 @@ export class WebAuthnManager {
    * - Pre-open IndexedDB and warm encrypted key for the active account (best-effort)
    * - Pre-warm signer workers in the background
    */
-  async warmCriticalResources(nearAccountId?: string): Promise<void> {
+  async warmCriticalResources(nearAccountId?: string, opts?: { skipReloadPreferences?: boolean }): Promise<void> {
     try {
       // Initialize current user first (best-effort)
       if (nearAccountId) {
-        try { await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        await this.initializeCurrentUser(
+          toAccountId(nearAccountId),
+          this.nearClient,
+          { skipReloadPreferences: !!opts?.skipReloadPreferences }
+        );
       }
 
       // Prefetch latest block/nonce context
@@ -439,14 +443,20 @@ export class WebAuthnManager {
    * @param nearAccountId - The NEAR account ID to initialize
    * @param nearClient - The NEAR client for nonce prefetching
    */
-  async initializeCurrentUser(nearAccountId: AccountId, nearClient?: NearClient): Promise<void> {
+  async initializeCurrentUser(
+    nearAccountId: AccountId,
+    nearClient?: NearClient,
+    opts?: { skipReloadPreferences?: boolean }
+  ): Promise<void> {
     try {
       // Set as last user for future sessions
       await this.setLastUser(nearAccountId);
-      // Set as current user for immediate use (includes NonceManager initialization)
+      // Set as current user for immediate use
       this.userPreferencesManager.setCurrentUser(nearAccountId);
-      // Ensure confirmation preferences are loaded before callers read them
-      try { await this.userPreferencesManager.reloadUserSettings(); } catch {}
+      // Ensure confirmation preferences are loaded unless caller requests to skip (iframe wallet will mirror host prefs)
+      if (!opts?.skipReloadPreferences) {
+        try { await this.userPreferencesManager.reloadUserSettings(); } catch {}
+      }
 
       // Initialize NonceManager with the selected user's public key (if available)
       try {
