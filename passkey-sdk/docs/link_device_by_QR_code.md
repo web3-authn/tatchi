@@ -66,9 +66,15 @@ const credential = await webAuthnManager.touchIdPrompt.generateRegistrationCrede
   nearAccountId: accountId,
   challenge: vrfChallenge,
 });
-const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncrypt({
+import { serializeRegistrationCredentialWithPRF } from '@/core/WebAuthnManager/credentialsHelpers';
+const serialized = serializeRegistrationCredentialWithPRF({
   credential,
-  nearAccountId: accountId
+  firstPrfOutput: true,
+  secondPrfOutput: true,
+});
+const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+  credential: serialized,
+  nearAccountId: accountId,
 });
 ```
 
@@ -152,9 +158,15 @@ const credential = await webAuthnManager.touchIdPrompt.generateRegistrationCrede
 });
 
 // Re-derive NEAR keypair with proper account-specific salt
-const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncrypt({
-  credential: credential,
-  nearAccountId: realAccountId
+import { serializeRegistrationCredentialWithPRF } from '@/core/WebAuthnManager/credentialsHelpers';
+const serialized = serializeRegistrationCredentialWithPRF({
+  credential,
+  firstPrfOutput: true,
+  secondPrfOutput: true,
+});
+const nearKeyResult = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+  credential: serialized,
+  nearAccountId: realAccountId,
 });
 
 // Execute atomic key replacement transaction
@@ -273,4 +285,3 @@ fn near_key_salt_for_account(account_id: &str) -> String {
 // Salt: "near-key-derivation:serp117.web3-authn-v5.testnet"
 // Used for actual authentication and account recovery
 ```
-

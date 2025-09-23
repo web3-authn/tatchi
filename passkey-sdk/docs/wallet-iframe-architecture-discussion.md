@@ -37,7 +37,7 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 - Activation does not transfer via postMessage; synthetic clicks don’t count.
 - Invisible service iframe cannot initiate WebAuthn reliably.
 - Solution that preserves “no popups”:
-  - Use a visible wallet‑origin modal (existing `IframeModalConfirmer`) or the embedded button’s iframe to capture the click inside the wallet origin.
+  - Use a visible wallet‑origin modal (existing `IframeTxConfirmer`) or the embedded button’s iframe to capture the click inside the wallet origin.
   - Run WebAuthn in that visible iframe; keep the service iframe invisible for orchestration/storage.
   - Add `allow="publickey-credentials-get; publickey-credentials-create"` on visible wallet iframes.
 
@@ -82,7 +82,7 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 
 ## 10) Existing Visible Iframes (Re‑use)
 
-- `IframeModalConfirmer`: already a wallet‑origin iframe; ideal for capturing the confirm click and running WebAuthn.
+- `IframeTxConfirmer`: already a wallet‑origin iframe; ideal for capturing the confirm click and running WebAuthn.
 - `IframeButtonWithTooltipConfirmer`: embedded wallet‑origin iframe; can run WebAuthn on its own click.
 - Add iframe `allow="publickey-credentials-get; publickey-credentials-create"`.
 

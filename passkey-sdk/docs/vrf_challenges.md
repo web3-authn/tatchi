@@ -197,8 +197,8 @@ packages/passkey/src/
 │   ├── src/
 │   │   └── lib.rs                      # WASM VRF implementation (Rust)
 │   └── Cargo.toml                      # Rust dependencies (vrf-wasm)
-├── scripts/
-│   └── copy-wasm-assets.sh             # Copies WASM files to frontend
+├── vite/
+│   └── dev-plugin                      # Serves SDK assets at /sdk/* during dev (no copy)
 └── dist/                               # Built artifacts
     └── web3authn-vrf.worker.js         # Compiled VRF Worker
 
@@ -222,13 +222,9 @@ The VRF implementation uses a multi-stage build process:
    }
    ```
 
-2. **Asset Copying** (`packages/passkey/scripts/copy-wasm-assets.sh`):
-   ```bash
-   # Copy VRF worker files
-   cp src/wasm_vrf_worker/wasm_vrf_worker.js "$FRONTEND_WORKERS_DIR/"
-   cp src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm "$FRONTEND_WORKERS_DIR/"
-   cp dist/web3authn-vrf.worker.js "$FRONTEND_WORKERS_DIR/"
-   ```
+2. **Dev Asset Serving** (no-copy):
+   - Serve SDK assets at `/sdk/*` using the Vite plugin `@web3authn/passkey/vite`.
+   - This maps `dist/` output (including workers and WASM) to `/sdk` during dev.
 
 3. **Development Workflow**:
    ```bash
@@ -240,8 +236,8 @@ The VRF implementation uses a multi-stage build process:
    cd packages/passkey
    npm run build
 
-   # Copy all assets to frontend
-   ./scripts/copy-wasm-assets.sh
+   # Start the example app (Vite serves /sdk from dist/)
+   pnpm -C examples/vite dev
    ```
 
 
@@ -326,4 +322,3 @@ pub struct VRFAuthenticationData {
     pub block_hash: Vec<u8>,
 }
 ```
-
