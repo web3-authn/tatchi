@@ -9,7 +9,6 @@ import {
   DeviceLinkingStatus,
   ThemeScope
 } from '@web3authn/passkey/react';
-import { DarkModeToggle } from './DarkModeToggle';
 
 export const Navbar: React.FC = () => {
   const { loginState } = usePasskeyContext();
@@ -34,10 +33,6 @@ export const Navbar: React.FC = () => {
         <Link to="/multitx">
           Modal Demo
         </Link>
-        <Link to="/wallet-demo">
-          IframeWallet Demo
-        </Link>
-        <DarkModeToggle />
       </div>
 
       {

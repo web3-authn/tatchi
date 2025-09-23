@@ -35,7 +35,7 @@ function App() {
             },
           } : {}),
         }}>
-        <Navbar />
+          <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
