@@ -216,6 +216,16 @@ export async function handlePromptUserConfirmInJsMainThread(
 
     if (cancelled) {
       console.log('[SignerWorkerManager]: User cancelled secure confirm request');
+      // If this was the decrypt-private-key flow (phase 1 of export UI),
+      // notify the parent window to collapse the wallet iframe overlay.
+      // The client keeps the overlay visible in exportNearKeypairWithUI()
+      // until it receives WALLET_UI_CLOSED. When cancellation happens here
+      // (before the export viewer is shown), we must explicitly signal close.
+      try {
+        if (request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF) {
+          window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
+        }
+      } catch {}
     }
 
     decisionWithCredentials = {

@@ -41,6 +41,7 @@ import type {
   PMViewAccessKeysPayload,
   PMDeleteDeviceKeyPayload,
 } from '../shared/messages';
+import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient, SignedTransaction } from '../../NearClient';
 import { setupLitElemMounter } from './lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
@@ -196,7 +197,9 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Best-effort cancel: mark requestId and close any open modal inside the wallet host
     const rid = req.payload?.requestId;
     markCancelled(rid);
-    const els = Array.from(document.querySelectorAll('iframe-modal')) as HTMLElement[];
+    // Cover all possible confirmation hosts used inside the wallet iframe
+    const els = (CONFIRM_UI_ELEMENT_SELECTORS as readonly string[])
+      .flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
     for (const el of els) {
       try {
         // New canonical + legacy alias
@@ -563,9 +566,17 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         const { nearAccountId, variant, theme } = (req.payload || {}) as PMExportNearKeypairUiPayload;
         try {
           // Fire-and-forget; PasskeyManager.exportNearKeypairWithUI prefers worker-driven two‑phase flow.
-          void (passkeyManager as any).exportNearKeypairWithUI(nearAccountId, { variant, theme });
+          // Ensure any early rejection (e.g., immediate TouchID cancellation) also signals UI close to the parent.
+          void (passkeyManager as any)
+            .exportNearKeypairWithUI(nearAccountId, { variant, theme })
+            .catch((err: unknown) => {
+              try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+              console.warn('[WalletHost] exportNearKeypairWithUI rejected early:', err);
+            });
           post({ type: 'PM_RESULT', requestId, payload: { ok: true } });
         } catch (e: unknown) {
+          // Also ensure overlay hides on synchronous failure
+          try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
           post({ type: 'ERROR', requestId, payload: { code: 'EXPORT_NEAR_KEYPAIR_UI_FAILED', message: errorMessage(e) } });
         }
         return;
