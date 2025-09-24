@@ -709,7 +709,6 @@ function closeModalSafely(
   if (confirmHandle?.close) {
     try {
       confirmHandle.close(confirmed);
-      console.log('[SecureConfirm] Modal closed safely');
     } catch (modalError) {
       console.warn('[SecureConfirm] Error closing modal:', modalError);
     }

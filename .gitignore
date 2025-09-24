@@ -23,6 +23,7 @@ examples/nextjs/public
 examples/nextjs/dist
 
 examples/relay-server/dist
+examples/relay-server/dist/*
 
 # Playwright report
 passkey-sdk/playwright-report
