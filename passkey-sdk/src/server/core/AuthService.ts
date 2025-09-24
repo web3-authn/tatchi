@@ -729,17 +729,33 @@ export class AuthService {
 
   async checkAccountExists(accountId: string): Promise<boolean> {
     await this._ensureSignerAndRelayerAccount();
-    try {
-      const view = await this.nearClient.viewAccount(accountId);
-      return !!view;
-    } catch (error: any) {
-      const msg = error?.message || '';
-      if (msg.includes('does not exist') || msg.includes('UNKNOWN_ACCOUNT')) {
-        return false;
+    const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
+    const isRetryable = (m: string) => /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed/i.test(m);
+    const attempts = 3;
+    let lastErr: any = null;
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        const view = await this.nearClient.viewAccount(accountId);
+        return !!view;
+      } catch (error: any) {
+        lastErr = error;
+        const msg = String(error?.message || '');
+        if (isNotFound(msg)) return false;
+        if (isRetryable(msg) && i < attempts) {
+          const backoff = 150 * Math.pow(2, i - 1);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        // As a safety valve for flaky RPCs, treat persistent retryable errors as not-found
+        if (isRetryable(msg)) {
+          console.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
+          return false;
+        }
+        console.error(`Error checking account existence for ${accountId}:`, error);
+        throw error;
       }
-      console.error(`Error checking account existence for ${accountId}:`, error);
-      throw error;
     }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
 
   /**

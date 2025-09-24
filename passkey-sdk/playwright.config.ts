@@ -4,7 +4,13 @@ import { defineConfig, devices } from '@playwright/test';
  * @see https://playwright.dev/docs/test-configuration
  */
 export default defineConfig({
-  testDir: './src/__tests__/e2e',
+  testDir: './src/__tests__',
+  testMatch: [
+    '**/e2e/**/*.test.ts',
+    '**/unit/**/*.test.ts',
+    '**/wallet-iframe/playwright/**/*.test.ts',
+    '**/lit-components/playwright/**/*.test.ts',
+  ],
   fullyParallel: false,
   retries: 0,
   workers: 1, // Reduced to 1 to prevent parallel faucet requests and rate limiting

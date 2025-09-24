@@ -21,7 +21,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { ExportNearKeypairWithTouchIdResult, PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
+import type { PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -595,38 +595,6 @@ export class WebAuthnManager {
   ///////////////////////////////////////
   // SIGNER WASM WORKER OPERATIONS
   ///////////////////////////////////////
-
-  /**
-   * Export private key using PRF-based decryption. Requires TouchId
-   */
-  async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<ExportNearKeypairWithTouchIdResult> {
-    console.debug(`🔐 Exporting private key for account: ${nearAccountId}`);
-    // Get user data to verify user exists
-    const userData = await this.getUser(nearAccountId);
-    if (!userData) {
-      throw new Error(`No user data found for ${nearAccountId}`);
-    }
-    if (!userData.clientNearPublicKey) {
-      throw new Error(`No public key found for ${nearAccountId}`);
-    }
-    // Get stored authenticator data for this user
-    const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
-    if (authenticators.length === 0) {
-      throw new Error(`No authenticators found for account ${nearAccountId}. Please register first.`);
-    }
-
-    // Use WASM worker to decrypt private key
-    const decryptionResult = await this.signerWorkerManager.decryptPrivateKeyWithPrf({
-      nearAccountId,
-      authenticators,
-    });
-
-    return {
-      accountId: userData.nearAccountId,
-      publicKey: userData.clientNearPublicKey,
-      privateKey: decryptionResult.decryptedPrivateKey,
-    }
-  }
 
   /**
    * Transaction signing with contract verification and progress updates.

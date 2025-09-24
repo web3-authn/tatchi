@@ -587,12 +587,6 @@ export interface VerifyAndSignTransactionResult {
   logs?: string[];
 }
 
-export interface ExportNearKeypairWithTouchIdResult {
-  accountId: string;
-  privateKey: string;
-  publicKey: string
-}
-
 export interface GetRecentLoginsResult {
   accountIds: string[],
   lastUsedAccountId: {

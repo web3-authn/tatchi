@@ -24,8 +24,8 @@ const authService = new AuthService({
   relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
   relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
   webAuthnContractId: 'web3-authn-v5.testnet',
-  nearRpcUrl: 'https://rpc.testnet.near.org',
-  // nearRpcUrl: 'https://test.rpc.fastnear.com'
+  // Prefer env override; default to FastNEAR which is often more reliable for tests
+  nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
   networkId: 'testnet',
   accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
   createAccountAndRegisterGas: '85000000000000', // 80 TGas (tested)

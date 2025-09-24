@@ -53,7 +53,6 @@ export const Navbar: React.FC = () => {
               toast.error(`Device linking failed: ${error.message}`, { id: 'device-linking' });
             },
             onClose: () => {
-              console.log('Navbar: Device linking scanner closed');
               toast.dismiss();
             },
             onEvent: (event) => {
