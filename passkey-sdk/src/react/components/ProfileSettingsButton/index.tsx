@@ -141,7 +141,6 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
       description: 'Scan QR to link a device',
       disabled: !loginState.isLoggedIn,
       onClick: () => {
-        console.log('ProfileSettingsButton: Opening QR Scanner');
         setShowQRScanner(true);
       },
       keepOpenOnClick: true,
@@ -220,17 +219,14 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
         isOpen={showQRScanner}
         fundingAmount={deviceLinkingScannerParams?.fundingAmount || '0.05'}
         onDeviceLinked={(result) => {
-          console.log('ProfileSettingsButton: QR Scanner device linked');
           deviceLinkingScannerParams?.onDeviceLinked?.(result);
           setShowQRScanner(false);
         }}
         onError={(error) => {
-          console.log('ProfileSettingsButton: QR Scanner error');
           deviceLinkingScannerParams?.onError?.(error);
           setShowQRScanner(false);
         }}
         onClose={() => {
-          console.log('ProfileSettingsButton: QR Scanner close requested');
           deviceLinkingScannerParams?.onClose?.();
           setShowQRScanner(false);
         }}

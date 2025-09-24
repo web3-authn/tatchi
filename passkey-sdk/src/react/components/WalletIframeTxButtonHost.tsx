@@ -48,10 +48,63 @@ export function WalletIframeTxButtonHost({
   const walletOrigin = pmConfigs?.iframeWallet?.walletOrigin;
   const walletServicePath = pmConfigs?.iframeWallet?.walletServicePath;
 
-  const src = useMemo(() => {
-    const origin = walletOrigin || window.location.origin;
-    const path = walletServicePath || '/service';
-    try { return new URL(path, origin).href; } catch { return `${origin}${path}`; }
+  const config = useMemo(() => {
+    const fallbackOrigin = (() => {
+      try {
+        return typeof window !== 'undefined' ? window.location.origin : null;
+      } catch {
+        return null;
+      }
+    })();
+
+    const originCandidate = walletOrigin || fallbackOrigin;
+    if (!originCandidate) {
+      return {
+        iframeSrc: null,
+        allowOrigin: null,
+        warning: null,
+        error: '[WalletIframeTxButtonHost] Unable to resolve wallet origin. Provide iframeWallet.walletOrigin or ensure window.location.origin is available.',
+      } as const;
+    }
+
+    let originUrl: URL;
+    try {
+      originUrl = new URL(originCandidate);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        iframeSrc: null,
+        allowOrigin: null,
+        warning: null,
+        error: `[WalletIframeTxButtonHost] Invalid wallet origin: ${message}`,
+      } as const;
+    }
+
+    let warning: string | null = null;
+    if (!walletOrigin) {
+      warning = '[WalletIframeTxButtonHost] iframeWallet.walletOrigin is not configured. Falling back to the host origin reduces isolation.';
+    } else if (fallbackOrigin && originUrl.origin === fallbackOrigin) {
+      warning = '[WalletIframeTxButtonHost] iframeWallet.walletOrigin matches the host origin. Wallet iframe isolation is reduced.';
+    }
+
+    try {
+      const path = walletServicePath || '/service';
+      const iframeSrc = new URL(path, originUrl).href;
+      return {
+        iframeSrc,
+        allowOrigin: originUrl.origin,
+        warning,
+        error: null,
+      } as const;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return {
+        iframeSrc: null,
+        allowOrigin: originUrl.origin,
+        warning,
+        error: `[WalletIframeTxButtonHost] Failed to construct iframe URL: ${message}`,
+      } as const;
+    }
   }, [walletOrigin, walletServicePath]);
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -82,6 +135,7 @@ export function WalletIframeTxButtonHost({
   }, [onCancel, onError, onSuccess]);
 
   useEffect(() => {
+    if (config.error || !config.iframeSrc) return;
     const w = iframeRef.current?.contentWindow;
     if (!w || !ready) return;
     try { w.postMessage({ type: 'WALLET_SET_CONFIG', payload: pmConfigs }, '*'); } catch {}
@@ -109,8 +163,27 @@ export function WalletIframeTxButtonHost({
     const s = String(v).trim();
     return s || undefined;
   };
+  useEffect(() => {
+    if (config.warning) {
+      try { console.warn(config.warning); } catch {}
+    }
+  }, [config.warning]);
+
   const w = toCssSize(width);
   const h = toCssSize(height);
+
+  if (config.error) {
+    try { console.error(config.error); } catch {}
+    return null;
+  }
+
+  if (!config.iframeSrc) {
+    return null;
+  }
+
+  const allowAttr = config.allowOrigin
+    ? `publickey-credentials-create ${config.allowOrigin}; publickey-credentials-get ${config.allowOrigin}; clipboard-read; clipboard-write`
+    : "publickey-credentials-create 'self'; publickey-credentials-get 'self'; clipboard-read; clipboard-write";
 
   return (
     <iframe
@@ -118,9 +191,9 @@ export function WalletIframeTxButtonHost({
       title="wallet-tx-button-host"
       className={className}
       style={{ border: 'none', width: w, height: h, ...style }}
-      src={src}
+      src={config.iframeSrc}
       sandbox="allow-scripts allow-same-origin"
-      allow="publickey-credentials-create; publickey-credentials-get; clipboard-read; clipboard-write"
+      allow={allowAttr}
     />
   );
 }

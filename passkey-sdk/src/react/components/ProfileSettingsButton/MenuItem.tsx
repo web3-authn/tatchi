@@ -6,7 +6,6 @@ export const MenuItem = memo(forwardRef<HTMLButtonElement, MenuItemProps>(
     const handleClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!item.disabled) {
-        console.log(`Clicked: ${item.label}`);
         if (item.onClick) {
           item.onClick();
         }

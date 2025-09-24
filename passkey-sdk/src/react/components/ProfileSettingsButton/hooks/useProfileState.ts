@@ -32,6 +32,12 @@ export const useProfileState = () => {
           return;
         }
 
+        // Don't close if the QR scanner overlay handled the interaction
+        const qrScannerModal = document.querySelector('.qr-scanner-modal');
+        if (qrScannerModal && qrScannerModal.contains(target)) {
+          return;
+        }
+
         setIsOpen(false);
       }
     };

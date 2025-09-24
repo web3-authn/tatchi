@@ -95,6 +95,26 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
     onClose?.();
   }, [qrCamera.stopScanning, qrCamera.isScanning, qrCamera.videoRef, onClose]);
 
+  const stopPropagationNative = useCallback((event: React.SyntheticEvent<HTMLElement>) => {
+    const nativeEvent = event.nativeEvent as Event & { stopImmediatePropagation?: () => void };
+    if (typeof nativeEvent.stopImmediatePropagation === 'function') {
+      nativeEvent.stopImmediatePropagation();
+    }
+  }, []);
+
+  const handleBackdropClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    stopPropagationNative(event);
+    if (event.target === event.currentTarget) {
+      handleClose();
+    }
+  }, [handleClose, stopPropagationNative]);
+
+  const stopEventPropagation = useCallback((event: React.SyntheticEvent<HTMLElement>) => {
+    event.stopPropagation();
+    stopPropagationNative(event);
+  }, [stopPropagationNative]);
+
   // Camera Cleanup Point 2: Component unmount
   useEffect(() => {
     return () => {
@@ -159,8 +179,19 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
 
   return (
     <ThemeScope>
-      <div className={`qr-scanner-modal ${className || ''}`} style={style}>
-        <div className="qr-scanner-panel">
+      <div
+        className={`qr-scanner-modal ${className || ''}`}
+        style={style}
+        onClick={handleBackdropClick}
+        onPointerDown={stopEventPropagation}
+        onMouseDown={stopEventPropagation}
+      >
+        <div
+          className="qr-scanner-panel"
+          onClick={stopEventPropagation}
+          onPointerDown={stopEventPropagation}
+          onMouseDown={stopEventPropagation}
+        >
           {/* Camera Scanner Section */}
           {showCamera
             && (qrCamera.scanMode === QRScanMode.CAMERA || qrCamera.scanMode === QRScanMode.AUTO)
@@ -227,7 +258,14 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
         </div>
 
         {/* Close Button */}
-        <button onClick={handleClose} className="qr-scanner-close">
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            stopPropagationNative(event);
+            handleClose();
+          }}
+          className="qr-scanner-close"
+        >
           ✕
         </button>
       </div>
