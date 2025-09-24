@@ -233,9 +233,7 @@ export class DrawerElement extends LitElementWithProps {
   updated(changedProperties: Map<string | number | symbol, unknown>) {
     super.updated(changedProperties);
 
-    // Debug open property changes
     if (changedProperties.has('open')) {
-      console.log('Drawer open property changed to:', this.open);
       // Uncontrolled: no suppression; trust imperative calls
       // When externally toggled open, clear any inline overrides so CSS can control
       if (this.drawerElement && this.open) {

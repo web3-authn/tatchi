@@ -34,8 +34,8 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
 
   static styles = css`
     :host { display: block; position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
-    .content { display: flex; flex-direction: column; gap: 12px; }
-    .title { margin: 0 0 4px 0; font-size: 20px; font-weight: 700; text-align: left; }
+    .content { display: flex; flex-direction: column; gap: 24px; }
+    .title { margin: 1rem 0rem; font-size: 20px; font-weight: 700; text-align: left; }
     .close-btn {
       position: absolute;
       right: 8px;
@@ -62,29 +62,27 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       padding: 12px;
       border-radius: 1rem;
       font-size: 0.9rem;
-      margin: 1rem 0rem;
+      margin: 0;
     }
-    .row {
-      display: grid;
-      grid-template-columns: 105px 1fr auto;
+    .fields { display: flex; flex-direction: column; gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field-label { color: var(--w3a-colors-textPrimary, #f6f7f8); font-size: 0.95rem; font-weight: 600; }
+    .field-value {
+      display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 12px;
       font-size: 0.9rem;
     }
-    .key-row {
-      border-radius: 1rem;
-      padding: 0;
-    }
-
-    .label { color: var(--w3a-colors-textPrimary, #f6f7f8); }
-
     .value {
+      color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       word-break: break-all;
       user-select: text;
       -webkit-user-select: text;
       -moz-user-select: text;
       -ms-user-select: text;
+      flex: 1;
+      min-width: 0;
     }
 
     /* Masked middle portion (no blur) */
@@ -92,23 +90,17 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       opacity: 0.9;
     }
 
-    /* Make all text inside key rows smaller for readability */
-    .key-row .label,
-    .key-row .value,
-    .key-row .btn {
-      font-size: 0.9rem;
-    }
-
     .btn {
       border: 0;
       border-radius: 2rem;
-      width: 90px;
-      padding: 8px 14px;
+      padding: 8px 16px;
       font-weight: 600;
       cursor: pointer;
       transition: all 0.2s ease;
-      margin-right: 0.5rem;
-      font-size: 1rem;
+      font-size: 0.9rem;
+      min-width: 90px;
+      margin-left: auto;
+      flex-shrink: 0;
     }
     .btn-primary { background: var(--w3a-colors-primary, #4DAFFE); color: var(--w3a-colors-colorBackground, #0b1220); }
     .btn-surface { background: var(--w3a-colors-surface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
@@ -283,45 +275,52 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       }
       <div class="content">
         <h2 class="title">Export Private Keys</h2>
+        <div class="fields">
+          <div class="field">
+            <div class="field-label">Account ID</div>
+            <div class="field-value">
+              <span class="value">
+                ${this.accountId ? this.accountId : html`<span class="muted">—</span>`}
+              </span>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label">Public Key</div>
+            <div class="field-value">
+              <span class="value">
+                ${pk ? pk : html`<span class="muted">—</span>`}
+              </span>
+              <button
+                class="btn btn-surface ${this.copiedPublic ? 'copied' : ''}"
+                title="Copy"
+                @click=${() => this.copy('publicKey', pk)}
+              >
+                ${this.copiedPublic ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+          <div class="field">
+            <div class="field-label">Private Key</div>
+            <div class="field-value">
+              <span class="value private-key">
+                ${this.loading
+                  ? html`<span class="muted">Decrypting…</span>`
+                  : this.renderMaskedPrivateKey(sk)}
+              </span>
+              <button
+                class="btn btn-surface ${this.copiedPrivate ? 'copied' : ''}"
+                title="Copy"
+                ?disabled=${!sk || this.loading}
+                @click=${() => this.copy('privateKey', sk)}
+              >
+                ${this.copiedPrivate ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+          </div>
+        </div>
         <div class="warning">
           Warning: Revealing your private key grants full control of your account and funds.
           Keep the private key in a secret place.
-        </div>
-        <div class="row">
-          <div class="label">Account</div>
-          <div class="value">
-            ${this.accountId || ''}
-          </div>
-          <div></div>
-        </div>
-        <div class="row key-row">
-          <div class="label">Public Key</div>
-          <div class="value">
-            ${pk || html`<span class="muted">—</span>`}
-          </div>
-          <button
-            class="btn btn-surface ${this.copiedPublic ? 'copied' : ''}"
-            title="Copy"
-            @click=${() => this.copy('publicKey', pk)}
-          >
-            ${this.copiedPublic ? 'Copied!' : 'Copy'}
-          </button>
-        </div>
-        <div class="row key-row">
-          <div class="label">Private Key</div>
-          <div class="value private-key">
-            ${this.loading
-              ? html`<span class="muted">Decrypting…</span>`
-              : this.renderMaskedPrivateKey(sk)}
-          </div>
-          <button
-            class="btn btn-surface ${this.copiedPrivate ? 'copied' : ''}"
-            title="Copy"
-            ?disabled=${!sk || this.loading}
-            @click=${() => this.copy('privateKey', sk)}
-          >
-            ${this.copiedPrivate ? 'Copied!' : 'Copy'}
-          </button>
         </div>
       </div>
     `;

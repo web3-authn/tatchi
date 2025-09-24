@@ -391,6 +391,8 @@ export class IframeModalHost extends LitElementWithProps {
   }
 }
 
-customElements.define(IFRAME_MODAL_ID, IframeModalHost);
+if (!customElements.get(IFRAME_MODAL_ID)) {
+  customElements.define(IFRAME_MODAL_ID, IframeModalHost);
+}
 
 export default IframeModalHost;

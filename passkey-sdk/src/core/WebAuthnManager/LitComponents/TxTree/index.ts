@@ -865,6 +865,9 @@ export class TxTree extends LitElementWithProps {
 }
 
 import { TX_TREE_ID } from '../tags';
-customElements.define(TX_TREE_ID, TxTree);
+
+if (!customElements.get(TX_TREE_ID)) {
+  customElements.define(TX_TREE_ID, TxTree);
+}
 
 export default TxTree;

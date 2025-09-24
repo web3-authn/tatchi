@@ -118,6 +118,9 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
 }
 
 import { W3A_PASSKEY_HALO_LOADING_ID } from '../tags';
-customElements.define(W3A_PASSKEY_HALO_LOADING_ID, PasskeyHaloLoadingElement);
+
+if (!customElements.get(W3A_PASSKEY_HALO_LOADING_ID)) {
+  customElements.define(W3A_PASSKEY_HALO_LOADING_ID, PasskeyHaloLoadingElement);
+}
 
 export default PasskeyHaloLoadingElement;

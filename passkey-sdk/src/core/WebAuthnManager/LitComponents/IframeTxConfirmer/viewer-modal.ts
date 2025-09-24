@@ -1,6 +1,5 @@
-import { html, css, type PropertyValues } from 'lit';
+import { html, css, nothing, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
-import { when } from 'lit/directives/when.js';
 
 import { TransactionInputWasm } from '../../../types';
 import type { VRFChallenge } from '../../../types/vrf-worker';
@@ -804,16 +803,16 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                 </div>
               </div>
               <!-- Transaction Summary Section -->
-              <!-- ${when(displayTotalAmount, () => html`
-                <div class="summary-section">
-                  <div class="summary-grid">
-                    <div class="summary-row">
-                      <div class="summary-label">Total Sent</div>
-                      <div class="summary-value">${formatDeposit(this.totalAmount)}</div>
+              ${displayTotalAmount
+                ? html`<div class="summary-section">
+                    <div class="summary-grid">
+                      <div class="summary-row">
+                        <div class="summary-label">Total Sent</div>
+                        <div class="summary-value">${formatDeposit(this.totalAmount)}</div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              `)} -->
+                  </div>`
+                : nothing}
             </div>
           </div>
 
@@ -884,4 +883,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
 // Register the custom element
 import { MODAL_TX_CONFIRM_ID } from '../tags';
-customElements.define(MODAL_TX_CONFIRM_ID, ModalTxConfirmElement);
+
+if (!customElements.get(MODAL_TX_CONFIRM_ID)) {
+  customElements.define(MODAL_TX_CONFIRM_ID, ModalTxConfirmElement);
+}

@@ -218,6 +218,9 @@ export class TxConfirmContentElement extends LitElementWithProps {
 }
 
 import { TX_CONFIRM_CONTENT_ID } from '../tags';
-customElements.define(TX_CONFIRM_CONTENT_ID, TxConfirmContentElement);
+
+if (!customElements.get(TX_CONFIRM_CONTENT_ID)) {
+  customElements.define(TX_CONFIRM_CONTENT_ID, TxConfirmContentElement);
+}
 
 export default TxConfirmContentElement;

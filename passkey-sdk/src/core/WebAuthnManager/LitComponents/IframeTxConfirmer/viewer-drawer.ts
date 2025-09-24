@@ -337,6 +337,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 }
 
 import { DRAWER_TX_CONFIRM_ID } from '../tags';
-customElements.define(DRAWER_TX_CONFIRM_ID, DrawerTxConfirmerElement);
+
+if (!customElements.get(DRAWER_TX_CONFIRM_ID)) {
+  customElements.define(DRAWER_TX_CONFIRM_ID, DrawerTxConfirmerElement);
+}
 
 export default DrawerTxConfirmerElement;

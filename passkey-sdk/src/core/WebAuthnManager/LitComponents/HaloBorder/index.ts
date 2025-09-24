@@ -160,5 +160,9 @@ export class HaloBorderElement extends LitElementWithProps {
 }
 
 import { W3A_HALO_BORDER_ID } from '../tags';
-customElements.define(W3A_HALO_BORDER_ID, HaloBorderElement);
+
+if (!customElements.get(W3A_HALO_BORDER_ID)) {
+  customElements.define(W3A_HALO_BORDER_ID, HaloBorderElement);
+}
+
 export default HaloBorderElement;
