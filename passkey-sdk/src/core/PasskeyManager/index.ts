@@ -28,7 +28,6 @@ import type {
   VerifyAndSignTransactionResult,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
-  ExportNearKeypairWithTouchIdResult,
   GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
@@ -64,6 +63,9 @@ import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import { WalletIframeRouter } from '../WalletIframe/client/router';
 
+let warnedAboutMissingWalletOrigin = false;
+let warnedAboutSameOriginWallet = false;
+
 ///////////////////////////////////////
 // PASSKEY MANAGER
 ///////////////////////////////////////
@@ -96,6 +98,28 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
+
+    const walletOrigin = configs.iframeWallet?.walletOrigin;
+    if (!walletOrigin) {
+      if (!warnedAboutMissingWalletOrigin) {
+        warnedAboutMissingWalletOrigin = true;
+        try {
+          console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
+        } catch {}
+      }
+    } else if (!warnedAboutSameOriginWallet) {
+      try {
+        const parsed = new URL(walletOrigin);
+        if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+          warnedAboutSameOriginWallet = true;
+          try {
+            console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+          } catch {}
+        }
+      } catch {
+        // ignore invalid URL here; constructor downstream will surface an error
+      }
+    }
   }
 
   /**
@@ -109,13 +133,15 @@ export class PasskeyManager {
   /**
    * Initialize the hidden wallet service iframe client (optional).
    * If `walletOrigin` is not provided in configs, this is a no‑op.
-   */
+  */
   async initWalletIframe(): Promise<void> {
-    if (!this.configs.iframeWallet?.walletOrigin) return;
+    const walletIframeConfig = this.configs.iframeWallet;
+    const walletOrigin = walletIframeConfig?.walletOrigin;
+    if (!walletOrigin) return;
     if (this.iframeRouter) return;
     this.iframeRouter = new WalletIframeRouter({
-      walletOrigin: this.configs.iframeWallet?.walletOrigin,
-      servicePath: this.configs.iframeWallet?.walletServicePath || '/service',
+      walletOrigin,
+      servicePath: walletIframeConfig?.walletServicePath || '/service',
       connectTimeoutMs: 20000,
       requestTimeoutMs: 30000,
       theme: this.configs.walletTheme,
@@ -125,7 +151,7 @@ export class PasskeyManager {
       // Ensure relay server config reaches the wallet host for atomic registration
       relayer: this.configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
-      rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
+      rpIdOverride: walletIframeConfig?.rpIdOverride,
     });
     await this.iframeRouter.init();
     // Opportunistically warm remote NonceManager (no-op if user not initialized yet)
@@ -758,17 +784,6 @@ export class PasskeyManager {
   ///////////////////////////////////////
   // === KEY MANAGEMENT ===
   ///////////////////////////////////////
-
-  /**
-   * Export key pair (both private and public keys)
-   * Uses AccountId for consistent PRF salt derivation
-   */
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
-    if (this.iframeRouter) {
-      return await this.iframeRouter.exportNearKeypairWithTouchId(nearAccountId);
-    }
-    return await this.webAuthnManager.exportNearKeypairWithTouchId(toAccountId(nearAccountId))
-  }
 
   /**
    * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
