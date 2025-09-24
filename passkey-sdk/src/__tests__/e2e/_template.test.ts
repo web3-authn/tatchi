@@ -16,6 +16,7 @@ test.describe('Example PasskeyManager Usage', () => {
     // });
   });
 
+  // showcases how setup wires PasskeyManager/test utils into the page context
   test('should demonstrate PasskeyManager access in different test file', async ({ page }) => {
     const result = await page.evaluate(async () => {
       // Access the pre-configured PasskeyManager and utilities (safe pattern)

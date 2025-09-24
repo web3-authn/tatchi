@@ -10,6 +10,7 @@ Playwright end-to-end testing for the PasskeyManager SDK with WebAuthn virtual a
 - [Running Tests](#running-tests)
 - [Test Files Overview](#test-files-overview)
 - [Troubleshooting](#troubleshooting)
+  - [Wallet iframe READY timeout under COEP](#wallet-iframe-ready-timeout-under-coep)
 
 ## Test Architecture
 
@@ -188,3 +189,23 @@ HTML reports generated at: `test-results/`
 # View report
 npx playwright show-report
 ```
+
+## Troubleshooting
+
+### Wallet iframe READY timeout under COEP
+
+Chromium enforces [Cross-Origin-Embedder-Policy](https://web.dev/coop-coep/) during our tests because the example app serves `COEP: require-corp`. If the wallet iframe handshake is posted with `targetOrigin='*'`, the browser silently discards the transferable `MessagePort`, so the client never observes `READY` and the tests fail with `Wallet iframe READY timeout`.
+
+To keep the iframe tests stable:
+
+- Always post the initial `CONNECT` message to the exact wallet origin (for example `https://wallet.example.localhost`). The real wallet host validates envelopes, so this stays safe while satisfying Chromium’s transferable rules under COEP.
+- Ensure the Playwright wallet stub mirrors the production host: send permissive `Cross-Origin-*` headers, adopt incoming ports, reply to `PM_CANCEL` with an `ERROR` (code `CANCELLED`), and emit progress phases such as `ActionPhase.STEP_2_USER_CONFIRMATION`. Without those stubs the overlay visibility assertions will never see the iframe expand.
+
+If you update the handshake logic, re-run:
+
+```bash
+pnpm exec playwright test src/__tests__/wallet-iframe/playwright/handshake.test.ts --project=chromium
+pnpm exec playwright test src/__tests__/e2e/cancel_overlay_contracts.test.ts --project=chromium
+```
+
+These cover both the transport handshake and the overlay cancel contract that depends on the simulated progress events.

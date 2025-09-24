@@ -9,13 +9,12 @@
  *
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 import { BUILD_PATHS } from '@build-paths';
 import type { VrfWorkerManager } from '../../core/WebAuthnManager/VrfWorkerManager';
 import type { AccountId } from '../../core/types/accountIds';
 import { WebAuthnAuthenticationCredential } from '../../core/types/webauthn';
-import { serializeAuthenticationCredentialWithPRF } from '../../core/WebAuthnManager/credentialsHelpers';
 
 // Test configuration
 const TEST_CONFIG = {
@@ -30,6 +29,34 @@ const TEST_CONFIG = {
   VRF_WORKER_URL: BUILD_PATHS.TEST_WORKERS.VRF
 };
 
+const ensureBase64Utils = async (page: Page): Promise<void> => {
+  await page.evaluate(() => {
+    if (typeof (window as any).base64UrlEncode !== 'function') {
+      (window as any).base64UrlEncode = (value: ArrayBufferLike | ArrayBufferView): string => {
+        const buffer = value instanceof ArrayBuffer ? new Uint8Array(value) : new Uint8Array((value as ArrayBufferView).buffer);
+        let binary = '';
+        for (let i = 0; i < buffer.length; i++) {
+          binary += String.fromCharCode(buffer[i]);
+        }
+        return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+      };
+    }
+    if (typeof (window as any).base64UrlDecode !== 'function') {
+      (window as any).base64UrlDecode = (value: string): Uint8Array => {
+        const padded = value.replace(/-/g, '+').replace(/_/g, '/');
+        const padding = padded.length % 4 ? 4 - (padded.length % 4) : 0;
+        const base64 = padded + '='.repeat(padding);
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes;
+      };
+    }
+  });
+};
+
 // Note: Mock credential creation functions are defined inside test evaluations
 // to ensure they're available in the browser context
 
@@ -39,8 +66,14 @@ test.describe('VRF Worker Manager Integration Test', () => {
     await setupBasicPasskeyTest(page);
     // Add delay to prevent worker initialization conflicts
     await page.waitForTimeout(1000);
+    await ensureBase64Utils(page);
+    const base64Type = await page.evaluate(() => typeof (window as any).base64UrlEncode);
+    console.log('base64UrlEncode typeof:', base64Type);
+    const webAuthnUtilKeys = await page.evaluate(() => Object.keys(((window as any).testUtils?.webAuthnUtils) || {}));
+    console.log('webAuthnUtils keys:', webAuthnUtilKeys);
   });
 
+  // ensures VRF worker surfaces descriptive logs when configuration is incomplete
   test('VRF Worker Manager - Debug Error Logging', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
@@ -50,6 +83,9 @@ test.describe('VRF Worker Manager Integration Test', () => {
         // Import VrfWorkerManager directly from its built module
         // @ts-ignore - Runtime import path
         const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager/index.js');
+        // @ts-ignore - Runtime import path
+        const { serializeAuthenticationCredentialWithPRF } = await import('/sdk/esm/core/WebAuthnManager/credentialsHelpers.js');
+        console.log('serializeAuthenticationCredentialWithPRF typeof (browser):', typeof serializeAuthenticationCredentialWithPRF);
         const vrfWorkerManager = new VrfWorkerManager({
           vrfWorkerUrl: testConfig.VRF_WORKER_URL,
           workerTimeout: 15000,
@@ -82,12 +118,16 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test VRF Worker Manager Initialization
   ////////////////////////////////////
 
+  // verifies the parent thread can initialize the VRF worker and exchange basic messages
   test('VRF Worker Manager - Initialization and Communication', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
         // Import VRF Worker Manager from built SDK
         // @ts-ignore - Runtime import path
         const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager/index.js');
+        // @ts-ignore - Runtime import path
+        const { serializeAuthenticationCredentialWithPRF } = await import('/sdk/esm/core/WebAuthnManager/credentialsHelpers.js');
+        console.log('serializeAuthenticationCredentialWithPRF typeof (browser):', typeof serializeAuthenticationCredentialWithPRF);
         console.log('Testing VRF Worker Manager initialization...');
         // Create VRF Worker Manager with test configuration
         const vrfWorkerManager = new VrfWorkerManager({
@@ -135,6 +175,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test VRF Keypair Generation (Bootstrap)
   ////////////////////////////////////
 
+  // covers initial VRF keypair generation and storage round-trip through the worker
   test('VRF Worker Manager - Bootstrap Keypair Generation', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
@@ -158,9 +199,9 @@ test.describe('VRF Worker Manager Integration Test', () => {
         });
 
         // Verify bootstrap keypair generation
-        const hasValidPublicKey = !!(bootstrapResult.vrfPublicKey &&
+        const hasValidPublicKey = !!(bootstrapResult?.vrfPublicKey &&
                                      bootstrapResult.vrfPublicKey.length > 0);
-        const hasValidChallenge = !!(bootstrapResult.vrfChallenge &&
+        const hasValidChallenge = !!(bootstrapResult?.vrfChallenge &&
                                      bootstrapResult.vrfChallenge.vrfOutput &&
                                      bootstrapResult.vrfChallenge.vrfProof);
 
@@ -176,19 +217,27 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Note: Bootstrap keypairs are random, so public keys will be different
         // But VRF challenges should use the newly generated keypair consistently
-        const publicKeysAreDifferent = bootstrapResult.vrfPublicKey !== bootstrapResult2.vrfPublicKey;
-        const challengesAreDifferent = bootstrapResult.vrfChallenge.vrfOutput !== bootstrapResult2.vrfChallenge.vrfOutput;
+        const publicKeysAreDifferent = bootstrapResult?.vrfPublicKey
+          && bootstrapResult2?.vrfPublicKey
+          ? bootstrapResult.vrfPublicKey !== bootstrapResult2.vrfPublicKey
+          : false;
+        const challengesAreDifferent = bootstrapResult?.vrfChallenge?.vrfOutput
+          && bootstrapResult2?.vrfChallenge?.vrfOutput
+          ? bootstrapResult.vrfChallenge.vrfOutput !== bootstrapResult2.vrfChallenge.vrfOutput
+          : false;
 
         return {
-          success: true,
+          success: !!(bootstrapResult && bootstrapResult2),
           hasValidPublicKey,
           hasValidChallenge,
           publicKeysAreDifferent,
           challengesAreDifferent,
-          vrfPublicKey1: bootstrapResult.vrfPublicKey.substring(0, 20) + '...',
-          vrfPublicKey2: bootstrapResult2.vrfPublicKey.substring(0, 20) + '...',
-          vrfOutput1: bootstrapResult.vrfChallenge.vrfOutput.substring(0, 20) + '...',
-          vrfOutput2: bootstrapResult2.vrfChallenge.vrfOutput.substring(0, 20) + '...'
+          vrfPublicKey1: bootstrapResult?.vrfPublicKey ? `${bootstrapResult.vrfPublicKey.substring(0, 20)}...` : null,
+          vrfPublicKey2: bootstrapResult2?.vrfPublicKey ? `${bootstrapResult2.vrfPublicKey.substring(0, 20)}...` : null,
+          vrfOutput1: bootstrapResult?.vrfChallenge?.vrfOutput ? `${bootstrapResult.vrfChallenge.vrfOutput.substring(0, 20)}...` : null,
+          vrfOutput2: bootstrapResult2?.vrfChallenge?.vrfOutput ? `${bootstrapResult2.vrfChallenge.vrfOutput.substring(0, 20)}...` : null,
+          rawBootstrap1: bootstrapResult,
+          rawBootstrap2: bootstrapResult2,
         };
 
       } catch (error: any) {
@@ -208,6 +257,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
       console.log('=== END DEBUG ===');
     }
 
+    if (!result.hasValidPublicKey || !result.hasValidChallenge) {
+      console.log('Bootstrap raw result 1:', JSON.stringify(result.rawBootstrap1, null, 2));
+      console.log('Bootstrap raw result 2:', JSON.stringify(result.rawBootstrap2, null, 2));
+    }
+
     // Verify bootstrap keypair generation
     expect(result.success).toBe(true);
     expect(result.hasValidPublicKey).toBe(true);
@@ -224,7 +278,10 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test Deterministic VRF Keypair Derivation from PRF
   ////////////////////////////////////
 
+  // checks dual-PRF deterministic derivation paths stay stable across runs
   test('VRF Worker Manager - Deterministic Keypair Derivation from PRF', async ({ page }) => {
+    const testUtilsKeys = await page.evaluate(() => Object.keys((window as any).testUtils || {}));
+    console.log('testUtils keys:', testUtilsKeys);
     const result = await page.evaluate(async (testConfig) => {
       try {
         // @ts-ignore - Runtime import path
@@ -235,6 +292,44 @@ test.describe('VRF Worker Manager Integration Test', () => {
 
         // Get centralized configuration
         const { configs } = (window as any).testUtils;
+
+        const serializeCredentialWithPrf = (credential: PublicKeyCredential): WebAuthnAuthenticationCredential => {
+          const encode = (value: ArrayBuffer | ArrayBufferView | null | undefined): string | undefined => {
+            if (!value) return undefined;
+            if (typeof value === 'string') return value;
+            const buffer = value instanceof ArrayBuffer
+              ? value
+              : ArrayBuffer.isView(value)
+                ? value.buffer
+                : new Uint8Array(value as ArrayBufferLike).buffer;
+            return (window as any).base64UrlEncode(buffer);
+          };
+          const response = credential.response as AuthenticatorAssertionResponse;
+          const extensionResults = credential.getClientExtensionResults?.() || {};
+          const prfResults = (extensionResults as any)?.prf?.results
+            || (credential as any).clientExtensionResults?.prf?.results
+            || {};
+          return {
+            id: credential.id,
+            rawId: (window as any).base64UrlEncode(credential.rawId),
+            type: credential.type,
+            authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
+            response: {
+              clientDataJSON: encode(response.clientDataJSON)!,
+              authenticatorData: encode(response.authenticatorData)!,
+              signature: encode(response.signature)!,
+              userHandle: encode(response.userHandle as ArrayBuffer | null | undefined),
+            },
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: encode(prfResults?.first),
+                  second: encode(prfResults?.second),
+                }
+              }
+            }
+          } as WebAuthnAuthenticationCredential;
+        };
 
         // Helper: obtain a serialized WebAuthnAuthenticationCredential with PRF via setup WebAuthn mocks
         const getCredentialForAccount = async (accountId: string): Promise<WebAuthnAuthenticationCredential> => {
@@ -256,11 +351,9 @@ test.describe('VRF Worker Manager Integration Test', () => {
               // allowCredentials not required for our mock path using PRF salt
             }
           });
-          return serializeAuthenticationCredentialWithPRF({
-            credential: cred as PublicKeyCredential,
-            firstPrfOutput: true,
-            secondPrfOutput: false,
-          });
+          const serialized = serializeCredentialWithPrf(cred as PublicKeyCredential);
+          console.log('Serialized credential PRF results for account', accountId, serialized.clientExtensionResults?.prf?.results);
+          return serialized;
         };
 
         // Derive deterministic VRF keypair from PRF output (used during recovery)
@@ -287,33 +380,49 @@ test.describe('VRF Worker Manager Integration Test', () => {
           }
         });
 
-        // Test with different PRF output by using different account hint
+        // Test with different PRF output by supplying a distinct raw PRF string
         console.log('Testing with different PRF output...');
-        const differentAccount = `${testConfig.ACCOUNT_ID}-alt`;
-        const cred3 = await getCredentialForAccount(differentAccount);
-        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromPrf({
-          credential: cred3,
+        const randomBytes = crypto.getRandomValues(new Uint8Array(32));
+        const differentPrfOutput = (window as any).base64UrlEncode(randomBytes);
+        const derivedResult3 = await vrfWorkerManager.deriveVrfKeypairFromRawPrf({
+          prfOutput: differentPrfOutput,
           nearAccountId: testConfig.ACCOUNT_ID as AccountId,
           vrfInputData: testConfig.VRF_INPUT_PARAMS
         });
 
         // Verify deterministic behavior
-        const samePublicKey = derivedResult1.vrfPublicKey === derivedResult2.vrfPublicKey;
-        const sameVrfOutput = derivedResult1.vrfChallenge?.vrfOutput === derivedResult2.vrfChallenge?.vrfOutput;
-        const sameVrfProof = derivedResult1.vrfChallenge?.vrfProof === derivedResult2.vrfChallenge?.vrfProof;
+        const samePublicKey = !!(derivedResult1?.vrfPublicKey && derivedResult2?.vrfPublicKey)
+          && derivedResult1.vrfPublicKey === derivedResult2.vrfPublicKey;
+        const sameVrfOutput = derivedResult1?.vrfChallenge?.vrfOutput
+          && derivedResult2?.vrfChallenge?.vrfOutput
+          ? derivedResult1.vrfChallenge.vrfOutput === derivedResult2.vrfChallenge.vrfOutput
+          : false;
+        const sameVrfProof = derivedResult1?.vrfChallenge?.vrfProof
+          && derivedResult2?.vrfChallenge?.vrfProof
+          ? derivedResult1.vrfChallenge.vrfProof === derivedResult2.vrfChallenge.vrfProof
+          : false;
 
-        const differentPublicKey = derivedResult1.vrfPublicKey !== derivedResult3.vrfPublicKey;
-        const differentVrfOutput = derivedResult1.vrfChallenge?.vrfOutput !== derivedResult3.vrfChallenge?.vrfOutput;
+        const differentPublicKey = !!(derivedResult1?.vrfPublicKey && derivedResult3?.vrfPublicKey)
+          && derivedResult1.vrfPublicKey !== derivedResult3.vrfPublicKey;
+        const differentVrfOutput = derivedResult1?.vrfChallenge?.vrfOutput
+          && derivedResult3?.vrfChallenge?.vrfOutput
+          ? derivedResult1.vrfChallenge.vrfOutput !== derivedResult3.vrfChallenge.vrfOutput
+          : false;
 
-        console.log(`VRF Public Key 1: ${derivedResult1.vrfPublicKey?.substring(0, 20)}...`);
-        console.log(`VRF Public Key 3: ${derivedResult3.vrfPublicKey?.substring(0, 20)}...`);
-        console.log(`VRF Output 1: ${derivedResult1.vrfChallenge?.vrfOutput?.substring(0, 20)}...`);
-        console.log(`VRF Output 3: ${derivedResult3.vrfChallenge?.vrfOutput?.substring(0, 20)}...`);
+        const vrfPublicKey1Preview = derivedResult1?.vrfPublicKey ? `${derivedResult1.vrfPublicKey.substring(0, 20)}...` : null;
+        const vrfPublicKey3Preview = derivedResult3?.vrfPublicKey ? `${derivedResult3.vrfPublicKey.substring(0, 20)}...` : null;
+        const vrfOutput1Preview = derivedResult1?.vrfChallenge?.vrfOutput ? `${derivedResult1.vrfChallenge.vrfOutput.substring(0, 20)}...` : null;
+        const vrfOutput3Preview = derivedResult3?.vrfChallenge?.vrfOutput ? `${derivedResult3.vrfChallenge.vrfOutput.substring(0, 20)}...` : null;
+
+        console.log(`VRF Public Key 1: ${vrfPublicKey1Preview}`);
+        console.log(`VRF Public Key 3: ${vrfPublicKey3Preview}`);
+        console.log(`VRF Output 1: ${vrfOutput1Preview}`);
+        console.log(`VRF Output 3: ${vrfOutput3Preview}`);
         console.log(`Different public keys: ${differentPublicKey}`);
         console.log(`Different VRF outputs: ${differentVrfOutput}`);
 
         return {
-          success: true,
+          success: !!(derivedResult1 && derivedResult2 && derivedResult3),
           samePublicKey,
           sameVrfOutput,
           sameVrfProof,
@@ -321,10 +430,13 @@ test.describe('VRF Worker Manager Integration Test', () => {
           differentVrfOutput,
           hasEncryptedKeypair1: !!derivedResult1.encryptedVrfKeypair,
           hasEncryptedKeypair2: !!derivedResult2.encryptedVrfKeypair,
-          vrfPublicKey1: derivedResult1.vrfPublicKey.substring(0, 20) + '...',
-          vrfPublicKey3: derivedResult3.vrfPublicKey.substring(0, 20) + '...',
-          vrfOutput1: derivedResult1.vrfChallenge?.vrfOutput?.substring(0, 20) + '...' || 'none',
-          vrfOutput3: derivedResult3.vrfChallenge?.vrfOutput?.substring(0, 20) + '...' || 'none'
+          vrfPublicKey1: vrfPublicKey1Preview,
+          vrfPublicKey3: vrfPublicKey3Preview,
+          vrfOutput1: vrfOutput1Preview || 'none',
+          vrfOutput3: vrfOutput3Preview || 'none',
+          rawDerived1: derivedResult1,
+          rawDerived2: derivedResult2,
+          rawDerived3: derivedResult3,
         };
 
       } catch (error: any) {
@@ -335,6 +447,13 @@ test.describe('VRF Worker Manager Integration Test', () => {
         };
       }
     }, TEST_CONFIG);
+
+    if (!result.success) {
+      console.log('Deterministic derivation error:', result.error);
+      console.log('Deterministic derivation raw result 1:', JSON.stringify(result.rawDerived1, null, 2));
+      console.log('Deterministic derivation raw result 2:', JSON.stringify(result.rawDerived2, null, 2));
+      console.log('Deterministic derivation raw result 3:', JSON.stringify(result.rawDerived3, null, 2));
+    }
 
     // Verify deterministic derivation
     expect(result.success).toBe(true);
@@ -373,6 +492,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test VRF Session Management
   ////////////////////////////////////
 
+  // validates VRF session activation, refresh, and clearing without chain calls
   test('VRF Worker Manager - Session Management and Status', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
@@ -448,14 +568,12 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test VRF Challenge Generation with Active Session
   ////////////////////////////////////
 
+  // confirms challenge generation succeeds once a VRF session is live
   test('VRF Worker Manager - VRF Challenge Generation with Active Session', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
         // @ts-ignore - Runtime import path
         const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager/index.js');
-        // @ts-ignore - Runtime import path
-        const { base64UrlEncode } = await import('/sdk/esm/utils/encoders.js');
-
         console.log('Testing VRF challenge generation with active session...');
 
         const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
@@ -498,20 +616,24 @@ test.describe('VRF Worker Manager Integration Test', () => {
         const vrfChallenge3 = await vrfWorkerManager.generateVrfChallenge(differentInputData);
 
         // Verify challenge properties
-        const challenge1Valid = !!(vrfChallenge1.vrfOutput && vrfChallenge1.vrfProof && vrfChallenge1.vrfPublicKey);
-        const challenge2Valid = !!(vrfChallenge2.vrfOutput && vrfChallenge2.vrfProof && vrfChallenge2.vrfPublicKey);
-        const challenge3Valid = !!(vrfChallenge3.vrfOutput && vrfChallenge3.vrfProof && vrfChallenge3.vrfPublicKey);
+        const challenge1Valid = !!(vrfChallenge1?.vrfOutput && vrfChallenge1?.vrfProof && vrfChallenge1?.vrfPublicKey);
+        const challenge2Valid = !!(vrfChallenge2?.vrfOutput && vrfChallenge2?.vrfProof && vrfChallenge2?.vrfPublicKey);
+        const challenge3Valid = !!(vrfChallenge3?.vrfOutput && vrfChallenge3?.vrfProof && vrfChallenge3?.vrfPublicKey);
 
         // Same input should produce same output (deterministic)
-        const sameVrfOutput = vrfChallenge1.vrfOutput === vrfChallenge2.vrfOutput;
-        const sameVrfProof = vrfChallenge1.vrfProof === vrfChallenge2.vrfProof;
+        const sameVrfOutput = !!(vrfChallenge1?.vrfOutput && vrfChallenge2?.vrfOutput)
+          && vrfChallenge1.vrfOutput === vrfChallenge2.vrfOutput;
+        const sameVrfProof = !!(vrfChallenge1?.vrfProof && vrfChallenge2?.vrfProof)
+          && vrfChallenge1.vrfProof === vrfChallenge2.vrfProof;
 
         // Different input should produce different output
-        const differentVrfOutput = vrfChallenge1.vrfOutput !== vrfChallenge3.vrfOutput;
-        const differentVrfProof = vrfChallenge1.vrfProof !== vrfChallenge3.vrfProof;
+        const differentVrfOutput = !!(vrfChallenge1?.vrfOutput && vrfChallenge3?.vrfOutput)
+          && vrfChallenge1.vrfOutput !== vrfChallenge3.vrfOutput;
+        const differentVrfProof = !!(vrfChallenge1?.vrfProof && vrfChallenge3?.vrfProof)
+          && vrfChallenge1.vrfProof !== vrfChallenge3.vrfProof;
 
         return {
-          success: true,
+          success: !!(vrfChallenge1 && vrfChallenge2 && vrfChallenge3),
           challenge1Valid,
           challenge2Valid,
           challenge3Valid,
@@ -519,8 +641,11 @@ test.describe('VRF Worker Manager Integration Test', () => {
           sameVrfProof,
           differentVrfOutput,
           differentVrfProof,
-          vrfOutput1: vrfChallenge1.vrfOutput.substring(0, 20) + '...',
-          vrfOutput3: vrfChallenge3.vrfOutput.substring(0, 20) + '...'
+          vrfOutput1: vrfChallenge1?.vrfOutput ? `${vrfChallenge1.vrfOutput.substring(0, 20)}...` : null,
+          vrfOutput3: vrfChallenge3?.vrfOutput ? `${vrfChallenge3.vrfOutput.substring(0, 20)}...` : null,
+          rawChallenge1: vrfChallenge1,
+          rawChallenge2: vrfChallenge2,
+          rawChallenge3: vrfChallenge3,
         };
 
       } catch (error: any) {
@@ -531,6 +656,13 @@ test.describe('VRF Worker Manager Integration Test', () => {
         };
       }
     }, TEST_CONFIG);
+
+    if (!result.success) {
+      console.log('Challenge generation raw challenge1:', JSON.stringify(result.rawChallenge1, null, 2));
+      console.log('Challenge generation raw challenge2:', JSON.stringify(result.rawChallenge2, null, 2));
+      console.log('Challenge generation raw challenge3:', JSON.stringify(result.rawChallenge3, null, 2));
+      console.log('Challenge generation error:', result.error);
+    }
 
     // Verify VRF challenge generation
     expect(result.success).toBe(true);
@@ -556,11 +688,49 @@ test.describe('VRF Worker Manager Integration Test', () => {
   // Test Error Handling and Edge Cases
   ////////////////////////////////////
 
+  // exercises defensive branches (missing keys, mismatched sessions, malformed payloads)
   test('VRF Worker Manager - Error Handling and Edge Cases', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {
         // @ts-ignore - Runtime import path
         const { VrfWorkerManager } = await import('/sdk/esm/core/WebAuthnManager/VrfWorkerManager/index.js');
+        const serializeCredentialWithPrf = (credential: PublicKeyCredential): WebAuthnAuthenticationCredential => {
+          const encode = (value: ArrayBuffer | ArrayBufferView | null | undefined): string | undefined => {
+            if (!value) return undefined;
+            if (typeof value === 'string') return value;
+            const buffer = value instanceof ArrayBuffer
+              ? value
+              : ArrayBuffer.isView(value)
+                ? value.buffer
+                : new Uint8Array(value as ArrayBufferLike).buffer;
+            return (window as any).base64UrlEncode(buffer);
+          };
+          const response = credential.response as AuthenticatorAssertionResponse;
+          const extensionResults = credential.getClientExtensionResults?.() || {};
+          const prfResults = (extensionResults as any)?.prf?.results
+            || (credential as any).clientExtensionResults?.prf?.results
+            || {};
+          return {
+            id: credential.id,
+            rawId: (window as any).base64UrlEncode(credential.rawId),
+            type: credential.type,
+            authenticatorAttachment: credential.authenticatorAttachment ?? undefined,
+            response: {
+              clientDataJSON: encode(response.clientDataJSON)!,
+              authenticatorData: encode(response.authenticatorData)!,
+              signature: encode(response.signature)!,
+              userHandle: encode(response.userHandle as ArrayBuffer | null | undefined),
+            },
+            clientExtensionResults: {
+              prf: {
+                results: {
+                  first: encode(prfResults?.first),
+                  second: encode(prfResults?.second),
+                }
+              }
+            }
+          } as WebAuthnAuthenticationCredential;
+        };
         console.log('Testing VRF Worker Manager error handling...');
         const vrfWorkerManager = new VrfWorkerManager() as VrfWorkerManager;
         await vrfWorkerManager.initialize();
@@ -605,27 +775,34 @@ test.describe('VRF Worker Manager Integration Test', () => {
               extensions
             }
           });
-          return serializeAuthenticationCredentialWithPRF({
-            credential: cred as PublicKeyCredential,
-            firstPrfOutput: true,
-            secondPrfOutput: false,
-          });
+          return serializeCredentialWithPrf(cred as PublicKeyCredential);
         };
 
-        // Test 2: Try to derive VRF keypair with invalid PRF output (non-base64url / malformed ArrayBuffer)
-        console.log('Testing VRF derivation with invalid PRF...');
+        // Test 2: Try to derive VRF keypair with missing PRF results
+        console.log('Testing VRF derivation with missing PRF results...');
         try {
-          // Provide a tiny/invalid salt to force PRF handling issues downstream
-          const invalidSalt = new TextEncoder().encode('%%%INVALID%%%').buffer;
-          const invalidCred = await buildCredential(invalidSalt);
+          // Create a credential without PRF extension results
+          const challenge = crypto.getRandomValues(new Uint8Array(32));
+          const cred = await (navigator as any).credentials.get({
+            publicKey: {
+              challenge,
+              timeout: 60000,
+              userVerification: 'preferred',
+              // No extensions - this should result in no PRF results
+            }
+          });
+          const invalidCred = serializeCredentialWithPrf(cred as PublicKeyCredential);
+          // Remove PRF results to simulate missing PRF
+          (invalidCred as any).clientExtensionResults = undefined;
+
           await vrfWorkerManager.deriveVrfKeypairFromPrf({
             credential: invalidCred,
             nearAccountId: testConfig.ACCOUNT_ID as AccountId
           });
-          console.log('ERROR: Invalid PRF derivation should have failed but succeeded!');
+          console.log('ERROR: Missing PRF derivation should have failed but succeeded!');
         } catch (error: any) {
           testResults.invalidPrfError = error.message;
-          console.log('Invalid PRF derivation error message:', error.message);
+          console.log('Missing PRF derivation error message:', error.message);
           console.log('Error message includes "VRF keypair derivation failed":', error.message.includes('VRF keypair derivation failed'));
           testResults.invalidPrfDerivation = error.message.includes('VRF keypair derivation failed');
         }
@@ -678,6 +855,7 @@ test.describe('VRF Worker Manager Integration Test', () => {
     console.log(`   All error cases handled correctly`);
   });
 
+  // dumps the raw response envelope to guard against structural regressions
   test('VRF Worker Manager - Response Structure Debug', async ({ page }) => {
     const result = await page.evaluate(async (testConfig) => {
       try {

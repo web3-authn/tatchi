@@ -49,8 +49,8 @@ const DEFAULT_TEST_CONFIG = {
 
   // NEAR network configuration
   nearNetwork: 'testnet' as const,
-  nearRpcUrl: 'https://rpc.testnet.near.org',
-  // nearRpcUrl: 'https://test.rpc.fastnear.com',
+  // nearRpcUrl: 'https://rpc.testnet.near.org',
+  nearRpcUrl: 'https://test.rpc.fastnear.com',
 
   // Contract and account configuration
   contractId: 'web3-authn-v5.testnet',
@@ -60,8 +60,10 @@ const DEFAULT_TEST_CONFIG = {
   rpId: 'localhost',
 
   // Registration flow testing options
-  useRelayer: false, // Default to testnet faucet flow
-  relayServerUrl: 'http://localhost:3000', // Mock relay-server URL for testing
+  useRelayer: true, // Default to relay server flow (testnet faucet is deprecated)
+  relayer: {
+    url: 'http://localhost:3000' // Mock relay-server URL for testing
+  },
 
   // Test account configuration
   testReceiverAccountId: 'web3-authn-v5.testnet', // Default receiver for transfer tests
@@ -104,6 +106,58 @@ export async function setupBasicPasskeyTest(
   // Continue with the rest of the setup (WebAuthn mocks, etc.)
   await setupWebAuthnMocks(page);
   await setupTestUtilities(page, config);
+
+  // Note: We do not install relay-server mocks by default.
+  // Tests should call setupRelayServerMock(true) in their page.evaluate context
+  // before attempting registration to avoid "Invalid signed transaction payload" errors.
+
+  // Install auto-confirmer for headless tests: programmatically confirm the Lit UI
+  // without relying on clicking inside closed shadow DOM. This observes DOM mutations
+  // and dispatches the public confirmation event when the confirmer element mounts.
+  await page.evaluate(() => {
+    if ((window as any).__w3aAutoConfirmInstalled) return;
+    (window as any).__w3aAutoConfirmInstalled = true;
+
+    const confirmOnce = (root: Document | ShadowRoot): boolean => {
+      try {
+        const el = (root.querySelector('w3a-modal-tx-confirm') || root.querySelector('w3a-drawer-tx-confirm')) as HTMLElement | null;
+        if (el) {
+          // Defer slightly to allow initial render
+          setTimeout(() => {
+            try {
+              el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
+            } catch {}
+          }, 50);
+          return true;
+        }
+      } catch {}
+      return false;
+    };
+
+    const tryAll = () => {
+      if (confirmOnce(document)) return;
+      // Also scan same-origin iframes used by the iframe host variant
+      const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
+      for (const iframe of iframes) {
+        try {
+          const doc = iframe.contentWindow?.document;
+          if (doc && confirmOnce(doc)) return;
+        } catch {}
+      }
+    };
+
+    // Observe DOM for confirmer mount
+    const mo = new MutationObserver(() => tryAll());
+    try { mo.observe(document.documentElement, { childList: true, subtree: true }); } catch {}
+    // Fire an initial attempt
+    tryAll();
+
+    // Expose control to tests if they need to disable
+    (window as any).testUtils = (window as any).testUtils || {};
+    (window as any).testUtils.autoConfirm = {
+      disconnect: () => { try { mo.disconnect(); } catch {} }
+    };
+  });
 
   console.log('Playwright test environment ready!');
 }
@@ -255,7 +309,29 @@ async function injectImportMap(page: Page): Promise<void> {
         'jsqr': 'https://esm.sh/jsqr@1.4.0',
         '@near-js/types': 'https://esm.sh/@near-js/types@2.0.1',
         'tslib': 'https://esm.sh/tslib@2.8.1',
-        'buffer': 'https://esm.sh/buffer@6.0.3'
+        'buffer': 'https://esm.sh/buffer@6.0.3',
+        'lit': 'https://esm.sh/lit@3.1.0',
+        'lit/decorators.js': 'https://esm.sh/lit@3.1.0/decorators.js',
+        'lit/directive.js': 'https://esm.sh/lit@3.1.0/directive.js',
+        'lit/directive-helpers.js': 'https://esm.sh/lit@3.1.0/directive-helpers.js',
+        'lit/async-directive.js': 'https://esm.sh/lit@3.1.0/async-directive.js',
+        'lit/directives/when.js': 'https://esm.sh/lit@3.1.0/directives/when.js',
+        'lit/directives/if-defined.js': 'https://esm.sh/lit@3.1.0/directives/if-defined.js',
+        'lit/directives/class-map.js': 'https://esm.sh/lit@3.1.0/directives/class-map.js',
+        'lit/directives/style-map.js': 'https://esm.sh/lit@3.1.0/directives/style-map.js',
+        'lit/directives/repeat.js': 'https://esm.sh/lit@3.1.0/directives/repeat.js',
+        'lit/directives/guard.js': 'https://esm.sh/lit@3.1.0/directives/guard.js',
+        'lit/directives/cache.js': 'https://esm.sh/lit@3.1.0/directives/cache.js',
+        'lit/directives/until.js': 'https://esm.sh/lit@3.1.0/directives/until.js',
+        'lit/directives/ref.js': 'https://esm.sh/lit@3.1.0/directives/ref.js',
+        'lit/directives/live.js': 'https://esm.sh/lit@3.1.0/directives/live.js',
+        'lit/directives/unsafe-html.js': 'https://esm.sh/lit@3.1.0/directives/unsafe-html.js',
+        'lit/directives/unsafe-svg.js': 'https://esm.sh/lit@3.1.0/directives/unsafe-svg.js',
+        'lit/static-html.js': 'https://esm.sh/lit@3.1.0/static-html.js',
+        'lit/html.js': 'https://esm.sh/lit@3.1.0/html.js',
+        'lit/css.js': 'https://esm.sh/lit@3.1.0/css.js',
+        'lit/lit-element.js': 'https://esm.sh/lit@3.1.0/lit-element.js',
+        'lit/reactive-element.js': 'https://esm.sh/lit@3.1.0/reactive-element.js'
       }
     });
 
@@ -301,11 +377,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: any): Promise<
     try {
       console.log(`Attempt ${attempt}/${maxRetries}: Loading PasskeyManager...`);
 
-      await page.waitForFunction(async (setupOptions) => {
+      const loadHandle = await page.waitForFunction(async (setupOptions) => {
         try {
           console.log('Importing PasskeyManager from built SDK...');
           // @ts-ignore
-          const { PasskeyManager } = await import('/sdk/esm/index.js');
+          const { PasskeyManager } = await import('/sdk/esm/core/PasskeyManager/index.js');
 
           if (!PasskeyManager) {
             throw new Error('PasskeyManager not found in SDK module');
@@ -313,13 +389,14 @@ async function loadPasskeyManagerDynamically(page: Page, configs: any): Promise<
           console.log('PasskeyManager imported successfully:', typeof PasskeyManager);
 
           // Create and validate configuration
-          const configs = {
+          const runtimeConfigs = {
             nearNetwork: setupOptions.nearNetwork as 'testnet',
             relayerAccount: setupOptions.relayerAccount,
             contractId: setupOptions.contractId,
             nearRpcUrl: setupOptions.nearRpcUrl,
             useRelayer: setupOptions.useRelayer || false,
             relayServerUrl: setupOptions.relayServerUrl,
+            relayer: setupOptions.relayer,
             // Additional centralized configuration
             frontendUrl: setupOptions.frontendUrl,
             rpId: setupOptions.rpId,
@@ -327,12 +404,12 @@ async function loadPasskeyManagerDynamically(page: Page, configs: any): Promise<
           };
 
           // Validate required configs
-          if (!configs.nearRpcUrl) throw new Error('nearRpcUrl is required but not provided');
-          if (!configs.contractId) throw new Error('contractId is required but not provided');
-          if (!configs.relayerAccount) throw new Error('relayerAccount is required but not provided');
+          if (!runtimeConfigs.nearRpcUrl) throw new Error('nearRpcUrl is required but not provided');
+          if (!runtimeConfigs.contractId) throw new Error('contractId is required but not provided');
+          if (!runtimeConfigs.relayerAccount) throw new Error('relayerAccount is required but not provided');
 
           // Create PasskeyManager instance
-          const passkeyManager = new PasskeyManager(configs);
+          const passkeyManager = new PasskeyManager(runtimeConfigs);
           console.log('PasskeyManager instance created successfully');
 
           // Test basic functionality
@@ -346,23 +423,28 @@ async function loadPasskeyManagerDynamically(page: Page, configs: any): Promise<
           // Store in window for test access
           (window as any).PasskeyManager = PasskeyManager;
           (window as any).passkeyManager = passkeyManager;
-          (window as any).configs = configs;
+          (window as any).configs = runtimeConfigs;
 
           return { success: true, message: 'PasskeyManager loaded successfully' };
         } catch (error: any) {
           console.error('Failed to load PasskeyManager:', error);
-          return {
-            success: false,
-            error: error.message,
-            stack: error.stack
-          };
+          throw error;
         }
       }, configs, {
         timeout: 30000, // 30 second timeout
         polling: 1000   // Check every second
       });
 
-      // If we reach here, the function succeeded
+      const loadResult = await loadHandle.jsonValue().catch(() => ({ success: true }));
+      await loadHandle.dispose();
+
+      if (!loadResult?.success) {
+        const message = (loadResult && typeof loadResult === 'object' && 'error' in loadResult && typeof (loadResult as { error?: unknown }).error === 'string')
+          ? (loadResult as { error: string }).error
+          : 'Unknown error loading PasskeyManager';
+        throw new Error(message);
+      }
+
       console.log(`Step 4 Complete: PasskeyManager loaded and instantiated (attempt ${attempt})`);
       return;
 
@@ -395,7 +477,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       if (typeof (window as any).base64UrlEncode === 'undefined') {
         try {
           // @ts-ignore
-          const { base64UrlEncode } = await import('/sdk/esm/utils/encoders.js');
+          const { base64UrlEncode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlEncode = base64UrlEncode;
           console.log('base64UrlEncode made available globally as fallback');
         } catch (encoderError) {
@@ -407,7 +489,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       if (typeof (window as any).base64UrlDecode === 'undefined') {
         try {
           // @ts-ignore
-          const { base64UrlDecode } = await import('/sdk/esm/utils/encoders.js');
+          const { base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlDecode = base64UrlDecode;
           console.log('base64UrlDecode made available globally for credential ID decoding');
         } catch (encoderError) {
@@ -419,7 +501,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       if (typeof (window as any).toAccountId === 'undefined') {
         try {
           // @ts-ignore
-          const { toAccountId } = await import('/sdk/esm/index.js');
+          const { toAccountId } = await import('/sdk/esm/core/types/accountIds.js');
           (window as any).toAccountId = toAccountId;
           console.log('toAccountId made available globally for tests');
         } catch (accountIdError) {
@@ -503,17 +585,28 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
       // This ensures the contract will store and lookup the credential using the same format
       const credentialIdBytes = new TextEncoder().encode(credentialIdString);
 
-      // Generate Ed25519 keypair using @noble/ed25519 (browser-safe)
-      const ed25519 = await import('@noble/ed25519');
-      const seed = ed25519.utils.randomPrivateKey(); // 32 bytes
-      const publicKeyBytes = await ed25519.getPublicKeyAsync(seed); // 32 bytes
+      // Try to generate a real Ed25519 keypair via noble; on failure, fall back to deterministic bytes
+      let publicKeyBytes: Uint8Array;
+      let seed: Uint8Array;
+      try {
+        const ed25519 = await import('@noble/ed25519');
+        seed = ed25519.utils.randomPrivateKey(); // 32 bytes
+        publicKeyBytes = await ed25519.getPublicKeyAsync(seed); // 32 bytes
+        console.log('Generated real Ed25519 keypair for credential:', credentialIdString);
+      } catch (e) {
+        console.warn('[WebAuthn Mock] noble/ed25519 import failed during create(); using deterministic fallback:', e);
+        // Deterministic fallback: derive bytes from SHA-256 of the credentialIdString
+        const enc = new TextEncoder();
+        const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('pub:' + credentialIdString)));
+        publicKeyBytes = digest.slice(0, 32);
+        seed = new Uint8Array(await crypto.subtle.digest('SHA-256', enc.encode('seed:' + credentialIdString)));
+      }
 
-      // Store the seed for later signature generation
+      // Store the seed for later signature generation (get/assertion flow will use it when available)
       (window as any).__testKeyPairs = (window as any).__testKeyPairs || {};
       (window as any).__testKeyPairs[credentialIdString] = { seed };
 
-      console.log('Generated real Ed25519 keypair for credential:', credentialIdString);
-      console.log('Public key bytes:', Array.from(publicKeyBytes));
+      try { console.log('Public key bytes:', Array.from(publicKeyBytes)); } catch {}
 
       // Create COSE key using the real Ed25519 public key
       // This replicates the exact CBOR structure the contract expects and can parse
@@ -596,6 +689,56 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
       return output.buffer;
     };
 
+    const resolvePrfEvalValue = (
+      requested: unknown,
+      fallbackSeed: string,
+      accountHint: string
+    ): ArrayBuffer | null => {
+      if (requested === null) {
+        return null;
+      }
+      if (typeof requested === 'undefined') {
+        return createMockPRFOutput(fallbackSeed, accountHint, 32);
+      }
+      if (requested instanceof ArrayBuffer || ArrayBuffer.isView(requested)) {
+        // Convert to string to use as seed for deterministic 32-byte output
+        const view = requested as ArrayBufferView;
+        const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+        const seedString = new TextDecoder().decode(bytes);
+        return createMockPRFOutput(seedString, accountHint, 32);
+      }
+      if (typeof requested === 'string') {
+        try {
+          if (typeof (window as any).base64UrlDecode === 'function') {
+            const decoded = (window as any).base64UrlDecode(requested);
+            // Convert decoded bytes to string and use as seed for 32-byte output
+            const bytes = new Uint8Array(decoded);
+            const seedString = new TextDecoder().decode(bytes);
+            return createMockPRFOutput(seedString, accountHint, 32);
+          }
+          // Use the string as a seed to generate exactly 32 bytes
+          return createMockPRFOutput(requested, accountHint, 32);
+        } catch (error) {
+          console.warn('[PRF MOCK] Failed to decode string PRF value, using fallback', error);
+          return createMockPRFOutput(fallbackSeed, accountHint, 32);
+        }
+      }
+
+      console.warn('[PRF MOCK] Unexpected PRF eval type, using fallback:', typeof requested);
+      return createMockPRFOutput(fallbackSeed, accountHint, 32);
+    };
+
+    const buildPrfExtensionResults = (
+      prfRequest: any,
+      accountHint: string
+    ): { first: ArrayBuffer | null; second: ArrayBuffer | null } => {
+      const evalConfig = prfRequest?.eval || {};
+      return {
+        first: resolvePrfEvalValue(evalConfig.first, 'chacha20-test-seed', accountHint),
+        second: resolvePrfEvalValue(evalConfig.second, 'ed25519-test-seed', accountHint),
+      };
+    };
+
     // Override WebAuthn API to include PRF extension support
     if (navigator.credentials) {
       navigator.credentials.create = async function(options: any) {
@@ -644,7 +787,9 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
             attestationObject: attestationObjectBytes,
             getPublicKey: () => new Uint8Array(65).fill(0).map((_, i) => i + 1),
             getPublicKeyAlgorithm: () => -7,
-            getTransports: () => ['internal', 'hybrid']
+            getTransports: () => ['internal', 'hybrid'],
+            // Add missing properties that might be expected
+            url: undefined
           },
           getClientExtensionResults: () => {
             const results: any = {};
@@ -652,8 +797,7 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
               results.prf = {
                 enabled: true,
                 results: {
-                  first: createMockPRFOutput('chacha20-test-seed', accountId, 32),
-                  second: createMockPRFOutput('ed25519-test-seed', accountId, 32)
+                  ...buildPrfExtensionResults(prfRequested, accountId)
                 }
               };
             }
@@ -709,14 +853,24 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
           } catch (e) {
             console.warn('[AUTH PRF DEBUG] Failed to decode credential ID, using default account:', e);
           }
-        } else if (prfRequested?.eval?.first) {
-          // Extract from PRF salt when no allowCredentials (recovery flow)
-          const chacha20Salt = new Uint8Array(prfRequested.eval.first);
-          const saltText = new TextDecoder().decode(chacha20Salt);
-          const saltMatch = saltText.match(/chacha20-salt:(.+)$/);
-          if (saltMatch && saltMatch[1]) {
-            accountId = saltMatch[1];
-          }
+        } else {
+          // No allowCredentials provided (recovery chooser). Pick from stored keypairs if available.
+          try {
+            const keyPairs = (window as any).__testKeyPairs || {};
+            const keys = Object.keys(keyPairs);
+            // Prefer any key that matches our test pattern and extract account id
+            const matchKey = keys.find(k => /test-credential-(.+)-auth$/.test(k));
+            if (matchKey) {
+              const m = matchKey.match(/test-credential-(.+)-auth$/);
+              if (m && m[1]) accountId = m[1];
+            } else if (prfRequested?.eval?.first) {
+              // Fallback: attempt to parse from PRF salt if present
+              const chacha20Salt = new Uint8Array(prfRequested.eval.first);
+              const saltText = new TextDecoder().decode(chacha20Salt);
+              const saltMatch = saltText.match(/chacha20-salt:(.+)$/);
+              if (saltMatch && saltMatch[1]) accountId = saltMatch[1];
+            }
+          } catch {}
         }
 
         // Credential ID Format for Contract Lookup Consistency
@@ -810,7 +964,10 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
                 return new Uint8Array(64).fill(0x99); // Fallback signature
               }
             })(),
-            userHandle: new Uint8Array([1, 2, 3, 4])
+            // Provide userHandle with the near account id for recovery discovery
+            userHandle: new TextEncoder().encode(accountId),
+            // Add missing properties that might be expected
+            url: undefined
           },
           getClientExtensionResults: () => {
             const results: any = {};
@@ -819,8 +976,7 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
               results.prf = {
                 enabled: true,
                 results: {
-                  first: createMockPRFOutput('chacha20-test-seed', accountId, 32),
-                  second: createMockPRFOutput('ed25519-test-seed', accountId, 32),
+                  ...buildPrfExtensionResults(prfRequested, accountId)
                 }
               };
             }

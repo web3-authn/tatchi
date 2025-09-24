@@ -7,6 +7,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 test.describe('Debug Import Map', () => {
 
+  // sanity-checks that the five-step setup injects the expected import map entries
   test('Debug import map setup', async ({ page }) => {
 
     await setupBasicPasskeyTest(page);
@@ -54,16 +55,16 @@ test.describe('Debug Import Map', () => {
         const encoded = bs58Module.default.encode(testData);
         console.log('bs58 encode works:', encoded);
 
-        // Step 5: Test utils/encoders import (which uses bs58)
-        console.log('Step 5: Testing utils/encoders import...');
+        // Step 5: Test base64 utils import (which uses bs58 dependency)
+        console.log('Step 5: Testing utils/base64 import...');
         // @ts-ignore
-        const utilsModule = await import('/sdk/esm/utils/encoders.js');
-        console.log('utils/encoders imported:', Object.keys(utilsModule));
+        const base64Module = await import('/sdk/esm/utils/base64.js');
+        console.log('utils/base64 imported:', Object.keys(base64Module));
 
         // Step 6: Test base64UrlEncode
         console.log('Step 6: Testing base64UrlEncode...');
         const testBuffer = new Uint8Array([1, 2, 3, 4]).buffer;
-        const encoded64 = utilsModule.base64UrlEncode(testBuffer);
+        const encoded64 = base64Module.base64UrlEncode(testBuffer);
         console.log('base64UrlEncode works:', encoded64);
 
         return { success: true, step: 6 };
