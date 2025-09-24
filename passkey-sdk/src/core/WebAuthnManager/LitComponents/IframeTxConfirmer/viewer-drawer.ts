@@ -243,6 +243,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   private onContentConfirm = () => {
     if (this.loading) return;
+    this.loading = true;
+    this.requestUpdate();
     // Bridge semantic event to canonical events (new + legacy)
     try {
       this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));

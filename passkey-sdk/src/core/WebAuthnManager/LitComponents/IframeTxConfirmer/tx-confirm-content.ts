@@ -77,6 +77,26 @@ export class TxConfirmContentElement extends LitElementWithProps {
       color: var(--w3a-modal__btn-confirm__color, #fff);
       border: var(--w3a-modal__btn-confirm__border, 1px solid transparent);
       min-width: 80px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .confirm.loading {
+      cursor: progress;
+      opacity: 0.9;
+    }
+    .loading-indicator {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.55));
+      border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.95));
+      animation: tx-confirm-spin 1s linear infinite;
+    }
+    :host([theme="light"]) .loading-indicator {
+      border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.6));
+      border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.98));
     }
     .cancel:hover {
       background: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.12)));
@@ -90,8 +110,23 @@ export class TxConfirmContentElement extends LitElementWithProps {
       outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, #3b82f6));
       outline-offset: 3px;
     }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
     .error { color: var(--w3a-colors-error, #ff7a7a); font-size: 13px; margin: 8px 0; }
     .muted { color: var(--w3a-colors-textMuted, rgba(255,255,255,0.6)); font-size: 12px; }
+
+    @keyframes tx-confirm-spin {
+      to { transform: rotate(360deg); }
+    }
   `;
 
   constructor() {
@@ -206,11 +241,13 @@ export class TxConfirmContentElement extends LitElementWithProps {
           ${this.cancelText}
         </button>
         <button
-          class="confirm"
+          class="confirm ${this.loading ? 'loading' : ''}"
           @click=${this.onConfirm}
           ?disabled=${this.loading}
         >
-          ${this.confirmText}
+          ${this.loading
+            ? html`<span class="loading-indicator" role="progressbar" aria-label="Loading"></span><span class="sr-only">Loading</span>`
+            : html`${this.confirmText}`}
         </button>
       </div>
     `;

@@ -293,20 +293,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       text-align: start;
     }
 
-    /* Summary section */
-    .summary-section {
-      position: relative;
-      z-index: 1;
-    }
-    .summary-grid {
-      display: grid;
-      gap: var(--w3a-spacing-sm);
-      grid-template-columns: 1fr;
-      margin-top: var(--w3a-spacing-sm);
-      margin-bottom: var(--w3a-spacing-sm);
-      position: relative;
-      z-index: 1;
-    }
     .summary-row {
       display: grid;
       grid-template-columns: 115px 1fr;
@@ -616,11 +602,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Loading indicator styles */
     .loading-indicator {
       display: inline-block;
-      width: var(--w3a-modal__loading-indicator__width, 16px);
-      height: var(--w3a-modal__loading-indicator__height, 16px);
-      border: 2px solid var(--w3a-modal__loading-indicator__border-color);
+      width: var(--w3a-modal__loading-indicator__width, 12px);
+      height: var(--w3a-modal__loading-indicator__height, 12px);
+      border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.55));
       border-radius: 50%;
-      border-top-color: var(--w3a-modal__loading-indicator__border-top-color);
+      border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.95));
       animation: spin 1s ease-in-out infinite;
       margin-right: var(--w3a-spacing-sm);
     }
@@ -802,17 +788,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                   </div>
                 </div>
               </div>
-              <!-- Transaction Summary Section -->
-              ${displayTotalAmount
-                ? html`<div class="summary-section">
-                    <div class="summary-grid">
-                      <div class="summary-row">
-                        <div class="summary-label">Total Sent</div>
-                        <div class="summary-value">${formatDeposit(this.totalAmount)}</div>
-                      </div>
-                    </div>
-                  </div>`
-                : nothing}
             </div>
           </div>
 
@@ -837,6 +812,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   }
 
   private _handleCancel() {
+    if (this.loading) return;
     try {
       // New canonical event name
       this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
@@ -849,6 +825,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   }
 
   private _handleConfirm() {
+    if (this.loading) return;
+    this.loading = true;
+    this.requestUpdate();
     try {
       // New canonical event name
       this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
