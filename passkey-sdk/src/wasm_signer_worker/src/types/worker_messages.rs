@@ -1,10 +1,10 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 // Enums and message structures for worker communication
 
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use serde::de::DeserializeOwned;
 use crate::error::ParsePayloadError;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // === CLEAN RUST ENUMS WITH NUMERIC CONVERSION ===
 // These export to TypeScript as numeric enums and we convert directly from numbers
@@ -53,7 +53,9 @@ impl WorkerRequestType {
             WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-            WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
+            WorkerRequestType::RegistrationCredentialConfirmation => {
+                "REGISTRATION_CREDENTIAL_CONFIRMATION"
+            }
             WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
         }
     }
@@ -163,7 +165,6 @@ impl From<u32> for WorkerResponseType {
     }
 }
 
-
 /// Main worker message structure
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignerWorkerMessage {
@@ -173,7 +174,10 @@ pub struct SignerWorkerMessage {
 }
 
 impl SignerWorkerMessage {
-    pub fn parse_payload<T: DeserializeOwned>(&self, request_type: WorkerRequestType) -> Result<T, ParsePayloadError> {
+    pub fn parse_payload<T: DeserializeOwned>(
+        &self,
+        request_type: WorkerRequestType,
+    ) -> Result<T, ParsePayloadError> {
         serde_json::from_value(self.payload.clone())
             .map_err(|e| ParsePayloadError::new(request_type.name(), e))
     }

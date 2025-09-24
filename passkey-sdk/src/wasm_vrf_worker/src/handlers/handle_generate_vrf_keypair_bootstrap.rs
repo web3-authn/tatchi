@@ -1,11 +1,11 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::{info, error};
 use crate::manager::VRFKeyManager;
-use crate::types::VrfWorkerResponse;
 use crate::types::VRFInputData;
+use crate::types::VrfWorkerResponse;
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -21,7 +21,6 @@ pub fn handle_generate_vrf_keypair_bootstrap(
     message_id: Option<String>,
     payload: GenerateVrfKeypairBootstrapRequest,
 ) -> VrfWorkerResponse {
-
     let mut manager_mut = manager.borrow_mut();
     info!("Generating bootstrap VRF keypair");
 

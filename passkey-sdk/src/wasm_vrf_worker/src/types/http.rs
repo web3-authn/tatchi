@@ -1,5 +1,5 @@
-use wasm_bindgen::prelude::*;
 use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // === Shamir 3-pass HTTP types (exported to TS via wasm-bindgen) ===
 
@@ -23,8 +23,7 @@ pub struct ShamirApplyServerLockHTTPResponse {
 }
 impl ShamirApplyServerLockHTTPResponse {
     pub fn from_str(s: &str) -> Result<Self, String> {
-        serde_json::from_str(s)
-            .map_err(|e| format!("Failed to parse response JSON: {}", e))
+        serde_json::from_str(s).map_err(|e| format!("Failed to parse response JSON: {}", e))
     }
     pub fn to_js_value(&self) -> JsValue {
         JsValue::from_str(&serde_json::to_string(self).unwrap())
@@ -51,8 +50,7 @@ pub struct ShamirRemoveServerLockHTTPResponse {
 }
 impl ShamirRemoveServerLockHTTPResponse {
     pub fn from_str(s: &str) -> Result<Self, String> {
-        serde_json::from_str(s)
-            .map_err(|e| format!("Failed to parse response JSON: {}", e))
+        serde_json::from_str(s).map_err(|e| format!("Failed to parse response JSON: {}", e))
     }
     pub fn to_js_value(&self) -> JsValue {
         JsValue::from_str(&serde_json::to_string(self).unwrap())

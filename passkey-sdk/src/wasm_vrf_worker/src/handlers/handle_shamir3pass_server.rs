@@ -1,13 +1,10 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use crate::types::VrfWorkerResponse;
-use crate::shamir3pass::{
-    decode_biguint_b64u,
-    encode_biguint_b64u,
-};
 use crate::manager::VRFKeyManager;
+use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
+use crate::types::VrfWorkerResponse;
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -52,7 +49,10 @@ pub fn handle_shamir3pass_generate_server_keypair(
     let keys = match shamir3pass.generate_lock_keys() {
         Ok(v) => v,
         Err(e) => {
-            return VrfWorkerResponse::fail(message_id, format!("generate_lock_keys failed: {:?}", e));
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("generate_lock_keys failed: {:?}", e),
+            );
         }
     };
     let shamir3pass_exponents = serde_json::json!({
@@ -75,11 +75,11 @@ pub fn handle_shamir3pass_apply_server_lock_kek(
 
     let e_s = match decode_biguint_b64u(&payload.e_s_b64u) {
         Ok(v) => v,
-        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid e_s_b64u")
+        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid e_s_b64u"),
     };
     let kek_c = match decode_biguint_b64u(&payload.kek_c_b64u) {
         Ok(v) => v,
-        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_c_b64u")
+        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_c_b64u"),
     };
     let kek_cs = shamir3pass.add_lock(&kek_c, &e_s);
     let out = serde_json::json!({
@@ -101,11 +101,11 @@ pub fn handle_shamir3pass_remove_server_lock_kek(
 
     let d_s = match decode_biguint_b64u(&payload.d_s_b64u) {
         Ok(v) => v,
-        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid d_s_b64u")
+        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid d_s_b64u"),
     };
     let kek_cs = match decode_biguint_b64u(&payload.kek_cs_b64u) {
         Ok(v) => v,
-        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_cs_b64u")
+        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_cs_b64u"),
     };
     let kek_c = shamir3pass.remove_lock(&kek_cs, &d_s);
     let out = serde_json::json!({

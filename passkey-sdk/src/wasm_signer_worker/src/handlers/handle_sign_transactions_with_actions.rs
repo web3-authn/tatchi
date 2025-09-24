@@ -4,39 +4,28 @@
 // *                                                                            *
 // ******************************************************************************
 
-use wasm_bindgen::prelude::*;
-use log::info;
-use serde::{Serialize, Deserialize};
-use serde_json;
-use bs58;
-use crate::rpc_calls::{
-    VrfData,
-    verify_authentication_response_rpc_call,
-};
-use crate::transaction::{
-    sign_transaction,
-    build_actions_from_params,
-    build_transaction_with_actions,
-    calculate_transaction_hash,
-};
 use crate::actions::ActionParams;
-use crate::types::{
-    WebAuthnAuthenticationCredential,
-    WebAuthnAuthenticationCredentialStruct,
-    SignedTransaction,
-    DecryptionPayload,
-    progress::{
-        ProgressMessageType,
-        ProgressStep,
-        send_progress_message,
-        send_completion_message,
-        send_error_message
-    },
-    handlers::{ConfirmationConfig, TransactionContext, RpcCallPayload},
-    wasm_to_json::WasmSignedTransaction,
-};
 use crate::handlers::confirm_tx_details::{request_user_confirmation, ConfirmationResult};
-
+use crate::rpc_calls::{verify_authentication_response_rpc_call, VrfData};
+use crate::transaction::{
+    build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
+    sign_transaction,
+};
+use crate::types::{
+    handlers::{ConfirmationConfig, RpcCallPayload, TransactionContext},
+    progress::{
+        send_completion_message, send_error_message, send_progress_message, ProgressMessageType,
+        ProgressStep,
+    },
+    wasm_to_json::WasmSignedTransaction,
+    DecryptionPayload, SignedTransaction, WebAuthnAuthenticationCredential,
+    WebAuthnAuthenticationCredentialStruct,
+};
+use bs58;
+use log::info;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
@@ -203,16 +192,18 @@ impl Decryption {
 /// # Returns
 /// * `TransactionSignResult` - Contains success status, transaction hashes, signed transactions, and detailed logs
 pub async fn handle_sign_transactions_with_actions(
-    tx_batch_request: SignTransactionsWithActionsRequest
+    tx_batch_request: SignTransactionsWithActionsRequest,
 ) -> Result<TransactionSignResult, String> {
-
     // Validate input
     if tx_batch_request.tx_signing_requests.is_empty() {
         return Err("No transactions provided".to_string());
     }
 
     let mut logs: Vec<String> = Vec::new();
-    logs.push(format!("Processing {} transactions", tx_batch_request.tx_signing_requests.len()));
+    logs.push(format!(
+        "Processing {} transactions",
+        tx_batch_request.tx_signing_requests.len()
+    ));
 
     // Step 1: Request user confirmation and credential collection
     let mut confirmation_result_opt: Option<ConfirmationResult> = None;
@@ -231,22 +222,32 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
         "Requesting user confirmation...",
-        Some(&serde_json::json!({
-            "step": 1,
-            "total": 4,
-            "transaction_count": tx_batch_request.tx_signing_requests.len()
-        }).to_string())
+        Some(
+            &serde_json::json!({
+                "step": 1,
+                "total": 4,
+                "transaction_count": tx_batch_request.tx_signing_requests.len()
+            })
+            .to_string(),
+        ),
     );
 
     // Use the confirmation configuration if provided, otherwise use default
     let confirmation_config = tx_batch_request.confirmation_config.as_ref();
-    logs.push(format!("Using confirmation config: {:?}", confirmation_config));
+    logs.push(format!(
+        "Using confirmation config: {:?}",
+        confirmation_config
+    ));
 
-    let c = request_user_confirmation(&tx_batch_request, &mut logs).await
+    let c = request_user_confirmation(&tx_batch_request, &mut logs)
+        .await
         .map_err(|e| format!("Confirmation request failed: {}", e))?;
 
     if !c.confirmed {
-        return Ok(TransactionSignResult::failed(logs, "Transaction rejected by user".to_string()));
+        return Ok(TransactionSignResult::failed(
+            logs,
+            "Transaction rejected by user".to_string(),
+        ));
     }
     logs.push(format!(
         "User confirmation received with digest: {}",
@@ -266,7 +267,7 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::Preparation,
         "Extracting credentials for verification...",
-        Some(&serde_json::json!({"step": 2, "total": 4}).to_string())
+        Some(&serde_json::json!({"step": 2, "total": 4}).to_string()),
     );
 
     // VRF challenge is now generated in the main thread confirmation flow
@@ -283,7 +284,9 @@ pub async fn handle_sign_transactions_with_actions(
         .ok_or_else(|| "Missing authentication credential from confirmation".to_string())?;
 
     // If credential is serde_json::Value, convert; else assume structured already
-    let credential = if let Ok(c) = serde_json::from_value::<WebAuthnAuthenticationCredentialStruct>(credential_json_value.clone()) {
+    let credential = if let Ok(c) = serde_json::from_value::<WebAuthnAuthenticationCredentialStruct>(
+        credential_json_value.clone(),
+    ) {
         c
     } else {
         // Fall back to extracting fields if we received the old structured type
@@ -302,14 +305,17 @@ pub async fn handle_sign_transactions_with_actions(
     };
 
     // Step 3: Contract verification using confirmed credentials (if preConfirm) or provided ones
-    logs.push(format!("Starting contract verification for {}", tx_batch_request.rpc_call.contract_id));
+    logs.push(format!(
+        "Starting contract verification for {}",
+        tx_batch_request.rpc_call.contract_id
+    ));
 
     // Send verification progress
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::ContractVerification,
         "Verifying credentials with contract...",
-        Some(&serde_json::json!({"step": 3, "total": 4}).to_string())
+        Some(&serde_json::json!({"step": 3, "total": 4}).to_string()),
     );
 
     // Convert structured types
@@ -323,7 +329,9 @@ pub async fn handle_sign_transactions_with_actions(
         &tx_batch_request.rpc_call.near_rpc_url,
         vrf_data,
         webauthn_auth,
-    ).await {
+    )
+    .await
+    {
         Ok(result) => {
             logs.extend(result.logs.clone());
 
@@ -332,12 +340,15 @@ pub async fn handle_sign_transactions_with_actions(
                 ProgressMessageType::ExecuteActionsProgress,
                 ProgressStep::AuthenticationComplete,
                 "Contract verification completed successfully",
-                Some(&serde_json::json!({
-                    "step": 3,
-                    "total": 4,
-                    "verified": result.verified,
-                    "logs": result.logs
-                }).to_string())
+                Some(
+                    &serde_json::json!({
+                        "step": 3,
+                        "total": 4,
+                        "verified": result.verified,
+                        "logs": result.logs
+                    })
+                    .to_string(),
+                ),
             );
 
             result
@@ -351,7 +362,7 @@ pub async fn handle_sign_transactions_with_actions(
                 ProgressMessageType::ExecuteActionsProgress,
                 ProgressStep::Error,
                 &error_msg,
-                &e.to_string()
+                &e.to_string(),
             );
 
             return Ok(TransactionSignResult::failed(logs, error_msg));
@@ -359,14 +370,16 @@ pub async fn handle_sign_transactions_with_actions(
     };
 
     if !verification_result.verified {
-        let error_msg = verification_result.error.unwrap_or_else(|| "Contract verification failed".to_string());
+        let error_msg = verification_result
+            .error
+            .unwrap_or_else(|| "Contract verification failed".to_string());
         logs.push(error_msg.clone());
 
         send_error_message(
             ProgressMessageType::ExecuteActionsProgress,
             ProgressStep::Error,
             &error_msg,
-            "verification failed"
+            "verification failed",
         );
 
         return Ok(TransactionSignResult::failed(logs, error_msg));
@@ -375,7 +388,10 @@ pub async fn handle_sign_transactions_with_actions(
     logs.push("Contract verification successful".to_string());
 
     // Step 4: Batch transaction signing (confirmation and verification completed)
-    logs.push(format!("Signing {} transactions in secure WASM context...", tx_batch_request.tx_signing_requests.len()));
+    logs.push(format!(
+        "Signing {} transactions in secure WASM context...",
+        tx_batch_request.tx_signing_requests.len()
+    ));
 
     // Send signing progress
     send_progress_message(
@@ -393,7 +409,10 @@ pub async fn handle_sign_transactions_with_actions(
 
     let decryption = Decryption::new(
         chacha20_prf_output,
-        tx_batch_request.decryption.encrypted_private_key_data.clone(),
+        tx_batch_request
+            .decryption
+            .encrypted_private_key_data
+            .clone(),
         tx_batch_request.decryption.encrypted_private_key_iv.clone(),
     );
 
@@ -407,20 +426,24 @@ pub async fn handle_sign_transactions_with_actions(
         &decryption,
         confirmation_result,
         logs,
-    ).await?;
+    )
+    .await?;
 
     // Send completion progress message
     send_completion_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningComplete,
         &format!("{} transactions signed successfully", tx_count),
-        Some(&serde_json::json!({
-            "step": 4,
-            "total": 4,
-            "success": result.success,
-            "transaction_count": tx_count,
-            "logs": result.logs
-        }).to_string())
+        Some(
+            &serde_json::json!({
+                "step": 4,
+                "total": 4,
+                "success": result.success,
+                "transaction_count": tx_count,
+                "logs": result.logs
+            })
+            .to_string(),
+        ),
     );
 
     Ok(result)
@@ -444,7 +467,6 @@ async fn sign_near_transactions_with_actions_impl(
     confirmation_result: &ConfirmationResult,
     mut logs: Vec<String>,
 ) -> Result<TransactionSignResult, String> {
-
     if tx_requests.is_empty() {
         let error_msg = "No transactions provided".to_string();
         logs.push(error_msg.clone());
@@ -468,12 +490,14 @@ async fn sign_near_transactions_with_actions_impl(
         &decryption.chacha20_prf_output,
         &decryption.encrypted_private_key_data,
         &decryption.encrypted_private_key_iv,
-    ).map_err(|e| format!("Decryption failed: {}", e))?;
+    )
+    .map_err(|e| format!("Decryption failed: {}", e))?;
 
     logs.push("Private key decrypted successfully".to_string());
 
     // Process NEAR data from confirmation result
-    let transaction_context = confirmation_result.transaction_context
+    let transaction_context = confirmation_result
+        .transaction_context
         .as_ref()
         .ok_or_else(|| "Missing transaction context from confirmation".to_string())?;
 
@@ -488,16 +512,25 @@ async fn sign_near_transactions_with_actions_impl(
     let mut transaction_hashes = Vec::new();
 
     for (index, tx_data) in tx_requests.iter().enumerate() {
-        logs.push(format!("Processing transaction {} of {}", index + 1, tx_requests.len()));
+        logs.push(format!(
+            "Processing transaction {} of {}",
+            index + 1,
+            tx_requests.len()
+        ));
 
         // Parse and build actions for this transaction
         let action_params: Vec<ActionParams> = match tx_data.parsed_actions() {
             Ok(params) => {
-                logs.push(format!("Transaction {}: Parsed {} actions", index + 1, params.len()));
+                logs.push(format!(
+                    "Transaction {}: Parsed {} actions",
+                    index + 1,
+                    params.len()
+                ));
                 params
             }
             Err(e) => {
-                let error_msg = format!("Transaction {}: Failed to parse actions: {}", index + 1, e);
+                let error_msg =
+                    format!("Transaction {}: Failed to parse actions: {}", index + 1, e);
                 logs.push(error_msg.clone());
                 return Ok(TransactionSignResult::failed(logs, error_msg));
             }
@@ -505,11 +538,15 @@ async fn sign_near_transactions_with_actions_impl(
 
         let actions = match build_actions_from_params(action_params) {
             Ok(actions) => {
-                logs.push(format!("Transaction {}: Actions built successfully", index + 1));
+                logs.push(format!(
+                    "Transaction {}: Actions built successfully",
+                    index + 1
+                ));
                 actions
             }
             Err(e) => {
-                let error_msg = format!("Transaction {}: Failed to build actions: {}", index + 1, e);
+                let error_msg =
+                    format!("Transaction {}: Failed to build actions: {}", index + 1, e);
                 logs.push(error_msg.clone());
                 return Ok(TransactionSignResult::failed(logs, error_msg));
             }
@@ -520,7 +557,9 @@ async fn sign_near_transactions_with_actions_impl(
             &tx_data.near_account_id,
             &tx_data.receiver_id,
             current_nonce,
-            &bs58::decode(&transaction_context.tx_block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
+            &bs58::decode(&transaction_context.tx_block_hash)
+                .into_vec()
+                .map_err(|e| format!("Invalid block hash: {}", e))?,
             &signing_key,
             actions,
         ) {
@@ -533,7 +572,11 @@ async fn sign_near_transactions_with_actions_impl(
                 tx
             }
             Err(e) => {
-                let error_msg = format!("Transaction {}: Failed to build transaction: {}", index + 1, e);
+                let error_msg = format!(
+                    "Transaction {}: Failed to build transaction: {}",
+                    index + 1,
+                    e
+                );
                 logs.push(error_msg.clone());
                 return Ok(TransactionSignResult::failed(logs, error_msg));
             }
@@ -545,7 +588,11 @@ async fn sign_near_transactions_with_actions_impl(
                 bytes
             }
             Err(e) => {
-                let error_msg = format!("Transaction {}: Failed to sign transaction: {}", index + 1, e);
+                let error_msg = format!(
+                    "Transaction {}: Failed to sign transaction: {}",
+                    index + 1,
+                    e
+                );
                 logs.push(error_msg.clone());
                 return Ok(TransactionSignResult::failed(logs, error_msg));
             }
@@ -553,15 +600,22 @@ async fn sign_near_transactions_with_actions_impl(
 
         // Calculate transaction hash from signed transaction bytes (before moving the bytes)
         let transaction_hash = calculate_transaction_hash(&signed_tx_bytes);
-        logs.push(format!("Transaction {}: Hash calculated - {}", index + 1, transaction_hash));
+        logs.push(format!(
+            "Transaction {}: Hash calculated - {}",
+            index + 1,
+            transaction_hash
+        ));
 
         // Create SignedTransaction from signed bytes
-        let signed_tx: SignedTransaction = borsh::from_slice(&signed_tx_bytes)
-            .map_err(|e| {
-                let error_msg = format!("Transaction {}: Failed to deserialize SignedTransaction: {}", index + 1, e);
-                logs.push(error_msg.clone());
-                error_msg
-            })?;
+        let signed_tx: SignedTransaction = borsh::from_slice(&signed_tx_bytes).map_err(|e| {
+            let error_msg = format!(
+                "Transaction {}: Failed to deserialize SignedTransaction: {}",
+                index + 1,
+                e
+            );
+            logs.push(error_msg.clone());
+            error_msg
+        })?;
 
         let signed_tx_wasm = WasmSignedTransaction::from(&signed_tx);
 
@@ -572,7 +626,10 @@ async fn sign_near_transactions_with_actions_impl(
         current_nonce = current_nonce.saturating_add(1);
     }
 
-    logs.push(format!("All {} transactions signed successfully", signed_transactions_wasm.len()));
+    logs.push(format!(
+        "All {} transactions signed successfully",
+        signed_transactions_wasm.len()
+    ));
     info!("RUST: Batch signing completed successfully");
 
     Ok(TransactionSignResult::new(

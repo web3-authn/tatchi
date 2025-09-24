@@ -1,5 +1,5 @@
-use wasm_bindgen::JsValue;
 use std::fmt;
+use wasm_bindgen::JsValue;
 
 // Parse payload error with message name context
 #[derive(Debug)]
@@ -19,7 +19,11 @@ impl ParsePayloadError {
 
 impl fmt::Display for ParsePayloadError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Invalid payload for {}: {}", self.message_name, self.serde_error)
+        write!(
+            f,
+            "Invalid payload for {}: {}",
+            self.message_name, self.serde_error
+        )
     }
 }
 

@@ -1,18 +1,15 @@
-use ed25519_dalek::{SigningKey, Signer};
-use sha2::{Sha256, Digest};
 use borsh;
+use ed25519_dalek::{Signer, SigningKey};
+use sha2::{Digest, Sha256};
 
-use crate::types::*;
-use crate::actions::{ActionParams, get_action_handler};
+use crate::actions::{get_action_handler, ActionParams};
 use crate::encoders::base64_url_decode;
 use crate::rpc_calls::{
-    VrfData,
-    ContractRegistrationResult,
+    ContractRegistrationResult, VrfData, LINK_DEVICE_REGISTER_USER_METHOD,
     VERIFY_AND_REGISTER_USER_METHOD,
-    LINK_DEVICE_REGISTER_USER_METHOD,
 };
 use crate::types::WebAuthnRegistrationCredential;
-
+use crate::types::*;
 
 /// Build a transaction with multiple actions
 pub fn build_transaction_with_actions(
@@ -24,9 +21,11 @@ pub fn build_transaction_with_actions(
     actions: Vec<Action>,
 ) -> Result<Transaction, String> {
     // Parse account IDs
-    let signer_id: AccountId = signer_account_id.parse()
+    let signer_id: AccountId = signer_account_id
+        .parse()
         .map_err(|e| format!("Invalid signer account: {}", e))?;
-    let receiver_id: AccountId = receiver_account_id.parse()
+    let receiver_id: AccountId = receiver_account_id
+        .parse()
         .map_err(|e| format!("Invalid receiver account: {}", e))?;
 
     // Parse block hash
@@ -56,14 +55,15 @@ pub fn build_transaction_with_actions(
 pub fn build_actions_from_params(action_params: Vec<ActionParams>) -> Result<Vec<Action>, String> {
     let mut actions = Vec::new();
     for (i, params) in action_params.iter().enumerate() {
+        let handler =
+            get_action_handler(params).map_err(|e| format!("Action {} handler error: {}", i, e))?;
 
-        let handler = get_action_handler(params)
-            .map_err(|e| format!("Action {} handler error: {}", i, e))?;
-
-        handler.validate_params(params)
+        handler
+            .validate_params(params)
             .map_err(|e| format!("Action {} validation failed: {}", i, e))?;
 
-        let action = handler.build_action(params)
+        let action = handler
+            .build_action(params)
             .map_err(|e| format!("Action {} build failed: {}", i, e))?;
 
         actions.push(action);
@@ -74,7 +74,10 @@ pub fn build_actions_from_params(action_params: Vec<ActionParams>) -> Result<Vec
 /// Low-level transaction signing function
 /// Takes an already-built Transaction and SigningKey, signs it, and returns serialized bytes
 /// Used internally by higher-level functions like sign_registration_tx_wasm() and sign_link_device_registration_tx()
-pub fn sign_transaction(transaction: Transaction, private_key: &SigningKey) -> Result<Vec<u8>, String> {
+pub fn sign_transaction(
+    transaction: Transaction,
+    private_key: &SigningKey,
+) -> Result<Vec<u8>, String> {
     // Get transaction hash for signing
     let (transaction_hash, _size) = transaction.get_hash_and_size();
 
@@ -100,7 +103,6 @@ pub fn calculate_transaction_hash(signed_tx_bytes: &[u8]) -> String {
     format!("{:x}", result)
 }
 
-
 /// Sign registration transaction with encrypted private key (traditional flow)
 /// Decrypts the key first using PRF, then builds and signs the transaction
 pub async fn sign_registration_tx_wasm(
@@ -117,8 +119,8 @@ pub async fn sign_registration_tx_wasm(
     device_number: Option<u8>, // Device number for multi-device support (defaults to 1)
     authenticator_options: Option<AuthenticatorOptions>, // Authenticator options for registration
 ) -> Result<ContractRegistrationResult, String> {
-    use log::info;
     use log::debug;
+    use log::info;
 
     info!("RUST: Performing dual VRF user registration (state-changing function)");
 
@@ -128,7 +130,8 @@ pub async fn sign_registration_tx_wasm(
         prf_output_base64,          // 2nd parameter: PRF output
         encrypted_private_key_data, // 3rd parameter: Encrypted data
         encrypted_private_key_iv,   // 4th parameter: IV
-    ).map_err(|e| format!("Failed to decrypt private key: {:?}", e))?;
+    )
+    .map_err(|e| format!("Failed to decrypt private key: {:?}", e))?;
 
     // Step 2: Build dual VRF data for contract arguments
     let deterministic_vrf_key_bytes = if let Some(det_vrf_key) = deterministic_vrf_public_key {
@@ -157,7 +160,10 @@ pub async fn sign_registration_tx_wasm(
         deposit: "0".to_string(),
     }];
 
-    info!("RUST: Building FunctionCall action for {}", VERIFY_AND_REGISTER_USER_METHOD);
+    info!(
+        "RUST: Building FunctionCall action for {}",
+        VERIFY_AND_REGISTER_USER_METHOD
+    );
 
     // Step 5: Build actions using existing infrastructure
     let actions = build_actions_from_params(action_params)
@@ -171,7 +177,8 @@ pub async fn sign_registration_tx_wasm(
         block_hash_bytes,
         &private_key,
         actions,
-    ).map_err(|e| format!("Failed to build transaction: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to build transaction: {}", e))?;
 
     // Step 7: Sign registration transaction using existing infrastructure
     let signed_registration_tx_bytes = sign_transaction(transaction, &private_key)
@@ -193,24 +200,28 @@ pub async fn sign_registration_tx_wasm(
     let delete_transaction = build_transaction_with_actions(
         signer_account_id,
         signer_account_id, // receiver_id same as signer for delete account
-        nonce, // SAME nonce as registration
-        block_hash_bytes, // SAME block hash as registration
-        &private_key, // SAME private key as registration
+        nonce,             // SAME nonce as registration
+        block_hash_bytes,  // SAME block hash as registration
+        &private_key,      // SAME private key as registration
         delete_actions,
-    ).map_err(|e| format!("Failed to build delete transaction: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to build delete transaction: {}", e))?;
 
     let signed_delete_tx_bytes = sign_transaction(delete_transaction, &private_key)
         .map_err(|e| format!("Failed to sign delete transaction: {}", e))?;
 
     info!("RUST: Pre-signed deleteAccount transaction created - same nonce ensures mutual exclusivity");
-    info!("RUST: Registration transaction: {} bytes, Delete transaction: {} bytes",
-                 signed_registration_tx_bytes.len(), signed_delete_tx_bytes.len());
+    info!(
+        "RUST: Registration transaction: {} bytes, Delete transaction: {} bytes",
+        signed_registration_tx_bytes.len(),
+        signed_delete_tx_bytes.len()
+    );
 
     Ok(ContractRegistrationResult {
         success: true,
         verified: true, // We assume verification will succeed since we built the transaction correctly
         error: None,
-        logs: vec![], // No logs yet since we haven't executed the transaction
+        logs: vec![],            // No logs yet since we haven't executed the transaction
         registration_info: None, // Will be available after broadcast in main thread
         signed_transaction_borsh: Some(signed_registration_tx_bytes),
         pre_signed_delete_transaction: Some(signed_delete_tx_bytes), // NEW: Add delete transaction
@@ -231,8 +242,8 @@ pub async fn sign_link_device_registration_tx(
     block_hash_bytes: &[u8],
     authenticator_options: Option<AuthenticatorOptions>, // Authenticator options for registration
 ) -> Result<ContractRegistrationResult, String> {
-    use ed25519_dalek::SigningKey;
     use bs58;
+    use ed25519_dalek::SigningKey;
 
     // Parse the private key from NEAR format (ed25519:base58_encoded_64_bytes)
     let private_key_str = if private_key.starts_with("ed25519:") {
@@ -247,11 +258,15 @@ pub async fn sign_link_device_registration_tx(
         .map_err(|e| format!("Failed to decode private key: {}", e))?;
 
     if private_key_bytes.len() != 64 {
-        return Err(format!("Invalid private key length: expected 64 bytes, got {}", private_key_bytes.len()));
+        return Err(format!(
+            "Invalid private key length: expected 64 bytes, got {}",
+            private_key_bytes.len()
+        ));
     }
 
     // Extract the 32-byte seed (first 32 bytes)
-    let seed_bytes: [u8; 32] = private_key_bytes[0..32].try_into()
+    let seed_bytes: [u8; 32] = private_key_bytes[0..32]
+        .try_into()
         .map_err(|_| "Failed to extract seed from private key".to_string())?;
 
     // Create SigningKey from seed
@@ -265,7 +280,8 @@ pub async fn sign_link_device_registration_tx(
             "webauthn_registration": webauthn_registration,
             "deterministic_vrf_public_key": deterministic_vrf_public_key,
             "authenticator_options": authenticator_options
-        }).to_string(),
+        })
+        .to_string(),
         gas: crate::config::LINK_DEVICE_REGISTRATION_GAS.to_string(),
         deposit: "0".to_string(),
     }];
@@ -282,7 +298,8 @@ pub async fn sign_link_device_registration_tx(
         block_hash_bytes,
         &signing_key,
         actions,
-    ).map_err(|e| format!("Failed to build transaction: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to build transaction: {}", e))?;
 
     let signed_tx_bytes = sign_transaction(transaction, &signing_key)
         .map_err(|e| format!("Failed to sign transaction: {}", e))?;
@@ -290,7 +307,7 @@ pub async fn sign_link_device_registration_tx(
     // Return a simplified registration result with the signed transaction
     Ok(ContractRegistrationResult {
         success: true,
-        verified: true, // Assume success for now
+        verified: true,          // Assume success for now
         registration_info: None, // Not needed for device linking
         logs: vec!["Link Device Registration transaction signed successfully".to_string()],
         signed_transaction_borsh: Some(signed_tx_bytes),
@@ -298,4 +315,3 @@ pub async fn sign_link_device_registration_tx(
         error: None,
     })
 }
-

@@ -1,7 +1,7 @@
-use std::fmt;
-use serde::{Deserialize, Serialize};
-use hkdf::InvalidLength as HkdfInvalidLength;
 use bincode::Error as BincodeError;
+use hkdf::InvalidLength as HkdfInvalidLength;
+use serde::{Deserialize, Serialize};
+use std::fmt;
 use wasm_bindgen::JsValue;
 
 /// VRF Worker Error Types
@@ -92,7 +92,10 @@ impl fmt::Display for VrfWorkerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             VrfWorkerError::NoVrfKeypair => {
-                write!(f, "No VRF keypair in memory - please generate keypair first")
+                write!(
+                    f,
+                    "No VRF keypair in memory - please generate keypair first"
+                )
             }
             VrfWorkerError::VrfNotUnlocked => {
                 write!(f, "VRF keypair not unlocked - please login first")
@@ -107,15 +110,22 @@ impl fmt::Display for VrfWorkerError {
                 write!(f, "AES-GCM operation failed: {}", err)
             }
             VrfWorkerError::InvalidIvLength { expected, actual } => {
-                write!(f, "Invalid IV length for AES-GCM: expected {} bytes, got {} bytes", expected, actual)
+                write!(
+                    f,
+                    "Invalid IV length for AES-GCM: expected {} bytes, got {} bytes",
+                    expected, actual
+                )
             }
             VrfWorkerError::SerializationError(err) => {
                 write!(f, "Serialization error: {}", err)
             }
             VrfWorkerError::PublicKeyMismatch { expected, actual } => {
-                write!(f, "VRF public key mismatch - expected: {}..., actual: {}...",
+                write!(
+                    f,
+                    "VRF public key mismatch - expected: {}..., actual: {}...",
                     &expected[..20.min(expected.len())],
-                    &actual[..20.min(actual.len())])
+                    &actual[..20.min(actual.len())]
+                )
             }
             VrfWorkerError::MessageParsingError(err) => {
                 write!(f, "Message parsing error: {}", err)
@@ -211,7 +221,10 @@ impl From<HkdfInvalidLength> for VrfWorkerError {
 
 impl From<BincodeError> for VrfWorkerError {
     fn from(err: BincodeError) -> Self {
-        VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(format!("{:?}", err)))
+        VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(format!(
+            "{:?}",
+            err
+        )))
     }
 }
 

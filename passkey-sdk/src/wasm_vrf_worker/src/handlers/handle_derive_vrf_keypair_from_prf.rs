@@ -1,18 +1,22 @@
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use std::rc::Rc;
+use log::{debug, error, info, warn};
+use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use log::{debug, info, error, warn};
-use crate::types::VrfWorkerResponse;
-use crate::manager::VRFKeyManager;
-use crate::utils::base64_url_decode;
+use std::rc::Rc;
+
+use crate::config::CHACHA20_KEY_SIZE;
 use crate::handlers::handle_shamir3pass_client::{
     perform_shamir3pass_client_encrypt_current_vrf_keypair,
-    Shamir3PassEncryptVrfKeypairResult
+    Shamir3PassEncryptVrfKeypairResult,
 };
-use crate::types::VRFInputData;
-use crate::types::VRFChallengeData;
-use crate::types::EncryptedVRFKeypair;
+use crate::manager::VRFKeyManager;
+use crate::types::{
+    EncryptedVRFKeypair,
+    VRFChallengeData,
+    VRFInputData,
+    VrfWorkerResponse,
+};
+use crate::utils::base64_url_decode;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -31,7 +35,9 @@ pub struct DeriveVrfKeypairFromPrfRequest {
     pub vrf_input_data: Option<VRFInputData>,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -66,11 +72,13 @@ pub async fn handle_derive_vrf_keypair_from_prf(
     message_id: Option<String>,
     payload: DeriveVrfKeypairFromPrfRequest,
 ) -> VrfWorkerResponse {
-
     let prf_output = match base64_url_decode(&payload.prf_output) {
         Ok(bytes) if !bytes.is_empty() => bytes,
         _ => return VrfWorkerResponse::fail(message_id, "Missing or invalid PRF output"),
     };
+    if prf_output.len() != CHACHA20_KEY_SIZE {
+        return VrfWorkerResponse::fail(message_id, "Invalid PRF output length: expected 32 bytes");
+    }
     if payload.near_account_id.is_empty() {
         return VrfWorkerResponse::fail(message_id, "Missing NEAR account ID");
     }
@@ -83,7 +91,7 @@ pub async fn handle_derive_vrf_keypair_from_prf(
             payload.vrf_input_data.clone(),
         ) {
             Ok((result, keypair)) => (result, keypair),
-                Err(e) => {
+            Err(e) => {
                 error!("VRF keypair derivation failed: {}", e);
                 return VrfWorkerResponse::fail(message_id, e.to_string());
             }
@@ -103,20 +111,23 @@ pub async fn handle_derive_vrf_keypair_from_prf(
             match perform_shamir3pass_client_encrypt_current_vrf_keypair(
                 manager.clone(),
                 relay_url,
-                apply_server_lock_route
-            ).await {
+                apply_server_lock_route,
+            )
+            .await
+            {
                 Ok(server_blob) => {
-                    derivation_result.server_encrypted_vrf_keypair = Some(Shamir3PassEncryptVrfKeypairResult {
-                        ciphertext_vrf_b64u: server_blob.ciphertext_vrf_b64u,
-                        kek_s_b64u: server_blob.kek_s_b64u,
-                        vrf_public_key: server_blob.vrf_public_key,
-                    });
-                },
+                    derivation_result.server_encrypted_vrf_keypair =
+                        Some(Shamir3PassEncryptVrfKeypairResult {
+                            ciphertext_vrf_b64u: server_blob.ciphertext_vrf_b64u,
+                            kek_s_b64u: server_blob.kek_s_b64u,
+                            vrf_public_key: server_blob.vrf_public_key,
+                        });
+                }
                 Err(e) => {
                     warn!("VRF keypair server encryption failed: {} (proceeding)", e);
                 }
             }
-        },
+        }
         _ => {
             // Optional feature; do not fail core derivation
             debug!("Shamir server config not present; skipping server_encrypted_vrf_keypair");
@@ -128,7 +139,7 @@ pub async fn handle_derive_vrf_keypair_from_prf(
         vrf_challenge_data: derivation_result.vrf_challenge_data,
         encrypted_vrf_keypair: derivation_result.encrypted_vrf_keypair,
         server_encrypted_vrf_keypair: derivation_result.server_encrypted_vrf_keypair,
-        success: derivation_result.success
+        success: derivation_result.success,
     };
 
     VrfWorkerResponse::success(message_id, Some(response_data.to_json()))

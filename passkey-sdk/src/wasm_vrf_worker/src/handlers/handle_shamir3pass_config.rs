@@ -1,10 +1,10 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::info;
-use crate::types::VrfWorkerResponse;
 use crate::manager::VRFKeyManager;
+use crate::types::VrfWorkerResponse;
+use log::info;
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -34,7 +34,6 @@ pub fn handle_shamir3pass_config_p(
     message_id: Option<String>,
     payload: Shamir3PassConfigPRequest,
 ) -> VrfWorkerResponse {
-
     if payload.p_b64u.is_empty() {
         return VrfWorkerResponse::fail(message_id, "Missing p_b64u");
     }
@@ -43,8 +42,11 @@ pub fn handle_shamir3pass_config_p(
     match crate::shamir3pass::Shamir3Pass::new(&payload.p_b64u) {
         Ok(sp) => {
             mgr.shamir3pass = sp;
-            VrfWorkerResponse::success(message_id, Some(serde_json::json!({ "status": "ok", "p_b64u": payload.p_b64u })))
-        },
+            VrfWorkerResponse::success(
+                message_id,
+                Some(serde_json::json!({ "status": "ok", "p_b64u": payload.p_b64u })),
+            )
+        }
         Err(e) => VrfWorkerResponse::fail(message_id, format!("invalid p_b64u: {:?}", e)),
     }
 }
@@ -54,8 +56,10 @@ pub fn handle_shamir3pass_config_server_urls(
     message_id: Option<String>,
     payload: Shamir3PassConfigServerUrlsRequest,
 ) -> VrfWorkerResponse {
-    info!("Configuring Shamir server URLs: relay_url={}, apply_route={}, remove_route={}",
-          payload.relay_server_url, payload.apply_lock_route, payload.remove_lock_route);
+    info!(
+        "Configuring Shamir server URLs: relay_url={}, apply_route={}, remove_route={}",
+        payload.relay_server_url, payload.apply_lock_route, payload.remove_lock_route
+    );
 
     if payload.relay_server_url.is_empty() {
         return VrfWorkerResponse::fail(message_id, "Missing relay_server_url");
@@ -72,8 +76,5 @@ pub fn handle_shamir3pass_config_server_urls(
     mgr.apply_lock_route = Some(payload.apply_lock_route);
     mgr.remove_lock_route = Some(payload.remove_lock_route);
 
-    VrfWorkerResponse::success(
-        message_id,
-        Some(serde_json::json!({ "status": "ok" }))
-    )
+    VrfWorkerResponse::success(message_id, Some(serde_json::json!({ "status": "ok" })))
 }

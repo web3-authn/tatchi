@@ -15,10 +15,22 @@ fn create_mock_attestation_object() -> Vec<u8> {
     // Create mock COSE key
     let mut cose_key_vec = Vec::new();
     cose_key_vec.push((CborValue::Integer(1.into()), CborValue::Integer(2.into()))); // kty: 2 (EC2)
-    cose_key_vec.push((CborValue::Integer(3.into()), CborValue::Integer((-7).into()))); // alg: -7 (ES256)
-    cose_key_vec.push((CborValue::Integer((-1).into()), CborValue::Integer(1.into()))); // crv: 1 (P-256)
-    cose_key_vec.push((CborValue::Integer((-2).into()), CborValue::Bytes(vec![0x42u8; 32]))); // x
-    cose_key_vec.push((CborValue::Integer((-3).into()), CborValue::Bytes(vec![0x84u8; 32]))); // y
+    cose_key_vec.push((
+        CborValue::Integer(3.into()),
+        CborValue::Integer((-7).into()),
+    )); // alg: -7 (ES256)
+    cose_key_vec.push((
+        CborValue::Integer((-1).into()),
+        CborValue::Integer(1.into()),
+    )); // crv: 1 (P-256)
+    cose_key_vec.push((
+        CborValue::Integer((-2).into()),
+        CborValue::Bytes(vec![0x42u8; 32]),
+    )); // x
+    cose_key_vec.push((
+        CborValue::Integer((-3).into()),
+        CborValue::Bytes(vec![0x84u8; 32]),
+    )); // y
 
     let cose_key = CborValue::Map(cose_key_vec);
     let mut cose_key_bytes = Vec::new();
@@ -36,9 +48,18 @@ fn create_mock_attestation_object() -> Vec<u8> {
 
     // Create attestation object
     let mut cbor_vec = Vec::new();
-    cbor_vec.push((CborValue::Text("fmt".to_string()), CborValue::Text("none".to_string())));
-    cbor_vec.push((CborValue::Text("attStmt".to_string()), CborValue::Map(Vec::new())));
-    cbor_vec.push((CborValue::Text("authData".to_string()), CborValue::Bytes(auth_data)));
+    cbor_vec.push((
+        CborValue::Text("fmt".to_string()),
+        CborValue::Text("none".to_string()),
+    ));
+    cbor_vec.push((
+        CborValue::Text("attStmt".to_string()),
+        CborValue::Map(Vec::new()),
+    ));
+    cbor_vec.push((
+        CborValue::Text("authData".to_string()),
+        CborValue::Bytes(auth_data),
+    ));
 
     let cbor_attestation = CborValue::Map(cbor_vec);
     let mut buffer = Vec::new();
@@ -70,8 +91,14 @@ fn test_parse_attestation_object_invalid_cbor() {
 fn test_parse_attestation_object_missing_auth_data() {
     // Create attestation object without authData
     let mut cbor_vec = Vec::new();
-    cbor_vec.push((CborValue::Text("fmt".to_string()), CborValue::Text("none".to_string())));
-    cbor_vec.push((CborValue::Text("attStmt".to_string()), CborValue::Map(Vec::new())));
+    cbor_vec.push((
+        CborValue::Text("fmt".to_string()),
+        CborValue::Text("none".to_string()),
+    ));
+    cbor_vec.push((
+        CborValue::Text("attStmt".to_string()),
+        CborValue::Map(Vec::new()),
+    ));
     // Missing authData
 
     let cbor_attestation = CborValue::Map(cbor_vec);
@@ -112,7 +139,9 @@ fn test_parse_authenticator_data_no_attested_credential() {
 
     let result = parse_authenticator_data(&auth_data);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("No attested credential data present"));
+    assert!(result
+        .unwrap_err()
+        .contains("No attested credential data present"));
 }
 
 #[test]
@@ -121,7 +150,8 @@ fn test_extract_cose_public_key_from_attestation() {
     let attestation_object_bytes = create_mock_attestation_object();
     let attestation_object_b64u = Base64UrlUnpadded::encode_string(&attestation_object_bytes);
 
-    let cose_key_bytes = extract_cose_public_key_from_attestation(&attestation_object_b64u).unwrap();
+    let cose_key_bytes =
+        extract_cose_public_key_from_attestation(&attestation_object_b64u).unwrap();
 
     // Verify it's a valid COSE key by parsing the CBOR structure
     let cbor_value: CborValue = ciborium::from_reader(cose_key_bytes.as_slice()).unwrap();
@@ -133,8 +163,8 @@ fn test_extract_cose_public_key_from_attestation() {
             if let CborValue::Integer(key_int) = key {
                 let key_val: i128 = (*key_int).into();
                 match key_val {
-                    1 => has_kty = true,  // kty
-                    3 => has_alg = true,  // alg
+                    1 => has_kty = true, // kty
+                    3 => has_alg = true, // alg
                     _ => {}
                 }
             }
@@ -151,5 +181,7 @@ fn test_extract_cose_public_key_invalid_base64() {
     let invalid_b64 = "Invalid@Base64!";
     let result = extract_cose_public_key_from_attestation(invalid_b64);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("Failed to decode attestation object"));
+    assert!(result
+        .unwrap_err()
+        .contains("Failed to decode attestation object"));
 }

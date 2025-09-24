@@ -4,23 +4,19 @@
 // *                                                                            *
 // ******************************************************************************
 
-use wasm_bindgen::prelude::*;
-use log::info;
-use serde::{Serialize, Deserialize};
-use serde_json;
 use bs58;
+use log::info;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use wasm_bindgen::prelude::*;
 
 use crate::encoders::base64_url_decode;
 use crate::rpc_calls::VrfData;
-use crate::types::{
-    VrfChallenge,
-    SerializedRegistrationCredential,
-    AuthenticatorOptions,
-    WebAuthnRegistrationCredential,
-    WebAuthnRegistrationResponse,
-};
 use crate::types::wasm_to_json::WasmSignedTransaction;
-
+use crate::types::{
+    AuthenticatorOptions, SerializedRegistrationCredential, VrfChallenge,
+    WebAuthnRegistrationCredential, WebAuthnRegistrationResponse,
+};
 
 #[wasm_bindgen]
 #[derive(Deserialize, Debug, Clone)]
@@ -90,7 +86,7 @@ impl DeriveNearKeypairAndEncryptResult {
         encrypted_data: String,
         iv: String,
         stored: bool,
-        signed_transaction: Option<WasmSignedTransaction>
+        signed_transaction: Option<WasmSignedTransaction>,
     ) -> DeriveNearKeypairAndEncryptResult {
         DeriveNearKeypairAndEncryptResult {
             near_account_id,
@@ -115,9 +111,8 @@ impl DeriveNearKeypairAndEncryptResult {
 /// # Returns
 /// * `DeriveNearKeypairResult` - Contains derived public key, encrypted private key data, and optional signed transaction
 pub async fn handle_derive_near_keypair_and_encrypt(
-    request: DeriveNearKeypairAndEncryptRequest
+    request: DeriveNearKeypairAndEncryptRequest,
 ) -> Result<DeriveNearKeypairAndEncryptResult, String> {
-
     info!("RUST: WASM binding - starting structured dual PRF keypair derivation with optional transaction signing");
     // Convert wasm-bindgen types to internal types
     let internal_dual_prf_outputs = crate::types::DualPrfOutputs {
@@ -128,20 +123,24 @@ pub async fn handle_derive_near_keypair_and_encrypt(
     // Call the dual PRF derivation function (same as JSON version)
     let (public_key, encrypted_result) = crate::crypto::derive_and_encrypt_keypair_from_dual_prf(
         &internal_dual_prf_outputs,
-        &request.near_account_id
-    ).map_err(|e| format!("Failed to derive and encrypt keypair: {}", e))?;
+        &request.near_account_id,
+    )
+    .map_err(|e| format!("Failed to derive and encrypt keypair: {}", e))?;
 
     // Handle optional transaction signing if registration transaction is provided
     let signed_transaction_wasm = if let Some(registration_tx) = &request.registration_transaction {
-
         // Re-derive the private key from the same PRF output for signing (before it's encrypted)
-        let (near_private_key, _near_public_key) = crate::crypto::derive_ed25519_key_from_prf_output(
-            &internal_dual_prf_outputs.ed25519_prf_output_base64,
-            &request.near_account_id
-        ).map_err(|e| format!("Failed to re-derive keypair for signing: {}", e))?;
+        let (near_private_key, _near_public_key) =
+            crate::crypto::derive_ed25519_key_from_prf_output(
+                &internal_dual_prf_outputs.ed25519_prf_output_base64,
+                &request.near_account_id,
+            )
+            .map_err(|e| format!("Failed to re-derive keypair for signing: {}", e))?;
 
         // Parse nonce
-        let parsed_nonce = registration_tx.nonce.parse::<u64>()
+        let parsed_nonce = registration_tx
+            .nonce
+            .parse::<u64>()
             .map_err(|e| format!("Invalid nonce format: {}", e))?;
 
         // Use VrfChallenge directly instead of converting
@@ -166,8 +165,9 @@ pub async fn handle_derive_near_keypair_and_encrypt(
 
         // Sign the link_device_register_user transaction
         // Decode base64url deterministic VRF public key to Vec<u8>
-        let deterministic_vrf_public_key = base64_url_decode(&registration_tx.deterministic_vrf_public_key)
-            .map_err(|e| format!("Failed to decode deterministic VRF public key: {}", e))?;
+        let deterministic_vrf_public_key =
+            base64_url_decode(&registration_tx.deterministic_vrf_public_key)
+                .map_err(|e| format!("Failed to decode deterministic VRF public key: {}", e))?;
 
         match crate::transaction::sign_link_device_registration_tx(
             &registration_tx.contract_id,
@@ -177,20 +177,26 @@ pub async fn handle_derive_near_keypair_and_encrypt(
             &request.near_account_id,
             &near_private_key, // Use the properly derived NEAR private key
             parsed_nonce,
-            &bs58::decode(&registration_tx.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
+            &bs58::decode(&registration_tx.block_hash)
+                .into_vec()
+                .map_err(|e| format!("Invalid block hash: {}", e))?,
             request.authenticator_options, // Pass authenticator options
-        ).await {
+        )
+        .await
+        {
             Ok(registration_result) => {
                 let signed_tx_result = registration_result.unwrap_signed_transaction();
                 // Convert the result to SignedTransaction
                 match signed_tx_result {
                     Some(json_value) => {
                         // Parse the JSON value back to SignedTransaction
-                        let signed_tx: crate::types::SignedTransaction = serde_json::from_value(json_value)
-                            .map_err(|e| format!("Failed to parse signed transaction: {}", e))?;
+                        let signed_tx: crate::types::SignedTransaction =
+                            serde_json::from_value(json_value).map_err(|e| {
+                                format!("Failed to parse signed transaction: {}", e)
+                            })?;
                         Some(WasmSignedTransaction::from(&signed_tx))
                     }
-                    None => None
+                    None => None,
                 }
             }
             Err(e) => {

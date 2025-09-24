@@ -59,7 +59,12 @@ mod tests {
 
             let inv = shamir.modinv(&a).expect("Inverse should exist");
             let product = (&a * &inv) % &shamir.p_minus_1;
-            assert_eq!(product, BigUint::one(), "a * a^-1 ≡ 1 (mod p-1) failed for a={}", i);
+            assert_eq!(
+                product,
+                BigUint::one(),
+                "a * a^-1 ≡ 1 (mod p-1) failed for a={}",
+                i
+            );
         }
     }
 
@@ -99,8 +104,16 @@ mod tests {
         assert!(!values.is_empty(), "No random k values generated");
 
         // Check that we have unique values (some overlap is expected but not too much)
-        let unique_count = values.iter().collect::<std::collections::HashSet<_>>().len();
-        assert!(unique_count > values.len() / 2, "Too many duplicate values: {} out of {}", unique_count, values.len());
+        let unique_count = values
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len();
+        assert!(
+            unique_count > values.len() / 2,
+            "Too many duplicate values: {} out of {}",
+            unique_count,
+            values.len()
+        );
 
         // Check that all values are within expected range
         for k in &values {

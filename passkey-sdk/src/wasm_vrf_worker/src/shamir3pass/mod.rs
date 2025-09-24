@@ -19,28 +19,26 @@
 //! 4. Client decrypts VRF key with KEK
 
 #[cfg(test)]
-mod tests_unit;
-#[cfg(test)]
 mod tests_integration;
+#[cfg(test)]
+mod tests_unit;
 
-use wasm_bindgen::prelude::*;
-use num_bigint::{BigUint, BigInt, Sign};
-use num_traits::{One, Zero};
-use num_integer::Integer;
-use sha2::Sha256;
-use hkdf::Hkdf;
-use chacha20poly1305::{
-    ChaCha20Poly1305, KeyInit,
-    aead::{Aead, Key, OsRng, generic_array::GenericArray}
-};
-use rand_core::RngCore;
-use base64ct::{Base64UrlUnpadded, Encoding};
 use crate::config::{
-    SHAMIR_MIN_PRIME_BITS,
+    DEFAULT_SHAMIR_P_B64U, SHAMIR_MIN_PRIME_BITS, SHAMIR_RANDOM_BYTES_OVERHEAD,
     SHAMIR_REJECTION_SAMPLING_MAX_ATTEMPTS,
-    SHAMIR_RANDOM_BYTES_OVERHEAD,
-    DEFAULT_SHAMIR_P_B64U
 };
+use base64ct::{Base64UrlUnpadded, Encoding};
+use chacha20poly1305::{
+    aead::{generic_array::GenericArray, Aead, Key, OsRng},
+    ChaCha20Poly1305, KeyInit,
+};
+use hkdf::Hkdf;
+use num_bigint::{BigInt, BigUint, Sign};
+use num_integer::Integer;
+use num_traits::{One, Zero};
+use rand_core::RngCore;
+use sha2::Sha256;
+use wasm_bindgen::prelude::*;
 
 // Error types for better error handling
 #[derive(Debug)]
@@ -79,16 +77,16 @@ pub struct Shamir3Pass {
 impl Shamir3Pass {
     /// Create a new instance with the given prime p
     pub fn new(p_b64u: &str) -> Result<Self, Shamir3PassError> {
-        let p = decode_biguint_b64u(p_b64u)
-            .map_err(|_| Shamir3PassError::InvalidPrime("Invalid base64url encoding".to_string()))?;
+        let p = decode_biguint_b64u(p_b64u).map_err(|_| {
+            Shamir3PassError::InvalidPrime("Invalid base64url encoding".to_string())
+        })?;
 
         Self::new_with_biguint(p)
     }
 
     /// Create instance with default hardcoded prime
     pub fn new_default() -> Self {
-        let p = decode_biguint_b64u(DEFAULT_SHAMIR_P_B64U)
-            .expect("Invalid default prime");
+        let p = decode_biguint_b64u(DEFAULT_SHAMIR_P_B64U).expect("Invalid default prime");
         Self::new_with_biguint_unchecked(p)
     }
 
@@ -99,7 +97,7 @@ impl Shamir3Pass {
         if bits < SHAMIR_MIN_PRIME_BITS as u64 {
             return Err(Shamir3PassError::PrimeTooSmall {
                 bits: bits as usize,
-                min_bits: SHAMIR_MIN_PRIME_BITS
+                min_bits: SHAMIR_MIN_PRIME_BITS,
             });
         }
 
@@ -194,7 +192,8 @@ impl Shamir3Pass {
     /// Generate client lock keys (e, d) where e*d ≡ 1 (mod p-1)
     pub fn generate_lock_keys(&self) -> Result<ClientLockKeys, Shamir3PassError> {
         let e = self.random_k()?;
-        let d = self.modinv(&e)
+        let d = self
+            .modinv(&e)
             .ok_or(Shamir3PassError::ModularInverseNotFound)?;
 
         Ok(ClientLockKeys { e, d })
@@ -202,14 +201,21 @@ impl Shamir3Pass {
 
     /// Encrypt data with a fresh random KEK key
     /// Returns (ciphertext, kek_key)
-    pub fn encrypt_with_random_kek_key(&self, plaintext: &[u8]) -> Result<(Vec<u8>, BigUint), Shamir3PassError> {
+    pub fn encrypt_with_random_kek_key(
+        &self,
+        plaintext: &[u8],
+    ) -> Result<(Vec<u8>, BigUint), Shamir3PassError> {
         let kek = self.random_k()?;
         let ciphertext = self.encrypt_with_kek(&kek, plaintext)?;
         Ok((ciphertext, kek))
     }
 
     /// Decrypt data with provided KEK key
-    pub fn decrypt_with_key(&self, ciphertext: &[u8], kek: &BigUint) -> Result<Vec<u8>, Shamir3PassError> {
+    pub fn decrypt_with_key(
+        &self,
+        ciphertext: &[u8],
+        kek: &BigUint,
+    ) -> Result<Vec<u8>, Shamir3PassError> {
         self.decrypt_with_kek(kek, ciphertext)
     }
 
@@ -235,7 +241,11 @@ impl Shamir3Pass {
     }
 
     /// Encrypt data using KEK-derived AEAD key
-    fn encrypt_with_kek(&self, kek: &BigUint, plaintext: &[u8]) -> Result<Vec<u8>, Shamir3PassError> {
+    fn encrypt_with_kek(
+        &self,
+        kek: &BigUint,
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, Shamir3PassError> {
         let kek_bytes = kek.to_bytes_be();
         let key_bytes = self.derive_aead_key(&kek_bytes)?;
 
@@ -245,7 +255,8 @@ impl Shamir3Pass {
         OsRng.fill_bytes(&mut nonce);
         let nonce_ga = GenericArray::from_slice(&nonce);
 
-        let ciphertext = cipher.encrypt(nonce_ga, plaintext)
+        let ciphertext = cipher
+            .encrypt(nonce_ga, plaintext)
             .map_err(|e| Shamir3PassError::EncryptionFailed(e.to_string()))?;
 
         // Prepend nonce to ciphertext
@@ -255,9 +266,15 @@ impl Shamir3Pass {
     }
 
     /// Decrypt data using KEK-derived AEAD key
-    fn decrypt_with_kek(&self, kek: &BigUint, ciphertext: &[u8]) -> Result<Vec<u8>, Shamir3PassError> {
+    fn decrypt_with_kek(
+        &self,
+        kek: &BigUint,
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, Shamir3PassError> {
         if ciphertext.len() < 12 {
-            return Err(Shamir3PassError::DecryptionFailed("Ciphertext too short".to_string()));
+            return Err(Shamir3PassError::DecryptionFailed(
+                "Ciphertext too short".to_string(),
+            ));
         }
 
         let (nonce_bytes, ct) = ciphertext.split_at(12);
@@ -268,7 +285,8 @@ impl Shamir3Pass {
         let cipher = ChaCha20Poly1305::new(Key::<ChaCha20Poly1305>::from_slice(&key_bytes));
         let nonce_ga = GenericArray::from_slice(nonce_bytes);
 
-        cipher.decrypt(nonce_ga, ct)
+        cipher
+            .decrypt(nonce_ga, ct)
             .map_err(|e| Shamir3PassError::DecryptionFailed(e.to_string()))
     }
 }
@@ -295,8 +313,8 @@ pub fn encode_biguint_b64u(x: &BigUint) -> String {
 
 /// Decode BigUint from base64url
 pub fn decode_biguint_b64u(s: &str) -> Result<BigUint, JsValue> {
-    let bytes = Base64UrlUnpadded::decode_vec(s)
-        .map_err(|_| JsValue::from_str("Invalid base64url"))?;
+    let bytes =
+        Base64UrlUnpadded::decode_vec(s).map_err(|_| JsValue::from_str("Invalid base64url"))?;
     Ok(BigUint::from_bytes_be(&bytes))
 }
 

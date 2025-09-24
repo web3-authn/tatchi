@@ -1,7 +1,7 @@
 // === CRYPTOGRAPHIC TYPES ===
 // Dual PRF, encryption, and key derivation types
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 /// Dual PRF outputs for separate encryption and signing key derivation
 #[derive(Serialize, Deserialize, Debug, Clone)]

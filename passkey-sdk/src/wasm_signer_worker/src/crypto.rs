@@ -1,25 +1,19 @@
-use chacha20poly1305::{ChaCha20Poly1305, Nonce};
+use bs58;
 use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use getrandom::getrandom;
 use hkdf::Hkdf;
-use bs58;
+use log::{debug, info};
 use sha2::Sha256;
-use log::{info, debug};
 
+use crate::config::{
+    chacha_salt_for_account, near_key_salt_for_account, CHACHA20_ENCRYPTION_INFO,
+    CHACHA20_KEY_SIZE, CHACHA20_NONCE_SIZE, ED25519_HKDF_KEY_INFO, ED25519_PRIVATE_KEY_SIZE,
+    ERROR_EMPTY_PRF_OUTPUT, ERROR_INVALID_KEY_SIZE,
+};
 use crate::encoders::{base64_url_decode, base64_url_encode};
 use crate::error::KdfError;
 use crate::types::EncryptedDataChaCha20Response;
-use crate::config::{
-    chacha_salt_for_account,
-    near_key_salt_for_account,
-    CHACHA20_NONCE_SIZE,
-    CHACHA20_KEY_SIZE,
-    CHACHA20_ENCRYPTION_INFO,
-    ED25519_PRIVATE_KEY_SIZE,
-    ED25519_HKDF_KEY_INFO,
-    ERROR_EMPTY_PRF_OUTPUT,
-    ERROR_INVALID_KEY_SIZE,
-};
 
 // === UTILITY FUNCTIONS ===
 
@@ -51,14 +45,21 @@ pub(crate) fn derive_chacha20_key_from_prf(
     hk.expand(info, &mut chacha20_key)
         .map_err(|_| KdfError::HkdfError)?;
 
-    info!("Successfully derived account-specific ChaCha20 key ({} bytes) for {}", chacha20_key.len(), near_account_id);
+    info!(
+        "Successfully derived account-specific ChaCha20 key ({} bytes) for {}",
+        chacha20_key.len(),
+        near_account_id
+    );
     Ok(chacha20_key)
 }
 
 // === CHACHA20POLY1305 ENCRYPTION/DECRYPTION ===
 
 /// Encrypt data using ChaCha20Poly1305
-pub(crate) fn encrypt_data_chacha20(plain_text_data_str: &str, key_bytes: &[u8]) -> Result<EncryptedDataChaCha20Response, String> {
+pub(crate) fn encrypt_data_chacha20(
+    plain_text_data_str: &str,
+    key_bytes: &[u8],
+) -> Result<EncryptedDataChaCha20Response, String> {
     if key_bytes.len() != CHACHA20_KEY_SIZE {
         return Err(ERROR_INVALID_KEY_SIZE.to_string());
     }
@@ -67,11 +68,11 @@ pub(crate) fn encrypt_data_chacha20(plain_text_data_str: &str, key_bytes: &[u8])
     let cipher = ChaCha20Poly1305::new(key);
 
     let mut nonce_bytes = [0u8; 12];
-    getrandom(&mut nonce_bytes)
-        .map_err(|e| format!("Failed to generate nonce: {}", e))?;
+    getrandom(&mut nonce_bytes).map_err(|e| format!("Failed to generate nonce: {}", e))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
 
-    let ciphertext = cipher.encrypt(nonce, plain_text_data_str.as_bytes())
+    let ciphertext = cipher
+        .encrypt(nonce, plain_text_data_str.as_bytes())
         .map_err(|e| format!("Encryption error: {}", e))?;
 
     Ok(EncryptedDataChaCha20Response {
@@ -96,18 +97,21 @@ pub(crate) fn decrypt_data_chacha20(
     let nonce_bytes = base64_url_decode(chacha20_nonce_b64u)
         .map_err(|e| format!("Base64 decode error for ChaCha20 nonce: {}", e))?;
     if nonce_bytes.len() != CHACHA20_NONCE_SIZE {
-        return Err(format!("Decryption ChaCha20 nonce must be {} bytes.", CHACHA20_NONCE_SIZE));
+        return Err(format!(
+            "Decryption ChaCha20 nonce must be {} bytes.",
+            CHACHA20_NONCE_SIZE
+        ));
     }
     let nonce = Nonce::from_slice(&nonce_bytes);
 
     let encrypted_data = base64_url_decode(encrypted_data_b64u)
         .map_err(|e| format!("Base64 decode error for encrypted data: {}", e))?;
 
-    let decrypted_bytes = cipher.decrypt(nonce, encrypted_data.as_slice())
+    let decrypted_bytes = cipher
+        .decrypt(nonce, encrypted_data.as_slice())
         .map_err(|e| format!("Decryption error: {}", e))?;
 
-    String::from_utf8(decrypted_bytes)
-        .map_err(|e| format!("UTF-8 decoding error: {}", e))
+    String::from_utf8(decrypted_bytes).map_err(|e| format!("UTF-8 decoding error: {}", e))
 }
 
 // === KEY GENERATION ===
@@ -158,7 +162,10 @@ pub(crate) fn derive_ed25519_key_from_prf_output(
     let near_private_key = format!("ed25519:{}", private_key_b58);
     let near_public_key = format!("ed25519:{}", public_key_b58);
 
-    info!("Successfully derived Ed25519 key for account: {}", account_id);
+    info!(
+        "Successfully derived Ed25519 key for account: {}",
+        account_id
+    );
     Ok((near_private_key, near_public_key))
 }
 
@@ -172,13 +179,14 @@ pub(crate) fn derive_and_encrypt_keypair_from_dual_prf(
 
     // 1. Derive account-specific ChaCha20 key from first PRF output (prf.results.first)
     // Use same account-specific method as decryption for consistency
-    let chacha20_key = derive_chacha20_key_from_prf(&dual_prf_outputs.chacha20_prf_output_base64, account_id)?;
+    let chacha20_key =
+        derive_chacha20_key_from_prf(&dual_prf_outputs.chacha20_prf_output_base64, account_id)?;
     info!("Derived account-specific ChaCha20 key from first PRF output");
 
     // 2. Derive Ed25519 key from second PRF output (prf.results.second)
     let (near_private_key, near_public_key) = derive_ed25519_key_from_prf_output(
         &dual_prf_outputs.ed25519_prf_output_base64,
-        account_id
+        account_id,
     )?;
     info!("Derived Ed25519 key from second PRF output");
 
@@ -232,7 +240,10 @@ pub fn decrypt_private_key_with_prf(
         debug!("Using 64-byte private key format (seed + public key)");
         private_key_bytes[0..32].to_vec()
     } else {
-        return Err(format!("Invalid private key length: {} (expected 32 or 64)", private_key_bytes.len()));
+        return Err(format!(
+            "Invalid private key length: {} (expected 32 or 64)",
+            private_key_bytes.len()
+        ));
     };
 
     // 6. Create SigningKey from the 32-byte seed
@@ -251,7 +262,10 @@ pub fn encrypt_private_key_with_prf(
     prf_output_base64: &str,
     near_account_id: &str,
 ) -> Result<EncryptedDataChaCha20Response, String> {
-    info!("Encrypting private key with PRF output for account: {}", near_account_id);
+    info!(
+        "Encrypting private key with PRF output for account: {}",
+        near_account_id
+    );
 
     // Derive ChaCha20 key from PRF output using account-specific HKDF
     let chacha20_key_bytes = derive_chacha20_key_from_prf(prf_output_base64, near_account_id)
@@ -264,6 +278,3 @@ pub fn encrypt_private_key_with_prf(
     info!("Private key encrypted successfully");
     Ok(encrypted_result)
 }
-
-
-

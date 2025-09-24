@@ -10,14 +10,18 @@ fn test_add_key_action_handler() {
         access_key: serde_json::json!({
             "nonce": 0,
             "permission": {"FullAccess": {}}
-        }).to_string(),
+        })
+        .to_string(),
     };
 
     assert!(handler.validate_params(&valid_params).is_ok());
 
     let action = handler.build_action(&valid_params).unwrap();
     match action {
-        Action::AddKey { public_key, access_key: _ } => {
+        Action::AddKey {
+            public_key,
+            access_key: _,
+        } => {
             // Verify the action was built correctly
             // Just verify the action built successfully - string comparison is complex for PublicKey
             assert_eq!(public_key.key_type, 0); // ED25519
@@ -45,7 +49,8 @@ fn test_add_key_function_call_permission() {
                     "method_names": ["method1", "method2"]
                 }
             }
-        }).to_string(),
+        })
+        .to_string(),
     };
 
     assert!(handler.validate_params(&function_call_params).is_ok());
@@ -55,7 +60,7 @@ fn test_add_key_function_call_permission() {
         Action::AddKey { access_key, .. } => {
             // Verify it's a FunctionCall permission
             match access_key.permission {
-                crate::types::AccessKeyPermission::FunctionCall(_) => {},
+                crate::types::AccessKeyPermission::FunctionCall(_) => {}
                 _ => panic!("Expected FunctionCall permission"),
             }
         }
@@ -157,7 +162,9 @@ fn test_delete_account_validation_errors() {
 #[test]
 fn test_get_action_handler_new_types() {
     // Test all action types can get handlers
-    let transfer_params = ActionParams::Transfer { deposit: "1000000000000000000000000".to_string() };
+    let transfer_params = ActionParams::Transfer {
+        deposit: "1000000000000000000000000".to_string(),
+    };
     let handler = get_action_handler(&transfer_params);
     assert!(handler.is_ok());
 
@@ -166,7 +173,8 @@ fn test_get_action_handler_new_types() {
         access_key: serde_json::json!({
             "nonce": 0,
             "permission": {"FullAccess": {}}
-        }).to_string(),
+        })
+        .to_string(),
     };
     let handler = get_action_handler(&add_key_params);
     assert!(handler.is_ok());
@@ -223,10 +231,20 @@ fn test_transfer_yocto_near_amounts() {
         };
 
         let result = handler.validate_params(&params);
-        assert!(result.is_ok(), "Failed to validate {}: {:?}", description, result.err());
+        assert!(
+            result.is_ok(),
+            "Failed to validate {}: {:?}",
+            description,
+            result.err()
+        );
 
         let action = handler.build_action(&params);
-        assert!(action.is_ok(), "Failed to build action for {}: {:?}", description, action.err());
+        assert!(
+            action.is_ok(),
+            "Failed to build action for {}: {:?}",
+            description,
+            action.err()
+        );
     }
 }
 
@@ -249,15 +267,18 @@ fn test_transfer_decimal_near_amounts_fail() {
         };
 
         let result = handler.validate_params(&params);
-        assert!(result.is_err(),
+        assert!(
+            result.is_err(),
             "Expected {} to fail validation, but it passed. This demonstrates the parsing issue!",
             description
         );
 
         // The error should be about invalid deposit amount
         let error = result.err().unwrap();
-        assert!(error.contains("Invalid deposit amount"),
-            "Error should mention invalid deposit amount, got: {}", error
+        assert!(
+            error.contains("Invalid deposit amount"),
+            "Error should mention invalid deposit amount, got: {}",
+            error
         );
     }
 }
@@ -281,7 +302,8 @@ fn test_transfer_invalid_formats_fail() {
         };
 
         let result = handler.validate_params(&params);
-        assert!(result.is_err(),
+        assert!(
+            result.is_err(),
             "Expected {} to fail validation, but it passed",
             description
         );
@@ -306,7 +328,9 @@ fn test_amount_parsing_threshold_demonstration() {
     ];
 
     for amount in working_amounts {
-        let params = ActionParams::Transfer { deposit: amount.to_string() };
+        let params = ActionParams::Transfer {
+            deposit: amount.to_string(),
+        };
         let result = handler.validate_params(&params);
         println!("✓ {} yoctoNEAR: PASSES", amount);
         assert!(result.is_ok(), "Expected {} to pass", amount);
@@ -314,13 +338,15 @@ fn test_amount_parsing_threshold_demonstration() {
 
     // These fail (decimal NEAR strings)
     let failing_amounts = vec![
-        "1.0",        // 1 NEAR as decimal
-        "0.001",      // 0.001 NEAR as decimal
-        "0.0000001",  // 0.0000001 NEAR as decimal
+        "1.0",       // 1 NEAR as decimal
+        "0.001",     // 0.001 NEAR as decimal
+        "0.0000001", // 0.0000001 NEAR as decimal
     ];
 
     for amount in failing_amounts {
-        let params = ActionParams::Transfer { deposit: amount.to_string() };
+        let params = ActionParams::Transfer {
+            deposit: amount.to_string(),
+        };
         let result = handler.validate_params(&params);
         println!("✗ {} NEAR: FAILS (cannot parse as u128)", amount);
         assert!(result.is_err(), "Expected {} to fail", amount);

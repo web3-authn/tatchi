@@ -1,14 +1,13 @@
-
 pub mod confirm_tx_details;
 pub mod handle_check_can_register_user;
 pub mod handle_decrypt_private_key_with_prf;
 pub mod handle_derive_near_keypair_and_encrypt;
 pub mod handle_extract_cose_public_key;
 pub mod handle_recover_keypair_from_passkey;
+pub mod handle_request_registration_credential_confirmation;
 pub mod handle_sign_nep413_message;
 pub mod handle_sign_transaction_with_keypair;
 pub mod handle_sign_transactions_with_actions;
-pub mod handle_request_registration_credential_confirmation;
 
 // Handler functions
 pub use handle_check_can_register_user::handle_check_can_register_user;
@@ -17,59 +16,35 @@ pub use handle_decrypt_private_key_with_prf::handle_export_near_keypair_ui;
 pub use handle_derive_near_keypair_and_encrypt::handle_derive_near_keypair_and_encrypt;
 pub use handle_extract_cose_public_key::handle_extract_cose_public_key;
 pub use handle_recover_keypair_from_passkey::handle_recover_keypair_from_passkey;
+pub use handle_request_registration_credential_confirmation::handle_request_registration_credential_confirmation;
 pub use handle_sign_nep413_message::handle_sign_nep413_message;
 pub use handle_sign_transaction_with_keypair::handle_sign_transaction_with_keypair;
 pub use handle_sign_transactions_with_actions::handle_sign_transactions_with_actions;
-pub use handle_request_registration_credential_confirmation::handle_request_registration_credential_confirmation;
 
 // Request/Result types
 pub use handle_check_can_register_user::{
-    CheckCanRegisterUserRequest,
-    RegistrationCheckRequest,
-    RegistrationCheckResult,
+    CheckCanRegisterUserRequest, RegistrationCheckRequest, RegistrationCheckResult,
     RegistrationInfoStruct,
 };
-pub use handle_extract_cose_public_key::{
-    ExtractCoseRequest,
-    CoseExtractionResult
+pub use handle_decrypt_private_key_with_prf::{
+    ExportNearKeypairUiRequest, ExportNearKeypairUiResult,
 };
-pub use handle_recover_keypair_from_passkey::{
-    RecoverKeypairRequest,
-    RecoverKeypairResult
+pub use handle_extract_cose_public_key::{CoseExtractionResult, ExtractCoseRequest};
+pub use handle_recover_keypair_from_passkey::{RecoverKeypairRequest, RecoverKeypairResult};
+pub use handle_request_registration_credential_confirmation::{
+    RegistrationCredentialConfirmationRequest, RegistrationCredentialConfirmationResult,
 };
-pub use handle_sign_nep413_message::{
-    SignNep413Request,
-    SignNep413Result
-};
+pub use handle_sign_nep413_message::{SignNep413Request, SignNep413Result};
 pub use handle_sign_transaction_with_keypair::SignTransactionWithKeyPairRequest;
 pub use handle_sign_transactions_with_actions::{
-    SignTransactionsWithActionsRequest,
-    TransactionPayload,
-    KeyActionResult
-};
-pub use handle_request_registration_credential_confirmation::{
-    RegistrationCredentialConfirmationRequest,
-    RegistrationCredentialConfirmationResult,
-};
-pub use handle_decrypt_private_key_with_prf::{
-    ExportNearKeypairUiRequest,
-    ExportNearKeypairUiResult,
+    KeyActionResult, SignTransactionsWithActionsRequest, TransactionPayload,
 };
 
 // Transaction confirmation utilities
 pub use confirm_tx_details::{
-    ConfirmationResult,
-    request_user_confirmation,
-    request_user_confirmation_with_config,
-    generate_request_id,
-    create_transaction_summary,
-    compute_intent_digest_from_js_inputs
+    compute_intent_digest_from_js_inputs, create_transaction_summary, generate_request_id,
+    request_user_confirmation, request_user_confirmation_with_config, ConfirmationResult,
 };
 
 // Confirmation configuration types (from types module)
-pub use crate::types::handlers::{
-    ConfirmationConfig,
-    ConfirmationUIMode,
-    ConfirmationBehavior,
-};
-
+pub use crate::types::handlers::{ConfirmationBehavior, ConfirmationConfig, ConfirmationUIMode};

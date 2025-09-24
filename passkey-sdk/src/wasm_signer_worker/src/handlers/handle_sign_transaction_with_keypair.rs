@@ -3,20 +3,18 @@
 // *                 HANDLER: SIGN TRANSACTION WITH KEYPAIR                   *
 // *                                                                            *
 // ******************************************************************************
-use wasm_bindgen::prelude::*;
-use log::info;
-use serde_json;
-use serde::{Serialize, Deserialize};
-use bs58;
-use crate::transaction::{
-    sign_transaction,
-    build_actions_from_params,
-    build_transaction_with_actions,
-    calculate_transaction_hash,
-};
 use crate::actions::ActionParams;
-use crate::types::wasm_to_json::WasmSignedTransaction;
 use crate::handlers::handle_sign_transactions_with_actions::TransactionSignResult;
+use crate::transaction::{
+    build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
+    sign_transaction,
+};
+use crate::types::wasm_to_json::WasmSignedTransaction;
+use bs58;
+use log::info;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -50,9 +48,8 @@ pub struct SignTransactionWithKeyPairRequest {
 /// # Returns
 /// * `TransactionSignResult` - Contains signed transaction, transaction hash, and operation logs
 pub async fn handle_sign_transaction_with_keypair(
-    request: SignTransactionWithKeyPairRequest
+    request: SignTransactionWithKeyPairRequest,
 ) -> Result<TransactionSignResult, String> {
-
     let mut logs: Vec<String> = Vec::new();
     info!("RUST: WASM binding - starting transaction signing with provided private key");
 
@@ -69,11 +66,15 @@ pub async fn handle_sign_transaction_with_keypair(
         .map_err(|e| format!("Failed to decode private key: {}", e))?;
 
     if private_key_bytes.len() != 64 {
-        return Err(format!("Invalid private key length: expected 64 bytes, got {}", private_key_bytes.len()));
+        return Err(format!(
+            "Invalid private key length: expected 64 bytes, got {}",
+            private_key_bytes.len()
+        ));
     }
 
     // Extract the 32-byte seed (first 32 bytes)
-    let seed_bytes: [u8; 32] = private_key_bytes[0..32].try_into()
+    let seed_bytes: [u8; 32] = private_key_bytes[0..32]
+        .try_into()
         .map_err(|_| "Failed to extract seed from private key".to_string())?;
 
     // Create SigningKey from seed
@@ -94,11 +95,17 @@ pub async fn handle_sign_transaction_with_keypair(
     let transaction = build_transaction_with_actions(
         &request.signer_account_id,
         &request.receiver_id,
-        request.nonce.parse().map_err(|e| format!("Invalid nonce: {}", e))?,
-        &bs58::decode(&request.block_hash).into_vec().map_err(|e| format!("Invalid block hash: {}", e))?,
+        request
+            .nonce
+            .parse()
+            .map_err(|e| format!("Invalid nonce: {}", e))?,
+        &bs58::decode(&request.block_hash)
+            .into_vec()
+            .map_err(|e| format!("Invalid block hash: {}", e))?,
         &signing_key,
         actions,
-    ).map_err(|e| format!("Failed to build transaction: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to build transaction: {}", e))?;
 
     logs.push("Transaction built successfully".to_string());
 

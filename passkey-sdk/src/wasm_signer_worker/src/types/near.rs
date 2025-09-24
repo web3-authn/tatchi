@@ -1,12 +1,12 @@
 // === NEAR BLOCKCHAIN TYPES ===
 // WASM-compatible structs that mirror near-primitives
 
-use serde::{Serialize, Deserialize};
-use borsh::{BorshSerialize, BorshDeserialize};
-use sha2::{Sha256, Digest};
-use serde_bytes;
-use wasm_bindgen::prelude::*;
 use crate::types::ToJson;
+use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
+use serde_bytes;
+use sha2::{Digest, Sha256};
+use wasm_bindgen::prelude::*;
 
 // === CORE NEAR TYPES ===
 
@@ -110,14 +110,26 @@ pub enum Action {
     CreateAccount,
     DeployContract {
         #[serde(with = "serde_bytes")]
-        code: Vec<u8>
+        code: Vec<u8>,
     },
     FunctionCall(Box<FunctionCallAction>),
-    Transfer { deposit: Balance },
-    Stake { stake: Balance, public_key: PublicKey },
-    AddKey { public_key: PublicKey, access_key: AccessKey },
-    DeleteKey { public_key: PublicKey },
-    DeleteAccount { beneficiary_id: AccountId },
+    Transfer {
+        deposit: Balance,
+    },
+    Stake {
+        stake: Balance,
+        public_key: PublicKey,
+    },
+    AddKey {
+        public_key: PublicKey,
+        access_key: AccessKey,
+    },
+    DeleteKey {
+        public_key: PublicKey,
+    },
+    DeleteAccount {
+        beneficiary_id: AccountId,
+    },
 }
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -221,17 +233,23 @@ impl SignedTransaction {
 // Helper method to create JsonSignedTransaction with borsh bytes
 impl SignedTransaction {
     /// Create a JSON-serializable version with optional borsh bytes
-    pub fn to_json_with_borsh(&self, borsh_bytes: Option<Vec<u8>>) -> Result<serde_json::Value, String> {
+    pub fn to_json_with_borsh(
+        &self,
+        borsh_bytes: Option<Vec<u8>>,
+    ) -> Result<serde_json::Value, String> {
         let mut json_map = match self.to_json()? {
             serde_json::Value::Object(map) => map,
             _ => return Err("Expected a JSON object".to_string()),
         };
 
         if let Some(bytes) = borsh_bytes {
-            let json_bytes = bytes.iter().map(|&b| serde_json::Value::Number(b.into())).collect();
+            let json_bytes = bytes
+                .iter()
+                .map(|&b| serde_json::Value::Number(b.into()))
+                .collect();
             json_map.insert(
                 "borshBytes".to_string(),
-                serde_json::Value::Array(json_bytes)
+                serde_json::Value::Array(json_bytes),
             );
         }
         Ok(serde_json::Value::Object(json_map))

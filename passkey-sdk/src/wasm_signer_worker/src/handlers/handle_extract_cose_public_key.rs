@@ -3,8 +3,8 @@
 // *                    HANDLER: EXTRACT COSE PUBLIC KEY                      *
 // *                                                                            *
 // ******************************************************************************
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
 
 #[wasm_bindgen]
 #[derive(Deserialize, Debug, Clone)]
@@ -33,11 +33,12 @@ pub struct CoseExtractionResult {
 /// # Returns
 /// * `CoseExtractionResult` - Contains extracted COSE public key bytes
 pub async fn handle_extract_cose_public_key(
-    request: ExtractCoseRequest
+    request: ExtractCoseRequest,
 ) -> Result<CoseExtractionResult, String> {
-
-    let cose_public_key_bytes = crate::cose::extract_cose_public_key_from_attestation(&request.attestation_object_base64url)
-        .map_err(|e| format!("Failed to extract COSE public key: {}", e))?;
+    let cose_public_key_bytes = crate::cose::extract_cose_public_key_from_attestation(
+        &request.attestation_object_base64url,
+    )
+    .map_err(|e| format!("Failed to extract COSE public key: {}", e))?;
 
     let result = CoseExtractionResult {
         cose_public_key_bytes: cose_public_key_bytes,
@@ -45,4 +46,3 @@ pub async fn handle_extract_cose_public_key(
 
     Ok(result)
 }
-

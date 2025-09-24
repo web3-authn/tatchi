@@ -1,7 +1,7 @@
 mod actions;
 mod config;
-mod crypto;
 mod cose;
+mod crypto;
 mod encoders;
 mod error;
 mod handlers;
@@ -11,70 +11,57 @@ mod tests;
 mod transaction;
 mod types;
 
-use wasm_bindgen::prelude::*;
 use serde_json;
+use wasm_bindgen::prelude::*;
 
-use crate::types::*;
 use crate::types::worker_messages::{
-    WorkerRequestType,
-    WorkerResponseType,
-    SignerWorkerMessage,
-    SignerWorkerResponse
+    SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType, WorkerResponseType,
 };
+use crate::types::*;
 
 /////////////////////////////
+pub use handlers::handle_decrypt_private_key_with_prf::{
+    handle_decrypt_private_key_with_prf, DecryptPrivateKeyRequest, DecryptPrivateKeyResult,
+};
 /// === RE-EXPORTED TYPES ===
 /////////////////////////////
-
 pub use handlers::handle_derive_near_keypair_and_encrypt::{
-    handle_derive_near_keypair_and_encrypt,
-    DeriveNearKeypairAndEncryptRequest,
+    handle_derive_near_keypair_and_encrypt, DeriveNearKeypairAndEncryptRequest,
     DeriveNearKeypairAndEncryptResult,
-};
-pub use handlers::handle_decrypt_private_key_with_prf::{
-    handle_decrypt_private_key_with_prf,
-    DecryptPrivateKeyRequest,
-    DecryptPrivateKeyResult,
 };
 
 pub use handlers::{
-    // Registration Check
-    RegistrationCheckRequest,
     CheckCanRegisterUserRequest,
-    RegistrationInfoStruct,
-    RegistrationCheckResult,
-    // Execute Actions
-    SignTransactionsWithActionsRequest,
-    TransactionPayload,
-    // Sign Transaction With Key Pair
-    SignTransactionWithKeyPairRequest,
+    CoseExtractionResult,
+    // Extract Cose Public Key
+    ExtractCoseRequest,
+    KeyActionResult,
     // Recover Account
     RecoverKeypairRequest,
     RecoverKeypairResult,
-    KeyActionResult,
-    // Extract Cose Public Key
-    ExtractCoseRequest,
-    CoseExtractionResult,
+    // Registration Check
+    RegistrationCheckRequest,
+    RegistrationCheckResult,
+    RegistrationInfoStruct,
     // Sign Nep413 Message
     SignNep413Request,
     SignNep413Result,
+    // Sign Transaction With Key Pair
+    SignTransactionWithKeyPairRequest,
+    // Execute Actions
+    SignTransactionsWithActionsRequest,
+    TransactionPayload,
 };
 
 // Re-export NEAR types for TypeScript usage
-pub use types::near::{Transaction, PublicKey, Signature, SignedTransaction};
+pub use types::near::{PublicKey, Signature, SignedTransaction, Transaction};
 // Re-export progress types for auto-generation
 pub use types::progress::{
-    ProgressMessageType,
-    ProgressStep,
-    ProgressStatus,
-    WorkerProgressMessage,
+    ProgressMessageType, ProgressStatus, ProgressStep, WorkerProgressMessage,
 };
 // Re-export WASM-friendly wrapper types for TypeScript usage
 pub use types::wasm_to_json::{
-    WasmPublicKey,
-    WasmSignature,
-    WasmTransaction,
-    WasmSignedTransaction,
+    WasmPublicKey, WasmSignature, WasmSignedTransaction, WasmTransaction,
 };
 
 // === CONSOLE LOGGING ===
@@ -133,7 +120,7 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data:
             step_name: &str,
             message: &str,
             data: &str,
-            logs: &str
+            logs: &str,
         );
     }
 
@@ -151,13 +138,24 @@ pub fn send_progress_message(message_type: u32, step: u32, message: &str, _data:
     // Only try to send message in WASM context
     #[cfg(target_arch = "wasm32")]
     {
-        send_progress_message_js(message_type, message_type_name, step, step_name, message, _data, _logs_json);
+        send_progress_message_js(
+            message_type,
+            message_type_name,
+            step,
+            step_name,
+            message,
+            _data,
+            _logs_json,
+        );
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     {
         // In non-WASM context (like tests), just log the progress
-        println!("Progress: {} ({}) - {} ({}) - {}", message_type_name, message_type, step_name, step, message);
+        println!(
+            "Progress: {} ({}) - {} ({}) - {}",
+            message_type_name, message_type, step_name, step, message
+        );
     }
 }
 
@@ -178,9 +176,15 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
     let request_type = WorkerRequestType::from(msg.msg_type);
 
     // Debug logging to understand what's happening
-    log(&format!("WASM Worker: Received message type: {} ({})",
-    worker_request_type_name(request_type), msg.msg_type));
-    log(&format!("WASM Worker: Parsed request type: {:?}", request_type));
+    log(&format!(
+        "WASM Worker: Received message type: {} ({})",
+        worker_request_type_name(request_type),
+        msg.msg_type
+    ));
+    log(&format!(
+        "WASM Worker: Parsed request type: {:?}",
+        request_type
+    ));
 
     // Route message to appropriate handler
     let response_payload = match request_type {
@@ -188,52 +192,57 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             let request = msg.parse_payload::<DeriveNearKeypairAndEncryptRequest>(request_type)?;
             let result = handlers::handle_derive_near_keypair_and_encrypt(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::RecoverKeypairFromPasskey => {
             let request = msg.parse_payload::<RecoverKeypairRequest>(request_type)?;
             let result = handlers::handle_recover_keypair_from_passkey(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::CheckCanRegisterUser => {
             let request = msg.parse_payload::<CheckCanRegisterUserRequest>(request_type)?;
             let result = handlers::handle_check_can_register_user(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::DecryptPrivateKeyWithPrf => {
             let request = msg.parse_payload::<DecryptPrivateKeyRequest>(request_type)?;
             let result = handlers::handle_decrypt_private_key_with_prf(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::SignTransactionsWithActions => {
             let request = msg.parse_payload::<SignTransactionsWithActionsRequest>(request_type)?;
             let result = handlers::handle_sign_transactions_with_actions(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::ExtractCosePublicKey => {
             let request = msg.parse_payload::<ExtractCoseRequest>(request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::SignTransactionWithKeyPair => {
             let request = msg.parse_payload::<SignTransactionWithKeyPairRequest>(request_type)?;
             let result = handlers::handle_sign_transaction_with_keypair(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::SignNep413Message => {
             let request = msg.parse_payload::<SignNep413Request>(request_type)?;
             let result = handlers::handle_sign_nep413_message(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::RegistrationCredentialConfirmation => {
-            let request = msg.parse_payload::<handlers::RegistrationCredentialConfirmationRequest>(request_type)?;
-            let result = handlers::handle_request_registration_credential_confirmation(request).await?;
+            let request = msg
+                .parse_payload::<handlers::RegistrationCredentialConfirmationRequest>(
+                    request_type,
+                )?;
+            let result =
+                handlers::handle_request_registration_credential_confirmation(request).await?;
             result.to_json()
-        },
+        }
         WorkerRequestType::ExportNearKeypairUI => {
-            let request = msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
+            let request =
+                msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
             let result = handlers::handle_export_near_keypair_ui(request).await?;
             result.to_json()
-        },
+        }
     };
 
     // Handle the result and determine response type
@@ -241,32 +250,72 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
         Ok(message) => {
             // Success case - map request type to success response type
             let success_response_type = match request_type {
-                WorkerRequestType::DeriveNearKeypairAndEncrypt => WorkerResponseType::DeriveNearKeypairAndEncryptSuccess,
-                WorkerRequestType::RecoverKeypairFromPasskey => WorkerResponseType::RecoverKeypairFromPasskeySuccess,
-                WorkerRequestType::CheckCanRegisterUser => WorkerResponseType::CheckCanRegisterUserSuccess,
-                WorkerRequestType::DecryptPrivateKeyWithPrf => WorkerResponseType::DecryptPrivateKeyWithPrfSuccess,
-                WorkerRequestType::SignTransactionsWithActions => WorkerResponseType::SignTransactionsWithActionsSuccess,
-                WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeySuccess,
-                WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairSuccess,
-                WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageSuccess,
-                WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
-                WorkerRequestType::ExportNearKeypairUI => WorkerResponseType::ExportNearKeypairUiSuccess,
+                WorkerRequestType::DeriveNearKeypairAndEncrypt => {
+                    WorkerResponseType::DeriveNearKeypairAndEncryptSuccess
+                }
+                WorkerRequestType::RecoverKeypairFromPasskey => {
+                    WorkerResponseType::RecoverKeypairFromPasskeySuccess
+                }
+                WorkerRequestType::CheckCanRegisterUser => {
+                    WorkerResponseType::CheckCanRegisterUserSuccess
+                }
+                WorkerRequestType::DecryptPrivateKeyWithPrf => {
+                    WorkerResponseType::DecryptPrivateKeyWithPrfSuccess
+                }
+                WorkerRequestType::SignTransactionsWithActions => {
+                    WorkerResponseType::SignTransactionsWithActionsSuccess
+                }
+                WorkerRequestType::ExtractCosePublicKey => {
+                    WorkerResponseType::ExtractCosePublicKeySuccess
+                }
+                WorkerRequestType::SignTransactionWithKeyPair => {
+                    WorkerResponseType::SignTransactionWithKeyPairSuccess
+                }
+                WorkerRequestType::SignNep413Message => {
+                    WorkerResponseType::SignNep413MessageSuccess
+                }
+                WorkerRequestType::RegistrationCredentialConfirmation => {
+                    WorkerResponseType::RegistrationCredentialConfirmationSuccess
+                }
+                WorkerRequestType::ExportNearKeypairUI => {
+                    WorkerResponseType::ExportNearKeypairUiSuccess
+                }
             };
             (success_response_type, message)
-        },
+        }
         Err(error) => {
             // Failure case - map request type to failure response type
             let failure_response_type = match request_type {
-                WorkerRequestType::DeriveNearKeypairAndEncrypt => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
-                WorkerRequestType::RecoverKeypairFromPasskey => WorkerResponseType::RecoverKeypairFromPasskeyFailure,
-                WorkerRequestType::CheckCanRegisterUser => WorkerResponseType::CheckCanRegisterUserFailure,
-                WorkerRequestType::DecryptPrivateKeyWithPrf => WorkerResponseType::DecryptPrivateKeyWithPrfFailure,
-                WorkerRequestType::SignTransactionsWithActions => WorkerResponseType::SignTransactionsWithActionsFailure,
-                WorkerRequestType::ExtractCosePublicKey => WorkerResponseType::ExtractCosePublicKeyFailure,
-                WorkerRequestType::SignTransactionWithKeyPair => WorkerResponseType::SignTransactionWithKeyPairFailure,
-                WorkerRequestType::SignNep413Message => WorkerResponseType::SignNep413MessageFailure,
-                WorkerRequestType::RegistrationCredentialConfirmation => WorkerResponseType::RegistrationCredentialConfirmationFailure,
-                WorkerRequestType::ExportNearKeypairUI => WorkerResponseType::ExportNearKeypairUiFailure,
+                WorkerRequestType::DeriveNearKeypairAndEncrypt => {
+                    WorkerResponseType::DeriveNearKeypairAndEncryptFailure
+                }
+                WorkerRequestType::RecoverKeypairFromPasskey => {
+                    WorkerResponseType::RecoverKeypairFromPasskeyFailure
+                }
+                WorkerRequestType::CheckCanRegisterUser => {
+                    WorkerResponseType::CheckCanRegisterUserFailure
+                }
+                WorkerRequestType::DecryptPrivateKeyWithPrf => {
+                    WorkerResponseType::DecryptPrivateKeyWithPrfFailure
+                }
+                WorkerRequestType::SignTransactionsWithActions => {
+                    WorkerResponseType::SignTransactionsWithActionsFailure
+                }
+                WorkerRequestType::ExtractCosePublicKey => {
+                    WorkerResponseType::ExtractCosePublicKeyFailure
+                }
+                WorkerRequestType::SignTransactionWithKeyPair => {
+                    WorkerResponseType::SignTransactionWithKeyPairFailure
+                }
+                WorkerRequestType::SignNep413Message => {
+                    WorkerResponseType::SignNep413MessageFailure
+                }
+                WorkerRequestType::RegistrationCredentialConfirmation => {
+                    WorkerResponseType::RegistrationCredentialConfirmationFailure
+                }
+                WorkerRequestType::ExportNearKeypairUI => {
+                    WorkerResponseType::ExportNearKeypairUiFailure
+                }
             };
             let error_payload = serde_json::json!({
                 "error": error,
@@ -277,8 +326,12 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
     };
 
     // Debug logging for response type
-    log(&format!("WASM Worker: Determined response type: {} ({}) - {:?}",
-    worker_response_type_name(response_type), u32::from(response_type), response_type));
+    log(&format!(
+        "WASM Worker: Determined response type: {} ({}) - {:?}",
+        worker_response_type_name(response_type),
+        u32::from(response_type),
+        response_type
+    ));
 
     // Create the final response
     let response = SignerWorkerResponse {
@@ -306,7 +359,9 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-        WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
+        WorkerRequestType::RegistrationCredentialConfirmation => {
+            "REGISTRATION_CREDENTIAL_CONFIRMATION"
+        }
         WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
     }
 }
@@ -315,27 +370,51 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
 pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static str {
     match response_type {
         // Success responses
-        WorkerResponseType::DeriveNearKeypairAndEncryptSuccess => "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_SUCCESS",
-        WorkerResponseType::RecoverKeypairFromPasskeySuccess => "RECOVER_KEYPAIR_FROM_PASSKEY_SUCCESS",
+        WorkerResponseType::DeriveNearKeypairAndEncryptSuccess => {
+            "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_SUCCESS"
+        }
+        WorkerResponseType::RecoverKeypairFromPasskeySuccess => {
+            "RECOVER_KEYPAIR_FROM_PASSKEY_SUCCESS"
+        }
         WorkerResponseType::CheckCanRegisterUserSuccess => "CHECK_CAN_REGISTER_USER_SUCCESS",
-        WorkerResponseType::DecryptPrivateKeyWithPrfSuccess => "DECRYPT_PRIVATE_KEY_WITH_PRF_SUCCESS",
-        WorkerResponseType::SignTransactionsWithActionsSuccess => "SIGN_TRANSACTIONS_WITH_ACTIONS_SUCCESS",
+        WorkerResponseType::DecryptPrivateKeyWithPrfSuccess => {
+            "DECRYPT_PRIVATE_KEY_WITH_PRF_SUCCESS"
+        }
+        WorkerResponseType::SignTransactionsWithActionsSuccess => {
+            "SIGN_TRANSACTIONS_WITH_ACTIONS_SUCCESS"
+        }
         WorkerResponseType::ExtractCosePublicKeySuccess => "EXTRACT_COSE_PUBLIC_KEY_SUCCESS",
-        WorkerResponseType::SignTransactionWithKeyPairSuccess => "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS",
+        WorkerResponseType::SignTransactionWithKeyPairSuccess => {
+            "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS"
+        }
         WorkerResponseType::SignNep413MessageSuccess => "SIGN_NEP413_MESSAGE_SUCCESS",
-        WorkerResponseType::RegistrationCredentialConfirmationSuccess => "REGISTRATION_CREDENTIAL_CONFIRMATION_SUCCESS",
+        WorkerResponseType::RegistrationCredentialConfirmationSuccess => {
+            "REGISTRATION_CREDENTIAL_CONFIRMATION_SUCCESS"
+        }
         WorkerResponseType::ExportNearKeypairUiSuccess => "EXPORT_NEAR_KEYPAIR_UI_SUCCESS",
 
         // Failure responses
-        WorkerResponseType::DeriveNearKeypairAndEncryptFailure => "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_FAILURE",
-        WorkerResponseType::RecoverKeypairFromPasskeyFailure => "RECOVER_KEYPAIR_FROM_PASSKEY_FAILURE",
+        WorkerResponseType::DeriveNearKeypairAndEncryptFailure => {
+            "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT_FAILURE"
+        }
+        WorkerResponseType::RecoverKeypairFromPasskeyFailure => {
+            "RECOVER_KEYPAIR_FROM_PASSKEY_FAILURE"
+        }
         WorkerResponseType::CheckCanRegisterUserFailure => "CHECK_CAN_REGISTER_USER_FAILURE",
-        WorkerResponseType::DecryptPrivateKeyWithPrfFailure => "DECRYPT_PRIVATE_KEY_WITH_PRF_FAILURE",
-        WorkerResponseType::SignTransactionsWithActionsFailure => "SIGN_TRANSACTIONS_WITH_ACTIONS_FAILURE",
+        WorkerResponseType::DecryptPrivateKeyWithPrfFailure => {
+            "DECRYPT_PRIVATE_KEY_WITH_PRF_FAILURE"
+        }
+        WorkerResponseType::SignTransactionsWithActionsFailure => {
+            "SIGN_TRANSACTIONS_WITH_ACTIONS_FAILURE"
+        }
         WorkerResponseType::ExtractCosePublicKeyFailure => "EXTRACT_COSE_PUBLIC_KEY_FAILURE",
-        WorkerResponseType::SignTransactionWithKeyPairFailure => "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE",
+        WorkerResponseType::SignTransactionWithKeyPairFailure => {
+            "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE"
+        }
         WorkerResponseType::SignNep413MessageFailure => "SIGN_NEP413_MESSAGE_FAILURE",
-        WorkerResponseType::RegistrationCredentialConfirmationFailure => "REGISTRATION_CREDENTIAL_CONFIRMATION_FAILURE",
+        WorkerResponseType::RegistrationCredentialConfirmationFailure => {
+            "REGISTRATION_CREDENTIAL_CONFIRMATION_FAILURE"
+        }
         WorkerResponseType::ExportNearKeypairUiFailure => "EXPORT_NEAR_KEYPAIR_UI_FAILURE",
 
         // Progress responses - for real-time updates during operations

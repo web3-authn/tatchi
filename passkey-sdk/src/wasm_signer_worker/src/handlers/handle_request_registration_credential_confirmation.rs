@@ -1,13 +1,13 @@
+use crate::types::wasm_to_json::ToJson;
+use serde::{Deserialize, Serialize};
+use serde_json;
+use serde_wasm_bindgen;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
-use serde::{Deserialize, Serialize};
-use serde_wasm_bindgen;
-use crate::types::wasm_to_json::ToJson;
-use serde_json;
 
+use super::confirm_tx_details::request_registration_credential_confirmation;
 use crate::types::handlers::TransactionContext;
 use crate::types::VrfChallenge;
-use super::confirm_tx_details::request_registration_credential_confirmation;
 
 #[wasm_bindgen]
 #[derive(Deserialize, Debug, Clone)]
@@ -65,11 +65,13 @@ impl RegistrationCredentialConfirmationResult {
 
 impl ToJson for RegistrationCredentialConfirmationResult {
     fn to_json(&self) -> Result<serde_json::Value, String> {
-        let credential_json: serde_json::Value = if self.credential.is_undefined() || self.credential.is_null() {
-            serde_json::Value::Null
-        } else {
-            serde_wasm_bindgen::from_value(self.credential.clone()).unwrap_or(serde_json::Value::Null)
-        };
+        let credential_json: serde_json::Value =
+            if self.credential.is_undefined() || self.credential.is_null() {
+                serde_json::Value::Null
+            } else {
+                serde_wasm_bindgen::from_value(self.credential.clone())
+                    .unwrap_or(serde_json::Value::Null)
+            };
 
         let json = serde_json::json!({
             "confirmed": self.confirmed,
@@ -90,14 +92,17 @@ impl ToJson for RegistrationCredentialConfirmationResult {
 /// secure confirmation flow. Presents a modal in the wallet iframe, collects
 /// WebAuthn registration credential and PRF output, then returns artifacts.
 pub async fn handle_request_registration_credential_confirmation(
-    request: RegistrationCredentialConfirmationRequest
+    request: RegistrationCredentialConfirmationRequest,
 ) -> Result<RegistrationCredentialConfirmationResult, String> {
     let result = request_registration_credential_confirmation(
         &request.near_account_id,
         request.device_number,
         &request.contract_id,
         &request.near_rpc_url,
-    ).await?;
+    )
+    .await?;
 
-    Ok(RegistrationCredentialConfirmationResult::from_confirmation(result))
+    Ok(RegistrationCredentialConfirmationResult::from_confirmation(
+        result,
+    ))
 }
