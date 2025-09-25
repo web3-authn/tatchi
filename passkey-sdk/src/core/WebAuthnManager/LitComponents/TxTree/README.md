@@ -32,7 +32,7 @@ Notes
 - Typical shape: Root folder → per-transaction folders → per-action folders → file rows (e.g., `method`, `gas`, `deposit`, `args` with collapsible content).
 
 ## Events
-- Emits `tree-toggled` on `details` open/close so parents can re-measure and update layout.
+- Emits `lit-tree-toggled` on `details` open/close so parents can re-measure and update layout.
 
 ## Minimal usage
 ```html

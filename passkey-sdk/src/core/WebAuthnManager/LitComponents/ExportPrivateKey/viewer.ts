@@ -2,6 +2,7 @@ import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
 import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
+import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';
@@ -100,6 +101,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       font-size: 0.9rem;
       min-width: 90px;
       margin-left: auto;
+      margin-right: 4px;
       flex-shrink: 0;
     }
     .btn-primary { background: var(--w3a-colors-primary, #4DAFFE); color: var(--w3a-colors-colorBackground, #0b1220); }
@@ -190,7 +192,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
         if (!ok) throw err;
       }
       if (ok) {
-        this.dispatchEvent(new CustomEvent('copy', { detail: { type, value }, bubbles: true, composed: true }));
+        dispatchLitCopy(this, { type, value });
       }
       // show "Copied!" feedback for 3 seconds
       if (type === 'publicKey') {
@@ -269,7 +271,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
           aria-label="Close"
           title="Close"
           class="close-btn"
-          @click=${() => this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }))}
+          @click=${() => dispatchLitCancel(this)}
           >×</button>`
         : null
       }

@@ -5,6 +5,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import { EMBEDDED_SDK_BASE_PATH, IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
 import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
 
 type MessageType =
   | 'READY'
@@ -195,18 +196,23 @@ export class IframeExportHost extends LitElementWithProps {
           return;
         }
         case 'CONFIRM': {
-          this.dispatchEvent(new CustomEvent('confirm', { bubbles: true, composed: true }));
+          dispatchLitConfirm(this);
           return;
         }
         case 'CANCEL': {
-          this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+          dispatchLitCancel(this);
           // Child waits for transitionend before posting CANCEL, so it's safe to remove immediately
           try { this.remove(); } catch {}
           return;
         }
         case 'COPY': {
           if (isObject(payload)) {
-            this.dispatchEvent(new CustomEvent('copy', { detail: payload, bubbles: true, composed: true }));
+            const { type, value } = payload as Partial<{ type: unknown; value: unknown }>;
+            if (isString(type) && (type === 'publicKey' || type === 'privateKey') && isString(value)) {
+              dispatchLitCopy(this, { type, value });
+            } else {
+              console.warn('[IframeExportHost] Ignoring COPY message with invalid payload', payload);
+            }
           }
           return;
         }

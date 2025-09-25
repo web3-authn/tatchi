@@ -239,6 +239,8 @@ Implementation reference:
   - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts`
   - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts`
 
+## Importing and Composing Lit Components
+
 ### Quick checklist (copy/paste for new components)
 
 1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/react/embedded)

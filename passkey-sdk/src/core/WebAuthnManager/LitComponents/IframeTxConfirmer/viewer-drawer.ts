@@ -4,6 +4,7 @@ import DrawerElement from '../Drawer';
 import { W3A_DRAWER_ID } from '../tags';
 import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
+import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ConfirmUIElement } from '../confirm-ui-types';
 import { MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme, type ModalTxConfirmerStyles } from './modal-confirmer-themes';
@@ -11,7 +12,7 @@ import { MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme, type ModalTxConfirmer
 
 /**
  * DrawerTxConfirmer: Drawer variant of the transaction confirmer
- * Emits 'w3a:modal-confirm' and 'w3a:modal-cancel' for compatibility with iframe host bootstrap.
+ * Emits WalletIframeDomEvents.MODAL_CONFIRM and WalletIframeDomEvents.MODAL_CANCEL for compatibility with iframe host bootstrap.
  */
 export class DrawerTxConfirmerElement extends LitElementWithProps implements ConfirmUIElement {
   static requiredChildTags = ['w3a-tx-confirm-content', 'w3a-drawer'];
@@ -60,8 +61,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         // Best-effort close and emit cancel so host resolves and cleans up
         try { this._drawerEl?.handleClose?.(); } catch {}
         try {
-          this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
-          this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
         } catch {}
       }
     } catch {}
@@ -74,8 +75,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       if (!this._drawerEl) {
         try {
           // New canonical + legacy alias
-          this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
-          this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
         } catch {}
       }
       // Rely on drawer's `cancel` event -> onDrawerCancel to emit w3a:modal-cancel
@@ -236,8 +237,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   private onDrawerCancel = () => {
     if (this.loading) return;
     try {
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
     } catch {}
   };
 
@@ -247,8 +248,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.requestUpdate();
     // Bridge semantic event to canonical events (new + legacy)
     try {
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, { bubbles: true, composed: true }));
     } catch {}
   };
 
@@ -256,8 +257,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     if (this.loading) return;
     try { this._drawerEl?.handleClose(); } catch {}
     try {
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
     } catch {}
   };
 
@@ -277,7 +278,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         .overpullPx=${160}
         .dragToClose=${true}
         .showCloseButton=${true}
-        @cancel=${this.onDrawerCancel}
+        @lit-cancel=${this.onDrawerCancel}
       >
         <div class="drawer-tx-confirmer-root">
           <div class="section responsive-card margin-left1">
@@ -327,8 +328,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               .title=${this.title}
               .confirmText=${this.confirmText}
               .cancelText=${this.cancelText}
-              @confirm=${this.onContentConfirm}
-              @cancel=${this.onContentCancel}
+              @lit-confirm=${this.onContentConfirm}
+              @lit-cancel=${this.onContentCancel}
             ></w3a-tx-confirm-content>
           </div>
 

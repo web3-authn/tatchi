@@ -1,6 +1,7 @@
 import { html, css, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
+import { dispatchLitTreeToggled } from '../lit-events';
 import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
 import { TX_TREE_THEMES } from './tx-tree-themes';
@@ -467,7 +468,7 @@ export class TxTree extends LitElementWithProps {
 
   private handleToggle() {
     // Notify parents that layout may have changed so they can re-measure
-    this.dispatchEvent(new CustomEvent('tree-toggled', { bubbles: true, composed: true }));
+    dispatchLitTreeToggled(this);
   }
 
   /**

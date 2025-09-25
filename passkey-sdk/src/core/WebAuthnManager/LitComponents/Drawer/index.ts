@@ -1,5 +1,6 @@
 import { html, css } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
+import { dispatchLitCancel } from '../lit-events';
 
 export type DrawerTheme = 'dark' | 'light';
 
@@ -544,7 +545,7 @@ export class DrawerElement extends LitElementWithProps {
     // Flip the `open` property so CSS applies the closed transform and overlay state
     this.open = false;
     // Notify host after state change
-    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+    dispatchLitCancel(this);
     // Reset closing guard after a short delay to avoid duplicate cancels
     setTimeout(() => { this.isClosing = false; }, 300);
   }
@@ -559,9 +560,9 @@ export class DrawerElement extends LitElementWithProps {
       this.drawerElement.style.removeProperty('transition');
       this.drawerElement.style.removeProperty('transform');
     }
-    // Flip open then notify host (retain 'cancel' event for back-compat)
+    // Flip open then notify host (use lit-cancel for host listeners)
     this.open = false;
-    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true }));
+    dispatchLitCancel(this);
     this.isClosing = true;
     setTimeout(() => { this.isClosing = false; }, 300);
   };
@@ -592,8 +593,8 @@ export class DrawerElement extends LitElementWithProps {
       this.drawerElement.style.removeProperty('transform');
     }
     this.open = false;
-    // Dispatch cancel to keep back-compat with existing listeners
-    this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true, detail: { reason } }));
+    // Dispatch lit-cancel so host listeners can react
+    dispatchLitCancel(this, { reason });
   }
 
   public toggle(force?: boolean) {

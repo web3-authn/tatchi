@@ -16,6 +16,7 @@ import {
 } from '../tags';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 
 type MessageType = IframeModalMessageType | 'MODAL_IFRAME_BOOT' | 'MODAL_IFRAME_DOM_READY' | 'MODAL_TIMEOUT';
 
@@ -237,11 +238,11 @@ export class IframeModalHost extends LitElementWithProps {
           this.onCancel?.();
           try {
             // New canonical + legacy alias for back-compat
-            this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', {
+            this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
               bubbles: true, // bubble up to parent
               composed: true // cross Shadow DOM boundaries to host
             }));
-            this.dispatchEvent(new CustomEvent('w3a:modal-cancel', {
+            this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
               bubbles: true,
               composed: true
             }));
@@ -344,12 +345,12 @@ export class IframeModalHost extends LitElementWithProps {
 
     try {
       // New canonical + legacy alias for back-compat
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', {
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
         detail: { confirmed, error },
         bubbles: true,
         composed: true
       }));
-      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', {
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, {
         detail: { confirmed, error },
         bubbles: true,
         composed: true

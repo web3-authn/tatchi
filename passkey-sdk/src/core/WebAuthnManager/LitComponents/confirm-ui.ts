@@ -1,4 +1,5 @@
 import { TransactionInputWasm, VRFChallenge } from '../../types';
+import { WalletIframeDomEvents } from '../../WalletIframe/events';
 import { IFRAME_MODAL_ID, CONFIRM_UI_ELEMENT_SELECTORS, MODAL_TX_CONFIRM_ID, DRAWER_TX_CONFIRM_ID, CONFIRM_PORTAL_ID } from './tags';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
@@ -53,8 +54,8 @@ function cleanupExistingConfirmers(): void {
       try {
         const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
         for (const el of existing) {
-          try { el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true })); } catch {}
-          try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+          try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true })); } catch {}
+          try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true })); } catch {}
         }
         portal.replaceChildren();
         return;
@@ -64,8 +65,8 @@ function cleanupExistingConfirmers(): void {
     const selectors = (CONFIRM_UI_ELEMENT_SELECTORS as readonly string[]);
     const els = selectors.flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
     for (const el of els) {
-      try { el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true })); } catch {}
-      try { el.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true })); } catch {}
+      try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true })); } catch {}
+      try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true })); } catch {}
       try { el.remove(); } catch {}
     }
   } catch {}
@@ -198,16 +199,16 @@ async function awaitHostUiDecisionWithHandle({
       resolve({ confirmed: false, handle: { close, update } });
     };
     const cleanup = () => {
-      try { el.removeEventListener('w3a:tx-confirmer-confirm', onConfirm as EventListener); } catch {}
-      try { el.removeEventListener('w3a:tx-confirmer-cancel', onCancel as EventListener); } catch {}
-      try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
-      try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.MODAL_CONFIRM, onConfirm as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.MODAL_CANCEL, onCancel as EventListener); } catch {}
     };
     // Listen to new canonical events and legacy aliases for back-compat
-    el.addEventListener('w3a:tx-confirmer-confirm', onConfirm as EventListener);
-    el.addEventListener('w3a:tx-confirmer-cancel', onCancel as EventListener);
-    el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
-    el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
+    el.addEventListener(WalletIframeDomEvents.MODAL_CONFIRM, onConfirm as EventListener);
+    el.addEventListener(WalletIframeDomEvents.MODAL_CANCEL, onCancel as EventListener);
 
     const portal = ensureConfirmPortal();
     portal.replaceChildren(el);
@@ -328,17 +329,17 @@ async function awaitIframeHostUiDecisionWithHandle({
     };
 
     const cleanup = () => {
-      try { el.removeEventListener('w3a:tx-confirmer-confirm', onConfirm as EventListener); } catch {}
-      try { el.removeEventListener('w3a:tx-confirmer-cancel', onCancel as EventListener); } catch {}
-      try { el.removeEventListener('w3a:modal-confirm', onConfirm as EventListener); } catch {}
-      try { el.removeEventListener('w3a:modal-cancel', onCancel as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.MODAL_CONFIRM, onConfirm as EventListener); } catch {}
+      try { el.removeEventListener(WalletIframeDomEvents.MODAL_CANCEL, onCancel as EventListener); } catch {}
     };
 
     // Listen to new canonical events and legacy aliases for back-compat
-    el.addEventListener('w3a:tx-confirmer-confirm', onConfirm as EventListener);
-    el.addEventListener('w3a:tx-confirmer-cancel', onCancel as EventListener);
-    el.addEventListener('w3a:modal-confirm', onConfirm as EventListener);
-    el.addEventListener('w3a:modal-cancel', onCancel as EventListener);
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
+    el.addEventListener(WalletIframeDomEvents.MODAL_CONFIRM, onConfirm as EventListener);
+    el.addEventListener(WalletIframeDomEvents.MODAL_CANCEL, onCancel as EventListener);
     const portal = ensureConfirmPortal();
     portal.replaceChildren(el);
   });

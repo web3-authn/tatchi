@@ -20,6 +20,7 @@ import { createRandomVRFChallenge } from '../../../types/vrf-worker';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { toAccountId } from '../../../types/accountIds';
 import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../LitComponents/confirm-ui';
+import { addLitCancelListener } from '../../LitComponents/lit-events';
 import { authenticatorsToAllowCredentials } from '../../touchIdPrompt';
 import { isObject, isFunction, isString } from '../../../WalletIframe/validation';
 import { errorMessage, toError, isTouchIdCancellationError } from '../../../../utils/errors';
@@ -444,11 +445,16 @@ async function renderUserConfirmUI({
     } catch {}
     try { window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*'); } catch {}
     document.body.appendChild(host);
+    let removeCancelListener: (() => void) | undefined;
     try {
-      const onCancel = () => { try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}; try { host.remove(); } catch {} };
-      host.addEventListener('cancel', onCancel as EventListener, { once: true });
+      const onCancel = (_event: CustomEvent<{ reason?: string } | undefined>) => {
+        try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+        try { removeCancelListener?.(); } catch {}
+        try { host.remove(); } catch {}
+      };
+      removeCancelListener = addLitCancelListener(host, onCancel, { once: true });
     } catch {}
-    const close = (_c: boolean) => { try { host.remove(); } catch {} };
+    const close = (_c: boolean) => { try { removeCancelListener?.(); } catch {}; try { host.remove(); } catch {} };
     const update = (_props: any) => { /* no-op for export viewer */ };
     return Promise.resolve({ confirmed: true, confirmHandle: { close, update } });
   }
@@ -725,6 +731,10 @@ function sendWorkerResponse(worker: Worker, responseData: SecureConfirmDecision)
     type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
     data: sanitized
   });
+  try {
+    const bh = (sanitized as any)?.vrfChallenge?.blockHeight;
+    if (bh) console.debug('[SecureConfirm] Sent VRF challenge block height', bh);
+  } catch {}
 }
 
 // Shallow type that removes function-valued properties and the private `_confirmHandle` key
@@ -758,25 +768,65 @@ async function refreshVrfChallenge(
   request: SecureConfirmRequest,
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
-  const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
   const rpId = ctx.touchIdPrompt.getRpId();
   const vrfWorkerManager = ctx.vrfWorkerManager;
   if (!vrfWorkerManager) throw new Error('VrfWorkerManager not available');
-  const vrfChallenge = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
-    ? (await vrfWorkerManager.generateVrfKeypairBootstrap({
-        vrfInputData: {
+
+  return await retryWithBackoff(async (attempt) => {
+    const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+    try {
+      console.debug('[SecureConfirm] Refreshed VRF block height', latestCtx?.txBlockHeight, 'hash', latestCtx?.txBlockHash);
+    } catch {}
+
+    const vrfChallenge = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
+      ? (await vrfWorkerManager.generateVrfKeypairBootstrap({
+          vrfInputData: {
+            userId: nearAccountId,
+            rpId,
+            blockHeight: latestCtx.txBlockHeight,
+            blockHash: latestCtx.txBlockHash,
+          },
+          saveInMemory: true,
+        })).vrfChallenge
+      : await vrfWorkerManager.generateVrfChallenge({
           userId: nearAccountId,
           rpId,
           blockHeight: latestCtx.txBlockHeight,
           blockHash: latestCtx.txBlockHash,
-        },
-        saveInMemory: true,
-      })).vrfChallenge
-    : await vrfWorkerManager.generateVrfChallenge({
-        userId: nearAccountId,
-        rpId,
-        blockHeight: latestCtx.txBlockHeight,
-        blockHash: latestCtx.txBlockHash,
-      });
-  return { vrfChallenge, transactionContext: latestCtx };
+        });
+
+    return { vrfChallenge, transactionContext: latestCtx };
+  }, {
+    attempts: 3,
+    baseDelayMs: 150,
+    onError: (err, attempt) => console.warn(`[SecureConfirm] VRF refresh attempt ${attempt} failed`, err),
+    errorFactory: () => new Error('VRF refresh failed'),
+  });
+}
+
+interface RetryOptions {
+  attempts: number;
+  baseDelayMs: number;
+  onError?: (error: unknown, attempt: number) => void;
+  errorFactory?: () => Error;
+}
+
+async function retryWithBackoff<T>(fn: (attempt: number) => Promise<T>, options: RetryOptions): Promise<T> {
+  const { attempts, baseDelayMs, onError, errorFactory } = options;
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= Math.max(1, attempts); attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err) {
+      lastError = err;
+      onError?.(err, attempt);
+      if (attempt < attempts) {
+        const delay = baseDelayMs * attempt;
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  throw errorFactory ? errorFactory() : toError(lastError ?? new Error('Retry exhausted'));
 }

@@ -1,5 +1,6 @@
 import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
+import { dispatchLitCancel, dispatchLitConfirm } from '../lit-events';
 
 import type { TransactionInputWasm } from '../../../types';
 import type { VRFChallenge } from '../../../types/vrf-worker';
@@ -11,7 +12,7 @@ import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
 /**
  * Shared confirmation content surface used by both Modal and Drawer containers.
  * - Renders summary, TxTree, and confirm/cancel actions
- * - Emits semantic events: `confirm` and `cancel` (containers bridge to w3a:* events)
+ * - Emits semantic events: `lit-confirm` and `lit-cancel` (containers bridge to w3a:* events)
  * - Does not own backdrop, focus traps, or ESC handling
  */
 export class TxConfirmContentElement extends LitElementWithProps {
@@ -210,12 +211,12 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private onConfirm = () => {
     if (this.loading) return;
     // Emit semantic event for containers to bridge to canonical events
-    try { this.dispatchEvent(new CustomEvent('confirm', { bubbles: true, composed: true })); } catch {}
+    try { dispatchLitConfirm(this); } catch {}
   };
 
   private onCancel = () => {
     if (this.loading) return;
-    try { this.dispatchEvent(new CustomEvent('cancel', { bubbles: true, composed: true })); } catch {}
+    try { dispatchLitCancel(this); } catch {}
   };
 
   render() {

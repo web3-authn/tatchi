@@ -12,6 +12,7 @@ import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerThem
 import HaloBorderElement from '../HaloBorder';
 import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
 import type { ConfirmUIElement } from '../confirm-ui-types';
+import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 
 export interface SecureTxSummary {
   to?: string;
@@ -802,8 +803,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               .title=${this.title}
               .confirmText=${this.confirmText}
               .cancelText=${this.cancelText}
-              @confirm=${this._handleConfirm}
-              @cancel=${this._handleCancel}
+              @lit-confirm=${this._handleConfirm}
+              @lit-cancel=${this._handleCancel}
             ></w3a-tx-confirm-content>
           </div>
         </div>
@@ -815,9 +816,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     if (this.loading) return;
     try {
       // New canonical event name
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-cancel', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
       // Legacy alias for back-compat
-      this.dispatchEvent(new CustomEvent('w3a:modal-cancel', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
     } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(false);
@@ -830,9 +831,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     this.requestUpdate();
     try {
       // New canonical event name
-      this.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, { bubbles: true, composed: true }));
       // Legacy alias for back-compat
-      this.dispatchEvent(new CustomEvent('w3a:modal-confirm', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, { bubbles: true, composed: true }));
     } catch {}
     if (!this.deferClose) {
       this._resolveAndCleanup(true);

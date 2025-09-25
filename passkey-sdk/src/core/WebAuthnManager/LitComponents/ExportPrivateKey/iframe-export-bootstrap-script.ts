@@ -1,4 +1,5 @@
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { LitComponentEvents, type LitComponentEventDetailMap } from '../lit-events';
 import { W3A_DRAWER_ID, W3A_EXPORT_KEY_VIEWER_ID } from '../tags';
 
 type MessageType =
@@ -130,9 +131,9 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
 }
 
 // Forward decision/copy events to parent
-document.addEventListener('confirm', () => postToParent('CONFIRM'));
+document.addEventListener(LitComponentEvents.CONFIRM, () => postToParent('CONFIRM'));
 // On cancel, wait for the drawer's transform transition to finish, then notify parent.
-document.addEventListener('cancel', () => {
+document.addEventListener(LitComponentEvents.CANCEL, () => {
   try {
     const drawer = getDrawer() as any;
     const el = drawer?.shadowRoot?.querySelector?.('.drawer') as HTMLElement | null;
@@ -153,8 +154,8 @@ document.addEventListener('cancel', () => {
   } catch {}
   postToParent('CANCEL');
 });
-document.addEventListener('copy', (e: Event) => {
-  const detail = (e as CustomEvent).detail;
+document.addEventListener(LitComponentEvents.COPY, (e: Event) => {
+  const detail = (e as CustomEvent<LitComponentEventDetailMap[typeof LitComponentEvents.COPY]>).detail;
   if (isObject(detail)) postToParent('COPY', detail as any);
 });
 

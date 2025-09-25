@@ -11,6 +11,7 @@ import {
   orderActionForDigest
 } from '../common/tx-digest';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
+import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 // Ensure the drawer custom element is available when variant === 'drawer'
 // This side-effect import defines the <w3a-drawer-tx-confirm> element.
 import './viewer-drawer';
@@ -253,10 +254,10 @@ function hookDecisionEvents(): void {
   };
   // On confirm, simply forward to parent (host prompts WebAuthn)
   // Listen to new canonical event names from containers
-  document.addEventListener('w3a:tx-confirmer-confirm', () => {
+  document.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, () => {
     forward('CONFIRM');
   });
-  document.addEventListener('w3a:tx-confirmer-cancel', () => forward('CANCEL'));
+  document.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, () => forward('CANCEL'));
 }
 
 window.addEventListener('message', onMessage);
