@@ -1,3 +1,33 @@
+/**
+ * WalletIframeRouter - Client-Side Communication Layer
+ *
+ * This is the main communication manager that handles all interaction between
+ * the parent application and the wallet iframe. It provides a high-level RPC
+ * interface while managing the complex details of iframe communication.
+ *
+ * Key Responsibilities:
+ * - Request/Response Correlation: Tracks pending requests with unique IDs
+ * - Progress Event Bridging: Routes progress events from iframe to parent callbacks
+ * - Overlay Management: Controls iframe visibility for user activation
+ * - Timeout Handling: Manages request timeouts and cleanup
+ * - Message Serialization: Strips non-serializable functions from messages
+ * - Error Handling: Converts iframe errors to parent-appropriate errors
+ *
+ * Architecture:
+ * - Uses IframeTransport for low-level iframe management
+ * - Uses ProgressBus for overlay visibility control
+ * - Maintains pending request registry for correlation
+ * - Provides typed RPC methods for all PasskeyManager operations
+ *
+ * Communication Flow:
+ * 1. Parent calls RPC method (e.g., registerPasskey)
+ * 2. Router creates unique request ID and pending entry
+ * 3. Message sent to iframe via MessagePort
+ * 4. Progress events bridged back to parent callbacks
+ * 5. Final result resolves the pending promise
+ * 6. Cleanup removes pending entry and hides overlay
+ */
+
 import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
@@ -21,7 +51,6 @@ import type {
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
   ActionHooksOptions,
-  ExportNearKeypairWithTouchIdResult,
   GetRecentLoginsResult,
 } from '../../types/passkeyManager';
 import {
@@ -60,7 +89,7 @@ import type { RecoveryResult } from '../../PasskeyManager';
 //   overlay display, and high-level wallet RPC helpers
 
 export interface WalletIframeRouterOptions {
-  walletOrigin?: string; // e.g., https://wallet.example.com (optional; empty => same-origin srcdoc)
+  walletOrigin: string; // e.g., https://wallet.example.com
   servicePath?: string; // default '/service'
   connectTimeoutMs?: number; // default 8000
   requestTimeoutMs?: number; // default 20000
@@ -114,22 +143,48 @@ export class WalletIframeRouter {
   private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
   private progressBus: ProgressBus;
   private debug = false;
+  private readonly walletOriginUrl: URL;
+  private readonly walletOriginOrigin: string;
 
   constructor(options: WalletIframeRouterOptions) {
+    if (!options?.walletOrigin) {
+      throw new Error('[WalletIframeRouter] walletOrigin is required when using the wallet iframe');
+    }
+
+    let parsedOrigin: URL;
+    try {
+      parsedOrigin = new URL(options.walletOrigin);
+    } catch (err) {
+      throw new Error(`[WalletIframeRouter] Invalid walletOrigin: ${options.walletOrigin}`);
+    }
+
+    try {
+      if (typeof window !== 'undefined') {
+        const parentOrigin = window.location.origin;
+        if (parsedOrigin.origin === parentOrigin) {
+          try {
+            console.warn('[WalletIframeRouter] walletOrigin matches the host origin. Isolation safeguards rely on the parent; consider moving the wallet to a dedicated origin.');
+          } catch {}
+        }
+      }
+    } catch {
+      // Ignore environments without window (SSR); enforcement occurs in browser.
+    }
+
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
       servicePath: '/service',
       sdkBasePath: '/sdk',
-      walletOrigin: '',
       ...options,
     } as Required<WalletIframeRouterOptions>;
+    this.walletOriginUrl = parsedOrigin;
+    this.walletOriginOrigin = parsedOrigin.origin;
     this.debug = !!this.opts.debug || !!((globalThis as unknown as { __W3A_DEBUG__?: boolean }).__W3A_DEBUG__);
     // Encapsulate iframe mount + handshake logic in transport
     this.transport = new IframeTransport({
       walletOrigin: this.opts.walletOrigin,
       servicePath: this.opts.servicePath,
-      sdkBasePath: this.opts.sdkBasePath,
       connectTimeoutMs: this.opts.connectTimeoutMs,
     });
 
@@ -142,7 +197,7 @@ export class WalletIframeRouter {
       defaultPhaseHeuristics,
       this.debug
         ? (msg: string, data?: Record<string, unknown>) => {
-            try { console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {}); } catch {}
+            console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {});
           }
         : undefined
     );
@@ -179,7 +234,6 @@ export class WalletIframeRouter {
     if (this.ready) return;
     if (this.initInFlight) { return this.initInFlight; }
     this.initInFlight = (async () => {
-      try { console.debug('[WalletIframeRouter] init: connecting transport'); } catch {}
       this.port = await this.transport.connect();
       this.port.onmessage = (ev) => this.onPortMessage(ev);
       this.port.start?.();
@@ -200,18 +254,11 @@ export class WalletIframeRouter {
           // for embedded Lit components
           assetsBaseUrl: (() => {
             try {
-              // When wallet runs cross-origin, ensure embedded assets resolve under the wallet origin
-              const origin = this.opts.walletOrigin || window.location.origin;
-              const base = new URL(this.opts.sdkBasePath, origin).toString();
-              return base.endsWith('/') ? base : base + '/';
+              const base = new URL(this.opts.sdkBasePath, this.walletOriginUrl).toString();
+              return base.endsWith('/') ? base : `${base}/`;
             } catch {
-              // Fallbacks: prefer walletOrigin if available
-              if (this.opts.walletOrigin) {
-                const o = this.opts.walletOrigin.endsWith('/') ? this.opts.walletOrigin.slice(0, -1) : this.opts.walletOrigin;
-                const b = this.opts.sdkBasePath.startsWith('/') ? this.opts.sdkBasePath : '/' + this.opts.sdkBasePath;
-                return o + b + '/';
-              }
-              return '/sdk/';
+              const fallback = new URL('/sdk/', this.walletOriginUrl).toString();
+              return fallback.endsWith('/') ? fallback : `${fallback}/`;
             }
           })(),
         }
@@ -232,7 +279,7 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    const target = this.walletOriginOrigin;
     try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target); } catch {}
   }
 
@@ -240,7 +287,7 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    const target = this.walletOriginOrigin;
     try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target); } catch {}
   }
 
@@ -248,7 +295,7 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    const target = this.walletOriginOrigin;
     try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target); } catch {}
   }
 
@@ -256,7 +303,7 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
+    const target = this.walletOriginOrigin;
     try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target); } catch {}
   }
 
@@ -312,21 +359,35 @@ export class WalletIframeRouter {
       onEvent?: (ev: RegistrationSSEEvent) => void
     }
   }): Promise<RegistrationResult> {
+    // Step 1: Show iframe overlay immediately for WebAuthn activation
     this.showFrameForActivation();
+
     try {
+      // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)
       const safeOptions = removeFunctionsFromOptions(payload.options);
+
+      // Step 3: Send PM_REGISTER message to iframe and wait for response
       const res = await this.post<RegistrationResult>({
         type: 'PM_REGISTER',
         payload: {
           nearAccountId: payload.nearAccountId,
           options: safeOptions
         },
+        // Bridge progress events from iframe back to parent callback
         options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isRegistrationSSEEvent) }
       });
+
+      // Step 4: Update VRF status after successful registration
       const st = await this.getLoginState(payload.nearAccountId);
-      this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+      this.emitVrfStatusChanged({
+        active: !!st.vrfActive,
+        nearAccountId: st.nearAccountId,
+        sessionDuration: st.vrfSessionDuration
+      });
+
       return res?.result;
     } finally {
+      // Step 5: Always hide overlay when done (success or error)
       this.hideFrameForActivation();
     }
   }
@@ -582,14 +643,6 @@ export class WalletIframeRouter {
     return res.result
   }
 
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
-    const res = await this.post<ExportNearKeypairWithTouchIdResult>({
-      type: 'PM_EXPORT_NEAR_KEYPAIR',
-      payload: { nearAccountId }
-    });
-    return res?.result
-  }
-
   async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
     // Make the wallet iframe visible while the export viewer is open.
     // Unlike request/response flows, the wallet host renders UI and manages
@@ -686,11 +739,18 @@ export class WalletIframeRouter {
   // ===== Control APIs =====
   async cancelRequest(requestId: string): Promise<void> {
     // Best-effort cancel. Host will attempt to close open modals and mark the request as cancelled.
-    await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } });
+    try { await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
+    // Always clear local progress + hide overlay even if the host didn't receive the message
+    try { this.progressBus.unregister(requestId); } catch {}
+    try { this.hideFrameForActivation(); } catch {}
   }
 
   async cancelAll(): Promise<void> {
-    await this.post<void>({ type: 'PM_CANCEL', payload: {} });
+    // Try to cancel all requests on the host, but don't depend on READY/port availability
+    try { await this.post<void>({ type: 'PM_CANCEL', payload: {} }); } catch {}
+    // Clear all local progress listeners and force-hide the overlay
+    try { this.progressBus.clearAll(); } catch {}
+    try { this.hideFrameForActivation(); } catch {}
   }
 
   private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
@@ -766,21 +826,32 @@ export class WalletIframeRouter {
 
   /**
    * Post a typed envelope over the MessagePort with robust readiness handling.
-   * If the port is not ready yet, lazily initializes the transport (awaits init()).
+   * This is the core method that handles all communication with the iframe.
+   *
+   * Flow:
+   * 1. Ensure iframe is ready (lazy initialization)
+   * 2. Generate unique request ID for correlation
+   * 3. Set up timeout and progress handling
+   * 4. Send message to iframe via MessagePort
+   * 5. Wait for response (PM_RESULT or ERROR)
+   * 6. Clean up on completion or timeout
    */
   private async post<T>(
     envelope: Omit<ParentToChildEnvelope, 'requestId'>,
   ): Promise<PostResult<T>> {
 
-    // Lazily initialize the iframe/client if not ready yet
+    // Step 1: Lazily initialize the iframe/client if not ready yet
     if (!this.ready || !this.port) {
       await this.init();
     }
+
+    // Step 2: Generate unique request ID for correlation
     const requestId = `${Date.now()}-${++this.reqCounter}`;
-    const full: ParentToChildEnvelope = { ...(envelope as unknown as ParentToChildEnvelope), requestId };
+    const full: ParentToChildEnvelope = { ...(envelope as ParentToChildEnvelope), requestId };
     const { options } = full;
 
     return new Promise<PostResult<T>>((resolve, reject) => {
+      // Step 3: Set up timeout handler for request
       const timer = window.setTimeout(() => {
         // Timeout: clean up local state and best-effort cancel on host
         try { this.pending.delete(requestId); } catch {}
@@ -791,18 +862,20 @@ export class WalletIframeRouter {
         reject(new Error(`Wallet request timeout for ${envelope.type}`));
       }, this.opts.requestTimeoutMs);
 
+      // Step 4: Register pending request for correlation
       this.pending.set(requestId, {
         resolve: (v) => resolve(v as PostResult<T>),
         reject,
         timer,
         onProgress: options?.onProgress
       });
-      // Register progress handler; overlay handled by ProgressBus
+
+      // Step 5: Register progress handler for real-time updates
       this.progressBus.register({
         requestId: requestId,
-        sticky: !!options?.sticky,
+        sticky: !!options?.sticky, // Some flows need to persist after completion
         onProgress: (payload: ProgressPayload) => {
-          // link ProgressPayloads from WalletIframe, to onEvent calls in parent app
+          // Bridge progress events from iframe back to parent callback
           try {
             options?.onProgress?.(payload);
           } catch {}
@@ -810,7 +883,7 @@ export class WalletIframeRouter {
       });
 
       try {
-        // Strip non-cloneable fields (functions) from envelope options before posting
+        // Step 6: Strip non-cloneable fields (functions) from envelope options before posting
         const wireOptions = (options && isObject(options))
           ? (() => {
               const stickyVal = (options as { sticky?: unknown }).sticky;
@@ -818,8 +891,11 @@ export class WalletIframeRouter {
             })()
           : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
+
+        // Step 7: Send message to iframe via MessagePort
         this.port!.postMessage(serializableFull as ParentToChildEnvelope);
       } catch (err) {
+        // Step 8: Handle send errors - clean up and reject
         this.pending.delete(requestId);
         window.clearTimeout(timer);
         try { this.progressBus.unregister(requestId); } catch {}

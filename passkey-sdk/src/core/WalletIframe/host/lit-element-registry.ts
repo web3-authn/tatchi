@@ -1,26 +1,44 @@
-// Wallet UI Element Registry
-//
-// Purpose:
-// - Provides a small, declarative registry that describes mountable Lit-based UI
-//   components available inside the wallet iframe host.
-// - Each entry declares the custom element tag plus optional event/prop bindings
-//   that the host can use to wire UI interactions to PasskeyManager actions.
-//
-// How it is used:
-// - The wallet host (see lit-elem-mounter.ts) imports this registry and uses it
-//   to create elements on demand when it receives window.postMessage requests
-//   from the parent application.
-// - Event bindings map DOM events (e.g., a button click) to high-level actions
-//   such as `signAndSendTransactions`. Prop bindings allow passing functions or
-//   values from the host into the element instance.
-// - The registry is intentionally small and typed so we can safely expand it
-//   over time without coupling the host to any specific UI implementation.
-//
-// Notes:
-// - Tags are centralized in `WebAuthnManager/LitComponents/tags.ts`; prefer
-//   importing constants from there instead of using string literals.
-// - This module only describes components; mounting/unmounting and runtime
-//   wiring happen in `lit-elem-mounter.ts`.
+/**
+ * Lit Element Registry - Host-Side Execution Layer
+ *
+ * This module provides a declarative registry of UI components that can be mounted
+ * inside the wallet iframe. It defines the available components and how they should
+ * be wired to PasskeyManager actions.
+ *
+ * Key Responsibilities:
+ * - Component Definitions: Declares available Lit-based UI components
+ * - Event Bindings: Maps DOM events to PasskeyManager actions
+ * - Prop Bindings: Defines how to pass functions/props to components
+ * - Bridge Configuration: Specifies how to bridge results back to parent
+ * - Type Safety: Provides typed definitions for all component interactions
+ *
+ * Architecture:
+ * - Uses declarative configuration instead of imperative code
+ * - Separates component definition from mounting logic
+ * - Provides extensible registry for custom components
+ * - Maintains type safety across component boundaries
+ *
+ * Component Types:
+ * - UIEventBinding: Maps DOM events to PasskeyManager actions
+ * - UIPropBinding: Maps component props to PasskeyManager methods
+ * - UIBridgeProps: Defines how to bridge results back to parent
+ * - UIComponentDef: Complete component definition with all bindings
+ *
+ * Built-in Components:
+ * - w3a-tx-button-host: Transaction button with host wrapper
+ * - w3a-tx-button: Direct transaction button
+ * - Backward compatibility aliases for existing component names
+ *
+ * Extension Points:
+ * - New components can be added to the registry
+ * - Custom event/prop bindings can be defined
+ * - Parent applications can register additional component types
+ *
+ * Security Considerations:
+ * - All component definitions are validated before use
+ * - Event handlers are properly bound to PasskeyManager methods
+ * - No arbitrary code execution is allowed in component definitions
+ */
 
 import { W3A_TX_BUTTON_HOST_ID, W3A_TX_BUTTON_ID } from '../../WebAuthnManager/LitComponents/tags';
 

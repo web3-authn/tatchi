@@ -1,26 +1,37 @@
 /**
- * IframeTransport
+ * IframeTransport - Client-Side Communication Layer
  *
- * Encapsulates all logic for safely creating, loading and connecting to the
- * wallet service iframe, including:
- * - DOM creation and attribute hardening (sandbox/allow)
- * - Waiting for the load event to avoid early postMessage races
- * - Performing a robust CONNECT → READY handshake using MessageChannel
- * - Handling cross‑origin boot latency (optional SERVICE_HOST_BOOTED hint)
- * - Deduplicating concurrent connect() calls
+ * This module handles the low-level iframe management and connection establishment.
+ * It encapsulates all the complex browser-specific logic for safely creating and
+ * connecting to the wallet service iframe.
  *
- * This module exposes a small surface area that the higher‑level
- * WalletIframeRouter can depend on without worrying about browser quirks.
+ * Key Responsibilities:
+ * - Iframe Creation: Creates and mounts the iframe element with proper security attributes
+ * - Security Hardening: Sets appropriate allow/sandbox attributes for WebAuthn and clipboard access
+ * - Load Event Handling: Waits for iframe load to avoid postMessage races
+ * - Connection Handshake: Performs robust CONNECT → READY handshake using MessageChannel
+ * - Boot Latency Handling: Manages cross-origin boot delays with SERVICE_HOST_BOOTED hints
+ * - Connection Deduplication: Prevents multiple concurrent connection attempts
+ * - Error Handling: Provides clear error messages for connection failures
+ *
+ * Security Model:
+ * - Uses explicit allow attributes for WebAuthn and clipboard permissions
+ * - Avoids sandboxing for cross-origin deployments (prevents MessagePort transfer issues)
+ * - Validates wallet origin URLs to prevent security issues
+ * - Uses MessageChannel for secure, bidirectional communication
+ *
+ * Browser Compatibility:
+ * - Handles various browser quirks around iframe loading and MessagePort transfer
+ * - Provides fallback behavior for different browser implementations
+ * - Manages timing issues with cross-origin iframe boot sequences
  */
 
 import type { ChildToParentEnvelope } from '../shared/messages';
 import { isObject } from '../validation';
-import { sanitizeSdkBasePath, escapeHtmlAttribute } from '../sanitization';
 
 export interface IframeTransportOptions {
-  walletOrigin?: string;     // e.g., https://wallet.example.com (optional; empty => same-origin srcdoc)
+  walletOrigin: string;     // e.g., https://wallet.example.com
   servicePath?: string;      // default '/service'
-  sdkBasePath?: string;      // base for same-origin srcdoc, default '/sdk'
   connectTimeoutMs?: number; // total budget for handshake retries
 }
 
@@ -29,34 +40,37 @@ export class IframeTransport {
   private iframeEl: HTMLIFrameElement | null = null;
   private serviceBooted = false; // set when wallet host sends SERVICE_HOST_BOOTED (best-effort only)
   private connectInFlight: Promise<MessagePort> | null = null;
+  private readonly walletServiceUrl: URL;
+  private readonly walletOrigin: string;
 
   constructor(options: IframeTransportOptions) {
     this.opts = {
-      walletOrigin: '',
       servicePath: '/service',
-      sdkBasePath: '/sdk',
       connectTimeoutMs: 8000,
       ...options,
     } as Required<IframeTransportOptions>;
 
+    try {
+      this.walletServiceUrl = new URL(this.opts.servicePath, this.opts.walletOrigin);
+    } catch (err) {
+      throw new Error(`[IframeTransport] Invalid wallet origin (${options.walletOrigin}) or servicePath (${options.servicePath || '/service'})`);
+    }
+    this.walletOrigin = this.walletServiceUrl.origin;
+
     // Listen for a best-effort boot hint from the wallet host. Not required for correctness,
     // but helps reduce redundant CONNECT posts while the host script is still booting.
     try {
-      const { walletOrigin } = this.opts;
-      if (walletOrigin) {
-        window.addEventListener('message', (e) => {
-          const data = e.data as unknown;
-          // Narrow to expected boot message shape without using any
-          if (
-            e.origin === walletOrigin &&
-            isObject(data) &&
-            (data as { type?: unknown }).type === 'SERVICE_HOST_BOOTED'
-          ) {
-            try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
-            this.serviceBooted = true;
-          }
-        });
-      }
+      window.addEventListener('message', (e) => {
+        const data = e.data as unknown;
+        if (
+          e.origin === this.walletOrigin &&
+          isObject(data) &&
+          (data as { type?: unknown }).type === 'SERVICE_HOST_BOOTED'
+        ) {
+          try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
+          this.serviceBooted = true;
+        }
+      });
     } catch {}
   }
 
@@ -78,21 +92,10 @@ export class IframeTransport {
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
 
-    // Sandbox only for same‑origin srcdoc case; cross‑origin service pages
-    // avoid sandbox for consistent MessagePort behavior across browsers.
-    if (!this.opts.walletOrigin) {
-      iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
-    }
-
-    // Delegate WebAuthn + clipboard capabilities to the wallet origin frame when cross-origin
+    // Delegate WebAuthn + clipboard capabilities to the wallet origin frame
     try {
-      if (this.opts.walletOrigin) {
-        const origin = new URL(this.opts.walletOrigin).origin;
-        const allow = `publickey-credentials-get ${origin}; publickey-credentials-create ${origin}; clipboard-read; clipboard-write`;
-        iframe.setAttribute('allow', allow);
-      } else {
-        iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
-      }
+      const allow = `publickey-credentials-get ${this.walletOrigin}; publickey-credentials-create ${this.walletOrigin}; clipboard-read; clipboard-write`;
+      iframe.setAttribute('allow', allow);
     } catch {
       iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
     }
@@ -103,19 +106,9 @@ export class IframeTransport {
       iframe.addEventListener('load', () => { iframe._svc_loaded = true; }, { once: true });
     } catch {}
 
-    // Choose source based on origin configuration
-    if (this.opts.walletOrigin) {
-      const src = new URL(this.opts.servicePath, this.opts.walletOrigin).toString();
-      try { console.debug('[IframeTransport] mount: external origin', src); } catch {}
-      iframe.src = src;
-    } else {
-      // Same‑origin: embed host via srcdoc referencing SDK assets. This avoids bundler/path issues.
-      const sanitizedBasePath = sanitizeSdkBasePath(this.opts.sdkBasePath);
-      const serviceHostUrl = `${sanitizedBasePath}/esm/react/embedded/wallet-iframe-host.js`;
-      const escapedUrl = escapeHtmlAttribute(serviceHostUrl);
-      const html = `<!doctype html><html><head><meta charset="utf-8"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/></head><body><script type=\"module\" src=\"${escapedUrl}\"></script></body></html>`;
-      iframe.srcdoc = html;
-    }
+    const src = this.walletServiceUrl.toString();
+    try { console.debug('[IframeTransport] mount: external origin', src); } catch {}
+    iframe.src = src;
 
     document.body.appendChild(iframe);
     try { console.debug('[IframeTransport] mount: iframe appended'); } catch {}
@@ -138,12 +131,10 @@ export class IframeTransport {
       await this.waitForLoad(iframe);
 
       // For cross-origin pages, give the host a brief moment to boot its script
-      if (this.opts.walletOrigin) {
-        const bootWaitMs = Math.min(this.opts.connectTimeoutMs / 4, 1500);
-        const startBoot = Date.now();
-        while (!this.serviceBooted && (Date.now() - startBoot) < bootWaitMs) {
-          await new Promise(r => setTimeout(r, 50));
-        }
+      const bootWaitMs = Math.min(this.opts.connectTimeoutMs / 4, 1500);
+      const startBoot = Date.now();
+      while (!this.serviceBooted && (Date.now() - startBoot) < bootWaitMs) {
+        await new Promise(r => setTimeout(r, 50));
       }
 
       let resolved = false;
@@ -176,18 +167,18 @@ export class IframeTransport {
             }
           };
 
+          // Ensure the receiving side is actively listening before we post the CONNECT
+          try { port1.start?.(); } catch {}
+
           const cw = iframe.contentWindow;
           if (!cw) {
             cleanup();
             return reject(new Error('Wallet iframe window missing'));
           }
-          // Use '*' for target origin when posting the initial CONNECT with a MessagePort.
-          // We are addressing the iframe's contentWindow directly, so there is no
-          // risk of delivering the message to an unintended window, and some
-          // environments have shown brittleness when specifying an explicit
-          // origin during early boot (e.g., port not delivered). The host-side
-          // listener already validates the envelope shape before adopting the port.
-          cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
+          // Explicitly target the wallet origin so Chromium delivers the MessagePort
+          // transfer across origins. Using '*' can silently drop the transferable
+          // port in stricter environments, preventing the host from ever adopting it.
+          cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
           const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;

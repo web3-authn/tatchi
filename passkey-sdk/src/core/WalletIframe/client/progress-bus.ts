@@ -1,5 +1,33 @@
-// Lightweight progress event router for wallet iframe client
-// Encapsulates sticky and in-flight progress handling and overlay heuristics.
+/**
+ * ProgressBus - Client-Side Communication Layer
+ *
+ * This module manages the overlay visibility and progress event routing for the
+ * wallet iframe. It uses intelligent heuristics to show/hide the iframe overlay
+ * at the right moments to capture user activation for WebAuthn operations.
+ *
+ * Key Responsibilities:
+ * - Overlay Control: Shows/hides the iframe overlay based on operation phases
+ * - Progress Routing: Routes progress events to appropriate subscribers
+ * - Sticky Subscriptions: Manages long-running subscriptions that persist after completion
+ * - Phase Heuristics: Uses intelligent logic to determine when overlay is needed
+ * - Event Statistics: Tracks progress event counts and timing for debugging
+ *
+ * Overlay Logic:
+ * - Shows overlay during phases that require user activation (WebAuthn, confirmation)
+ * - Hides overlay during non-interactive phases (signing, broadcasting, completion)
+ * - Minimizes blocking time by hiding as soon as activation is complete
+ * - Ensures modal visibility for requireClick behavior
+ *
+ * Phase Heuristics:
+ * - SHOW_PHASES: Phases that need immediate user interaction (TouchID, confirmation)
+ * - HIDE_PHASES: Post-activation phases that are non-interactive
+ * - Default behavior: 'none' for unknown phases to avoid unnecessary overlay changes
+ *
+ * Security Considerations:
+ * - Overlay is intentionally invisible but captures pointer events during activation
+ * - Uses high z-index to ensure it's above other content when visible
+ * - Automatically hides to minimize interaction blocking
+ */
 
 import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
 import {
@@ -119,8 +147,9 @@ export class ProgressBus {
 
     const phase = String((payload || {}).phase || '');
     const action = this.heuristic(payload);
-    if (action === 'show') { try { this.overlay.show(); } catch {} }
-    if (action === 'hide') { try { this.overlay.hide(); } catch {} }
+
+    if (action === 'show') { this.overlay.show(); }
+    if (action === 'hide') { this.overlay.hide(); }
 
     const sub = this.subs.get(requestId);
     if (sub) {
@@ -197,15 +226,20 @@ export const defaultPhaseHeuristics: PhaseHeuristics = (payload: ProgressPayload
     const phase = String((payload || {}).phase || '');
     if (!phase) return 'none';
 
+    // Step 1: Check if this phase requires showing the overlay for user activation
     if (SHOW_PHASES.has(phase)) return 'show';
+
+    // Step 2: Check if this phase indicates we should hide the overlay (post-activation)
     if (HIDE_PHASES.has(phase)) return 'hide';
 
-    // Back-compat: hide on legacy/custom completion markers if present.
+    // Step 3: Handle legacy/custom completion markers
     const raw = phase.toLowerCase();
     if (raw === 'user-confirmation-complete') return 'hide';
-    // Extra hardening: hide overlay when a route reports explicit cancellation via PROGRESS.
+
+    // Step 4: Extra hardening - hide overlay on explicit cancellation
     if (raw === 'cancelled') return 'hide';
 
+    // Step 5: Default to no change for unknown phases
     return 'none';
   } catch { return 'none'; }
 };

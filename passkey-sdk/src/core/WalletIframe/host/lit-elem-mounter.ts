@@ -1,25 +1,43 @@
 
-// Wallet Host Lit Element Mounter
-//
-// Purpose:
-// - Runs inside the wallet iframe and mounts compact Lit UI components that
-//   need to exist within the wallet origin (e.g., to capture user activation
-//   for WebAuthn).
-// - Exposes a minimal window.postMessage API consumed by the parent app to
-//   request mounting, updating, and unmounting of those components.
-//
-// Responsibilities:
-// - Define and keep alive essential custom elements (prevents tree‑shaking).
-// - Translate parent messages into concrete element instances using the
-//   declarative registry from `lit-element-registry.ts`.
-// - Wire mounted elements to PasskeyManager methods (e.g.,
-//   `signAndSendTransactions`) via typed prop/event bridges.
-// - Clean up previous instances to avoid duplicates when remounting.
-//
-// Non-goals:
-// - It does not own modal Tx confirmation UI (that is managed by the signer
-//   flow and LitComponents/confirm-ui). This module only handles small,
-//   embedded controls like the Tx button host.
+/**
+ * Lit Element Mounter - Host-Side Execution Layer
+ *
+ * This module manages Lit-based UI components inside the wallet iframe. It provides
+ * a bridge between the parent application and UI components that need to run in
+ * the wallet origin for proper WebAuthn activation.
+ *
+ * Key Responsibilities:
+ * - Component Mounting: Creates and mounts Lit UI components on demand
+ * - Event Wiring: Connects UI interactions to PasskeyManager methods
+ * - Lifecycle Management: Handles mount/unmount/update operations
+ * - Message API: Exposes window.postMessage interface for parent communication
+ * - Component Registry: Uses declarative registry for component definitions
+ * - PasskeyManager Integration: Wires UI actions to actual wallet operations
+ *
+ * Architecture:
+ * - Uses lit-element-registry.ts for component definitions
+ * - Maintains mounted component instances by ID
+ * - Provides typed prop/event bindings for PasskeyManager actions
+ * - Handles both direct component mounting and registry-based mounting
+ * - Supports component updates and cleanup
+ *
+ * Component Types:
+ * - Transaction Buttons: For signing and sending transactions
+ * - Registration Buttons: For passkey registration flows
+ * - Generic UI Components: Extensible registry for custom components
+ *
+ * Message Protocol:
+ * - WALLET_UI_MOUNT: Mount a component with specified props
+ * - WALLET_UI_UPDATE: Update props of existing component
+ * - WALLET_UI_UNMOUNT: Remove a mounted component
+ * - WALLET_UI_REGISTER_TYPES: Register new component types
+ *
+ * Security Considerations:
+ * - All UI components run in the wallet origin for proper WebAuthn context
+ * - Components are isolated from parent application code
+ * - Event handlers are properly bound to PasskeyManager methods
+ * - No functions are transferred across the iframe boundary
+ */
 
 // Import and retain a reference to ensure bundlers don’t treeshake the element
 // Import iframe tooltip confirmer button and keep reference
@@ -77,6 +95,7 @@ export function setupLitElemMounter(opts: {
   ensurePasskeyManager: EnsurePasskeyManager;
   getPasskeyManager: GetPasskeyManager;
   updateWalletConfigs: UpdateWalletConfigs;
+  postToParent: (message: unknown) => void;
 }) {
   /**
    * Message API (window.postMessage) expected from the parent document:
@@ -149,17 +168,73 @@ export function setupLitElemMounter(opts: {
     hostTxEl = null;
   };
 
-  // Mount tx host wrapper (Lit) that mirrors the React host API
-  const showTxHost = async (cfg: WalletIframeTxButtonHostProps) => {
+  type NormalizedTxConfig = {
+    nearAccountId: string;
+    transactions: TransactionInput[];
+    className: string;
+    text: string;
+    theme: 'dark' | 'light';
+    buttonStyle?: Record<string, string>;
+    buttonHoverStyle?: Record<string, string>;
+    tooltipPosition?: Record<string, string>;
+    targetSelector?: string;
+  };
 
-    try { ensurePasskeyManager(); } catch {}
+  const normalizeTxConfig = (cfg: WalletIframeTxButtonHostProps, context: 'TxHost' | 'TxBtn'): NormalizedTxConfig | null => {
     const nearAccountId = String(cfg?.nearAccountId || '').trim();
     const transactions = Array.isArray(cfg?.transactions) ? cfg.transactions : [];
-
     if (!nearAccountId || transactions.length === 0) {
-      console.warn('[ElemMounter:TxHost] missing nearAccountId or transactions');
-      return;
+      console.warn(`[ElemMounter:${context}] missing nearAccountId or transactions`);
+      return null;
     }
+
+    const className = cfg?.className ? String(cfg.className) : '';
+    const text = String(cfg?.text || 'Send Transaction');
+    const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
+    const buttonStyle = normalizeButtonStyle(cfg?.buttonStyle as Record<string, string>);
+    const buttonHoverStyle = normalizeButtonStyle(cfg?.buttonHoverStyle as Record<string, string>);
+    const tooltipPosition = cfg?.tooltipPosition || undefined;
+    const targetSelector = ((cfg as unknown as { targetSelector?: string })?.targetSelector) || undefined;
+
+    return {
+      nearAccountId,
+      transactions,
+      className,
+      text,
+      theme,
+      buttonStyle,
+      buttonHoverStyle,
+      tooltipPosition,
+      targetSelector,
+    };
+  };
+
+  const attachTxCallbacks = (el: {
+    externalConfirm?: (args: {
+      nearAccountId: string;
+      txSigningRequests: TransactionInput[];
+      options?: SignAndSendTransactionHooksOptions;
+    }) => Promise<ActionResult[]>;
+    onSuccess?: (result: ActionResult[]) => void;
+    onCancel?: () => void;
+  }) => {
+    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }) => {
+      const pm = getPasskeyManager();
+      return await pm!.signAndSendTransactions({ nearAccountId, transactions: txSigningRequests, options });
+    };
+    el.onSuccess = (result: ActionResult[]) => {
+      try { opts.postToParent({ type: 'TX_BUTTON_RESULT', payload: { ok: true, result } }); } catch {}
+    };
+    el.onCancel = () => {
+      try { opts.postToParent({ type: 'TX_BUTTON_RESULT', payload: { ok: false, cancelled: true } }); } catch {}
+    };
+  };
+
+  // Mount tx host wrapper (Lit) that mirrors the React host API
+  const showTxHost = async (cfg: WalletIframeTxButtonHostProps) => {
+    try { ensurePasskeyManager(); } catch {}
+    const normalized = normalizeTxConfig(cfg, 'TxHost');
+    if (!normalized) return;
 
     removeTxHost();
 
@@ -167,7 +242,7 @@ export function setupLitElemMounter(opts: {
       externalConfirm?: (args: {
         nearAccountId: string;
         txSigningRequests: TransactionInput[];
-        options?: SignAndSendTransactionHooksOptions
+        options?: SignAndSendTransactionHooksOptions;
       }) => Promise<ActionResult[]>;
       onSuccess?: (result: ActionResult[]) => void;
       onCancel?: () => void;
@@ -180,101 +255,44 @@ export function setupLitElemMounter(opts: {
       theme?: 'dark' | 'light';
     };
 
-    el.style.display = 'inline-block';
-    el.className = cfg?.className ? String(cfg.className) : '';
-    el.nearAccountId = nearAccountId;
-    el.transactions = transactions;
-    el.text = cfg?.text || 'Send Transaction';
-    el.theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    const bs = normalizeButtonStyle(cfg?.buttonStyle as Record<string, string>);
-    const bhs = normalizeButtonStyle(cfg?.buttonHoverStyle as Record<string, string>);
-    if (bs) el.buttonStyle = bs;
-    if (bhs) el.buttonHoverStyle = bhs;
-    if (cfg?.tooltipPosition) el.tooltipPosition = cfg.tooltipPosition;
+    try { el.style.display = 'inline-block'; } catch {}
+    el.className = normalized.className;
+    el.nearAccountId = normalized.nearAccountId;
+    el.transactions = normalized.transactions;
+    el.text = normalized.text;
+    el.theme = normalized.theme;
+    if (normalized.buttonStyle) el.buttonStyle = normalized.buttonStyle;
+    if (normalized.buttonHoverStyle) el.buttonHoverStyle = normalized.buttonHoverStyle;
+    if (normalized.tooltipPosition) el.tooltipPosition = normalized.tooltipPosition;
 
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: {
-      nearAccountId: string;
-      txSigningRequests: TransactionInput[];
-      options?: SignAndSendTransactionHooksOptions
-    }) => {
-      const pm = getPasskeyManager();
-      return await pm!.signAndSendTransactions({ nearAccountId, transactions: txSigningRequests, options });
-    };
-    el.onSuccess = (result: ActionResult[]) => {
-      try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: true, result } }, '*'); } catch {}
-    };
-    el.onCancel = () => {
-      try { window.parent?.postMessage({ type: 'TX_BUTTON_RESULT', payload: { ok: false, cancelled: true } }, '*'); } catch {}
-    };
+    attachTxCallbacks(el);
 
-    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
+    pickRoot(normalized.targetSelector).appendChild(el);
     hostTxEl = el;
   };
 
   const showTxBtn = async (cfg: WalletIframeTxButtonHostProps) => {
     try { ensurePasskeyManager(); } catch {}
-    const nearAccountId = String(cfg?.nearAccountId || '').trim();
-    const transactions = Array.isArray(cfg?.transactions) ? cfg.transactions : [];
-    const className = cfg?.className ? String(cfg.className) : '';
-    const buttonText = String(cfg?.text || 'Send Transaction');
-    const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    const buttonStyle = normalizeButtonStyle(cfg?.buttonStyle as Record<string, string>);
-    const buttonHoverStyle = normalizeButtonStyle(cfg?.buttonHoverStyle as Record<string, string>);
-    const tooltipPosition = cfg?.tooltipPosition || undefined;
+    const normalized = normalizeTxConfig(cfg, 'TxBtn');
+    if (!normalized) return;
 
-    if (!nearAccountId || transactions.length === 0) {
-      console.warn('[ElemMounter:TxBtn] missing nearAccountId or transactions');
-      return;
-    }
-
-    // Remove existing instance
     removeTxBtn();
+
     const el = document.createElement(getTag('txButton')) as IframeButtonLitElementProps;
-    // Ensure footprint before upgrade
     try { el.style.display = 'inline-block'; } catch {}
-    if (className) try { el.className = className; } catch {}
-    // Set data attributes and props
-    el.nearAccountId = nearAccountId;
-    el.txSigningRequests = transactions;
-    el.buttonTextElement = buttonText;
-    el.txTreeTheme = theme;
-    el.buttonStyle = buttonStyle;
-    el.buttonHoverStyle = buttonHoverStyle;
-    if (tooltipPosition) el.tooltipPosition = tooltipPosition;
+    if (normalized.className) try { el.className = normalized.className; } catch {}
 
-    // Wire externalConfirm to local PasskeyManager inside wallet host
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }: {
-      nearAccountId: string;
-      txSigningRequests: TransactionInput[];
-      options?: SignAndSendTransactionHooksOptions
-    }) => {
-      const pm = getPasskeyManager();
-      return await pm!.signAndSendTransactions({
-        nearAccountId,
-        transactions: txSigningRequests,
-        options,
-      });
-    };
+    el.nearAccountId = normalized.nearAccountId;
+    el.txSigningRequests = normalized.transactions;
+    el.buttonTextElement = normalized.text;
+    el.txTreeTheme = normalized.theme;
+    if (normalized.buttonStyle) el.buttonStyle = normalized.buttonStyle;
+    if (normalized.buttonHoverStyle) el.buttonHoverStyle = normalized.buttonHoverStyle;
+    if (normalized.tooltipPosition) el.tooltipPosition = normalized.tooltipPosition;
 
-    // Proxy results back to parent for observability
-    el.onSuccess = (result: ActionResult[]) => {
-      try {
-        window.parent?.postMessage({
-          type: 'TX_BUTTON_RESULT',
-          payload: { ok: true, result }
-        }, '*');
-      } catch {}
-    };
-    el.onCancel = () => {
-      try {
-        window.parent?.postMessage({
-          type: 'TX_BUTTON_RESULT',
-          payload: { ok: false, cancelled: true }
-        }, '*');
-      } catch {}
-    };
+    attachTxCallbacks(el);
 
-    pickRoot((cfg as unknown as { targetSelector?: string })?.targetSelector).appendChild(el);
+    pickRoot(normalized.targetSelector).appendChild(el);
     txBtnEl = el;
   };
 
@@ -357,11 +375,11 @@ export function setupLitElemMounter(opts: {
               }
               const result = await runPmAction(b.action, args);
               if (b.resultMessageType) {
-                try { window.parent?.postMessage({ type: b.resultMessageType, payload: { ok: true, result } }, '*'); } catch {}
+                try { opts.postToParent({ type: b.resultMessageType, payload: { ok: true, result } }); } catch {}
               }
             } catch (err: unknown) {
               const type = b.resultMessageType || 'UI_ACTION_RESULT';
-              try { window.parent?.postMessage({ type, payload: { ok: false, error: errorMessage(err) } }, '*'); } catch {}
+              try { opts.postToParent({ type, payload: { ok: false, error: errorMessage(err) } }); } catch {}
             }
           });
         } catch {}
@@ -384,10 +402,10 @@ export function setupLitElemMounter(opts: {
     if (def.bridgeProps) {
       const { successProp, cancelProp, messageType } = def.bridgeProps;
       if (successProp) {
-        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { window.parent?.postMessage({ type: messageType, payload: { ok: true, result } }, '*'); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { opts.postToParent({ type: messageType, payload: { ok: true, result } }); } catch {} }; } catch {}
       }
       if (cancelProp) {
-        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { window.parent?.postMessage({ type: messageType, payload: { ok: false, cancelled: true } }, '*'); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { opts.postToParent({ type: messageType, payload: { ok: false, cancelled: true } }); } catch {} }; } catch {}
       }
     }
 
@@ -413,52 +431,66 @@ export function setupLitElemMounter(opts: {
     return true;
   };
 
+  const messageHandlers: Record<string, (payload: unknown) => void> = {
+    WALLET_SET_CONFIG: (payload) => {
+      const data = payload as Record<string, unknown>;
+      try { updateWalletConfigs(data); } catch {}
+      try {
+        const iframeWallet = (isObject(data) && isObject((data as { iframeWallet?: unknown }).iframeWallet))
+          ? (data as { iframeWallet?: Record<string, unknown> }).iframeWallet
+          : undefined;
+        const registry = (iframeWallet && isObject((iframeWallet as { uiRegistry?: unknown }).uiRegistry))
+          ? (iframeWallet as { uiRegistry?: WalletUIRegistry }).uiRegistry
+          : undefined;
+        if (registry) {
+          uiRegistry = { ...uiRegistry, ...registry };
+        }
+      } catch {}
+    },
+    WALLET_UI_REGISTER_TYPES: (payload) => {
+      try {
+        if (isObject(payload)) {
+          uiRegistry = { ...uiRegistry, ...(payload as WalletUIRegistry) };
+        }
+      } catch {}
+    },
+    WALLET_UI_MOUNT: (payload) => {
+      try { mountUiComponent(payload as { key: string }); } catch {}
+    },
+    WALLET_UI_UPDATE: (payload) => {
+      try { updateUiComponent(payload as { id: string; props?: Record<string, unknown> }); } catch {}
+    },
+    WALLET_UI_UNMOUNT: (payload) => {
+      try { unmountUiComponent(payload as { id: string }); } catch {}
+    },
+    WALLET_SHOW_TX_HOST: (payload) => {
+      showTxHost(payload as WalletIframeTxButtonHostProps);
+    },
+    WALLET_HIDE_TX_HOST: () => {
+      removeTxHost();
+    },
+    WALLET_SHOW_TX_BUTTON: (payload) => {
+      const data = payload as WalletIframeTxButtonHostProps & { renderMode?: string };
+      try {
+        if (data?.renderMode === 'inline') {
+          showTxHost(data);
+          return;
+        }
+      } catch {}
+      showTxBtn(data);
+    },
+    WALLET_HIDE_TX_BUTTON: () => {
+      removeTxBtn();
+    },
+  };
+
   window.addEventListener('message', (evt: MessageEvent) => {
-    const t = evt?.data?.type;
-    const p = evt?.data?.payload ?? {};
-    switch (t) {
-      case 'WALLET_SET_CONFIG':
-        try { updateWalletConfigs(p); } catch {}
-        try {
-          const iw = (isObject(p) && isObject((p as { iframeWallet?: unknown }).iframeWallet))
-            ? (p as { iframeWallet?: Record<string, unknown> }).iframeWallet
-            : undefined;
-          const reg = (iw && isObject((iw as { uiRegistry?: unknown }).uiRegistry)) ? ((iw as { uiRegistry?: WalletUIRegistry }).uiRegistry) : undefined;
-          if (reg) {
-            uiRegistry = { ...uiRegistry, ...reg };
-          }
-        } catch {}
-        break;
-      // Generic registry operations
-      case 'WALLET_UI_REGISTER_TYPES':
-        try { if (isObject(p)) uiRegistry = { ...uiRegistry, ...(p as WalletUIRegistry) }; } catch {}
-        break;
-      case 'WALLET_UI_MOUNT':
-        try { mountUiComponent(p); } catch {}
-        break;
-      case 'WALLET_UI_UPDATE':
-        try { updateUiComponent(p); } catch {}
-        break;
-      case 'WALLET_UI_UNMOUNT':
-        try { unmountUiComponent(p); } catch {}
-        break;
-      // New: host wrappers (no nested wallet iframe)
-      case 'WALLET_SHOW_TX_HOST':
-        showTxHost(p);
-        break;
-      case 'WALLET_HIDE_TX_HOST':
-        removeTxHost();
-        break;
-      case 'WALLET_SHOW_TX_BUTTON':
-        // If caller hints renderMode: 'inline', prefer host wrapper
-        try {
-          if (p?.renderMode === 'inline') { showTxHost(p); break; }
-        } catch {}
-        showTxBtn(p);
-        break;
-      case 'WALLET_HIDE_TX_BUTTON':
-        removeTxBtn();
-        break;
-    }
+    const type = evt?.data?.type;
+    if (!type) return;
+    const handler = messageHandlers[type as keyof typeof messageHandlers];
+    if (!handler) return;
+    try {
+      handler(evt?.data?.payload ?? evt?.data ?? {});
+    } catch {}
   });
 }
