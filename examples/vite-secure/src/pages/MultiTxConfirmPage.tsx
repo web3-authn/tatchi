@@ -223,7 +223,7 @@ export const MultiTxConfirmPage: React.FC = () => {
           }
         ],
         options: {
-          executionWait: { mode: 'parallelStaggered', staggerMs: 250 },
+          executionWait: { mode: 'parallelStaggered', staggerMs: 500 },
           onEvent: (event) => {
             console.log('send TX event:', event);
             switch (event.phase) {

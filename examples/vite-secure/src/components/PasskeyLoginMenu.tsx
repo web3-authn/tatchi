@@ -1,11 +1,20 @@
-import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu, AuthMenuMode } from '@web3authn/passkey/react'
+import {
+  usePasskeyContext,
+  RegistrationPhase,
+  RegistrationStatus,
+  LoginPhase,
+  PasskeyAuthMenu,
+  AuthMenuMode,
+  DeviceLinkingPhase,
+  DeviceLinkingStatus
+} from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
   type RegistrationSSEEvent,
   AccountRecoveryPhase,
-  AccountRecoveryStatus
+  AccountRecoveryStatus,
+  type DeviceLinkingSSEEvent
 } from '@web3authn/passkey/react'
 import './PasskeyLoginMenu.css'
 
@@ -170,6 +179,51 @@ export function PasskeyLoginMenu() {
         }}
         onRecoverAccount={async () => {
           return onRecover();
+        }}
+        linkDeviceOptions={{
+          onEvent: (event: DeviceLinkingSSEEvent) => {
+            const toastId = 'device-linking';
+            switch (event.phase) {
+              case DeviceLinkingPhase.STEP_1_QR_CODE_GENERATED:
+                toast.loading('QR code ready. Scan it with your other device.', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_2_SCANNING:
+                toast.loading('Waiting for Device 1 to scan the QR code…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_3_AUTHORIZATION:
+                toast.loading('Authorize linking on Device 1…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_4_POLLING:
+                toast.loading('Confirming new device with the network…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED:
+                toast.loading('Device key detected on-chain. Wrapping up…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_6_REGISTRATION:
+                toast.loading('Registering authenticator for this device…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_7_LINKING_COMPLETE:
+                toast.success('Device linked successfully!', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_8_AUTO_LOGIN:
+                toast.loading('Auto-login in progress…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.DEVICE_LINKING_ERROR:
+              case DeviceLinkingPhase.LOGIN_ERROR:
+              case DeviceLinkingPhase.REGISTRATION_ERROR: {
+                toast.error(event.error ?? event.message, { id: toastId });
+                break;
+              }
+              default:
+                console.log("Unexpected Link Device event")
+                break;
+            }
+          },
+          onError: (error: Error) => {
+            const toastId = 'device-linking';
+            console.error('Device linking error:', error);
+            toast.error(error.message || 'Device linking failed', { id: toastId });
+          }
         }}
       />
     </div>
