@@ -306,13 +306,14 @@ export async function executeActionInternal({
   try {
     await beforeCall?.();
 
-    // Pre-warm NonceManager with fresh transaction context data
-    try {
-      await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(context.nearClient);
-    } catch (error) {
-      console.warn('[executeAction]: Failed to pre-warm NonceManager:', error);
-      // Continue execution - NonceManager will fall back to direct RPC calls if needed
-    }
+    // Pre-warm NonceManager with fresh transaction context data without blocking UI feedback
+    void context.webAuthnManager
+      .getNonceManager()
+      .getNonceBlockHashAndHeight(context.nearClient)
+      .catch((error) => {
+        console.warn('[executeAction]: Failed to pre-warm NonceManager:', error);
+        // Continue execution - NonceManager will fall back to direct RPC calls if needed
+      });
 
     const signedTxs = await signTransactionsWithActionsInternal({
       context,
