@@ -11,6 +11,7 @@ import { ShowQRCode } from '../ShowQRCode';
 import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
+import type { DeviceLinkingSSEEvent } from '../../../core/types/passkeyManager';
 
 // Enum-based auth modes for clearer usage without naked numbers
 export enum AuthMenuMode {
@@ -55,7 +56,18 @@ export interface SignupMenuProps {
   accountExists?: boolean;
   /** Optionally pass secure-context flag; defaults to window.isSecureContext */
   isSecureContext?: boolean;
+  /** Optional callbacks for the link-device QR flow */
+  linkDeviceOptions?: {
+    onEvent?: (event: DeviceLinkingSSEEvent) => void;
+    onError?: (error: Error) => void;
+  };
 }
+
+export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
+  <ThemeScope>
+    <PasskeyAuthMenuInner {...props} />
+  </ThemeScope>
+);
 
 /**
  * - Uses theme tokens from design-tokens.ts via ThemeProvider/useTheme
@@ -77,6 +89,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   accountExists,
   isSecureContext,
   onRecoverAccount,
+  linkDeviceOptions,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -181,6 +194,17 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
 
   const segActiveBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
 
+  const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {
+    console.log('ShowQRCode event:', event);
+  }, []);
+
+  const fallbackOnError = React.useCallback((error: Error) => {
+    console.error('ShowQRCode error:', error);
+  }, []);
+
+  const handleLinkDeviceEvent = linkDeviceOptions?.onEvent ?? fallbackOnEvent;
+  const handleLinkDeviceError = linkDeviceOptions?.onError ?? fallbackOnError;
+
   return (
     <div
       className={`w3a-signup-menu-root${className ? ` ${className}` : ''}`}
@@ -191,7 +215,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     >
       <ContentSwitcher
         waiting={waiting}
-        showScanDevice={showScanDevice}
         backButton={
           <button
             aria-label="Back"
@@ -201,16 +224,13 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
             <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
           </button>
         }
-        scanDeviceContent={
+        showScanDevice={showScanDevice}
+        showQRCodeElement={
           <ShowQRCode
             isOpen={showScanDevice}
             onClose={() => setShowScanDevice(false)}
-            onEvent={(event) => {
-              console.log('ShowQRCode event:', event);
-            }}
-            onError={(error) => {
-              console.error('ShowQRCode error:', error);
-            }}
+            onEvent={handleLinkDeviceEvent}
+            onError={handleLinkDeviceError}
           />
         }
       >
@@ -296,11 +316,5 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     </div>
   );
 };
-
-export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
-  <ThemeScope>
-    <PasskeyAuthMenuInner {...props} />
-  </ThemeScope>
-);
 
 export default PasskeyAuthMenu;

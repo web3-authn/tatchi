@@ -138,7 +138,6 @@
 .w3a-key-item {
   box-sizing: border-box;
   display: grid;
-  justify-content: center;
   align-items: center;
   background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);

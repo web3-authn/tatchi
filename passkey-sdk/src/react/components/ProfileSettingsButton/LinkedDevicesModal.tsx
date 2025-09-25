@@ -232,7 +232,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
                             <span className="w3a-device-badge">Device {item.deviceNumber}</span>
                           </div>
                         </div>
-                        <div className="mono w3a-registered">registered: {formatDateTime(item.registered)}</div>
+                        <div className="mono w3a-registered">Registered: {formatDateTime(item.registered)}</div>
                       </div>
                     </div>
                   </div>
