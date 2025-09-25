@@ -1,6 +1,7 @@
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import type { SignerWorkerManagerContext } from '../index';
 import type { SecureConfirmRequest } from './types';
+import { SecureConfirmationType } from './types';
 
 /**
  * determineConfirmationConfig
@@ -56,14 +57,19 @@ export function determineConfirmationConfig(
 
   // In wallet‑iframe host context: registration/link flows default to an explicit click.
   // However, if the effective config explicitly opts into auto‑proceed (or skip), honor it.
-  if (inIframe && request?.type && (request.type === 'registerAccount' || request.type === 'linkDevice')) {
+  if (
+    inIframe &&
+    request?.type &&
+    (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
+  ) {
     const wantsSkip = cfg.uiMode === 'skip';
     const wantsAutoProceed = (cfg.uiMode === 'modal' && cfg.behavior === 'autoProceed');
     if (!(wantsSkip || wantsAutoProceed)) {
+      // Default to autoProceed (skip click) instead of requireClick in wallet-iframe registration/link flows
       return {
         uiMode: 'modal',
-        behavior: 'requireClick',
-        autoProceedDelay: undefined,
+        behavior: 'autoProceed',
+        autoProceedDelay: cfg.autoProceedDelay,
         theme: cfg.theme || 'dark',
       } as ConfirmationConfig;
     }

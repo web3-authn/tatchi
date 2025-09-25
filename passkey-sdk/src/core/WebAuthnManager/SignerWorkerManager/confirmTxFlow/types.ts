@@ -52,7 +52,7 @@ export interface WorkerConfirmationResponse {
   error?: string;
 }
 
-// ===== V2 REFACTOR TYPES (non-breaking additions) =====
+// ===== V2 MESSAGE TYPES =====
 
 export enum SecureConfirmationType {
   SIGN_TRANSACTION = 'signTransaction',
@@ -63,7 +63,7 @@ export enum SecureConfirmationType {
   SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
 }
 
-// V2 request envelope (preferred for new call sites)
+// V2 request envelope
 export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
   schemaVersion: 2;
   requestId: string;

@@ -14,6 +14,9 @@ import {
   SecureConfirmationType,
   SignTransactionPayload,
   RegisterAccountPayload,
+  DecryptPrivateKeyWithPrfPayload,
+  ShowSecurePrivateKeyUiPayload,
+  SignNep413Payload,
 } from './types';
 import { TransactionContext, VRFChallenge } from '../../../types';
 import { createRandomVRFChallenge } from '../../../types/vrf-worker';
@@ -31,6 +34,15 @@ import { errorMessage, toError, isTouchIdCancellationError } from '../../../../u
 import '../../LitComponents/ExportPrivateKey/iframe-host';
 import { ExportViewerIframeElement} from '../../LitComponents/ExportPrivateKey/iframe-host';
 
+// Narrowed request union that binds `type` to its corresponding payload shape
+type KnownSecureConfirmRequest =
+  | (SecureConfirmRequest<SignTransactionPayload> & { type: SecureConfirmationType.SIGN_TRANSACTION })
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.REGISTER_ACCOUNT })
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.LINK_DEVICE })
+  | (SecureConfirmRequest<DecryptPrivateKeyWithPrfPayload> & { type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF })
+  | (SecureConfirmRequest<SignNep413Payload> & { type: SecureConfirmationType.SIGN_NEP413_MESSAGE })
+  | (SecureConfirmRequest<ShowSecurePrivateKeyUiPayload> & { type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI });
+
 /**
  * Handles secure confirmation requests from the worker with robust error handling
  * => SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD
@@ -45,13 +57,13 @@ export async function handlePromptUserConfirmInJsMainThread(
   worker: Worker
 ): Promise<void> {
   // 1. Validate and parse request
-  let request: SecureConfirmRequest;
+  let request: KnownSecureConfirmRequest;
   let summary: TransactionSummary;
   let confirmationConfig: ConfirmationConfig;
   let transactionSummary: TransactionSummary;
   try {
     const parsed = validateAndParseRequest({ ctx, request: message.data });
-    request = parsed.request;
+    request = parsed.request as unknown as KnownSecureConfirmRequest;
     summary = parsed.summary;
     confirmationConfig = parsed.confirmationConfig;
     transactionSummary = parsed.transactionSummary;
@@ -253,24 +265,6 @@ export async function handlePromptUserConfirmInJsMainThread(
     console.warn('[SignerWorkerManager]: Failed to release reserved nonces after decision:', e);
   }
   sendWorkerResponse(worker, decisionWithCredentials);
-}
-
-/** Resolve a safe RP ID matching current host; only use override if suffix of host. */
-function resolveRpId(rpIdOverride?: string): string {
-  try {
-    const host = (window?.location?.hostname || '').toLowerCase();
-    const override = (rpIdOverride || '').toLowerCase();
-    if (override && isRegistrableSuffix(host, override)) return override;
-    return host;
-  } catch {
-    return rpIdOverride || '';
-  }
-}
-
-function isRegistrableSuffix(host: string, cand: string): boolean {
-  if (!host || !cand) return false;
-  if (host === cand) return true;
-  return host.endsWith('.' + cand);
 }
 
 // ===== Small helpers to centralize request shape access =====
@@ -563,7 +557,7 @@ async function collectTouchIdCredentials({
   decision,
 }: {
   ctx: SignerWorkerManagerContext,
-  request: SecureConfirmRequest,
+  request: KnownSecureConfirmRequest,
   decision: SecureConfirmDecision,
 }): Promise<{ decisionWithCredentials: SecureConfirmDecision }> {
   const nearAccountId = (() => {
@@ -584,8 +578,10 @@ async function collectTouchIdCredentials({
   if (!nearAccountId) {
     throw new Error('nearAccountId not available for credential collection');
   }
+
   const isLocalOnly = request.type === SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF
     || request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI;
+
   if (!vrfChallenge) {
     if (isLocalOnly) {
       vrfChallenge = createRandomVRFChallenge() as VRFChallenge;
@@ -607,7 +603,10 @@ async function collectTouchIdCredentials({
   }
 
   let credential: PublicKeyCredential | undefined = undefined;
-  if (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE) {
+  if (
+    request.type === SecureConfirmationType.REGISTER_ACCOUNT ||
+    request.type === SecureConfirmationType.LINK_DEVICE
+  ) {
     // Registration/link flows must use create() to generate a new credential
     // Resolve optional deviceNumber from summary if present
     let deviceNumber = (request.payload as RegisterAccountPayload)?.deviceNumber;
@@ -667,13 +666,9 @@ async function collectTouchIdCredentials({
   }
 
   // Serialize credential for WASM worker (use appropriate serializer based on flow type)
-  const serializedCredential = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
-    ? serializeRegistrationCredentialWithPRF({
-        credential: credential,
-        firstPrfOutput: true,
-        secondPrfOutput: true
-      })
-    : serializeAuthenticationCredentialWithPRF({ credential: credential });
+  const serializedCredential = isRegistration
+    ? serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true })
+    : serializeAuthenticationCredentialWithPRF({ credential });
 
   return {
     decisionWithCredentials: {
