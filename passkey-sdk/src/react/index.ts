@@ -58,6 +58,10 @@ export {
   WalletIframeTxButtonHost,
   type WalletIframeTxButtonHostProps,
 } from './components/WalletIframeTxButtonHost';
+export {
+  WalletIframePasskeyAuthMenu,
+  type WalletIframePasskeyAuthMenuProps,
+} from './components/WalletIframePasskeyAuthMenu';
 // Sign Up / Sign In menu
 export { PasskeyAuthMenu } from './components/PasskeyAuthMenu';
 export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu';

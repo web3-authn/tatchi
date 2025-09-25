@@ -489,7 +489,7 @@ pub async fn request_registration_credential_confirmation(
         "confirmationConfig": ConfirmationConfig {
             ui_mode: ConfirmationUIMode::Modal,
             behavior: ConfirmationBehavior::RequireClick,
-            auto_proceed_delay: Some(1000),
+            auto_proceed_delay: Some(0),
             theme: Some("dark".to_string()),
         },
         "registrationDetails": {

@@ -150,10 +150,11 @@ async function handleLoginUnlockVRF(
     });
 
     let unlockResult: { success: boolean; error?: string } = { success: false };
+    let usedFallbackTouchId = false;
 
     const hasServerEncrypted = !!userData.serverEncryptedVrfKeypair;
     const relayerUrl = context.configs.relayer?.url;
-    const useShamir3PassVRFKeyUnlock = hasServerEncrypted && !!relayerUrl;
+    const useShamir3PassVRFKeyUnlock = hasServerEncrypted && !!relayerUrl && !!userData.serverEncryptedVrfKeypair?.serverKeyId;
 
     if (useShamir3PassVRFKeyUnlock) {
       try {
@@ -166,6 +167,7 @@ async function handleLoginUnlockVRF(
           nearAccountId,
           kek_s_b64u: shamir.kek_s_b64u,
           ciphertextVrfB64u: shamir.ciphertextVrfB64u,
+          serverKeyId: shamir.serverKeyId,
         });
 
         if (unlockResult.success) {
@@ -173,6 +175,10 @@ async function handleLoginUnlockVRF(
           const active = vrfStatus.active && vrfStatus.nearAccountId === nearAccountId;
           if (!active) {
             unlockResult = { success: false, error: 'VRF session inactive after Shamir3Pass' };
+          }
+          if (active) {
+            // Proactive rotation if serverKeyId changed and we unlocked via Shamir
+            await webAuthnManager.maybeProactiveShamirRefresh(nearAccountId);
           }
         } else {
           console.error('Shamir3Pass unlock failed:', unlockResult.error);
@@ -210,6 +216,7 @@ async function handleLoginUnlockVRF(
         },
         credential: credential,
       });
+      usedFallbackTouchId = unlockResult.success;
     }
 
     if (!unlockResult.success) {
@@ -222,6 +229,18 @@ async function handleLoginUnlockVRF(
       status: LoginStatus.SUCCESS,
       message: 'VRF keypair unlocked successfully'
     });
+
+    // Proactive refresh: if Shamir3Pass failed and we used TouchID, re-encrypt under current server key
+    try {
+      const relayerUrl = context.configs.relayer?.url;
+      if (usedFallbackTouchId && relayerUrl) {
+        const refreshed = await webAuthnManager.shamir3PassEncryptCurrentVrfKeypair();
+        await webAuthnManager.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
+        console.debug('Refreshed serverEncryptedVrfKeypair after TouchID fallback');
+      }
+    } catch (refreshErr: any) {
+      console.warn('Non-fatal: Failed to refresh serverEncryptedVrfKeypair:', refreshErr?.message || refreshErr);
+    }
 
     // Step 3: Update local data and return success
     await webAuthnManager.updateLastLogin(nearAccountId);

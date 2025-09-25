@@ -158,7 +158,7 @@ export interface ConfirmationConfig {
 export const DEFAULT_CONFIRMATION_CONFIG: ConfirmationConfig = {
   uiMode: 'modal',
   behavior: 'autoProceed',
-  autoProceedDelay: 1000,
+  autoProceedDelay: 0,
   theme: 'dark',
 };
 

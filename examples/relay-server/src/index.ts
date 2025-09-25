@@ -3,9 +3,7 @@ import {
   AuthService,
   type CreateAccountAndRegisterRequest,
   type CreateAccountAndRegisterResult,
-  type ShamirApplyServerLockRequest,
   type ShamirApplyServerLockResponse,
-  type ShamirRemoveServerLockRequest,
   type ShamirRemoveServerLockResponse,
 } from '@web3authn/passkey/server';
 import cors from 'cors';
@@ -18,6 +16,22 @@ const config = {
   expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
 };
 // Create AuthService instance
+// Optional grace keys: previously-active Shamir exponents still accepted for remove-server-lock
+let graceShamirKeys: Array<{ e_s_b64u: string; d_s_b64u: string }> | undefined = undefined;
+try {
+  const raw = process.env.SHAMIR_GRACE_KEYS;
+  if (raw) {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) {
+      graceShamirKeys = arr
+        .filter((x) => x && typeof x.e_s_b64u === 'string' && typeof x.d_s_b64u === 'string')
+        .map((x) => ({ e_s_b64u: x.e_s_b64u, d_s_b64u: x.d_s_b64u }));
+    }
+  }
+} catch (e) {
+  console.warn('[relay-server] Failed to parse SHAMIR_GRACE_KEYS env (ignored):', (e as Error)?.message);
+}
+
 const authService = new AuthService({
   // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
   // you can make it the same account as the webauthn contract id.
@@ -33,6 +47,7 @@ const authService = new AuthService({
   shamir_p_b64u: process.env.SHAMIR_P_B64U!,
   shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
   shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
+  graceShamirKeys,
 });
 
 const app: Express = express();
@@ -112,7 +127,7 @@ app.post(
 // Removed legacy SRA routes
 
 // Shamir 3-pass endpoints
-app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ShamirApplyServerLockRequest>, res: Response<ShamirApplyServerLockResponse | { error: string; details?: string }>) => {
+app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, { kek_c_b64u: string }>, res: Response<ShamirApplyServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("apply-server-lock request.body", req.body);
     const serverResponse = await authService.handleApplyServerLock({
@@ -131,7 +146,7 @@ app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ShamirApplyServer
   }
 });
 
-app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, ShamirRemoveServerLockRequest>, res: Response<ShamirRemoveServerLockResponse | { error: string; details?: string }>) => {
+app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, { kek_cs_b64u: string; keyId: string }>, res: Response<ShamirRemoveServerLockResponse | { error: string; details?: string }>) => {
   try {
     console.log("remove-server-lock request.body", req.body);
     const serverResponse = await authService.handleRemoveServerLock({
@@ -147,6 +162,18 @@ app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, ShamirRemoveServ
       error: 'internal',
       details: e?.message
     });
+  }
+});
+
+// Shamir key info endpoint (for proactive client refresh)
+app.get('/shamir/key-info', async (_req: Request, res: Response) => {
+  try {
+    const serverResponse = await authService.handleGetShamirKeyInfo();
+    Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
+    res.status(serverResponse.status);
+    res.send(JSON.parse(serverResponse.body));
+  } catch (e: any) {
+    res.status(500).json({ error: 'internal', details: e?.message });
   }
 });
 

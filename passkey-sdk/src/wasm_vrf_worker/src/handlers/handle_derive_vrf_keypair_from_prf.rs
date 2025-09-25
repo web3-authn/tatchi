@@ -116,12 +116,7 @@ pub async fn handle_derive_vrf_keypair_from_prf(
             .await
             {
                 Ok(server_blob) => {
-                    derivation_result.server_encrypted_vrf_keypair =
-                        Some(Shamir3PassEncryptVrfKeypairResult {
-                            ciphertext_vrf_b64u: server_blob.ciphertext_vrf_b64u,
-                            kek_s_b64u: server_blob.kek_s_b64u,
-                            vrf_public_key: server_blob.vrf_public_key,
-                        });
+                    derivation_result.server_encrypted_vrf_keypair = Some(server_blob);
                 }
                 Err(e) => {
                     warn!("VRF keypair server encryption failed: {} (proceeding)", e);

@@ -475,7 +475,7 @@ async function renderUserConfirmUI({
           uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        const delay = confirmationConfig.autoProceedDelay ?? 1000;
+        const delay = confirmationConfig.autoProceedDelay ?? 0;
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
@@ -509,7 +509,7 @@ async function renderUserConfirmUI({
           uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        const delay = confirmationConfig.autoProceedDelay ?? 1000;
+        const delay = confirmationConfig.autoProceedDelay ?? 0;
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {

@@ -368,21 +368,54 @@ export class WebAuthnManager {
     nearAccountId,
     kek_s_b64u,
     ciphertextVrfB64u,
+    serverKeyId,
   }: {
     nearAccountId: AccountId;
     kek_s_b64u: string;
     ciphertextVrfB64u: string;
+    serverKeyId: string;
   }): Promise<{ success: boolean; error?: string }> {
     const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
       nearAccountId,
       kek_s_b64u,
       ciphertextVrfB64u,
+      serverKeyId,
     });
 
     return {
       success: result.success,
       error: result.error
     };
+  }
+
+  /**
+   * Shamir 3-pass: encrypt the unlocked VRF keypair under the server key
+   * Returns a fresh blob to store in IndexedDB for future auto-login.
+   */
+  async shamir3PassEncryptCurrentVrfKeypair(): Promise<ServerEncryptedVrfKeypair> {
+    const res = await this.vrfWorkerManager.shamir3PassEncryptCurrentVrfKeypair();
+    return {
+      ciphertextVrfB64u: res.ciphertextVrfB64u,
+      kek_s_b64u: res.kek_s_b64u,
+      serverKeyId: res.serverKeyId,
+    };
+  }
+
+  /**
+   * Persist refreshed server-encrypted VRF keypair in IndexedDB.
+   */
+  async updateServerEncryptedVrfKeypair(
+    nearAccountId: AccountId,
+    serverEncrypted: ServerEncryptedVrfKeypair
+  ): Promise<void> {
+    await IndexedDBManager.clientDB.updateUser(nearAccountId, {
+      serverEncryptedVrfKeypair: {
+        ciphertextVrfB64u: serverEncrypted.ciphertextVrfB64u,
+        kek_s_b64u: serverEncrypted.kek_s_b64u,
+        serverKeyId: serverEncrypted.serverKeyId,
+        updatedAt: Date.now(),
+      }
+    });
   }
 
   async clearVrfSession(): Promise<void> {
@@ -394,6 +427,54 @@ export class WebAuthnManager {
    */
   async checkVrfStatus(): Promise<{ active: boolean; nearAccountId: AccountId | null; sessionDuration?: number }> {
     return this.vrfWorkerManager.checkVrfStatus();
+  }
+
+  /**
+   * Fetch Shamir server key info to support proactive refresh.
+   */
+  async getShamirKeyInfo(): Promise<{ currentKeyId: string | null; p_b64u: string | null; graceKeyIds?: string[] } | null> {
+    try {
+      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      if (!relayUrl) return null;
+      const res = await fetch(`${relayUrl}/shamir/key-info`, { method: 'GET' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        currentKeyId: data?.currentKeyId ?? null,
+        p_b64u: data?.p_b64u ?? null,
+        graceKeyIds: Array.isArray(data?.graceKeyIds) ? data.graceKeyIds : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * If server key changed and VRF is unlocked in memory, re-encrypt under the new server key.
+   * Returns true if refreshed, false otherwise.
+   */
+  async maybeProactiveShamirRefresh(nearAccountId: AccountId): Promise<boolean> {
+    try {
+      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      if (!relayUrl) return false;
+      const userData = await this.getUser(nearAccountId);
+      const stored = userData?.serverEncryptedVrfKeypair;
+      if (!stored || !stored.kek_s_b64u || !stored.ciphertextVrfB64u || !stored.serverKeyId) return false;
+
+      const keyInfo = await this.getShamirKeyInfo();
+      const currentKeyId = keyInfo?.currentKeyId;
+      if (!currentKeyId || currentKeyId === stored.serverKeyId) return false;
+
+      const status = await this.checkVrfStatus();
+      const active = status.active && status.nearAccountId === nearAccountId;
+      if (!active) return false;
+
+      const refreshed = await this.shamir3PassEncryptCurrentVrfKeypair();
+      await this.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   ///////////////////////////////////////
@@ -584,6 +665,8 @@ export class WebAuthnManager {
         serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
           ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
           kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
+          serverKeyId: serverEncryptedVrfKeypair?.serverKeyId,
+          updatedAt: Date.now(),
         } : undefined,
       });
 

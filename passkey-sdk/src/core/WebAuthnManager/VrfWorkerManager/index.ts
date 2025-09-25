@@ -626,10 +626,12 @@ export class VrfWorkerManager {
     nearAccountId,
     kek_s_b64u,
     ciphertextVrfB64u,
+    serverKeyId,
   }: {
     nearAccountId: AccountId;
     kek_s_b64u: string;
     ciphertextVrfB64u: string;
+    serverKeyId: string;
   }): Promise<VRFWorkerResponse> {
     await this.ensureWorkerReady(true);
     const message: VRFWorkerMessage<WasmShamir3PassClientDecryptVrfKeypairRequest> = {
@@ -639,6 +641,8 @@ export class VrfWorkerManager {
         nearAccountId,
         kek_s_b64u,
         ciphertextVrfB64u,
+        // Required key for server selection
+        keyId: serverKeyId,
       },
     };
     const response = await this.sendMessage(message);
@@ -646,6 +650,36 @@ export class VrfWorkerManager {
       this.currentVrfAccountId = nearAccountId;
     }
     return response;
+  }
+
+  /**
+   * Shamir 3-pass: encrypt the currently unlocked VRF keypair under the server key
+   * Returns a fresh serverEncryptedVrfKeypair blob for IndexedDB.
+   * Requires: current VRF keypair is unlocked and present in worker memory.
+   */
+  async shamir3PassEncryptCurrentVrfKeypair(): Promise<{
+    ciphertextVrfB64u: string;
+    kek_s_b64u: string;
+    serverKeyId: string;
+  }> {
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage<WasmVrfWorkerRequestType> = {
+      type: 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR',
+      id: this.generateMessageId(),
+      payload: {} as WasmVrfWorkerRequestType,
+    };
+    const response = await this.sendMessage(message);
+    if (!response.success || !response.data) {
+      throw new Error(`VRF encrypt-current failed: ${response.error}`);
+    }
+    const { ciphertextVrfB64u, kek_s_b64u, serverKeyId } = response.data as any;
+    if (!ciphertextVrfB64u || !kek_s_b64u) {
+      throw new Error('Invalid encrypt-current response');
+    }
+    if (!serverKeyId) {
+      throw new Error('Server did not return keyId from apply-server-lock');
+    }
+    return { ciphertextVrfB64u, kek_s_b64u, serverKeyId };
   }
 
   /**

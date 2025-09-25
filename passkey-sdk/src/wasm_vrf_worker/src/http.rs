@@ -92,6 +92,7 @@ pub(crate) async fn post_apply_server_lock(
 pub(crate) async fn post_remove_server_lock(
     endpoint_url: &str,
     kek_cs_b64u: &str,
+    key_id: String,
 ) -> Result<ShamirRemoveServerLockHTTPResponse, String> {
     debug!("Shamir3Pass remove-server-lock: {}", endpoint_url);
 
@@ -108,6 +109,7 @@ pub(crate) async fn post_remove_server_lock(
     opts.set_body(
         &ShamirRemoveServerLockHTTPRequest {
             kek_cs_b64u: kek_cs_b64u.to_string(),
+            key_id,
         }
         .to_js_value(),
     );

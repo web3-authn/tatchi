@@ -61,6 +61,11 @@ export interface AuthServiceConfig {
   shamir_p_b64u: string;
   shamir_e_s_b64u: string;
   shamir_d_s_b64u: string;
+  // Optional grace keys: previously active server keys still accepted for removal
+  graceShamirKeys?: Array<{
+    e_s_b64u: string;
+    d_s_b64u: string;
+  }>;
 }
 
 // Account creation and registration types (imported from relay-server types)

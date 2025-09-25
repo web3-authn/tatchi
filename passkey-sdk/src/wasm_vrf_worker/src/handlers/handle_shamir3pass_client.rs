@@ -26,6 +26,9 @@ pub struct Shamir3PassClientDecryptVrfKeypairRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "ciphertextVrfB64u")]
     #[serde(rename = "ciphertextVrfB64u")]
     pub ciphertext_vrf_b64u: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "keyId")]
+    #[serde(rename = "keyId")]
+    pub key_id: String,
 }
 
 #[wasm_bindgen]
@@ -40,6 +43,9 @@ pub struct Shamir3PassEncryptVrfKeypairResult {
     #[wasm_bindgen(getter_with_clone, js_name = "vrfPublicKey")]
     #[serde(rename = "vrfPublicKey")]
     pub vrf_public_key: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "serverKeyId")]
+    #[serde(default, rename = "serverKeyId")]
+    pub server_key_id: Option<String>,
 }
 
 // === Shamir 3-pass client-side handlers ===
@@ -82,6 +88,7 @@ pub async fn handle_shamir3pass_client_encrypt_current_vrf_keypair(
         ciphertext_vrf_b64u: result.ciphertext_vrf_b64u,
         kek_s_b64u: result.kek_s_b64u,
         vrf_public_key: result.vrf_public_key,
+        server_key_id: result.server_key_id,
     };
 
     VrfWorkerResponse::success(message_id, Some(serde_json::to_value(&out).unwrap()))
@@ -153,10 +160,12 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
 
     // POST to server to lock (double locked)
     let url = format!("{}{}", relay_url, apply_lock_route);
-    let kek_cs_b64u = match post_apply_server_lock(&url, &kek_c_b64u).await {
-        Ok(v) => v.kek_cs_b64u,
+    let apply_resp = match post_apply_server_lock(&url, &kek_c_b64u).await {
+        Ok(v) => v,
         Err(e) => return Err(e),
     };
+    let server_key_id = apply_resp.key_id.clone();
+    let kek_cs_b64u = apply_resp.kek_cs_b64u;
     // Client receives double locked KEK back and base64url decodes it
     let kek_cs =
         decode_biguint_b64u(&kek_cs_b64u).map_err(|_| "invalid kek_cs_b64u".to_string())?;
@@ -170,6 +179,7 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
         ciphertext_vrf_b64u: crate::utils::base64_url_encode(&ciphertext_vrf),
         kek_s_b64u: kek_s_b64u,
         vrf_public_key: vrf_pub_b64,
+        server_key_id,
     })
 }
 
@@ -234,7 +244,7 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
 
     // POST KEK_cs to server /remove-server-lock and receive KEK_c back
     let url = format!("{}{}", relay_url, remove_route);
-    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u).await {
+    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u, payload.key_id.clone()).await {
         Ok(v) => v.kek_c_b64u,
         Err(e) => return VrfWorkerResponse::fail(message_id, e),
     };

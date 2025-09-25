@@ -1,5 +1,13 @@
 import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu, AuthMenuMode } from '@web3authn/passkey/react'
+import {
+  usePasskeyContext,
+  RegistrationPhase,
+  RegistrationStatus,
+  LoginPhase,
+  PasskeyAuthMenu,
+  AuthMenuMode,
+  WalletIframePasskeyAuthMenu,
+} from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -153,26 +161,134 @@ export function PasskeyLoginMenu() {
   return (
     <div className="passkey-login-container-root" style={{
     }}>
-      <PasskeyAuthMenu
-        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
-        socialLogin={{}}
-        // socialLogin={{
-        //   google: () => 'username is: <gmail_email@gmail>',
-        //   x: () => 'username is <twitter_handle@x>',
-        //   apple: () => 'username is <email@apple>'
-        // }}
-        onLogin={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onLogin();
-        }}
-        onRegister={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onRegister();
-        }}
-        onRecoverAccount={async () => {
-          return onRecover();
-        }}
-      />
+      {Boolean(passkeyManager?.configs?.iframeWallet?.walletOrigin) ? (
+        <WalletIframePasskeyAuthMenu
+          defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
+          socialProviders={[]}
+          onAuthProgress={(detail) => {
+            const payload = detail as { mode?: AuthMenuMode; event?: unknown };
+            if (!payload) return;
+            if (payload.mode === AuthMenuMode.Register) {
+              handleRegistrationEvent(payload.event as RegistrationSSEEvent);
+            } else if (payload.mode === AuthMenuMode.Login) {
+              handleLoginEvent(payload.event as any);
+            }
+          }}
+          onAuthSuccess={(detail) => {
+            const payload = detail as { mode?: AuthMenuMode; result?: any };
+            if (!payload) return;
+            switch (payload.mode) {
+              case AuthMenuMode.Register:
+                toast.success('Registration completed successfully!', { id: 'registration' });
+                refreshLoginState(payload.result?.nearAccountId);
+                break;
+              case AuthMenuMode.Login:
+                toast.success(`Logged in as ${payload.result?.nearAccountId || targetAccountId}!`, { id: 'login' });
+                refreshLoginState(payload.result?.nearAccountId);
+                break;
+              case AuthMenuMode.Recover:
+                toast.success('Account recovered successfully!');
+                refreshLoginState(payload.result?.nearAccountId);
+                break;
+              default:
+                break;
+            }
+          }}
+          onAuthError={(detail) => {
+            const payload = detail as { mode?: AuthMenuMode; error?: unknown };
+            const message = payload?.error instanceof Error
+              ? payload.error.message
+              : friendlyWebAuthnMessage(payload?.error);
+            toast.error(message || 'Authentication failed');
+          }}
+          onLinkDeviceSuccess={() => {
+            toast.success('Device linked successfully!');
+            refreshLoginState();
+          }}
+          onLinkDeviceError={(detail) => {
+            const payload = detail as { event?: { message?: string } };
+            toast.error(payload?.event?.message || 'Device linking failed');
+          }}
+        />
+      ) : (
+        <PasskeyAuthMenu
+          defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
+          socialLogin={{}}
+          onLogin={async () => {
+            if (!targetAccountId) throw new Error('Missing account id');
+            return onLogin();
+          }}
+          onRegister={async () => {
+            if (!targetAccountId) throw new Error('Missing account id');
+            return onRegister();
+          }}
+          onRecoverAccount={async () => {
+            return onRecover();
+          }}
+        />
+      )}
     </div>
   );
+}
+
+function handleRegistrationEvent(event?: RegistrationSSEEvent) {
+  if (!event) return;
+  switch (event.phase) {
+    case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:
+      if (event.status === RegistrationStatus.PROGRESS) {
+        toast.loading('Starting registration...', { id: 'registration' });
+      }
+      break;
+    case RegistrationPhase.STEP_2_KEY_GENERATION:
+      if (event.status === RegistrationStatus.SUCCESS) {
+        toast.success('Keys generated...', { id: 'registration' });
+      }
+      break;
+    case RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION:
+      if (event.status === RegistrationStatus.PROGRESS) {
+        toast.loading('Creating account...', { id: 'registration' });
+      }
+      break;
+    case RegistrationPhase.STEP_6_CONTRACT_REGISTRATION:
+      if (event.status === RegistrationStatus.PROGRESS) {
+        toast.loading('Registering with Web3Authn contract...', { id: 'registration' });
+      }
+      break;
+    case RegistrationPhase.STEP_7_REGISTRATION_COMPLETE:
+      if (event.status === RegistrationStatus.SUCCESS) {
+        toast.success('Registration completed successfully!', { id: 'registration' });
+      }
+      break;
+    case RegistrationPhase.REGISTRATION_ERROR:
+      toast.error(event.error || 'Registration failed', { id: 'registration' });
+      break;
+    default:
+      if (event.status === RegistrationStatus.PROGRESS) {
+        toast.loading(event.message || 'Processing...', { id: 'registration' });
+      }
+  }
+}
+
+function handleLoginEvent(event: any) {
+  if (!event) return;
+  switch (event.phase) {
+    case LoginPhase.STEP_1_PREPARATION:
+      toast.loading('Logging in...', { id: 'login' });
+      break;
+    case LoginPhase.STEP_2_WEBAUTHN_ASSERTION:
+      toast.loading(event.message || 'Completing WebAuthn...', { id: 'login' });
+      break;
+    case LoginPhase.STEP_3_VRF_UNLOCK:
+      break;
+    case LoginPhase.STEP_4_LOGIN_COMPLETE:
+      toast.success(`Logged in as ${event.nearAccountId}!`, { id: 'login' });
+      break;
+    case LoginPhase.LOGIN_ERROR:
+      toast.error(event.error || 'Login failed', { id: 'login' });
+      break;
+    default:
+      if (event.message) {
+        toast.loading(event.message, { id: 'login' });
+      }
+  }
 }

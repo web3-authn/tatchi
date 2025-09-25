@@ -4,6 +4,7 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import { createHash } from 'crypto';
 // @ts-ignore - WASM imports
 import initWasm, {
   handle_message as wasmHandleMessage,
@@ -67,6 +68,17 @@ export class Shamir3PassUtils {
     this.d_s_b64u = opts.d_s_b64u ?? '';
   }
 
+  getCurrentKeyId(): string | null {
+    if (!this.e_s_b64u) return null;
+    try {
+      // Derive a stable identifier from the public exponent representation
+      const h = createHash('sha256').update(this.e_s_b64u).digest('base64url');
+      return h;
+    } catch {
+      return null;
+    }
+  }
+
   async initialize(): Promise<{ p_b64u: string }> {
     await ensureWasmInitialized();
     if (!this.p_b64u) {
@@ -113,7 +125,8 @@ export class Shamir3PassUtils {
       throw new Error(res?.error || 'applyServerLock failed');
     }
     return {
-      kek_cs_b64u: res.data.kek_cs_b64u
+      kek_cs_b64u: res.data.kek_cs_b64u,
+      keyId: res.data.keyId,
     };
   }
 

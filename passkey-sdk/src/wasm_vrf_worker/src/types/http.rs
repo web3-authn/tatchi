@@ -20,6 +20,9 @@ impl ShamirApplyServerLockHTTPRequest {
 pub struct ShamirApplyServerLockHTTPResponse {
     #[wasm_bindgen(getter_with_clone, js_name = "kek_cs_b64u")]
     pub kek_cs_b64u: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "keyId")]
+    #[serde(default, rename = "keyId")]
+    pub key_id: Option<String>,
 }
 impl ShamirApplyServerLockHTTPResponse {
     pub fn from_str(s: &str) -> Result<Self, String> {
@@ -35,6 +38,9 @@ impl ShamirApplyServerLockHTTPResponse {
 pub struct ShamirRemoveServerLockHTTPRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "kek_cs_b64u")]
     pub kek_cs_b64u: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "keyId")]
+    #[serde(rename = "keyId")]
+    pub key_id: String,
 }
 impl ShamirRemoveServerLockHTTPRequest {
     pub fn to_js_value(&self) -> JsValue {

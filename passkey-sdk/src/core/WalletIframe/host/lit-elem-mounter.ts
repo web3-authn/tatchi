@@ -42,6 +42,7 @@
 // Import and retain a reference to ensure bundlers don’t treeshake the element
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
+import { PasskeyAuthMenuElement as __PasskeyAuthMenuKeep } from '../../WebAuthnManager/LitComponents/PasskeyAuthMenu/passkey-auth-menu';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
 import { ConfirmationConfig } from '../../types/signer-worker';
@@ -54,10 +55,10 @@ import {
 import { uiBuiltinRegistry, type WalletUIRegistry } from './lit-element-registry';
 import { errorMessage } from '../../../utils/errors';
 import { isObject, isString, isFiniteNumber } from '../validation';
-import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
+import { defineTag, getTag, W3A_PASSKEY_AUTH_MENU_ID } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensureTreeDefinition = [__IframeButtonKeep];
+const __ensureTreeDefinition = [__IframeButtonKeep, __PasskeyAuthMenuKeep];
 // Define the element defensively in case the side-effect define was optimized away
 
 import { type WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
@@ -65,6 +66,7 @@ import { type WalletIframeTxButtonHostProps } from '../../../react/components/Wa
 import './WalletHostElements';
 
 try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
+try { defineTag('passkeyAuthMenu', __PasskeyAuthMenuKeep as unknown as CustomElementConstructor); } catch {}
 
 export type EnsurePasskeyManager = () => void;
 export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
@@ -123,6 +125,7 @@ export function setupLitElemMounter(opts: {
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
   const mountedById = new Map<string, HTMLElement>();
+  const passkeyEventListeners = new Map<string, Array<{ type: string; handler: EventListener }>>();
   let uidCounter = 0;
   let busy = false;
 
@@ -300,6 +303,7 @@ export function setupLitElemMounter(opts: {
   const applyProps = (el: HTMLElement & Record<string, unknown>, props: Record<string, unknown>) => {
     if (!props) return;
     for (const [k, v] of Object.entries(props)) {
+      if (v === undefined || v === null) continue;
       try { (el as unknown as Record<string, unknown>)[k] = v as unknown; } catch {}
     }
   };
@@ -359,6 +363,13 @@ export function setupLitElemMounter(opts: {
     const el = document.createElement(def.tag) as HTMLElement & Record<string, unknown>;
     try { el.style.display = 'inline-block'; } catch {}
     const props = { ...(def.propDefaults || {}), ...(payload?.props || {}) } as Record<string, unknown>;
+    if (!('passkeyManager' in props)) {
+      try {
+        ensurePasskeyManager();
+        const pm = getPasskeyManager();
+        if (pm) props.passkeyManager = pm;
+      } catch {}
+    }
     applyProps(el, props);
 
     // Wire event bindings to run pm actions and optionally post results
@@ -409,23 +420,60 @@ export function setupLitElemMounter(opts: {
       }
     }
 
+    const id = payload?.id || `w3a-ui-${++uidCounter}`;
     const root = pickRoot((payload?.props as unknown as { targetSelector?: string })?.targetSelector || (payload as { targetSelector?: string } | undefined)?.targetSelector);
     root.appendChild(el);
-    const id = payload?.id || `w3a-ui-${++uidCounter}`;
     mountedById.set(id, el);
+    if (def.tag === W3A_PASSKEY_AUTH_MENU_ID) {
+      const listeners: Array<{ type: string; handler: EventListener }> = [];
+      const forward = (eventType: string, messageType: string) => {
+        const handler = (evt: Event) => {
+          const detail = (evt as CustomEvent).detail;
+          try { opts.postToParent({ type: messageType, payload: { id, detail } }); } catch {}
+        };
+        el.addEventListener(eventType, handler as EventListener);
+        listeners.push({ type: eventType, handler });
+      };
+      forward('w3a-auth-progress', 'PASSKEY_MENU_AUTH_PROGRESS');
+      forward('w3a-auth-success', 'PASSKEY_MENU_AUTH_SUCCESS');
+      forward('w3a-auth-error', 'PASSKEY_MENU_AUTH_ERROR');
+      forward('w3a-link-device-event', 'PASSKEY_MENU_LINK_EVENT');
+      forward('w3a-link-device-error', 'PASSKEY_MENU_LINK_ERROR');
+      forward('w3a-link-device-success', 'PASSKEY_MENU_LINK_SUCCESS');
+      forward('w3a-link-device-start', 'PASSKEY_MENU_LINK_START');
+      forward('w3a-link-device-request', 'PASSKEY_MENU_LINK_REQUEST');
+      passkeyEventListeners.set(id, listeners);
+    }
     return id;
   };
 
   const updateUiComponent = (payload: { id: string; props?: Record<string, unknown> }) => {
     const el = mountedById.get(payload.id) as (HTMLElement & Record<string, unknown>) | undefined;
     if (!el) return false;
-    applyProps(el, payload.props || {});
+    const props = { ...(payload.props || {}) } as Record<string, unknown>;
+    if (!('passkeyManager' in props) && 'passkeyManager' in el) {
+      try {
+        ensurePasskeyManager();
+        const pm = getPasskeyManager();
+        if (pm) props.passkeyManager = pm;
+      } catch {}
+    }
+    applyProps(el, props);
     return true;
   };
 
   const unmountUiComponent = (payload: { id: string }) => {
     const el = mountedById.get(payload.id);
     if (!el) return false;
+    try {
+      const listeners = passkeyEventListeners.get(payload.id);
+      if (listeners && listeners.length) {
+        for (const { type, handler } of listeners) {
+          try { el.removeEventListener(type, handler); } catch {}
+        }
+      }
+      passkeyEventListeners.delete(payload.id);
+    } catch {}
     try { el.remove(); } catch {}
     mountedById.delete(payload.id);
     return true;
@@ -481,6 +529,29 @@ export function setupLitElemMounter(opts: {
     },
     WALLET_HIDE_TX_BUTTON: () => {
       removeTxBtn();
+    },
+    WALLET_SHOW_PASSKEY_MENU: (payload) => {
+      const data = payload as { props?: Record<string, unknown>; targetSelector?: string; id?: string };
+      try {
+        mountUiComponent({
+          key: 'w3a-passkey-auth-menu',
+          props: data?.props || {},
+          targetSelector: data?.targetSelector,
+          id: data?.id,
+        });
+      } catch (err) {
+        console.error('[ElemMounter] Failed to mount passkey menu:', err);
+      }
+    },
+    WALLET_UPDATE_PASSKEY_MENU: (payload) => {
+      const data = payload as { id: string; props?: Record<string, unknown> };
+      if (!data?.id) return;
+      try { updateUiComponent({ id: data.id, props: data.props || {} }); } catch {}
+    },
+    WALLET_HIDE_PASSKEY_MENU: (payload) => {
+      const data = payload as { id?: string };
+      if (!data?.id) return;
+      try { unmountUiComponent({ id: data.id }); } catch {}
     },
   };
 

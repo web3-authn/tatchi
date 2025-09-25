@@ -605,6 +605,7 @@ export class LinkDeviceFlow {
       // Try Shamir 3-pass unlock first if available
       if (
         deterministicKeysResult.serverEncryptedVrfKeypair &&
+        deterministicKeysResult.serverEncryptedVrfKeypair.serverKeyId &&
         this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
       ) {
         try {
@@ -613,6 +614,7 @@ export class LinkDeviceFlow {
             nearAccountId: accountId,
             kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
             ciphertextVrfB64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertextVrfB64u,
+            serverKeyId: deterministicKeysResult.serverEncryptedVrfKeypair.serverKeyId,
           });
 
           if (unlockResult.success) {

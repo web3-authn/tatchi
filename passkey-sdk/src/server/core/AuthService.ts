@@ -57,6 +57,7 @@ export class AuthService {
 
   // Shamir 3-pass key management
   private shamir3pass: Shamir3PassUtils | null = null;
+  private graceKeys: Map<string, Shamir3PassUtils> = new Map();
 
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
@@ -98,6 +99,24 @@ export class AuthService {
         e_s_b64u: this.config.shamir_e_s_b64u,
         d_s_b64u: this.config.shamir_d_s_b64u,
       });
+      try { await this.shamir3pass.initialize(); } catch {}
+    }
+
+    // Build grace key map if provided (optional)
+    if (this.config.graceShamirKeys && this.graceKeys.size === 0) {
+      for (const spec of this.config.graceShamirKeys) {
+        try {
+          const util = new Shamir3PassUtils({
+            p_b64u: this.config.shamir_p_b64u,
+            e_s_b64u: spec.e_s_b64u,
+            d_s_b64u: spec.d_s_b64u,
+          });
+          const keyId = util.getCurrentKeyId();
+          if (keyId) this.graceKeys.set(keyId, util);
+        } catch (e) {
+          console.warn('[AuthService] Failed to initialize grace Shamir key:', e);
+        }
+      }
     }
 
     // Derive public key from configured relayer private key
@@ -677,10 +696,11 @@ export class AuthService {
         };
       }
       const out = await this.applyServerLock(request.body.kek_c_b64u);
+      const keyId = this.shamir3pass?.getCurrentKeyId?.();
       return {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(out)
+        body: JSON.stringify({ ...out, keyId })
       };
     } catch (e: any) {
       return {
@@ -695,7 +715,7 @@ export class AuthService {
    * Framework-agnostic Shamir 3-pass: remove server lock
    */
   async handleRemoveServerLock(request: {
-    body: { kek_cs_b64u: string }
+    body: { kek_cs_b64u: string; keyId: string }
   }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
     try {
       if (!request.body) {
@@ -712,11 +732,54 @@ export class AuthService {
           body: JSON.stringify({ error: 'kek_cs_b64u required and must be a non-empty string' })
         };
       }
-      const out = await this.removeServerLock(request.body.kek_cs_b64u);
+      if (!isString((request.body as any).keyId) || !(request.body as any).keyId) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'keyId required and must be a non-empty string' })
+        };
+      }
+      const providedKeyId = String((request.body as any).keyId);
+      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
+      let out: ShamirRemoveServerLockResponse;
+      if (currentKeyId && providedKeyId === currentKeyId) {
+        out = await this.removeServerLock(request.body.kek_cs_b64u);
+      } else if (this.graceKeys.has(providedKeyId)) {
+        const util = this.graceKeys.get(providedKeyId)!;
+        out = await util.removeServerLock({ kek_cs_b64u: request.body.kek_cs_b64u } as ShamirRemoveServerLockRequest);
+      } else {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'unknown keyId' })
+        };
+      }
       return {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(out)
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
+  /**
+   * Framework-agnostic: GET /shamir/key-info
+   */
+  async handleGetShamirKeyInfo(): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      await this._ensureSignerAndRelayerAccount();
+      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
+      const graceKeyIds = Array.from(this.graceKeys.keys());
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentKeyId, p_b64u: this.config.shamir_p_b64u, graceKeyIds })
       };
     } catch (e: any) {
       return {
