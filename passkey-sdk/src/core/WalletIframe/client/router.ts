@@ -158,17 +158,11 @@ export class WalletIframeRouter {
       throw new Error(`[WalletIframeRouter] Invalid walletOrigin: ${options.walletOrigin}`);
     }
 
-    try {
-      if (typeof window !== 'undefined') {
-        const parentOrigin = window.location.origin;
-        if (parsedOrigin.origin === parentOrigin) {
-          try {
-            console.warn('[WalletIframeRouter] walletOrigin matches the host origin. Isolation safeguards rely on the parent; consider moving the wallet to a dedicated origin.');
-          } catch {}
-        }
+    if (typeof window !== 'undefined') {
+      const parentOrigin = window.location.origin;
+      if (parsedOrigin.origin === parentOrigin) {
+        console.warn('[WalletIframeRouter] walletOrigin matches the host origin. Isolation safeguards rely on the parent; consider moving the wallet to a dedicated origin.');
       }
-    } catch {
-      // Ignore environments without window (SSR); enforcement occurs in browser.
     }
 
     this.opts = {
@@ -238,7 +232,7 @@ export class WalletIframeRouter {
       this.port.onmessage = (ev) => this.onPortMessage(ev);
       this.port.start?.();
       this.ready = true;
-      try { console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG'); } catch {}
+      console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG');
       await this.post({
         type: 'PM_SET_CONFIG',
         payload: {
@@ -280,7 +274,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.walletOriginOrigin;
-    try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target); } catch {}
+    this.postWindowMessage(w, { type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target);
   }
 
   mountUiComponent(params: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }): void {
@@ -288,7 +282,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.walletOriginOrigin;
-    try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target); } catch {}
+    this.postWindowMessage(w, { type: 'WALLET_UI_MOUNT', payload: params }, target);
   }
 
   updateUiComponent(params: { id: string; props?: Record<string, unknown> }): void {
@@ -296,7 +290,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.walletOriginOrigin;
-    try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target); } catch {}
+    this.postWindowMessage(w, { type: 'WALLET_UI_UPDATE', payload: params }, target);
   }
 
   unmountUiComponent(id: string): void {
@@ -304,7 +298,7 @@ export class WalletIframeRouter {
     const w = iframe.contentWindow;
     if (!w) return;
     const target = this.walletOriginOrigin;
-    try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target); } catch {}
+    this.postWindowMessage(w, { type: 'WALLET_UI_UNMOUNT', payload: { id } }, target);
   }
 
   // ===== Public RPC helpers =====
@@ -508,9 +502,6 @@ export class WalletIframeRouter {
   }
 
   async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
-    if (!this.ready) {
-      try { await this.init(); } catch {}
-    }
     let { nearAccountId } = await this.getLoginState();
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',
@@ -519,9 +510,6 @@ export class WalletIframeRouter {
   }
 
   async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
-    if (!this.ready) {
-      try { await this.init(); } catch {}
-    }
     let { nearAccountId } = await this.getLoginState();
     await this.post<void>({
       type: 'PM_SET_CONFIRMATION_CONFIG',
@@ -910,29 +898,27 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     if (this.activationOverlayVisible) return;
     this.activationOverlayVisible = true;
-    try {
-      iframe.style.position = 'fixed';
-      iframe.style.inset = '0';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      // Ensure no visible border interferes with viewport fit
-      iframe.style.border = 'none';
-      iframe.style.width = '100vw';
-      iframe.style.height = '100vh';
-      iframe.style.opacity = '1';
-      iframe.style.pointerEvents = 'auto';
-      // Put iframe one layer below modal card rendered inside (which uses 2147483647).
-      // Some browsers cap z-index per stacking context; use a high value and ensure visibility.
-      iframe.style.zIndex = '2147483646';
-      iframe.setAttribute('aria-hidden', 'false');
-      iframe.removeAttribute('tabindex');
-      console.debug('[WalletIframeRouter] Activation overlay applied:', {
-        rect: iframe.getBoundingClientRect(),
-        pointerEvents: iframe.style.pointerEvents,
-        zIndex: iframe.style.zIndex,
-        opacity: iframe.style.opacity,
-      });
-    } catch {}
+    iframe.style.position = 'fixed';
+    iframe.style.inset = '0';
+    iframe.style.top = '0';
+    iframe.style.left = '0';
+    // Ensure no visible border interferes with viewport fit
+    iframe.style.border = 'none';
+    iframe.style.width = '100vw';
+    iframe.style.height = '100vh';
+    iframe.style.opacity = '1';
+    iframe.style.pointerEvents = 'auto';
+    // Put iframe one layer below modal card rendered inside (which uses 2147483647).
+    // Some browsers cap z-index per stacking context; use a high value and ensure visibility.
+    iframe.style.zIndex = '2147483646';
+    iframe.setAttribute('aria-hidden', 'false');
+    iframe.removeAttribute('tabindex');
+    console.debug('[WalletIframeRouter] Activation overlay applied:', {
+      rect: iframe.getBoundingClientRect(),
+      pointerEvents: iframe.style.pointerEvents,
+      zIndex: iframe.style.zIndex,
+      opacity: iframe.style.opacity,
+    });
   }
 
   private hideFrameForActivation(): void {
@@ -940,15 +926,24 @@ export class WalletIframeRouter {
     if (!iframe) return;
     if (!this.activationOverlayVisible) return;
     this.activationOverlayVisible = false;
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.opacity = '0';
+    iframe.style.pointerEvents = 'none';
+    iframe.style.zIndex = '';
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('tabindex', '-1');
+  }
+
+  // Post a window message and surface errors in debug mode instead of silently swallowing them
+  private postWindowMessage(w: Window, data: unknown, target: string): void {
     try {
-      iframe.style.width = '0px';
-      iframe.style.height = '0px';
-      iframe.style.opacity = '0';
-      iframe.style.pointerEvents = 'none';
-      iframe.style.zIndex = '';
-      iframe.setAttribute('aria-hidden', 'true');
-      iframe.setAttribute('tabindex', '-1');
-    } catch {}
+      w.postMessage(data, target);
+    } catch (err) {
+      if (this.debug) {
+        console.error('[WalletIframeRouter] window.postMessage failed', { error: err, data });
+      }
+    }
   }
 
 }
