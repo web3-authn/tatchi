@@ -38,6 +38,7 @@
 // - encoders: Utility functions used in Node.js context, not browser
 import { Page, test } from '@playwright/test';
 import type { PasskeyManager } from '../index';
+import { WalletIframeDomEvents } from '../core/WalletIframe/events';
 
 // =============================================================================
 // MAIN SETUP FUNCTION
@@ -125,9 +126,12 @@ export async function setupBasicPasskeyTest(
           // Defer slightly to allow initial render
           setTimeout(() => {
             try {
-              el.dispatchEvent(new CustomEvent('w3a:tx-confirmer-confirm', { bubbles: true, composed: true }));
+              el.dispatchEvent(new CustomEvent('lit-confirm', { bubbles: true, composed: true }));
             } catch {}
-          }, 50);
+            try {
+              el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, { bubbles: true, composed: true }));
+            } catch {}
+          }, 25);
           return true;
         }
       } catch {}

@@ -116,13 +116,14 @@ rolldown.config.mjs   # Rolldown bundler configuration
 - **`build-paths.ts`** - Source of truth for all configuration
 - **`build-paths.sh`** - Shell version for bash scripts
 
-## WalletIframe (no external hosting required)
+## WalletIframe (cross-origin recommended)
 
-This SDK mounts a hidden, sandboxed “service iframe” that runs sensitive logic (WebAuthn orchestration, workers, IndexedDB) without relying on any external server or copied HTML files.
+This SDK mounts a hidden, sandboxed “service iframe” that orchestrates WebAuthn, PRF storage, and signing flows. Running the wallet on a dedicated origin gives you strong isolation, but the SDK continues to support same-origin hosting with console warnings for legacy setups.
 
-- Same‑origin by default: The iframe is created with `srcdoc` and loads an embedded ESM bundle (service‑host) resolved by your bundler (`?url` import). No manual copying.
-- Optional cross‑origin: If you want to run the service on a separate wallet origin, set `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `PasskeyManager` configs. This is not required.
-- UI/gesture: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn; the service iframe remains headless.
+- **Dedicated wallet origin (recommended)**: Configure `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `PasskeyManager` configs. When the wallet origin differs from the host, the parent cannot script the wallet iframe.
+- **Same-origin fallback**: If you omit `iframeWallet.walletOrigin`, or set it to the host origin, the wallet runs inline with the parent app. This is convenient for quick starts but the parent can observe all secrets. The SDK emits `console.warn` messages in this mode.
+- **Static asset delegation**: The wallet origin is responsible for serving `/service` and the `/sdk` asset bundle. You can proxy these from `node_modules` during development or deploy them with your wallet site.
+- **Gesture routing**: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn flows; the service iframe stays headless.
 
 ### React usage
 
@@ -134,13 +135,12 @@ function App() {
     <PasskeyProvider
       config={{
         ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-        // Optional cross‑origin wallet host
-        // iframeWallet: {
-        //   walletOrigin: 'https://wallet.example.com',
-        //   walletServicePath: '/service',
-        //   // If using subdomains, set RP base so passkeys work across them
-        //   // rpIdOverride: 'example.localhost'
-        // }
+        iframeWallet: {
+          walletOrigin: 'https://wallet.example.com',
+          walletServicePath: '/service',
+          // Optional: set RP base so passkeys span subdomains
+          // rpIdOverride: 'example.localhost'
+        }
       }}
     >
       <YourApp />
@@ -158,13 +158,13 @@ const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'web3-authn-v5.testnet',
-  // Optional cross‑origin wallet site. Omit iframeWallet to stay same‑origin.
-  // iframeWallet: {
-  //   walletOrigin: 'https://wallet.example.com',
-  //   walletServicePath: '/service',
-  //   // Optional: rpIdOverride for subdomain credentials
-  //   // rpIdOverride: 'example.localhost'
-  // }
+  iframeWallet: {
+    walletOrigin: 'https://wallet.example.com',
+    walletServicePath: '/service',
+    // Optional: rpIdOverride for subdomain credentials
+    // rpIdOverride: 'example.localhost'
+  }
+  // To run inline without a dedicated origin, omit iframeWallet entirely.
 });
 
 await pm.initWalletIframe();
@@ -175,11 +175,9 @@ const signed = await pm.signTransactionsWithActions({
 });
 ```
 
-No external hosting or HTML copying is required when using the default same‑origin mode.
+### Hosting the wallet origin
 
-### Optional: hosting on a separate wallet origin
-
-If you want stronger isolation by running the service iframe on a separate origin, you need to serve two things from that origin:
+When you do host the wallet on a dedicated origin, expose two things:
 
 - Static SDK assets under `/sdk` (workers and embedded bundles):
   - `/sdk/workers/web3authn-signer.worker.js`
@@ -187,7 +185,7 @@ If you want stronger isolation by running the service iframe on a separate origi
   - `/sdk/esm/react/embedded/wallet-iframe-host.js` (and other embedded bundles)
 - A service page at `/service` that loads the service host module.
 
-You do not need to copy files into your app bundle, you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
+You do not need to copy files into your app bundle; you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
 
 ```ts
 import express from 'express';
