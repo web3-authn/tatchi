@@ -214,6 +214,36 @@ app.get('/service', (_req, res) => {
 app.listen(8080, () => console.log('Wallet host running on http://localhost:8080'));
 ```
 
+## Shamir 3‑Pass Rotation (Strict keyId)
+
+The SDK supports VRF auto‑login via a commutative Shamir 3‑pass scheme and includes a strict rotation model based on a server key identifier (`keyId`).
+
+Key points:
+- Server returns `keyId` from `POST /vrf/apply-server-lock` and requires it on `POST /vrf/remove-server-lock`.
+- The SDK persists this `serverKeyId` alongside the ciphertext in IndexedDB.
+- On login:
+  - If Shamir unlock fails, SDK falls back to TouchID and immediately re‑encrypts the VRF blob under the current server key (refresh).
+  - If Shamir unlock succeeds, SDK proactively refreshes to the latest key when possible.
+- Rotation does not expose plaintext VRF or KEK to the server — only blinded locks.
+
+Server endpoints (strict):
+- `POST /vrf/apply-server-lock`
+  - Request: `{ "kek_c_b64u": "base64url" }`
+  - Response: `{ "kek_cs_b64u": "base64url", "keyId": "sha256(e_s_b64u)_base64url" }`
+- `POST /vrf/remove-server-lock`
+  - Request: `{ "kek_cs_b64u": "base64url", "keyId": "..." }`
+  - Response: `{ "kek_c_b64u": "base64url" }`
+- `GET /shamir/key-info`
+  - Response: `{ "currentKeyId": "...", "p_b64u": "...", "graceKeyIds": ["..."] }`
+
+Grace keys (server):
+- During rotation, the server can accept previously active keys for `remove-server-lock` only — not for new wraps — using a `graceShamirKeys` list.
+- In the example relay server, populate `grace-keys.json` (or point `SHAMIR_GRACE_KEYS_FILE` at your preferred location) with an array of `{ e_s_b64u, d_s_b64u }` pairs.
+
+See also:
+- docs/shamir3pass-rotate-keys.md — full plan and proactive refresh details
+- examples/relay-server/README.md — strict API, key info endpoint, and grace keys configuration
+
 Then configure the SDK to use this wallet origin:
 
 ```ts

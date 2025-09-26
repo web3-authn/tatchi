@@ -66,6 +66,8 @@ export interface AuthServiceConfig {
     e_s_b64u: string;
     d_s_b64u: string;
   }>;
+  // Optional path for persisting grace keys (default: ./grace-keys.json)
+  graceShamirKeysFile?: string;
 }
 
 // Account creation and registration types (imported from relay-server types)
