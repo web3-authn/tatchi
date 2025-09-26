@@ -16,22 +16,6 @@ const config = {
   expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
 };
 // Create AuthService instance
-// Optional grace keys: previously-active Shamir exponents still accepted for remove-server-lock
-let graceShamirKeys: Array<{ e_s_b64u: string; d_s_b64u: string }> | undefined = undefined;
-try {
-  const raw = process.env.SHAMIR_GRACE_KEYS;
-  if (raw) {
-    const arr = JSON.parse(raw);
-    if (Array.isArray(arr)) {
-      graceShamirKeys = arr
-        .filter((x) => x && typeof x.e_s_b64u === 'string' && typeof x.d_s_b64u === 'string')
-        .map((x) => ({ e_s_b64u: x.e_s_b64u, d_s_b64u: x.d_s_b64u }));
-    }
-  }
-} catch (e) {
-  console.warn('[relay-server] Failed to parse SHAMIR_GRACE_KEYS env (ignored):', (e as Error)?.message);
-}
-
 const authService = new AuthService({
   // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
   // you can make it the same account as the webauthn contract id.
@@ -47,8 +31,50 @@ const authService = new AuthService({
   shamir_p_b64u: process.env.SHAMIR_P_B64U!,
   shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
   shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
-  graceShamirKeys,
+  graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
 });
+
+function startKeyRotationCronjob(intervalSeconds: number, service: AuthService) {
+  const prefix = '[key-rotation-cron]';
+  const intervalMs = Math.max(1, intervalSeconds) * 1000;
+  let inFlight = false;
+
+  const run = async () => {
+    if (inFlight) {
+      console.warn(`${prefix} previous rotation still running, skipping`);
+      return;
+    }
+    inFlight = true;
+    try {
+      const rotation = await service.rotateShamirServerKeypair();
+      console.log(`${prefix} rotated to newKeyId=${rotation.newKeyId ?? 'unknown'} (prev=${rotation.previousKeyId ?? 'none'})`);
+
+      const graceKeyIds = [...rotation.graceKeyIds];
+      if (graceKeyIds.length > 5) {
+        const toRemove = graceKeyIds.slice(0, graceKeyIds.length - 5);
+        for (const keyId of toRemove) {
+          const response = await service.handleRemoveGraceKey({ keyId });
+          const payload = JSON.parse(response.body) as { removed?: boolean };
+          console.log(`${prefix} pruned grace key ${keyId}: ${payload.removed ? 'removed' : 'not found'}`);
+        }
+      }
+
+      const listResponse = await service.handleListGraceKeys();
+      const listPayload = JSON.parse(listResponse.body) as { graceKeyIds?: string[] };
+      console.log(`${prefix} grace keys (max 5 retained):`, listPayload.graceKeyIds ?? []);
+      console.log(`${prefix} remember to persist new e_s/d_s values externally for durability.`);
+    } catch (error) {
+      console.error(`${prefix} rotation failed:`, error);
+    } finally {
+      inFlight = false;
+    }
+  };
+
+  const timer = setInterval(run, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  console.log(`${prefix} scheduler started (every ${intervalSeconds} seconds). Running initial rotation now.`);
+  void run();
+}
 
 const app: Express = express();
 // Middleware
@@ -186,4 +212,6 @@ app.listen(config.port, () => {
   }).catch((err: Error) => {
     console.error("AuthService initial check failed (non-blocking server start):", err);
   });
+
+  startKeyRotationCronjob(300, authService);
 });

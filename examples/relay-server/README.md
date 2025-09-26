@@ -50,6 +50,56 @@ Response:
 ```
 Use this to proactively rotate client blobs when the server changes keys.
 
+### Runtime Rotation Helpers
+
+You can rotate the active server keypair while the process stays online. The SDK exposes helpers directly on `AuthService` so you can wire rotations into a cron/timer without new HTTP endpoints.
+
+```ts
+// server/key-rotation.ts
+import { AuthService } from '@web3authn/passkey/server';
+
+export async function rotateDaily(authService: AuthService) {
+  const result = await authService.rotateShamirServerKeypair({
+    keepCurrentInGrace: true,        // default: true
+    persistGraceToDisk: true,        // default: true
+  });
+
+  console.log('[rotation] active key', result.newKeyId);
+  console.log('[rotation] grace keys', result.graceKeyIds);
+
+  // Persist the new key material wherever you keep secrets
+  // (env vars, vault, etc.). The helper only mutates the in-process instance.
+  // result.newKeypair contains { e_s_b64u, d_s_b64u }.
+}
+```
+
+Under the hood `rotateShamirServerKeypair`:
+
+- Generates a fresh `(e_s, d_s)` pair and swaps it into the live service.
+- Moves the previous key into the grace set (unless `keepCurrentInGrace: false`).
+- Writes the updated grace list to `grace-keys.json` (or the path you configure), so restarts restore grace keys automatically.
+
+You can also pre-generate a pair without swapping it in:
+
+```ts
+const preview = await authService.generateShamirServerKeypair();
+// => { e_s_b64u, d_s_b64u, keyId }
+```
+
+#### Optional HTTP admin routes
+
+The sample Express server in this repo still exposes `/shamir/rotate-keys` and `/shamir/grace-keys` routes that call the helpers above. They are convenient for demos but not required; feel free to remove them in production and invoke the SDK API from a background job instead.
+
+### Scheduled rotation demo (`rotate10Min`)
+
+For illustration the example server boots an internal cron that calls `rotateShamirServerKeypair` every 10 minutes. The task:
+
+- rotates to a fresh keypair and logs the new `keyId`
+- trims the grace list so that at most 5 entries remain (oldest first)
+- prints the resulting grace key IDs to the console
+
+No HTTP endpoint is exposed for this job. If you adopt the pattern in production, remember to persist the returned `e_s_b64u`/`d_s_b64u` outside of process memory (e.g. secret manager) before the process restarts.
+
 ## Configuration
 
 Create `.env` file:
@@ -65,8 +115,8 @@ EXPECTED_ORIGIN=http://localhost:3000
 SHAMIR_P_B64U=<base64url_of_prime_p>
 SHAMIR_E_S_B64U=<base64url_server_exponent_e_s>
 SHAMIR_D_S_B64U=<base64url_server_inverse_d_s>
-# Optional: grace keys accepted for remove-server-lock during rotation
-# SHAMIR_GRACE_KEYS='[{"e_s_b64u":"...","d_s_b64u":"..."}]'
+# Optional: override where grace keys are persisted (default: ./grace-keys.json)
+# SHAMIR_GRACE_KEYS_FILE=./secure/grace-keys.json
 
 ### Key Rotation & Grace Keys
 
@@ -77,17 +127,10 @@ Grace keys let you accept previously-active server keys for a limited time durin
 - graceShamirKeys: An array of older `(e_s_b64u, d_s_b64u)` pairs that the server will accept for `remove-server-lock` when `keyId` matches one of them.
 
 Rotation flow:
-1) Add a new keypair `(e_s, d_s)` and set it as current in env (`SHAMIR_E_S_B64U`, `SHAMIR_D_S_B64U`).
-2) Move the previous keypair into `SHAMIR_GRACE_KEYS` (JSON array).
-3) Clients will receive the new `keyId` on the next `apply-server-lock` and persist it locally; on unlock, they send `keyId` back.
-4) Clients proactively refresh their blobs to the new key (SDK handles this after a successful unlock); after a grace period, remove the old key from `SHAMIR_GRACE_KEYS`.
-
-Example `SHAMIR_GRACE_KEYS` value (single grace key):
-```bash
-export SHAMIR_GRACE_KEYS='[
-  {"e_s_b64u":"<old_es_b64u>","d_s_b64u":"<old_ds_b64u>"}
-]'
-```
+1) Call `rotateShamirServerKeypair` (or the HTTP proxy) to mint the new key, optionally keeping the current key in grace. The helper writes grace entries to `grace-keys.json` so they survive restarts.
+2) Persist the returned `newKeypair` (`e_s_b64u`, `d_s_b64u`) to your secret store / env variables so new processes boot with the same active key.
+3) Clients receive the new `keyId` on their next `apply-server-lock` call and cache it. When they submit `remove-server-lock`, they include that `keyId`.
+4) The SDK refreshes client VRF blobs after a successful unlock, so after your grace window expires you can delete the entry from `grace-keys.json` (or hit the optional HTTP admin route) to retire the old key.
 
 Security notes:
 - `keyId` is required on `remove-server-lock` and selects a single key deterministically; requests without `keyId` are rejected.
