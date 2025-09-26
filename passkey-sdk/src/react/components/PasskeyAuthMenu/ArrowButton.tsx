@@ -10,8 +10,8 @@ export interface ArrowButtonProps {
   height?: number | string;
   /** If true, attempts registerPasskey when the Lit overlay isn't active */
   fallbackRegister?: boolean;
-  /** Optional: make this div an anchor for the Lit Arrow overlay */
-  arrowAnchorRef?: React.Ref<HTMLDivElement>;
+  /** Optional: anchor ref for the Lit overlay (button element) */
+  arrowAnchorRef?: React.Ref<HTMLButtonElement>;
   /** Optional: mount handler for Lit overlay on hover/focus */
   mountArrowAtRect?: () => void;
 }
@@ -35,13 +35,14 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   const h = toCssSize(height);
   return (
     <div
-      ref={arrowAnchorRef}
       onPointerEnter={mountArrowAtRect}
       onFocus={mountArrowAtRect}
       style={{ position: 'relative', display: 'inline-block', width: w, height: h }}
     >
       <button
+        ref={arrowAnchorRef}
         aria-label="Continue"
+        onPointerEnter={mountArrowAtRect}
         onClick={onClick}
         className={`w3a-arrow-btn${!disabled ? ' is-enabled' : ''}`}
         disabled={disabled}

@@ -145,6 +145,8 @@ export class WalletIframeRouter {
   private debug = false;
   private readonly walletOriginUrl: URL;
   private readonly walletOriginOrigin: string;
+  // When set, overlay.show() uses this rect instead of fullscreen
+  private anchoredRect: { top: number; left: number; width: number; height: number } | null = null;
   // Overlay register button window-message bridging (wallet-host UI → parent)
   private readonly registerOverlayResultListeners = new Set<(
     payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
@@ -956,30 +958,37 @@ export class WalletIframeRouter {
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
     const iframe = this.transport.ensureIframeMounted();
-    if (this.activationOverlayVisible) return;
+    if (this.activationOverlayVisible) {
+      // If anchored, ensure bounds are respected on repeated show
+      if (this.anchoredRect) {
+        this.setOverlayBounds(this.anchoredRect);
+        try { console.log('[WalletIframeRouter] showFrameForActivation (anchored, repeat):', { anchored: this.anchoredRect, iframeRect: iframe.getBoundingClientRect() }); } catch {}
+      }
+      return;
+    }
     this.activationOverlayVisible = true;
-    iframe.style.position = 'fixed';
-    iframe.style.inset = '0';
-    iframe.style.top = '0';
-    iframe.style.left = '0';
-    // Ensure no visible border interferes with viewport fit
-    iframe.style.border = 'none';
-    iframe.style.boxSizing = 'border-box';
-    iframe.style.width = '100vw';
-    iframe.style.height = '100vh';
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'auto';
-    // Put iframe one layer below modal card rendered inside (which uses 2147483647).
-    // Some browsers cap z-index per stacking context; use a high value and ensure visibility.
-    iframe.style.zIndex = '2147483646';
-    iframe.setAttribute('aria-hidden', 'false');
-    iframe.removeAttribute('tabindex');
-    console.debug('[WalletIframeRouter] Activation overlay applied:', {
-      rect: iframe.getBoundingClientRect(),
-      pointerEvents: iframe.style.pointerEvents,
-      zIndex: iframe.style.zIndex,
-      opacity: iframe.style.opacity,
-    });
+    if (this.anchoredRect) {
+      this.setOverlayBounds(this.anchoredRect);
+      try { console.log('[WalletIframeRouter] showFrameForActivation (anchored):', { anchored: this.anchoredRect, iframeRect: iframe.getBoundingClientRect() }); } catch {}
+    } else {
+      iframe.style.position = 'fixed';
+      iframe.style.inset = '0';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.transform = '';
+      // Ensure no visible border interferes with viewport fit
+      iframe.style.border = 'none';
+      iframe.style.boxSizing = 'border-box';
+      iframe.style.width = '100vw';
+      iframe.style.height = '100vh';
+      iframe.style.opacity = '1';
+      iframe.style.pointerEvents = 'auto';
+      // Put iframe one layer below modal card rendered inside (which uses 2147483647).
+      iframe.style.zIndex = '2147483646';
+      iframe.setAttribute('aria-hidden', 'false');
+      iframe.removeAttribute('tabindex');
+      try { console.log('[WalletIframeRouter] showFrameForActivation (fullscreen):', { iframeRect: iframe.getBoundingClientRect() }); } catch {}
+    }
   }
 
   private hideFrameForActivation(): void {
@@ -992,6 +1001,7 @@ export class WalletIframeRouter {
     iframe.style.opacity = '0';
     iframe.style.pointerEvents = 'none';
     iframe.style.zIndex = '';
+    iframe.style.transform = '';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
   }
@@ -1016,13 +1026,26 @@ export class WalletIframeRouter {
   /**
    * Position and show the wallet iframe as an anchored overlay matching a DOMRect.
    * Accepts viewport-relative coordinates (from getBoundingClientRect()).
+   *
+   * Important: Some apps apply CSS transforms (or filters/perspective) on html/body,
+   * which changes the containing block for position: fixed. In those cases a fixed
+   * iframe will be offset by the page scroll. To avoid that mismatch, anchor the
+   * overlay using absolute positioning in document coordinates.
    */
   setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
     const iframe = this.transport.ensureIframeMounted();
     this.activationOverlayVisible = true;
+
+    // Anchor using fixed + explicit top/left. First clear any fullscreen shorthands
+    // so they don't wipe the longhands we set next.
     iframe.style.position = 'fixed';
     iframe.style.border = 'none';
     iframe.style.boxSizing = 'border-box';
+    iframe.style.right = '';
+    iframe.style.bottom = '';
+    iframe.style.inset = '';
+    iframe.style.transform = '';
+    // Now set explicit anchors
     iframe.style.top = `${Math.max(0, Math.round(rect.top))}px`;
     iframe.style.left = `${Math.max(0, Math.round(rect.left))}px`;
     iframe.style.width = `${Math.max(1, Math.round(rect.width))}px`;
@@ -1030,11 +1053,21 @@ export class WalletIframeRouter {
     iframe.style.opacity = '1';
     iframe.style.pointerEvents = 'auto';
     iframe.style.zIndex = '2147483646';
-    iframe.style.right = '';
-    iframe.style.bottom = '';
-    iframe.style.inset = '';
     iframe.setAttribute('aria-hidden', 'false');
     iframe.removeAttribute('tabindex');
+    try { console.log('[WalletIframeRouter] setOverlayBounds:', { rect, iframeRect: iframe.getBoundingClientRect(), top: iframe.style.top, left: iframe.style.left }); } catch {}
+  }
+
+  /**
+   * Anchored overlay helpers: keep a preferred bounds rect that overlay.show() will apply
+   */
+  setAnchoredOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    this.anchoredRect = { ...rect };
+    this.setOverlayBounds(rect);
+  }
+
+  clearAnchoredOverlay(): void {
+    this.anchoredRect = null;
   }
 
   // Post a window message and surface errors in debug mode instead of silently swallowing them

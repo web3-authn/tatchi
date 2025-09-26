@@ -326,11 +326,14 @@ export function setupLitElemMounter(opts: {
           registerPasskeyInternal?: (id: string, opts?: any, cfg?: ConfirmationConfig) => Promise<unknown>;
           registerPasskey: (id: string, opts?: any) => Promise<unknown>;
         };
+
+        // For the ArrowRegisterButton overlay flow, skip the extra confirmation UI
         const overrideCfg: ConfirmationConfig = {
-          uiMode: 'modal',
+          uiMode: 'skip',
           behavior: 'autoProceed',
-          autoProceedDelay: 0
+          autoProceedDelay: 0,
         } as ConfirmationConfig;
+
         if (typeof anyPm.registerPasskeyInternal === 'function') {
           return await anyPm.registerPasskeyInternal(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} }, overrideCfg);
         }

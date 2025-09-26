@@ -204,6 +204,11 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     >
       <ContentSwitcher
         waiting={waiting}
+        waitingText={
+          mode === AuthMenuMode.Register
+          ? 'Registering passkey…'
+          : 'Waiting for Passkey…'
+        }
         backButton={
           <button
             aria-label="Back"

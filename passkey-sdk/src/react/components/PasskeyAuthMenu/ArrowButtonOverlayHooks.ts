@@ -45,9 +45,10 @@ export function useArrowButtonOverlay(options: {
 
   const { enabled, waiting, mode, nearAccountId } = options;
   const id = options.id || 'w3a-auth-menu-arrow';
-  const rectOverride = options.overlayRectOverride || { left: 496, width: 100, height: 64 };
+  const rectOverride = options.overlayRectOverride || {};
 
-  const anchorRef = React.useRef<HTMLDivElement | null>(null);
+  // Anchor to the actual button element to avoid layout offsets (e.g., negative margins)
+  const anchorRef = React.useRef<HTMLButtonElement | null>(null);
   const mountedIdRef = React.useRef<string | null>(null);
   const activeRef = React.useRef<boolean>(false);
   const roRef = React.useRef<ResizeObserver | null>(null);
@@ -86,17 +87,22 @@ export function useArrowButtonOverlay(options: {
     if (!rect) {
       const r0 = computeRect();
       if (!r0) return;
-      rect = { top: r0.top, left: r0.left, width: 100, height: 64 };
+      rect = { top: r0.top, left: r0.left, width: r0.width, height: r0.height };
     }
+    try { console.debug('[Overlay] anchor rect (mount):', rect); } catch {}
+    // Anchor the wallet iframe overlay to the arrow's viewport rect
     const fixedRect: OverlayRect = {
       top: rect.top,
-      left: typeof rectOverride.left === 'number' ? rectOverride.left : rect.left,
+      left: rect.left + (typeof rectOverride.left === 'number' ? rectOverride.left : 0),
       width: typeof rectOverride.width === 'number' ? rectOverride.width : rect.width,
       height: typeof rectOverride.height === 'number' ? rectOverride.height : rect.height,
     };
     activeRef.current = true;
-    client.setOverlayVisible(true);
-
+    client.setOverlayBounds(fixedRect);
+    try { (client as any).setAnchoredOverlayBounds?.(fixedRect); } catch {}
+    if (typeof (client as any).setAnchoredOverlayBounds !== 'function') {
+      client.setOverlayBounds(fixedRect);
+    }
     if (mountedIdRef.current === id) {
       client.updateUiComponent({ id, props: {
         nearAccountId: nearAccountId || '',
@@ -104,8 +110,9 @@ export function useArrowButtonOverlay(options: {
         mode,
         width: fixedRect.width,
         height: fixedRect.height,
-        viewportRect: fixedRect,
-        anchorMode: 'viewport',
+        // Inside the overlay-anchored iframe, place the element at (0,0)
+        viewportRect: { top: 0, left: 0, width: fixedRect.width, height: fixedRect.height },
+        anchorMode: 'iframe',
         waiting: !!waiting,
       }});
       return;
@@ -120,13 +127,14 @@ export function useArrowButtonOverlay(options: {
         mode,
         width: fixedRect.width,
         height: fixedRect.height,
-        viewportRect: fixedRect,
-        anchorMode: 'viewport',
+        // Positioned at (0,0) inside the overlay bounds
+        viewportRect: { top: 0, left: 0, width: fixedRect.width, height: fixedRect.height },
+        anchorMode: 'iframe',
         label: undefined,
         waiting: !!waiting,
       }
     });
-  }, [computeRect, ensureClient, enabled, id, mode, nearAccountId, rectOverride.height, rectOverride.left, rectOverride.width, waitForUsableRect, waiting]);
+  }, [computeRect, ensureClient, enabled, id, mode, nearAccountId, rectOverride.height, rectOverride.width, waitForUsableRect, waiting]);
 
   const unmountArrow = React.useCallback(() => {
     const client = getClient();
@@ -148,19 +156,27 @@ export function useArrowButtonOverlay(options: {
     const sync = () => {
       if (!activeRef.current) return;
       const r0 = el.getBoundingClientRect();
-      const r: OverlayRect = {
+      const fixedRect: OverlayRect = {
         top: r0.top,
-        left: typeof rectOverride.left === 'number' ? rectOverride.left : r0.left,
+        left: r0.left + (typeof rectOverride.left === 'number' ? rectOverride.left : 0),
         width: typeof rectOverride.width === 'number' ? rectOverride.width : r0.width,
         height: typeof rectOverride.height === 'number' ? rectOverride.height : r0.height,
       };
+
+      // Ensure the wallet iframe overlay itself tracks the anchor position.
+      // Use anchored bounds so subsequent show() calls keep the same rect.
+      try { (client as any).setAnchoredOverlayBounds?.(fixedRect); } catch {}
+      client.setOverlayBounds(fixedRect);
       client.setOverlayVisible(true);
+
+      // Inside the overlay-anchored iframe, the mounted element should stay at (0,0)
+      // with the same size as the overlay.
       if (mountedIdRef.current) {
         client.updateUiComponent({ id: mountedIdRef.current, props: {
-          viewportRect: r,
-          width: r.width,
-          height: r.height,
-          anchorMode: 'viewport',
+          viewportRect: { top: 0, left: 0, width: fixedRect.width, height: fixedRect.height },
+          width: fixedRect.width,
+          height: fixedRect.height,
+          anchorMode: 'iframe',
           waiting: !!waiting,
         } });
       }

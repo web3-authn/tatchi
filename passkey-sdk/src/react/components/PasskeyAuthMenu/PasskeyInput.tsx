@@ -148,8 +148,6 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
     waiting,
     mode: normalizedMode,
     nearAccountId,
-    // fixed dimensions to match .w3a-arrow-btn in PasskeyAuthMenu.css
-    overlayRectOverride: { left: 496, width: 100, height: 64 },
     id: 'w3a-auth-menu-arrow',
   });
 
