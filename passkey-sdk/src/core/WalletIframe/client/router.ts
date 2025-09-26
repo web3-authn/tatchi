@@ -66,6 +66,7 @@ import {
   TxExecutionStatus
 } from '../../types';
 import { IframeTransport } from './IframeTransport';
+import OverlayController, { type DOMRectLike } from './overlay-controller';
 import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
 import { toError } from '../../../utils/errors';
@@ -147,6 +148,7 @@ export class WalletIframeRouter {
   private readonly walletOriginOrigin: string;
   // When set, overlay.show() uses this rect instead of fullscreen
   private anchoredRect: { top: number; left: number; width: number; height: number } | null = null;
+  private overlay: OverlayController;
   // Overlay register button window-message bridging (wallet-host UI → parent)
   private readonly registerOverlayResultListeners = new Set<(
     payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
@@ -189,6 +191,9 @@ export class WalletIframeRouter {
       servicePath: this.opts.servicePath,
       connectTimeoutMs: this.opts.connectTimeoutMs,
     });
+
+    // Centralize overlay sizing/visibility
+    this.overlay = new OverlayController({ ensureIframe: () => this.transport.ensureIframeMounted() });
 
     // Initialize progress router with overlay control and phase heuristics
     this.progressBus = new ProgressBus(
@@ -906,6 +911,7 @@ export class WalletIframeRouter {
         // Timeout: clean up local state and best-effort cancel on host
         try { this.pending.delete(requestId); } catch {}
         try { this.progressBus.unregister(requestId); } catch {}
+        try { this.overlay.setSticky(false); } catch {}
         try { this.hideFrameForActivation(); } catch {}
         // Ask the wallet host to cancel any UI/flow associated with the original request
         try { this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
@@ -942,7 +948,22 @@ export class WalletIframeRouter {
           : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
 
-        // Step 7: Send message to iframe via MessagePort
+        // Align overlay stickiness with request options (phase 2 will use intents)
+        try { this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky)); } catch {}
+
+        // Step 7: Apply overlay intent (conservative) if not already visible, then post
+        try {
+          if (!this.activationOverlayVisible) {
+            const intent = this.computeOverlayIntent(serializableFull.type);
+            if (intent.mode === 'fullscreen') {
+              this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
+              this.overlay.showFullscreen();
+              this.activationOverlayVisible = true;
+            }
+          }
+        } catch {}
+
+        // Send message to iframe via MessagePort
         this.port!.postMessage(serializableFull as ParentToChildEnvelope);
       } catch (err) {
         // Step 8: Handle send errors - clean up and reject
@@ -954,56 +975,93 @@ export class WalletIframeRouter {
     });
   }
 
+  /**
+   * computeOverlayIntent - Preflight "Show" Decision
+   *
+   * This method makes the initial decision about whether to show the overlay
+   * BEFORE sending the request to the iframe. It's a conservative preflight
+   * check that ensures the iframe is visible in time for user activation.
+   *
+   * Key Responsibilities:
+   * - Preflight Decision: Determines overlay visibility before request is sent
+   * - User Activation Timing: Ensures iframe is visible when WebAuthn prompts appear
+   * - Conservative Approach: Only shows overlay if not already visible
+   * - Request Type Mapping: Maps message types to overlay requirements
+   *
+   * How it differs from other components:
+   *
+   * vs ProgressBus (lifecycle and close decision):
+   * - computeOverlayIntent: "SHOW" decision - runs before sending request
+   * - ProgressBus: "CLOSE" decision - runs during operation lifecycle
+   * - ProgressBus drives ongoing UI phases and manages sticky behavior
+   * - ProgressBus handles PM_RESULT/ERROR and decides when to hide overlay
+   *
+   * vs OverlayController (single executor):
+   * - computeOverlayIntent: DECIDES what to do (show/hide decision logic)
+   * - OverlayController: EXECUTES the decision (actual CSS manipulation)
+   * - OverlayController receives commands from both intent and ProgressBus
+   * - OverlayController keeps all style mutations in one place
+   *
+   * Architecture Flow:
+   * 1. computeOverlayIntent() → decides to show overlay
+   * 2. OverlayController.showFullscreen() → executes the decision
+   * 3. Request sent to iframe → operation begins
+   * 4. ProgressBus manages lifecycle → handles progress events
+   * 5. ProgressBus decides to hide → when operation completes
+   * 6. OverlayController.hide() → executes the hide decision
+   *
+   * Special Cases:
+   * - Anchored flows (UI registry with viewportRect) are message-driven
+   * - Parent sets bounds and sticky via registry messages
+   * - computeOverlayIntent returns 'hidden' for these (don't pre-show)
+   * - Some legacy paths still call showFrameForActivation() directly
+   *
+   * Future Evolution:
+   * - If host always emits early PROGRESS for a type, this can be reduced
+   * - Intent is to move toward ProgressBus-driven lifecycle management
+   * - This provides predictable, glitch-free activation without hardcoding
+   */
+  private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {
+    switch (type) {
+      // Operations that require fullscreen overlay for WebAuthn activation
+      case 'PM_EXPORT_NEAR_KEYPAIR_UI':
+      case 'PM_REGISTER':
+      case 'PM_LOGIN':
+      case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
+      case 'PM_SIGN_AND_SEND_TXS':
+      case 'PM_EXECUTE_ACTION':
+      case 'PM_SEND_TRANSACTION':
+      case 'PM_SIGN_TXS_WITH_ACTIONS':
+        return { mode: 'fullscreen' };
+
+      // All other operations (background/read-only) don't need overlay
+      default:
+        return { mode: 'hidden' };
+    }
+  }
+
   // Temporarily show the service iframe to capture user activation
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
-    const iframe = this.transport.ensureIframeMounted();
+    this.transport.ensureIframeMounted();
     if (this.activationOverlayVisible) {
-      // If anchored, ensure bounds are respected on repeated show
       if (this.anchoredRect) {
-        this.setOverlayBounds(this.anchoredRect);
-        try { console.log('[WalletIframeRouter] showFrameForActivation (anchored, repeat):', { anchored: this.anchoredRect, iframeRect: iframe.getBoundingClientRect() }); } catch {}
+        try { this.overlay.showAnchored(this.anchoredRect); } catch {}
       }
       return;
     }
     this.activationOverlayVisible = true;
     if (this.anchoredRect) {
-      this.setOverlayBounds(this.anchoredRect);
-      try { console.log('[WalletIframeRouter] showFrameForActivation (anchored):', { anchored: this.anchoredRect, iframeRect: iframe.getBoundingClientRect() }); } catch {}
+      try { this.overlay.showAnchored(this.anchoredRect); } catch {}
     } else {
-      iframe.style.position = 'fixed';
-      iframe.style.inset = '0';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.transform = '';
-      // Ensure no visible border interferes with viewport fit
-      iframe.style.border = 'none';
-      iframe.style.boxSizing = 'border-box';
-      iframe.style.width = '100vw';
-      iframe.style.height = '100vh';
-      iframe.style.opacity = '1';
-      iframe.style.pointerEvents = 'auto';
-      // Put iframe one layer below modal card rendered inside (which uses 2147483647).
-      iframe.style.zIndex = '2147483646';
-      iframe.setAttribute('aria-hidden', 'false');
-      iframe.removeAttribute('tabindex');
-      try { console.log('[WalletIframeRouter] showFrameForActivation (fullscreen):', { iframeRect: iframe.getBoundingClientRect() }); } catch {}
+      try { this.overlay.showFullscreen(); } catch {}
     }
   }
 
   private hideFrameForActivation(): void {
-    const iframe = this.transport.getIframeEl();
-    if (!iframe) return;
     if (!this.activationOverlayVisible) return;
     this.activationOverlayVisible = false;
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.style.zIndex = '';
-    iframe.style.transform = '';
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.setAttribute('tabindex', '-1');
+    try { this.overlay.hide(); } catch {}
   }
 
   /**
@@ -1033,29 +1091,9 @@ export class WalletIframeRouter {
    * overlay using absolute positioning in document coordinates.
    */
   setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
-    const iframe = this.transport.ensureIframeMounted();
+    this.transport.ensureIframeMounted();
     this.activationOverlayVisible = true;
-
-    // Anchor using fixed + explicit top/left. First clear any fullscreen shorthands
-    // so they don't wipe the longhands we set next.
-    iframe.style.position = 'fixed';
-    iframe.style.border = 'none';
-    iframe.style.boxSizing = 'border-box';
-    iframe.style.right = '';
-    iframe.style.bottom = '';
-    iframe.style.inset = '';
-    iframe.style.transform = '';
-    // Now set explicit anchors
-    iframe.style.top = `${Math.max(0, Math.round(rect.top))}px`;
-    iframe.style.left = `${Math.max(0, Math.round(rect.left))}px`;
-    iframe.style.width = `${Math.max(1, Math.round(rect.width))}px`;
-    iframe.style.height = `${Math.max(1, Math.round(rect.height))}px`;
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'auto';
-    iframe.style.zIndex = '2147483646';
-    iframe.setAttribute('aria-hidden', 'false');
-    iframe.removeAttribute('tabindex');
-    try { console.log('[WalletIframeRouter] setOverlayBounds:', { rect, iframeRect: iframe.getBoundingClientRect(), top: iframe.style.top, left: iframe.style.left }); } catch {}
+    try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
   }
 
   /**
@@ -1063,11 +1101,12 @@ export class WalletIframeRouter {
    */
   setAnchoredOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
     this.anchoredRect = { ...rect };
-    this.setOverlayBounds(rect);
+    try { this.overlay.setAnchoredRect(rect as DOMRectLike); } catch {}
   }
 
   clearAnchoredOverlay(): void {
     this.anchoredRect = null;
+    try { this.overlay.clearAnchoredRect(); } catch {}
   }
 
   // Post a window message and surface errors in debug mode instead of silently swallowing them
