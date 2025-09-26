@@ -270,7 +270,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 52px;
   width: 0;           /* hidden footprint by default */
   padding: 0;
   background: transparent;
@@ -284,7 +283,7 @@
   pointer-events: none;
   margin-left: -1rem;
   z-index: 1;
-  border: 6px solid var(--w3a-colors-colorBackground);
+  border: 6px solid var(--w3a-colors-colorBackground, var(--w3a-color-background, #fff));
   height: 64px;
   transition: transform 200ms ease,
               background-color 200ms ease,
@@ -294,7 +293,8 @@
 }
 .w3a-arrow-btn.is-enabled {
   width: 100px; /* expand when enabled */
-  background: var(--w3a-colors-primary);
+  /* Prefer themed primary; fall back to legacy then a sane default */
+  background: var(--w3a-colors-primary, var(--w3a-color-primary, #2563eb));
   border-radius: 2rem;
   /* border-radius: 2rem; */
   opacity: 1;
@@ -306,9 +306,17 @@
               opacity 200ms ease,
               width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
+.w3a-arrow-btn .w3a-arrow-icon {
+  color: #fff;
+}
 .w3a-arrow-btn.is-enabled:hover {
   transform: scale(1.02);
-  background: var(--w3a-colors-primaryHover);
+  /* Prefer themed hover; fall back to legacy primary-hover then primary */
+  background: var(--w3a-colors-primaryHover,
+    var(--w3a-color-primary-hover,
+      var(--w3a-color-primary, #1d4ed8)
+    )
+  );
 }
 .w3a-arrow-btn.is-enabled:active {
   transform: scale(0.985);

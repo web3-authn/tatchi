@@ -145,6 +145,12 @@ export class WalletIframeRouter {
   private debug = false;
   private readonly walletOriginUrl: URL;
   private readonly walletOriginOrigin: string;
+  // Overlay register button window-message bridging (wallet-host UI → parent)
+  private readonly registerOverlayResultListeners = new Set<(
+    payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
+  ) => void>();
+  private readonly registerOverlaySubmitListeners = new Set<() => void>();
+  private windowMsgHandlerBound?: (ev: MessageEvent) => void;
 
   constructor(options: WalletIframeRouterOptions) {
     if (!options?.walletOrigin) {
@@ -195,6 +201,42 @@ export class WalletIframeRouter {
           }
         : undefined
     );
+
+    // Bridge wallet-host overlay UI messages into router callbacks
+    this.windowMsgHandlerBound = (ev: MessageEvent) => {
+      try {
+        if (ev.origin !== this.walletOriginOrigin) return;
+        const data = ev.data as unknown;
+        if (!data || typeof data !== 'object') return;
+        const type = (data as { type?: unknown }).type;
+        if (type === 'REGISTER_BUTTON_SUBMIT') {
+          for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
+            try { cb(); } catch {}
+          }
+          return;
+        }
+        if (type === 'REGISTER_BUTTON_RESULT') {
+          const payload = (data as { payload?: unknown }).payload as
+            | { ok?: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
+            | undefined;
+          const ok = !!payload?.ok;
+          for (const cb of Array.from(this.registerOverlayResultListeners)) {
+            try { cb({ ok, result: payload?.result, cancelled: (payload as any)?.cancelled, error: (payload as any)?.error }); } catch {}
+          }
+          if (ok) {
+            const acct = payload?.result?.nearAccountId;
+            Promise.resolve().then(async () => {
+              try {
+                const st = await this.getLoginState(acct);
+                this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+              } catch {}
+            }).catch(() => {});
+          }
+          return;
+        }
+      } catch {}
+    };
+    try { window.addEventListener('message', this.windowMsgHandlerBound); } catch {}
   }
 
   /**
@@ -323,6 +365,17 @@ export class WalletIframeRouter {
     }
   }
 
+  // Overlay register button events (optional convenience API)
+  onRegisterOverlayResult(listener: (payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }) => void): () => void {
+    this.registerOverlayResultListeners.add(listener);
+    return () => { this.registerOverlayResultListeners.delete(listener); };
+  }
+
+  onRegisterOverlaySubmit(listener: () => void): () => void {
+    this.registerOverlaySubmitListeners.add(listener);
+    return () => { this.registerOverlaySubmitListeners.delete(listener); };
+  }
+
   // ===== PasskeyManager-first RPCs =====
 
   async signTransactionsWithActions(payload: {
@@ -349,6 +402,7 @@ export class WalletIframeRouter {
 
   async registerPasskey(payload: {
     nearAccountId: string;
+    confirmationConfig?: ConfirmationConfig;
     options?: {
       onEvent?: (ev: RegistrationSSEEvent) => void
     }
@@ -357,6 +411,11 @@ export class WalletIframeRouter {
     this.showFrameForActivation();
 
     try {
+      // Optional one-time confirmation override (non-persistent)
+      if (payload.confirmationConfig) {
+        try { await this.setConfirmationConfig(payload.confirmationConfig); } catch {}
+      }
+
       // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)
       const safeOptions = removeFunctionsFromOptions(payload.options);
 
@@ -365,7 +424,8 @@ export class WalletIframeRouter {
         type: 'PM_REGISTER',
         payload: {
           nearAccountId: payload.nearAccountId,
-          options: safeOptions
+          options: safeOptions,
+          ...(payload.confirmationConfig ? { confirmationConfig: payload.confirmationConfig as unknown as Record<string, unknown> } : {})
         },
         // Bridge progress events from iframe back to parent callback
         options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isRegistrationSSEEvent) }
@@ -904,6 +964,7 @@ export class WalletIframeRouter {
     iframe.style.left = '0';
     // Ensure no visible border interferes with viewport fit
     iframe.style.border = 'none';
+    iframe.style.boxSizing = 'border-box';
     iframe.style.width = '100vw';
     iframe.style.height = '100vh';
     iframe.style.opacity = '1';
@@ -933,6 +994,47 @@ export class WalletIframeRouter {
     iframe.style.zIndex = '';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
+  }
+
+  /**
+   * Public toggle to surface the wallet iframe for user activation or hide it.
+   * Useful when mounting inline UI components that require direct user clicks.
+   */
+  setOverlayVisible(visible: boolean): void {
+    if (visible) {
+      this.showFrameForActivation();
+    } else {
+      this.hideFrameForActivation();
+    }
+  }
+
+  /** Return the underlying iframe element (if mounted). */
+  getIframeEl(): HTMLIFrameElement | null {
+    return this.transport.getIframeEl();
+  }
+
+  /**
+   * Position and show the wallet iframe as an anchored overlay matching a DOMRect.
+   * Accepts viewport-relative coordinates (from getBoundingClientRect()).
+   */
+  setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    const iframe = this.transport.ensureIframeMounted();
+    this.activationOverlayVisible = true;
+    iframe.style.position = 'fixed';
+    iframe.style.border = 'none';
+    iframe.style.boxSizing = 'border-box';
+    iframe.style.top = `${Math.max(0, Math.round(rect.top))}px`;
+    iframe.style.left = `${Math.max(0, Math.round(rect.left))}px`;
+    iframe.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+    iframe.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+    iframe.style.opacity = '1';
+    iframe.style.pointerEvents = 'auto';
+    iframe.style.zIndex = '2147483646';
+    iframe.style.right = '';
+    iframe.style.bottom = '';
+    iframe.style.inset = '';
+    iframe.setAttribute('aria-hidden', 'false');
+    iframe.removeAttribute('tabindex');
   }
 
   // Post a window message and surface errors in debug mode instead of silently swallowing them

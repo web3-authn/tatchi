@@ -229,17 +229,12 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             result.to_json()
         }
         WorkerRequestType::RegistrationCredentialConfirmation => {
-            let request = msg
-                .parse_payload::<handlers::RegistrationCredentialConfirmationRequest>(
-                    request_type,
-                )?;
-            let result =
-                handlers::handle_request_registration_credential_confirmation(request).await?;
+            let request = msg.parse_payload::<handlers::RegistrationCredentialConfirmationRequest>(request_type)?;
+            let result = handlers::handle_request_registration_credential_confirmation(request).await?;
             result.to_json()
         }
         WorkerRequestType::ExportNearKeypairUI => {
-            let request =
-                msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
+            let request = msg.parse_payload::<handlers::ExportNearKeypairUiRequest>(request_type)?;
             let result = handlers::handle_export_near_keypair_ui(request).await?;
             result.to_json()
         }

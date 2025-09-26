@@ -88,6 +88,7 @@ import type { ConfirmationConfig } from '../../types/signer-worker';
 import { WalletIframeDomEvents } from '../events';
 import type {
   RegistrationHooksOptions,
+  RegistrationResult,
   LoginHooksOptions,
   ActionHooksOptions,
   SignAndSendTransactionHooksOptions,
@@ -164,14 +165,24 @@ async function handleGetLoginState(req: Extract<ParentToChildEnvelope, { type: '
 
 async function handleRegisterRequest(req: Extract<ParentToChildEnvelope, { type: 'PM_REGISTER' }>): Promise<void> {
   const pm = getPasskeyManager();
-  const { nearAccountId, options } = req.payload as PMRegisterPayload;
+  const { nearAccountId, options, confirmationConfig } = req.payload as PMRegisterPayload & { confirmationConfig?: import('../../types/signer-worker').ConfirmationConfig };
 
   if (respondIfCancelled(req.requestId)) return;
 
-  const result = await pm.registerPasskey(nearAccountId, {
-    ...options,
-    onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-  } as RegistrationHooksOptions);
+  // Prefer one-time override when provided
+  const anyPm = pm as unknown as {
+    registerPasskeyInternal?: (id: string, opts?: RegistrationHooksOptions, cfg?: import('../../types/signer-worker').ConfirmationConfig) => Promise<RegistrationResult>;
+    registerPasskey: (id: string, opts?: RegistrationHooksOptions) => Promise<RegistrationResult>;
+  };
+  const result = confirmationConfig && typeof anyPm.registerPasskeyInternal === 'function'
+    ? await anyPm.registerPasskeyInternal(nearAccountId, {
+        ...options,
+        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+      } as RegistrationHooksOptions, confirmationConfig)
+    : await pm.registerPasskey(nearAccountId, {
+        ...options,
+        onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+      } as RegistrationHooksOptions);
 
   if (respondIfCancelled(req.requestId)) return;
   post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });

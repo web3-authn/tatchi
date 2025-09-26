@@ -1,29 +1,47 @@
-import { AuthMenuMode } from '.';
+import { AuthMenuMode } from './types';
 
-export function useProceedEligibility({
+export interface ProceedEligibilityArgs {
+  mode: AuthMenuMode;
+  currentValue: string;
+  accountExists: boolean;
+  secure: boolean;
+}
+
+export interface ProceedEligibilityResult {
+  canShowContinue: boolean;
+  canSubmit: boolean;
+}
+
+export function getProceedEligibility({
   mode,
   currentValue,
   accountExists,
   secure,
-}: {
+}: ProceedEligibilityArgs): ProceedEligibilityResult {
+  const hasInput = currentValue.length > 0;
+  if (mode === AuthMenuMode.Register) {
+    return {
+      canShowContinue: hasInput && !accountExists,
+      canSubmit: hasInput && secure && !accountExists,
+    };
+  }
+  if (mode === AuthMenuMode.Login) {
+    return {
+      canShowContinue: hasInput && accountExists,
+      canSubmit: hasInput && accountExists,
+    };
+  }
+  // Recover mode keeps the legacy behaviour of allowing empty input
+  return { canShowContinue: true, canSubmit: true };
+}
+
+export function useProceedEligibility(args: {
   mode: AuthMenuMode;
   currentValue: string;
   accountExists: boolean;
   secure: boolean;
 }) {
-  const canShowContinue = mode === AuthMenuMode.Register
-    ? (currentValue.length > 0 && !accountExists)
-    : mode === AuthMenuMode.Login
-    ? (currentValue.length > 0 && !!accountExists)
-    : true; // In recover mode, show Continue even when input is empty
-
-  const canSubmit = mode === AuthMenuMode.Register
-    ? (currentValue.length > 0 && secure && !accountExists)
-    : mode === AuthMenuMode.Login
-    ? (currentValue.length > 0 && !!accountExists)
-    : true; // In recover mode, allow submitting even with empty input (will prompt to select a passkey)
-
-  return { canShowContinue, canSubmit };
+  return getProceedEligibility(args);
 }
 
 export default useProceedEligibility;

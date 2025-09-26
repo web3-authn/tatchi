@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
 
 use super::confirm_tx_details::request_registration_credential_confirmation;
-use crate::types::handlers::TransactionContext;
+use crate::types::handlers::{TransactionContext, ConfirmationConfig};
 use crate::types::VrfChallenge;
 
 #[wasm_bindgen]
@@ -21,6 +21,10 @@ pub struct RegistrationCredentialConfirmationRequest {
     pub contract_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
     pub near_rpc_url: String,
+    /// Optional confirmation config to control UI behavior (modal/drawer, autoProceed/requireClick)
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
+    pub confirmation_config: Option<ConfirmationConfig>,
 }
 
 #[wasm_bindgen]
@@ -99,6 +103,7 @@ pub async fn handle_request_registration_credential_confirmation(
         request.device_number,
         &request.contract_id,
         &request.near_rpc_url,
+        request.confirmation_config.clone(),
     )
     .await?;
 

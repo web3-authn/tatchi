@@ -40,7 +40,11 @@
  * - No arbitrary code execution is allowed in component definitions
  */
 
-import { W3A_TX_BUTTON_HOST_ID, W3A_TX_BUTTON_ID } from '../../WebAuthnManager/LitComponents/tags';
+import {
+  W3A_TX_BUTTON_HOST_ID,
+  W3A_TX_BUTTON_ID,
+  W3A_ARROW_REGISTER_BUTTON_ID,
+} from '../../WebAuthnManager/LitComponents/tags';
 
 export type PmActionName =
   | 'registerPasskey'
@@ -100,6 +104,19 @@ export const uiBuiltinRegistry: WalletUIRegistry = {
       cancelProp: 'onCancel',
       messageType: 'TX_BUTTON_RESULT'
     }
+  },
+  // Simple register button that triggers Passkey registration in wallet origin
+  'w3a-arrow-register-button': {
+    tag: W3A_ARROW_REGISTER_BUTTON_ID,
+    // Expect a nearAccountId prop to be passed when mounting
+    eventBindings: [
+      {
+        event: 'arrow-submit',
+        action: 'registerPasskey',
+        argsFromProps: { nearAccountId: 'nearAccountId' },
+        resultMessageType: 'REGISTER_BUTTON_RESULT',
+      },
+    ],
   },
 
   // Back-compat alias keys mapping to preferred ones

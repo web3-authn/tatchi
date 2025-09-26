@@ -35,6 +35,7 @@ import type {
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@/core/defaultConfigs';
+import { toAccountId } from '@/core/types/accountIds';
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
 
@@ -115,6 +116,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
           if (cancelled) return;
           if (status?.active && status?.nearAccountId) {
             const state = await client.getLoginState(status.nearAccountId);
+            // Ensure local preferences are scoped to this user
+            try { passkeyManager.userPreferences.setCurrentUser(toAccountId(status.nearAccountId)); } catch {}
             setLoginState(prev => ({
               ...prev,
               isLoggedIn: true,
@@ -315,6 +318,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       // Fallback: reflect local VRF status
       const ls = await passkeyManager.getLoginState(nearAccountId);
       if (ls.nearAccountId) {
+        try { passkeyManager.userPreferences.setCurrentUser(toAccountId(ls.nearAccountId)); } catch {}
         setLoginState(prevState => ({
           ...prevState,
           nearAccountId: ls.nearAccountId,
@@ -331,6 +335,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   useEffect(() => {
     refreshLoginState();
   }, [refreshLoginState]);
+
+  // No direct window bridging needed: router emits onVrfStatusChanged after overlay registration
 
   const value: PasskeyContextType = {
     // Core PasskeyManager instance - provides ALL functionality

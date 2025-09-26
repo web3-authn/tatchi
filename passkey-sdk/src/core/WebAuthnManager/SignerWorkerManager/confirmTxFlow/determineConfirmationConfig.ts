@@ -36,6 +36,7 @@ export function determineConfirmationConfig(
     ...ctx.userPreferencesManager.getConfirmationConfig(),
     ...request?.confirmationConfig,
   };
+  const hasOverride = !!request?.confirmationConfig;
   // Normalize theme default
   cfg = { ...cfg, theme: cfg.theme || 'dark' } as ConfirmationConfig;
   // Default decrypt-private-key confirmations to 'skip' UI. The flow collects
@@ -62,19 +63,18 @@ export function determineConfirmationConfig(
     request?.type &&
     (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
   ) {
-    const wantsSkip = cfg.uiMode === 'skip';
-    const wantsAutoProceed = (cfg.uiMode === 'modal' && cfg.behavior === 'autoProceed');
-    if (!(wantsSkip || wantsAutoProceed)) {
-      // Default to autoProceed (skip click) instead of requireClick in wallet-iframe registration/link flows
+    // If the request explicitly provided a confirmationConfig, honor it as-is
+    if (hasOverride) {
+      return cfg;
+    } else {
+      // Otherwise, default to a safe modal that requires a click
       return {
         uiMode: 'modal',
-        behavior: 'autoProceed',
+        behavior: 'requireClick',
         autoProceedDelay: cfg.autoProceedDelay,
         theme: cfg.theme || 'dark',
       } as ConfirmationConfig;
     }
-    // Otherwise, caller explicitly requested auto‑proceed/skip; return cfg as is.
-    return cfg;
   }
 
   // Otherwise honor caller/user configuration

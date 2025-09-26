@@ -9,7 +9,7 @@ import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { TooltipGeometry, TooltipPositionInternal } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
+import { W3A_BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
 
 /**
@@ -1063,13 +1063,13 @@ export class EmbeddedTxButton extends LitElementWithProps {
               <button data-close-btn @click=${() => this.hideTooltip()} aria-label="Close details">✕</button>
             </div>
           ` : ''}
-          <tx-tree
+          <w3a-tx-tree
             .node=${tree}
             .depth=${0}
             .styles=${this.styles}
             .theme=${this.TxTreeTheme}
             @lit-tree-toggled=${this.handleTreeToggled}
-          ></tx-tree>
+          ></w3a-tx-tree>
         </div>
       </div>
     `;
@@ -1088,8 +1088,15 @@ export class EmbeddedTxButton extends LitElementWithProps {
   }
 }
 
-// Define the custom element
-customElements.define(BUTTON_WITH_TOOLTIP_ID, EmbeddedTxButton);
+// Define the custom element and legacy alias for backwards compatibility
+if (!customElements.get(W3A_BUTTON_WITH_TOOLTIP_ID)) {
+  customElements.define(W3A_BUTTON_WITH_TOOLTIP_ID, EmbeddedTxButton);
+}
+// Legacy alias: define a lightweight subclass to avoid reusing the same constructor
+if (!customElements.get('button-with-tooltip')) {
+  class EmbeddedTxButtonAlias extends EmbeddedTxButton {}
+  customElements.define('button-with-tooltip', EmbeddedTxButtonAlias as unknown as CustomElementConstructor);
+}
 
 // Export default only to avoid name collision with React wrapper export
 export default EmbeddedTxButton;

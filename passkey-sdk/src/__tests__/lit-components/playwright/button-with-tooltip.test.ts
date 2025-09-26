@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../../setup';
 import { ensureComponentModule, mountComponent } from './harness';
 
-const COMPONENT_MODULE = '/sdk/esm/react/embedded/button-with-tooltip.js';
-const COMPONENT_TAG = 'button-with-tooltip';
+const COMPONENT_MODULE = '/sdk/esm/react/embedded/w3a-button-with-tooltip.js';
+const COMPONENT_TAG = 'w3a-button-with-tooltip';
 
 test.describe('Lit component – button-with-tooltip', () => {
   test.beforeEach(async ({ page }) => {
@@ -28,7 +28,7 @@ test.describe('Lit component – button-with-tooltip', () => {
   // ensures the custom element upgrades and renders the embedded lit component shell
   test('upgrades custom element and renders interactive shim', async ({ page }) => {
     const upgradeState = await page.evaluate(() => {
-      const host = document.querySelector('button-with-tooltip');
+    const host = document.querySelector('w3a-button-with-tooltip');
       if (!host) {
         return { exists: false };
       }
@@ -55,9 +55,9 @@ test.describe('Lit component – button-with-tooltip', () => {
 
   // checks tooltip hover interactions wire through the shim and toggle visibility cues
   test('shows and hides tooltip on hover transitions', async ({ page }) => {
-    const hostHandle = await page.evaluateHandle(() => document.querySelector('button-with-tooltip'));
+    const hostHandle = await page.evaluateHandle(() => document.querySelector('w3a-button-with-tooltip'));
     if (!hostHandle) {
-      throw new Error('button-with-tooltip host not found');
+      throw new Error('w3a-button-with-tooltip host not found');
     }
 
     const buttonHandle = await hostHandle.evaluateHandle((element: Element | null) => element?.shadowRoot?.querySelector('[data-embedded-btn]'));

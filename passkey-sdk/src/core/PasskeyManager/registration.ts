@@ -14,6 +14,7 @@ import { PasskeyManagerConfigs } from '../types/passkeyManager';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
+import type { ConfirmationConfig } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
@@ -34,11 +35,12 @@ import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdProm
  * 8. Contract stores VRF pubkey + authenticator credentials on-chain for
  *    future stateless authentication
  */
-export async function registerPasskey(
+export async function registerPasskeyInternal(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   options: RegistrationHooksOptions,
-  authenticatorOptions: AuthenticatorOptions
+  authenticatorOptions: AuthenticatorOptions,
+  confirmationConfigOverride?: ConfirmationConfig
 ): Promise<RegistrationResult> {
 
   const { onEvent, onError, beforeCall, afterCall } = options;
@@ -75,12 +77,21 @@ export async function registerPasskey(
       message: 'Account available - generating VRF credentials...'
     });
 
-    // Step 1 + 2: Use secureConfirm to collect a passkey with PRF inside the wallet iframe
+    // Step 1 + 2: Use secureConfirm to collect a passkey with PRF
+    // Allow per-call override for confirmation behavior; otherwise default to modal + requireClick
+    const theme: 'dark' | 'light' = (context.configs?.walletTheme === 'light') ? 'light' : 'dark';
+    const confirmationConfig: ConfirmationConfig = confirmationConfigOverride ?? {
+      uiMode: 'modal',
+      behavior: 'requireClick',
+      theme
+    };
+
     const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber: 1,
       contractId: context.configs.contractId,
       nearRpcUrl: context.configs.nearRpcUrl,
+      confirmationConfigOverride: confirmationConfig,
     });
     if (!confirm.confirmed || !confirm.credential) {
       const reason = confirm?.error || 'User cancelled registration';
@@ -309,6 +320,16 @@ export async function registerPasskey(
     afterCall?.(false, result);
     return result;
   }
+}
+
+// Backward-compatible wrapper without explicit confirmationConfig override
+export async function registerPasskey(
+  context: PasskeyManagerContext,
+  nearAccountId: AccountId,
+  options: RegistrationHooksOptions,
+  authenticatorOptions: AuthenticatorOptions
+): Promise<RegistrationResult> {
+  return registerPasskeyInternal(context, nearAccountId, options, authenticatorOptions, undefined);
 }
 
 //////////////////////////////////////

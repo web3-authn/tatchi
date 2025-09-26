@@ -39,7 +39,9 @@ export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKe
 export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
 export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
 export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
-export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest>;
+export type WasmRegistrationCredentialConfirmationRequest = Omit<StripFree<wasmModule.RegistrationCredentialConfirmationRequest>, 'confirmationConfig'> & {
+  confirmationConfig?: ConfirmationConfig;
+};
 export type WasmExportNearKeypairUiRequest = StripFree<wasmModule.ExportNearKeypairUiRequest>;
 
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest

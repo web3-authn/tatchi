@@ -742,7 +742,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                 <!-- Hero heading -->
                 ${(() => {
                   const isRegistration = (this.txSigningRequests?.length || 0) === 0;
-                  const heading = isRegistration ? 'Create passkey' : 'Sign transaction with Passkey';
+                  const heading = isRegistration ? 'Register with Passkey' : 'Sign transaction with Passkey';
                   return html`<h2 class="hero-heading">${heading}</h2>`;
                 })()}
                 ${this.errorMessage
@@ -862,8 +862,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 }
 
 // Register the custom element
-import { MODAL_TX_CONFIRM_ID } from '../tags';
+import { W3A_MODAL_TX_CONFIRM_ID } from '../tags';
 
-if (!customElements.get(MODAL_TX_CONFIRM_ID)) {
-  customElements.define(MODAL_TX_CONFIRM_ID, ModalTxConfirmElement);
+if (!customElements.get(W3A_MODAL_TX_CONFIRM_ID)) {
+  customElements.define(W3A_MODAL_TX_CONFIRM_ID, ModalTxConfirmElement);
 }

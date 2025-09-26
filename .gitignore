@@ -24,6 +24,7 @@ examples/nextjs/dist
 
 examples/relay-server/dist
 examples/relay-server/dist/*
+examples/relay-server/grace-keys.json
 
 # Playwright report
 passkey-sdk/playwright-report

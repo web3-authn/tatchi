@@ -18,8 +18,8 @@ export {
   utilParsePx,
 } from './iframe-geometry';
 export {
-  BUTTON_WITH_TOOLTIP_ID,
+  W3A_BUTTON_WITH_TOOLTIP_ID,
   W3A_TX_BUTTON_ID,
   EMBEDDED_SDK_BASE_PATH,
-  IFRAME_BOOTSTRAP_MODULE,
+  IFRAME_TX_BUTTON_BOOTSTRAP_MODULE,
 } from '../tags';

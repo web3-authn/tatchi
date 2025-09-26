@@ -36,9 +36,9 @@ Notes
 
 ## Minimal usage
 ```html
-<tx-tree
+<w3a-tx-tree
   .node=${treeRoot}
   .depth=${0}
   .txTreeStyles=${themeStyles}
-></tx-tree>
+></w3a-tx-tree>
 ```

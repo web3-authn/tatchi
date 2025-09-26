@@ -8,6 +8,7 @@ import { fromTransactionInputsWasm } from '../../../types/actions';
 import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
+import { W3A_TX_TREE_ID } from '../tags';
 
 /**
  * Shared confirmation content surface used by both Modal and Drawer containers.
@@ -17,7 +18,7 @@ import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
  */
 export class TxConfirmContentElement extends LitElementWithProps {
   // Fail fast in dev if nested custom elements are not defined
-  static requiredChildTags = ['tx-tree'];
+  static requiredChildTags = [W3A_TX_TREE_ID, 'tx-tree'];
   static keepDefinitions = [TxTree];
   static properties = {
     nearAccountId: { type: String, attribute: 'near-account-id' },
@@ -225,11 +226,11 @@ export class TxConfirmContentElement extends LitElementWithProps {
       ${
         this._treeNode
         ? html`<div style="width:${this._txTreeWidth}">
-                <tx-tree
+                <w3a-tx-tree
                   .node=${this._treeNode}
                   .theme=${this.theme}
                   .styles=${TX_TREE_THEMES[this.theme]}
-                ></tx-tree>
+                ></w3a-tx-tree>
               </div>`
         : html`<div class="muted">No actions</div>`
       }
@@ -255,10 +256,10 @@ export class TxConfirmContentElement extends LitElementWithProps {
   }
 }
 
-import { TX_CONFIRM_CONTENT_ID } from '../tags';
+import { W3A_TX_CONFIRM_CONTENT_ID } from '../tags';
 
-if (!customElements.get(TX_CONFIRM_CONTENT_ID)) {
-  customElements.define(TX_CONFIRM_CONTENT_ID, TxConfirmContentElement);
+if (!customElements.get(W3A_TX_CONFIRM_CONTENT_ID)) {
+  customElements.define(W3A_TX_CONFIRM_CONTENT_ID, TxConfirmContentElement);
 }
 
 export default TxConfirmContentElement;

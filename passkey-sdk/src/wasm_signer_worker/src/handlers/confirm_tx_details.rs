@@ -463,6 +463,7 @@ pub async fn request_registration_credential_confirmation(
     device_number: usize,
     contract_id: &str,
     near_rpc_url: &str,
+    confirmation_config: Option<ConfirmationConfig>,
 ) -> Result<ConfirmationResult, String> {
     // Summary shown to the user (object form)
     let summary = serde_json::json!({
@@ -476,6 +477,17 @@ pub async fn request_registration_credential_confirmation(
     let intent_digest = format!("linkdevice:{}:{}", near_account_id, device_number);
     let request_id = generate_request_id();
 
+    // Normalize provided confirmation config or fall back to a safe default (modal + requireClick)
+    let normalized_config = match confirmation_config {
+        Some(ref cfg) => validate_and_normalize_confirmation_config(cfg),
+        None => ConfirmationConfig {
+            ui_mode: ConfirmationUIMode::Modal,
+            behavior: ConfirmationBehavior::RequireClick,
+            auto_proceed_delay: None,
+            theme: None,
+        },
+    };
+
     // Confirmation data for JS main thread
     let confirmation_data = serde_json::json!({
         "intentDigest": intent_digest,
@@ -485,20 +497,14 @@ pub async fn request_registration_credential_confirmation(
             "nearRpcUrl": near_rpc_url,
             "nearAccountId": near_account_id,
         },
-        // Link-device flow: default to autoProceed in modal mode
-        "confirmationConfig": ConfirmationConfig {
-            ui_mode: ConfirmationUIMode::Modal,
-            behavior: ConfirmationBehavior::RequireClick,
-            auto_proceed_delay: Some(0),
-            theme: Some("dark".to_string()),
-        },
+        "confirmationConfig": normalized_config,
         "registrationDetails": {
             "nearAccountId": near_account_id,
             "deviceNumber": device_number,
         },
     });
 
-    // Build V2 secure confirm request (link-device)
+    // Build V2 secure confirm request (registration/link-device)
     let request_obj = serde_json::json!({
         "schemaVersion": 2,
         "requestId": request_id,

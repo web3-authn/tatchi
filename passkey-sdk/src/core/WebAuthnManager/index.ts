@@ -182,17 +182,20 @@ export class WebAuthnManager {
     deviceNumber,
     contractId,
     nearRpcUrl,
+    confirmationConfigOverride,
   }: {
     nearAccountId: string;
     deviceNumber: number;
     contractId: string;
     nearRpcUrl: string;
+    confirmationConfigOverride?: ConfirmationConfig;
   }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.signerWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber,
       contractId,
       nearRpcUrl,
+      confirmationConfig: confirmationConfigOverride,
     });
   }
 

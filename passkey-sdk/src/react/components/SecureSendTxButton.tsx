@@ -54,7 +54,7 @@ export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean 
 )
 
 /**
- * React wrapper around the Lit `iframe-button` component.
+ * React wrapper around the Lit `w3a-tx-button` component.
  * Much cleaner implementation that delegates iframe management to Lit.
  */
 export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
@@ -73,6 +73,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   // Behavioral props
   onCancel,
   onSuccess,
+  onEvent,
   onLoadTouchIdPrompt,
   // Optional customizations
   color,
@@ -176,7 +177,8 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
         beforeCall: options?.beforeCall,
         afterCall: options?.afterCall,
         onError: options?.onError,
-        onEvent: options?.onEvent,
+        // Prefer explicit onEvent prop if provided, else fall back to options.onEvent
+        onEvent: onEvent ?? options?.onEvent,
         waitUntil: options?.waitUntil,
         executionWait: options?.executionWait
       }}

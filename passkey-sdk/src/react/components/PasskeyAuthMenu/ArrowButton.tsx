@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowUpIcon } from './icons';
+import { usePasskeyContext } from '../../context';
 
 export interface ArrowButtonProps {
   disabled: boolean;
@@ -7,6 +8,12 @@ export interface ArrowButtonProps {
   /** Optional explicit dimensions */
   width?: number | string;
   height?: number | string;
+  /** If true, attempts registerPasskey when the Lit overlay isn't active */
+  fallbackRegister?: boolean;
+  /** Optional: make this div an anchor for the Lit Arrow overlay */
+  arrowAnchorRef?: React.Ref<HTMLDivElement>;
+  /** Optional: mount handler for Lit overlay on hover/focus */
+  mountArrowAtRect?: () => void;
 }
 
 export const ArrowButton: React.FC<ArrowButtonProps> = ({
@@ -14,6 +21,9 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   disabled,
   width,
   height,
+  fallbackRegister,
+  arrowAnchorRef,
+  mountArrowAtRect,
 }) => {
   const toCssSize = (v?: number | string): string | undefined => {
     if (v == null) return undefined;
@@ -24,7 +34,12 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   const w = toCssSize(width);
   const h = toCssSize(height);
   return (
-    <div style={{ position: 'relative', display: 'inline-block', width: w, height: h }}>
+    <div
+      ref={arrowAnchorRef}
+      onPointerEnter={mountArrowAtRect}
+      onFocus={mountArrowAtRect}
+      style={{ position: 'relative', display: 'inline-block', width: w, height: h }}
+    >
       <button
         aria-label="Continue"
         onClick={onClick}

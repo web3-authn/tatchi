@@ -85,6 +85,7 @@ export class IframeTransport {
     // Hidden by default; higher layers can temporarily show for activation.
     iframe.style.position = 'fixed';
     iframe.style.border = 'none';
+    iframe.style.boxSizing = 'border-box';
     iframe.style.width = '0px';
     iframe.style.height = '0px';
     iframe.style.opacity = '0';

@@ -220,7 +220,8 @@ export default defineConfig([
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'button-with-tooltip.js'
+      // Align emitted filename with iframe srcdoc import expectation
+      entryFileNames: 'w3a-button-with-tooltip.js'
     },
     external: embeddedExternal,
     resolve: {
@@ -244,11 +245,12 @@ export default defineConfig([
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
     input: {
-      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
+      // SecureSendTxButton component (Button with ToolTip)
       'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
-      'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
-      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-host.ts',
-      'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-modal-bootstrap-script.ts',
+      'iframe-tx-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts',
+      // Tx Confirmer component
+      'w3a-iframe-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-host.ts',
+      'iframe-tx-confirmer-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-tx-confirmer-bootstrap-script.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
       // Export viewer host + bootstrap

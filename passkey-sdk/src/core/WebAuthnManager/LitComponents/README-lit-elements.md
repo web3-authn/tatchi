@@ -17,8 +17,8 @@ The parent page never directly manipulates DOM inside the iframe. Instead, it se
 - Performs an initial geometry handshake (HS1…HS5) so the parent can apply a clip‑path that only exposes the button/tooltip areas.
 
 Files:
-- `IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates.
-- `IframeTxConfirmer/iframe-modal-bootstrap-script.ts`: Same pattern for the modal variant.
+- `IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates. The emitted module name is `iframe-tx-button-bootstrap.js`.
+- `IframeTxConfirmer/iframe-tx-confirmer-bootstrap-script.ts`: Same pattern for the modal variant.
 
 ## Prop Flow and Data Updates
 
@@ -40,6 +40,7 @@ For guidance on editing properties, style sections, and the CSS variable naming 
 
 - Tooltip tree: `./TooltipTxTree/README.md`
 - Iframe button + tooltip confirmer: `./IframeButtonWithTooltipConfirmer/README.md`
+- Arrow register button: `./ArrowRegisterButton/index.ts` (emits `arrow-submit` when proceeding)
 
 Tip: When changing dimensions (tooltip width/height or modal size), prefer updating the theme objects or the `tooltipPosition` prop so geometry and clip‑path remain aligned.
 
@@ -95,20 +96,6 @@ When renaming Lit component files, several files must be updated to maintain con
 
 #### 1. Rolldown Configuration (`packages/passkey/rolldown.config.ts`)
 - Update entry points in the `input` configuration
-- Example:
-  ```typescript
-  // Before
-  input: {
-    'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
-    // ...
-  }
-
-  // After
-  input: {
-    'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
-    // ...
-  }
-  ```
 
 ### 2. Dev Asset Serving
 

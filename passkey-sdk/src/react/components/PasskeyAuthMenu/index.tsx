@@ -12,21 +12,15 @@ import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
 import type { DeviceLinkingSSEEvent } from '../../../core/types/passkeyManager';
+import { useRegisterOverlayWaitingBridge } from './ArrowButtonOverlayHooks';
+import {
+  AuthMenuMode,
+  AuthMenuModeMap,
+  type AuthMenuModeLabel,
+} from './types';
 
-// Enum-based auth modes for clearer usage without naked numbers
-export enum AuthMenuMode {
-  Register = 0,
-  Login = 1,
-  Recover = 2,
-}
-
-// Numeric → label mapping, kept for UI and classNames
-export const AuthMenuModeMap = {
-  [AuthMenuMode.Register]: 'register',
-  [AuthMenuMode.Login]: 'login',
-  [AuthMenuMode.Recover]: 'recover',
-} as const;
-export type AuthMenuModeLabel = typeof AuthMenuModeMap[keyof typeof AuthMenuModeMap];
+export { AuthMenuMode, AuthMenuModeMap };
+export type { AuthMenuModeLabel };
 
 export interface SignupMenuProps {
   onLogin?: () => void;
@@ -61,6 +55,12 @@ export interface SignupMenuProps {
     onEvent?: (event: DeviceLinkingSSEEvent) => void;
     onError?: (error: Error) => void;
   };
+  /**
+   * Registration: skips an extra confirm click, by mounting an iframe registration button
+   * on the same domain as the wallet-iframe.
+   * The ArrowButtonOverlayLit register button is mounted on hover in PasskeyInput.
+   */
+  useIframeArrowButtonOverlay?: boolean
 }
 
 export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
@@ -90,6 +90,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   isSecureContext,
   onRecoverAccount,
   linkDeviceOptions,
+  useIframeArrowButtonOverlay = false,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -169,21 +170,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     }
   };
 
-  // Handle Enter key to trigger continue button
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && !waiting && canShowContinue) {
-        event.preventDefault();
-        onArrowClick();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [waiting, canShowContinue, onArrowClick]);
-
   const onResetToStart = () => {
     setWaiting(false);
     setShowScanDevice(false);
@@ -204,6 +190,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
 
   const handleLinkDeviceEvent = linkDeviceOptions?.onEvent ?? fallbackOnEvent;
   const handleLinkDeviceError = linkDeviceOptions?.onError ?? fallbackOnError;
+
+  // Bridge wallet-iframe overlay register button submit/result → waiting state
+  useRegisterOverlayWaitingBridge({ enabled: !!useIframeArrowButtonOverlay, setWaiting });
 
   return (
     <div
@@ -267,6 +256,8 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           primaryLabel={mode === AuthMenuMode.Login ? 'Login' : mode === AuthMenuMode.Recover ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
+          waiting={waiting}
+          useIframeArrowButtonOverlay={useIframeArrowButtonOverlay}
         />
 
         {/* Segmented control: Register | Login | Recover (generic API) */}

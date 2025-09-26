@@ -19,7 +19,7 @@ const __ensure = [__KeepTxButton];
 
 /**
  * w3a-wallet-tx-host
- * Thin Lit wrapper that renders the existing <iframe-button> (tooltip confirmer)
+ * Thin Lit wrapper that renders the existing <w3a-tx-button> (tooltip confirmer)
  * while exposing a props shape compatible with WalletIframeTxButtonHost.
  *
  * The caller should set `.externalConfirm`, `.onSuccess`, `.onCancel` on this

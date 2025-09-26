@@ -42,7 +42,8 @@
 // Import and retain a reference to ensure bundlers don’t treeshake the element
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
-import { PasskeyAuthMenuElement as __PasskeyAuthMenuKeep } from '../../WebAuthnManager/LitComponents/PasskeyAuthMenu/passkey-auth-menu';
+// Import arrow register button so it's defined and not tree-shaken in wallet origin
+import ArrowRegisterButtonElement from '../../WebAuthnManager/LitComponents/ArrowRegisterButton';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
 import { ConfirmationConfig } from '../../types/signer-worker';
@@ -55,10 +56,10 @@ import {
 import { uiBuiltinRegistry, type WalletUIRegistry } from './lit-element-registry';
 import { errorMessage } from '../../../utils/errors';
 import { isObject, isString, isFiniteNumber } from '../validation';
-import { defineTag, getTag, W3A_PASSKEY_AUTH_MENU_ID } from '../../WebAuthnManager/LitComponents/tags';
+import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensureTreeDefinition = [__IframeButtonKeep, __PasskeyAuthMenuKeep];
+const __ensureTreeDefinition = [__IframeButtonKeep, ArrowRegisterButtonElement];
 // Define the element defensively in case the side-effect define was optimized away
 
 import { type WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
@@ -66,7 +67,7 @@ import { type WalletIframeTxButtonHostProps } from '../../../react/components/Wa
 import './WalletHostElements';
 
 try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
-try { defineTag('passkeyAuthMenu', __PasskeyAuthMenuKeep as unknown as CustomElementConstructor); } catch {}
+try { defineTag('registerButton', ArrowRegisterButtonElement as unknown as CustomElementConstructor); } catch {}
 
 export type EnsurePasskeyManager = () => void;
 export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
@@ -125,12 +126,19 @@ export function setupLitElemMounter(opts: {
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
   const mountedById = new Map<string, HTMLElement>();
-  const passkeyEventListeners = new Map<string, Array<{ type: string; handler: EventListener }>>();
   let uidCounter = 0;
   let busy = false;
 
-  try { document.documentElement.style.background = 'transparent'; } catch {}
-  try { document.body.style.background = 'transparent'; } catch {}
+  try {
+    document.documentElement.style.background = 'transparent';
+    document.documentElement.style.margin = '0';
+    document.documentElement.style.padding = '0';
+  } catch {}
+  try {
+    document.body.style.background = 'transparent';
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+  } catch {}
 
   const toPx = (v: unknown, fallback: string) => {
     if (v == null) return fallback;
@@ -303,7 +311,6 @@ export function setupLitElemMounter(opts: {
   const applyProps = (el: HTMLElement & Record<string, unknown>, props: Record<string, unknown>) => {
     if (!props) return;
     for (const [k, v] of Object.entries(props)) {
-      if (v === undefined || v === null) continue;
       try { (el as unknown as Record<string, unknown>)[k] = v as unknown; } catch {}
     }
   };
@@ -315,28 +322,19 @@ export function setupLitElemMounter(opts: {
       case 'registerPasskey': {
         const accountId = String(args?.nearAccountId || '').trim();
         if (!accountId) throw new Error('nearAccountId required');
-        let prevConfig: ConfirmationConfig | undefined;
-        try {
-          prevConfig = pm?.getConfirmationConfig?.();
-          const base = prevConfig || {
-            uiMode: 'modal',
-            behavior: 'requireClick',
-            autoProceedDelay: 0,
-            theme: 'dark' as const
-          };
-          const next: ConfirmationConfig = {
-            ...base,
-            uiMode: 'skip',
-            behavior: 'autoProceed',
-            autoProceedDelay: 0
-          };
-          pm?.setConfirmationConfig?.(next);
-        } catch {}
-        try {
-          return await pm!.registerPasskey(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} });
-        } finally {
-          try { if (prevConfig) pm?.setConfirmationConfig?.(prevConfig); } catch {}
+        const anyPm = pm as unknown as {
+          registerPasskeyInternal?: (id: string, opts?: any, cfg?: ConfirmationConfig) => Promise<unknown>;
+          registerPasskey: (id: string, opts?: any) => Promise<unknown>;
+        };
+        const overrideCfg: ConfirmationConfig = {
+          uiMode: 'modal',
+          behavior: 'autoProceed',
+          autoProceedDelay: 0
+        } as ConfirmationConfig;
+        if (typeof anyPm.registerPasskeyInternal === 'function') {
+          return await anyPm.registerPasskeyInternal(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} }, overrideCfg);
         }
+        return await pm!.registerPasskey(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} });
       }
       case 'signAndSendTransactions': {
         const nearAccountId = String((args as { nearAccountId?: unknown })?.nearAccountId || '').trim();
@@ -360,16 +358,15 @@ export function setupLitElemMounter(opts: {
       console.warn('[ElemMounter:UI] Unknown component key:', key);
       return null;
     }
+    const id = payload?.id || `w3a-ui-${++uidCounter}`;
+    // If already mounted with same id, perform an update instead of mounting a duplicate
+    if (mountedById.has(id)) {
+      try { updateUiComponent({ id, props: payload?.props || {} }); } catch {}
+      return id;
+    }
     const el = document.createElement(def.tag) as HTMLElement & Record<string, unknown>;
     try { el.style.display = 'inline-block'; } catch {}
     const props = { ...(def.propDefaults || {}), ...(payload?.props || {}) } as Record<string, unknown>;
-    if (!('passkeyManager' in props)) {
-      try {
-        ensurePasskeyManager();
-        const pm = getPasskeyManager();
-        if (pm) props.passkeyManager = pm;
-      } catch {}
-    }
     applyProps(el, props);
 
     // Wire event bindings to run pm actions and optionally post results
@@ -378,6 +375,19 @@ export function setupLitElemMounter(opts: {
         try {
           el.addEventListener(b.event, async () => {
             try {
+              // Notify parent immediately when certain UI events fire (pre-submit hint)
+              // Used by parent to toggle UI state (e.g., show waiting spinner on register click)
+              try {
+                if (key === 'w3a-arrow-register-button' && b.event === 'arrow-submit') {
+                  opts.postToParent({ type: 'REGISTER_BUTTON_SUBMIT', payload: { id, key } });
+                  // Immediately reflect waiting state locally to hide the button until parent responds
+                  try { (el as unknown as Record<string, unknown>)['waiting'] = true; } catch {}
+                } else {
+                  // Generic bridge for other UI events if needed in the future
+                  opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } });
+                }
+              } catch {}
+
               const args: Record<string, unknown> = {};
               if (b.argsFromProps) {
                 for (const [argName, propKey] of Object.entries(b.argsFromProps)) {
@@ -420,44 +430,96 @@ export function setupLitElemMounter(opts: {
       }
     }
 
-    const id = payload?.id || `w3a-ui-${++uidCounter}`;
+    // Optional: viewportRect anchoring → wrap element in fixed-position container
+    const propsObj = (payload?.props || {}) as Record<string, unknown>;
+    const vr = propsObj.viewportRect as { top?: unknown; left?: unknown; width?: unknown; height?: unknown } | undefined;
+    const anchorMode = String((propsObj as { anchorMode?: unknown })?.anchorMode || 'viewport');
+
     const root = pickRoot((payload?.props as unknown as { targetSelector?: string })?.targetSelector || (payload as { targetSelector?: string } | undefined)?.targetSelector);
+    if (vr && typeof vr === 'object') {
+      const top = Number((vr as any).top);
+      const left = Number((vr as any).left);
+      const width = Number((vr as any).width);
+      const height = Number((vr as any).height);
+      if ([top, left, width, height].every((n) => Number.isFinite(n))) {
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        if (anchorMode === 'iframe') {
+          // When the parent has already anchored the iframe to the desired rect,
+          // place the container at (0,0) inside the iframe viewport.
+          container.style.top = '0px';
+          container.style.left = '0px';
+        } else {
+          container.style.top = `${Math.max(0, Math.round(top))}px`;
+          container.style.left = `${Math.max(0, Math.round(left))}px`;
+        }
+        container.style.width = `${Math.max(1, Math.round(width))}px`;
+        container.style.height = `${Math.max(1, Math.round(height))}px`;
+        container.style.pointerEvents = 'auto';
+        container.style.background = 'transparent';
+        container.style.border = '0';
+        container.style.margin = '0';
+        container.style.padding = '0';
+        container.style.zIndex = '2147483647';
+        container.appendChild(el);
+        // Bridge pointer enter/leave to parent so it can manage lifecycle without flicker
+        try {
+          container.addEventListener('pointerenter', () => {
+            try { opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } }); } catch {}
+          });
+          container.addEventListener('pointerleave', () => {
+            try { opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } }); } catch {}
+          });
+        } catch {}
+        root.appendChild(container);
+        mountedById.set(id, container);
+        return id;
+      }
+    }
+
     root.appendChild(el);
     mountedById.set(id, el);
-    if (def.tag === W3A_PASSKEY_AUTH_MENU_ID) {
-      const listeners: Array<{ type: string; handler: EventListener }> = [];
-      const forward = (eventType: string, messageType: string) => {
-        const handler = (evt: Event) => {
-          const detail = (evt as CustomEvent).detail;
-          try { opts.postToParent({ type: messageType, payload: { id, detail } }); } catch {}
-        };
-        el.addEventListener(eventType, handler as EventListener);
-        listeners.push({ type: eventType, handler });
-      };
-      forward('w3a-auth-progress', 'PASSKEY_MENU_AUTH_PROGRESS');
-      forward('w3a-auth-success', 'PASSKEY_MENU_AUTH_SUCCESS');
-      forward('w3a-auth-error', 'PASSKEY_MENU_AUTH_ERROR');
-      forward('w3a-link-device-event', 'PASSKEY_MENU_LINK_EVENT');
-      forward('w3a-link-device-error', 'PASSKEY_MENU_LINK_ERROR');
-      forward('w3a-link-device-success', 'PASSKEY_MENU_LINK_SUCCESS');
-      forward('w3a-link-device-start', 'PASSKEY_MENU_LINK_START');
-      forward('w3a-link-device-request', 'PASSKEY_MENU_LINK_REQUEST');
-      passkeyEventListeners.set(id, listeners);
-    }
     return id;
   };
 
   const updateUiComponent = (payload: { id: string; props?: Record<string, unknown> }) => {
-    const el = mountedById.get(payload.id) as (HTMLElement & Record<string, unknown>) | undefined;
-    if (!el) return false;
-    const props = { ...(payload.props || {}) } as Record<string, unknown>;
-    if (!('passkeyManager' in props) && 'passkeyManager' in el) {
-      try {
-        ensurePasskeyManager();
-        const pm = getPasskeyManager();
-        if (pm) props.passkeyManager = pm;
-      } catch {}
+    const node = mountedById.get(payload.id);
+    if (!node) return false;
+    const props = (payload?.props || {}) as Record<string, unknown>;
+
+    // If node is a fixed-position container (viewportRect anchoring), update its rect
+    const isContainer = (node as HTMLElement).style?.position === 'fixed' && (node as HTMLElement).firstElementChild;
+    if (isContainer) {
+      const container = node as HTMLElement;
+      const vr = props.viewportRect as { top?: unknown; left?: unknown; width?: unknown; height?: unknown } | undefined;
+      const anchorMode = String((props as { anchorMode?: unknown })?.anchorMode || 'viewport');
+      if (vr && typeof vr === 'object') {
+        const top = Number((vr as any).top);
+        const left = Number((vr as any).left);
+        const width = Number((vr as any).width);
+        const height = Number((vr as any).height);
+        if ([top, left, width, height].every((n) => Number.isFinite(n))) {
+          if (anchorMode === 'iframe') {
+            container.style.top = '0px';
+            container.style.left = '0px';
+          } else {
+            container.style.top = `${Math.max(0, Math.round(top))}px`;
+            container.style.left = `${Math.max(0, Math.round(left))}px`;
+          }
+          container.style.width = `${Math.max(1, Math.round(width))}px`;
+          container.style.height = `${Math.max(1, Math.round(height))}px`;
+        }
+      }
+      // Update child element props (mode, label, disabled, etc.)
+      const child = container.firstElementChild as (HTMLElement & Record<string, unknown>) | null;
+      if (child) {
+        applyProps(child as any, props);
+      }
+      return true;
     }
+
+    // Otherwise node is the custom element itself
+    const el = node as (HTMLElement & Record<string, unknown>);
     applyProps(el, props);
     return true;
   };
@@ -465,15 +527,6 @@ export function setupLitElemMounter(opts: {
   const unmountUiComponent = (payload: { id: string }) => {
     const el = mountedById.get(payload.id);
     if (!el) return false;
-    try {
-      const listeners = passkeyEventListeners.get(payload.id);
-      if (listeners && listeners.length) {
-        for (const { type, handler } of listeners) {
-          try { el.removeEventListener(type, handler); } catch {}
-        }
-      }
-      passkeyEventListeners.delete(payload.id);
-    } catch {}
     try { el.remove(); } catch {}
     mountedById.delete(payload.id);
     return true;
@@ -529,29 +582,6 @@ export function setupLitElemMounter(opts: {
     },
     WALLET_HIDE_TX_BUTTON: () => {
       removeTxBtn();
-    },
-    WALLET_SHOW_PASSKEY_MENU: (payload) => {
-      const data = payload as { props?: Record<string, unknown>; targetSelector?: string; id?: string };
-      try {
-        mountUiComponent({
-          key: 'w3a-passkey-auth-menu',
-          props: data?.props || {},
-          targetSelector: data?.targetSelector,
-          id: data?.id,
-        });
-      } catch (err) {
-        console.error('[ElemMounter] Failed to mount passkey menu:', err);
-      }
-    },
-    WALLET_UPDATE_PASSKEY_MENU: (payload) => {
-      const data = payload as { id: string; props?: Record<string, unknown> };
-      if (!data?.id) return;
-      try { updateUiComponent({ id: data.id, props: data.props || {} }); } catch {}
-    },
-    WALLET_HIDE_PASSKEY_MENU: (payload) => {
-      const data = payload as { id?: string };
-      if (!data?.id) return;
-      try { unmountUiComponent({ id: data.id }); } catch {}
     },
   };
 

@@ -1,6 +1,6 @@
 import { TransactionInputWasm, VRFChallenge } from '../../types';
 import { WalletIframeDomEvents } from '../../WalletIframe/events';
-import { IFRAME_MODAL_ID, CONFIRM_UI_ELEMENT_SELECTORS, MODAL_TX_CONFIRM_ID, DRAWER_TX_CONFIRM_ID, CONFIRM_PORTAL_ID } from './tags';
+import { W3A_IFRAME_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_MODAL_TX_CONFIRM_ID, W3A_DRAWER_TX_CONFIRM_ID, W3A_CONFIRM_PORTAL_ID } from './tags';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 import { isBoolean } from '../../WalletIframe/validation';
@@ -12,9 +12,9 @@ import './IframeTxConfirmer/viewer-modal';
 
 // ========= Iframe Modal helpers =========
 async function ensureIframeModalDefined(): Promise<void> {
-  if (customElements.get(IFRAME_MODAL_ID)) return;
+if (customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) return;
   await new Promise<void>((resolve, reject) => {
-    const existing = document.querySelector(`script[data-w3a="${IFRAME_MODAL_ID}"]`) as HTMLScriptElement | null;
+  const existing = document.querySelector(`script[data-w3a="${W3A_IFRAME_TX_CONFIRMER_ID}"]`) as HTMLScriptElement | null;
     if (existing) {
       existing.addEventListener('load', () => resolve(), { once: true });
       existing.addEventListener('error', (e) => reject(e), { once: true });
@@ -24,8 +24,8 @@ async function ensureIframeModalDefined(): Promise<void> {
     const script = document.createElement('script');
     script.type = 'module';
     script.async = true;
-    script.dataset.w3a = IFRAME_MODAL_ID;
-    script.src = `${base}${IFRAME_MODAL_ID}.js`;
+  script.dataset.w3a = W3A_IFRAME_TX_CONFIRMER_ID;
+  script.src = `${base}${W3A_IFRAME_TX_CONFIRMER_ID}.js`;
     script.onload = () => resolve();
     script.onerror = (e) => {
       console.error('[LitComponents/confirm-ui] Failed to load iframe modal host bundle', script.src);
@@ -38,18 +38,18 @@ async function ensureIframeModalDefined(): Promise<void> {
 // ========= Host Modal helpers (no nested iframe) =========
 async function ensureHostElementDefined(variant: 'modal' | 'drawer' = 'modal'): Promise<void> {
   if (variant === 'drawer') {
-    if (customElements.get(DRAWER_TX_CONFIRM_ID)) return;
+    if (customElements.get(W3A_DRAWER_TX_CONFIRM_ID)) return;
     await import('./IframeTxConfirmer/viewer-drawer');
     return;
   }
-  if (customElements.get(MODAL_TX_CONFIRM_ID)) return;
+  if (customElements.get(W3A_MODAL_TX_CONFIRM_ID)) return;
   await import('./IframeTxConfirmer/viewer-modal');
 }
 
 function cleanupExistingConfirmers(): void {
   try {
     // First, prefer clearing the portal container which guarantees singleton behavior
-    const portal = document.getElementById(CONFIRM_PORTAL_ID);
+    const portal = document.getElementById(W3A_CONFIRM_PORTAL_ID);
     if (portal) {
       try {
         const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
@@ -73,10 +73,10 @@ function cleanupExistingConfirmers(): void {
 }
 
 function ensureConfirmPortal(): HTMLElement {
-  let portal = document.getElementById(CONFIRM_PORTAL_ID) as HTMLElement | null;
+  let portal = document.getElementById(W3A_CONFIRM_PORTAL_ID) as HTMLElement | null;
   if (!portal) {
     portal = document.createElement('div');
-    portal.id = CONFIRM_PORTAL_ID;
+    portal.id = W3A_CONFIRM_PORTAL_ID;
     // Keep the portal inert except for stacking; children handle their own overlay
     try {
       portal.style.position = 'relative';
@@ -109,7 +109,7 @@ async function mountHostUiWithHandle({
   const v: 'modal' | 'drawer' = variant || 'modal';
   await ensureHostElementDefined(v);
   cleanupExistingConfirmers();
-  const tag = v === 'drawer' ? DRAWER_TX_CONFIRM_ID : MODAL_TX_CONFIRM_ID;
+  const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRM_ID : W3A_MODAL_TX_CONFIRM_ID;
   const el = document.createElement(tag) as any;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
@@ -157,7 +157,7 @@ async function awaitHostUiDecisionWithHandle({
   await ensureHostElementDefined(v);
   return new Promise((resolve) => {
     cleanupExistingConfirmers();
-    const tag = v === 'drawer' ? DRAWER_TX_CONFIRM_ID : MODAL_TX_CONFIRM_ID;
+    const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRM_ID : W3A_MODAL_TX_CONFIRM_ID;
     const el = document.createElement(tag) as any;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
@@ -236,7 +236,7 @@ async function mountIframeHostUiWithHandle({
 }): Promise<ConfirmUIHandle> {
   await ensureIframeModalDefined();
   cleanupExistingConfirmers();
-  const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+  const el = document.createElement(W3A_IFRAME_TX_CONFIRMER_ID) as IframeModalHost;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
   el.intentDigest = summary?.intentDigest;
@@ -286,7 +286,7 @@ async function awaitIframeHostUiDecisionWithHandle({
   await ensureIframeModalDefined();
   return new Promise((resolve) => {
     cleanupExistingConfirmers();
-    const el = document.createElement(IFRAME_MODAL_ID) as IframeModalHost;
+    const el = document.createElement(W3A_IFRAME_TX_CONFIRMER_ID) as IframeModalHost;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     el.intentDigest = summary?.intentDigest;
@@ -453,4 +453,4 @@ export async function awaitConfirmUIDecision({
 
 // Types and element export for consumers that need the iframe element handle
 export type { default as IframeModalHost } from './IframeTxConfirmer/iframe-host';
-export { IFRAME_MODAL_ID };
+export { W3A_IFRAME_TX_CONFIRMER_ID };

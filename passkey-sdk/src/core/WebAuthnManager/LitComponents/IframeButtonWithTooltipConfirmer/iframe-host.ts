@@ -11,8 +11,8 @@ import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
 import {
   EMBEDDED_SDK_BASE_PATH,
-  BUTTON_WITH_TOOLTIP_ID,
-  IFRAME_BOOTSTRAP_MODULE,
+  W3A_BUTTON_WITH_TOOLTIP_ID,
+  IFRAME_TX_BUTTON_BOOTSTRAP_MODULE,
   defineTag
 } from '../tags';
 import {
@@ -380,7 +380,7 @@ export class IframeButtonHost extends LitElementWithProps {
         y: iframeSize.buttonPositionY
       },
       backgroundColor: String(this.buttonStyle?.background || this.buttonStyle?.backgroundColor || this.color),
-      tagName: BUTTON_WITH_TOOLTIP_ID,
+      tagName: W3A_BUTTON_WITH_TOOLTIP_ID,
       targetOrigin: window.location.origin,
     };
   }
@@ -389,8 +389,8 @@ export class IframeButtonHost extends LitElementWithProps {
   // Iframe Init
   // ==============================
   private generateIframeHtml() {
-    const embeddedTxButtonTag = BUTTON_WITH_TOOLTIP_ID;
-    const iframeBootstrapTag = IFRAME_BOOTSTRAP_MODULE;
+    const embeddedTxButtonTag = W3A_BUTTON_WITH_TOOLTIP_ID;
+    const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
     const base = EMBEDDED_SDK_BASE_PATH;
     return `<!DOCTYPE html>
       <html>

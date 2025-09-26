@@ -8,7 +8,7 @@ import type {
 import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
 import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
-import { BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
+import { W3A_BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
 import { isObject, isString, isNumber, isBoolean } from '../../../WalletIframe/validation';
 
 /**
@@ -128,7 +128,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
 
   // Notify when custom element is fully defined and ready
   if (window.customElements && window.customElements.whenDefined) {
-    const tag = payload.tagName || BUTTON_WITH_TOOLTIP_ID;
+    const tag = payload.tagName || W3A_BUTTON_WITH_TOOLTIP_ID;
     window.customElements.whenDefined(tag).then(() => {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;

@@ -90,7 +90,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               min={0}
               max={6}
               step={1}
-              value={Math.round((currentConfirmConfig?.autoProceedDelay ?? 1000) / 500)}
+              value={Math.round((currentConfirmConfig?.autoProceedDelay ?? 0) / 500)}
               onChange={(v) => onSetDelay(v * 500)}
               theme={theme}
             />

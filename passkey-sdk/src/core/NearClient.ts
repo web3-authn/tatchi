@@ -113,9 +113,20 @@ export function encodeSignedTransactionBase64(signed: EncodableSignedTx): string
     if (isFunction((signed as { encode?: unknown }).encode)) {
       return base64Encode((signed as { encode: () => ArrayBuffer }).encode());
     }
-    const bytes = signed.borsh_bytes;
-    if (Array.isArray(bytes)) {
-      return base64Encode(new Uint8Array(bytes).buffer);
+    // Support both snake_case (borsh_bytes) and camelCase (borshBytes)
+    const bytesSnake = (signed as { borsh_bytes?: number[] | Uint8Array }).borsh_bytes;
+    if (Array.isArray(bytesSnake)) {
+      return base64Encode(new Uint8Array(bytesSnake).buffer);
+    }
+    if (bytesSnake instanceof Uint8Array) {
+      return base64Encode(bytesSnake.buffer);
+    }
+    const bytesCamel = (signed as { borshBytes?: number[] | Uint8Array }).borshBytes;
+    if (Array.isArray(bytesCamel)) {
+      return base64Encode(new Uint8Array(bytesCamel).buffer);
+    }
+    if (bytesCamel instanceof Uint8Array) {
+      return base64Encode(bytesCamel.buffer);
     }
   } catch {
     // fall through

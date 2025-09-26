@@ -532,6 +532,7 @@ export class SignerWorkerManager {
     deviceNumber: number;
     contractId: string;
     nearRpcUrl: string;
+    confirmationConfig?: ConfirmationConfig;
   }): Promise<RegistrationCredentialConfirmationPayload> {
     return requestRegistrationCredentialConfirmation({ ctx: this.getContext(), ...args });
   }

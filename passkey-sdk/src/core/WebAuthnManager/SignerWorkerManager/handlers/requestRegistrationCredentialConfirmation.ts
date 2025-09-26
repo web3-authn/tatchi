@@ -1,4 +1,4 @@
-import { WorkerRequestType, isWorkerError, isWorkerSuccess } from '../../../types/signer-worker';
+import { WorkerRequestType, isWorkerError, isWorkerSuccess, type ConfirmationConfig } from '../../../types/signer-worker';
 import type { SignerWorkerManagerContext } from '..';
 import { parseAndValidateRegistrationCredentialConfirmationPayload, type RegistrationCredentialConfirmationPayload } from './validation';
 
@@ -8,12 +8,14 @@ export async function requestRegistrationCredentialConfirmation({
   deviceNumber,
   contractId,
   nearRpcUrl,
+  confirmationConfig,
 }: {
   ctx: SignerWorkerManagerContext,
   nearAccountId: string,
   deviceNumber: number,
   contractId: string,
   nearRpcUrl: string,
+  confirmationConfig?: ConfirmationConfig,
 }): Promise<RegistrationCredentialConfirmationPayload> {
   const res = await ctx.sendMessage<WorkerRequestType.RegistrationCredentialConfirmation>({
     message: {
@@ -22,7 +24,8 @@ export async function requestRegistrationCredentialConfirmation({
         nearAccountId,
         deviceNumber,
         contractId,
-        nearRpcUrl
+        nearRpcUrl,
+        ...(confirmationConfig ? { confirmationConfig } : {}),
       },
     },
   });

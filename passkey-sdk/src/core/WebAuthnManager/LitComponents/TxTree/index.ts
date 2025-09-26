@@ -15,7 +15,7 @@ export type { TxTreeStyles } from './tx-tree-themes';
  * A small, dependency-free Lit component that renders a tree-like UI suitable for tooltips.
  *
  * Usage:
- *   <tx-tree .node=${node} depth="0"></tx-tree>
+ *   <w3a-tx-tree .node=${node} depth="0"></w3a-tx-tree>
  *
  * Mapping note: txSigningRequests (TransactionInput[]) → TreeNode structure
  * Example (single FunctionCall):
@@ -578,7 +578,7 @@ export class TxTree extends LitElementWithProps {
       this.applyStyles(this.styles);
     }
     // 2) Fall back to theme-driven defaults when styles are not provided/changed
-    // This makes <tx-tree theme="dark|light"> responsive even if a parent forgets
+    // This makes <w3a-tx-tree theme="dark|light"> responsive even if a parent forgets
     // to pass a styles object for the theme.
     if (changedProperties.has('theme') && !this.styles && this.theme) {
       const preset = TX_TREE_THEMES[this.theme] || TX_TREE_THEMES.dark;
@@ -865,10 +865,15 @@ export class TxTree extends LitElementWithProps {
   }
 }
 
-import { TX_TREE_ID } from '../tags';
+import { W3A_TX_TREE_ID } from '../tags';
 
-if (!customElements.get(TX_TREE_ID)) {
-  customElements.define(TX_TREE_ID, TxTree);
+if (!customElements.get(W3A_TX_TREE_ID)) {
+  customElements.define(W3A_TX_TREE_ID, TxTree);
+}
+// Legacy alias: use a subclass to avoid constructor reuse error
+if (!customElements.get('tx-tree')) {
+  class TxTreeAlias extends TxTree {}
+  customElements.define('tx-tree', TxTreeAlias as unknown as CustomElementConstructor);
 }
 
 export default TxTree;

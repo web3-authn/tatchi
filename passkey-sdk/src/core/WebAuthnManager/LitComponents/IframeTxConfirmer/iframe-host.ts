@@ -10,8 +10,8 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import { LitElementWithProps } from '../LitElementWithProps';
 import {
   EMBEDDED_SDK_BASE_PATH,
-  IFRAME_MODAL_ID,
-  IFRAME_MODAL_BOOTSTRAP_MODULE,
+  W3A_IFRAME_TX_CONFIRMER_ID,
+  IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE,
   MODAL_TX_CONFIRM_BUNDLE
 } from '../tags';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
@@ -129,7 +129,7 @@ export class IframeModalHost extends LitElementWithProps {
   // ==============================
   private generateIframeHtml() {
     const modalBundle = MODAL_TX_CONFIRM_BUNDLE;
-    const iframeBootstrap = IFRAME_MODAL_BOOTSTRAP_MODULE;
+    const iframeBootstrap = IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE;
     const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
     return `<!DOCTYPE html>
       <html>
@@ -392,8 +392,8 @@ export class IframeModalHost extends LitElementWithProps {
   }
 }
 
-if (!customElements.get(IFRAME_MODAL_ID)) {
-  customElements.define(IFRAME_MODAL_ID, IframeModalHost);
+if (!customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) {
+  customElements.define(W3A_IFRAME_TX_CONFIRMER_ID, IframeModalHost);
 }
 
 export default IframeModalHost;

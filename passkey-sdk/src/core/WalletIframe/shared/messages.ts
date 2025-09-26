@@ -93,6 +93,8 @@ export interface PMCancelPayload {
 export interface PMRegisterPayload {
   nearAccountId: string;
   uiMode?: 'modal' | 'drawer';
+  // Optional per-call confirmation override
+  confirmationConfig?: Record<string, unknown>;
   options?: Record<string, unknown>;
 }
 

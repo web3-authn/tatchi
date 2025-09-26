@@ -8,6 +8,7 @@ import {
 } from './actions';
 import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import { registerPasskey } from './registration';
+import { registerPasskeyInternal as registerPasskeyCoreInternal } from './registration';
 import {
   MinimalNearClient,
   type NearClient,
@@ -219,6 +220,11 @@ export class PasskeyManager {
       try { await options?.beforeCall?.(); } catch {}
       try {
         const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        // Mirror wallet-host initialization locally so preferences (theme, confirm config)
+        // have a current user context immediately after successful registration.
+        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        // Opportunistically warm resources (non-blocking)
+        try { void this.warmCriticalResources(nearAccountId); } catch {}
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (err: any) {
@@ -232,6 +238,44 @@ export class PasskeyManager {
       toAccountId(nearAccountId),
       options,
       this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
+    );
+  }
+
+  /**
+   * Internal variant that accepts a one-time confirmationConfig override.
+   * Used by wallet-iframe host to force modal/autoProceed behavior for ArrowButtonLit.
+   */
+  async registerPasskeyInternal(
+    nearAccountId: string,
+    options: RegistrationHooksOptions = {},
+    confirmationConfigOverride?: ConfirmationConfig
+  ): Promise<RegistrationResult> {
+    if (this.iframeRouter) {
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.iframeRouter.registerPasskey({
+          nearAccountId,
+          confirmationConfig: confirmationConfigOverride,
+          options: { onEvent: options?.onEvent }
+        });
+        // Ensure local manager knows the current user
+        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        try { void this.warmCriticalResources(nearAccountId); } catch {}
+        try { await options?.afterCall?.(true, res); } catch {}
+        return res;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
+    // App-wallet path: call core internal with override
+    return registerPasskeyCoreInternal(
+      this.getContext(),
+      toAccountId(nearAccountId),
+      options,
+      this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
+      confirmationConfigOverride,
     );
   }
 
