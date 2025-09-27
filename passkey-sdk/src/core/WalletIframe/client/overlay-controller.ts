@@ -141,6 +141,19 @@ export class OverlayController {
   }
 
   /**
+   * Show overlay preferring anchored mode when a rect is available.
+   * Falls back to fullscreen when no anchored rect has been set yet.
+   * Safe to call repeatedly; it will re-apply current state.
+   */
+  showPreferAnchored(): void {
+    if (this.rect) {
+      this.showAnchored(this.rect);
+    } else {
+      this.showFullscreen();
+    }
+  }
+
+  /**
    * Clear anchored rectangle - removes stored coordinates
    */
   clearAnchoredRect(): void { this.rect = null; }

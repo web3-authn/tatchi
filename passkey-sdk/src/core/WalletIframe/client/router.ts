@@ -138,7 +138,6 @@ export class WalletIframeRouter {
   private pending = new Map<string, Pending>();
   private reqCounter = 0;
   private readyListeners: Set<() => void> = new Set();
-  private activationOverlayVisible = false;
   private vrfStatusListeners: Set<(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void> = new Set();
   // Coalesce duplicate Device2 start calls (e.g., React StrictMode double-effects)
   private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
@@ -953,12 +952,11 @@ export class WalletIframeRouter {
 
         // Step 7: Apply overlay intent (conservative) if not already visible, then post
         try {
-          if (!this.activationOverlayVisible) {
+          if (!this.overlay.getState().visible) {
             const intent = this.computeOverlayIntent(serializableFull.type);
             if (intent.mode === 'fullscreen') {
               this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
               this.overlay.showFullscreen();
-              this.activationOverlayVisible = true;
             }
           }
         } catch {}
@@ -1044,23 +1042,11 @@ export class WalletIframeRouter {
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
     this.transport.ensureIframeMounted();
-    if (this.activationOverlayVisible) {
-      if (this.anchoredRect) {
-        try { this.overlay.showAnchored(this.anchoredRect); } catch {}
-      }
-      return;
-    }
-    this.activationOverlayVisible = true;
-    if (this.anchoredRect) {
-      try { this.overlay.showAnchored(this.anchoredRect); } catch {}
-    } else {
-      try { this.overlay.showFullscreen(); } catch {}
-    }
+    try { this.overlay.showPreferAnchored(); } catch {}
   }
 
   private hideFrameForActivation(): void {
-    if (!this.activationOverlayVisible) return;
-    this.activationOverlayVisible = false;
+    if (!this.overlay.getState().visible) return;
     try { this.overlay.hide(); } catch {}
   }
 
@@ -1076,11 +1062,6 @@ export class WalletIframeRouter {
     }
   }
 
-  /** Return the underlying iframe element (if mounted). */
-  getIframeEl(): HTMLIFrameElement | null {
-    return this.transport.getIframeEl();
-  }
-
   /**
    * Position and show the wallet iframe as an anchored overlay matching a DOMRect.
    * Accepts viewport-relative coordinates (from getBoundingClientRect()).
@@ -1092,7 +1073,6 @@ export class WalletIframeRouter {
    */
   setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
     this.transport.ensureIframeMounted();
-    this.activationOverlayVisible = true;
     try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
   }
 
