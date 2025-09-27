@@ -159,13 +159,29 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
 
     try {
       if (mode === AuthMenuMode.Recover) {
-        await onRecoverAccount?.();
+        let result = onRecoverAccount?.();
+
       } else if (mode === AuthMenuMode.Login) {
-        await onLogin?.();
+        let result: any = onLogin?.();
+        // If login resolves with an explicit failure, return to Login
+        if (result && result.success === false) {
+          setWaiting(false);
+          setShowScanDevice(false);
+          setMode(AuthMenuMode.Login);
+          return;
+        }
+
       } else {
-        await onRegister?.();
+        let result = onRegister?.();
       }
     } catch (error) {
+      // If login throws (e.g., Touch ID cancelled), send user back to Login
+      if (mode === AuthMenuMode.Login) {
+        setWaiting(false);
+        setShowScanDevice(false);
+        setMode(AuthMenuMode.Login);
+        return;
+      }
       onResetToStart();
     }
   };
@@ -178,7 +194,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     setCurrentValue('');
   };
 
-  const segActiveBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+  // active pill background
+  // const segActiveBg = isDark ? tokens.colors.surface : tokens.colors.surface;
+  const segActiveBg = isDark ? tokens.colors.slate600 : tokens.colors.slate50;
 
   const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {
     console.log('ShowQRCode event:', event);

@@ -153,24 +153,25 @@ export const GREY_COLORS = {
   grey975: 'oklch(0.025 0.001 240)', // Near black grey
 
   // Slate variations (stronger blue tint)
-  slate25: 'oklch(0.99 0.003 240)',    // Ultra light slate
+  slate25: 'oklch(0.99 0.003 240)',   // Ultra light slate
   slate50: 'oklch(0.98 0.005 240)',   // Very light slate
+  slate75: 'oklch(0.965 0.007 240)',  // Between 50 and 100
   slate100: 'oklch(0.95 0.01 240)',   // Light slate
-  slate150: 'oklch(0.915 0.0125 240)', // Between 100 and 200
+  slate150: 'oklch(0.915 0.0125 240)',// Between 100 and 200
   slate200: 'oklch(0.88 0.015 240)',  // Lighter slate
-  slate250: 'oklch(0.84 0.0175 240)',  // Between 200 and 300
+  slate250: 'oklch(0.84 0.0175 240)', // Between 200 and 300
   slate300: 'oklch(0.8 0.02 240)',    // Light slate
-  slate350: 'oklch(0.725 0.0225 240)', // Between 300 and 400
+  slate350: 'oklch(0.725 0.0225 240)',// Between 300 and 400
   slate400: 'oklch(0.65 0.025 240)',  // Medium-light slate
-  slate450: 'oklch(0.59 0.0275 240)',  // Between 400 and 500
+  slate450: 'oklch(0.59 0.0275 240)', // Between 400 and 500
   slate500: 'oklch(0.53 0.03 240)',   // Medium slate
-  slate550: 'oklch(0.465 0.0275 240)', // Between 500 and 600
+  slate550: 'oklch(0.465 0.0275 240)',// Between 500 and 600
   slate600: 'oklch(0.4 0.025 240)',   // Medium-dark slate
-  slate650: 'oklch(0.35 0.0225 240)',  // Between 600 and 700
+  slate650: 'oklch(0.35 0.0225 240)', // Between 600 and 700
   slate700: 'oklch(0.3 0.02 240)',    // Dark slate
-  slate750: 'oklch(0.25 0.0175 240)',  // Between 700 and 800
+  slate750: 'oklch(0.25 0.0175 240)', // Between 700 and 800
   slate800: 'oklch(0.2 0.015 240)',   // Darker slate
-  slate850: 'oklch(0.15 0.0125 240)',  // Between 800 and 900
+  slate850: 'oklch(0.15 0.0125 240)', // Between 800 and 900
   slate900: 'oklch(0.1 0.01 240)',    // Very dark slate
 } as const;
 

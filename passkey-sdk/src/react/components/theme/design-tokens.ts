@@ -96,10 +96,18 @@ export interface DesignTokens {
 
     // Slate variations
     slate25: string;
+    slate50: string;
+    slate75: string;
     slate100: string;
     slate150: string;
     slate200: string;
     slate300: string;
+    slate400: string;
+    slate500: string;
+    slate600: string;
+    slate700: string;
+    slate800: string;
+    slate900: string;
 
     // Chroma colors (already included via spread)
     // red200: string;
@@ -228,12 +236,18 @@ export const LIGHT_TOKENS: DesignTokens = {
 
     // Slate variations
     slate25: LIGHT_THEME.slate25,
+    slate50: LIGHT_THEME.slate50,
+    slate75: LIGHT_THEME.slate75,
     slate100: LIGHT_THEME.slate100,
     slate150: LIGHT_THEME.slate150,
     slate200: LIGHT_THEME.slate200,
     slate300: LIGHT_THEME.slate300,
-
-    // Chroma colors (already included via ...CHROMA_COLORS)
+    slate400: LIGHT_THEME.slate400,
+    slate500: LIGHT_THEME.slate500,
+    slate600: LIGHT_THEME.slate600,
+    slate700: LIGHT_THEME.slate700,
+    slate800: LIGHT_THEME.slate800,
+    slate900: LIGHT_THEME.slate900,
 
     // Highlights
     highlightReceiverId: LIGHT_THEME.highlightReceiverId,
@@ -331,10 +345,18 @@ export const DARK_TOKENS: DesignTokens = {
 
     // Slate variations
     slate25: DARK_THEME.slate25,
+    slate50: DARK_THEME.slate50,
+    slate75: DARK_THEME.slate75,
     slate100: DARK_THEME.slate100,
     slate150: DARK_THEME.slate150,
     slate200: DARK_THEME.slate200,
     slate300: DARK_THEME.slate300,
+    slate400: DARK_THEME.slate400,
+    slate500: DARK_THEME.slate500,
+    slate600: DARK_THEME.slate600,
+    slate700: DARK_THEME.slate700,
+    slate800: DARK_THEME.slate800,
+    slate900: DARK_THEME.slate900,
 
     // Highlights
     highlightReceiverId: DARK_THEME.highlightReceiverId,
@@ -355,10 +377,6 @@ export const DARK_TOKENS: DesignTokens = {
     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
   },
 };
-
-
-// (Archived) Alternative theme sketches removed for clarity; LIGHT_TOKENS and
-// DARK_TOKENS plus component-specific overrides are the single source of truth.
 
 // ============================================================================
 // CSS CUSTOM PROPERTY GENERATOR

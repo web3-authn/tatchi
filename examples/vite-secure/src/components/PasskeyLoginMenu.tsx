@@ -36,11 +36,7 @@ function friendlyWebAuthnMessage(err: any): string {
 
 export function PasskeyLoginMenu() {
   const {
-    loginState: {
-      isLoggedIn,
-      nearPublicKey,
-      nearAccountId
-    },
+    loginState,
     accountInputState: {
       inputUsername,
       targetAccountId,
@@ -125,8 +121,9 @@ export function PasskeyLoginMenu() {
       if (result?.success) {
         toast.success(`Account ${targetAccountId} recovered successfully!`);
         return;
+      } else {
+        throw new Error(result?.error || 'Unknown error');
       }
-      throw new Error(result?.error || 'Unknown error');
     } catch (err: any) {
       console.error('Recovery error:', err);
       toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
@@ -169,17 +166,9 @@ export function PasskeyLoginMenu() {
         //   x: () => 'username is <twitter_handle@x>',
         //   apple: () => 'username is <email@apple>'
         // }}
-        onLogin={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onLogin();
-        }}
-        onRegister={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onRegister();
-        }}
-        onRecoverAccount={async () => {
-          return onRecover();
-        }}
+        onLogin={onLogin}
+        onRegister={onRegister}
+        onRecoverAccount={onRecover}
         linkDeviceOptions={{
           onEvent: (event: DeviceLinkingSSEEvent) => {
             const toastId = 'device-linking';
@@ -211,7 +200,7 @@ export function PasskeyLoginMenu() {
               case DeviceLinkingPhase.DEVICE_LINKING_ERROR:
               case DeviceLinkingPhase.LOGIN_ERROR:
               case DeviceLinkingPhase.REGISTRATION_ERROR: {
-                toast.error(event.error ?? event.message, { id: toastId });
+                toast.error(event.error, { id: toastId });
                 break;
               }
               default:
