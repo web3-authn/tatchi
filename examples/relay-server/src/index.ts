@@ -14,6 +14,8 @@ const config = {
   port: Number(process.env.PORT || 3000),
   expectedOrigin: process.env.EXPECTED_ORIGIN || 'https://example.localhost', // Frontend origin
   expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
+  // minutes between automatic key rotations
+  rotateEveryMinutes: Number(process.env.ROTATE_EVERY) || 60,
 };
 // Create AuthService instance
 const authService = new AuthService({
@@ -34,9 +36,9 @@ const authService = new AuthService({
   graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
 });
 
-function startKeyRotationCronjob(intervalSeconds: number, service: AuthService) {
+function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) {
   const prefix = '[key-rotation-cron]';
-  const intervalMs = Math.max(1, intervalSeconds) * 1000;
+  const intervalMs = Math.max(1, intervalMinutes) * 60_000;
   let inFlight = false;
 
   const run = async () => {
@@ -72,7 +74,7 @@ function startKeyRotationCronjob(intervalSeconds: number, service: AuthService) 
 
   const timer = setInterval(run, intervalMs);
   if (typeof timer.unref === 'function') timer.unref();
-  console.log(`${prefix} scheduler started (every ${intervalSeconds} seconds). Running initial rotation now.`);
+  console.log(`${prefix} scheduler started (every ${intervalMinutes} minutes). Running initial rotation now.`);
   void run();
 }
 
@@ -213,5 +215,6 @@ app.listen(config.port, () => {
     console.error("AuthService initial check failed (non-blocking server start):", err);
   });
 
-  startKeyRotationCronjob(300, authService);
+  // schedule key rotation based on env (minutes)
+  startKeyRotationCronjob(config.rotateEveryMinutes, authService);
 });

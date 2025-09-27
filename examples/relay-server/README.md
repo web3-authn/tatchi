@@ -90,15 +90,21 @@ const preview = await authService.generateShamirServerKeypair();
 
 The sample Express server in this repo still exposes `/shamir/rotate-keys` and `/shamir/grace-keys` routes that call the helpers above. They are convenient for demos but not required; feel free to remove them in production and invoke the SDK API from a background job instead.
 
-### Scheduled rotation demo (`rotate10Min`)
+### Scheduled rotation
 
-For illustration the example server boots an internal cron that calls `rotateShamirServerKeypair` every 10 minutes. The task:
+The example server boots an internal cron that calls `rotateShamirServerKeypair` on an interval configured via the `ROTATE_EVERY` env var (in minutes). By default it runs every 60 minutes. The task:
 
 - rotates to a fresh keypair and logs the new `keyId`
 - trims the grace list so that at most 5 entries remain (oldest first)
 - prints the resulting grace key IDs to the console
 
 No HTTP endpoint is exposed for this job. If you adopt the pattern in production, remember to persist the returned `e_s_b64u`/`d_s_b64u` outside of process memory (e.g. secret manager) before the process restarts.
+
+Configure interval:
+```bash
+# minutes
+ROTATE_EVERY=60
+```
 
 ## Configuration
 
