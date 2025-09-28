@@ -1,23 +1,23 @@
-pub mod handle_shamir3pass_config;
 pub mod handle_derive_vrf_keypair_from_prf;
 pub mod handle_generate_vrf_challenge;
 pub mod handle_generate_vrf_keypair_bootstrap;
 pub mod handle_shamir3pass_client;
+pub mod handle_shamir3pass_config;
 pub mod handle_shamir3pass_server;
 pub mod handle_unlock_vrf_keypair;
 
-pub use handle_shamir3pass_config::*;
 pub use handle_derive_vrf_keypair_from_prf::*;
 pub use handle_generate_vrf_challenge::*;
 pub use handle_generate_vrf_keypair_bootstrap::*;
-pub use handle_shamir3pass_server::*;
 pub use handle_shamir3pass_client::*;
+pub use handle_shamir3pass_config::*;
+pub use handle_shamir3pass_server::*;
 pub use handle_unlock_vrf_keypair::*;
 
-use std::rc::Rc;
-use std::cell::RefCell;
 use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 /// Handle PING message
 pub fn handle_ping(message_id: Option<String>) -> VrfWorkerResponse {
@@ -26,7 +26,7 @@ pub fn handle_ping(message_id: Option<String>) -> VrfWorkerResponse {
         Some(serde_json::json!({
             "status": "alive",
             "timestamp": js_sys::Date::now()
-        }))
+        })),
     )
 }
 
@@ -47,11 +47,7 @@ pub fn handle_logout(
 ) -> VrfWorkerResponse {
     let mut manager_mut = manager.borrow_mut();
     match manager_mut.logout() {
-        Ok(_) => {
-            VrfWorkerResponse::success(message_id, None)
-        },
-        Err(e) => {
-            VrfWorkerResponse::fail(message_id, e.to_string())
-        }
+        Ok(_) => VrfWorkerResponse::success(message_id, None),
+        Err(e) => VrfWorkerResponse::fail(message_id, e.to_string()),
     }
 }

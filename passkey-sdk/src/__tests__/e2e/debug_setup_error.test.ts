@@ -7,6 +7,7 @@ import { setupBasicPasskeyTest } from '../setup';
 
 test.describe('Debug Setup Errors', () => {
 
+  // intentionally walks the setup sequence to surface any missing globals/modules
   test('Debug PasskeyManager setup error', async ({ page }) => {
 
     await setupBasicPasskeyTest(page);
@@ -43,7 +44,7 @@ test.describe('Debug Setup Errors', () => {
         console.log('Step 2: Attempting PasskeyManager creation...');
         try {
           // @ts-ignore
-          const { PasskeyManager } = await import('/sdk/esm/index.js');
+          const { PasskeyManager } = await import('/sdk/esm/core/PasskeyManager/index.js');
           console.log('PasskeyManager class imported successfully');
 
           // Use centralized configuration from testUtils

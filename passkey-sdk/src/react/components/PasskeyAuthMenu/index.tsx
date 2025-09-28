@@ -11,8 +11,16 @@ import { ShowQRCode } from '../ShowQRCode';
 import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
+import type { DeviceLinkingSSEEvent } from '../../../core/types/passkeyManager';
+import { useRegisterOverlayWaitingBridge } from './ArrowButtonOverlayHooks';
+import {
+  AuthMenuMode,
+  AuthMenuModeMap,
+  type AuthMenuModeLabel,
+} from './types';
 
-export type AuthMenuMode = 'register' | 'login' | 'recover';
+export { AuthMenuMode, AuthMenuModeMap };
+export type { AuthMenuModeLabel };
 
 export interface SignupMenuProps {
   onLogin?: () => void;
@@ -42,7 +50,24 @@ export interface SignupMenuProps {
   accountExists?: boolean;
   /** Optionally pass secure-context flag; defaults to window.isSecureContext */
   isSecureContext?: boolean;
+  /** Optional callbacks for the link-device QR flow */
+  linkDeviceOptions?: {
+    onEvent?: (event: DeviceLinkingSSEEvent) => void;
+    onError?: (error: Error) => void;
+  };
+  /**
+   * Registration: skips an extra confirm click, by mounting an iframe registration button
+   * on the same domain as the wallet-iframe.
+   * The ArrowButtonOverlayLit register button is mounted on hover in PasskeyInput.
+   */
+  useIframeArrowButtonOverlay?: boolean
 }
+
+export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
+  <ThemeScope>
+    <PasskeyAuthMenuInner {...props} />
+  </ThemeScope>
+);
 
 /**
  * - Uses theme tokens from design-tokens.ts via ThemeProvider/useTheme
@@ -64,6 +89,8 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   accountExists,
   isSecureContext,
   onRecoverAccount,
+  linkDeviceOptions,
+  useIframeArrowButtonOverlay = false,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -74,7 +101,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   const accountExistsResolved = (typeof accountExists === 'boolean')
     ? accountExists
     : (ctx?.accountInputState?.accountExists ?? false);
-  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? 'login' : 'register')) as AuthMenuMode;
+  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? AuthMenuMode.Login : AuthMenuMode.Register)) as AuthMenuMode;
 
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
@@ -131,32 +158,33 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     // No transitions; switch immediately
 
     try {
-      if (mode === 'recover') {
-        await onRecoverAccount?.();
-      } else if (mode === 'login') {
-        await onLogin?.();
+      if (mode === AuthMenuMode.Recover) {
+        let result = onRecoverAccount?.();
+
+      } else if (mode === AuthMenuMode.Login) {
+        let result: any = onLogin?.();
+        // If login resolves with an explicit failure, return to Login
+        if (result && result.success === false) {
+          setWaiting(false);
+          setShowScanDevice(false);
+          setMode(AuthMenuMode.Login);
+          return;
+        }
+
       } else {
-        await onRegister?.();
+        let result = onRegister?.();
       }
     } catch (error) {
+      // If login throws (e.g., Touch ID cancelled), send user back to Login
+      if (mode === AuthMenuMode.Login) {
+        setWaiting(false);
+        setShowScanDevice(false);
+        setMode(AuthMenuMode.Login);
+        return;
+      }
       onResetToStart();
     }
   };
-
-  // Handle Enter key to trigger continue button
-  React.useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Enter' && !waiting && canShowContinue) {
-        event.preventDefault();
-        onArrowClick();
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [waiting, canShowContinue, onArrowClick]);
 
   const onResetToStart = () => {
     setWaiting(false);
@@ -166,7 +194,23 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     setCurrentValue('');
   };
 
-  const segActiveBg = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)';
+  // active pill background
+  // const segActiveBg = isDark ? tokens.colors.surface : tokens.colors.surface;
+  const segActiveBg = isDark ? tokens.colors.slate600 : tokens.colors.slate50;
+
+  const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {
+    console.log('ShowQRCode event:', event);
+  }, []);
+
+  const fallbackOnError = React.useCallback((error: Error) => {
+    console.error('ShowQRCode error:', error);
+  }, []);
+
+  const handleLinkDeviceEvent = linkDeviceOptions?.onEvent ?? fallbackOnEvent;
+  const handleLinkDeviceError = linkDeviceOptions?.onError ?? fallbackOnError;
+
+  // Bridge wallet-iframe overlay register button submit/result → waiting state
+  useRegisterOverlayWaitingBridge({ enabled: !!useIframeArrowButtonOverlay, setWaiting });
 
   return (
     <div
@@ -178,7 +222,11 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     >
       <ContentSwitcher
         waiting={waiting}
-        showScanDevice={showScanDevice}
+        waitingText={
+          mode === AuthMenuMode.Register
+          ? 'Registering passkey…'
+          : 'Waiting for Passkey…'
+        }
         backButton={
           <button
             aria-label="Back"
@@ -188,16 +236,13 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
             <ArrowLeftIcon size={18} strokeWidth={2.25} style={{ display: 'block' }} />
           </button>
         }
-        scanDeviceContent={
+        showScanDevice={showScanDevice}
+        showQRCodeElement={
           <ShowQRCode
             isOpen={showScanDevice}
             onClose={() => setShowScanDevice(false)}
-            onEvent={(event) => {
-              console.log('ShowQRCode event:', event);
-            }}
-            onError={(error) => {
-              console.error('ShowQRCode error:', error);
-            }}
+            onEvent={handleLinkDeviceEvent}
+            onError={handleLinkDeviceError}
           />
         }
       >
@@ -220,9 +265,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           value={currentValue}
           onChange={onInputChange}
           placeholder={
-            mode === 'register'
+            mode === AuthMenuMode.Register
               ? 'Pick a username'
-              : mode === 'recover'
+              : mode === AuthMenuMode.Recover
               ? 'Leave blank to discover accounts'
               : 'Enter your username'
           }
@@ -231,20 +276,31 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           canProceed={canShowContinue}
           onProceed={onArrowClick}
           variant="both"
-          primaryLabel={mode === 'login' ? 'Login' : mode === 'recover' ? 'Recover account' : 'Register'}
+          primaryLabel={mode === AuthMenuMode.Login ? 'Login' : mode === AuthMenuMode.Recover ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
+          waiting={waiting}
+          useIframeArrowButtonOverlay={useIframeArrowButtonOverlay}
         />
 
-        {/* Segmented control: Register | Login */}
-        <SegmentedControl mode={mode} onChange={onSegmentChange} activeBg={segActiveBg} />
+        {/* Segmented control: Register | Login | Recover (generic API) */}
+        <SegmentedControl
+          items={[
+            { value: AuthMenuMode.Register, label: 'Register', className: 'register' },
+            { value: AuthMenuMode.Login, label: 'Login', className: 'login' },
+            { value: AuthMenuMode.Recover, label: 'Recover', className: 'recover' },
+          ]}
+          value={mode}
+          onValueChange={(v) => onSegmentChange(v as AuthMenuMode)}
+          activeBg={segActiveBg}
+        />
 
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
           <div className="w3a-seg-help" aria-live="polite">
-            {mode === 'login' && 'Sign in with your passkey this device'}
-            {mode === 'register' && 'Create a new account'}
-            {mode === 'recover' && 'Recover an account (iCloud/Chrome passkey sync)'}
+            {mode === AuthMenuMode.Login && 'Sign in with your passkey this device'}
+            {mode === AuthMenuMode.Register && 'Create a new account'}
+            {mode === AuthMenuMode.Recover && 'Recover an account (iCloud/Chrome passkey sync)'}
           </div>
         </div>
 
@@ -257,11 +313,11 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
             onClick={() => setShowScanDevice(true)}
             className="w3a-link-device-btn"
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = tokens.colors.colorSurface2;
+              e.currentTarget.style.background = tokens.colors.surface2;
               e.currentTarget.style.boxShadow = tokens.shadows.md;
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = tokens.colors.colorSurface;
+              e.currentTarget.style.background = tokens.colors.surface;
               e.currentTarget.style.boxShadow = tokens.shadows.sm;
             }}
           >
@@ -274,11 +330,5 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
     </div>
   );
 };
-
-export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
-  <ThemeScope>
-    <PasskeyAuthMenuInner {...props} />
-  </ThemeScope>
-);
 
 export default PasskeyAuthMenu;

@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 // === WASM-FRIENDLY WRAPPER TYPES ===
@@ -29,7 +29,7 @@ impl WasmPublicKey {
     #[wasm_bindgen(constructor)]
     pub fn new(
         #[wasm_bindgen(js_name = "keyType")] key_type: u8,
-        #[wasm_bindgen(js_name = "keyData")] key_data: Vec<u8>
+        #[wasm_bindgen(js_name = "keyData")] key_data: Vec<u8>,
     ) -> WasmPublicKey {
         WasmPublicKey { key_type, key_data }
     }
@@ -59,9 +59,12 @@ impl WasmSignature {
     #[wasm_bindgen(constructor)]
     pub fn new(
         #[wasm_bindgen(js_name = "keyType")] key_type: u8,
-        #[wasm_bindgen(js_name = "signatureData")] signature_data: Vec<u8>
+        #[wasm_bindgen(js_name = "signatureData")] signature_data: Vec<u8>,
     ) -> WasmSignature {
-        WasmSignature { key_type, signature_data }
+        WasmSignature {
+            key_type,
+            signature_data,
+        }
     }
 }
 
@@ -164,7 +167,10 @@ impl WasmSignedTransaction {
     }
 
     /// Create JSON with borsh bytes included
-    pub fn to_json_with_borsh(&self, borsh_bytes: Option<Vec<u8>>) -> Result<serde_json::Value, String> {
+    pub fn to_json_with_borsh(
+        &self,
+        borsh_bytes: Option<Vec<u8>>,
+    ) -> Result<serde_json::Value, String> {
         let mut json = serde_json::Map::new();
 
         // Serialize transaction
@@ -179,9 +185,15 @@ impl WasmSignedTransaction {
 
         // Add borsh bytes if provided
         if let Some(bytes) = borsh_bytes {
-            json.insert("borshBytes".to_string(), serde_json::Value::Array(
-                bytes.iter().map(|&b| serde_json::Value::Number(serde_json::Number::from(b))).collect()
-            ));
+            json.insert(
+                "borshBytes".to_string(),
+                serde_json::Value::Array(
+                    bytes
+                        .iter()
+                        .map(|&b| serde_json::Value::Number(serde_json::Number::from(b)))
+                        .collect(),
+                ),
+            );
         }
 
         Ok(serde_json::Value::Object(json))

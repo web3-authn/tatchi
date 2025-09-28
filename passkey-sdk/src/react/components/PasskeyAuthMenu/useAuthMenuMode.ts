@@ -1,8 +1,41 @@
 import React from 'react';
 import { awaitWalletIframeReady } from '../../utils/walletIframe';
-import { AuthMenuMode } from '.';
-import { title } from 'process';
-import { get } from 'http';
+import { AuthMenuMode, type AuthMenuTitle } from './types';
+
+export function resolveDefaultMode(
+  accountExists: boolean,
+  requested?: AuthMenuMode | null
+): AuthMenuMode {
+  if (typeof requested === 'number') {
+    return requested;
+  }
+  return accountExists ? AuthMenuMode.Login : AuthMenuMode.Register;
+}
+
+export function getModeTitle(mode: AuthMenuMode): AuthMenuTitle {
+  switch (mode) {
+    case AuthMenuMode.Login:
+      return {
+        title: 'Login',
+        subtitle: 'Fast passwordless, keyless login',
+      };
+    case AuthMenuMode.Register:
+      return {
+        title: 'Register Account',
+        subtitle: 'Create a wallet with a Passkey',
+      };
+    case AuthMenuMode.Recover:
+      return {
+        title: 'Recover Account',
+        subtitle: 'Restore a wallet with Passkey',
+      };
+    default:
+      return {
+        title: 'Login',
+        subtitle: 'Fast passwordless, keyless login',
+      };
+  }
+}
 
 export interface UseAuthMenuModeArgs {
   defaultMode?: AuthMenuMode;
@@ -32,12 +65,9 @@ export function useAuthMenuMode({
   currentValue,
   setCurrentValue,
 }: UseAuthMenuModeArgs): UseAuthMenuModeResult {
-  const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExists ? 'login' : 'register')) as AuthMenuMode;
+  const preferredDefaultMode: AuthMenuMode = resolveDefaultMode(accountExists, defaultMode);
   const [mode, setMode] = React.useState<AuthMenuMode>(preferredDefaultMode);
-  const [title, setTitle] = React.useState<{
-    title: string;
-    subtitle: string;
-  }>({ title: '', subtitle: '' });
+  const [title, setTitle] = React.useState<AuthMenuTitle>(getModeTitle(preferredDefaultMode));
 
   // Track if current input was auto-prefilled from IndexedDB and what value
   const prefilledFromIdbRef = React.useRef(false);
@@ -48,7 +78,7 @@ export function useAuthMenuMode({
   // When switching to the "login" segment, attempt to prefill last used account
   React.useEffect(() => {
     let cancelled = false;
-    const enteringLogin = mode === 'login' && prevModeRef.current !== 'login';
+    const enteringLogin = mode === AuthMenuMode.Login && prevModeRef.current !== AuthMenuMode.Login;
     if (enteringLogin && passkeyManager) {
       (async () => {
         try {
@@ -73,36 +103,12 @@ export function useAuthMenuMode({
     return () => { cancelled = true; };
   }, [mode, passkeyManager, currentValue, setCurrentValue]);
 
-  const getTitleForMode = (mode: AuthMenuMode): { title: string; subtitle: string } => {
-    if (mode === 'login') {
-      return {
-        title: 'Login',
-        subtitle: 'Fast passwordless, keyless login'
-      };
-    } else if (mode === 'register') {
-      return {
-        title: 'Register Account',
-        subtitle: 'Create a wallet with a Passkey'
-      };
-    } else if (mode === 'recover') {
-      return {
-        title: 'Recover Account',
-        subtitle: 'Restore a wallet with Passkey',
-      };
-    } else {
-      return {
-        title: 'Login',
-        subtitle: 'Fast passwordless, keyless login'
-      };
-    }
-  }
-
   React.useEffect(() => {
-    setTitle(getTitleForMode(mode));
+    setTitle(getModeTitle(mode));
   }, [mode]);
 
   const onSegmentChange = (nextMode: AuthMenuMode) => {
-    if (mode === 'login' && nextMode !== 'login') {
+    if (mode === AuthMenuMode.Login && nextMode !== AuthMenuMode.Login) {
       // Clear only if the value was auto-prefilled and remains unchanged
       if (prefilledFromIdbRef.current && currentValue === prefilledValueRef.current) {
         setCurrentValue('');
@@ -111,7 +117,7 @@ export function useAuthMenuMode({
       prefilledValueRef.current = '';
     }
     setMode(nextMode);
-    setTitle(getTitleForMode(nextMode));
+    setTitle(getModeTitle(nextMode));
   };
 
   const onInputChange = (val: string) => {
@@ -122,9 +128,9 @@ export function useAuthMenuMode({
   };
 
   const resetToDefault = () => {
-    // Reset mode to appropriate default based on account existence
-    setMode(accountExists ? 'login' : 'register');
-    setTitle(getTitleForMode(mode));
+    const nextMode = resolveDefaultMode(accountExists, defaultMode);
+    setMode(nextMode);
+    setTitle(getModeTitle(nextMode));
     // Clear any prefill markers
     prefilledFromIdbRef.current = false;
     prefilledValueRef.current = '';

@@ -71,8 +71,8 @@ The following CSS variables are generated from `tokens.colors.*` with the defaul
 --w3a-colors-textSecondary
 --w3a-colors-textMuted
 --w3a-colors-colorBackground
---w3a-colors-colorSurface
---w3a-colors-colorSurface2
+--w3a-colors-surface
+--w3a-colors-surface2
 --w3a-colors-hover
 --w3a-colors-active
 --w3a-colors-focus

@@ -12,8 +12,7 @@ use base64ct::{Base64, Base64UrlUnpadded, Encoding};
 /// which is the standard for WebAuthn and cryptographic operations.
 /// Returns `String` error for consistency with HTTP operations.
 pub fn base64_url_decode(input: &str) -> Result<Vec<u8>, String> {
-    Base64UrlUnpadded::decode_vec(input)
-        .map_err(|e| format!("Base64 decode error: {}", e))
+    Base64UrlUnpadded::decode_vec(input).map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 /// Encode bytes to a base64url string using base64ct library
@@ -35,8 +34,7 @@ pub fn base64_standard_encode(data: &[u8]) -> String {
 /// Decode a standard base64 string
 /// Used for JSON payloads and HTTP operations.
 pub fn base64_standard_decode(input: &str) -> Result<Vec<u8>, String> {
-    Base64::decode_vec(input)
-        .map_err(|e| format!("Base64 decode error: {}", e))
+    Base64::decode_vec(input).map_err(|e| format!("Base64 decode error: {}", e))
 }
 
 #[cfg(test)]

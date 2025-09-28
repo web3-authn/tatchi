@@ -2,7 +2,7 @@
  * VRF Types for Web Worker Communication
  */
 
-import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { StripFree } from "./index.js";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
@@ -12,6 +12,7 @@ export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfK
 
 export type WasmShamir3PassConfigPRequest = StripFree<wasmModule.Shamir3PassConfigPRequest>;
 export type WasmShamir3PassConfigServerUrlsRequest = StripFree<wasmModule.Shamir3PassConfigServerUrlsRequest>;
+export type WasmShamir3PassClientEncryptCurrentVrfKeypairRequest = StripFree<wasmModule.Shamir3PassClientEncryptCurrentVrfKeypairRequest>;
 export type WasmShamir3PassClientDecryptVrfKeypairRequest = StripFree<wasmModule.Shamir3PassClientDecryptVrfKeypairRequest>;
 
 export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
@@ -20,6 +21,7 @@ export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
   | WasmDeriveVrfKeypairFromPrfRequest
   | WasmShamir3PassConfigPRequest
   | WasmShamir3PassConfigServerUrlsRequest
+  | WasmShamir3PassClientEncryptCurrentVrfKeypairRequest
   | WasmShamir3PassClientDecryptVrfKeypairRequest;
 
 import { AccountId } from "./accountIds.js";
@@ -193,6 +195,8 @@ export interface ServerEncryptedVrfKeypair {
   ciphertextVrfB64u: string;
   /** Base64url-encoded KEK with server lock applied (KEK_s) */
   kek_s_b64u: string;
+  /** Server key identifier for proactive refresh/versioning */
+  serverKeyId: string;
 }
 
 /**
@@ -212,4 +216,3 @@ export interface Shamir3PassRegisterWrapResult {
   enc_s_k_b64u: string;
   vrfPublicKey: string;
 }
-

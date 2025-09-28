@@ -7,8 +7,7 @@ import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { EmbeddedTxConfirmPage } from './pages/EmbeddedTxConfirmPage';
-import { ModalTxConfirmPage } from './pages/ModalTxConfirmPage';
-import { WalletIframeDemoPage } from './pages/WalletIframeDemoPage';
+import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
@@ -36,12 +35,11 @@ function App() {
             },
           } : {}),
         }}>
-        <Navbar />
+          <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
-          <Route path="/modal" element={<ModalTxConfirmPage/>} />
-          <Route path="/wallet-demo" element={<WalletIframeDemoPage/>} />
+          <Route path="/multitx" element={<MultiTxConfirmPage/>} />
         </Routes>
         <ToasterThemed />
         </PasskeyProvider>

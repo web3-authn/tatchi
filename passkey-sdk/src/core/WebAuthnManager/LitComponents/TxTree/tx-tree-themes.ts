@@ -54,15 +54,8 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       backgroundColor: DARK_THEME.colorBackground
     },
 
+    // Main tooltip container
     tooltipBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
-    // Main tooltip container - the glass-like container around the content
-    tooltipBorderInner: {
       borderRadius: '24px',
       border: `1px solid transparent`,
       boxShadow: '0 1px 3px 0px rgba(5, 5, 5, 0.4)'
@@ -88,7 +81,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: DARK_THEME.colorSurface,
+      background: DARK_THEME.surface2,
       borderColor: DARK_THEME.textSecondary,
     },
     row: {
@@ -107,7 +100,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       borderRadius: '1rem',
     },
     labelHover: {
-      background: DARK_THEME.colorBorder,
+      background: DARK_THEME.borderPrimary,
       borderColor: DARK_THEME.textSecondary,
     },
     chevron: {
@@ -120,13 +113,13 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: DARK_THEME.colorSurface,
+      background: DARK_THEME.surface,
       border: `1px solid none`,
       color: DARK_THEME.textSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
-      scrollbarTrackBackground: DARK_THEME.colorSurface,
+      scrollbarTrackBackground: DARK_THEME.surface,
       scrollbarThumbBackground: DARK_THEME.textSecondary
     },
     connector: {
@@ -184,15 +177,8 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       backgroundColor: LIGHT_THEME.colorBackground
     },
 
+    // Main tooltip container
     tooltipBorderOuter: {
-      background: 'transparent',
-      border: `1px solid transparent`,
-      borderRadius: '28px',
-      padding: '0.5rem',
-    },
-
-    // Main tooltip container - the glass-like container around the content
-    tooltipBorderInner: {
       borderRadius: '24px',
       border: `1px solid ${LIGHT_THEME.slate300}`,
       boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
@@ -220,7 +206,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     },
     summaryRowHover: {
       background: LIGHT_THEME.slate100,
-      borderColor: LIGHT_THEME.colorBorder
+      borderColor: LIGHT_THEME.borderPrimary
     },
     row: {
       color: LIGHT_THEME.textPrimary,
@@ -239,7 +225,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     },
     labelHover: {
       background: LIGHT_THEME.grey75,
-      borderColor: LIGHT_THEME.colorBorder
+      borderColor: LIGHT_THEME.borderPrimary
     },
     chevron: {
       color: LIGHT_THEME.textSecondary,
@@ -252,13 +238,13 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     },
     fileContent: {
       background: LIGHT_THEME.slate100,
-      border: `1px solid ${LIGHT_THEME.colorBorder}`,
+      border: `1px solid ${LIGHT_THEME.borderPrimary}`,
       color: LIGHT_THEME.textPrimary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem 1rem 1rem 0.5rem',
       padding: '0.5rem',
-      scrollbarTrackBackground: LIGHT_THEME.colorSurface,
-      scrollbarThumbBackground: LIGHT_THEME.colorBorder
+      scrollbarTrackBackground: LIGHT_THEME.surface,
+      scrollbarThumbBackground: LIGHT_THEME.borderPrimary
     },
     // Slightly darker connector lines for light mode for better contrast
     connector: {

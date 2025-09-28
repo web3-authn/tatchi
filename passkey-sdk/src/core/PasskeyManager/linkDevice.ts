@@ -568,6 +568,13 @@ export class LinkDeviceFlow {
     options?: StartDeviceLinkingOptionsDevice2
   ): Promise<void> {
     try {
+      if (this.cancelled) {
+        console.log('LinkDeviceFlow: Auto-login aborted because flow was cancelled');
+        return;
+      }
+
+      const sessionSnapshot = this.session;
+
       // Send additional event after successful auto-login to update React state
       options?.onEvent?.({
         step: 8,
@@ -577,38 +584,52 @@ export class LinkDeviceFlow {
       });
 
       if (
-        !this.session || !this.session.accountId ||
-        !this.session.credential || !deterministicKeysResult
+        !sessionSnapshot || !sessionSnapshot.accountId ||
+        !sessionSnapshot.credential || !deterministicKeysResult
       ) {
         const missing = [];
-        if (!this.session) missing.push('session');
-        if (!this.session?.accountId) missing.push('accountId');
-        if (!this.session?.credential) missing.push('credential');
+        if (!sessionSnapshot) missing.push('session');
+        if (!sessionSnapshot?.accountId) missing.push('accountId');
+        if (!sessionSnapshot?.credential) missing.push('credential');
         if (!deterministicKeysResult) missing.push('deterministicKeysResult');
         throw new Error(`Missing required data for auto-login: ${missing.join(', ')}`);
+      }
+
+      const { accountId } = sessionSnapshot;
+      const deviceNumber = sessionSnapshot.deviceNumber;
+
+      if (deviceNumber == null) {
+        throw new Error('Device number missing for auto-login');
       }
 
       // Try Shamir 3-pass unlock first if available
       if (
         deterministicKeysResult.serverEncryptedVrfKeypair &&
+        deterministicKeysResult.serverEncryptedVrfKeypair.serverKeyId &&
         this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
       ) {
         try {
           console.log('LinkDeviceFlow: Attempting Shamir 3-pass unlock for auto-login');
           const unlockResult = await this.context.webAuthnManager.shamir3PassDecryptVrfKeypair({
-            nearAccountId: this.session.accountId,
+            nearAccountId: accountId,
             kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
             ciphertextVrfB64u: deterministicKeysResult.serverEncryptedVrfKeypair.ciphertextVrfB64u,
+            serverKeyId: deterministicKeysResult.serverEncryptedVrfKeypair.serverKeyId,
           });
 
           if (unlockResult.success) {
             console.log('LinkDeviceFlow: Shamir 3-pass unlock successful for auto-login');
 
+            if (this.cancelled) {
+              console.log('LinkDeviceFlow: Auto-login aborted after Shamir unlock because flow was cancelled');
+              return;
+            }
+
             // Initialize current user after successful VRF unlock
             try {
-              await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+              await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
               // Ensure last-user device number reflects Device2 for future lookups
-              try { await this.context.webAuthnManager.setLastUser(this.session.accountId, this.session.deviceNumber!); } catch {}
+              try { await this.context.webAuthnManager.setLastUser(accountId, deviceNumber); } catch {}
             } catch (initErr) {
               console.warn('Failed to initialize current user after Shamir 3-pass unlock:', initErr);
             }
@@ -617,7 +638,7 @@ export class LinkDeviceFlow {
               step: 8,
               phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
               status: DeviceLinkingStatus.SUCCESS,
-              message: `Welcome ${this.session.accountId}`
+              message: `Welcome ${accountId}`
             });
             return; // Success, no need to try TouchID
           } else {
@@ -633,19 +654,19 @@ export class LinkDeviceFlow {
       // Obtain an authentication credential (separate from registration credential)
       const { txBlockHash, txBlockHeight } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
       const authChallenge = await this.context.webAuthnManager.generateVrfChallenge({
-        userId: this.session.accountId,
+        userId: accountId,
         rpId: window.location.hostname,
         blockHash: txBlockHash,
         blockHeight: txBlockHeight,
       });
-      const authenticators = await this.context.webAuthnManager.getAuthenticatorsByUser(this.session.accountId);
+      const authenticators = await this.context.webAuthnManager.getAuthenticatorsByUser(accountId);
       const authCredential = await this.context.webAuthnManager.getAuthenticationCredentialsSerialized({
-        nearAccountId: this.session.accountId,
+        nearAccountId: accountId,
         challenge: authChallenge,
         allowCredentials: authenticatorsToAllowCredentials(authenticators),
       });
       const vrfUnlockResult = await this.context.webAuthnManager.unlockVRFKeypair({
-        nearAccountId: this.session.accountId,
+        nearAccountId: accountId,
         encryptedVrfKeypair: deterministicKeysResult.encryptedVrfKeypair,
         credential: authCredential,
       });
@@ -653,9 +674,9 @@ export class LinkDeviceFlow {
       if (vrfUnlockResult.success) {
         // Initialize current user after successful VRF unlock
         try {
-          await this.context.webAuthnManager.initializeCurrentUser(this.session.accountId, this.context.nearClient);
+          await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
           // Ensure last-user device number reflects Device2 for future lookups
-          try { await this.context.webAuthnManager.setLastUser(this.session.accountId, this.session.deviceNumber!); } catch {}
+          try { await this.context.webAuthnManager.setLastUser(accountId, deviceNumber); } catch {}
         } catch (initErr) {
           console.warn('Failed to initialize current user after TouchID unlock:', initErr);
         }
@@ -664,7 +685,7 @@ export class LinkDeviceFlow {
           step: 8,
           phase: DeviceLinkingPhase.STEP_8_AUTO_LOGIN,
           status: DeviceLinkingStatus.SUCCESS,
-          message: `Welcome ${this.session.accountId}`
+          message: `Welcome ${accountId}`
         });
       } else {
         throw new Error(vrfUnlockResult.error || 'VRF unlock failed');

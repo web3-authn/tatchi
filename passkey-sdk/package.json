@@ -13,14 +13,19 @@
       "types": "./dist/types/src/index.d.ts"
     },
     "./vite": {
-      "import": "./dist/esm/vite/index.js",
-      "require": "./dist/cjs/vite/index.js",
-      "types": "./dist/types/src/vite/index.d.ts"
+      "import": "./dist/esm/plugins/vite.js",
+      "require": "./dist/cjs/plugins/vite.js",
+      "types": "./dist/types/src/plugins/vite.d.ts"
     },
     "./server": {
       "import": "./dist/esm/server/index.js",
       "require": "./dist/cjs/server/index.js",
       "types": "./dist/types/src/server/index.d.ts"
+    },
+    "./server/router/express": {
+      "import": "./dist/esm/server/router/express.js",
+      "require": "./dist/cjs/server/router/express.js",
+      "types": "./dist/types/src/server/router/express.d.ts"
     },
     "./react": {
       "import": "./dist/esm/react/index.js",
@@ -54,7 +59,8 @@
     "build": "./scripts/build.sh",
     "build:rolldown": "rolldown -c rolldown.config.ts",
     "dev": "rolldown -c rolldown.config.ts -w",
-    "test": "npm run build:check:fresh || (npm run build && mkdir -p ../../examples/vite/public/sdk && cp -r dist/* ../../examples/vite/public/sdk/ && echo 'SDK built and copied to examples/vite for testing') && playwright test",
+    "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test",
+    "test:inline": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
     "build:check:fresh": "./scripts/check-build-freshness.sh",
     "type-check": "tsc --noEmit"
   },

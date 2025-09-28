@@ -4,7 +4,7 @@ import {
   UserVerificationPolicy,
   OriginPolicyInput
 } from '../../core/types/authenticatorOptions';
-import * as wasmModule from '../../wasm_vrf_worker/wasm_vrf_worker.js';
+import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 
 /**
  * WASM Bindgen generates a `free` method on all structs.
@@ -49,6 +49,20 @@ export interface ServerResponse {
 }
 
 // Server configuration interface
+export interface ShamirConfig {
+  // Shamir 3-pass configuration (base64url BigInts)
+  shamir_p_b64u: string;
+  shamir_e_s_b64u: string;
+  shamir_d_s_b64u: string;
+  // Optional grace keys: previously active server keys still accepted for removal
+  graceShamirKeys?: Array<{
+    e_s_b64u: string;
+    d_s_b64u: string;
+  }>;
+  // Optional path for persisting grace keys (default: ./grace-keys.json)
+  graceShamirKeysFile?: string;
+}
+
 export interface AuthServiceConfig {
   relayerAccountId: string;
   relayerPrivateKey: string;
@@ -57,10 +71,8 @@ export interface AuthServiceConfig {
   networkId: string;
   accountInitialBalance: string;
   createAccountAndRegisterGas: string;
-  // Shamir 3-pass configuration (base64url BigInts)
-  shamir_p_b64u: string;
-  shamir_e_s_b64u: string;
-  shamir_d_s_b64u: string;
+  // grouped Shamir settings under `shamir`
+  shamir?: ShamirConfig;
 }
 
 // Account creation and registration types (imported from relay-server types)

@@ -1,10 +1,7 @@
-/* Shared Styles for Web3authUserProfile Component */
-
 * {
   box-sizing: border-box;
 }
 
-/* Top LevelProfile Button Component Styles */
 .w3a-profile-button-container {
   position: fixed;
   top: 0.5rem;

@@ -36,8 +36,9 @@ fn test_encrypt_decrypt_chacha20_edge_cases() {
     let decrypted = decrypt_data_chacha20(
         &encrypted.encrypted_near_key_data_b64u,
         &encrypted.chacha20_nonce_b64u,
-        &key
-    ).unwrap();
+        &key,
+    )
+    .unwrap();
     assert_eq!(decrypted, "");
 
     // Test large string
@@ -46,8 +47,9 @@ fn test_encrypt_decrypt_chacha20_edge_cases() {
     let decrypted = decrypt_data_chacha20(
         &encrypted.encrypted_near_key_data_b64u,
         &encrypted.chacha20_nonce_b64u,
-        &key
-    ).unwrap();
+        &key,
+    )
+    .unwrap();
     assert_eq!(decrypted, large_data);
 
     // Test Unicode data
@@ -56,8 +58,9 @@ fn test_encrypt_decrypt_chacha20_edge_cases() {
     let decrypted = decrypt_data_chacha20(
         &encrypted.encrypted_near_key_data_b64u,
         &encrypted.chacha20_nonce_b64u,
-        &key
-    ).unwrap();
+        &key,
+    )
+    .unwrap();
     assert_eq!(decrypted, unicode_data);
 }
 
@@ -67,7 +70,7 @@ fn test_decrypt_chacha20_invalid_data() {
 
     // Test with invalid base64url data
     let result = decrypt_data_chacha20("invalid_base64!!!", "dmFsaWRfbm9uY2U", &key);
-            assert!(result.is_err());
+    assert!(result.is_err());
 
     // Test with invalid nonce
     let result = decrypt_data_chacha20("dGVzdA", "invalid_nonce!!!", &key);
@@ -79,7 +82,7 @@ fn test_decrypt_chacha20_invalid_data() {
     let result = decrypt_data_chacha20(
         &encrypted.encrypted_near_key_data_b64u,
         &encrypted.chacha20_nonce_b64u,
-        &wrong_key
+        &wrong_key,
     );
     assert!(result.is_err());
 
@@ -152,7 +155,8 @@ fn test_near_key_format_validation() {
     let prf_output_b64 = "dGVzdC1wcmYtb3V0cHV0";
     let account_id = "test.testnet";
 
-    let (private_key, public_key) = derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
+    let (private_key, public_key) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
 
     // Validate format
     assert!(private_key.starts_with("ed25519:"));
@@ -198,17 +202,20 @@ fn test_derive_ed25519_key_from_prf_output() {
     let account_id = "test.testnet";
 
     // Test normal operation
-    let (private_key, public_key) = derive_ed25519_key_from_prf_output(prf_output, account_id).unwrap();
+    let (private_key, public_key) =
+        derive_ed25519_key_from_prf_output(prf_output, account_id).unwrap();
     assert!(private_key.starts_with("ed25519:"));
     assert!(public_key.starts_with("ed25519:"));
 
     // Test deterministic behavior
-    let (private_key2, public_key2) = derive_ed25519_key_from_prf_output(prf_output, account_id).unwrap();
+    let (private_key2, public_key2) =
+        derive_ed25519_key_from_prf_output(prf_output, account_id).unwrap();
     assert_eq!(private_key, private_key2);
     assert_eq!(public_key, public_key2);
 
     // Test different account produces different keys
-    let (private_key3, public_key3) = derive_ed25519_key_from_prf_output(prf_output, "different.testnet").unwrap();
+    let (private_key3, public_key3) =
+        derive_ed25519_key_from_prf_output(prf_output, "different.testnet").unwrap();
     assert_ne!(private_key, private_key3);
     assert_ne!(public_key, public_key3);
 }
@@ -222,17 +229,20 @@ fn test_derive_and_encrypt_keypair_from_dual_prf() {
     let account_id = "test.testnet";
 
     // Test normal operation
-    let (public_key, encrypted_data) = derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
+    let (public_key, encrypted_data) =
+        derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
     assert!(public_key.starts_with("ed25519:"));
     assert!(!encrypted_data.encrypted_near_key_data_b64u.is_empty());
     assert!(!encrypted_data.chacha20_nonce_b64u.is_empty());
 
     // Test deterministic behavior
-    let (public_key2, _encrypted_data2) = derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
+    let (public_key2, _encrypted_data2) =
+        derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
     assert_eq!(public_key, public_key2);
 
     // Test different account produces different keys
-    let (public_key3, _) = derive_and_encrypt_keypair_from_dual_prf(&dual_prf, "different.testnet").unwrap();
+    let (public_key3, _) =
+        derive_and_encrypt_keypair_from_dual_prf(&dual_prf, "different.testnet").unwrap();
     assert_ne!(public_key, public_key3);
 }
 
@@ -245,10 +255,13 @@ fn test_dual_prf_key_isolation() {
     let account_id = "test.testnet";
 
     // Derive AES key separately
-    let _chacha20_key = derive_chacha20_key_from_prf(&dual_prf.chacha20_prf_output_base64, account_id).unwrap();
+    let _chacha20_key =
+        derive_chacha20_key_from_prf(&dual_prf.chacha20_prf_output_base64, account_id).unwrap();
 
     // Derive Ed25519 key separately
-    let (_ed25519_private, _ed25519_public) = derive_ed25519_key_from_prf_output(&dual_prf.ed25519_prf_output_base64, account_id).unwrap();
+    let (_ed25519_private, _ed25519_public) =
+        derive_ed25519_key_from_prf_output(&dual_prf.ed25519_prf_output_base64, account_id)
+            .unwrap();
 
     // Test that changing AES PRF doesn't affect Ed25519 derivation
     let modified_dual_prf = DualPrfOutputs {
@@ -256,7 +269,11 @@ fn test_dual_prf_key_isolation() {
         ed25519_prf_output_base64: dual_prf.ed25519_prf_output_base64.clone(),
     };
 
-    let (ed25519_private2, ed25519_public2) = derive_ed25519_key_from_prf_output(&modified_dual_prf.ed25519_prf_output_base64, account_id).unwrap();
+    let (ed25519_private2, ed25519_public2) = derive_ed25519_key_from_prf_output(
+        &modified_dual_prf.ed25519_prf_output_base64,
+        account_id,
+    )
+    .unwrap();
 
     // Ed25519 keys should be the same since we didn't change the Ed25519 PRF
     assert_eq!(_ed25519_private, ed25519_private2);

@@ -4,7 +4,7 @@ export interface ContentSwitcherProps {
   waiting: boolean;
   waitingText?: string;
   showScanDevice?: boolean;
-  scanDeviceContent?: React.ReactNode;
+  showQRCodeElement?: React.ReactNode;
   children: React.ReactNode;
   backButton?: React.ReactNode;
 }
@@ -13,7 +13,7 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
   waiting,
   waitingText = 'Waiting for Passkey…',
   showScanDevice = false,
-  scanDeviceContent,
+  showQRCodeElement,
   children,
   backButton,
 }) => {
@@ -33,7 +33,7 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
 
         {showScanDevice && (
           <div className="w3a-scan-device-content">
-            {scanDeviceContent}
+            {showQRCodeElement}
           </div>
         )}
 

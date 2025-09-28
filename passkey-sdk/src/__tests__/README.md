@@ -10,10 +10,11 @@ Playwright end-to-end testing for the PasskeyManager SDK with WebAuthn virtual a
 - [Running Tests](#running-tests)
 - [Test Files Overview](#test-files-overview)
 - [Troubleshooting](#troubleshooting)
+  - [Wallet iframe READY timeout under COEP](#wallet-iframe-ready-timeout-under-coep)
 
 ## Test Architecture
 
-The test suite uses Playwright with a Chromium browser to test real WebAuthn functionality using virtual authenticators. Tests run against a local development server and import the built SDK from copied assets.
+The test suite uses Playwright with a Chromium browser to test real WebAuthn functionality using virtual authenticators. Tests run against a local development server and import the built SDK served at `/sdk/*` by the Vite dev plugin (no file copying).
 
 ### Key Components
 
@@ -38,32 +39,15 @@ When you run `npm test`, the following happens in order:
    npm run build
    ```
 
-3. **Asset Copying**: Copy built files to frontend directory:
-   ```bash
-   # Copy complete SDK (including workers) to frontend
-   mkdir -p ../../frontend/public/sdk
-   cp -r dist/* ../../frontend/public/sdk/
-   ```
-
-4. **Run Tests**: `playwright test`
+3. **Run Tests**: `playwright test` (the Vite plugin serves `/sdk/*` directly from `dist/`)
 
 ### Asset Locations
 
-**All SDK Files** (`dist/` → `frontend/public/sdk/`):
-- `esm/` - ES modules (main SDK)
-- `cjs/` - CommonJS modules
-- `types/` - TypeScript definitions
-- `workers/` - Worker files directory
-  - `web3authn-signer.worker.js` - Transaction signing worker
-  - `web3authn-vrf.worker.js` - VRF operations worker
-  - `wasm_signer_worker.js` - WASM signer bindings
-  - `wasm_signer_worker_bg.wasm` - WASM signer binary
-  - `wasm_vrf_worker.js` - WASM VRF bindings
-  - `wasm_vrf_worker_bg.wasm` - WASM VRF binary
-
-> **Note**: All files are copied to a single location (`frontend/public/sdk/`) for simple organization. Worker files are in the `workers/` subdirectory for better separation.
-
-> **Important**: If the frontend moves from `frontend/public/` to another directory, update the copy commands in the `test` script and `copy-wasm-assets.sh`.
+SDK assets live under `dist/` and are served at `/sdk/*` by the dev plugin:
+- `dist/esm/**` - ES modules (main SDK and embedded bundles)
+- `dist/cjs/**` - CommonJS modules
+- `dist/types/**` - TypeScript definitions
+- `dist/workers/**` - Worker bundles and WASM binaries
 
 ## Test Environment Setup
 
@@ -107,7 +91,7 @@ await page.waitForFunction(() => {
 
 #### Step 4: PasskeyManager Loading
 ```typescript
-// Dynamically load PasskeyManager from copied SDK
+// Dynamically load PasskeyManager from served SDK assets
 const { PasskeyManager } = await import('/sdk/esm/index.js');
 const passkeyManager = new PasskeyManager(config);
 ```
@@ -171,10 +155,29 @@ npm test -- --reporter=line
 npm test -- --video=on
 ```
 
-### Manual Build & Copy (without tests)
+### How to use
+
+Fast path (no .env needed):
+```
+USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Customize caching window:
+```
+RELAY_PROVISION_TTL_MINUTES=720 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Force fresh relayer:
+```
+FORCE_RELAY_REPROVISION=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Keep an existing .env intact:
+```
+REUSE_EXISTING_RELAY_ENV=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+
+### Manual Build (without tests)
 ```bash
-# Just build and copy assets
-npm run build:check:fresh || (npm run build && mkdir -p ../../frontend/public/sdk && cp -r dist/* ../../frontend/public/sdk/)
+# Just build the SDK (dev server will serve from dist/)
+npm run build
 ```
 
 ## Test Files Overview
@@ -205,3 +208,23 @@ HTML reports generated at: `test-results/`
 # View report
 npx playwright show-report
 ```
+
+## Troubleshooting
+
+### Wallet iframe READY timeout under COEP
+
+Chromium enforces [Cross-Origin-Embedder-Policy](https://web.dev/coop-coep/) during our tests because the example app serves `COEP: require-corp`. If the wallet iframe handshake is posted with `targetOrigin='*'`, the browser silently discards the transferable `MessagePort`, so the client never observes `READY` and the tests fail with `Wallet iframe READY timeout`.
+
+To keep the iframe tests stable:
+
+- Always post the initial `CONNECT` message to the exact wallet origin (for example `https://wallet.example.localhost`). The real wallet host validates envelopes, so this stays safe while satisfying Chromium’s transferable rules under COEP.
+- Ensure the Playwright wallet stub mirrors the production host: send permissive `Cross-Origin-*` headers, adopt incoming ports, reply to `PM_CANCEL` with an `ERROR` (code `CANCELLED`), and emit progress phases such as `ActionPhase.STEP_2_USER_CONFIRMATION`. Without those stubs the overlay visibility assertions will never see the iframe expand.
+
+If you update the handshake logic, re-run:
+
+```bash
+pnpm exec playwright test src/__tests__/wallet-iframe/playwright/handshake.test.ts --project=chromium
+pnpm exec playwright test src/__tests__/e2e/cancel_overlay_contracts.test.ts --project=chromium
+```
+
+These cover both the transport handshake and the overlay cancel contract that depends on the simulated progress events.

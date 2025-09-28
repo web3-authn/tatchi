@@ -23,7 +23,7 @@ The wallet iframe mounts as a hidden 0×0 element in the parent document. When a
 The `ProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay.
 
 - Show phases (need transient activation):
-  - `ActionPhase.STEP_2_USER_CONFIRMATION`
+  - `ActionPhase.STEP_2_USER_CONFIRMATION` (non‑negotiable for requireClick)
   - `ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION`
   - Device linking and login/recovery phases that gather WebAuthn credentials
     (see the source for the up‑to‑date list)
@@ -47,6 +47,7 @@ When the heuristic returns:
 Key points:
 
 - Step 2 (“Requesting user confirmation…”) is emitted as early as possible to get the overlay up before any slow RPC/IO, so activation is not lost to latency.
+  - IMPORTANT: Step 2 must expand the overlay. If removed, the modal rendered inside the wallet iframe won’t be visible when `behavior: 'requireClick'`, and user confirmation will never happen.
   - Source: `passkey-sdk/src/core/PasskeyManager/actions.ts` (emits `STEP_2_USER_CONFIRMATION` before signing)
 
 
@@ -85,7 +86,7 @@ The wallet service iframe and the nested modal iframe must be allowed to use Web
 
 2) Modal host iframe (full‑screen UI for confirm in wallet origin)
 
-- File: `passkey-sdk/src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts`
+- File: `passkey-sdk/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/IframeModalHost.ts`
 - Uses: `allow="publickey-credentials-get; publickey-credentials-create"`
 - This iframe is same‑origin to the wallet host, so it inherits the wallet origin’s permission context.
 
@@ -110,7 +111,7 @@ Even when you call `passkeyManager.executeAction(...)` directly from your app (n
    - On `STEP_2_USER_CONFIRMATION` and `STEP_4_WEBAUTHN_AUTHENTICATION`, the `ProgressBus` instructs the router to expand the wallet iframe overlay, so the credential call happens in the wallet document.
 
 2) Default confirmation config: “modal + autoProceed”
-   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 1000`.
+   - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0`.
    - Source: `passkey-sdk/src/core/types/signer-worker.ts`
    - In `handleSecureConfirmRequest.ts`, the `modal + autoProceed` branch mounts the modal with `loading: true`, waits `autoProceedDelay`, and proceeds without requiring a user click.
      - Source: `passkey-sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts`
@@ -126,6 +127,15 @@ Put together, when you trigger `executeAction` in response to any user gesture i
 - Hides the overlay once activation is complete
 
 No additional modal click is required for signing.
+
+## Regression checklist for overlay heuristics
+
+Before merging changes to the progress bus or overlay logic, verify:
+
+- Show list includes `user-confirmation` and `webauthn-authentication`.
+- Hide list includes `authentication-complete`, `transaction-signing-progress`, `transaction-signing-complete`, `contract-verification`, `broadcasting`, `action-complete`, and error/complete phases for login/registration/linking/recovery.
+- In iframe mode, a manual test with `setConfirmBehavior('requireClick')` shows the modal and allows clicking Confirm.
+- In autoProceed mode, modal appears briefly with loading then proceeds without extra clicks.
 
 
 ## When an extra click is required (and for registrations)

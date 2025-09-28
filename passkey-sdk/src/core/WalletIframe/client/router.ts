@@ -1,3 +1,33 @@
+/**
+ * WalletIframeRouter - Client-Side Communication Layer
+ *
+ * This is the main communication manager that handles all interaction between
+ * the parent application and the wallet iframe. It provides a high-level RPC
+ * interface while managing the complex details of iframe communication.
+ *
+ * Key Responsibilities:
+ * - Request/Response Correlation: Tracks pending requests with unique IDs
+ * - Progress Event Bridging: Routes progress events from iframe to parent callbacks
+ * - Overlay Management: Controls iframe visibility for user activation
+ * - Timeout Handling: Manages request timeouts and cleanup
+ * - Message Serialization: Strips non-serializable functions from messages
+ * - Error Handling: Converts iframe errors to parent-appropriate errors
+ *
+ * Architecture:
+ * - Uses IframeTransport for low-level iframe management
+ * - Uses ProgressBus for overlay visibility control
+ * - Maintains pending request registry for correlation
+ * - Provides typed RPC methods for all PasskeyManager operations
+ *
+ * Communication Flow:
+ * 1. Parent calls RPC method (e.g., registerPasskey)
+ * 2. Router creates unique request ID and pending entry
+ * 3. Message sent to iframe via MessagePort
+ * 4. Progress events bridged back to parent callbacks
+ * 5. Final result resolves the pending promise
+ * 6. Cleanup removes pending entry and hides overlay
+ */
+
 import {
   type ParentToChildEnvelope,
   type ChildToParentEnvelope,
@@ -21,7 +51,6 @@ import type {
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
   ActionHooksOptions,
-  ExportNearKeypairWithTouchIdResult,
   GetRecentLoginsResult,
 } from '../../types/passkeyManager';
 import {
@@ -37,6 +66,7 @@ import {
   TxExecutionStatus
 } from '../../types';
 import { IframeTransport } from './IframeTransport';
+import OverlayController, { type DOMRectLike } from './overlay-controller';
 import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
 import type { WalletUIRegistry } from '../host/lit-element-registry';
 import { toError } from '../../../utils/errors';
@@ -60,7 +90,7 @@ import type { RecoveryResult } from '../../PasskeyManager';
 //   overlay display, and high-level wallet RPC helpers
 
 export interface WalletIframeRouterOptions {
-  walletOrigin?: string; // e.g., https://wallet.example.com (optional; empty => same-origin srcdoc)
+  walletOrigin: string; // e.g., https://wallet.example.com
   servicePath?: string; // default '/service'
   connectTimeoutMs?: number; // default 8000
   requestTimeoutMs?: number; // default 20000
@@ -108,30 +138,61 @@ export class WalletIframeRouter {
   private pending = new Map<string, Pending>();
   private reqCounter = 0;
   private readyListeners: Set<() => void> = new Set();
-  private activationOverlayVisible = false;
   private vrfStatusListeners: Set<(status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => void> = new Set();
   // Coalesce duplicate Device2 start calls (e.g., React StrictMode double-effects)
   private device2StartPromise: Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }> | null = null;
   private progressBus: ProgressBus;
   private debug = false;
+  private readonly walletOriginUrl: URL;
+  private readonly walletOriginOrigin: string;
+  // When set, overlay.show() uses this rect instead of fullscreen
+  private anchoredRect: { top: number; left: number; width: number; height: number } | null = null;
+  private overlay: OverlayController;
+  // Overlay register button window-message bridging (wallet-host UI → parent)
+  private readonly registerOverlayResultListeners = new Set<(
+    payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
+  ) => void>();
+  private readonly registerOverlaySubmitListeners = new Set<() => void>();
+  private windowMsgHandlerBound?: (ev: MessageEvent) => void;
 
   constructor(options: WalletIframeRouterOptions) {
+    if (!options?.walletOrigin) {
+      throw new Error('[WalletIframeRouter] walletOrigin is required when using the wallet iframe');
+    }
+
+    let parsedOrigin: URL;
+    try {
+      parsedOrigin = new URL(options.walletOrigin);
+    } catch (err) {
+      throw new Error(`[WalletIframeRouter] Invalid walletOrigin: ${options.walletOrigin}`);
+    }
+
+    if (typeof window !== 'undefined') {
+      const parentOrigin = window.location.origin;
+      if (parsedOrigin.origin === parentOrigin) {
+        console.warn('[WalletIframeRouter] walletOrigin matches the host origin. Isolation safeguards rely on the parent; consider moving the wallet to a dedicated origin.');
+      }
+    }
+
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
       servicePath: '/service',
       sdkBasePath: '/sdk',
-      walletOrigin: '',
       ...options,
     } as Required<WalletIframeRouterOptions>;
+    this.walletOriginUrl = parsedOrigin;
+    this.walletOriginOrigin = parsedOrigin.origin;
     this.debug = !!this.opts.debug || !!((globalThis as unknown as { __W3A_DEBUG__?: boolean }).__W3A_DEBUG__);
     // Encapsulate iframe mount + handshake logic in transport
     this.transport = new IframeTransport({
       walletOrigin: this.opts.walletOrigin,
       servicePath: this.opts.servicePath,
-      sdkBasePath: this.opts.sdkBasePath,
       connectTimeoutMs: this.opts.connectTimeoutMs,
     });
+
+    // Centralize overlay sizing/visibility
+    this.overlay = new OverlayController({ ensureIframe: () => this.transport.ensureIframeMounted() });
 
     // Initialize progress router with overlay control and phase heuristics
     this.progressBus = new ProgressBus(
@@ -142,10 +203,46 @@ export class WalletIframeRouter {
       defaultPhaseHeuristics,
       this.debug
         ? (msg: string, data?: Record<string, unknown>) => {
-            try { console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {}); } catch {}
+            console.debug('[WalletIframeRouter][ProgressBus]', msg, data || {});
           }
         : undefined
     );
+
+    // Bridge wallet-host overlay UI messages into router callbacks
+    this.windowMsgHandlerBound = (ev: MessageEvent) => {
+      try {
+        if (ev.origin !== this.walletOriginOrigin) return;
+        const data = ev.data as unknown;
+        if (!data || typeof data !== 'object') return;
+        const type = (data as { type?: unknown }).type;
+        if (type === 'REGISTER_BUTTON_SUBMIT') {
+          for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
+            try { cb(); } catch {}
+          }
+          return;
+        }
+        if (type === 'REGISTER_BUTTON_RESULT') {
+          const payload = (data as { payload?: unknown }).payload as
+            | { ok?: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
+            | undefined;
+          const ok = !!payload?.ok;
+          for (const cb of Array.from(this.registerOverlayResultListeners)) {
+            try { cb({ ok, result: payload?.result, cancelled: (payload as any)?.cancelled, error: (payload as any)?.error }); } catch {}
+          }
+          if (ok) {
+            const acct = payload?.result?.nearAccountId;
+            Promise.resolve().then(async () => {
+              try {
+                const st = await this.getLoginState(acct);
+                this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+              } catch {}
+            }).catch(() => {});
+          }
+          return;
+        }
+      } catch {}
+    };
+    try { window.addEventListener('message', this.windowMsgHandlerBound); } catch {}
   }
 
   /**
@@ -179,12 +276,11 @@ export class WalletIframeRouter {
     if (this.ready) return;
     if (this.initInFlight) { return this.initInFlight; }
     this.initInFlight = (async () => {
-      try { console.debug('[WalletIframeRouter] init: connecting transport'); } catch {}
       this.port = await this.transport.connect();
       this.port.onmessage = (ev) => this.onPortMessage(ev);
       this.port.start?.();
       this.ready = true;
-      try { console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG'); } catch {}
+      console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG');
       await this.post({
         type: 'PM_SET_CONFIG',
         payload: {
@@ -200,9 +296,12 @@ export class WalletIframeRouter {
           // for embedded Lit components
           assetsBaseUrl: (() => {
             try {
-              const base = new URL(this.opts.sdkBasePath, window.location.origin).toString();
-              return base.endsWith('/') ? base : base + '/';
-            } catch { return '/sdk/'; }
+              const base = new URL(this.opts.sdkBasePath, this.walletOriginUrl).toString();
+              return base.endsWith('/') ? base : `${base}/`;
+            } catch {
+              const fallback = new URL('/sdk/', this.walletOriginUrl).toString();
+              return fallback.endsWith('/') ? fallback : `${fallback}/`;
+            }
           })(),
         }
       });
@@ -222,32 +321,32 @@ export class WalletIframeRouter {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target); } catch {}
+    const target = this.walletOriginOrigin;
+    this.postWindowMessage(w, { type: 'WALLET_UI_REGISTER_TYPES', payload: registry }, target);
   }
 
   mountUiComponent(params: { key: string; props?: Record<string, unknown>; targetSelector?: string; id?: string }): void {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_MOUNT', payload: params }, target); } catch {}
+    const target = this.walletOriginOrigin;
+    this.postWindowMessage(w, { type: 'WALLET_UI_MOUNT', payload: params }, target);
   }
 
   updateUiComponent(params: { id: string; props?: Record<string, unknown> }): void {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_UPDATE', payload: params }, target); } catch {}
+    const target = this.walletOriginOrigin;
+    this.postWindowMessage(w, { type: 'WALLET_UI_UPDATE', payload: params }, target);
   }
 
   unmountUiComponent(id: string): void {
     const iframe = this.transport.ensureIframeMounted();
     const w = iframe.contentWindow;
     if (!w) return;
-    const target = this.opts.walletOrigin ? new URL(this.opts.walletOrigin).origin : '*';
-    try { w.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id } }, target); } catch {}
+    const target = this.walletOriginOrigin;
+    this.postWindowMessage(w, { type: 'WALLET_UI_UNMOUNT', payload: { id } }, target);
   }
 
   // ===== Public RPC helpers =====
@@ -270,6 +369,17 @@ export class WalletIframeRouter {
     for (const cb of Array.from(this.vrfStatusListeners)) {
       try { cb(status); } catch {}
     }
+  }
+
+  // Overlay register button events (optional convenience API)
+  onRegisterOverlayResult(listener: (payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }) => void): () => void {
+    this.registerOverlayResultListeners.add(listener);
+    return () => { this.registerOverlayResultListeners.delete(listener); };
+  }
+
+  onRegisterOverlaySubmit(listener: () => void): () => void {
+    this.registerOverlaySubmitListeners.add(listener);
+    return () => { this.registerOverlaySubmitListeners.delete(listener); };
   }
 
   // ===== PasskeyManager-first RPCs =====
@@ -298,25 +408,46 @@ export class WalletIframeRouter {
 
   async registerPasskey(payload: {
     nearAccountId: string;
+    confirmationConfig?: ConfirmationConfig;
     options?: {
       onEvent?: (ev: RegistrationSSEEvent) => void
     }
   }): Promise<RegistrationResult> {
+    // Step 1: Show iframe overlay immediately for WebAuthn activation
     this.showFrameForActivation();
+
     try {
+      // Optional one-time confirmation override (non-persistent)
+      if (payload.confirmationConfig) {
+        try { await this.setConfirmationConfig(payload.confirmationConfig); } catch {}
+      }
+
+      // Step 2: Strip non-serializable functions from options (functions can't cross iframe boundary)
       const safeOptions = removeFunctionsFromOptions(payload.options);
+
+      // Step 3: Send PM_REGISTER message to iframe and wait for response
       const res = await this.post<RegistrationResult>({
         type: 'PM_REGISTER',
         payload: {
           nearAccountId: payload.nearAccountId,
-          options: safeOptions
+          options: safeOptions,
+          ...(payload.confirmationConfig ? { confirmationConfig: payload.confirmationConfig as unknown as Record<string, unknown> } : {})
         },
+        // Bridge progress events from iframe back to parent callback
         options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isRegistrationSSEEvent) }
       });
+
+      // Step 4: Update VRF status after successful registration
       const st = await this.getLoginState(payload.nearAccountId);
-      this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+      this.emitVrfStatusChanged({
+        active: !!st.vrfActive,
+        nearAccountId: st.nearAccountId,
+        sessionDuration: st.vrfSessionDuration
+      });
+
       return res?.result;
     } finally {
+      // Step 5: Always hide overlay when done (success or error)
       this.hideFrameForActivation();
     }
   }
@@ -437,9 +568,6 @@ export class WalletIframeRouter {
   }
 
   async setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): Promise<void> {
-    if (!this.ready) {
-      try { await this.init(); } catch {}
-    }
     let { nearAccountId } = await this.getLoginState();
     await this.post<void>({
       type: 'PM_SET_CONFIRM_BEHAVIOR',
@@ -448,9 +576,6 @@ export class WalletIframeRouter {
   }
 
   async setConfirmationConfig(config: ConfirmationConfig): Promise<void> {
-    if (!this.ready) {
-      try { await this.init(); } catch {}
-    }
     let { nearAccountId } = await this.getLoginState();
     await this.post<void>({
       type: 'PM_SET_CONFIRMATION_CONFIG',
@@ -572,12 +697,30 @@ export class WalletIframeRouter {
     return res.result
   }
 
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
-    const res = await this.post<ExportNearKeypairWithTouchIdResult>({
-      type: 'PM_EXPORT_NEAR_KEYPAIR',
-      payload: { nearAccountId }
+  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
+    // Make the wallet iframe visible while the export viewer is open.
+    // Unlike request/response flows, the wallet host renders UI and manages
+    // its own lifecycle; it will notify us when to hide via window message.
+    this.showFrameForActivation();
+    const onUiClosed = (ev: MessageEvent) => {
+      try {
+        const origin = this.opts.walletOrigin || window.location.origin;
+        if (ev.origin !== origin) return;
+        const data = ev.data as unknown;
+        if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
+        this.hideFrameForActivation();
+        window.removeEventListener('message', onUiClosed);
+      } catch {}
+    };
+    try { window.addEventListener('message', onUiClosed); } catch {}
+
+    await this.post<void>({
+      type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
+      payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
+      // Keep the iframe visible after this request resolves; the wallet host
+      // will drive the UI lifecycle and send WALLET_UI_CLOSED when done.
+      options: { sticky: true }
     });
-    return res?.result
   }
 
   // ===== Account Recovery (single-endpoint flow) =====
@@ -650,11 +793,18 @@ export class WalletIframeRouter {
   // ===== Control APIs =====
   async cancelRequest(requestId: string): Promise<void> {
     // Best-effort cancel. Host will attempt to close open modals and mark the request as cancelled.
-    await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } });
+    try { await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
+    // Always clear local progress + hide overlay even if the host didn't receive the message
+    try { this.progressBus.unregister(requestId); } catch {}
+    try { this.hideFrameForActivation(); } catch {}
   }
 
   async cancelAll(): Promise<void> {
-    await this.post<void>({ type: 'PM_CANCEL', payload: {} });
+    // Try to cancel all requests on the host, but don't depend on READY/port availability
+    try { await this.post<void>({ type: 'PM_CANCEL', payload: {} }); } catch {}
+    // Clear all local progress listeners and force-hide the overlay
+    try { this.progressBus.clearAll(); } catch {}
+    try { this.hideFrameForActivation(); } catch {}
   }
 
   private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
@@ -680,12 +830,27 @@ export class WalletIframeRouter {
     }
 
     const pending = this.pending.get(requestId);
-    if (!pending) return;
+    // Hide iframe overlay when a request completes (success or error),
+    // unless this request was registered as sticky (UI-managed lifecycle).
+    if (!this.progressBus.isSticky(requestId)) {
+      this.hideFrameForActivation();
+    }
+    if (!pending) {
+      // Even if no pending exists (e.g., early cancel or pre-resolved),
+      // ensure any lingering progress subscriber is removed.
+      try {
+        if (this.debug) {
+          console.debug('[WalletIframeRouter] Non-PROGRESS without pending → hide + unregister', {
+            requestId,
+            type: (msg as unknown as { type?: unknown })?.type || 'unknown'
+          });
+        }
+      } catch {}
+      try { this.progressBus.unregister(requestId); } catch {}
+      return;
+    }
     this.pending.delete(requestId);
     if (pending.timer) window.clearTimeout(pending.timer);
-
-    // Hide iframe overlay when a request completes (success or error)
-    this.hideFrameForActivation();
 
     if (msg.type === 'ERROR') {
       const err: Error & { code?: string; details?: unknown } = new Error(msg.payload?.message || 'Wallet error');
@@ -715,38 +880,57 @@ export class WalletIframeRouter {
 
   /**
    * Post a typed envelope over the MessagePort with robust readiness handling.
-   * If the port is not ready yet, lazily initializes the transport (awaits init()).
+   * This is the core method that handles all communication with the iframe.
+   *
+   * Flow:
+   * 1. Ensure iframe is ready (lazy initialization)
+   * 2. Generate unique request ID for correlation
+   * 3. Set up timeout and progress handling
+   * 4. Send message to iframe via MessagePort
+   * 5. Wait for response (PM_RESULT or ERROR)
+   * 6. Clean up on completion or timeout
    */
   private async post<T>(
     envelope: Omit<ParentToChildEnvelope, 'requestId'>,
   ): Promise<PostResult<T>> {
 
-    // Lazily initialize the iframe/client if not ready yet
+    // Step 1: Lazily initialize the iframe/client if not ready yet
     if (!this.ready || !this.port) {
       await this.init();
     }
+
+    // Step 2: Generate unique request ID for correlation
     const requestId = `${Date.now()}-${++this.reqCounter}`;
-    const full: ParentToChildEnvelope = { ...(envelope as unknown as ParentToChildEnvelope), requestId };
+    const full: ParentToChildEnvelope = { ...(envelope as ParentToChildEnvelope), requestId };
     const { options } = full;
 
     return new Promise<PostResult<T>>((resolve, reject) => {
+      // Step 3: Set up timeout handler for request
       const timer = window.setTimeout(() => {
-        this.pending.delete(requestId);
+        // Timeout: clean up local state and best-effort cancel on host
+        try { this.pending.delete(requestId); } catch {}
+        try { this.progressBus.unregister(requestId); } catch {}
+        try { this.overlay.setSticky(false); } catch {}
+        try { this.hideFrameForActivation(); } catch {}
+        // Ask the wallet host to cancel any UI/flow associated with the original request
+        try { this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
         reject(new Error(`Wallet request timeout for ${envelope.type}`));
       }, this.opts.requestTimeoutMs);
 
+      // Step 4: Register pending request for correlation
       this.pending.set(requestId, {
         resolve: (v) => resolve(v as PostResult<T>),
         reject,
         timer,
         onProgress: options?.onProgress
       });
-      // Register progress handler; overlay handled by ProgressBus
+
+      // Step 5: Register progress handler for real-time updates
       this.progressBus.register({
         requestId: requestId,
-        sticky: !!options?.sticky,
+        sticky: !!options?.sticky, // Some flows need to persist after completion
         onProgress: (payload: ProgressPayload) => {
-          // link ProgressPayloads from WalletIframe, to onEvent calls in parent app
+          // Bridge progress events from iframe back to parent callback
           try {
             options?.onProgress?.(payload);
           } catch {}
@@ -754,7 +938,7 @@ export class WalletIframeRouter {
       });
 
       try {
-        // Strip non-cloneable fields (functions) from envelope options before posting
+        // Step 6: Strip non-cloneable fields (functions) from envelope options before posting
         const wireOptions = (options && isObject(options))
           ? (() => {
               const stickyVal = (options as { sticky?: unknown }).sticky;
@@ -762,8 +946,25 @@ export class WalletIframeRouter {
             })()
           : undefined;
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
+
+        // Align overlay stickiness with request options (phase 2 will use intents)
+        try { this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky)); } catch {}
+
+        // Step 7: Apply overlay intent (conservative) if not already visible, then post
+        try {
+          if (!this.overlay.getState().visible) {
+            const intent = this.computeOverlayIntent(serializableFull.type);
+            if (intent.mode === 'fullscreen') {
+              this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
+              this.overlay.showFullscreen();
+            }
+          }
+        } catch {}
+
+        // Send message to iframe via MessagePort
         this.port!.postMessage(serializableFull as ParentToChildEnvelope);
       } catch (err) {
+        // Step 8: Handle send errors - clean up and reject
         this.pending.delete(requestId);
         window.clearTimeout(timer);
         try { this.progressBus.unregister(requestId); } catch {}
@@ -772,49 +973,131 @@ export class WalletIframeRouter {
     });
   }
 
+  /**
+   * computeOverlayIntent - Preflight "Show" Decision
+   *
+   * This method makes the initial decision about whether to show the overlay
+   * BEFORE sending the request to the iframe. It's a conservative preflight
+   * check that ensures the iframe is visible in time for user activation.
+   *
+   * Key Responsibilities:
+   * - Preflight Decision: Determines overlay visibility before request is sent
+   * - User Activation Timing: Ensures iframe is visible when WebAuthn prompts appear
+   * - Conservative Approach: Only shows overlay if not already visible
+   * - Request Type Mapping: Maps message types to overlay requirements
+   *
+   * How it differs from other components:
+   *
+   * vs ProgressBus (lifecycle and close decision):
+   * - computeOverlayIntent: "SHOW" decision - runs before sending request
+   * - ProgressBus: "CLOSE" decision - runs during operation lifecycle
+   * - ProgressBus drives ongoing UI phases and manages sticky behavior
+   * - ProgressBus handles PM_RESULT/ERROR and decides when to hide overlay
+   *
+   * vs OverlayController (single executor):
+   * - computeOverlayIntent: DECIDES what to do (show/hide decision logic)
+   * - OverlayController: EXECUTES the decision (actual CSS manipulation)
+   * - OverlayController receives commands from both intent and ProgressBus
+   * - OverlayController keeps all style mutations in one place
+   *
+   * Architecture Flow:
+   * 1. computeOverlayIntent() → decides to show overlay
+   * 2. OverlayController.showFullscreen() → executes the decision
+   * 3. Request sent to iframe → operation begins
+   * 4. ProgressBus manages lifecycle → handles progress events
+   * 5. ProgressBus decides to hide → when operation completes
+   * 6. OverlayController.hide() → executes the hide decision
+   *
+   * Special Cases:
+   * - Anchored flows (UI registry with viewportRect) are message-driven
+   * - Parent sets bounds and sticky via registry messages
+   * - computeOverlayIntent returns 'hidden' for these (don't pre-show)
+   * - Some legacy paths still call showFrameForActivation() directly
+   *
+   * Future Evolution:
+   * - If host always emits early PROGRESS for a type, this can be reduced
+   * - Intent is to move toward ProgressBus-driven lifecycle management
+   * - This provides predictable, glitch-free activation without hardcoding
+   */
+  private computeOverlayIntent(type: ParentToChildEnvelope['type']): { mode: 'hidden' | 'fullscreen' } {
+    switch (type) {
+      // Operations that require fullscreen overlay for WebAuthn activation
+      case 'PM_EXPORT_NEAR_KEYPAIR_UI':
+      case 'PM_REGISTER':
+      case 'PM_LOGIN':
+      case 'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA':
+      case 'PM_SIGN_AND_SEND_TXS':
+      case 'PM_EXECUTE_ACTION':
+      case 'PM_SEND_TRANSACTION':
+      case 'PM_SIGN_TXS_WITH_ACTIONS':
+        return { mode: 'fullscreen' };
+
+      // All other operations (background/read-only) don't need overlay
+      default:
+        return { mode: 'hidden' };
+    }
+  }
+
   // Temporarily show the service iframe to capture user activation
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
-    const iframe = this.transport.ensureIframeMounted();
-    if (this.activationOverlayVisible) return;
-    this.activationOverlayVisible = true;
-    try {
-      iframe.style.position = 'fixed';
-      iframe.style.inset = '0';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '100vw';
-      iframe.style.height = '100vh';
-      iframe.style.opacity = '1';
-      iframe.style.pointerEvents = 'auto';
-      // Put iframe one layer below modal card rendered inside (which uses 2147483647).
-      // Some browsers cap z-index per stacking context; use a high value and ensure visibility.
-      iframe.style.zIndex = '2147483646';
-      iframe.setAttribute('aria-hidden', 'false');
-      iframe.removeAttribute('tabindex');
-      console.debug('[WalletIframeRouter] Activation overlay applied:', {
-        rect: iframe.getBoundingClientRect(),
-        pointerEvents: iframe.style.pointerEvents,
-        zIndex: iframe.style.zIndex,
-        opacity: iframe.style.opacity,
-      });
-    } catch {}
+    this.transport.ensureIframeMounted();
+    try { this.overlay.showPreferAnchored(); } catch {}
   }
 
   private hideFrameForActivation(): void {
-    const iframe = this.transport.getIframeEl();
-    if (!iframe) return;
-    if (!this.activationOverlayVisible) return;
-    this.activationOverlayVisible = false;
+    if (!this.overlay.getState().visible) return;
+    try { this.overlay.hide(); } catch {}
+  }
+
+  /**
+   * Public toggle to surface the wallet iframe for user activation or hide it.
+   * Useful when mounting inline UI components that require direct user clicks.
+   */
+  setOverlayVisible(visible: boolean): void {
+    if (visible) {
+      this.showFrameForActivation();
+    } else {
+      this.hideFrameForActivation();
+    }
+  }
+
+  /**
+   * Position and show the wallet iframe as an anchored overlay matching a DOMRect.
+   * Accepts viewport-relative coordinates (from getBoundingClientRect()).
+   *
+   * Important: Some apps apply CSS transforms (or filters/perspective) on html/body,
+   * which changes the containing block for position: fixed. In those cases a fixed
+   * iframe will be offset by the page scroll. To avoid that mismatch, anchor the
+   * overlay using absolute positioning in document coordinates.
+   */
+  setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    this.transport.ensureIframeMounted();
+    try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
+  }
+
+  /**
+   * Anchored overlay helpers: keep a preferred bounds rect that overlay.show() will apply
+   */
+  setAnchoredOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    this.anchoredRect = { ...rect };
+    try { this.overlay.setAnchoredRect(rect as DOMRectLike); } catch {}
+  }
+
+  clearAnchoredOverlay(): void {
+    this.anchoredRect = null;
+    try { this.overlay.clearAnchoredRect(); } catch {}
+  }
+
+  // Post a window message and surface errors in debug mode instead of silently swallowing them
+  private postWindowMessage(w: Window, data: unknown, target: string): void {
     try {
-      iframe.style.width = '0px';
-      iframe.style.height = '0px';
-      iframe.style.opacity = '0';
-      iframe.style.pointerEvents = 'none';
-      iframe.style.zIndex = '';
-      iframe.setAttribute('aria-hidden', 'true');
-      iframe.setAttribute('tabindex', '-1');
-    } catch {}
+      w.postMessage(data, target);
+    } catch (err) {
+      if (this.debug) {
+        console.error('[WalletIframeRouter] window.postMessage failed', { error: err, data });
+      }
+    }
   }
 
 }

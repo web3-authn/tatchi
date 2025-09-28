@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 use crate::handlers::handle_derive_near_keypair_and_encrypt::DeriveNearKeypairAndEncryptResult;
-use crate::types::{VrfChallenge, SerializedCredential, SerializedRegistrationCredential};
+use crate::types::{SerializedCredential, SerializedRegistrationCredential, VrfChallenge};
 
 // ******************************************************************************
 // *                                                                            *
@@ -32,7 +32,11 @@ pub struct OriginPolicyInput {
     #[serde(skip_serializing_if = "Option::is_none", default)]
     #[wasm_bindgen(getter_with_clone)]
     pub single: Option<bool>,
-    #[serde(rename = "allSubdomains", skip_serializing_if = "Option::is_none", default)]
+    #[serde(
+        rename = "allSubdomains",
+        skip_serializing_if = "Option::is_none",
+        default
+    )]
     #[wasm_bindgen(getter_with_clone)]
     pub all_subdomains: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -58,7 +62,7 @@ impl Default for AuthenticatorOptions {
             origin_policy: Some(OriginPolicyInput {
                 single: None,
                 all_subdomains: Some(true),
-                multiple: None
+                multiple: None,
             }),
         }
     }
@@ -138,8 +142,8 @@ pub enum ConfirmationUIMode {
     Skip,
     #[serde(rename = "modal")]
     Modal,
-    #[serde(rename = "embedded")]
-    Embedded,
+    #[serde(rename = "drawer")]
+    Drawer,
 }
 
 /// Behavior mode for confirmation flow

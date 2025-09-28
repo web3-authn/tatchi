@@ -51,9 +51,9 @@ export interface DesignTokens {
 
     // Surface layers
     colorBackground: string;
-    colorSurface: string;
-    colorSurface2: string;
-    colorBorder: string;
+    surface: string;
+    surface2: string;
+    surface3: string;
 
     // Interactive states
     hover: string;
@@ -67,6 +67,7 @@ export interface DesignTokens {
     info: string;
 
     // Border colors
+    // removed: use borderPrimary/border* keys
     borderPrimary: string;
     borderSecondary: string;
     borderHover: string;
@@ -95,32 +96,40 @@ export interface DesignTokens {
 
     // Slate variations
     slate25: string;
+    slate50: string;
+    slate75: string;
     slate100: string;
     slate150: string;
     slate200: string;
     slate300: string;
+    slate400: string;
+    slate500: string;
+    slate600: string;
+    slate700: string;
+    slate800: string;
+    slate900: string;
 
     // Chroma colors (already included via spread)
-    red200: string;
-    red300: string;
-    red400: string;
-    red500: string;
-    red600: string;
-    yellow200: string;
-    yellow300: string;
-    yellow400: string;
-    yellow500: string;
-    yellow600: string;
-    blue200: string;
-    blue300: string;
-    blue400: string;
-    blue500: string;
-    blue600: string;
-    green200: string;
-    green300: string;
-    green400: string;
-    green500: string;
-    green600: string;
+    // red200: string;
+    // red300: string;
+    // red400: string;
+    // red500: string;
+    // red600: string;
+    // yellow200: string;
+    // yellow300: string;
+    // yellow400: string;
+    // yellow500: string;
+    // yellow600: string;
+    // blue200: string;
+    // blue300: string;
+    // blue400: string;
+    // blue500: string;
+    // blue600: string;
+    // green200: string;
+    // green300: string;
+    // green400: string;
+    // green500: string;
+    // green600: string;
 
     // Highlights
     highlightReceiverId: string;
@@ -129,11 +138,6 @@ export interface DesignTokens {
     highlightReceiverIdBackground: string;
     highlightMethodNameBackground: string;
     highlightAmountBackground: string;
-
-    // Misc
-    colorPrimary: string;
-    gradientPeach: string;
-    gradientAqua: string;
   };
 
   spacing: {
@@ -172,13 +176,13 @@ export interface UseThemeReturn {
 // ============================================================================
 export const LIGHT_TOKENS: DesignTokens = {
   colors: {
-    ...CHROMA_COLORS,
+    // ...CHROMA_COLORS,
 
     // Primary brand colors
-    primary: CHROMA_COLORS.blue500,
-    primaryHover: CHROMA_COLORS.blue600,
-    secondary: GREY_COLORS.grey600,
-    accent: CHROMA_COLORS.blue300,
+    primary: LIGHT_THEME.primary,
+    primaryHover: LIGHT_THEME.primaryHover,
+    secondary: LIGHT_THEME.secondary,
+    accent: LIGHT_THEME.accent,
 
     // Text hierarchy
     textPrimary: LIGHT_THEME.textPrimary,
@@ -187,29 +191,30 @@ export const LIGHT_TOKENS: DesignTokens = {
 
     // Core colors
     colorBackground: LIGHT_THEME.colorBackground,
-    colorSurface: LIGHT_THEME.colorSurface,
-    colorSurface2: LIGHT_THEME.colorSurface2,
-    colorBorder: LIGHT_THEME.colorBorder,
+    surface: LIGHT_THEME.surface,
+    surface2: LIGHT_THEME.surface2,
+    surface3: LIGHT_THEME.surface3,
 
     // Interactive states
-    hover: GREY_COLORS.grey100,
-    active: GREY_COLORS.grey200,
-    focus: CHROMA_COLORS.blue400,
+    hover: LIGHT_THEME.hover,
+    active: LIGHT_THEME.active,
+    focus: LIGHT_THEME.focus,
 
     // Status colors
-    success: CHROMA_COLORS.blue500,
-    warning: CHROMA_COLORS.yellow500,
-    error: CHROMA_COLORS.red500,
-    info: CHROMA_COLORS.blue500,
+    success: LIGHT_THEME.success,
+    warning: LIGHT_THEME.warning,
+    error: LIGHT_THEME.error,
+    info: LIGHT_THEME.info,
 
     // Border colors
-    borderPrimary: LIGHT_THEME.slate300,
-    borderSecondary: GREY_COLORS.grey300,
-    borderHover: GREY_COLORS.slate350,
+    // borderPrimary is the canonical border color
+    borderPrimary: LIGHT_THEME.borderPrimary,
+    borderSecondary: LIGHT_THEME.borderSecondary,
+    borderHover: LIGHT_THEME.borderHover,
 
     // Background Gradients
-    backgroundGradientPrimary: GRADIENTS.blue,
-    backgroundGradientSecondary: GRADIENTS.blueWhite,
+    backgroundGradientPrimary: LIGHT_THEME.backgroundGradientPrimary,
+    backgroundGradientSecondary: LIGHT_THEME.backgroundGradientSecondary,
 
     // Grey variations
     grey25: LIGHT_THEME.grey25,
@@ -231,12 +236,18 @@ export const LIGHT_TOKENS: DesignTokens = {
 
     // Slate variations
     slate25: LIGHT_THEME.slate25,
+    slate50: LIGHT_THEME.slate50,
+    slate75: LIGHT_THEME.slate75,
     slate100: LIGHT_THEME.slate100,
     slate150: LIGHT_THEME.slate150,
     slate200: LIGHT_THEME.slate200,
     slate300: LIGHT_THEME.slate300,
-
-    // Chroma colors (already included via ...CHROMA_COLORS)
+    slate400: LIGHT_THEME.slate400,
+    slate500: LIGHT_THEME.slate500,
+    slate600: LIGHT_THEME.slate600,
+    slate700: LIGHT_THEME.slate700,
+    slate800: LIGHT_THEME.slate800,
+    slate900: LIGHT_THEME.slate900,
 
     // Highlights
     highlightReceiverId: LIGHT_THEME.highlightReceiverId,
@@ -245,11 +256,6 @@ export const LIGHT_TOKENS: DesignTokens = {
     highlightReceiverIdBackground: LIGHT_THEME.highlightReceiverIdBackground,
     highlightMethodNameBackground: LIGHT_THEME.highlightMethodNameBackground,
     highlightAmountBackground: LIGHT_THEME.highlightAmountBackground,
-
-    // Misc
-    colorPrimary: LIGHT_THEME.colorPrimary,
-    gradientPeach: LIGHT_THEME.gradientPeach,
-    gradientAqua: LIGHT_THEME.gradientAqua,
   },
 
   spacing: {
@@ -280,13 +286,13 @@ export const LIGHT_TOKENS: DesignTokens = {
 // ============================================================================
 export const DARK_TOKENS: DesignTokens = {
   colors: {
-    ...CHROMA_COLORS,
+    // ...CHROMA_COLORS,
 
     // Primary brand colors (keep consistent with light)
-    primary: CHROMA_COLORS.blue500,
-    primaryHover: CHROMA_COLORS.blue600,
-    secondary: GREY_COLORS.grey400,
-    accent: CHROMA_COLORS.blue300,
+    primary: DARK_THEME.primary,
+    primaryHover: DARK_THEME.primaryHover,
+    secondary: DARK_THEME.secondary,
+    accent: DARK_THEME.accent,
 
     // Text hierarchy (dark palette)
     textPrimary: DARK_THEME.textPrimary,
@@ -294,29 +300,30 @@ export const DARK_TOKENS: DesignTokens = {
     textMuted: DARK_THEME.textMuted,
 
     colorBackground: DARK_THEME.colorBackground,
-    colorSurface: DARK_THEME.colorSurface,
-    colorSurface2: DARK_THEME.colorSurface2,
-    colorBorder: DARK_THEME.colorBorder,
+    surface: DARK_THEME.surface,
+    surface2: DARK_THEME.surface2,
+    surface3: DARK_THEME.surface3,
 
     // Interactive states
-    hover: DARK_THEME.grey850,
-    active: DARK_THEME.grey650,
-    focus: CHROMA_COLORS.blue400,
+    hover: DARK_THEME.hover,
+    active: DARK_THEME.active,
+    focus: DARK_THEME.focus,
 
     // Status colors (unchanged)
-    success: CHROMA_COLORS.blue400,
-    warning: CHROMA_COLORS.yellow400,
-    error: CHROMA_COLORS.red400,
-    info: CHROMA_COLORS.blue400,
+    success: DARK_THEME.success,
+    warning: DARK_THEME.warning,
+    error: DARK_THEME.error,
+    info: DARK_THEME.info,
 
     // Border colors (dark palette)
-    borderPrimary: DARK_THEME.grey650,
-    borderSecondary: DARK_THEME.grey750,
-    borderHover: DARK_THEME.grey750,
+    // borderPrimary is the canonical border color
+    borderPrimary: DARK_THEME.borderPrimary,
+    borderSecondary: DARK_THEME.borderSecondary,
+    borderHover: DARK_THEME.borderHover,
 
     // Background Gradients
-    backgroundGradientPrimary: GRADIENTS.blue,
-    backgroundGradientSecondary: GRADIENTS.blueWhite,
+    backgroundGradientPrimary: DARK_THEME.backgroundGradientPrimary,
+    backgroundGradientSecondary: DARK_THEME.backgroundGradientSecondary,
 
     // Grey variations
     grey25: DARK_THEME.grey25,
@@ -338,10 +345,18 @@ export const DARK_TOKENS: DesignTokens = {
 
     // Slate variations
     slate25: DARK_THEME.slate25,
+    slate50: DARK_THEME.slate50,
+    slate75: DARK_THEME.slate75,
     slate100: DARK_THEME.slate100,
     slate150: DARK_THEME.slate150,
     slate200: DARK_THEME.slate200,
     slate300: DARK_THEME.slate300,
+    slate400: DARK_THEME.slate400,
+    slate500: DARK_THEME.slate500,
+    slate600: DARK_THEME.slate600,
+    slate700: DARK_THEME.slate700,
+    slate800: DARK_THEME.slate800,
+    slate900: DARK_THEME.slate900,
 
     // Highlights
     highlightReceiverId: DARK_THEME.highlightReceiverId,
@@ -350,11 +365,6 @@ export const DARK_TOKENS: DesignTokens = {
     highlightReceiverIdBackground: DARK_THEME.highlightReceiverIdBackground,
     highlightMethodNameBackground: DARK_THEME.highlightMethodNameBackground,
     highlightAmountBackground: DARK_THEME.highlightAmountBackground,
-
-    // Misc
-    colorPrimary: DARK_THEME.colorPrimary,
-    gradientPeach: DARK_THEME.gradientPeach,
-    gradientAqua: DARK_THEME.gradientAqua,
   },
 
   // Same spacing, border radius, and shadows for consistency
@@ -367,10 +377,6 @@ export const DARK_TOKENS: DesignTokens = {
     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
   },
 };
-
-
-// (Archived) Alternative theme sketches removed for clarity; LIGHT_TOKENS and
-// DARK_TOKENS plus component-specific overrides are the single source of truth.
 
 // ============================================================================
 // CSS CUSTOM PROPERTY GENERATOR

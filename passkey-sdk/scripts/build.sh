@@ -51,7 +51,7 @@ fi
 # Step 3: Build WASM signer worker
 print_step "Building WASM signer worker..."
 cd "$SOURCE_WASM_SIGNER"
-if wasm-pack build --target web --out-dir .; then
+if wasm-pack build --target web --out-dir pkg; then
     print_success "WASM signer worker built successfully"
 else
     print_error "WASM signer worker build failed"
@@ -62,7 +62,7 @@ cd ../..
 # Step 4: Build WASM VRF worker
 print_step "Building WASM VRF worker..."
 cd "$SOURCE_WASM_VRF"
-if wasm-pack build --target web --out-dir .; then
+if wasm-pack build --target web --out-dir pkg; then
     print_success "WASM VRF worker built successfully"
 else
     print_error "WASM VRF worker build failed"
@@ -101,23 +101,15 @@ fi
 # Step 7.1: Ensure WASM binaries are colocated with worker JS for runtime fetch()
 print_step "Copying worker WASM binaries next to worker JS..."
 mkdir -p "$BUILD_WORKERS"
-if cp "$SOURCE_WASM_VRF/wasm_vrf_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then
+if cp "$SOURCE_WASM_VRF/pkg/wasm_vrf_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then
   print_success "VRF WASM copied to dist/workers/"
 else
-  print_warning "VRF WASM not found at $SOURCE_WASM_VRF/wasm_vrf_worker_bg.wasm"
+  print_warning "VRF WASM not found at $SOURCE_WASM_VRF/pkg/wasm_vrf_worker_bg.wasm"
 fi
-if cp "$SOURCE_WASM_SIGNER/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then
+if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then
   print_success "Signer WASM copied to dist/workers/"
 else
-  print_warning "Signer WASM not found at $SOURCE_WASM_SIGNER/wasm_signer_worker_bg.wasm"
-fi
-
-# Step 7.2: Copy SDK assets
-print_step "Copying SDK assets..."
-if ./scripts/copy-sdk-assets.sh; then
-    print_success "SDK assets copied successfully"
-else
-    print_warning "SDK asset copying completed with warnings"
+  print_warning "Signer WASM not found at $SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm"
 fi
 
 print_success "Build completed successfully!"

@@ -111,6 +111,10 @@ passkeyManager.executeAction(accountId: string, action: ActionArgs): Promise<any
 passkeyManager.signTransactionsWithActions(options: SignOptions): Promise<any>
 ```
 
+### Heuristics note (wallet iframe overlay)
+
+When the wallet iframe is used (iframe mode), the visible confirmation modal lives inside that iframe. For `confirmBehavior: 'requireClick'`, the iframe overlay must expand during `ActionPhase.STEP_2_USER_CONFIRMATION` so the modal is visible and can capture the click. This is enforced by the `ProgressBus` heuristics. Avoid removing step 2 from the show list; otherwise the modal won’t be clickable.
+
 ### SignerWorkerManager Methods
 
 ```typescript

@@ -16,6 +16,7 @@ test.describe('Example PasskeyManager Usage', () => {
     // });
   });
 
+  // showcases how setup wires PasskeyManager/test utils into the page context
   test('should demonstrate PasskeyManager access in different test file', async ({ page }) => {
     const result = await page.evaluate(async () => {
       // Access the pre-configured PasskeyManager and utilities (safe pattern)
@@ -33,7 +34,8 @@ test.describe('Example PasskeyManager Usage', () => {
           hasPasskeyManager: !!passkeyManager,
           hasUtilities: !!(generateTestAccountId && verifyAccountExists),
           testAccountId: testAccountId,
-          loginState: loginState
+          loginState: loginState,
+          contractId: (window as any).testUtils?.configs?.contractId
         };
       } catch (error: any) {
         return {
@@ -41,7 +43,8 @@ test.describe('Example PasskeyManager Usage', () => {
           hasPasskeyManager: !!passkeyManager,
           hasUtilities: !!(generateTestAccountId && verifyAccountExists),
           testAccountId: testAccountId,
-          loginError: error.message
+          loginError: error.message,
+          contractId: (window as any).testUtils?.configs?.contractId
         };
       }
     });
@@ -49,6 +52,10 @@ test.describe('Example PasskeyManager Usage', () => {
     // Verify setup worked correctly
     expect(result.hasPasskeyManager).toBe(true);
     expect(result.hasUtilities).toBe(true);
-    expect(result.testAccountId).toMatch(/^e2etest\d+\.testnet$/);
+    const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const contractId = result.contractId || 'web3-authn-v5.testnet';
+    const reOld = /^e2etest\d+\.testnet$/;
+    const reNew = new RegExp(`^e2etest\\d+\\.${escapeRe(contractId)}$`);
+    expect(reOld.test(result.testAccountId) || reNew.test(result.testAccountId)).toBe(true);
   });
 });

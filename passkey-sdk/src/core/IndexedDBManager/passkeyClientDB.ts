@@ -33,6 +33,9 @@ export interface ClientUserData {
   serverEncryptedVrfKeypair?: {
     ciphertextVrfB64u: string;
     kek_s_b64u: string;
+    // Metadata for proactive refresh
+    serverKeyId: string;
+    updatedAt?: number;
   };
 
   // User preferences
@@ -88,7 +91,7 @@ interface PasskeyClientDBConfig {
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 12, // Bump version; add fallback open for mixed-version contexts
+  dbVersion: 13, // Bump version; add fallback open for mixed-version contexts
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators'
@@ -141,7 +144,7 @@ export class PasskeyClientDBManager {
 
     try {
       this.db = await openDB(this.config.dbName, this.config.dbVersion, {
-        upgrade(db, oldVersion): void {
+        upgrade: (db, oldVersion, _newVersion, _transaction): void => {
           // Create stores if they don't exist
           if (!db.objectStoreNames.contains(DB_CONFIG.userStore)) {
             // Users table: composite key of [nearAccountId, deviceNumber]
@@ -168,6 +171,8 @@ export class PasskeyClientDBManager {
           this.db = null;
         },
       });
+      // Post-open migrations (non-blocking)
+      try { await this.runMigrationsIfNeeded(this.db); } catch {}
     } catch (err: any) {
       const msg = String(err?.message || '');
       if (err?.name === 'VersionError' || /less than the existing version/i.test(msg)) {
@@ -184,6 +189,30 @@ export class PasskeyClientDBManager {
     }
 
     return this.db;
+  }
+
+  private async runMigrationsIfNeeded(db: IDBPDatabase): Promise<void> {
+    try {
+      const migrated = await db.get(DB_CONFIG.appStateStore, 'migrated_v13_serverKeyFields');
+      if (migrated?.value === true) return;
+
+      const tx = db.transaction(DB_CONFIG.userStore, 'readwrite');
+      const store = tx.objectStore(DB_CONFIG.userStore);
+      const users: any[] = await store.getAll();
+      const now = Date.now();
+      for (const user of users) {
+        if (user?.serverEncryptedVrfKeypair && typeof user.serverEncryptedVrfKeypair === 'object') {
+          if (user.serverEncryptedVrfKeypair.updatedAt == null) {
+            user.serverEncryptedVrfKeypair.updatedAt = now;
+            await store.put(user);
+          }
+        }
+      }
+      await tx.done;
+      await db.put(DB_CONFIG.appStateStore, { key: 'migrated_v13_serverKeyFields', value: true });
+    } catch (e) {
+      console.warn('PasskeyClientDB migration v13 failed (non-fatal):', e);
+    }
   }
 
   // === APP STATE METHODS ===
@@ -326,12 +355,7 @@ export class PasskeyClientDBManager {
       preferences: {
         useRelayer: false,
         useNetwork: 'testnet',
-        confirmationConfig: {
-          uiMode: 'modal',
-          behavior: 'autoProceed',
-          autoProceedDelay: 1000,
-          theme: 'light',
-        },
+        confirmationConfig: DEFAULT_CONFIRMATION_CONFIG,
         // Default preferences can be set here
       },
       encryptedVrfKeypair: storeUserData.encryptedVrfKeypair,
@@ -437,6 +461,8 @@ export class PasskeyClientDBManager {
     serverEncryptedVrfKeypair?: {
       ciphertextVrfB64u: string;
       kek_s_b64u: string;
+      serverKeyId: string;
+      updatedAt?: number;
     };
   }): Promise<void> {
 

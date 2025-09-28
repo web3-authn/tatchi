@@ -1,4 +1,4 @@
-export { IframeButtonHost } from './IframeButtonHost';
+export { IframeButtonHost } from './iframe-host';
 export { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 export type {
   TooltipPosition,
@@ -18,8 +18,8 @@ export {
   utilParsePx,
 } from './iframe-geometry';
 export {
-  BUTTON_WITH_TOOLTIP_ID,
+  W3A_BUTTON_WITH_TOOLTIP_ID,
   W3A_TX_BUTTON_ID,
   EMBEDDED_SDK_BASE_PATH,
-  IFRAME_BOOTSTRAP_MODULE,
+  IFRAME_TX_BUTTON_BOOTSTRAP_MODULE,
 } from '../tags';

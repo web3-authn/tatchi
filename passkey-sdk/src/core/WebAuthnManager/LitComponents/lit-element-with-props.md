@@ -19,7 +19,7 @@ When working with Lit components, there's a critical timing issue known as the "
 
 ```typescript
 // This can fail silently:
-const el = document.createElement('tx-tree');
+const el = document.createElement('w3a-tx-tree');
 el.node = complexTreeData;           // Set before upgrade
 document.body.appendChild(el);       // Triggers upgrade
 // el.node might now be undefined or default value!
@@ -163,11 +163,11 @@ export class TxTree extends LitElementWithProps {
       <div class="tree-node" style="${this.getNodeStyles()}">
         <span class="label">${this.node.label}</span>
         ${this.node.children?.map(child => html`
-          <tx-tree
+          <w3a-tx-tree
             .node=${child}
             .styles=${this.styles}
             .depth=${this.depth + 1}>
-          </tx-tree>
+          </w3a-tx-tree>
         `)}
       </div>
     `;
@@ -185,5 +185,5 @@ export class TxTree extends LitElementWithProps {
 }
 
 // Register the custom element
-customElements.define('tx-tree', TxTree);
+customElements.define('w3a-tx-tree', TxTree);
 ```

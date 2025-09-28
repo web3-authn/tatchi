@@ -1,8 +1,10 @@
 import { html, css, type TemplateResult } from 'lit';
 import { repeat } from 'lit/directives/repeat.js';
 import { LitElementWithProps } from '../LitElementWithProps';
+import { dispatchLitTreeToggled } from '../lit-events';
 import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
+import { TX_TREE_THEMES } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
 import { isNumber, isString } from '../../../WalletIframe/validation';
 // Re-export for backward compatibility
@@ -13,7 +15,7 @@ export type { TxTreeStyles } from './tx-tree-themes';
  * A small, dependency-free Lit component that renders a tree-like UI suitable for tooltips.
  *
  * Usage:
- *   <tx-tree .node=${node} depth="0"></tx-tree>
+ *   <w3a-tx-tree .node=${node} depth="0"></w3a-tx-tree>
  *
  * Mapping note: txSigningRequests (TransactionInput[]) → TreeNode structure
  * Example (single FunctionCall):
@@ -83,24 +85,16 @@ export class TxTree extends LitElementWithProps {
     }
 
     .tooltip-border-outer {
-      position: relative;
-      background: var(--w3a-tree__tooltip-border-outer__background, rgba(255, 255, 255, 0.95));
-      border: var(--w3a-tree__tooltip-border-outer__border, 1px solid var(--w3a-tree__tooltip-border-outer__border-color, oklch(0.8 0 0)));
+      max-width: var(--w3a-tree__tooltip-tree-root__max-width, 600px);
+      position: var(--w3a-tree__tooltip-border-outer__position, relative);
+      border: var(--w3a-tree__tooltip-border-outer__border, 1px solid transparent);
       border-radius: var(--w3a-tree__tooltip-border-outer__border-radius, 24px);
-    }
-
-    .tooltip-border-inner {
-      position: var(--w3a-tree__tooltip-border-inner__position, relative);
-      border: var(--w3a-tree__tooltip-border-inner__border, 1px solid transparent);
-      border-radius: var(--w3a-tree__tooltip-border-inner__border-radius, 24px);
-      margin: var(--w3a-tree__tooltip-border-inner__margin, 0px);
-      padding: var(--w3a-tree__tooltip-border-inner__padding, 0px);
-      height: var(--w3a-tree__tooltip-border-inner__height, auto);
-      overflow: var(--w3a-tree__tooltip-border-inner__overflow, hidden);
-      box-shadow: var(--w3a-tree__tooltip-border-inner__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
-      background: var(--w3a-tree__tooltip-border-inner__background, var(--w3a-color-surface));
-      backdrop-filter: var(--w3a-tree__tooltip-border-inner__backdrop-filter, blur(12px));
-      WebkitBackdropFilter: var(--w3a-tree__tooltip-border-inner__backdrop-filter, blur(12px));
+      margin: var(--w3a-tree__tooltip-border-outer__margin, 0px);
+      padding: var(--w3a-tree__tooltip-border-outer__padding, 0px);
+      height: var(--w3a-tree__tooltip-border-outer__height, auto);
+      overflow: var(--w3a-tree__tooltip-border-outer__overflow, hidden);
+      box-shadow: var(--w3a-tree__tooltip-border-outer__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
+      background: var(--w3a-tree__tooltip-border-outer__background, var(--w3a-colors-surface));
     }
 
     .tooltip-tree-root {
@@ -371,7 +365,7 @@ export class TxTree extends LitElementWithProps {
     }
 
     .file-content::-webkit-scrollbar-track {
-      background: var(--w3a-tree__file-content__scrollbar-track__background, var(--w3a-color-surface, #f8fafc));
+      background: var(--w3a-tree__file-content__scrollbar-track__background, var(--w3a-colors-surface, #f8fafc));
       border-radius: var(--w3a-tree__file-content__scrollbar-track__border-radius, 2px);
     }
 
@@ -474,7 +468,7 @@ export class TxTree extends LitElementWithProps {
 
   private handleToggle() {
     // Notify parents that layout may have changed so they can re-measure
-    this.dispatchEvent(new CustomEvent('tree-toggled', { bubbles: true, composed: true }));
+    dispatchLitTreeToggled(this);
   }
 
   /**
@@ -579,9 +573,16 @@ export class TxTree extends LitElementWithProps {
    */
   protected updated(changedProperties: Map<string | number | symbol, unknown>): void {
     super.updated(changedProperties);
-    // Apply styles whenever the styles prop changes
+    // 1) Apply explicit styles when provided
     if (changedProperties.has('styles') && this.styles) {
       this.applyStyles(this.styles);
+    }
+    // 2) Fall back to theme-driven defaults when styles are not provided/changed
+    // This makes <w3a-tx-tree theme="dark|light"> responsive even if a parent forgets
+    // to pass a styles object for the theme.
+    if (changedProperties.has('theme') && !this.styles && this.theme) {
+      const preset = TX_TREE_THEMES[this.theme] || TX_TREE_THEMES.dark;
+      this.applyStyles(preset);
     }
   }
 
@@ -843,15 +844,13 @@ export class TxTree extends LitElementWithProps {
       // Render only the children as top-level entries
       content = html`
         <div class="tooltip-border-outer">
-          <div class="tooltip-border-inner">
-            <div class="tooltip-tree-root${extraClass}" style="${rootStyle}">
-              <div class="tooltip-tree-children">
-                ${repeat(
-                  Array.isArray(this.node.children) ? this.node.children : [],
-                  (child) => child.id,
-                  (child) => this.renderAnyNode(child, depth + 1)
-                )}
-              </div>
+          <div class="tooltip-tree-root${extraClass}" style="${rootStyle}">
+            <div class="tooltip-tree-children">
+              ${repeat(
+                Array.isArray(this.node.children) ? this.node.children : [],
+                (child) => child.id,
+                (child) => this.renderAnyNode(child, depth + 1)
+              )}
             </div>
           </div>
         </div>
@@ -866,6 +865,15 @@ export class TxTree extends LitElementWithProps {
   }
 }
 
-customElements.define('tx-tree', TxTree);
+import { W3A_TX_TREE_ID } from '../tags';
+
+if (!customElements.get(W3A_TX_TREE_ID)) {
+  customElements.define(W3A_TX_TREE_ID, TxTree);
+}
+// Legacy alias: use a subclass to avoid constructor reuse error
+if (!customElements.get('tx-tree')) {
+  class TxTreeAlias extends TxTree {}
+  customElements.define('tx-tree', TxTreeAlias as unknown as CustomElementConstructor);
+}
 
 export default TxTree;

@@ -31,7 +31,7 @@
   line-height: 0;
   border-radius: 50%;
   color: var(--w3a-colors-textPrimary);
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   cursor: pointer;
   border: none;
   z-index: 3;
@@ -165,7 +165,7 @@
   color: var(--w3a-colors-textSecondary, #64748b);
   overflow: hidden;
   border: 1px solid var(--w3a-colors-borderPrimary);
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border-radius: var(--w3a-border-radius-xl);
   /* no shadow requested */
   box-shadow: none;
@@ -174,7 +174,7 @@
   color: var(--w3a-colors-textSecondary, #64748b);
 }
 .w3a-social-btn:hover {
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   box-shadow: var(--w3a-shadows-sm);
 }
 .w3a-social-btn:hover svg {
@@ -198,7 +198,7 @@
   height: 54px;
   gap: 8px;
   border: none;
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border-radius: 2rem 2rem 2rem 2rem;
   box-shadow: none;
   overflow-x: hidden;
@@ -270,7 +270,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 52px;
   width: 0;           /* hidden footprint by default */
   padding: 0;
   background: transparent;
@@ -284,7 +283,7 @@
   pointer-events: none;
   margin-left: -1rem;
   z-index: 1;
-  border: 6px solid var(--w3a-colors-colorBackground);
+  border: 6px solid var(--w3a-colors-colorBackground, var(--w3a-color-background, #fff));
   height: 64px;
   transition: transform 200ms ease,
               background-color 200ms ease,
@@ -294,7 +293,8 @@
 }
 .w3a-arrow-btn.is-enabled {
   width: 100px; /* expand when enabled */
-  background: var(--w3a-colors-primary);
+  /* Prefer themed primary; fall back to legacy then a sane default */
+  background: var(--w3a-colors-primary, var(--w3a-color-primary, #2563eb));
   border-radius: 2rem;
   /* border-radius: 2rem; */
   opacity: 1;
@@ -306,9 +306,17 @@
               opacity 200ms ease,
               width 250ms var(--fe-ease, cubic-bezier(0, 0, 0.2, 1));
 }
+.w3a-arrow-btn .w3a-arrow-icon {
+  color: #fff;
+}
 .w3a-arrow-btn.is-enabled:hover {
   transform: scale(1.02);
-  background: var(--w3a-colors-primaryHover);
+  /* Prefer themed hover; fall back to legacy primary-hover then primary */
+  background: var(--w3a-colors-primaryHover,
+    var(--w3a-color-primary-hover,
+      var(--w3a-color-primary, #1d4ed8)
+    )
+  );
 }
 .w3a-arrow-btn.is-enabled:active {
   transform: scale(0.985);
@@ -331,7 +339,7 @@
   overflow: hidden;
   padding: 5px;
   border: none;
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   border-radius: var(--w3a-border-radius-xl);
 }
 .w3a-seg-active {
@@ -502,7 +510,7 @@
   padding: 4px 8px;
   border-radius: 12px;
   font-size: 12px;
-  background: var(--w3a-colors-colorSurface2);
+  background: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
   opacity: 0;
   transform: translateX(50px) scale(0.9);
@@ -556,7 +564,7 @@
   height: 48px;
   width: 100%;
   max-width: 100%;
-  background: var(--w3a-colors-colorSurface);
+  background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   box-shadow: var(--w3a-shadows-sm);
   border-radius: 2rem;

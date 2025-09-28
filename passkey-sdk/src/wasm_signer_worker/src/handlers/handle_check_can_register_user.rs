@@ -3,18 +3,15 @@
 // *                     HANDLER: CHECK CAN REGISTER USER                     *
 // *                                                                            *
 // ******************************************************************************
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use serde_json;
-use crate::rpc_calls::{VrfData, check_can_register_user_rpc_call};
-use crate::types::{
-    VrfChallenge,
-    SerializedRegistrationCredential,
-    AuthenticatorOptions,
-    WebAuthnRegistrationCredential,
-    WebAuthnRegistrationCredentialStruct
-};
+use crate::rpc_calls::{check_can_register_user_rpc_call, VrfData};
 use crate::types::wasm_to_json::WasmSignedTransaction;
+use crate::types::{
+    AuthenticatorOptions, SerializedRegistrationCredential, VrfChallenge,
+    WebAuthnRegistrationCredential, WebAuthnRegistrationCredentialStruct,
+};
+use serde::{Deserialize, Serialize};
+use serde_json;
+use wasm_bindgen::prelude::*;
 // Local definition for registration info returned by pre-check.
 // Moved here after removing the deprecated testnet registration flow.
 #[wasm_bindgen]
@@ -132,9 +129,8 @@ impl RegistrationCheckResult {
 /// # Returns
 /// * `RegistrationCheckResult` - Contains verification status, registration info, and optional pre-signed transaction
 pub async fn handle_check_can_register_user(
-    request: CheckCanRegisterUserRequest
+    request: CheckCanRegisterUserRequest,
 ) -> Result<RegistrationCheckResult, String> {
-
     // Use VrfChallenge directly instead of converting
     let vrf_challenge = &request.vrf_challenge;
 
@@ -146,13 +142,15 @@ pub async fn handle_check_can_register_user(
         request.credential.response.client_data_json,
         request.credential.response.attestation_object,
         Some(request.credential.response.transports),
-        request.credential.client_extension_results.prf.results.second,
+        request
+            .credential
+            .client_extension_results
+            .prf
+            .results
+            .second,
     );
 
-    let check_request = RegistrationCheckRequest::new(
-        request.contract_id,
-        request.near_rpc_url,
-    );
+    let check_request = RegistrationCheckRequest::new(request.contract_id, request.near_rpc_url);
 
     // Convert structured types using From implementations
     let vrf_data = VrfData::try_from(vrf_challenge)
@@ -165,33 +163,38 @@ pub async fn handle_check_can_register_user(
         vrf_data,
         webauthn_registration,
         &check_request.near_rpc_url,
-        request.authenticator_options
-    ).await
+        request.authenticator_options,
+    )
+    .await
     .map_err(|e| format!("Registration check failed: {}", e))?;
 
     // Check if the RPC call itself failed (e.g., "Server error")
     if !registration_result.success {
-        let error_msg = registration_result.error.unwrap_or_else(|| "Unknown RPC error".to_string());
+        let error_msg = registration_result
+            .error
+            .unwrap_or_else(|| "Unknown RPC error".to_string());
         return Err(format!("RPC call failed: {}", error_msg));
     }
 
     // Create structured response
     let signed_transaction_wasm = match registration_result.unwrap_signed_transaction() {
         Some(json_value) => {
-            let signed_tx: crate::types::SignedTransaction = serde_json::from_value(json_value.clone())
-                .map_err(|e| format!("Failed to parse signed transaction: {}", e))?;
+            let signed_tx: crate::types::SignedTransaction =
+                serde_json::from_value(json_value.clone())
+                    .map_err(|e| format!("Failed to parse signed transaction: {}", e))?;
             Some(WasmSignedTransaction::from(&signed_tx))
         }
-        None => None
+        None => None,
     };
 
-    let registration_info = registration_result.registration_info
-        .map(|info| RegistrationInfoStruct::new(
+    let registration_info = registration_result.registration_info.map(|info| {
+        RegistrationInfoStruct::new(
             info.credential_id,
             info.credential_public_key,
             "".to_string(), // Not available from contract response
-            None, // Not available from contract response
-        ));
+            None,           // Not available from contract response
+        )
+    });
 
     Ok(RegistrationCheckResult::new(
         registration_result.verified,

@@ -12,7 +12,6 @@ import { serializeAuthenticationCredentialWithPRF } from '../WebAuthnManager/cre
 import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { validateNearAccountId } from '../../utils/validation';
 import { toAccountId } from '../types/accountIds';
-import { base64UrlEncode } from '../../utils/encoders';
 import { createRandomVRFChallenge } from '../types/vrf-worker';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { IndexedDBManager } from '../IndexedDBManager';
@@ -21,7 +20,6 @@ import {
   getCredentialIdsContractCall,
   syncAuthenticatorsContractCall
 } from '../rpcCalls';
-import { base64UrlDecode } from '../../utils/encoders';
 
 /**
  * Use case:

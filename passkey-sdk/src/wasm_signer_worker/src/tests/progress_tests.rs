@@ -1,4 +1,4 @@
-use crate::types::progress::{ProgressMessageType, ProgressStep, send_progress_message};
+use crate::types::progress::{send_progress_message, ProgressMessageType, ProgressStep};
 
 #[test]
 fn test_send_progress_message_function() {
@@ -7,11 +7,14 @@ fn test_send_progress_message_function() {
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::TransactionSigningProgress,
         "Test progress message",
-        Some(r#"{"step": 1, "total": 3}"#)
+        Some(r#"{"step": 1, "total": 3}"#),
     );
 
     // Should print to console in non-WASM context (no panic)
-    assert!(true, "send_progress_message should not panic in test context");
+    assert!(
+        true,
+        "send_progress_message should not panic in test context"
+    );
 }
 
 #[test]
@@ -29,7 +32,7 @@ fn test_progress_message_types() {
             msg_type,
             ProgressStep::Preparation,
             "Test message",
-            Some("{}")
+            Some("{}"),
         );
     }
 
@@ -41,9 +44,24 @@ fn test_progress_message_types() {
 fn test_progress_message_json_data() {
     // Test with various JSON data formats
     let test_cases = [
-        (ProgressMessageType::ExecuteActionsProgress, ProgressStep::Preparation, "Testing", r#"{"step": 1}"#),
-        (ProgressMessageType::RegistrationComplete, ProgressStep::AuthenticationComplete, "Done", r#"{"success": true, "count": 5}"#),
-        (ProgressMessageType::RegistrationProgress, ProgressStep::TransactionSigningProgress, "Checking", "{}"),
+        (
+            ProgressMessageType::ExecuteActionsProgress,
+            ProgressStep::Preparation,
+            "Testing",
+            r#"{"step": 1}"#,
+        ),
+        (
+            ProgressMessageType::RegistrationComplete,
+            ProgressStep::AuthenticationComplete,
+            "Done",
+            r#"{"success": true, "count": 5}"#,
+        ),
+        (
+            ProgressMessageType::RegistrationProgress,
+            ProgressStep::TransactionSigningProgress,
+            "Checking",
+            "{}",
+        ),
     ];
 
     for (msg_type, step, message, data) in test_cases {

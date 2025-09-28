@@ -3,15 +3,25 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
+const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
+
 export default defineConfig({
-  testDir: './src/__tests__/e2e',
+  testDir: './src/__tests__',
+  testMatch: [
+    '**/e2e/**/*.test.ts',
+    '**/unit/**/*.test.ts',
+    '**/wallet-iframe/playwright/**/*.test.ts',
+    '**/lit-components/playwright/**/*.test.ts',
+  ],
   fullyParallel: false,
   retries: 0,
   workers: 1, // Reduced to 1 to prevent parallel faucet requests and rate limiting
   reporter: 'html',
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'https://example.localhost',
+    baseURL: 'http://localhost:5173',
+    /* Caddy serves self-signed certs for example.localhost */
+    ignoreHTTPSErrors: true,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
     /* Enable verbose console logging for debugging */
@@ -29,12 +39,14 @@ export default defineConfig({
     // Safari/WebKit tests would need different WebAuthn testing approach
   ],
 
-  /* Run your local dev server before starting the tests */
+  /* Run your local dev server(s) before starting the tests */
   webServer: {
-    command: 'cd ../../frontend && npm run dev',
-    url: 'https://example.localhost',
+    // If USE_RELAY_SERVER is set, start both servers with a relay health check
+    command: USE_RELAY_SERVER
+      ? 'node ./src/__tests__/scripts/start-servers.mjs'
+      : 'pnpm -C ../examples/vite dev',
+    url: 'http://localhost:5173',
     reuseExistingServer: true,
-    timeout: 120000, // Increased timeout to allow for build
-    ignoreHTTPSErrors: true,
+    timeout: 180000, // Allow time for relay health check + build
   },
 });

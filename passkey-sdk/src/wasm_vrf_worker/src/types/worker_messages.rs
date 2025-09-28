@@ -1,8 +1,8 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 
-use serde::{Serialize, Deserialize};
-use serde::de::DeserializeOwned;
 use crate::errors::{MessageError, VrfWorkerError};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 // === WORKER REQUEST TYPE ENUM ===
@@ -59,9 +59,15 @@ impl From<&str> for WorkerRequestType {
             "CHECK_VRF_STATUS" => WorkerRequestType::CheckVrfStatus,
             "LOGOUT" => WorkerRequestType::Logout,
             "DERIVE_VRF_KEYPAIR_FROM_PRF" => WorkerRequestType::DeriveVrfKeypairFromPrf,
-            "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR" => WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair,
-            "SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR" => WorkerRequestType::Shamir3PassClientDecryptVrfKeypair,
-            "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR" => WorkerRequestType::Shamir3PassGenerateServerKeypair,
+            "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR" => {
+                WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair
+            }
+            "SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR" => {
+                WorkerRequestType::Shamir3PassClientDecryptVrfKeypair
+            }
+            "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR" => {
+                WorkerRequestType::Shamir3PassGenerateServerKeypair
+            }
             "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK" => WorkerRequestType::Shamir3PassApplyServerLock,
             "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => WorkerRequestType::Shamir3PassRemoveServerLock,
             "SHAMIR3PASS_CONFIG_P" => WorkerRequestType::Shamir3PassConfigP,
@@ -81,9 +87,15 @@ impl WorkerRequestType {
             WorkerRequestType::CheckVrfStatus => "CHECK_VRF_STATUS",
             WorkerRequestType::Logout => "LOGOUT",
             WorkerRequestType::DeriveVrfKeypairFromPrf => "DERIVE_VRF_KEYPAIR_FROM_PRF",
-            WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR",
-            WorkerRequestType::Shamir3PassClientDecryptVrfKeypair => "SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR",
-            WorkerRequestType::Shamir3PassGenerateServerKeypair => "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR",
+            WorkerRequestType::Shamir3PassClientEncryptCurrentVrfKeypair => {
+                "SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR"
+            }
+            WorkerRequestType::Shamir3PassClientDecryptVrfKeypair => {
+                "SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR"
+            }
+            WorkerRequestType::Shamir3PassGenerateServerKeypair => {
+                "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR"
+            }
             WorkerRequestType::Shamir3PassApplyServerLock => "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK",
             WorkerRequestType::Shamir3PassRemoveServerLock => "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK",
             WorkerRequestType::Shamir3PassConfigP => "SHAMIR3PASS_CONFIG_P",
@@ -166,16 +178,21 @@ pub struct VrfWorkerMessage {
 }
 
 impl VrfWorkerMessage {
-    pub fn parse_payload<T: DeserializeOwned>(&self, request_type: WorkerRequestType) -> Result<T, VrfWorkerError> {
-        let payload = self.payload.as_ref()
-            .ok_or_else(|| VrfWorkerError::MissingRequiredData(
-                format!("{}: Missing payload", request_type.name())
-            ))?;
+    pub fn parse_payload<T: DeserializeOwned>(
+        &self,
+        request_type: WorkerRequestType,
+    ) -> Result<T, VrfWorkerError> {
+        let payload = self.payload.as_ref().ok_or_else(|| {
+            VrfWorkerError::MissingRequiredData(format!("{}: Missing payload", request_type.name()))
+        })?;
 
-        serde_json::from_value(payload.clone())
-            .map_err(|e| VrfWorkerError::MessageParsingError(
-                MessageError::JsonParsingFailed(format!("{}: {}", request_type.name(), e.to_string()))
-            ))
+        serde_json::from_value(payload.clone()).map_err(|e| {
+            VrfWorkerError::MessageParsingError(MessageError::JsonParsingFailed(format!(
+                "{}: {}",
+                request_type.name(),
+                e.to_string()
+            )))
+        })
     }
 }
 
@@ -193,9 +210,14 @@ impl VrfWorkerResponse {
         id: Option<String>,
         success: bool,
         data: Option<serde_json::Value>,
-        error: Option<String>
+        error: Option<String>,
     ) -> Self {
-        Self { id, success, data, error }
+        Self {
+            id,
+            success,
+            data,
+            error,
+        }
     }
 
     pub fn success(id: Option<String>, data: Option<serde_json::Value>) -> Self {

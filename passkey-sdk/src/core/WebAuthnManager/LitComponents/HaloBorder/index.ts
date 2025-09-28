@@ -159,5 +159,10 @@ export class HaloBorderElement extends LitElementWithProps {
   }
 }
 
-customElements.define('w3a-halo-border', HaloBorderElement);
+import { W3A_HALO_BORDER_ID } from '../tags';
+
+if (!customElements.get(W3A_HALO_BORDER_ID)) {
+  customElements.define(W3A_HALO_BORDER_ID, HaloBorderElement);
+}
+
 export default HaloBorderElement;

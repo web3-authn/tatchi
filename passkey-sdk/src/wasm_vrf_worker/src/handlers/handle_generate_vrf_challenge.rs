@@ -1,11 +1,11 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::{info, error};
 use crate::manager::VRFKeyManager;
-use crate::types::VrfWorkerResponse;
 use crate::types::VRFInputData;
+use crate::types::VrfWorkerResponse;
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -21,15 +21,16 @@ pub fn handle_generate_vrf_challenge(
     message_id: Option<String>,
     payload: GenerateVrfChallengeRequest,
 ) -> VrfWorkerResponse {
-
     let manager_ref = manager.borrow();
-    info!("Generating VRF challenge");
 
     return match manager_ref.generate_vrf_challenge(payload.vrf_input_data) {
         Ok(challenge_data) => {
             info!("VRF challenge generated successfully");
-            VrfWorkerResponse::success(message_id, Some(serde_json::to_value(&challenge_data).unwrap()))
-        },
+            VrfWorkerResponse::success(
+                message_id,
+                Some(serde_json::to_value(&challenge_data).unwrap()),
+            )
+        }
         Err(e) => {
             error!("VRF challenge generation failed: {}", e);
             VrfWorkerResponse::fail(message_id, e.to_string())

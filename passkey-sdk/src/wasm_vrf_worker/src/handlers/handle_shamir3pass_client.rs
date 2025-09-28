@@ -1,18 +1,12 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::error;
-use crate::types::VrfWorkerResponse;
-use crate::shamir3pass::{
-    decode_biguint_b64u,
-    encode_biguint_b64u,
-};
+use crate::http::{post_apply_server_lock, post_remove_server_lock};
 use crate::manager::VRFKeyManager;
-use crate::http::{
-    post_apply_server_lock,
-    post_remove_server_lock,
-};
+use crate::shamir3pass::{decode_biguint_b64u, encode_biguint_b64u};
+use crate::types::VrfWorkerResponse;
+use log::error;
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -32,6 +26,9 @@ pub struct Shamir3PassClientDecryptVrfKeypairRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "ciphertextVrfB64u")]
     #[serde(rename = "ciphertextVrfB64u")]
     pub ciphertext_vrf_b64u: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "keyId")]
+    #[serde(rename = "keyId")]
+    pub key_id: String,
 }
 
 #[wasm_bindgen]
@@ -46,6 +43,9 @@ pub struct Shamir3PassEncryptVrfKeypairResult {
     #[wasm_bindgen(getter_with_clone, js_name = "vrfPublicKey")]
     #[serde(rename = "vrfPublicKey")]
     pub vrf_public_key: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "serverKeyId")]
+    #[serde(default, rename = "serverKeyId")]
+    pub server_key_id: Option<String>,
 }
 
 // === Shamir 3-pass client-side handlers ===
@@ -60,18 +60,22 @@ pub async fn handle_shamir3pass_client_encrypt_current_vrf_keypair(
 ) -> VrfWorkerResponse {
     let relay_url = match manager.borrow().relay_server_url.clone() {
         Some(url) => url,
-        None => return VrfWorkerResponse::fail(message_id, "VRFManager.relayServerUrl is empty")
+        None => return VrfWorkerResponse::fail(message_id, "VRFManager.relayServerUrl is empty"),
     };
     let apply_lock_route = match manager.borrow().apply_lock_route.clone() {
         Some(route) => route,
-        None => return VrfWorkerResponse::fail(message_id, "VRFManager.applyServerLockRoute is empty")
+        None => {
+            return VrfWorkerResponse::fail(message_id, "VRFManager.applyServerLockRoute is empty")
+        }
     };
 
     let result = match perform_shamir3pass_client_encrypt_current_vrf_keypair(
         manager.clone(),
         relay_url,
-        apply_lock_route
-    ).await {
+        apply_lock_route,
+    )
+    .await
+    {
         Ok(v) => v,
         Err(e) => {
             error!("VRF keypair encryption failed: {}", e);
@@ -84,18 +88,17 @@ pub async fn handle_shamir3pass_client_encrypt_current_vrf_keypair(
         ciphertext_vrf_b64u: result.ciphertext_vrf_b64u,
         kek_s_b64u: result.kek_s_b64u,
         vrf_public_key: result.vrf_public_key,
+        server_key_id: result.server_key_id,
     };
 
     VrfWorkerResponse::success(message_id, Some(serde_json::to_value(&out).unwrap()))
 }
-
 
 pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
     manager: Rc<RefCell<VRFKeyManager>>,
     relay_url: String,
     apply_lock_route: String,
 ) -> Result<Shamir3PassEncryptVrfKeypairResult, String> {
-
     if relay_url.is_empty() {
         return Err("relay_url required".to_string());
     }
@@ -118,12 +121,15 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
             Ok(b) => b,
             Err(e) => return Err(format!("Serialize VRF public key failed: {}", e)),
         };
-        (vrf_keypair_bytes, crate::utils::base64_url_encode(&pub_bytes))
+        (
+            vrf_keypair_bytes,
+            crate::utils::base64_url_encode(&pub_bytes),
+        )
     };
 
     let vrf_keypair = crate::types::VRFKeypairData {
         keypair_bytes: vrf_keypair_bytes,
-        public_key_base64: vrf_pub_b64.clone()
+        public_key_base64: vrf_pub_b64.clone(),
     };
     let vrf_keypair_bytes = match bincode::serialize(&vrf_keypair) {
         Ok(b) => b,
@@ -139,13 +145,13 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
     // Generate random KEK (key encryption key, AEAD keys for encrypting the VRF keys)
     let (ciphertext_vrf, kek) = match shamir3pass.encrypt_with_random_kek_key(&vrf_keypair_bytes) {
         Ok(result) => result,
-        Err(e) => return Err(format!("encrypt_with_random_kek_key failed: {:?}", e))
+        Err(e) => return Err(format!("encrypt_with_random_kek_key failed: {:?}", e)),
     };
 
     // Generate client one-time lock keys (e_c, d_c)
     let client_lock = match shamir3pass.generate_lock_keys() {
         Ok(k) => k,
-        Err(e) => return Err(format!("generate_lock_keys failed: {:?}", e))
+        Err(e) => return Err(format!("generate_lock_keys failed: {:?}", e)),
     };
 
     // Client locks vrf keypair as kek_c with temp key
@@ -154,12 +160,15 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
 
     // POST to server to lock (double locked)
     let url = format!("{}{}", relay_url, apply_lock_route);
-    let kek_cs_b64u = match post_apply_server_lock(&url, &kek_c_b64u).await {
-        Ok(v) => v.kek_cs_b64u,
-        Err(e) => return Err(e)
+    let apply_resp = match post_apply_server_lock(&url, &kek_c_b64u).await {
+        Ok(v) => v,
+        Err(e) => return Err(e),
     };
+    let server_key_id = apply_resp.key_id.clone();
+    let kek_cs_b64u = apply_resp.kek_cs_b64u;
     // Client receives double locked KEK back and base64url decodes it
-    let kek_cs = decode_biguint_b64u(&kek_cs_b64u).map_err(|_| "invalid kek_cs_b64u".to_string())?;
+    let kek_cs =
+        decode_biguint_b64u(&kek_cs_b64u).map_err(|_| "invalid kek_cs_b64u".to_string())?;
 
     // Client removes onetime client lock to get KEK_s
     let kek_s = shamir3pass.remove_lock(&kek_cs, &client_lock.d);
@@ -170,6 +179,7 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
         ciphertext_vrf_b64u: crate::utils::base64_url_encode(&ciphertext_vrf),
         kek_s_b64u: kek_s_b64u,
         vrf_public_key: vrf_pub_b64,
+        server_key_id,
     })
 }
 
@@ -178,20 +188,22 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
     message_id: Option<String>,
     payload: Shamir3PassClientDecryptVrfKeypairRequest,
 ) -> VrfWorkerResponse {
-
     let relay_url = match manager.borrow().relay_server_url.clone() {
         Some(url) => url,
-        None => return VrfWorkerResponse::fail(message_id, "VRFManager.relayServerUrl is empty")
+        None => return VrfWorkerResponse::fail(message_id, "VRFManager.relayServerUrl is empty"),
     };
     let remove_route = match manager.borrow().remove_lock_route.clone() {
         Some(route) => route,
-        None => return VrfWorkerResponse::fail(message_id, "VRFManager.removeServerLockRoute is empty")
+        None => {
+            return VrfWorkerResponse::fail(message_id, "VRFManager.removeServerLockRoute is empty")
+        }
     };
 
     if payload.near_account_id.is_empty()
         || relay_url.is_empty()
         || payload.kek_s_b64u.is_empty()
-        || payload.ciphertext_vrf_b64u.is_empty() {
+        || payload.ciphertext_vrf_b64u.is_empty()
+    {
         return VrfWorkerResponse::fail(message_id, "missing required fields");
     };
 
@@ -201,7 +213,12 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
     };
     let ciphertext_vrf = match crate::utils::base64_url_decode(&payload.ciphertext_vrf_b64u) {
         Ok(v) => v,
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("invalid ciphertext_vrf_b64u: {}", e)),
+        Err(e) => {
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("invalid ciphertext_vrf_b64u: {}", e),
+            )
+        }
     };
 
     // Get Shamir3Pass instance from manager
@@ -214,7 +231,10 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
     let client_lock = match shamir3pass.generate_lock_keys() {
         Ok(k) => k,
         Err(e) => {
-            return VrfWorkerResponse::fail(message_id, format!("generate_lock_keys failed: {:?}", e))
+            return VrfWorkerResponse::fail(
+                message_id,
+                format!("generate_lock_keys failed: {:?}", e),
+            )
         }
     };
 
@@ -224,13 +244,13 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
 
     // POST KEK_cs to server /remove-server-lock and receive KEK_c back
     let url = format!("{}{}", relay_url, remove_route);
-    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u).await {
+    let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u, payload.key_id.clone()).await {
         Ok(v) => v.kek_c_b64u,
         Err(e) => return VrfWorkerResponse::fail(message_id, e),
     };
     let kek_c = match decode_biguint_b64u(&kek_c_b64u) {
         Ok(v) => v,
-        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_c_b64u")
+        Err(_) => return VrfWorkerResponse::fail(message_id.clone(), "invalid kek_c_b64u"),
     };
     // remove the one-time lock to get the real KEK
     let kek = shamir3pass.remove_lock(&kek_c, &client_lock.d);
@@ -238,19 +258,32 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
     // Decrypt VRF with AEAD(KEK)
     let vrf_keypair_bytes = match shamir3pass.decrypt_with_key(&ciphertext_vrf, &kek) {
         Ok(v) => v,
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("decrypt VRF failed: {:?}", e)),
+        Err(e) => {
+            return VrfWorkerResponse::fail(message_id, format!("decrypt VRF failed: {:?}", e))
+        }
     };
 
     // Parse VRFKeypairData and load into manager
-    let keypair_payload: crate::types::VRFKeypairData = match bincode::deserialize(&vrf_keypair_bytes) {
-        Ok(v) => v,
-        Err(e) => return VrfWorkerResponse::fail(message_id, format!("deserialize VRFKeypairData failed: {}", e)),
-    };
+    let keypair_payload: crate::types::VRFKeypairData =
+        match bincode::deserialize(&vrf_keypair_bytes) {
+            Ok(v) => v,
+            Err(e) => {
+                return VrfWorkerResponse::fail(
+                    message_id,
+                    format!("deserialize VRFKeypairData failed: {}", e),
+                )
+            }
+        };
 
-    if let Err(e) = manager.borrow_mut().load_plaintext_vrf_keypair(payload.near_account_id, keypair_payload) {
+    if let Err(e) = manager
+        .borrow_mut()
+        .load_plaintext_vrf_keypair(payload.near_account_id, keypair_payload)
+    {
         return VrfWorkerResponse::fail(message_id, e.to_string());
     }
 
-    VrfWorkerResponse::success(message_id, Some(serde_json::json!({ "status": "unlocked" })))
+    VrfWorkerResponse::success(
+        message_id,
+        Some(serde_json::json!({ "status": "unlocked" })),
+    )
 }
-

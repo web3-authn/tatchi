@@ -1,25 +1,20 @@
-
 // Lit component tag names
 // These are rendered as web components:
-// e.g. <w3a-tx-button></w3a-tx-button>, <button-with-tooltip>, etc;
-export const BUTTON_WITH_TOOLTIP_ID = 'button-with-tooltip';
+// e.g. <w3a-tx-button></w3a-tx-button>, <w3a-button-with-tooltip>, etc;
 
 // Preferred aliases for top-level elements used by WalletIframe host
+export const W3A_BUTTON_WITH_TOOLTIP_ID = 'w3a-button-with-tooltip';
 export const W3A_TX_BUTTON_ID = 'w3a-tx-button';
-export const W3A_REGISTER_BUTTON_ID = 'w3a-register-button';
-export const W3A_REGISTER_BUTTON_HOST_ID = 'w3a-register-button-host';
 export const W3A_TX_BUTTON_HOST_ID = 'w3a-tx-button-host';
-// Legacy host element ids (back-compat aliases)
-// legacy-only aliases (not exported): 'w3a-wallet-register-host', 'w3a-wallet-tx-host'
+export const W3A_ARROW_REGISTER_BUTTON_ID = 'w3a-arrow-register-button';
 
 // Consolidated tag registry and helpers
 export type TagDef = { id: string; aliases?: string[] };
 export const TAG_DEFS = {
-  registerButton: { id: W3A_REGISTER_BUTTON_ID, aliases: ['embedded-register-button'] },
-  txButton: { id: W3A_TX_BUTTON_ID, aliases: ['iframe-button'] },
-  registerHost: { id: W3A_REGISTER_BUTTON_HOST_ID, aliases: ['w3a-wallet-register-host'] },
+  txButton: { id: W3A_TX_BUTTON_ID, aliases: [] },
   txHost: { id: W3A_TX_BUTTON_HOST_ID, aliases: ['w3a-wallet-tx-host'] },
-} as const;
+  registerButton: { id: W3A_ARROW_REGISTER_BUTTON_ID, aliases: ['w3a-register-button'] },
+} satisfies Record<string, TagDef>;
 export type TagKey = keyof typeof TAG_DEFS;
 
 /** Return canonical tag for a tag key */
@@ -41,11 +36,40 @@ export function defineTag(key: TagKey, ctor: CustomElementConstructor): void {
 
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
 export const EMBEDDED_SDK_BASE_PATH = '/sdk/embedded/';
-export const IFRAME_BOOTSTRAP_MODULE = 'iframe-button-bootstrap.js';
+export const IFRAME_TX_BUTTON_BOOTSTRAP_MODULE = 'iframe-tx-button-bootstrap.js';
 // Modal iframe host + bootstrap + modal bundle
-export const IFRAME_MODAL_ID = 'iframe-modal';
-export const IFRAME_MODAL_BOOTSTRAP_MODULE = 'iframe-modal-bootstrap.js';
-export const MODAL_TX_CONFIRM_BUNDLE = 'modal-tx-confirm.js';
+export const W3A_IFRAME_TX_CONFIRMER_ID = 'w3a-iframe-tx-confirmer';
+export const IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE = 'iframe-tx-confirmer-bootstrap.js';
+export const MODAL_TX_CONFIRM_BUNDLE = 'tx-confirm-ui.js';
+
+// Transaction confirmer element tags (host-rendered)
+// Canonical tag names use the "-tx-confirmer" suffix for consistency
+export const W3A_MODAL_TX_CONFIRMER_ID = 'w3a-modal-tx-confirmer';
+export const W3A_DRAWER_TX_CONFIRMER_ID = 'w3a-drawer-tx-confirmer';
+export const W3A_TX_CONFIRM_CONTENT_ID = 'w3a-tx-confirm-content';
+
+// Shared building blocks
+export const W3A_DRAWER_ID = 'w3a-drawer';
+export const W3A_TX_TREE_ID = 'w3a-tx-tree';
+export const W3A_HALO_BORDER_ID = 'w3a-halo-border';
+export const W3A_PASSKEY_HALO_LOADING_ID = 'w3a-passkey-halo-loading';
+
+// Unified list of confirmer hosts the wallet may need to target for lifecycle events
+export const CONFIRM_UI_ELEMENT_SELECTORS = [
+  W3A_MODAL_TX_CONFIRMER_ID,
+  W3A_DRAWER_TX_CONFIRMER_ID,
+  W3A_IFRAME_TX_CONFIRMER_ID,
+] as const;
+
+// Dedicated portal container to enforce a single confirmer instance
+export const W3A_CONFIRM_PORTAL_ID = 'w3a-confirm-portal';
+
+// Export viewer iframe host + bootstrap + viewer bundle
+export const W3A_EXPORT_VIEWER_IFRAME_ID = 'w3a-export-viewer-iframe';
+export const W3A_EXPORT_KEY_VIEWER_ID = 'w3a-export-key-viewer';
+export const IFRAME_EXPORT_BOOTSTRAP_MODULE = 'iframe-export-bootstrap.js';
+export const EXPORT_VIEWER_BUNDLE = 'export-private-key-viewer.js';
+export const EXPORT_DRAWER_BUNDLE = 'export-private-key-drawer.js';
 
 // CSS Class Names - Centralized for type safety and maintainability
 export const CSS_CLASSES = {

@@ -50,10 +50,8 @@ pub fn parse_authenticator_data(auth_data_bytes: &[u8]) -> Result<Vec<u8>, Strin
     if auth_data_bytes.len() < offset + 2 {
         return Err("Authenticator data too short for credential ID length".to_string());
     }
-    let cred_id_length = u16::from_be_bytes([
-        auth_data_bytes[offset],
-        auth_data_bytes[offset + 1]
-    ]) as usize;
+    let cred_id_length =
+        u16::from_be_bytes([auth_data_bytes[offset], auth_data_bytes[offset + 1]]) as usize;
     offset += 2;
 
     // Skip credential ID
@@ -68,7 +66,9 @@ pub fn parse_authenticator_data(auth_data_bytes: &[u8]) -> Result<Vec<u8>, Strin
 }
 
 /// Extract COSE public key from WebAuthn attestation object
-pub fn extract_cose_public_key_from_attestation(attestation_object_b64u: &str) -> Result<Vec<u8>, String> {
+pub fn extract_cose_public_key_from_attestation(
+    attestation_object_b64u: &str,
+) -> Result<Vec<u8>, String> {
     debug!("Extracting COSE public key from attestation object");
 
     // Decode the base64url attestation object
@@ -81,9 +81,9 @@ pub fn extract_cose_public_key_from_attestation(attestation_object_b64u: &str) -
     // Extract the COSE public key from authenticator data
     let cose_public_key_bytes = parse_authenticator_data(&auth_data_bytes)?;
 
-    debug!("Successfully extracted COSE public key ({} bytes)", cose_public_key_bytes.len());
+    debug!(
+        "Successfully extracted COSE public key ({} bytes)",
+        cose_public_key_bytes.len()
+    );
     Ok(cose_public_key_bytes)
 }
-
-
-

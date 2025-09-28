@@ -260,7 +260,7 @@ nav ul li a:hover {
   margin-top: 0.5rem;
   margin-left: 0.5rem;
   border-radius: 3rem;
-  background-color: var(--w3a-colors-colorSurface2);
+  background-color: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
   border-bottom: 1px solid var(--w3a-colors-borderPrimary);
   position: fixed;

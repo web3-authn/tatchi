@@ -91,5 +91,3 @@ pub struct EncryptedVrfKeypairResponse {
     pub vrf_public_key: String,
     pub encrypted_vrf_keypair: EncryptedVRFKeypair,
 }
-
-

@@ -9,7 +9,6 @@ import {
   DeviceLinkingStatus,
   ThemeScope
 } from '@web3authn/passkey/react';
-import { DarkModeToggle } from './DarkModeToggle';
 
 export const Navbar: React.FC = () => {
   const { loginState } = usePasskeyContext();
@@ -31,13 +30,9 @@ export const Navbar: React.FC = () => {
         <Link to="/embedded">
           Embedded Demo
         </Link>
-        <Link to="/modal">
+        <Link to="/multitx">
           Modal Demo
         </Link>
-        <Link to="/wallet-demo">
-          IframeWallet Demo
-        </Link>
-        <DarkModeToggle />
       </div>
 
       {
@@ -58,7 +53,6 @@ export const Navbar: React.FC = () => {
               toast.error(`Device linking failed: ${error.message}`, { id: 'device-linking' });
             },
             onClose: () => {
-              console.log('Navbar: Device linking scanner closed');
               toast.dismiss();
             },
             onEvent: (event) => {

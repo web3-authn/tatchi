@@ -1,13 +1,6 @@
-import express, { Express, Request, Response } from 'express';
-import {
-  AuthService,
-  type CreateAccountAndRegisterRequest,
-  type CreateAccountAndRegisterResult,
-  type ShamirApplyServerLockRequest,
-  type ShamirApplyServerLockResponse,
-  type ShamirRemoveServerLockRequest,
-  type ShamirRemoveServerLockResponse,
-} from '@web3authn/passkey/server';
+import express, { Express } from 'express';
+import { AuthService } from '@web3authn/passkey/server';
+import { createRelayRouter } from '@web3authn/passkey/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -16,6 +9,8 @@ const config = {
   port: Number(process.env.PORT || 3000),
   expectedOrigin: process.env.EXPECTED_ORIGIN || 'https://example.localhost', // Frontend origin
   expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
+  // minutes between automatic key rotations
+  rotateEveryMinutes: Number(process.env.ROTATE_EVERY) || 60,
 };
 // Create AuthService instance
 const authService = new AuthService({
@@ -24,15 +19,18 @@ const authService = new AuthService({
   relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
   relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
   webAuthnContractId: 'web3-authn-v5.testnet',
-  nearRpcUrl: 'https://rpc.testnet.near.org',
-  // nearRpcUrl: 'https://test.rpc.fastnear.com'
+  // Prefer env override; default to FastNEAR which is often more reliable for tests
+  nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
   networkId: 'testnet',
   accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
   createAccountAndRegisterGas: '85000000000000', // 80 TGas (tested)
   // Shamir 3-pass params (base64url bigints)
-  shamir_p_b64u: process.env.SHAMIR_P_B64U!,
-  shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
-  shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
+  shamir: {
+    shamir_p_b64u: process.env.SHAMIR_P_B64U!,
+    shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
+    shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
+    graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
+  },
 });
 
 const app: Express = express();
@@ -45,110 +43,51 @@ app.use(cors({
   methods: ['GET','POST','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization']
 }));
-// Global error handler
-app.use((err: Error, req: Request, res: Response, next: any) => {
-  console.error(err.stack);
-  res.status(500).send('Internal AuthService error');
-});
 
-// Account creation route
-app.post(
-  '/create_account_and_register_user',
-  async (req: Request<CreateAccountAndRegisterRequest>, res: Response<CreateAccountAndRegisterResult>) => {
-    try {
-      const {
-        new_account_id,
-        new_public_key,
-        vrf_data,
-        webauthn_registration,
-        deterministic_vrf_public_key,
-        authenticator_options
-      } = req.body;
+// Mount standardized router built from AuthService
+app.use('/', createRelayRouter(authService, { healthz: true }));
 
-      // Validate required parameters
-      if (!new_account_id || typeof new_account_id !== 'string') {
-        throw new Error('Missing or invalid new_account_id');
-      }
-      if (!new_public_key || typeof new_public_key !== 'string') {
-        throw new Error('Missing or invalid new_public_key');
-      }
-      if (!vrf_data || typeof vrf_data !== 'object') {
-        throw new Error('Missing or invalid vrf_data');
-      }
-      if (!webauthn_registration || typeof webauthn_registration !== 'object') {
-        throw new Error('Missing or invalid webauthn_registration');
-      }
+function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) {
+  const prefix = '[key-rotation-cron]';
+  const intervalMs = Math.max(1, intervalMinutes) * 60_000;
+  let inFlight = false;
 
-      // Call the atomic contract function via accountService
-      const result = await authService.createAccountAndRegisterUser({
-        new_account_id,
-        new_public_key,
-        vrf_data,
-        webauthn_registration,
-        deterministic_vrf_public_key,
-        authenticator_options
-      });
-
-      // Return the result directly - don't throw if unsuccessful
-      if (result.success) {
-        res.status(200).json(result);
-      } else {
-        // Return error response with appropriate HTTP status code
-        console.error('account creation and registration failed:', result.error);
-        res.status(400).json(result);
-      }
-
-    } catch (error: any) {
-      console.error('account creation and registration failed:', error.message);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({
-        success: false,
-        error: error.message || 'Unknown server error'
-      });
+  const run = async () => {
+    if (inFlight) {
+      console.warn(`${prefix} previous rotation still running, skipping`);
+      return;
     }
-  }
-);
+    inFlight = true;
+    try {
+      const rotation = await service.rotateShamirServerKeypair();
+      console.log(`${prefix} rotated to newKeyId=${rotation.newKeyId ?? 'unknown'} (prev=${rotation.previousKeyId ?? 'none'})`);
 
-// Removed legacy SRA routes
+      const graceKeyIds = [...rotation.graceKeyIds];
+      if (graceKeyIds.length > 5) {
+        const toRemove = graceKeyIds.slice(0, graceKeyIds.length - 5);
+        for (const keyId of toRemove) {
+          const response = await service.handleRemoveGraceKey({ keyId });
+          const payload = JSON.parse(response.body) as { removed?: boolean };
+          console.log(`${prefix} pruned grace key ${keyId}: ${payload.removed ? 'removed' : 'not found'}`);
+        }
+      }
 
-// Shamir 3-pass endpoints
-app.post('/vrf/apply-server-lock', async (req: Request<{}, {}, ShamirApplyServerLockRequest>, res: Response<ShamirApplyServerLockResponse | { error: string; details?: string }>) => {
-  try {
-    console.log("apply-server-lock request.body", req.body);
-    const serverResponse = await authService.handleApplyServerLock({
-      body: req.body
-    });
+      const listResponse = await service.handleListGraceKeys();
+      const listPayload = JSON.parse(listResponse.body) as { graceKeyIds?: string[] };
+      console.log(`${prefix} grace keys (max 5 retained):`, listPayload.graceKeyIds ?? []);
+      console.log(`${prefix} remember to persist new e_s/d_s values externally for durability.`);
+    } catch (error) {
+      console.error(`${prefix} rotation failed:`, error);
+    } finally {
+      inFlight = false;
+    }
+  };
 
-    Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
-    res.status(serverResponse.status);
-    res.send(JSON.parse(serverResponse.body));
-
-  } catch (e: any) {
-    res.status(500).json({
-      error: 'internal',
-      details: e?.message
-    });
-  }
-});
-
-app.post('/vrf/remove-server-lock', async (req: Request<{}, {}, ShamirRemoveServerLockRequest>, res: Response<ShamirRemoveServerLockResponse | { error: string; details?: string }>) => {
-  try {
-    console.log("remove-server-lock request.body", req.body);
-    const serverResponse = await authService.handleRemoveServerLock({
-      body: req.body
-    });
-
-    Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
-    res.status(serverResponse.status);
-    res.send(JSON.parse(serverResponse.body));
-
-  } catch (e: any) {
-    res.status(500).json({
-      error: 'internal',
-      details: e?.message
-    });
-  }
-});
+  const timer = setInterval(run, intervalMs);
+  if (typeof timer.unref === 'function') timer.unref();
+  console.log(`${prefix} scheduler started (every ${intervalMinutes} minutes). Running initial rotation now.`);
+  void run();
+}
 
 app.listen(config.port, () => {
   console.log(`Server listening on http://localhost:${config.port}`);
@@ -159,4 +98,7 @@ app.listen(config.port, () => {
   }).catch((err: Error) => {
     console.error("AuthService initial check failed (non-blocking server start):", err);
   });
+
+  // schedule key rotation based on env (minutes)
+  startKeyRotationCronjob(config.rotateEveryMinutes, authService);
 });

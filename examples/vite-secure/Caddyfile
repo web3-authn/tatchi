@@ -9,8 +9,8 @@ example.localhost {
 	header {
 		Cross-Origin-Embedder-Policy "require-corp"
 		Cross-Origin-Opener-Policy "same-origin"
-		# Allow WebAuthn in this app and delegate to wallet origin iframe
-		Permissions-Policy "publickey-credentials-get=(self \"https://wallet.example.localhost\"), publickey-credentials-create=(self \"https://wallet.example.localhost\")"
+		# Allow WebAuthn in this app and delegate to wallet origin iframe; include clipboard for export UI
+		Permissions-Policy "publickey-credentials-get=(self \"https://wallet.example.localhost\"), publickey-credentials-create=(self \"https://wallet.example.localhost\"), clipboard-read=(self \"https://wallet.example.localhost\"), clipboard-write=(self \"https://wallet.example.localhost\")"
 		# Allow embedding of cross-origin resources that opt into CORP
 		Cross-Origin-Resource-Policy "same-origin"
 	}
@@ -28,7 +28,8 @@ wallet.example.localhost {
 	header {
 		Cross-Origin-Embedder-Policy "require-corp"
 		Cross-Origin-Opener-Policy "same-origin"
-		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self)"
+		# Wallet host can use WebAuthn and clipboard locally (nested iframes will be delegated explicitly)
+		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)"
 		# Opt in all wallet resources to cross-origin embedding from the app origin
 		Cross-Origin-Resource-Policy "cross-origin"
 	}

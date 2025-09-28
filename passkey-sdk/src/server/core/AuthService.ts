@@ -2,7 +2,7 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import { MinimalNearClient } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
-import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/wasm_signer_worker.js';
+import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { validateConfigs } from './config';
 import { isObject, isString } from '../../core/WalletIframe/validation';
 
@@ -11,7 +11,7 @@ import { isObject, isString } from '../../core/WalletIframe/validation';
 // =============================
 
 // Primary location (preserveModules output)
-const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/wasm_signer_worker_bg.wasm';
+const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
 // Fallback location (dist/workers copy step)
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 
@@ -57,9 +57,15 @@ export class AuthService {
 
   // Shamir 3-pass key management
   private shamir3pass: Shamir3PassUtils | null = null;
+  private graceKeys: Map<string, Shamir3PassUtils> = new Map();
+  private graceKeySpecs: Map<string, { e_s_b64u: string; d_s_b64u: string }> = new Map();
+  private graceKeysFilePath: string | null = null;
+  private graceKeysLoaded = false;
+  private graceKeysLoadPromise: Promise<void> | null = null;
 
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
+
     this.config = {
       // Use defaults if not set
       relayerAccountId: config.relayerAccountId,
@@ -73,11 +79,18 @@ export class AuthService {
         || '50000000000000000000000', // 0.05 NEAR
       createAccountAndRegisterGas: config.createAccountAndRegisterGas
         || '120000000000000', // 120 TGas
-      shamir_p_b64u: config.shamir_p_b64u,
-      shamir_e_s_b64u: config.shamir_e_s_b64u,
-      shamir_d_s_b64u: config.shamir_d_s_b64u,
+      shamir: config.shamir,
     };
+    const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
+    this.graceKeysFilePath = graceFileCandidate || 'grace-keys.json';
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
+  }
+
+  /**
+   * Returns true when Shamir 3-pass is configured and initialized.
+   */
+  public hasShamir(): boolean {
+    return Boolean(this.config.shamir && this.shamir3pass);
   }
 
   // Backward-compat getter, no longer returns near-js Account
@@ -92,13 +105,16 @@ export class AuthService {
     }
 
     // Initialize Shamir3Pass WASM module (loads same worker wasm)
-    if (!this.shamir3pass) {
+    if (!this.shamir3pass && this.config.shamir) {
       this.shamir3pass = new Shamir3PassUtils({
-        p_b64u: this.config.shamir_p_b64u,
-        e_s_b64u: this.config.shamir_e_s_b64u,
-        d_s_b64u: this.config.shamir_d_s_b64u,
+        p_b64u: this.config.shamir.shamir_p_b64u,
+        e_s_b64u: this.config.shamir.shamir_e_s_b64u,
+        d_s_b64u: this.config.shamir.shamir_d_s_b64u,
       });
+      try { await this.shamir3pass.initialize(); } catch {}
     }
+
+    await this.ensureGraceKeysLoaded();
 
     // Derive public key from configured relayer private key
     try {
@@ -120,9 +136,7 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${this.formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${this.formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    • shamir_p_b64u: ${this.config.shamir_p_b64u.slice(0, 10)}...
-    • shamir_e_s_b64u: ${this.config.shamir_e_s_b64u.slice(0, 10)}...
-    • shamir_d_s_b64u: ${this.config.shamir_d_s_b64u.slice(0, 10)}...
+    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
     `);
   }
 
@@ -181,6 +195,179 @@ export class AuthService {
 
     throw new Error('[AuthService] Failed to initialize signer WASM from filesystem candidates');
   }
+
+  private async ensureGraceKeysLoaded(): Promise<void> {
+    if (this.graceKeysLoaded) {
+      return;
+    }
+    if (this.graceKeysLoadPromise) {
+      await this.graceKeysLoadPromise;
+      return;
+    }
+
+    this.graceKeysLoadPromise = (async () => {
+      const specs: Array<{ e_s_b64u: string; d_s_b64u: string }> = [];
+
+      const fileSpecs = await this.loadGraceKeysFromFile();
+      if (fileSpecs.length) {
+        specs.push(...fileSpecs);
+      }
+
+      if (Array.isArray(this.config.shamir?.graceShamirKeys) && this.config.shamir!.graceShamirKeys!.length) {
+        specs.push(...(this.config.shamir!.graceShamirKeys as any));
+      }
+
+      if (specs.length) {
+        for (const spec of specs) {
+          await this.addGraceKeyInternal(spec, { persist: false, skipIfExists: true });
+        }
+      }
+
+      this.graceKeysLoaded = true;
+      this.syncGraceKeySpecsToConfig();
+    })();
+
+    try {
+      await this.graceKeysLoadPromise;
+    } finally {
+      this.graceKeysLoadPromise = null;
+      this.graceKeysLoaded = true;
+    }
+  }
+
+  private async loadGraceKeysFromFile(): Promise<Array<{ e_s_b64u: string; d_s_b64u: string }>> {
+    const filePath = this.graceKeysFilePath?.trim();
+    if (!filePath) {
+      return [];
+    }
+
+    try {
+      const { readFile } = await import('fs/promises');
+      const raw = await readFile(filePath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        console.warn(`[AuthService] Grace keys file ${filePath} is not an array; ignoring contents`);
+        return [];
+      }
+      const normalized: Array<{ e_s_b64u: string; d_s_b64u: string }> = [];
+      for (const entry of parsed) {
+        if (!entry || typeof entry !== 'object') continue;
+        const e = (entry as any).e_s_b64u;
+        const d = (entry as any).d_s_b64u;
+        if (typeof e === 'string' && e && typeof d === 'string' && d) {
+          normalized.push({ e_s_b64u: e, d_s_b64u: d });
+        }
+      }
+      return normalized;
+    } catch (error: any) {
+      if (error?.code !== 'ENOENT') {
+        console.warn(`[AuthService] Failed to read grace keys file ${filePath}:`, error);
+      }
+      return [];
+    }
+  }
+
+  private syncGraceKeySpecsToConfig(): void {
+    if (this.graceKeySpecs.size === 0) {
+      if (this.config.shamir) this.config.shamir.graceShamirKeys = undefined;
+      return;
+    }
+    if (this.config.shamir) this.config.shamir.graceShamirKeys = Array.from(this.graceKeySpecs.values()).map((spec) => ({
+      e_s_b64u: spec.e_s_b64u,
+      d_s_b64u: spec.d_s_b64u,
+    }));
+  }
+
+  private async persistGraceKeysToDisk(): Promise<void> {
+    const filePath = this.graceKeysFilePath?.trim();
+    if (!filePath) {
+      return;
+    }
+    const entries = Array.from(this.graceKeySpecs.entries()).map(([keyId, spec]) => ({
+      keyId,
+      e_s_b64u: spec.e_s_b64u,
+      d_s_b64u: spec.d_s_b64u,
+    }));
+    try {
+      const { writeFile } = await import('fs/promises');
+      const serialized = JSON.stringify(entries, null, 2);
+      await writeFile(filePath, `${serialized}\n`, 'utf8');
+    } catch (error) {
+      console.warn(`[AuthService] Failed to persist grace keys to ${filePath}:`, error);
+    }
+  }
+
+  private async addGraceKeyInternal(
+    spec: { e_s_b64u: string; d_s_b64u: string },
+    opts?: { persist?: boolean; skipIfExists?: boolean }
+  ): Promise<{ keyId: string } | null> {
+    const e = spec?.e_s_b64u;
+    const d = spec?.d_s_b64u;
+    if (typeof e !== 'string' || !e || typeof d !== 'string' || !d) {
+      return null;
+    }
+
+    const p_b64u = this.config.shamir?.shamir_p_b64u;
+    if (!p_b64u) {
+      console.warn('[AuthService] Missing Shamir p_b64u; cannot add grace key');
+      return null;
+    }
+    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u: e, d_s_b64u: d });
+
+    let keyId = util.getCurrentKeyId();
+    if (!keyId) {
+      try {
+        await util.initialize();
+        keyId = util.getCurrentKeyId();
+      } catch (error) {
+        console.warn('[AuthService] Failed to initialize grace Shamir key (skipped):', error);
+        return null;
+      }
+    }
+
+    if (!keyId) {
+      return null;
+    }
+
+    if (opts?.skipIfExists && this.graceKeys.has(keyId)) {
+      return { keyId };
+    }
+
+    if (!this.graceKeys.has(keyId)) {
+      this.graceKeys.set(keyId, util);
+    }
+    if (!this.graceKeySpecs.has(keyId)) {
+      this.graceKeySpecs.set(keyId, { e_s_b64u: e, d_s_b64u: d });
+    }
+
+    this.syncGraceKeySpecsToConfig();
+
+    if (opts?.persist !== false) {
+      await this.persistGraceKeysToDisk();
+    }
+
+    return { keyId };
+  }
+
+  private async removeGraceKeyInternal(
+    keyId: string,
+    opts?: { persist?: boolean }
+  ): Promise<boolean> {
+    await this.ensureGraceKeysLoaded();
+    if (typeof keyId !== 'string' || !keyId) {
+      return false;
+    }
+    const removedUtil = this.graceKeys.delete(keyId);
+    const removedSpec = this.graceKeySpecs.delete(keyId);
+    if (!removedUtil && !removedSpec) {
+      return false;
+    }
+    this.syncGraceKeySpecsToConfig();
+    if (opts?.persist !== false) {
+      await this.persistGraceKeysToDisk();
+    }
+    return true;
+  }
   /**
    * Shamir 3-pass: apply server exponent (registration step)
    * @param kek_c_b64u - base64url-encoded KEK_c (client locked key encryption key)
@@ -197,6 +384,113 @@ export class AuthService {
   async removeServerLock(kek_cs_b64u: string): Promise<ShamirRemoveServerLockResponse> {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
     return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as ShamirRemoveServerLockRequest);
+  }
+
+  /**
+   * Generate a new Shamir3Pass server keypair without mutating current state.
+   * Useful for previewing rotations or external persistence flows.
+   */
+  async generateShamirServerKeypair(): Promise<{ e_s_b64u: string; d_s_b64u: string; keyId: string | null }> {
+    await this._ensureSignerAndRelayerAccount();
+    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
+
+    const { e_s_b64u, d_s_b64u } = await this.shamir3pass.generateServerKeypair();
+    const p_b64u = this.config.shamir?.shamir_p_b64u;
+    if (!p_b64u) throw new Error('Shamir not configured');
+    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u, d_s_b64u });
+    let keyId: string | null = null;
+    try {
+      keyId = util.getCurrentKeyId();
+      if (!keyId) {
+        await util.initialize();
+        keyId = util.getCurrentKeyId();
+      }
+    } catch (error) {
+      console.warn('[AuthService] Failed to derive keyId for generated Shamir keypair:', error);
+    }
+
+    return { e_s_b64u, d_s_b64u, keyId };
+  }
+
+  /**
+   * Rotate the active Shamir3Pass keypair while the service is running.
+   * The previous key is optionally retained as a grace key and persisted to disk.
+   */
+  async rotateShamirServerKeypair(options?: {
+    keepCurrentInGrace?: boolean;
+    persistGraceToDisk?: boolean;
+  }): Promise<{
+    newKeypair: { e_s_b64u: string; d_s_b64u: string };
+    newKeyId: string | null;
+    previousKeyId: string | null;
+    graceKeyIds: string[];
+  }> {
+    await this._ensureSignerAndRelayerAccount();
+    await this.ensureGraceKeysLoaded();
+    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
+
+    const keepCurrentInGrace = options?.keepCurrentInGrace !== false;
+    const persistGrace = options?.persistGraceToDisk !== false;
+
+    const previousKeyId = this.shamir3pass.getCurrentKeyId();
+    if (!this.config.shamir) throw new Error('Shamir not configured');
+    const previousKeypair = {
+      e_s_b64u: this.config.shamir.shamir_e_s_b64u,
+      d_s_b64u: this.config.shamir.shamir_d_s_b64u,
+    };
+
+    const { e_s_b64u: newE, d_s_b64u: newD } = await this.shamir3pass.generateServerKeypair();
+    const newUtil = new Shamir3PassUtils({
+      p_b64u: this.config.shamir.shamir_p_b64u,
+      e_s_b64u: newE,
+      d_s_b64u: newD,
+    });
+
+    await newUtil.initialize();
+
+    this.shamir3pass = newUtil;
+    this.config.shamir = { ...this.config.shamir, shamir_e_s_b64u: newE, shamir_d_s_b64u: newD };
+
+    const newKeyId = newUtil.getCurrentKeyId();
+
+    if (
+      keepCurrentInGrace
+      && previousKeyId
+      && typeof previousKeypair.e_s_b64u === 'string'
+      && typeof previousKeypair.d_s_b64u === 'string'
+    ) {
+      await this.addGraceKeyInternal(previousKeypair, { persist: persistGrace, skipIfExists: true });
+    } else if (persistGrace) {
+      await this.persistGraceKeysToDisk();
+    }
+
+    return {
+      newKeypair: { e_s_b64u: newE, d_s_b64u: newD },
+      newKeyId,
+      previousKeyId,
+      graceKeyIds: Array.from(this.graceKeys.keys()),
+    };
+  }
+
+  /**
+   * Framework-agnostic: rotate Shamir keypair (HTTP wrapper used by example server)
+   */
+  async handleRotateShamirKeypair(request: { keepOldInGrace?: boolean }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      const keepOldInGrace = request?.keepOldInGrace !== false;
+      const result = await this.rotateShamirServerKeypair({ keepCurrentInGrace: keepOldInGrace });
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(result)
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
   }
 
   // Format NEAR gas (string) to TGas for display
@@ -677,10 +971,11 @@ export class AuthService {
         };
       }
       const out = await this.applyServerLock(request.body.kek_c_b64u);
+      const keyId = this.shamir3pass?.getCurrentKeyId?.();
       return {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(out)
+        body: JSON.stringify({ ...out, keyId })
       };
     } catch (e: any) {
       return {
@@ -695,7 +990,7 @@ export class AuthService {
    * Framework-agnostic Shamir 3-pass: remove server lock
    */
   async handleRemoveServerLock(request: {
-    body: { kek_cs_b64u: string }
+    body: { kek_cs_b64u: string; keyId: string }
   }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
     try {
       if (!request.body) {
@@ -712,7 +1007,28 @@ export class AuthService {
           body: JSON.stringify({ error: 'kek_cs_b64u required and must be a non-empty string' })
         };
       }
-      const out = await this.removeServerLock(request.body.kek_cs_b64u);
+      if (!isString((request.body as any).keyId) || !(request.body as any).keyId) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'keyId required and must be a non-empty string' })
+        };
+      }
+      const providedKeyId = String((request.body as any).keyId);
+      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
+      let out: ShamirRemoveServerLockResponse;
+      if (currentKeyId && providedKeyId === currentKeyId) {
+        out = await this.removeServerLock(request.body.kek_cs_b64u);
+      } else if (this.graceKeys.has(providedKeyId)) {
+        const util = this.graceKeys.get(providedKeyId)!;
+        out = await util.removeServerLock({ kek_cs_b64u: request.body.kek_cs_b64u } as ShamirRemoveServerLockRequest);
+      } else {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'unknown keyId' })
+        };
+      }
       return {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -727,19 +1043,141 @@ export class AuthService {
     }
   }
 
+  /**
+   * Framework-agnostic: GET /shamir/key-info
+   */
+  async handleGetShamirKeyInfo(): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      await this._ensureSignerAndRelayerAccount();
+      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
+      const graceKeyIds = Array.from(this.graceKeys.keys());
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentKeyId, p_b64u: this.config.shamir?.shamir_p_b64u ?? null, graceKeyIds })
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
+  /**
+   * Framework-agnostic: list grace Shamir key IDs
+   */
+  async handleListGraceKeys(): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      await this.ensureGraceKeysLoaded();
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ graceKeyIds: Array.from(this.graceKeys.keys()) })
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
+  /**
+   * Framework-agnostic: add grace key
+   */
+  async handleAddGraceKey(request: { e_s_b64u: string; d_s_b64u: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      const { e_s_b64u, d_s_b64u } = request || ({} as any);
+      if (!isString(e_s_b64u) || !e_s_b64u || !isString(d_s_b64u) || !d_s_b64u) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'e_s_b64u and d_s_b64u required' })
+        };
+      }
+      await this.ensureGraceKeysLoaded();
+      const added = await this.addGraceKeyInternal({ e_s_b64u, d_s_b64u }, { persist: true, skipIfExists: true });
+      if (!added) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'failed to add grace key' })
+        };
+      }
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyId: added.keyId })
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
+  /**
+   * Framework-agnostic: remove grace key by keyId
+   */
+  async handleRemoveGraceKey(request: { keyId: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
+    try {
+      const keyId = request?.keyId;
+      if (!isString(keyId) || !keyId) {
+        return {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ error: 'keyId required and must be a non-empty string' })
+        };
+      }
+      const removed = await this.removeGraceKeyInternal(keyId, { persist: true });
+      return {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ removed })
+      };
+    } catch (e: any) {
+      return {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'internal', details: e?.message })
+      };
+    }
+  }
+
   async checkAccountExists(accountId: string): Promise<boolean> {
     await this._ensureSignerAndRelayerAccount();
-    try {
-      const view = await this.nearClient.viewAccount(accountId);
-      return !!view;
-    } catch (error: any) {
-      const msg = error?.message || '';
-      if (msg.includes('does not exist') || msg.includes('UNKNOWN_ACCOUNT')) {
-        return false;
+    const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
+    const isRetryable = (m: string) => /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed/i.test(m);
+    const attempts = 3;
+    let lastErr: any = null;
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        const view = await this.nearClient.viewAccount(accountId);
+        return !!view;
+      } catch (error: any) {
+        lastErr = error;
+        const msg = String(error?.message || '');
+        if (isNotFound(msg)) return false;
+        if (isRetryable(msg) && i < attempts) {
+          const backoff = 150 * Math.pow(2, i - 1);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        // As a safety valve for flaky RPCs, treat persistent retryable errors as not-found
+        if (isRetryable(msg)) {
+          console.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
+          return false;
+        }
+        console.error(`Error checking account existence for ${accountId}:`, error);
+        throw error;
       }
-      console.error(`Error checking account existence for ${accountId}:`, error);
-      throw error;
     }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
   }
 
   /**

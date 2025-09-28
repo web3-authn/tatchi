@@ -1,11 +1,20 @@
-import { useState, useRef } from 'react'
-import { usePasskeyContext, RegistrationPhase, RegistrationStatus, LoginPhase, PasskeyAuthMenu } from '@web3authn/passkey/react'
+import {
+  usePasskeyContext,
+  RegistrationPhase,
+  RegistrationStatus,
+  LoginPhase,
+  PasskeyAuthMenu,
+  AuthMenuMode,
+  DeviceLinkingPhase,
+  DeviceLinkingStatus
+} from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
 import {
   type RegistrationSSEEvent,
   AccountRecoveryPhase,
-  AccountRecoveryStatus
+  AccountRecoveryStatus,
+  type DeviceLinkingSSEEvent
 } from '@web3authn/passkey/react'
 import './PasskeyLoginMenu.css'
 
@@ -27,11 +36,7 @@ function friendlyWebAuthnMessage(err: any): string {
 
 export function PasskeyLoginMenu() {
   const {
-    loginState: {
-      isLoggedIn,
-      nearPublicKey,
-      nearAccountId
-    },
+    loginState,
     accountInputState: {
       inputUsername,
       targetAccountId,
@@ -116,8 +121,9 @@ export function PasskeyLoginMenu() {
       if (result?.success) {
         toast.success(`Account ${targetAccountId} recovered successfully!`);
         return;
+      } else {
+        throw new Error(result?.error || 'Unknown error');
       }
-      throw new Error(result?.error || 'Unknown error');
     } catch (err: any) {
       console.error('Recovery error:', err);
       toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
@@ -129,7 +135,6 @@ export function PasskeyLoginMenu() {
     // Return the promise so caller can await and catch
     return loginPasskey(targetAccountId, {
       onEvent: (event) => {
-        console.log("LOGIN EVENT:", event);
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
             toast.loading(`Logging in as ${targetAccountId}...`, { id: 'login' });
@@ -154,24 +159,62 @@ export function PasskeyLoginMenu() {
     <div className="passkey-login-container-root" style={{
     }}>
       <PasskeyAuthMenu
-        defaultMode={accountExists ? 'login' : 'register'}
+        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
         socialLogin={{}}
         // socialLogin={{
         //   google: () => 'username is: <gmail_email@gmail>',
         //   x: () => 'username is <twitter_handle@x>',
         //   apple: () => 'username is <email@apple>'
         // }}
-        onLogin={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onLogin();
+        onLogin={onLogin}
+        onRegister={onRegister}
+        onRecoverAccount={onRecover}
+        linkDeviceOptions={{
+          onEvent: (event: DeviceLinkingSSEEvent) => {
+            const toastId = 'device-linking';
+            switch (event.phase) {
+              case DeviceLinkingPhase.STEP_1_QR_CODE_GENERATED:
+                toast.loading('QR code ready. Scan it with your other device.', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_2_SCANNING:
+                toast.loading('Waiting for Device 1 to scan the QR code…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_3_AUTHORIZATION:
+                toast.loading('Authorize linking on Device 1…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_4_POLLING:
+                toast.loading('Confirming new device with the network…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_5_ADDKEY_DETECTED:
+                toast.loading('Device key detected on-chain. Wrapping up…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_6_REGISTRATION:
+                toast.loading('Registering authenticator for this device…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_7_LINKING_COMPLETE:
+                toast.success('Device linked successfully!', { id: toastId });
+                break;
+              case DeviceLinkingPhase.STEP_8_AUTO_LOGIN:
+                toast.loading('Auto-login in progress…', { id: toastId });
+                break;
+              case DeviceLinkingPhase.DEVICE_LINKING_ERROR:
+              case DeviceLinkingPhase.LOGIN_ERROR:
+              case DeviceLinkingPhase.REGISTRATION_ERROR: {
+                toast.error(event.error, { id: toastId });
+                break;
+              }
+              default:
+                console.log("Unexpected Link Device event")
+                break;
+            }
+          },
+          onError: (error: Error) => {
+            const toastId = 'device-linking';
+            console.error('Device linking error:', error);
+            toast.error(error.message || 'Device linking failed', { id: toastId });
+          }
         }}
-        onRegister={async () => {
-          if (!targetAccountId) throw new Error('Missing account id');
-          return onRegister();
-        }}
-        onRecoverAccount={async () => {
-          return onRecover();
-        }}
+        useIframeArrowButtonOverlay={true}
       />
     </div>
   );

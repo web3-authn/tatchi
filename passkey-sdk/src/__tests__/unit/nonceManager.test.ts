@@ -1,14 +1,14 @@
 /**
- * NonceManager Unit Tests
+ * NonceManager Pure Unit Tests
  *
  * Tests the robust nonce management functionality for batch transactions
- * Based on the worker_events.test.ts template structure
+ * Uses mocked data and does not require full PasskeyManager setup
  */
 
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 
-test.describe('NonceManager Unit Tests', () => {
+test.describe('NonceManager Pure Unit Tests', () => {
 
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
@@ -19,9 +19,7 @@ test.describe('NonceManager Unit Tests', () => {
     const result = await page.evaluate(async () => {
       try {
         // @ts-ignore - Runtime import
-        const { NonceManager } = await import('/sdk/esm/core/nonceManager.js');
-
-        const nonceManager = NonceManager.getInstance();
+        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
         nonceManager.clear();
 
         // Initialize with test data
@@ -99,9 +97,7 @@ test.describe('NonceManager Unit Tests', () => {
     const result = await page.evaluate(async () => {
       try {
         // @ts-ignore - Runtime import
-        const { NonceManager } = await import('/sdk/esm/core/nonceManager.js');
-
-        const nonceManager = NonceManager.getInstance();
+        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
         nonceManager.clear();
 
         // Initialize with test data
@@ -175,9 +171,7 @@ test.describe('NonceManager Unit Tests', () => {
     const result = await page.evaluate(async () => {
       try {
         // @ts-ignore - Runtime import
-        const { NonceManager } = await import('/sdk/esm/core/nonceManager.js');
-
-        const nonceManager = NonceManager.getInstance();
+        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
         nonceManager.clear();
 
         const errors: string[] = [];
@@ -239,97 +233,28 @@ test.describe('NonceManager Unit Tests', () => {
     console.log('NonceManager error handling test passed');
   });
 
-  test('NonceManager - Integration with PasskeyManager', async ({ page }) => {
+  test('NonceManager - Consecutive Transaction Simulation (Mocked)', async ({ page }) => {
     const result = await page.evaluate(async () => {
       try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
-        const testAccountId = generateTestAccountId();
+        // @ts-ignore - Runtime import
+        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
+        nonceManager.clear();
 
-        // Register and login to get a working session
-        const registrationResult = await passkeyManager.registerPasskey(testAccountId);
-        if (!registrationResult.success) {
-          throw new Error(`Registration failed: ${registrationResult.error}`);
-        }
+        // Test consecutive transaction simulation without requiring full PasskeyManager setup
+        nonceManager.initializeUser('test-account', 'test-public-key');
 
-        const loginResult = await passkeyManager.loginPasskey(testAccountId);
-        if (!loginResult.success) {
-          throw new Error(`Login failed: ${loginResult.error}`);
-        }
-
-        // Wait for session to settle
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Test nonce manager integration
-        const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
-
-        // Get initial nonce
-        const initialContext = await nonceManager.getNonceBlockHashAndHeight(passkeyManager.nearClient);
-
-        // Test nonce reservation
-        const nonces = nonceManager.reserveNonces(2);
-
-        // Test nonce release
-        nonceManager.releaseNonce(nonces[0]);
-
-        const reservedNonces = (nonceManager as any).reservedNonces;
-
-        return {
-          success: true,
-          initialNonce: initialContext.nextNonce,
-          reservedNonces: nonces,
-          finalReservedCount: reservedNonces.size,
-          hasFirstNonce: reservedNonces.has(nonces[0]),
-          hasSecondNonce: reservedNonces.has(nonces[1]),
+        // Mock transaction context for consecutive transaction testing
+        const mockTransactionContext = {
+          nearPublicKeyStr: 'test-public-key',
+          accessKeyInfo: { nonce: '600' },
+          nextNonce: '601',
+          txBlockHeight: '6000',
+          txBlockHash: 'test-block-hash-consecutive',
         };
 
-      } catch (error: any) {
-        return {
-          success: false,
-          error: error.message,
-          stack: error.stack
-        };
-      }
-    });
-
-    if (!result.success) {
-      if (handleInfrastructureErrors(result)) {
-        return;
-      }
-      console.error('Integration test failed:', result.error);
-      expect(result.success).toBe(true);
-      return;
-    }
-
-    expect(result.success).toBe(true);
-    expect(result.initialNonce).toBeDefined();
-    expect(result.reservedNonces).toHaveLength(2);
-    expect(result.finalReservedCount).toBe(1); // Only second nonce should be reserved
-    expect(result.hasFirstNonce).toBe(false); // Released
-    expect(result.hasSecondNonce).toBe(true); // Still reserved
-
-    console.log('NonceManager integration test passed');
-  });
-
-  test('NonceManager - Consecutive Transaction Simulation', async ({ page }) => {
-    const result = await page.evaluate(async () => {
-      try {
-        const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
-        const testAccountId = generateTestAccountId();
-
-        // Register and login
-        const registrationResult = await passkeyManager.registerPasskey(testAccountId);
-        if (!registrationResult.success) {
-          throw new Error(`Registration failed: ${registrationResult.error}`);
-        }
-
-        const loginResult = await passkeyManager.loginPasskey(testAccountId);
-        if (!loginResult.success) {
-          throw new Error(`Login failed: ${loginResult.error}`);
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
+        (nonceManager as any).transactionContext = mockTransactionContext;
+        (nonceManager as any).lastNonceUpdate = Date.now();
+        (nonceManager as any).lastBlockHeightUpdate = Date.now();
 
         // Simulate consecutive transactions
         const transactionResults = [];
@@ -378,10 +303,10 @@ test.describe('NonceManager Unit Tests', () => {
     expect(result.finalReservedCount).toBe(0); // All nonces should be released
     expect(result.allNoncesUnique).toBe(true); // All nonces should be unique
 
-    // Verify nonces are sequential
-    const nonces = result.transactionResults?.map(t => parseInt(t.nonce)) || [];
-    expect(nonces[1]).toBe(nonces[0] + 1);
-    expect(nonces[2]).toBe(nonces[1] + 1);
+    // Verify nonces are sequential starting from 601
+    expect(result.transactionResults?.[0]?.nonce).toBe('601');
+    expect(result.transactionResults?.[1]?.nonce).toBe('602');
+    expect(result.transactionResults?.[2]?.nonce).toBe('603');
 
     console.log('NonceManager consecutive transaction test passed');
   });

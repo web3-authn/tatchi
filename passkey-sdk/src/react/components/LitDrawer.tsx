@@ -25,7 +25,7 @@ type ReactWebComponent<P> = React.ForwardRefExoticComponent<
 
 export const LitDrawer = createComponent({
   react: React,
-  tagName: 'w3a-registration-drawer',
+  tagName: 'w3a-drawer',
   elementClass: DrawerElement,
   displayName: 'LitDrawer',
   events: {

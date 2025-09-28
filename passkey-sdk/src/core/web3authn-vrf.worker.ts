@@ -3,7 +3,7 @@
  * This Web Worker loads the VRF WASM module and provides VRF keypair management.
  */
 
-import init, * as vrfWasmModule from '../wasm_vrf_worker/wasm_vrf_worker';
+import init, * as vrfWasmModule from '../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { resolveWasmUrl } from './wasmLoader';
 import type {
   VRFWorkerMessage,

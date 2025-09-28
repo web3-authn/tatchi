@@ -4,6 +4,9 @@
   "scripts": {
     "install-all": "pnpm -w install",
     "build:sdk": "pnpm -C passkey-sdk build",
+    "test": "pnpm -C passkey-sdk test",
+    "test:inline": "pnpm -C passkey-sdk test:inline",
+    "show-report": "pnpm -C passkey-sdk exec playwright show-report",
     "frontend": "pnpm -C examples/vite dev",
     "frontend-secure": "pnpm -C examples/vite-secure dev",
     "server": "pnpm -C examples/relay-server dev",

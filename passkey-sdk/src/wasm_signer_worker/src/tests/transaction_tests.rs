@@ -1,13 +1,14 @@
-use crate::types::*;
 use crate::actions::*;
 use crate::crypto::*;
 use crate::transaction::*;
+use crate::types::*;
 
 // Helper function for tests - creates deterministic keypair for testing using account-specific encryption
 fn create_test_keypair_with_prf(prf_output_b64: &str) -> (String, EncryptedDataChaCha20Response) {
     // Use deterministic function with account-specific derivation
     let test_account = "test.testnet";
-    let (private_key, public_key) = derive_ed25519_key_from_prf_output(prf_output_b64, test_account).unwrap();
+    let (private_key, public_key) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, test_account).unwrap();
 
     // Encrypt the key using account-specific HKDF (matches decrypt_private_key_with_prf)
     let encryption_key = derive_chacha20_key_from_prf(prf_output_b64, test_account).unwrap();
@@ -43,8 +44,9 @@ fn test_encryption_decryption_roundtrip() {
     let decrypted = decrypt_data_chacha20(
         &encrypted.encrypted_near_key_data_b64u,
         &encrypted.chacha20_nonce_b64u,
-        &key
-    ).unwrap();
+        &key,
+    )
+    .unwrap();
 
     assert_eq!(plaintext, decrypted);
 }
@@ -55,19 +57,22 @@ fn test_deterministic_near_key_generation() {
     let prf_output_b64 = "dGVzdC1wcmYtb3V0cHV0LWZyb20td2ViYXV0aG4";
     let account_id = "test.testnet";
 
-    let (private_key, public_key) = derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
+    let (private_key, public_key) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
 
     // Should start with proper format
     assert!(private_key.starts_with("ed25519:"));
     assert!(public_key.starts_with("ed25519:"));
 
     // Should be deterministic
-    let (private_key2, public_key2) = derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
+    let (private_key2, public_key2) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
     assert_eq!(private_key, private_key2);
     assert_eq!(public_key, public_key2);
 
     // Should be different for different accounts
-    let (private_key3, public_key3) = derive_ed25519_key_from_prf_output(prf_output_b64, "different.testnet").unwrap();
+    let (private_key3, public_key3) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, "different.testnet").unwrap();
     assert_ne!(private_key, private_key3);
     assert_ne!(public_key, public_key3);
 }
@@ -79,15 +84,18 @@ fn test_deterministic_near_key_derivation() {
     let prf_output2 = "ZGlmZmVyZW50LXByZi1vdXRwdXQtZnJvbS13ZWJhdXRobg";
     let account_id = "test.testnet";
 
-    let (private_key1, public_key1) = derive_ed25519_key_from_prf_output(prf_output1, account_id).unwrap();
-    let (private_key2, public_key2) = derive_ed25519_key_from_prf_output(prf_output2, account_id).unwrap();
+    let (private_key1, public_key1) =
+        derive_ed25519_key_from_prf_output(prf_output1, account_id).unwrap();
+    let (private_key2, public_key2) =
+        derive_ed25519_key_from_prf_output(prf_output2, account_id).unwrap();
 
     // Different PRF outputs should generate different keys
     assert_ne!(private_key1, private_key2);
     assert_ne!(public_key1, public_key2);
 
     // But same PRF should be deterministic
-    let (private_key1_dup, public_key1_dup) = derive_ed25519_key_from_prf_output(prf_output1, account_id).unwrap();
+    let (private_key1_dup, public_key1_dup) =
+        derive_ed25519_key_from_prf_output(prf_output1, account_id).unwrap();
     assert_eq!(private_key1, private_key1_dup);
     assert_eq!(public_key1, public_key1_dup);
 }
@@ -106,7 +114,8 @@ fn test_private_key_decryption_with_prf() {
         prf_output_b64,
         &encrypted_result.encrypted_near_key_data_b64u,
         &encrypted_result.chacha20_nonce_b64u,
-    ).unwrap();
+    )
+    .unwrap();
 
     // The decrypted signing key should be valid (we can't easily check the exact format without exposing internals)
     // But we can verify the public key matches
@@ -124,7 +133,8 @@ fn test_dual_prf_key_derivation() {
     assert_eq!(chacha20_key.len(), 32);
 
     // Test Ed25519 key derivation
-    let (ed25519_private, ed25519_public) = derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
+    let (ed25519_private, ed25519_public) =
+        derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
     assert!(ed25519_private.starts_with("ed25519:"));
     assert!(ed25519_public.starts_with("ed25519:"));
 
@@ -134,7 +144,8 @@ fn test_dual_prf_key_derivation() {
         ed25519_prf_output_base64: ed25519_prf.to_string(),
     };
 
-    let (public_key2, _encrypted_data2) = derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
+    let (public_key2, _encrypted_data2) =
+        derive_and_encrypt_keypair_from_dual_prf(&dual_prf, account_id).unwrap();
     assert!(public_key2.starts_with("ed25519:"));
     // The public key from dual PRF should match the Ed25519-only derivation
     assert_eq!(ed25519_public, public_key2);
@@ -149,14 +160,17 @@ fn test_dual_prf_key_isolation() {
     // Derive keys separately
     let _chacha20_key = derive_chacha20_key_from_prf(chacha20_prf, account_id).unwrap();
 
-    let (_ed25519_private, _ed25519_public) = derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
+    let (_ed25519_private, _ed25519_public) =
+        derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
 
     // Keys should be completely independent - changing one PRF shouldn't affect the other
     let different_chacha20_prf = "ZGlmZmVyZW50LWFlcy1wcmYtb3V0cHV0";
-    let _chacha20_key_different = derive_chacha20_key_from_prf(different_chacha20_prf, account_id).unwrap();
+    let _chacha20_key_different =
+        derive_chacha20_key_from_prf(different_chacha20_prf, account_id).unwrap();
 
     // Should still be able to derive Ed25519 key with original PRF
-    let (_ed25519_private2, _ed25519_public2) = derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
+    let (_ed25519_private2, _ed25519_public2) =
+        derive_ed25519_key_from_prf_output(ed25519_prf, account_id).unwrap();
 }
 
 #[test]
@@ -181,17 +195,23 @@ fn test_private_key_format_compatibility() {
     let prf_output_b64 = "dGVzdC1wcmYtb3V0cHV0LWZyb20td2ViYXV0aG4";
     let account_id = "test.testnet";
 
-    let (private_key, _public_key) = derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
+    let (private_key, _public_key) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
 
     // Verify NEAR private key format
-    assert!(private_key.starts_with("ed25519:"), "Private key should start with ed25519:");
+    assert!(
+        private_key.starts_with("ed25519:"),
+        "Private key should start with ed25519:"
+    );
 
     // Extract the base58 part and verify it's valid
     let base58_part = &private_key[8..]; // Skip "ed25519:" prefix
     assert!(base58_part.len() > 0, "Base58 part should not be empty");
 
     // Should be valid base58 (this will panic if invalid)
-    let _decoded = bs58::decode(base58_part).into_vec().expect("Should be valid base58");
+    let _decoded = bs58::decode(base58_part)
+        .into_vec()
+        .expect("Should be valid base58");
 }
 
 #[test]
@@ -273,7 +293,9 @@ fn test_action_handler_validation_errors() {
         gas: "invalid_gas".to_string(),
         deposit: "0".to_string(),
     };
-    assert!(function_call_handler.validate_params(&invalid_function_call).is_err());
+    assert!(function_call_handler
+        .validate_params(&invalid_function_call)
+        .is_err());
 }
 
 #[test]
@@ -331,11 +353,9 @@ fn test_transaction_building() {
     let nonce = 123u64;
     let block_hash = [1u8; 32];
 
-    let actions = vec![
-        Action::Transfer {
-            deposit: 1000000000000000000000000u128
-        }
-    ];
+    let actions = vec![Action::Transfer {
+        deposit: 1000000000000000000000000u128,
+    }];
 
     let transaction = build_transaction_with_actions(
         signer_account_id,
@@ -344,7 +364,8 @@ fn test_transaction_building() {
         &block_hash,
         &signing_key,
         actions,
-    ).unwrap();
+    )
+    .unwrap();
 
     assert_eq!(transaction.signer_id.0, signer_account_id);
     assert_eq!(transaction.receiver_id.0, receiver_account_id);
@@ -369,7 +390,9 @@ fn test_transaction_signing() {
         nonce: 123,
         receiver_id: AccountId("receiver.testnet".to_string()),
         block_hash: CryptoHash::from_bytes([1u8; 32]),
-        actions: vec![Action::Transfer { deposit: 1000000000000000000000000u128 }],
+        actions: vec![Action::Transfer {
+            deposit: 1000000000000000000000000u128,
+        }],
     };
 
     let signed_transaction_bytes = sign_transaction(transaction, &signing_key).unwrap();
@@ -395,7 +418,9 @@ fn test_deterministic_transaction_signing() {
         nonce: 456,
         receiver_id: AccountId("receiver.testnet".to_string()),
         block_hash: CryptoHash::from_bytes([2u8; 32]),
-        actions: vec![Action::Transfer { deposit: 2000000000000000000000000u128 }],
+        actions: vec![Action::Transfer {
+            deposit: 2000000000000000000000000u128,
+        }],
     };
 
     // Sign the same transaction twice
@@ -416,7 +441,8 @@ fn test_near_keypair_from_prf_flow() {
     let (_x_coord, _y_coord) = (&[1u8; 32], &[2u8; 32]); // Mock coordinates
 
     // Use PRF-based derivation instead
-    let (private_key, public_key) = derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
+    let (private_key, public_key) =
+        derive_ed25519_key_from_prf_output(prf_output_b64, account_id).unwrap();
 
     // Encrypt the private key
     let encryption_key = derive_chacha20_key_from_prf(prf_output_b64, account_id).unwrap();
@@ -428,7 +454,8 @@ fn test_near_keypair_from_prf_flow() {
         prf_output_b64,
         &encrypted_result.encrypted_near_key_data_b64u,
         &encrypted_result.chacha20_nonce_b64u,
-    ).unwrap();
+    )
+    .unwrap();
 
     // The signing key should be valid for the same public key
     assert!(public_key.starts_with("ed25519:"));

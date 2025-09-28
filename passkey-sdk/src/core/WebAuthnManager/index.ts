@@ -21,12 +21,13 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { ExportNearKeypairWithTouchIdResult, PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
+import type { PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
+import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 
 
 /**
@@ -107,7 +108,10 @@ export class WebAuthnManager {
     try {
       // Initialize current user first (best-effort)
       if (nearAccountId) {
-        try { await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        await this.initializeCurrentUser(
+          toAccountId(nearAccountId),
+          this.nearClient,
+        );
       }
 
       // Prefetch latest block/nonce context
@@ -178,17 +182,20 @@ export class WebAuthnManager {
     deviceNumber,
     contractId,
     nearRpcUrl,
+    confirmationConfigOverride,
   }: {
     nearAccountId: string;
     deviceNumber: number;
     contractId: string;
     nearRpcUrl: string;
-  }): Promise<import('./SignerWorkerManager/handlers').RegistrationCredentialConfirmationPayload> {
+    confirmationConfigOverride?: ConfirmationConfig;
+  }): Promise<RegistrationCredentialConfirmationPayload> {
     return this.signerWorkerManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber,
       contractId,
       nearRpcUrl,
+      confirmationConfig: confirmationConfigOverride,
     });
   }
 
@@ -364,21 +371,54 @@ export class WebAuthnManager {
     nearAccountId,
     kek_s_b64u,
     ciphertextVrfB64u,
+    serverKeyId,
   }: {
     nearAccountId: AccountId;
     kek_s_b64u: string;
     ciphertextVrfB64u: string;
+    serverKeyId: string;
   }): Promise<{ success: boolean; error?: string }> {
     const result = await this.vrfWorkerManager.shamir3PassDecryptVrfKeypair({
       nearAccountId,
       kek_s_b64u,
       ciphertextVrfB64u,
+      serverKeyId,
     });
 
     return {
       success: result.success,
       error: result.error
     };
+  }
+
+  /**
+   * Shamir 3-pass: encrypt the unlocked VRF keypair under the server key
+   * Returns a fresh blob to store in IndexedDB for future auto-login.
+   */
+  async shamir3PassEncryptCurrentVrfKeypair(): Promise<ServerEncryptedVrfKeypair> {
+    const res = await this.vrfWorkerManager.shamir3PassEncryptCurrentVrfKeypair();
+    return {
+      ciphertextVrfB64u: res.ciphertextVrfB64u,
+      kek_s_b64u: res.kek_s_b64u,
+      serverKeyId: res.serverKeyId,
+    };
+  }
+
+  /**
+   * Persist refreshed server-encrypted VRF keypair in IndexedDB.
+   */
+  async updateServerEncryptedVrfKeypair(
+    nearAccountId: AccountId,
+    serverEncrypted: ServerEncryptedVrfKeypair
+  ): Promise<void> {
+    await IndexedDBManager.clientDB.updateUser(nearAccountId, {
+      serverEncryptedVrfKeypair: {
+        ciphertextVrfB64u: serverEncrypted.ciphertextVrfB64u,
+        kek_s_b64u: serverEncrypted.kek_s_b64u,
+        serverKeyId: serverEncrypted.serverKeyId,
+        updatedAt: Date.now(),
+      }
+    });
   }
 
   async clearVrfSession(): Promise<void> {
@@ -390,6 +430,54 @@ export class WebAuthnManager {
    */
   async checkVrfStatus(): Promise<{ active: boolean; nearAccountId: AccountId | null; sessionDuration?: number }> {
     return this.vrfWorkerManager.checkVrfStatus();
+  }
+
+  /**
+   * Fetch Shamir server key info to support proactive refresh.
+   */
+  async getShamirKeyInfo(): Promise<{ currentKeyId: string | null; p_b64u: string | null; graceKeyIds?: string[] } | null> {
+    try {
+      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      if (!relayUrl) return null;
+      const res = await fetch(`${relayUrl}/shamir/key-info`, { method: 'GET' });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return {
+        currentKeyId: data?.currentKeyId ?? null,
+        p_b64u: data?.p_b64u ?? null,
+        graceKeyIds: Array.isArray(data?.graceKeyIds) ? data.graceKeyIds : undefined,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * If server key changed and VRF is unlocked in memory, re-encrypt under the new server key.
+   * Returns true if refreshed, false otherwise.
+   */
+  async maybeProactiveShamirRefresh(nearAccountId: AccountId): Promise<boolean> {
+    try {
+      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      if (!relayUrl) return false;
+      const userData = await this.getUser(nearAccountId);
+      const stored = userData?.serverEncryptedVrfKeypair;
+      if (!stored || !stored.kek_s_b64u || !stored.ciphertextVrfB64u || !stored.serverKeyId) return false;
+
+      const keyInfo = await this.getShamirKeyInfo();
+      const currentKeyId = keyInfo?.currentKeyId;
+      if (!currentKeyId || currentKeyId === stored.serverKeyId) return false;
+
+      const status = await this.checkVrfStatus();
+      const active = status.active && status.nearAccountId === nearAccountId;
+      if (!active) return false;
+
+      const refreshed = await this.shamir3PassEncryptCurrentVrfKeypair();
+      await this.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   ///////////////////////////////////////
@@ -438,12 +526,17 @@ export class WebAuthnManager {
    * @param nearAccountId - The NEAR account ID to initialize
    * @param nearClient - The NEAR client for nonce prefetching
    */
-  async initializeCurrentUser(nearAccountId: AccountId, nearClient?: NearClient): Promise<void> {
+  async initializeCurrentUser(
+    nearAccountId: AccountId,
+    nearClient?: NearClient,
+  ): Promise<void> {
     try {
       // Set as last user for future sessions
       await this.setLastUser(nearAccountId);
-      // Set as current user for immediate use (includes NonceManager initialization)
+      // Set as current user for immediate use
       this.userPreferencesManager.setCurrentUser(nearAccountId);
+      // Ensure confirmation preferences are loaded before callers read them
+      try { await this.userPreferencesManager.reloadUserSettings(); } catch {}
 
       // Initialize NonceManager with the selected user's public key (if available)
       try {
@@ -562,6 +655,7 @@ export class WebAuthnManager {
       // Store WebAuthn user data with encrypted VRF credentials
       await this.storeUserData({
         nearAccountId,
+        deviceNumber: 1,
         clientNearPublicKey: publicKey,
         lastUpdated: Date.now(),
         passkeyCredential: {
@@ -575,6 +669,8 @@ export class WebAuthnManager {
         serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
           ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
           kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
+          serverKeyId: serverEncryptedVrfKeypair?.serverKeyId,
+          updatedAt: Date.now(),
         } : undefined,
       });
 
@@ -586,69 +682,6 @@ export class WebAuthnManager {
   ///////////////////////////////////////
   // SIGNER WASM WORKER OPERATIONS
   ///////////////////////////////////////
-
-  /**
-   * Secure registration flow with PRF: WebAuthn + WASM worker encryption using PRF
-   * Optionally signs a link_device_register_user transaction if VRF data is provided
-   */
-  async deriveNearKeypairAndEncrypt({
-    nearAccountId,
-    credential,
-    options
-  }: {
-    credential: PublicKeyCredential;
-    nearAccountId: AccountId;
-    options?: {
-      vrfChallenge: VRFChallenge;
-      deterministicVrfPublicKey: string; // Add VRF public key for registration transactions
-      contractId: string;
-      nonce: string;
-      blockHash: string;
-    };
-  }): Promise<{
-    success: boolean;
-    nearAccountId: AccountId;
-    publicKey: string;
-    signedTransaction?: SignedTransaction;
-  }> {
-    return await this.signerWorkerManager.deriveNearKeypairAndEncrypt({
-      credential,
-      nearAccountId,
-      options,
-    });
-  }
-
-  /**
-   * Export private key using PRF-based decryption. Requires TouchId
-   */
-  async exportNearKeypairWithTouchId(nearAccountId: AccountId): Promise<ExportNearKeypairWithTouchIdResult> {
-    console.debug(`🔐 Exporting private key for account: ${nearAccountId}`);
-    // Get user data to verify user exists
-    const userData = await this.getUser(nearAccountId);
-    if (!userData) {
-      throw new Error(`No user data found for ${nearAccountId}`);
-    }
-    if (!userData.clientNearPublicKey) {
-      throw new Error(`No public key found for ${nearAccountId}`);
-    }
-    // Get stored authenticator data for this user
-    const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
-    if (authenticators.length === 0) {
-      throw new Error(`No authenticators found for account ${nearAccountId}. Please register first.`);
-    }
-
-    // Use WASM worker to decrypt private key
-    const decryptionResult = await this.signerWorkerManager.decryptPrivateKeyWithPrf({
-      nearAccountId,
-      authenticators,
-    });
-
-    return {
-      accountId: userData.nearAccountId,
-      publicKey: userData.clientNearPublicKey,
-      privateKey: decryptionResult.decryptedPrivateKey,
-    }
-  }
 
   /**
    * Transaction signing with contract verification and progress updates.
@@ -734,6 +767,29 @@ export class WebAuthnManager {
    */
   async extractCosePublicKey(attestationObjectBase64url: string): Promise<Uint8Array> {
     return await this.signerWorkerManager.extractCosePublicKey(attestationObjectBase64url);
+  }
+
+  ///////////////////////////////////////
+  // PRIVATE KEY EXPORT (Drawer/Modal in sandboxed iframe)
+  ///////////////////////////////////////
+
+  /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
+  async exportNearKeypairWithUIWorkerDriven(nearAccountId: AccountId, options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
+    await this.signerWorkerManager.exportNearKeypairUi({ nearAccountId, variant: options?.variant, theme: options?.theme });
+  }
+
+  async exportNearKeypairWithUI(
+    nearAccountId: AccountId,
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+  ): Promise<{ accountId: string; publicKey: string; privateKey: string }>{
+    // Route to worker-driven two-phase flow. UI is shown inside the wallet host; no secrets are returned.
+    await this.exportNearKeypairWithUIWorkerDriven(nearAccountId, options);
+    const userData = await this.getUser(nearAccountId);
+    return {
+      accountId: String(nearAccountId),
+      publicKey: String(userData?.clientNearPublicKey || ''),
+      privateKey: '',
+    };
   }
 
   ///////////////////////////////////////

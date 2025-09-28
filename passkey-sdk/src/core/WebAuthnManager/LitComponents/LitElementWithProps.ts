@@ -15,8 +15,8 @@ export class LitElementWithProps extends LitElement {
    * to prevent bundlers from tree-shaking those definitions when they are only used
    * through side effects (e.g., nested custom elements inside templates).
    * Example usage in a subclass:
-   *   import { EmbeddedRegisterButton } from '../EmbeddedRegisterButton';
-   *   static keepDefinitions = [EmbeddedRegisterButton];
+   *   import TxTree from '../TxTree';
+   *   static keepDefinitions = [TxTree];
    */
   static keepDefinitions?: unknown[];
 
@@ -24,9 +24,16 @@ export class LitElementWithProps extends LitElement {
    * Optional: Tag names that should be defined before this component renders.
    * When missing, a console.warn is emitted to remind developers to import/keep the child.
    * Example:
-   *   static requiredChildTags = ['embedded-register-button'];
+   *   static requiredChildTags = ['w3a-tx-button'];
    */
   static requiredChildTags?: string[];
+
+  /**
+   * When true, missing requiredChildTags trigger a thrown Error (instead of a warn).
+   * Useful in development to fail fast when a nested custom element definition
+   * has been tree‑shaken or not imported.
+   */
+  static strictChildDefinitions?: boolean;
 
   /**
    * Handles the custom element upgrade race for a specific property.
@@ -103,11 +110,20 @@ export class LitElementWithProps extends LitElement {
         for (const tag of req) {
           try {
             if (typeof tag === 'string' && tag.includes('-') && !customElements.get(tag)) {
-              // Non-fatal: helps remind that a child element import/keep is missing
-              console.warn(`[W3A] Required child custom element not defined: <${tag}>. ` +
-                'Import it and keep a reference via `static keepDefinitions` to avoid tree-shaking.');
+              const msg = `[W3A] Required child custom element not defined: <${tag}>. ` +
+                'Import the module that defines it and keep a reference via `static keepDefinitions` ' +
+                'or a private field to avoid tree-shaking. See LitComponents/README.md (tree-shake checklist).';
+              if ((ctor as any).strictChildDefinitions) {
+                throw new Error(msg);
+              } else {
+                // Elevate to error for visibility without breaking execution
+                console.error(msg);
+              }
             }
-          } catch {}
+          } catch (err) {
+            // In strict mode, surface the failure to developers immediately
+            if ((ctor as any).strictChildDefinitions) { throw err; }
+          }
         }
       }
     } catch {}
@@ -130,40 +146,54 @@ export class LitElementWithProps extends LitElement {
     if (!styles) return;
 
     const prefix = componentPrefix || this.getComponentPrefix();
+    const setVar = (name: string, val: string) => this.style.setProperty(name, val);
+    const toKebab = (s: string) => this.camelToKebab(s);
 
-    // 1) Apply base design tokens (legacy predictable list)
-    const baseVars = [
-      'fontFamily', 'fontSize', 'color', 'backgroundColor',
-      'colorPrimary', 'colorSecondary', 'colorSuccess', 'colorWarning', 'colorError',
-      'colorBackground', 'colorSurface', 'colorBorder', 'textPrimary', 'textSecondary',
-      'fontSizeSm', 'fontSizeBase', 'fontSizeLg', 'fontSizeXl',
-      'radiusSm', 'radiusMd', 'radiusLg', 'radiusXl',
-      'gap2', 'gap3', 'gap4', 'gap6',
-      'shadowSm', 'shadowMd'
-    ];
-    baseVars.forEach((varName) => {
-      const v = styles[varName as keyof ComponentStyles];
-      if (typeof v === 'string') {
-        this.style.setProperty(`--w3a-${this.camelToKebab(varName)}`, v);
-      }
-    });
+    // Map known tokens to canonical CSS variables
+    const colorMappings: Record<string, string> = {
+      colorSecondary: '--w3a-colors-secondary',
+      colorSuccess: '--w3a-colors-success',
+      colorWarning: '--w3a-colors-warning',
+      colorError: '--w3a-colors-error',
+      colorBackground: '--w3a-colors-colorBackground',
+      surface: '--w3a-colors-surface',
+      surface2: '--w3a-colors-surface2',
+      surface3: '--w3a-colors-surface3',
+      borderPrimary: '--w3a-colors-borderPrimary',
+      borderSecondary: '--w3a-colors-borderSecondary',
+      borderHover: '--w3a-colors-borderHover',
+      textPrimary: '--w3a-colors-textPrimary',
+      textSecondary: '--w3a-colors-textSecondary',
+      textMuted: '--w3a-colors-textMuted',
+    };
 
-    // 2) Promote any other top-level string values to host CSS vars automatically.
-    // This ensures all palette keys from base-styles (e.g., DARK_THEME) become available
-    // as --w3a-<kebab-name> without maintaining a static allowlist.
+    const radiusMatcher = /^radius([A-Z].*)$/;
+    const shadowMatcher = /^shadow([A-Z].*)$/;
+
     Object.entries(styles).forEach(([key, value]) => {
-      if (typeof value === 'string') {
-        this.style.setProperty(`--w3a-${this.camelToKebab(key)}`, value);
+      if (typeof value !== 'string') return;
+
+      if (key in colorMappings) {
+        setVar(colorMappings[key], value);
+        return;
       }
+
+      const r = key.match(radiusMatcher);
+      if (r) { setVar(`--w3a-border-radius-${r[1].toLowerCase()}`, value); return; }
+
+      const s = key.match(shadowMatcher);
+      if (s) { setVar(`--w3a-shadows-${s[1].toLowerCase()}`, value); return; }
+
+      // No legacy gap variables; rely on spacing tokens only.
+      setVar(`--w3a-${toKebab(key)}`, value);
     });
 
-    // Apply component-specific variables
+    // Component-scoped CSS variables
     Object.entries(styles).forEach(([section, sectionStyles]) => {
-      if (sectionStyles && isObject(sectionStyles) && !baseVars.includes(section)) {
+      if (sectionStyles && isObject(sectionStyles)) {
         Object.entries(sectionStyles).forEach(([prop, value]) => {
-          const kebabSection = this.camelToKebab(section);
-          const kebabProp = this.camelToKebab(prop);
-          // New convention with double underscores
+          const kebabSection = toKebab(section);
+          const kebabProp = toKebab(prop);
           const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
           this.style.setProperty(cssVarNew, String(value));
         });
@@ -190,14 +220,16 @@ export interface ComponentStyles extends CSSProperties{
   backgroundColor?: string;
 
   // Core color variables
-  colorPrimary?: string;
+  primary?: string;
   colorSecondary?: string;
   colorSuccess?: string;
   colorWarning?: string;
   colorError?: string;
   colorBackground?: string;
-  colorSurface?: string;
-  colorBorder?: string;
+  surface?: string;
+  surface2?: string;
+  surface3?: string;
+  borderPrimary?: string;
   textPrimary?: string;
   textSecondary?: string;
 
@@ -212,10 +244,7 @@ export interface ComponentStyles extends CSSProperties{
   radiusMd?: string;
   radiusLg?: string;
   radiusXl?: string;
-  gap2?: string;
-  gap3?: string;
-  gap4?: string;
-  gap6?: string;
+  // Use spacing tokens via theme; no legacy gap vars
   shadowSm?: string;
   shadowMd?: string;
 

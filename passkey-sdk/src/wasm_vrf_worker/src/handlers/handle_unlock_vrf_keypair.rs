@@ -1,11 +1,11 @@
-use wasm_bindgen::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::rc::Rc;
-use std::cell::RefCell;
-use log::{info, error};
 use crate::manager::VRFKeyManager;
-use crate::types::{EncryptedVRFKeypair};
+use crate::types::EncryptedVRFKeypair;
 use crate::types::VrfWorkerResponse;
+use log::{error, info};
+use serde::{Deserialize, Serialize};
+use std::cell::RefCell;
+use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Clone)]
@@ -29,7 +29,6 @@ pub fn handle_unlock_vrf_keypair(
     message_id: Option<String>,
     payload: UnlockVrfKeypairRequest,
 ) -> VrfWorkerResponse {
-
     let prf_key = match crate::utils::base64_url_decode(&payload.prf_key) {
         Ok(bytes) if !bytes.is_empty() => bytes,
         Ok(_) => return VrfWorkerResponse::fail(message_id, "Missing PRF key"),
@@ -44,12 +43,12 @@ pub fn handle_unlock_vrf_keypair(
     match manager_mut.unlock_vrf_keypair(
         payload.near_account_id,
         payload.encrypted_vrf_keypair,
-        prf_key
+        prf_key,
     ) {
         Ok(_) => {
             info!("VRF keypair unlock successful");
             VrfWorkerResponse::success(message_id, None)
-        },
+        }
         Err(e) => {
             error!("VRF keypair unlock failed: {}", e);
             VrfWorkerResponse::fail(message_id, e.to_string())

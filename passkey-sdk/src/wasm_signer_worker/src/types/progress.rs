@@ -18,8 +18,8 @@
 //!    - Only one result message per operation
 //!    - This is what the main thread awaits for completion
 
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
 
 /// Progress message types that can be sent during WASM operations
 /// Values align with TypeScript WorkerResponseType enum for proper mapping
@@ -183,12 +183,7 @@ pub fn send_error_message(
     error: &str,
 ) {
     let error_data = serde_json::json!({ "error": error }).to_string();
-    crate::send_progress_message(
-        message_type as u32,
-        step as u32,
-        message,
-        &error_data,
-    );
+    crate::send_progress_message(message_type as u32, step as u32, message, &error_data);
 }
 
 // === DEBUGGING HELPERS ===
@@ -230,11 +225,7 @@ pub fn progress_status_name(status: ProgressStatus) -> &'static str {
 }
 
 /// Enhanced logging helper that includes enum names for better debugging
-pub fn log_progress_message(
-    message_type: ProgressMessageType,
-    step: ProgressStep,
-    message: &str,
-) {
+pub fn log_progress_message(message_type: ProgressMessageType, step: ProgressStep, message: &str) {
     crate::log(&format!(
         "Progress: {} ({}) - {} ({}) - {}",
         progress_message_type_name(message_type),

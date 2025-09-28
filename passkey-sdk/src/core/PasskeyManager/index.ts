@@ -8,6 +8,7 @@ import {
 } from './actions';
 import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import { registerPasskey } from './registration';
+import { registerPasskeyInternal as registerPasskeyCoreInternal } from './registration';
 import {
   MinimalNearClient,
   type NearClient,
@@ -28,7 +29,6 @@ import type {
   VerifyAndSignTransactionResult,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
-  ExportNearKeypairWithTouchIdResult,
   GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
@@ -64,6 +64,9 @@ import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import { WalletIframeRouter } from '../WalletIframe/client/router';
 
+let warnedAboutMissingWalletOrigin = false;
+let warnedAboutSameOriginWallet = false;
+
 ///////////////////////////////////////
 // PASSKEY MANAGER
 ///////////////////////////////////////
@@ -96,6 +99,28 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
+
+    const walletOrigin = configs.iframeWallet?.walletOrigin;
+    if (!walletOrigin) {
+      if (!warnedAboutMissingWalletOrigin) {
+        warnedAboutMissingWalletOrigin = true;
+        try {
+          console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
+        } catch {}
+      }
+    } else if (!warnedAboutSameOriginWallet) {
+      try {
+        const parsed = new URL(walletOrigin);
+        if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
+          warnedAboutSameOriginWallet = true;
+          try {
+            console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+          } catch {}
+        }
+      } catch {
+        // ignore invalid URL here; constructor downstream will surface an error
+      }
+    }
   }
 
   /**
@@ -109,13 +134,15 @@ export class PasskeyManager {
   /**
    * Initialize the hidden wallet service iframe client (optional).
    * If `walletOrigin` is not provided in configs, this is a no‑op.
-   */
+  */
   async initWalletIframe(): Promise<void> {
-    if (!this.configs.iframeWallet?.walletOrigin) return;
+    const walletIframeConfig = this.configs.iframeWallet;
+    const walletOrigin = walletIframeConfig?.walletOrigin;
+    if (!walletOrigin) return;
     if (this.iframeRouter) return;
     this.iframeRouter = new WalletIframeRouter({
-      walletOrigin: this.configs.iframeWallet?.walletOrigin,
-      servicePath: this.configs.iframeWallet?.walletServicePath || '/service',
+      walletOrigin,
+      servicePath: walletIframeConfig?.walletServicePath || '/service',
       connectTimeoutMs: 20000,
       requestTimeoutMs: 30000,
       theme: this.configs.walletTheme,
@@ -125,7 +152,7 @@ export class PasskeyManager {
       // Ensure relay server config reaches the wallet host for atomic registration
       relayer: this.configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
-      rpIdOverride: this.configs.iframeWallet?.rpIdOverride,
+      rpIdOverride: walletIframeConfig?.rpIdOverride,
     });
     await this.iframeRouter.init();
     // Opportunistically warm remote NonceManager (no-op if user not initialized yet)
@@ -193,6 +220,11 @@ export class PasskeyManager {
       try { await options?.beforeCall?.(); } catch {}
       try {
         const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        // Mirror wallet-host initialization locally so preferences (theme, confirm config)
+        // have a current user context immediately after successful registration.
+        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        // Opportunistically warm resources (non-blocking)
+        try { void this.warmCriticalResources(nearAccountId); } catch {}
         try { await options?.afterCall?.(true, res); } catch {}
         return res;
       } catch (err: any) {
@@ -206,6 +238,44 @@ export class PasskeyManager {
       toAccountId(nearAccountId),
       options,
       this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
+    );
+  }
+
+  /**
+   * Internal variant that accepts a one-time confirmationConfig override.
+   * Used by wallet-iframe host to force modal/autoProceed behavior for ArrowButtonLit.
+   */
+  async registerPasskeyInternal(
+    nearAccountId: string,
+    options: RegistrationHooksOptions = {},
+    confirmationConfigOverride?: ConfirmationConfig
+  ): Promise<RegistrationResult> {
+    if (this.iframeRouter) {
+      try { await options?.beforeCall?.(); } catch {}
+      try {
+        const res = await this.iframeRouter.registerPasskey({
+          nearAccountId,
+          confirmationConfig: confirmationConfigOverride,
+          options: { onEvent: options?.onEvent }
+        });
+        // Ensure local manager knows the current user
+        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        try { void this.warmCriticalResources(nearAccountId); } catch {}
+        try { await options?.afterCall?.(true, res); } catch {}
+        return res;
+      } catch (err: any) {
+        try { options?.onError?.(err); } catch {}
+        try { await options?.afterCall?.(false, err); } catch {}
+        throw err;
+      }
+    }
+    // App-wallet path: call core internal with override
+    return registerPasskeyCoreInternal(
+      this.getContext(),
+      toAccountId(nearAccountId),
+      options,
+      this.configs.authenticatorOptions || DEFAULT_AUTHENTICATOR_OPTIONS,
+      confirmationConfigOverride,
     );
   }
 
@@ -273,8 +343,7 @@ export class PasskeyManager {
    */
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
     if (this.iframeRouter) {
-      try { return await this.iframeRouter.hasPasskeyCredential(nearAccountId); }
-      catch { /* fall through to local */ }
+      return await this.iframeRouter.hasPasskeyCredential(nearAccountId);
     }
     const baseAccountId = toAccountId(nearAccountId);
     return await this.webAuthnManager.hasPasskeyCredential(baseAccountId);
@@ -761,14 +830,15 @@ export class PasskeyManager {
   ///////////////////////////////////////
 
   /**
-   * Export key pair (both private and public keys)
-   * Uses AccountId for consistent PRF salt derivation
+   * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
    */
-  async exportNearKeypairWithTouchId(nearAccountId: string): Promise<ExportNearKeypairWithTouchIdResult> {
-    if (this.iframeRouter) {
-      return await this.iframeRouter.exportNearKeypairWithTouchId(nearAccountId);
+  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
+    // Prefer wallet-origin flow when iframe router is available for stronger isolation
+    if (this.iframeRouter?.isReady?.()) {
+      await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
+      return;
     }
-    return await this.webAuthnManager.exportNearKeypairWithTouchId(toAccountId(nearAccountId))
+    await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
   }
 
   ///////////////////////////////////////

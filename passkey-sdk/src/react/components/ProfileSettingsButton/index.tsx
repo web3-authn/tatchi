@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Key, Scan, Shield, Sliders } from 'lucide-react';
+import { Key, Scan, Link, Sliders } from 'lucide-react';
+import { SunIcon } from './icons/SunIcon';
+import { MoonIcon } from './icons/MoonIcon';
 import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
 import { usePasskeyContext } from '../../context';
 import type { MenuItem, ProfileButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
-import { AccessKeysModal } from './AccessKeysModal';
+import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
 import { ThemeProvider, ThemeScope, useTheme } from '../theme';
-
 
 /**
  * Profile Settings Button Component
@@ -62,10 +63,20 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
 
   // Local state for modals/expanded sections
   const [showQRScanner, setShowQRScanner] = useState(false);
-  const [showAccessKeys, setShowAccessKeys] = useState(false);
-  const [isLoadingKeys, setIsLoadingKeys] = useState(false);
+  const [showLinkedDevices, setShowLinkedDevices] = useState(false);
   const [transactionSettingsOpen, setTransactionSettingsOpen] = useState(false);
   const [currentConfirmConfig, setCurrentConfirmConfig] = useState<any>(null);
+
+  // State management
+  const {
+    isOpen,
+    refs,
+    handleToggle,
+    handleClose,
+  } = useProfileState();
+
+  // Read current theme from ThemeProvider (falls back to system preference)
+  const { theme } = useTheme();
 
   // Load confirmation config on mount
   useEffect(() => {
@@ -76,11 +87,11 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   }, [passkeyManager]);
 
   // Handlers for transaction settings
-  const handleToggleShowDetails = () => {
+  const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
     if (!currentConfirmConfig) return;
-    const newUIMode = currentConfirmConfig.uiMode === 'modal' ? 'skip' : 'modal';
-    passkeyManager.setConfirmationConfig({ ...currentConfirmConfig, uiMode: newUIMode });
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: newUIMode } : prev);
+    const patch = { ...currentConfirmConfig, uiMode: mode };
+    passkeyManager.setConfirmationConfig(patch);
+    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : prev);
   };
 
   const handleToggleSkipClick = () => {
@@ -108,52 +119,46 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
     {
       icon: <Key />,
       label: 'Export Keys',
-      description: 'Export your NEAR keys',
-      disabled: false,
+      description: 'View your private keys',
+      disabled: !loginState.isLoggedIn,
       onClick: async () => {
         try {
-          const {
-            accountId,
-            privateKey,
-            publicKey
-          } = await passkeyManager.exportNearKeypairWithTouchId(nearAccountId!);
-
-          // Small delay to allow document to regain focus after WebAuthn
-          await new Promise(resolve => setTimeout(resolve, 150));
-
-          const keypair_msg = `Account ID:\n${accountId}\n\nPublic key:\n${publicKey}\n\nPrivate key:\n${privateKey}`;
-
-          // Simple clipboard approach with single fallback
-          if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(keypair_msg);
-            alert(`NEAR keys copied to clipboard!\n${keypair_msg}`);
-          } else {
-            // Simple fallback: show keys for manual copy
-            alert(`Your NEAR Keys (copy manually):\n${keypair_msg}`);
-          }
+          await passkeyManager.exportNearKeypairWithUI(nearAccountId!);
         } catch (error: any) {
           console.error('Key export failed:', error);
-          alert(`Key export failed: ${error.message}`);
+          const msg = String(error?.message || 'Unknown error');
+          const friendly = /No user data found|No public key found/i.test(msg)
+            ? 'No local key material found for this account on this device. Please complete registration or recovery here first.'
+            : msg;
+          alert(`Key export failed: ${friendly}`);
         }
-      }
+      },
+      keepOpenOnClick: false,
     },
     {
       icon: <Scan />,
       label: 'Scan and Link Device',
-      description: 'Scan a QR to link a device',
+      description: 'Scan QR to link a device',
       disabled: !loginState.isLoggedIn,
       onClick: () => {
-        console.log('ProfileSettingsButton: Opening QR Scanner');
         setShowQRScanner(true);
       },
       keepOpenOnClick: true,
     },
     {
-      icon: <Shield />,
-      label: 'Access Keys',
-      description: 'View your account access keys',
+      icon: <Link />,
+      label: 'Linked Devices',
+      description: 'View linked devices',
       disabled: !loginState.isLoggedIn,
-      onClick: () => setShowAccessKeys(true),
+      onClick: () => setShowLinkedDevices(true),
+      keepOpenOnClick: true,
+    },
+    {
+      icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />,
+      label: 'Toggle Theme',
+      description: theme === 'dark' ? 'Dark Mode' : 'Light Mode',
+      disabled: false,
+      onClick: handleToggleTheme,
       keepOpenOnClick: true,
     },
     {
@@ -164,18 +169,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
       onClick: () => setTransactionSettingsOpen((v) => !v),
       keepOpenOnClick: true,
     },
-  ], [passkeyManager, nearAccountId, loginState.isLoggedIn]);
-
-  // State management
-  const {
-    isOpen,
-    refs,
-    handleToggle,
-    handleClose,
-  } = useProfileState();
-
-  // Read current theme from ThemeProvider (falls back to system preference)
-  const { theme } = useTheme();
+  ], [passkeyManager, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
 
   // Handlers
   const handleLogout = () => {
@@ -210,7 +204,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
           menuItemsRef={refs.menuItemsRef}
           toggleColors={toggleColors}
           currentConfirmConfig={currentConfirmConfig}
-          onToggleShowDetails={handleToggleShowDetails}
+          onSetUiMode={handleSetUiMode}
           onToggleSkipClick={handleToggleSkipClick}
           onSetDelay={handleSetDelay}
           onToggleTheme={handleToggleTheme}
@@ -219,34 +213,31 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
         />
       </div>
 
-      {/* QR Scanner Modal - Always rendered to prevent unmount/remount, controlled by isOpen */}
+      {/* QR Scanner Modal */}
       <QRCodeScanner
         key="profile-qr-scanner" // Force stable identity
         isOpen={showQRScanner}
         fundingAmount={deviceLinkingScannerParams?.fundingAmount || '0.05'}
         onDeviceLinked={(result) => {
-          console.log('ProfileSettingsButton: QR Scanner device linked');
           deviceLinkingScannerParams?.onDeviceLinked?.(result);
           setShowQRScanner(false);
         }}
         onError={(error) => {
-          console.log('ProfileSettingsButton: QR Scanner error');
           deviceLinkingScannerParams?.onError?.(error);
           setShowQRScanner(false);
         }}
         onClose={() => {
-          console.log('ProfileSettingsButton: QR Scanner close requested');
           deviceLinkingScannerParams?.onClose?.();
           setShowQRScanner(false);
         }}
         onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
       />
 
-      {/* Access Keys Modal - Rendered outside of ProfileDropdown */}
-      <AccessKeysModal
+      {/* Linked Devices Modal */}
+      <LinkedDevicesModal
         nearAccountId={nearAccountId!}
-        isOpen={showAccessKeys}
-        onClose={() => setShowAccessKeys(false)}
+        isOpen={showLinkedDevices}
+        onClose={() => setShowLinkedDevices(false)}
       />
     </div>
   );

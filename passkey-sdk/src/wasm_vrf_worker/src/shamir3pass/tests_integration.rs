@@ -13,17 +13,22 @@ mod tests {
             let shamir = Shamir3Pass::new_default();
 
             // Server generates permanent keys
-            let server_keys = shamir.generate_lock_keys().expect("Server key generation failed");
+            let server_keys = shamir
+                .generate_lock_keys()
+                .expect("Server key generation failed");
 
             // === REGISTRATION ===
 
             // Client encrypts VRF key
             let vrf_key = b"super secret VRF key material";
-            let (ciphertext_vrf, kek) = shamir.encrypt_with_random_kek_key(vrf_key)
+            let (ciphertext_vrf, kek) = shamir
+                .encrypt_with_random_kek_key(vrf_key)
                 .expect("Encryption failed");
 
             // Client generates temporary registration keys
-            let client_lock_keys = shamir.generate_lock_keys().expect("Client key generation failed");
+            let client_lock_keys = shamir
+                .generate_lock_keys()
+                .expect("Client key generation failed");
 
             // Client adds lock: KEK → KEK_c
             let kek_c = shamir.add_lock(&kek, &client_lock_keys.e);
@@ -37,7 +42,9 @@ mod tests {
             // === LOGIN ===
 
             // Client generates new temporary login keys
-            let client_login_keys = shamir.generate_lock_keys().expect("Client login key generation failed");
+            let client_login_keys = shamir
+                .generate_lock_keys()
+                .expect("Client login key generation failed");
 
             // Client adds lock: KEK_s → KEK_st
             let kek_st = shamir.add_lock(&kek_s, &client_login_keys.e);
@@ -52,7 +59,8 @@ mod tests {
             assert_eq!(kek_recovered, kek, "KEK recovery failed");
 
             // Decrypt VRF key
-            let decrypted_vrf = shamir.decrypt_with_key(&ciphertext_vrf, &kek_recovered)
+            let decrypted_vrf = shamir
+                .decrypt_with_key(&ciphertext_vrf, &kek_recovered)
                 .expect("Decryption failed");
 
             assert_eq!(decrypted_vrf, vrf_key);
@@ -70,12 +78,30 @@ mod tests {
 
             // Test all 6 permutations of 3 operations
             let permutations = vec![
-                vec![(&keys1.e, true), (&keys2.e, true), (&keys3.e, true),
-                     (&keys1.d, false), (&keys2.d, false), (&keys3.d, false)],
-                vec![(&keys1.e, true), (&keys3.e, true), (&keys2.e, true),
-                     (&keys3.d, false), (&keys1.d, false), (&keys2.d, false)],
-                vec![(&keys2.e, true), (&keys1.e, true), (&keys3.e, true),
-                     (&keys2.d, false), (&keys3.d, false), (&keys1.d, false)],
+                vec![
+                    (&keys1.e, true),
+                    (&keys2.e, true),
+                    (&keys3.e, true),
+                    (&keys1.d, false),
+                    (&keys2.d, false),
+                    (&keys3.d, false),
+                ],
+                vec![
+                    (&keys1.e, true),
+                    (&keys3.e, true),
+                    (&keys2.e, true),
+                    (&keys3.d, false),
+                    (&keys1.d, false),
+                    (&keys2.d, false),
+                ],
+                vec![
+                    (&keys2.e, true),
+                    (&keys1.e, true),
+                    (&keys3.e, true),
+                    (&keys2.d, false),
+                    (&keys3.d, false),
+                    (&keys1.d, false),
+                ],
             ];
 
             for perm in permutations {
@@ -96,11 +122,11 @@ mod tests {
             let shamir = Shamir3Pass::new_default();
 
             let test_sizes = vec![
-                0,      // Empty
-                1,      // Single byte
-                16,     // AES block size
-                1024,   // 1KB
-                65536,  // 64KB
+                0,     // Empty
+                1,     // Single byte
+                16,    // AES block size
+                1024,  // 1KB
+                65536, // 64KB
             ];
 
             for size in test_sizes {
@@ -125,7 +151,8 @@ mod tests {
             let mut keks = std::collections::HashSet::new();
 
             // Generate many KEKs and ensure uniqueness
-            for _ in 0..50 { // Reduced from 100 due to rejection sampling limits
+            for _ in 0..50 {
+                // Reduced from 100 due to rejection sampling limits
                 match shamir.random_k() {
                     Ok(kek) => assert!(keks.insert(kek), "Duplicate KEK generated"),
                     Err(_) => continue, // Skip failures due to rejection sampling
@@ -143,12 +170,13 @@ mod tests {
             let mut d_values = std::collections::HashSet::new();
 
             // Generate many key pairs and check for collisions
-            for _ in 0..25 { // Reduced from 50 due to rejection sampling limits
+            for _ in 0..25 {
+                // Reduced from 50 due to rejection sampling limits
                 match shamir.generate_lock_keys() {
                     Ok(keys) => {
                         assert!(e_values.insert(keys.e.clone()), "Duplicate e value");
                         assert!(d_values.insert(keys.d.clone()), "Duplicate d value");
-                    },
+                    }
                     Err(_) => continue, // Skip failures due to rejection sampling
                 }
             }
@@ -173,7 +201,8 @@ mod tests {
 
             // Encrypt same data multiple times
             let mut ciphertexts = Vec::new();
-            for _ in 0..5 { // Reduced from 10 due to rejection sampling limits
+            for _ in 0..5 {
+                // Reduced from 10 due to rejection sampling limits
                 match shamir.encrypt_with_kek(&kek, data) {
                     Ok(ct) => ciphertexts.push(ct),
                     Err(_) => continue, // Skip failures
@@ -185,9 +214,11 @@ mod tests {
 
             // All ciphertexts should be different due to random nonces
             for i in 0..ciphertexts.len() {
-                for j in i+1..ciphertexts.len() {
-                    assert_ne!(ciphertexts[i], ciphertexts[j],
-                              "Identical ciphertexts produced");
+                for j in i + 1..ciphertexts.len() {
+                    assert_ne!(
+                        ciphertexts[i], ciphertexts[j],
+                        "Identical ciphertexts produced"
+                    );
                 }
             }
         }
@@ -236,7 +267,10 @@ mod tests {
             }
 
             let result = shamir.decrypt_with_key(&ciphertext, &kek);
-            assert!(result.is_err(), "Tampered ciphertext should fail authentication");
+            assert!(
+                result.is_err(),
+                "Tampered ciphertext should fail authentication"
+            );
         }
     }
 
@@ -247,7 +281,8 @@ mod tests {
         fn test_lock_unlock_inverse() {
             let shamir = Shamir3Pass::new_default();
 
-            for _ in 0..10 { // Reduced from 20 due to rejection sampling limits
+            for _ in 0..10 {
+                // Reduced from 20 due to rejection sampling limits
                 let keys = match shamir.generate_lock_keys() {
                     Ok(keys) => keys,
                     Err(_) => continue, // Skip failures due to rejection sampling

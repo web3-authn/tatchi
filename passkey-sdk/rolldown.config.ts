@@ -26,6 +26,9 @@ const external = [
   'module',
   'crypto',
   'util',
+  // Express-only helpers (optional consumers)
+  'express',
+  'cors',
 
   // Core dependencies that should be provided by consuming application
   'borsh',
@@ -160,9 +163,9 @@ export default defineConfig([
   },
   // WASM VRF Worker build for server usage - includes WASM binary
   {
-    input: 'src/wasm_vrf_worker/wasm_vrf_worker.js',
+    input: 'src/wasm_vrf_worker/pkg/wasm_vrf_worker.js',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg`,
       format: 'esm',
       assetFileNames: '[name][extname]'
     },
@@ -174,8 +177,8 @@ export default defineConfig([
           // Copy WASM file alongside the JS bundle
           const fs = require('fs');
           const path = require('path');
-          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/wasm_vrf_worker_bg.wasm');
-          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/wasm_vrf_worker_bg.wasm`);
+          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm');
+          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm`);
 
           try {
             fs.copyFileSync(wasmSource, wasmDest);
@@ -187,26 +190,55 @@ export default defineConfig([
       }
     ]
   },
+  // WASM Signer Worker build for server usage - includes WASM binary
+  {
+    input: 'src/wasm_signer_worker/pkg/wasm_signer_worker.js',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg`,
+      format: 'esm',
+      assetFileNames: '[name][extname]'
+    },
+    plugins: [
+      {
+        name: 'copy-wasm-signer',
+        generateBundle() {
+          const fs = require('fs');
+          const path = require('path');
+          const wasmSource = path.join(process.cwd(), 'src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm');
+          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm`);
+
+          try {
+            fs.copyFileSync(wasmSource, wasmDest);
+            console.log('✅ WASM file copied to dist/esm/wasm_signer_worker/pkg/');
+          } catch (error) {
+            console.warn('⚠️ Could not copy signer WASM file:', error.message);
+          }
+        }
+      }
+    ]
+  },
   // Button-with-Tooltip component - bundles Lit for iframe usage
   {
     input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/ButtonWithTooltip.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'button-with-tooltip.js'
+      // Align emitted filename with iframe srcdoc import expectation
+      entryFileNames: 'w3a-button-with-tooltip.js'
     },
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
     },
   },
-  // Modal Transaction Confirm element bundle for iframe usage
+  // Confirm UI helpers and elements bundle for iframe usage
+  // Build from confirm-ui.ts (container-agnostic); keep output filename stable
   {
-    input: 'src/core/WebAuthnManager/LitComponents/modal.ts',
+    input: 'src/core/WebAuthnManager/LitComponents/confirm-ui.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
       format: 'esm',
-      entryFileNames: 'modal-tx-confirm.js'
+      entryFileNames: 'tx-confirm-ui.js'
     },
     external: embeddedExternal,
     resolve: {
@@ -216,13 +248,16 @@ export default defineConfig([
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
     input: {
-      'iframe-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
-      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/IframeButtonHost.ts',
-      'iframe-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-button-bootstrap-script.ts',
-      'iframe-modal': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/IframeModalHost.ts',
-      'iframe-modal-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeModalConfirmer/iframe-modal-bootstrap-script.ts',
+      // SecureSendTxButton component (Button with ToolTip)
+      'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
+      'iframe-tx-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts',
+      // Tx Confirmer component
+      'w3a-iframe-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-host.ts',
+      'iframe-tx-confirmer-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-tx-confirmer-bootstrap-script.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
+      // Export viewer host + bootstrap
+      'iframe-export-bootstrap': 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
@@ -232,6 +267,19 @@ export default defineConfig([
     external: embeddedExternal,
     resolve: {
       alias: aliasConfig
+    },
+  },
+  // Export Private Key viewer bundle (Lit element rendered inside iframe)
+  {
+    input: 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      format: 'esm',
+      entryFileNames: 'export-private-key-viewer.js',
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
     },
   },
   // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
@@ -251,14 +299,14 @@ export default defineConfig([
     },
   }
   ,
-  // Vite plugin ESM build
+  // Vite plugin ESM build (source moved to src/plugins)
   {
-    input: 'src/vite/index.ts',
+    input: 'src/plugins/vite.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/vite`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
       format: 'esm',
       preserveModules: true,
-      preserveModulesRoot: 'src/vite',
+      preserveModulesRoot: 'src/plugins',
       sourcemap: true
     },
     external,
@@ -266,14 +314,14 @@ export default defineConfig([
       alias: aliasConfig
     }
   },
-  // Vite plugin CJS build
+  // Vite plugin CJS build (source moved to src/plugins)
   {
-    input: 'src/vite/index.ts',
+    input: 'src/plugins/vite.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.CJS}/vite`,
+      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
       format: 'cjs',
       preserveModules: true,
-      preserveModulesRoot: 'src/vite',
+      preserveModulesRoot: 'src/plugins',
       sourcemap: true,
       exports: 'named'
     },

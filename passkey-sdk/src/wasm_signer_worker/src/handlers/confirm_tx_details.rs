@@ -66,8 +66,8 @@ pub struct ConfirmationSummaryAction {
 /// Validates and normalizes confirmation configuration according to documented rules
 ///
 /// Validation rules:
-/// - uiMode: 'skip' | 'embedded' → behavior is ignored, autoProceedDelay is ignored
-/// - uiMode: 'modal' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
+/// - uiMode: 'skip' → behavior is ignored, autoProceedDelay is ignored
+/// - uiMode: 'modal' | 'drawer' → behavior: 'requireClick' | 'autoProceed', autoProceedDelay only used with 'autoProceed'
 ///
 /// Returns a normalized config with proper defaults and logs validation messages
 pub fn validate_and_normalize_confirmation_config(
@@ -76,13 +76,13 @@ pub fn validate_and_normalize_confirmation_config(
     let mut normalized = config.clone();
 
     match config.ui_mode {
-        ConfirmationUIMode::Skip | ConfirmationUIMode::Embedded => {
-            // For skip/embedded modes, override behavior to autoProceed with 0 delay
+        ConfirmationUIMode::Skip => {
+            // For skip mode, override behavior to autoProceed with 0 delay
             normalized.behavior = ConfirmationBehavior::AutoProceed;
             normalized.auto_proceed_delay = Some(0);
         },
 
-        ConfirmationUIMode::Modal => {
+        ConfirmationUIMode::Modal | ConfirmationUIMode::Drawer => {
             // For modal mode, validate behavior and autoProceedDelay
             match config.behavior {
                 ConfirmationBehavior::RequireClick => {
@@ -296,17 +296,15 @@ pub async fn request_user_confirmation_with_config(
         })
         .collect();
 
-    // Check if UI mode is Skip OR Embedded - for embedded, we override to skip extra UI
-    // but still collect credentials and PRF output via the bridge (no additional UI shown)
+    // Check if UI mode is Skip - still collect credentials and PRF output via the bridge (no additional UI shown)
     if let Some(confirmation_config) = &tx_batch_request.confirmation_config {
 
-        let should_skip_ui_confirm = confirmation_config.ui_mode == ConfirmationUIMode::Skip
-            || confirmation_config.ui_mode == ConfirmationUIMode::Embedded;
+        let should_skip_ui_confirm = confirmation_config.ui_mode == ConfirmationUIMode::Skip;
 
         if should_skip_ui_confirm {
-            logs.push("Skipping user confirmation (UI mode: skip/embedded)".to_string());
+            logs.push("Skipping user confirmation (UI mode: skip)".to_string());
 
-            // For skip/embedded override, we still need to collect credentials and PRF output
+            // For skip override, we still need to collect credentials and PRF output
             // but we don't show any UI. The main thread should handle this.
             // For now, we'll still call the JS bridge but with a flag to indicate no UI
             // Compute digest over the same structure we pass to the main thread/UI
@@ -357,14 +355,14 @@ pub async fn request_user_confirmation_with_config(
             // wasm-bindgen object shape issues in the TS validator.
             let request_json_str = serde_json::to_string(&request_obj)
                 .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
-            web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx:skip/embedded) JSON length: {}", request_json_str.len()).into());
+            web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx:skip) JSON length: {}", request_json_str.len()).into());
             let request_js = JsValue::from_str(&request_json_str);
 
             let confirm_result = await_secure_confirmation_v2(request_js).await;
 
             let result = parse_confirmation_result(confirm_result)?;
 
-            // For skip/embedded override, we assume the user implicitly confirms
+            // For skip override, we assume the user implicitly confirms
             // but we still need the credentials and PRF output
             if result.credential.is_some() && result.prf_output.is_some() {
                 logs.push("Credentials collected successfully".to_string());
@@ -465,6 +463,7 @@ pub async fn request_registration_credential_confirmation(
     device_number: usize,
     contract_id: &str,
     near_rpc_url: &str,
+    confirmation_config: Option<ConfirmationConfig>,
 ) -> Result<ConfirmationResult, String> {
     // Summary shown to the user (object form)
     let summary = serde_json::json!({
@@ -478,6 +477,17 @@ pub async fn request_registration_credential_confirmation(
     let intent_digest = format!("linkdevice:{}:{}", near_account_id, device_number);
     let request_id = generate_request_id();
 
+    // Normalize provided confirmation config or fall back to a safe default (modal + requireClick)
+    let normalized_config = match confirmation_config {
+        Some(ref cfg) => validate_and_normalize_confirmation_config(cfg),
+        None => ConfirmationConfig {
+            ui_mode: ConfirmationUIMode::Modal,
+            behavior: ConfirmationBehavior::RequireClick,
+            auto_proceed_delay: None,
+            theme: None,
+        },
+    };
+
     // Confirmation data for JS main thread
     let confirmation_data = serde_json::json!({
         "intentDigest": intent_digest,
@@ -487,20 +497,14 @@ pub async fn request_registration_credential_confirmation(
             "nearRpcUrl": near_rpc_url,
             "nearAccountId": near_account_id,
         },
-        // Link-device flow: default to autoProceed in modal mode
-        "confirmationConfig": ConfirmationConfig {
-            ui_mode: ConfirmationUIMode::Modal,
-            behavior: ConfirmationBehavior::RequireClick,
-            auto_proceed_delay: Some(1000),
-            theme: Some("dark".to_string()),
-        },
+        "confirmationConfig": normalized_config,
         "registrationDetails": {
             "nearAccountId": near_account_id,
             "deviceNumber": device_number,
         },
     });
 
-    // Build V2 secure confirm request (link-device)
+    // Build V2 secure confirm request (registration/link-device)
     let request_obj = serde_json::json!({
         "schemaVersion": 2,
         "requestId": request_id,

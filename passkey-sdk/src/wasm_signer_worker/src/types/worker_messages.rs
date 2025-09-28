@@ -1,10 +1,10 @@
 // === WORKER MESSAGES: REQUEST & RESPONSE TYPES ===
 // Enums and message structures for worker communication
 
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use serde::de::DeserializeOwned;
 use crate::error::ParsePayloadError;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 // === CLEAN RUST ENUMS WITH NUMERIC CONVERSION ===
 // These export to TypeScript as numeric enums and we convert directly from numbers
@@ -21,6 +21,8 @@ pub enum WorkerRequestType {
     SignNep413Message,
     // Collect registration credential via secureConfirm (registration or link-device flows)
     RegistrationCredentialConfirmation,
+    // Two-phase export: collect PRF (skip UI), decrypt, then show private key UI
+    ExportNearKeypairUI,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -35,6 +37,7 @@ impl From<u32> for WorkerRequestType {
             6 => WorkerRequestType::SignTransactionWithKeyPair,
             7 => WorkerRequestType::SignNep413Message,
             8 => WorkerRequestType::RegistrationCredentialConfirmation,
+            9 => WorkerRequestType::ExportNearKeypairUI,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -50,7 +53,10 @@ impl WorkerRequestType {
             WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-            WorkerRequestType::RegistrationCredentialConfirmation => "REGISTRATION_CREDENTIAL_CONFIRMATION",
+            WorkerRequestType::RegistrationCredentialConfirmation => {
+                "REGISTRATION_CREDENTIAL_CONFIRMATION"
+            }
+            WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
         }
     }
 }
@@ -69,6 +75,7 @@ pub enum WorkerResponseType {
     SignTransactionWithKeyPairSuccess,
     SignNep413MessageSuccess,
     RegistrationCredentialConfirmationSuccess,
+    ExportNearKeypairUiSuccess,
 
     // Failure responses - one for each request type
     DeriveNearKeypairAndEncryptFailure,
@@ -80,6 +87,7 @@ pub enum WorkerResponseType {
     SignTransactionWithKeyPairFailure,
     SignNep413MessageFailure,
     RegistrationCredentialConfirmationFailure,
+    ExportNearKeypairUiFailure,
 
     // Progress responses - for real-time updates during operations
     RegistrationProgress,
@@ -100,6 +108,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::SignTransactionWithKeyPairSuccess => 6,
             WorkerResponseType::SignNep413MessageSuccess => 7,
             WorkerResponseType::RegistrationCredentialConfirmationSuccess => 8,
+            WorkerResponseType::ExportNearKeypairUiSuccess => 9,
 
             // Failure responses
             WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 10,
@@ -111,6 +120,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::SignTransactionWithKeyPairFailure => 16,
             WorkerResponseType::SignNep413MessageFailure => 17,
             WorkerResponseType::RegistrationCredentialConfirmationFailure => 18,
+            WorkerResponseType::ExportNearKeypairUiFailure => 19,
 
             // Progress responses - for real-time updates during operations
             WorkerResponseType::RegistrationProgress => 20,
@@ -155,7 +165,6 @@ impl From<u32> for WorkerResponseType {
     }
 }
 
-
 /// Main worker message structure
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SignerWorkerMessage {
@@ -165,7 +174,10 @@ pub struct SignerWorkerMessage {
 }
 
 impl SignerWorkerMessage {
-    pub fn parse_payload<T: DeserializeOwned>(&self, request_type: WorkerRequestType) -> Result<T, ParsePayloadError> {
+    pub fn parse_payload<T: DeserializeOwned>(
+        &self,
+        request_type: WorkerRequestType,
+    ) -> Result<T, ParsePayloadError> {
         serde_json::from_value(self.payload.clone())
             .map_err(|e| ParsePayloadError::new(request_type.name(), e))
     }

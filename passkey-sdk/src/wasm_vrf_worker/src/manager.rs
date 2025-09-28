@@ -1,31 +1,24 @@
-use log::{info, debug, warn};
-use js_sys::Date;
-use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use chacha20poly1305::aead::{Aead, KeyInit};
-use hkdf::Hkdf;
+use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use getrandom::getrandom;
+use hkdf::Hkdf;
+use js_sys::Date;
+use log::{debug, info, warn};
 use rand_core::SeedableRng;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 // VRF and crypto imports
 use vrf_wasm::ecvrf::ECVRFKeyPair;
-use vrf_wasm::vrf::{VRFKeyPair, VRFProof};
 use vrf_wasm::traits::WasmRngFromSeed;
+use vrf_wasm::vrf::{VRFKeyPair, VRFProof};
 use zeroize::ZeroizeOnDrop;
 
 use crate::config::*;
-use crate::errors::{VrfWorkerError, VrfResult, HkdfError, SerializationError, AesError};
-use crate::types::*;
-use crate::types::{
-    GenerateVrfKeypairBootstrapResponse,
-    EncryptedVrfKeypairResponse,
-};
+use crate::errors::{AesError, HkdfError, SerializationError, VrfResult, VrfWorkerError};
 use crate::handlers::DeterministicVrfKeypairResponse;
 use crate::shamir3pass::Shamir3Pass;
-use crate::utils::{
-    base64_url_encode,
-    base64_url_decode,
-    parse_block_height
-};
+use crate::types::*;
+use crate::types::{EncryptedVrfKeypairResponse, GenerateVrfKeypairBootstrapResponse};
+use crate::utils::{base64_url_decode, base64_url_encode, parse_block_height};
 
 // === SECURE VRF KEYPAIR WRAPPER ===
 
@@ -63,13 +56,16 @@ impl VRFKeyManager {
         shamir_p_b64u: Option<&str>,
         relay_server_url: Option<String>,
         apply_lock_route: Option<String>,
-        remove_lock_route: Option<String>
+        remove_lock_route: Option<String>,
     ) -> Self {
         let shamir3pass = match shamir_p_b64u {
             Some(p) => match Shamir3Pass::new(p) {
                 Ok(sp) => sp,
                 Err(e) => {
-                    warn!("Failed to create Shamir3Pass with provided p: {:?}, using default", e);
+                    warn!(
+                        "Failed to create Shamir3Pass with provided p: {:?}, using default",
+                        e
+                    );
                     Shamir3Pass::new_default()
                 }
             },
@@ -111,8 +107,11 @@ impl VRFKeyManager {
         let vrf_keypair = self.generate_vrf_keypair()?;
 
         // Get public key bytes for response
-        let vrf_public_key_bytes = bincode::serialize(&vrf_keypair.pk)
-            .map_err(|e| VrfWorkerError::SerializationError(SerializationError::VrfPublicKeySerialization(format!("{:?}", e))))?;
+        let vrf_public_key_bytes = bincode::serialize(&vrf_keypair.pk).map_err(|e| {
+            VrfWorkerError::SerializationError(SerializationError::VrfPublicKeySerialization(
+                format!("{:?}", e),
+            ))
+        })?;
         let vrf_public_key_b64 = base64_url_encode(&vrf_public_key_bytes);
 
         // Store VRF keypair in memory (unencrypted)
@@ -129,7 +128,8 @@ impl VRFKeyManager {
         if let Some(vrf_input_data) = vrf_input_data {
             debug!("Generating VRF challenge using bootstrapped keypair");
             let vrf_keypair = self.vrf_keypair.as_ref().unwrap().inner();
-            let challenge_result = self.generate_vrf_challenge_with_keypair(vrf_keypair, vrf_input_data)?;
+            let challenge_result =
+                self.generate_vrf_challenge_with_keypair(vrf_keypair, vrf_input_data)?;
             result.vrf_challenge_data = Some(challenge_result);
         }
 
@@ -162,15 +162,16 @@ impl VRFKeyManager {
 
         // Verify the public key matches what's expected
         if stored_public_key != expected_public_key {
-            return Err(VrfWorkerError::public_key_mismatch(&expected_public_key, &stored_public_key));
+            return Err(VrfWorkerError::public_key_mismatch(
+                &expected_public_key,
+                &stored_public_key,
+            ));
         }
         debug!("Public key verification successful");
 
         // Encrypt the VRF keypair
-        let (
-            vrf_public_key,
-            encrypted_vrf_keypair
-        ) = self.encrypt_vrf_keypair_data(vrf_keypair, &prf_key)?;
+        let (vrf_public_key, encrypted_vrf_keypair) =
+            self.encrypt_vrf_keypair_data(vrf_keypair, &prf_key)?;
         debug!("VRF keypair encrypted with PRF output");
 
         Ok(EncryptedVrfKeypairResponse {
@@ -230,7 +231,11 @@ impl VRFKeyManager {
     }
 
     /// Generate VRF challenge using a specific keypair (can be in-memory or provided)
-    pub fn generate_vrf_challenge_with_keypair(&self, vrf_keypair: &ECVRFKeyPair, input_data: VRFInputData) -> VrfResult<VRFChallengeData> {
+    pub fn generate_vrf_challenge_with_keypair(
+        &self,
+        vrf_keypair: &ECVRFKeyPair,
+        input_data: VRFInputData,
+    ) -> VrfResult<VRFChallengeData> {
         debug!("Generating VRF challenge using provided keypair");
 
         // Construct VRF input according to specification from the contract test
@@ -260,8 +265,16 @@ impl VRFKeyManager {
         let proof = vrf_keypair.prove(&vrf_input);
         let vrf_output = proof.to_hash().to_vec();
 
-        let proof_bytes = bincode::serialize(&proof).map_err(|e| VrfWorkerError::SerializationError(SerializationError::VrfKeypairSerialization(format!("{:?}", e))))?;
-        let pk_bytes = bincode::serialize(&vrf_keypair.pk).map_err(|e| VrfWorkerError::SerializationError(SerializationError::VrfPublicKeySerialization(format!("{:?}", e))))?;
+        let proof_bytes = bincode::serialize(&proof).map_err(|e| {
+            VrfWorkerError::SerializationError(SerializationError::VrfKeypairSerialization(
+                format!("{:?}", e),
+            ))
+        })?;
+        let pk_bytes = bincode::serialize(&vrf_keypair.pk).map_err(|e| {
+            VrfWorkerError::SerializationError(SerializationError::VrfPublicKeySerialization(
+                format!("{:?}", e),
+            ))
+        })?;
         let result = VRFChallengeData {
             vrf_input: base64_url_encode(&vrf_input),
             vrf_output: base64_url_encode(&vrf_output),
@@ -308,7 +321,6 @@ impl VRFKeyManager {
         near_account_id: String,
         vrf_input_params: Option<VRFInputData>,
     ) -> VrfResult<(DeterministicVrfKeypairResponse, ECVRFKeyPair)> {
-
         if prf_output.is_empty() {
             return Err(VrfWorkerError::empty_prf_output());
         }
@@ -317,18 +329,21 @@ impl VRFKeyManager {
         let vrf_keypair = self.generate_vrf_keypair_from_seed(&prf_output, &near_account_id)?;
 
         // Get public key bytes for response
-        let vrf_public_key_bytes = bincode::serialize(&vrf_keypair.pk)
-            .map_err(|e| VrfWorkerError::SerializationError(
-                crate::errors::SerializationError::VrfPublicKeySerialization(format!("{:?}", e))
-            ))?;
+        let vrf_public_key_bytes = bincode::serialize(&vrf_keypair.pk).map_err(|e| {
+            VrfWorkerError::SerializationError(
+                crate::errors::SerializationError::VrfPublicKeySerialization(format!("{:?}", e)),
+            )
+        })?;
         let vrf_public_key_b64 = base64_url_encode(&vrf_public_key_bytes);
 
         // Encrypt the VRF keypair with the same PRF output used for derivation (for local storage)
-        let (_public_key, encrypted_vrf_keypair) = self.encrypt_vrf_keypair_data(&vrf_keypair, &prf_output)?;
+        let (_public_key, encrypted_vrf_keypair) =
+            self.encrypt_vrf_keypair_data(&vrf_keypair, &prf_output)?;
 
         // Generate VRF challenge if input parameters provided
         let vrf_challenge_data = if let Some(vrf_input_params) = vrf_input_params {
-            let challenge_data = self.generate_vrf_challenge_with_keypair(&vrf_keypair, vrf_input_params)?;
+            let challenge_data =
+                self.generate_vrf_challenge_with_keypair(&vrf_keypair, vrf_input_params)?;
             Some(challenge_data)
         } else {
             None
@@ -347,8 +362,15 @@ impl VRFKeyManager {
     }
 
     /// Store VRF keypair in memory (separate method to avoid borrowing conflicts)
-    pub fn store_vrf_keypair_in_memory(&mut self, vrf_keypair: ECVRFKeyPair, near_account_id: String) {
-        debug!("Storing VRF keypair in worker memory for account: {}", near_account_id);
+    pub fn store_vrf_keypair_in_memory(
+        &mut self,
+        vrf_keypair: ECVRFKeyPair,
+        near_account_id: String,
+    ) {
+        debug!(
+            "Storing VRF keypair in worker memory for account: {}",
+            near_account_id
+        );
         // Clear any existing keypair and save the new one
         self.vrf_keypair.take();
         self.vrf_keypair = Some(SecureVRFKeyPair::new(vrf_keypair));
@@ -381,7 +403,7 @@ impl VRFKeyManager {
         if iv_nonce_bytes.len() != CHACHA20_NONCE_SIZE {
             return Err(VrfWorkerError::InvalidIvLength {
                 expected: CHACHA20_NONCE_SIZE,
-                actual: iv_nonce_bytes.len()
+                actual: iv_nonce_bytes.len(),
             });
         }
 
@@ -395,13 +417,20 @@ impl VRFKeyManager {
             .map_err(|e| VrfWorkerError::AesGcmError(AesError::DecryptionFailed(e.to_string())))?;
 
         // Parse decrypted keypair data using bincode (not JSON)
-        let keypair_data: VRFKeypairData = bincode::deserialize(&decrypted_data)
-            .map_err(|e| VrfWorkerError::SerializationError(SerializationError::KeypairDataDeserialization(e.to_string())))?;
+        let keypair_data: VRFKeypairData = bincode::deserialize(&decrypted_data).map_err(|e| {
+            VrfWorkerError::SerializationError(SerializationError::KeypairDataDeserialization(
+                e.to_string(),
+            ))
+        })?;
 
         // Reconstruct ECVRFKeyPair from the stored bincode bytes
         // This preserves the exact original keypair without regeneration
-        let keypair: ECVRFKeyPair = bincode::deserialize(&keypair_data.keypair_bytes)
-            .map_err(|e| VrfWorkerError::SerializationError(SerializationError::VrfKeypairDeserialization(e.to_string())))?;
+        let keypair: ECVRFKeyPair =
+            bincode::deserialize(&keypair_data.keypair_bytes).map_err(|e| {
+                VrfWorkerError::SerializationError(SerializationError::VrfKeypairDeserialization(
+                    e.to_string(),
+                ))
+            })?;
 
         debug!("VRF keypair successfully restored from bincode");
         Ok(keypair)
@@ -425,14 +454,20 @@ impl VRFKeyManager {
     fn generate_vrf_keypair_from_seed(
         &self,
         seed: &[u8],
-        account_id: &str
+        account_id: &str,
     ) -> VrfResult<ECVRFKeyPair> {
-        debug!("Generating deterministic VRF keypair from seed for account: {}", account_id);
+        debug!(
+            "Generating deterministic VRF keypair from seed for account: {}",
+            account_id
+        );
 
         // Use HKDF-SHA256 to derive a proper 32-byte seed from PRF output
         let hk = Hkdf::<Sha256>::new(Some(account_id.as_bytes()), seed);
         let mut vrf_seed = [0u8; VRF_SEED_SIZE];
-        hk.expand(HKDF_VRF_KEYPAIR_INFO, &mut vrf_seed).map_err(|_| VrfWorkerError::HkdfDerivationFailed(HkdfError::VrfSeedDerivationFailed))?;
+        hk.expand(HKDF_VRF_KEYPAIR_INFO, &mut vrf_seed)
+            .map_err(|_| {
+                VrfWorkerError::HkdfDerivationFailed(HkdfError::VrfSeedDerivationFailed)
+            })?;
 
         // Generate VRF keypair deterministically from the derived seed
         let mut rng = WasmRngFromSeed::from_seed(vrf_seed);
@@ -447,7 +482,7 @@ impl VRFKeyManager {
     fn encrypt_vrf_keypair_data(
         &self,
         vrf_keypair: &ECVRFKeyPair,
-        prf_key: &[u8]
+        prf_key: &[u8],
     ) -> VrfResult<(String, EncryptedVRFKeypair)> {
         debug!("Encrypting VRF keypair data");
 
@@ -464,8 +499,11 @@ impl VRFKeyManager {
         };
 
         // Serialize the VRF keypair data using bincode
-        let keypair_data_bytes = bincode::serialize(&keypair_data)
-            .map_err(|e| VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(format!("{:?}", e))))?;
+        let keypair_data_bytes = bincode::serialize(&keypair_data).map_err(|e| {
+            VrfWorkerError::SerializationError(SerializationError::KeypairDataSerialization(
+                format!("{:?}", e),
+            ))
+        })?;
 
         // Encrypt the VRF keypair data using AES-GCM
         let encrypted_keypair = self.encrypt_vrf_keypair(&keypair_data_bytes, prf_key)?;
@@ -476,28 +514,27 @@ impl VRFKeyManager {
     }
 
     /// Enhanced VRF keypair generation with explicit control over memory storage and challenge generation
-    fn encrypt_vrf_keypair(
-        &self,
-        data: &[u8],
-        key: &[u8]
-    ) -> VrfResult<EncryptedVRFKeypair> {
+    fn encrypt_vrf_keypair(&self, data: &[u8], key: &[u8]) -> VrfResult<EncryptedVRFKeypair> {
         debug!("Deriving ChaCha20 key using HKDF-SHA256 for encryption");
 
         // Use HKDF-SHA256 to derive ChaCha20 key from PRF key for better security
         let hk = Hkdf::<Sha256>::new(None, key);
         let mut chacha20_key = [0u8; CHACHA20_KEY_SIZE];
-        hk.expand(HKDF_CHACHA20_KEY_INFO, &mut chacha20_key).map_err(|_| VrfWorkerError::HkdfDerivationFailed(HkdfError::KeyDerivationFailed))?;
+        hk.expand(HKDF_CHACHA20_KEY_INFO, &mut chacha20_key)
+            .map_err(|_| VrfWorkerError::HkdfDerivationFailed(HkdfError::KeyDerivationFailed))?;
 
         let key_slice = chacha20poly1305::Key::from_slice(&chacha20_key);
         let cipher = ChaCha20Poly1305::new(key_slice);
 
         // Generate cryptographically secure random IV/nonce
         let mut iv_nonce_bytes = [0u8; CHACHA20_NONCE_SIZE];
-        getrandom(&mut iv_nonce_bytes)
-            .map_err(|e| VrfWorkerError::AesGcmError(AesError::IvGenerationFailed(e.to_string())))?;
+        getrandom(&mut iv_nonce_bytes).map_err(|e| {
+            VrfWorkerError::AesGcmError(AesError::IvGenerationFailed(e.to_string()))
+        })?;
         let nonce = Nonce::from_slice(&iv_nonce_bytes);
 
-        let ciphertext = cipher.encrypt(nonce, data)
+        let ciphertext = cipher
+            .encrypt(nonce, data)
             .map_err(|e| VrfWorkerError::AesGcmError(AesError::EncryptionFailed(e.to_string())))?;
 
         Ok(EncryptedVRFKeypair {

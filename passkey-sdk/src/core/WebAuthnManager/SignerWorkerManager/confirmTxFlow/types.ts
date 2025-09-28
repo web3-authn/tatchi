@@ -52,7 +52,7 @@ export interface WorkerConfirmationResponse {
   error?: string;
 }
 
-// ===== V2 REFACTOR TYPES (non-breaking additions) =====
+// ===== V2 MESSAGE TYPES =====
 
 export enum SecureConfirmationType {
   SIGN_TRANSACTION = 'signTransaction',
@@ -60,9 +60,10 @@ export enum SecureConfirmationType {
   LINK_DEVICE = 'linkDevice',
   DECRYPT_PRIVATE_KEY_WITH_PRF = 'decryptPrivateKeyWithPrf',
   SIGN_NEP413_MESSAGE = 'signNep413Message',
+  SHOW_SECURE_PRIVATE_KEY_UI = 'showSecurePrivateKeyUi',
 }
 
-// V2 request envelope (preferred for new call sites)
+// V2 request envelope
 export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
   schemaVersion: 2;
   requestId: string;
@@ -93,6 +94,14 @@ export interface DecryptPrivateKeyWithPrfPayload {
   publicKey: string;
 }
 
+export interface ShowSecurePrivateKeyUiPayload {
+  nearAccountId: string;
+  publicKey: string;
+  privateKey: string;
+  variant?: 'drawer' | 'modal';
+  theme?: 'dark' | 'light';
+}
+
 export interface SignNep413Payload {
   nearAccountId: string;
   message: string;
@@ -115,3 +124,21 @@ export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest 
 
 // Serialized WebAuthn credential (authentication or registration)
 export type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
+
+// Discriminated unions to bind `type` to payload shape
+export type LocalOnlySecureConfirmRequest =
+  | (SecureConfirmRequest<DecryptPrivateKeyWithPrfPayload> & { type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF })
+  | (SecureConfirmRequest<ShowSecurePrivateKeyUiPayload> & { type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI });
+
+export type RegistrationSecureConfirmRequest =
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.REGISTER_ACCOUNT })
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.LINK_DEVICE });
+
+export type SigningSecureConfirmRequest =
+  | (SecureConfirmRequest<SignTransactionPayload> & { type: SecureConfirmationType.SIGN_TRANSACTION })
+  | (SecureConfirmRequest<SignNep413Payload> & { type: SecureConfirmationType.SIGN_NEP413_MESSAGE });
+
+export type KnownSecureConfirmRequest =
+  | LocalOnlySecureConfirmRequest
+  | RegistrationSecureConfirmRequest
+  | SigningSecureConfirmRequest;

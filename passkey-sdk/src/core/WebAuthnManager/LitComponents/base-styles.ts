@@ -153,24 +153,25 @@ export const GREY_COLORS = {
   grey975: 'oklch(0.025 0.001 240)', // Near black grey
 
   // Slate variations (stronger blue tint)
-  slate25: 'oklch(0.99 0.003 240)',    // Ultra light slate
+  slate25: 'oklch(0.99 0.003 240)',   // Ultra light slate
   slate50: 'oklch(0.98 0.005 240)',   // Very light slate
+  slate75: 'oklch(0.965 0.007 240)',  // Between 50 and 100
   slate100: 'oklch(0.95 0.01 240)',   // Light slate
-  slate150: 'oklch(0.915 0.0125 240)', // Between 100 and 200
+  slate150: 'oklch(0.915 0.0125 240)',// Between 100 and 200
   slate200: 'oklch(0.88 0.015 240)',  // Lighter slate
-  slate250: 'oklch(0.84 0.0175 240)',  // Between 200 and 300
+  slate250: 'oklch(0.84 0.0175 240)', // Between 200 and 300
   slate300: 'oklch(0.8 0.02 240)',    // Light slate
-  slate350: 'oklch(0.725 0.0225 240)', // Between 300 and 400
+  slate350: 'oklch(0.725 0.0225 240)',// Between 300 and 400
   slate400: 'oklch(0.65 0.025 240)',  // Medium-light slate
-  slate450: 'oklch(0.59 0.0275 240)',  // Between 400 and 500
+  slate450: 'oklch(0.59 0.0275 240)', // Between 400 and 500
   slate500: 'oklch(0.53 0.03 240)',   // Medium slate
-  slate550: 'oklch(0.465 0.0275 240)', // Between 500 and 600
+  slate550: 'oklch(0.465 0.0275 240)',// Between 500 and 600
   slate600: 'oklch(0.4 0.025 240)',   // Medium-dark slate
-  slate650: 'oklch(0.35 0.0225 240)',  // Between 600 and 700
+  slate650: 'oklch(0.35 0.0225 240)', // Between 600 and 700
   slate700: 'oklch(0.3 0.02 240)',    // Dark slate
-  slate750: 'oklch(0.25 0.0175 240)',  // Between 700 and 800
+  slate750: 'oklch(0.25 0.0175 240)', // Between 700 and 800
   slate800: 'oklch(0.2 0.015 240)',   // Darker slate
-  slate850: 'oklch(0.15 0.0125 240)',  // Between 800 and 900
+  slate850: 'oklch(0.15 0.0125 240)', // Between 800 and 900
   slate900: 'oklch(0.1 0.01 240)',    // Very dark slate
 } as const;
 
@@ -195,9 +196,35 @@ export const DARK_THEME = {
   textMuted: GREY_COLORS.grey650,
 
   colorBackground: GREY_COLORS.grey800,
-  colorSurface: GREY_COLORS.grey750,
-  colorSurface2: GREY_COLORS.slate700,
-  colorBorder: GREY_COLORS.grey700,
+  surface: GREY_COLORS.slate700,
+  surface2: GREY_COLORS.slate750,
+  surface3: GREY_COLORS.slate800,
+
+  // Canonical palette aliases (align with React tokens)
+  primary: CHROMA_COLORS.blue500,
+  primaryHover: CHROMA_COLORS.blue600,
+  secondary: GREY_COLORS.grey400,
+  accent: CHROMA_COLORS.blue300,
+
+  // Interactive states
+  hover: GREY_COLORS.grey850,
+  active: GREY_COLORS.grey650,
+  focus: CHROMA_COLORS.blue400,
+
+  // Status colors
+  success: CHROMA_COLORS.blue400,
+  warning: CHROMA_COLORS.yellow400,
+  error: CHROMA_COLORS.red400,
+  info: CHROMA_COLORS.blue400,
+
+  // Border colors
+  borderPrimary: GREY_COLORS.grey650,
+  borderSecondary: GREY_COLORS.grey750,
+  borderHover: GREY_COLORS.grey750,
+
+  // Background Gradients
+  backgroundGradientPrimary: GRADIENTS.blue,
+  backgroundGradientSecondary: GRADIENTS.blueWhite,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
@@ -244,10 +271,6 @@ export const DARK_THEME = {
   highlightMethodNameBackground: GRADIENTS.aqua,
   highlightAmountBackground: GRADIENTS.peach,
 
-  // Misc
-  colorPrimary: CHROMA_COLORS.blue500,
-  gradientPeach: GRADIENTS.peach,
-  gradientAqua: GRADIENTS.aqua,
 } as const;
 
 // Light Theme Colors - Using ONLY colors from Guidelines.md
@@ -260,9 +283,35 @@ export const LIGHT_THEME = {
   textMuted: GREY_COLORS.grey350,
 
   colorBackground: GREY_COLORS.grey50,
-  colorSurface: GREY_COLORS.grey150,
-  colorSurface2: GREY_COLORS.slate150,
-  colorBorder: GREY_COLORS.grey200,
+  surface: GREY_COLORS.slate150,
+  surface2: GREY_COLORS.slate200,
+  surface3: GREY_COLORS.slate250,
+
+  // Canonical palette aliases (align with React tokens)
+  primary: CHROMA_COLORS.blue500,
+  primaryHover: CHROMA_COLORS.blue600,
+  secondary: GREY_COLORS.grey600,
+  accent: CHROMA_COLORS.blue300,
+
+  // Interactive states
+  hover: GREY_COLORS.grey100,
+  active: GREY_COLORS.grey200,
+  focus: CHROMA_COLORS.blue400,
+
+  // Status colors
+  success: CHROMA_COLORS.blue500,
+  warning: CHROMA_COLORS.yellow500,
+  error: CHROMA_COLORS.red500,
+  info: CHROMA_COLORS.blue500,
+
+  // Border colors
+  borderPrimary: GREY_COLORS.slate300,
+  borderSecondary: GREY_COLORS.grey300,
+  borderHover: GREY_COLORS.slate350,
+
+  // Background Gradients
+  backgroundGradientPrimary: GRADIENTS.blue,
+  backgroundGradientSecondary: GRADIENTS.blueWhite,
 
   grey25: GREY_COLORS.grey25,
   grey50: GREY_COLORS.grey50,
@@ -315,8 +364,4 @@ export const LIGHT_THEME = {
   highlightMethodNameBackground: GRADIENTS.aqua,
   highlightAmountBackground: GRADIENTS.peach,
 
-  // Misc
-  colorPrimary: CHROMA_COLORS.blue500,
-  gradientPeach: GRADIENTS.peach,
-  gradientAqua: GRADIENTS.aqua,
 } as const;

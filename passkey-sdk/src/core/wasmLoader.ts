@@ -30,8 +30,8 @@ export interface WasmLoaderOptions {
  *    - Relative path works: './filename.wasm'
  *
  * 2. PLAYWRIGHT E2E TESTS:
- *    - Loads from https://example.localhost/sdk/workers/
- *    - copy-sdk-assets.sh ensures co-location
+ *    - Loads from http://localhost:5173/sdk/workers/ via the Vite dev plugin
+ *    - The plugin serves SDK assets from the SDK dist/ output
  *    - Relative path works: './filename.wasm'
  *
  * 3. FRONTEND DEV INSTALLING FROM NPM:
@@ -72,8 +72,8 @@ export function resolveWasmUrl(wasmFilename: string, workerName: string, customB
 
   // Priority 5: Relative path fallback (default - works for most cases)
   // This handles:
-  // - SDK building: rolldown puts worker + WASM in same dist/workers/ directory
-  // - E2E tests: copy-sdk-assets.sh ensures they're co-located
+  // - SDK building: bundlers put worker + WASM in the same directory
+  // - E2E tests: Vite dev plugin serves co-located worker + WASM under /sdk/workers
   // - Simple npm usage: bundlers typically preserve relative relationships
   console.debug(`[wasmLoader: ${workerName}] Using default import.meta.url path: ${import.meta.url}`);
   return new URL(`./${wasmFilename}`, import.meta.url);

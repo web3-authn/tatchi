@@ -3,25 +3,25 @@
 // *                        HANDLER 9: SIGN NEP-413 MESSAGE                    *
 // *                                                                            *
 // ******************************************************************************
-use wasm_bindgen::prelude::*;
-use serde::{Serialize, Deserialize};
-use log::info;
 use crate::encoders::base64_standard_encode;
+use log::info;
+use serde::{Deserialize, Serialize};
+use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SignNep413Request {
     #[wasm_bindgen(getter_with_clone)]
-    pub message: String,           // Message to sign
+    pub message: String, // Message to sign
     #[wasm_bindgen(getter_with_clone)]
-    pub recipient: String,         // Recipient identifier
+    pub recipient: String, // Recipient identifier
     #[wasm_bindgen(getter_with_clone)]
-    pub nonce: String,            // Base64-encoded 32-byte nonce
+    pub nonce: String, // Base64-encoded 32-byte nonce
     #[wasm_bindgen(getter_with_clone)]
-    pub state: Option<String>,     // Optional state
+    pub state: Option<String>, // Optional state
     #[wasm_bindgen(getter_with_clone, js_name = "accountId")]
-    pub account_id: String,        // NEAR account ID
+    pub account_id: String, // NEAR account ID
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
@@ -37,9 +37,9 @@ pub struct SignNep413Result {
     #[wasm_bindgen(getter_with_clone, js_name = "accountId")]
     pub account_id: String,
     #[wasm_bindgen(getter_with_clone, js_name = "publicKey")]
-    pub public_key: String,        // Base58-encoded public key
+    pub public_key: String, // Base58-encoded public key
     #[wasm_bindgen(getter_with_clone)]
-    pub signature: String,         // Base64-encoded signature
+    pub signature: String, // Base64-encoded signature
     #[wasm_bindgen(getter_with_clone)]
     pub state: Option<String>,
 }
@@ -73,7 +73,7 @@ impl SignNep413Result {
 /// # Returns
 /// * `SignNep413Result` - Contains signed message with account ID, public key, signature, and optional state
 pub async fn handle_sign_nep413_message(
-    request: SignNep413Request
+    request: SignNep413Request,
 ) -> Result<SignNep413Result, String> {
     info!("RUST: Starting NEP-413 message signing");
 
@@ -82,7 +82,10 @@ pub async fn handle_sign_nep413_message(
         .map_err(|e| format!("Failed to decode nonce from base64: {}", e))?;
 
     if nonce_bytes.len() != 32 {
-        return Err(format!("Invalid nonce length: expected 32 bytes, got {}", nonce_bytes.len()));
+        return Err(format!(
+            "Invalid nonce length: expected 32 bytes, got {}",
+            nonce_bytes.len()
+        ));
     }
 
     // Decrypt private key using PRF output
@@ -91,7 +94,8 @@ pub async fn handle_sign_nep413_message(
         &request.prf_output,
         &request.encrypted_private_key_data,
         &request.encrypted_private_key_iv,
-    ).map_err(|e| format!("Failed to decrypt private key: {}", e))?;
+    )
+    .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
 
     // Create NEP-413 payload structure for Borsh serialization
     #[derive(borsh::BorshSerialize)]
@@ -102,7 +106,8 @@ pub async fn handle_sign_nep413_message(
         state: Option<String>,
     }
 
-    let nonce_array: [u8; 32] = nonce_bytes.try_into()
+    let nonce_array: [u8; 32] = nonce_bytes
+        .try_into()
         .map_err(|_| "Failed to convert nonce to 32-byte array")?;
 
     let payload = Nep413Payload {
@@ -113,20 +118,26 @@ pub async fn handle_sign_nep413_message(
     };
 
     // Serialize with Borsh
-    let serialized = borsh::to_vec(&payload)
-        .map_err(|e| format!("Borsh serialization failed: {}", e))?;
+    let serialized =
+        borsh::to_vec(&payload).map_err(|e| format!("Borsh serialization failed: {}", e))?;
 
-    info!("RUST: NEP-413 payload serialized with Borsh ({} bytes)", serialized.len());
+    info!(
+        "RUST: NEP-413 payload serialized with Borsh ({} bytes)",
+        serialized.len()
+    );
 
     // Prepend NEP-413 prefix (2^31 + 413 = 2147484061 in little-endian)
     let prefix: u32 = 2147484061;
     let mut prefixed_data = prefix.to_le_bytes().to_vec();
     prefixed_data.extend_from_slice(&serialized);
 
-    info!("RUST: NEP-413 prefix added, total data size: {} bytes", prefixed_data.len());
+    info!(
+        "RUST: NEP-413 prefix added, total data size: {} bytes",
+        prefixed_data.len()
+    );
 
     // Hash the prefixed data using SHA-256
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(&prefixed_data);
     let hash = hasher.finalize();

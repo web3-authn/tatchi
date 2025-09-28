@@ -47,6 +47,8 @@ export class UserPreferencesManager {
     });
   }
 
+  
+
   private async initializeUserSettings(): Promise<void> {
     try {
       await this.loadUserSettings();
@@ -141,12 +143,9 @@ export class UserPreferencesManager {
     const user = await IndexedDBManager.clientDB.getUser(nearAccountId);
     if (user?.preferences?.confirmationConfig) {
       this.confirmationConfig = {
-        ...DEFAULT_CONFIRMATION_CONFIG,
+        ...this.confirmationConfig,
         ...user.preferences.confirmationConfig
       };
-    } else {
-      // Reset to defaults if user has no preferences
-      this.confirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
     }
   }
 
@@ -173,7 +172,7 @@ export class UserPreferencesManager {
    */
   setConfirmationConfig(config: ConfirmationConfig): void {
     this.confirmationConfig = {
-      ...DEFAULT_CONFIRMATION_CONFIG,
+      ...this.confirmationConfig,
       ...config
     };
     this.saveUserSettings();
@@ -186,10 +185,10 @@ export class UserPreferencesManager {
     const user = await IndexedDBManager.clientDB.getLastUser();
     if (user) {
       this.currentUserAccountId = user.nearAccountId;
-      // Load user's confirmation config if it exists, otherwise keep defaults
+      // Load user's confirmation config if it exists, otherwise keep existing settings/defaults
       if (user.preferences?.confirmationConfig) {
         this.confirmationConfig = {
-          ...DEFAULT_CONFIRMATION_CONFIG,
+          ...this.confirmationConfig,
           ...user.preferences.confirmationConfig
         };
       } else {
