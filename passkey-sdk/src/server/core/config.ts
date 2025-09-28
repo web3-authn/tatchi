@@ -2,19 +2,17 @@ import type { AuthServiceConfig } from './types';
 
 export function validateConfigs(config: AuthServiceConfig): void {
 
-  const requiredConfigVars = [
-    'relayerAccountId',
-    'relayerPrivateKey',
-    'webAuthnContractId',
-    'shamir_p_b64u',
-    'shamir_e_s_b64u',
-    'shamir_d_s_b64u',
-  ];
+  const requiredTop = ['relayerAccountId','relayerPrivateKey','webAuthnContractId'] as const;
+  for (const key of requiredTop) {
+    if (!(config as any)[key]) throw new Error(`Missing required config variable: ${key}`);
+  }
 
-  for (const key of requiredConfigVars) {
-    if (!config[key as keyof AuthServiceConfig]) {
-      throw new Error(`Missing required config variable: ${key}`);
-    }
+  // Shamir configuration is optional. If provided, validate required fields.
+  const shamir = config.shamir;
+  if (shamir) {
+    if (!shamir.shamir_p_b64u) throw new Error('Missing required config variable: shamir.shamir_p_b64u');
+    if (!shamir.shamir_e_s_b64u) throw new Error('Missing required config variable: shamir.shamir_e_s_b64u');
+    if (!shamir.shamir_d_s_b64u) throw new Error('Missing required config variable: shamir.shamir_d_s_b64u');
   }
 
   // Validate private key format
@@ -22,4 +20,3 @@ export function validateConfigs(config: AuthServiceConfig): void {
     throw new Error('Relayer private key must be in format "ed25519:base58privatekey"');
   }
 }
-

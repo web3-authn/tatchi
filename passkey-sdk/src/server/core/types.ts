@@ -49,14 +49,7 @@ export interface ServerResponse {
 }
 
 // Server configuration interface
-export interface AuthServiceConfig {
-  relayerAccountId: string;
-  relayerPrivateKey: string;
-  webAuthnContractId: string;
-  nearRpcUrl: string;
-  networkId: string;
-  accountInitialBalance: string;
-  createAccountAndRegisterGas: string;
+export interface ShamirConfig {
   // Shamir 3-pass configuration (base64url BigInts)
   shamir_p_b64u: string;
   shamir_e_s_b64u: string;
@@ -68,6 +61,18 @@ export interface AuthServiceConfig {
   }>;
   // Optional path for persisting grace keys (default: ./grace-keys.json)
   graceShamirKeysFile?: string;
+}
+
+export interface AuthServiceConfig {
+  relayerAccountId: string;
+  relayerPrivateKey: string;
+  webAuthnContractId: string;
+  nearRpcUrl: string;
+  networkId: string;
+  accountInitialBalance: string;
+  createAccountAndRegisterGas: string;
+  // grouped Shamir settings under `shamir`
+  shamir?: ShamirConfig;
 }
 
 // Account creation and registration types (imported from relay-server types)

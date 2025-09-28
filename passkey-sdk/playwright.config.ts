@@ -3,6 +3,8 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
+const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
+
 export default defineConfig({
   testDir: './src/__tests__',
   testMatch: [
@@ -37,12 +39,14 @@ export default defineConfig({
     // Safari/WebKit tests would need different WebAuthn testing approach
   ],
 
-  /* Run your local dev server before starting the tests */
+  /* Run your local dev server(s) before starting the tests */
   webServer: {
-    // Start Vite dev server only (no Caddy); tests use http://localhost:5173
-    command: 'pnpm -C ../examples/vite dev',
+    // If USE_RELAY_SERVER is set, start both servers with a relay health check
+    command: USE_RELAY_SERVER
+      ? 'node ./src/__tests__/scripts/start-servers.mjs'
+      : 'pnpm -C ../examples/vite dev',
     url: 'http://localhost:5173',
     reuseExistingServer: true,
-    timeout: 120000, // Increased timeout to allow for build
+    timeout: 180000, // Allow time for relay health check + build
   },
 });

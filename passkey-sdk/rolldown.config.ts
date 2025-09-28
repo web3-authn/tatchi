@@ -26,6 +26,9 @@ const external = [
   'module',
   'crypto',
   'util',
+  // Express-only helpers (optional consumers)
+  'express',
+  'cors',
 
   // Core dependencies that should be provided by consuming application
   'borsh',

@@ -65,6 +65,7 @@ export class AuthService {
 
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
+
     this.config = {
       // Use defaults if not set
       relayerAccountId: config.relayerAccountId,
@@ -78,15 +79,18 @@ export class AuthService {
         || '50000000000000000000000', // 0.05 NEAR
       createAccountAndRegisterGas: config.createAccountAndRegisterGas
         || '120000000000000', // 120 TGas
-      shamir_p_b64u: config.shamir_p_b64u,
-      shamir_e_s_b64u: config.shamir_e_s_b64u,
-      shamir_d_s_b64u: config.shamir_d_s_b64u,
-      graceShamirKeys: config.graceShamirKeys,
-      graceShamirKeysFile: config.graceShamirKeysFile,
+      shamir: config.shamir,
     };
-    const graceFileCandidate = (this.config.graceShamirKeysFile || '').trim();
+    const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.graceKeysFilePath = graceFileCandidate || 'grace-keys.json';
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
+  }
+
+  /**
+   * Returns true when Shamir 3-pass is configured and initialized.
+   */
+  public hasShamir(): boolean {
+    return Boolean(this.config.shamir && this.shamir3pass);
   }
 
   // Backward-compat getter, no longer returns near-js Account
@@ -101,11 +105,11 @@ export class AuthService {
     }
 
     // Initialize Shamir3Pass WASM module (loads same worker wasm)
-    if (!this.shamir3pass) {
+    if (!this.shamir3pass && this.config.shamir) {
       this.shamir3pass = new Shamir3PassUtils({
-        p_b64u: this.config.shamir_p_b64u,
-        e_s_b64u: this.config.shamir_e_s_b64u,
-        d_s_b64u: this.config.shamir_d_s_b64u,
+        p_b64u: this.config.shamir.shamir_p_b64u,
+        e_s_b64u: this.config.shamir.shamir_e_s_b64u,
+        d_s_b64u: this.config.shamir.shamir_d_s_b64u,
       });
       try { await this.shamir3pass.initialize(); } catch {}
     }
@@ -132,9 +136,7 @@ export class AuthService {
     • webAuthnContractId: ${this.config.webAuthnContractId}
     • accountInitialBalance: ${this.config.accountInitialBalance} (${this.formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
     • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${this.formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    • shamir_p_b64u: ${this.config.shamir_p_b64u.slice(0, 10)}...
-    • shamir_e_s_b64u: ${this.config.shamir_e_s_b64u.slice(0, 10)}...
-    • shamir_d_s_b64u: ${this.config.shamir_d_s_b64u.slice(0, 10)}...
+    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
     `);
   }
 
@@ -211,8 +213,8 @@ export class AuthService {
         specs.push(...fileSpecs);
       }
 
-      if (Array.isArray(this.config.graceShamirKeys) && this.config.graceShamirKeys.length) {
-        specs.push(...this.config.graceShamirKeys);
+      if (Array.isArray(this.config.shamir?.graceShamirKeys) && this.config.shamir!.graceShamirKeys!.length) {
+        specs.push(...(this.config.shamir!.graceShamirKeys as any));
       }
 
       if (specs.length) {
@@ -267,10 +269,10 @@ export class AuthService {
 
   private syncGraceKeySpecsToConfig(): void {
     if (this.graceKeySpecs.size === 0) {
-      this.config.graceShamirKeys = undefined;
+      if (this.config.shamir) this.config.shamir.graceShamirKeys = undefined;
       return;
     }
-    this.config.graceShamirKeys = Array.from(this.graceKeySpecs.values()).map((spec) => ({
+    if (this.config.shamir) this.config.shamir.graceShamirKeys = Array.from(this.graceKeySpecs.values()).map((spec) => ({
       e_s_b64u: spec.e_s_b64u,
       d_s_b64u: spec.d_s_b64u,
     }));
@@ -305,11 +307,12 @@ export class AuthService {
       return null;
     }
 
-    const util = new Shamir3PassUtils({
-      p_b64u: this.config.shamir_p_b64u,
-      e_s_b64u: e,
-      d_s_b64u: d,
-    });
+    const p_b64u = this.config.shamir?.shamir_p_b64u;
+    if (!p_b64u) {
+      console.warn('[AuthService] Missing Shamir p_b64u; cannot add grace key');
+      return null;
+    }
+    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u: e, d_s_b64u: d });
 
     let keyId = util.getCurrentKeyId();
     if (!keyId) {
@@ -392,11 +395,9 @@ export class AuthService {
     if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
 
     const { e_s_b64u, d_s_b64u } = await this.shamir3pass.generateServerKeypair();
-    const util = new Shamir3PassUtils({
-      p_b64u: this.config.shamir_p_b64u,
-      e_s_b64u,
-      d_s_b64u,
-    });
+    const p_b64u = this.config.shamir?.shamir_p_b64u;
+    if (!p_b64u) throw new Error('Shamir not configured');
+    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u, d_s_b64u });
     let keyId: string | null = null;
     try {
       keyId = util.getCurrentKeyId();
@@ -432,14 +433,15 @@ export class AuthService {
     const persistGrace = options?.persistGraceToDisk !== false;
 
     const previousKeyId = this.shamir3pass.getCurrentKeyId();
+    if (!this.config.shamir) throw new Error('Shamir not configured');
     const previousKeypair = {
-      e_s_b64u: this.config.shamir_e_s_b64u,
-      d_s_b64u: this.config.shamir_d_s_b64u,
+      e_s_b64u: this.config.shamir.shamir_e_s_b64u,
+      d_s_b64u: this.config.shamir.shamir_d_s_b64u,
     };
 
     const { e_s_b64u: newE, d_s_b64u: newD } = await this.shamir3pass.generateServerKeypair();
     const newUtil = new Shamir3PassUtils({
-      p_b64u: this.config.shamir_p_b64u,
+      p_b64u: this.config.shamir.shamir_p_b64u,
       e_s_b64u: newE,
       d_s_b64u: newD,
     });
@@ -447,8 +449,7 @@ export class AuthService {
     await newUtil.initialize();
 
     this.shamir3pass = newUtil;
-    this.config.shamir_e_s_b64u = newE;
-    this.config.shamir_d_s_b64u = newD;
+    this.config.shamir = { ...this.config.shamir, shamir_e_s_b64u: newE, shamir_d_s_b64u: newD };
 
     const newKeyId = newUtil.getCurrentKeyId();
 
@@ -1053,7 +1054,7 @@ export class AuthService {
       return {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentKeyId, p_b64u: this.config.shamir_p_b64u, graceKeyIds })
+        body: JSON.stringify({ currentKeyId, p_b64u: this.config.shamir?.shamir_p_b64u ?? null, graceKeyIds })
       };
     } catch (e: any) {
       return {
