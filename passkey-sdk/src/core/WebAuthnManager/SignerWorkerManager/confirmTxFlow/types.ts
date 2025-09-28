@@ -124,3 +124,21 @@ export function isSecureConfirmRequestV2(x: unknown): x is SecureConfirmRequest 
 
 // Serialized WebAuthn credential (authentication or registration)
 export type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
+
+// Discriminated unions to bind `type` to payload shape
+export type LocalOnlySecureConfirmRequest =
+  | (SecureConfirmRequest<DecryptPrivateKeyWithPrfPayload> & { type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF })
+  | (SecureConfirmRequest<ShowSecurePrivateKeyUiPayload> & { type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI });
+
+export type RegistrationSecureConfirmRequest =
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.REGISTER_ACCOUNT })
+  | (SecureConfirmRequest<RegisterAccountPayload> & { type: SecureConfirmationType.LINK_DEVICE });
+
+export type SigningSecureConfirmRequest =
+  | (SecureConfirmRequest<SignTransactionPayload> & { type: SecureConfirmationType.SIGN_TRANSACTION })
+  | (SecureConfirmRequest<SignNep413Payload> & { type: SecureConfirmationType.SIGN_NEP413_MESSAGE });
+
+export type KnownSecureConfirmRequest =
+  | LocalOnlySecureConfirmRequest
+  | RegistrationSecureConfirmRequest
+  | SigningSecureConfirmRequest;

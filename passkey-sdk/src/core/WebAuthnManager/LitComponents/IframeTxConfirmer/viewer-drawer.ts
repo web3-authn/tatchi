@@ -61,8 +61,16 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         // Best-effort close and emit cancel so host resolves and cleans up
         try { this._drawerEl?.handleClose?.(); } catch {}
         try {
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+            bubbles: true,
+            composed: true,
+            detail: { confirmed: false }
+          }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
+            bubbles: true,
+            composed: true,
+            detail: { confirmed: false }
+          }));
         } catch {}
       }
     } catch {}
@@ -75,8 +83,16 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       if (!this._drawerEl) {
         try {
           // New canonical + legacy alias
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+            bubbles: true,
+            composed: true,
+            detail: { confirmed: false }
+          }));
+          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
+            bubbles: true,
+            composed: true,
+            detail: { confirmed: false }
+          }));
         } catch {}
       }
       // Rely on drawer's `cancel` event -> onDrawerCancel to emit w3a:modal-cancel
@@ -237,8 +253,16 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   private onDrawerCancel = () => {
     if (this.loading) return;
     try {
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false }
+      }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false }
+      }));
     } catch {}
   };
 
@@ -248,8 +272,16 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.requestUpdate();
     // Bridge semantic event to canonical events (new + legacy)
     try {
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: true }
+      }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: true }
+      }));
     } catch {}
   };
 
@@ -257,8 +289,16 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     if (this.loading) return;
     try { this._drawerEl?.handleClose(); } catch {}
     try {
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false }
+      }));
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false }
+      }));
     } catch {}
   };
 
@@ -339,10 +379,11 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 }
 
-import { W3A_DRAWER_TX_CONFIRM_ID } from '../tags';
+import { W3A_DRAWER_TX_CONFIRMER_ID } from '../tags';
 
-if (!customElements.get(W3A_DRAWER_TX_CONFIRM_ID)) {
-  customElements.define(W3A_DRAWER_TX_CONFIRM_ID, DrawerTxConfirmerElement);
+// Define canonical tag
+if (!customElements.get(W3A_DRAWER_TX_CONFIRMER_ID)) {
+  customElements.define(W3A_DRAWER_TX_CONFIRMER_ID, DrawerTxConfirmerElement);
 }
 
 export default DrawerTxConfirmerElement;

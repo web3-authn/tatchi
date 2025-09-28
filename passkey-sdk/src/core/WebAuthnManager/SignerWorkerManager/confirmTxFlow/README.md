@@ -1,56 +1,76 @@
-# Transaction Confirmation Flow
+# Confirm TX Flow
 
 ## Overview
 
-This module handles the secure transaction confirmation flow between WASM workers and the main thread.
+Secure confirmation is coordinated in the main thread and split into small, testable units. The worker requests a confirmation; the main thread classifies the request and delegates to a per‑flow handler that prepares NEAR/VRF data, renders UI, collects WebAuthn credentials, and responds back.
 
-## Flow Diagram
+High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Collect Credentials → Respond → Cleanup.
 
-```
-┌─────────────┐    Request      ┌─────────────┐     Response    ┌─────────────┐
-│   WASM      │ ──────────────▶ │   Worker    │ ──────────────▶ │ Main Thread │
-│  Worker     │                 │             │                 │             │
-└─────────────┘                 └─────────────┘                 └─────────────┘
-       │                               │                               │
-       │                               │                               │
-       ▼                               ▼                               ▼
-┌─────────────┐                 ┌─────────────┐                 ┌──────────────┐
-│ awaitSecure │                 │ awaitSecure │                 │ handleSecure │
-│Confirmation │                 │Confirmation │                 │ConfirmRequest│
-│   (Rust)    │                 │  (Worker)   │                 │ (Main Thread)│
-└─────────────┘                 └─────────────┘                 └──────────────┘
-       │                               │                               │
-       │                               │                               │
-       ▼                               ▼                               ▼
-┌─────────────┐                 ┌─────────────┐                 ┌─────────────┐
-│   Promise   │                 │ postMessage │                 │ Show UI &   │
-│   Resolves  │                 │   Request   │                 │ Collect     │
-│             │                 │             │                 │ Credentials │
-└─────────────┘                 └─────────────┘                 └─────────────┘
-```
+## Files
 
-## File Structure
+- Orchestrator: `handleSecureConfirmRequest.ts` (entry; validates, computes config, classifies, dispatches)
+- Flows: `flows/localOnly.ts`, `flows/registration.ts`, `flows/transactions.ts`
+- Shared helpers: `flows/common.ts` (NEAR context/nonce, VRF challenge + refresh, UI renderer, sanitize, type helpers)
+- Types: `types.ts` (discriminated unions bound to `request.type`)
+- Worker request: `awaitSecureConfirmation.ts` (posts request to main thread)
+- Config rules: `determineConfirmationConfig.ts` (merges user prefs + request overrides + iframe safety)
 
-- **`awaitSecureConfirmation.ts`**: Worker-side confirmation request
-- **`handleSecureConfirmRequest.ts`**: Main thread confirmation handler
-- **`userSettings.ts`**: User preferences management
-- **`types.ts`**: Shared confirmation types
+## Message Handshake
+
+- Worker → Main: `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` with a V2 `SecureConfirmRequest`
+- Main → Worker: `USER_PASSKEY_CONFIRM_RESPONSE` containing confirmation status, optional credential, `prfOutput`, `vrfChallenge`, and `transactionContext`
+
+## Flows
+
+- LocalOnly
+  - Types: `DECRYPT_PRIVATE_KEY_WITH_PRF`, `SHOW_SECURE_PRIVATE_KEY_UI`
+  - No NEAR calls; uses a local random VRF challenge for UI plumbing
+  - Decrypt: silently collect PRF via get(); UI is skipped; if user cancels, posts `WALLET_UI_CLOSED`
+  - ShowSecurePrivateKeyUi: mounts export viewer (modal/drawer); returns confirmed=true and keeps viewer open
+
+- Registration / LinkDevice
+  - Fetches NEAR block context; bootstraps temporary VRF keypair; renders UI per config
+  - Performs JIT VRF refresh (best‑effort) and updates UI
+  - Collects create() credentials; retries on `InvalidStateError` by bumping deviceNumber
+  - Serializes credential (without PRF outputs for relay/contract requests) and returns dual PRF outputs
+
+- Signing / NEP‑413
+  - Fetches NEAR context via NonceManager (reserving per‑request nonces); generates VRF challenge
+  - Renders UI per config; performs JIT VRF refresh (best‑effort)
+  - Collects get() credentials; returns serialized credential + PRF output
+  - Releases reserved nonces on cancel/negative confirmation
+
+## UI Behavior
+
+- `determineConfirmationConfig` combines user prefs and request overrides, with wallet‑iframe safety defaults
+- `renderConfirmUI` supports `uiMode: 'skip' | 'modal' | 'drawer'` and `behavior: 'autoProceed' | 'requireClick'`
+- Wallet iframe overlay considerations remain: requireClick flows must be visible for clicks to register
+
+## VRF + NEAR Context
+
+- Registration: bootstrap a temporary VRF keypair and challenge before WebAuthn create()
+- Signing: generate challenge from active VRF session
+- JIT refresh: refresh block height/hash before collecting credentials to minimize staleness
+- NonceManager: reserves/releases nonces for signing batches; registration does not use nonces
+
+## Types
+
+- Discriminated unions bind `request.type` to its payload
+- `LocalOnlySecureConfirmRequest`, `RegistrationSecureConfirmRequest`, `SigningSecureConfirmRequest`
+- All responses are sanitized via `sanitizeForPostMessage` to ensure structured‑clone safety
 
 ## Sequence
 
-1. **WASM** calls `awaitSecureConfirmation()` when user confirmation needed
-2. **Worker** sends `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD` to main thread via `postMessage()`
-3. **Main Thread** shows UI (modal/embedded) and collects TouchID credentials
-4. **Main Thread** sends `USER_PASSKEY_CONFIRM_RESPONSE` back to worker via `postMessage()`
-5. **Worker** resolves promise and returns result to WASM
+1. Worker sends `PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD`
+2. Main validates, computes effective `ConfirmationConfig`, and classifies the flow
+3. Per‑flow handler prepares NEAR context and VRF challenge
+4. UI is rendered per config (skip/modal/drawer); user confirms or cancels
+5. JIT VRF refresh (best‑effort) updates UI
+6. Credentials are collected (create/get) and serialized; PRF extracted when required
+7. Response is sent back; nonces released on cancel; UI closed as appropriate
 
-## Overlay dependency note (wallet iframe)
+## Notes
 
-The visible confirmation modal is rendered inside the wallet iframe (or a nested iframe in that origin). For `behavior: 'requireClick'` to work, the wallet iframe overlay must expand before the modal mounts so the user can see and click it.
-
-Rule of thumb for `ProgressBus` heuristics:
-
-- Show on: `ActionPhase.STEP_2_USER_CONFIRMATION` and `ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION`.
-- Hide after: `ActionPhase.STEP_5_AUTHENTICATION_COMPLETE` and during non‑interactive phases (e.g., `transaction-signing-progress`, `contract-verification`, `broadcasting`, completion/error phases for other flows).
-
-Removing `STEP_2_USER_CONFIRMATION` from the show list will break `requireClick` flows: the modal mounts out of view and cannot receive the click.
+- Export viewer (ShowSecurePrivateKeyUi) posts `WALLET_UI_OPENED/CLOSED` to coordinate overlays
+- Errors are returned in a structured format; best‑effort cleanup always runs
+- Orchestrator imports helpers from `flows/common` and never performs side effects directly

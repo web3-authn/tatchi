@@ -43,8 +43,9 @@ export const IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE = 'iframe-tx-confirmer-bootstr
 export const MODAL_TX_CONFIRM_BUNDLE = 'tx-confirm-ui.js';
 
 // Transaction confirmer element tags (host-rendered)
-export const W3A_MODAL_TX_CONFIRM_ID = 'w3a-modal-tx-confirm';
-export const W3A_DRAWER_TX_CONFIRM_ID = 'w3a-drawer-tx-confirm';
+// Canonical tag names use the "-tx-confirmer" suffix for consistency
+export const W3A_MODAL_TX_CONFIRMER_ID = 'w3a-modal-tx-confirmer';
+export const W3A_DRAWER_TX_CONFIRMER_ID = 'w3a-drawer-tx-confirmer';
 export const W3A_TX_CONFIRM_CONTENT_ID = 'w3a-tx-confirm-content';
 
 // Shared building blocks
@@ -55,8 +56,8 @@ export const W3A_PASSKEY_HALO_LOADING_ID = 'w3a-passkey-halo-loading';
 
 // Unified list of confirmer hosts the wallet may need to target for lifecycle events
 export const CONFIRM_UI_ELEMENT_SELECTORS = [
-  W3A_MODAL_TX_CONFIRM_ID,
-  W3A_DRAWER_TX_CONFIRM_ID,
+  W3A_MODAL_TX_CONFIRMER_ID,
+  W3A_DRAWER_TX_CONFIRMER_ID,
   W3A_IFRAME_TX_CONFIRMER_ID,
 ] as const;
 

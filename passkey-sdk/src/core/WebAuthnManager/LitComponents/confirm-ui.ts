@@ -1,6 +1,6 @@
 import { TransactionInputWasm, VRFChallenge } from '../../types';
 import { WalletIframeDomEvents } from '../../WalletIframe/events';
-import { W3A_IFRAME_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_MODAL_TX_CONFIRM_ID, W3A_DRAWER_TX_CONFIRM_ID, W3A_CONFIRM_PORTAL_ID } from './tags';
+import { W3A_IFRAME_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_MODAL_TX_CONFIRMER_ID, W3A_DRAWER_TX_CONFIRMER_ID, W3A_CONFIRM_PORTAL_ID } from './tags';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
 import { isBoolean } from '../../WalletIframe/validation';
@@ -38,11 +38,11 @@ if (customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) return;
 // ========= Host Modal helpers (no nested iframe) =========
 async function ensureHostElementDefined(variant: 'modal' | 'drawer' = 'modal'): Promise<void> {
   if (variant === 'drawer') {
-    if (customElements.get(W3A_DRAWER_TX_CONFIRM_ID)) return;
+    if (customElements.get(W3A_DRAWER_TX_CONFIRMER_ID)) return;
     await import('./IframeTxConfirmer/viewer-drawer');
     return;
   }
-  if (customElements.get(W3A_MODAL_TX_CONFIRM_ID)) return;
+  if (customElements.get(W3A_MODAL_TX_CONFIRMER_ID)) return;
   await import('./IframeTxConfirmer/viewer-modal');
 }
 
@@ -109,7 +109,7 @@ async function mountHostUiWithHandle({
   const v: 'modal' | 'drawer' = variant || 'modal';
   await ensureHostElementDefined(v);
   cleanupExistingConfirmers();
-  const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRM_ID : W3A_MODAL_TX_CONFIRM_ID;
+  const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRMER_ID : W3A_MODAL_TX_CONFIRMER_ID;
   const el = document.createElement(tag) as any;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
@@ -157,7 +157,7 @@ async function awaitHostUiDecisionWithHandle({
   await ensureHostElementDefined(v);
   return new Promise((resolve) => {
     cleanupExistingConfirmers();
-    const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRM_ID : W3A_MODAL_TX_CONFIRM_ID;
+    const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRMER_ID : W3A_MODAL_TX_CONFIRMER_ID;
     const el = document.createElement(tag) as any;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];

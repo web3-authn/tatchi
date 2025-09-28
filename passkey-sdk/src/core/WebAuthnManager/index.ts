@@ -655,6 +655,7 @@ export class WebAuthnManager {
       // Store WebAuthn user data with encrypted VRF credentials
       await this.storeUserData({
         nearAccountId,
+        deviceNumber: 1,
         clientNearPublicKey: publicKey,
         lastUpdated: Date.now(),
         passkeyCredential: {

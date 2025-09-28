@@ -13,7 +13,7 @@ import {
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 // Ensure the drawer custom element is available when variant === 'drawer'
-// This side-effect import defines the <w3a-drawer-tx-confirm> element.
+// This side-effect import defines the <w3a-drawer-tx-confirmer> element.
 import './viewer-drawer';
 
 
@@ -82,7 +82,8 @@ let CURRENT_VARIANT: Variant = 'modal';
 function ensureElement(): ModalElementType {
   const id = 'mtx';
   let el = document.getElementById(id) as ModalElementType | null;
-  const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirm' : 'w3a-modal-tx-confirm';
+  // Prefer canonical "-tx-confirmer" suffix, while legacy aliases remain defined
+  const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirmer' : 'w3a-modal-tx-confirmer';
 
   // If an element exists but the tag does not match the desired variant, replace it
   if (el && el.tagName.toLowerCase() !== desiredTag) {
@@ -139,8 +140,11 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         PARENT_ORIGIN = payload.targetOrigin;
         window.__MTX_PARENT_ORIGIN = PARENT_ORIGIN;
       }
-      // Announce when either modal or drawer element is defined
-      whenAnyDefined(['w3a-modal-tx-confirm', 'w3a-drawer-tx-confirm']).then(() => {
+      // Announce when either modal or drawer element is defined (canonical)
+      whenAnyDefined([
+        'w3a-modal-tx-confirmer',
+        'w3a-drawer-tx-confirmer',
+      ]).then(() => {
         if (MTX_DEFINED_POSTED) return;
         MTX_DEFINED_POSTED = true;
         const definedMessage: IframeModalMessage = { type: 'ETX_DEFINED' };

@@ -4,8 +4,10 @@ import type { PasskeyManagerConfigs } from './types/passkeyManager';
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
 // Consumers can shallow-merge overrides by field.
 export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
+  // You can provide a single URL or a comma-separated list for failover.
+  // First URL is treated as primary, subsequent URLs are fallbacks.
   // nearRpcUrl: 'https://rpc.testnet.near.org',
-  nearRpcUrl: 'https://test.rpc.fastnear.com',
+  nearRpcUrl: 'https://test.rpc.fastnear.com,https://rpc.testnet.near.org',
   nearNetwork: 'testnet' as const,
   contractId: 'web3-authn-v5.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',

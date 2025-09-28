@@ -8,32 +8,66 @@ import {
 } from '@web3authn/passkey/server';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import { readFileSync } from 'node:fs';
 dotenv.config();
 
-const config = {
-  port: Number(process.env.PORT || 3000),
-  expectedOrigin: process.env.EXPECTED_ORIGIN || 'https://example.localhost', // Frontend origin
-  expectedWalletOrigin: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost', // Wallet origin (optional)
-  // minutes between automatic key rotations
-  rotateEveryMinutes: Number(process.env.ROTATE_EVERY) || 60,
+type RelayBootstrap = {
+  authService?: Partial<ConstructorParameters<typeof AuthService>[0]> & {
+    relayerAccountId: string;
+    relayerPrivateKey: string;
+    webAuthnContractId: string;
+    shamir_p_b64u: string;
+    shamir_e_s_b64u: string;
+    shamir_d_s_b64u: string;
+  };
+  server?: {
+    port?: number;
+    expectedOrigin?: string;
+    expectedWalletOrigin?: string;
+    rotateEveryMinutes?: number;
+  };
 };
-// Create AuthService instance
+
+function loadBootstrapConfig(): RelayBootstrap | null {
+  const inline = process.env.RELAY_CONFIG_JSON;
+  if (inline && inline.trim().length) {
+    try { return JSON.parse(inline); } catch {}
+  }
+  const filePath = process.env.RELAY_CONFIG_FILE;
+  if (filePath && filePath.trim().length) {
+    try {
+      const raw = readFileSync(filePath, 'utf8');
+      return JSON.parse(raw);
+    } catch {}
+  }
+  return null;
+}
+
+const bootstrap = loadBootstrapConfig();
+
+const config = {
+  port: Number(bootstrap?.server?.port ?? process.env.PORT ?? 3000),
+  expectedOrigin: bootstrap?.server?.expectedOrigin || process.env.EXPECTED_ORIGIN || 'https://example.localhost',
+  expectedWalletOrigin: bootstrap?.server?.expectedWalletOrigin || process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost',
+  rotateEveryMinutes: Number(bootstrap?.server?.rotateEveryMinutes ?? process.env.ROTATE_EVERY ?? 60),
+};
+
+// Create AuthService instance (prefer injected config over envs)
 const authService = new AuthService({
-  // new accounts with be created with this account: e.g. bob.{relayer-account-id}.near
-  // you can make it the same account as the webauthn contract id.
-  relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
-  relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
-  webAuthnContractId: 'web3-authn-v5.testnet',
-  // Prefer env override; default to FastNEAR which is often more reliable for tests
-  nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
-  networkId: 'testnet',
-  accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
-  createAccountAndRegisterGas: '85000000000000', // 80 TGas (tested)
-  // Shamir 3-pass params (base64url bigints)
-  shamir_p_b64u: process.env.SHAMIR_P_B64U!,
-  shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
-  shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
-  graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
+  relayerAccountId: bootstrap?.authService?.relayerAccountId || process.env.RELAYER_ACCOUNT_ID!,
+  relayerPrivateKey: bootstrap?.authService?.relayerPrivateKey || process.env.RELAYER_PRIVATE_KEY!,
+  webAuthnContractId: bootstrap?.authService?.webAuthnContractId || 'web3-authn-v5.testnet',
+  nearRpcUrl: bootstrap?.authService?.nearRpcUrl || process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
+  networkId: (bootstrap?.authService?.networkId as any) || 'testnet',
+  accountInitialBalance: bootstrap?.authService?.accountInitialBalance || '30000000000000000000000',
+  createAccountAndRegisterGas: bootstrap?.authService?.createAccountAndRegisterGas || '85000000000000',
+  shamir: {
+    shamir_p_b64u: bootstrap?.authService?.shamir?.shamir_p_b64u || process.env.SHAMIR_P_B64U!,
+    shamir_e_s_b64u: bootstrap?.authService?.shamir?.shamir_e_s_b64u || process.env.SHAMIR_E_S_B64U!,
+    shamir_d_s_b64u: bootstrap?.authService?.shamir?.shamir_d_s_b64u || process.env.SHAMIR_D_S_B64U!,
+    graceShamirKeysFile: (bootstrap?.authService?.shamir as any)?.graceShamirKeysFile || process.env.SHAMIR_GRACE_KEYS_FILE,
+    graceShamirKeys: (bootstrap?.authService?.shamir as any)?.graceShamirKeys,
+  },
 });
 
 function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) {

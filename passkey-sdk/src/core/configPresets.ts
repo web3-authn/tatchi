@@ -32,7 +32,7 @@ export function buildAppWalletConfigsFromEnv(overrides: Partial<PasskeyManagerCo
   const envs = [readViteEnv(), readProcessEnv()];
   const nearRpcUrl = overrides.nearRpcUrl || pickFirst(envs, [
     'VITE_NEAR_RPC_URL', 'NEXT_PUBLIC_NEAR_RPC_URL', 'REACT_APP_NEAR_RPC_URL', 'NEAR_RPC_URL'
-  ]) || 'https://test.rpc.fastnear.com';
+  ]) || 'https://test.rpc.fastnear.com,https://rpc.testnet.near.org';
 
   const nearNetwork = (overrides.nearNetwork || pickFirst(envs, [
     'VITE_NEAR_NETWORK', 'NEXT_PUBLIC_NEAR_NETWORK', 'REACT_APP_NEAR_NETWORK', 'NEAR_NETWORK'
