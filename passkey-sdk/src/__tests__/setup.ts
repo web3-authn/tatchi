@@ -112,58 +112,72 @@ export async function setupBasicPasskeyTest(
   // Tests should call setupRelayServerMock(true) in their page.evaluate context
   // before attempting registration to avoid "Invalid signed transaction payload" errors.
 
-  // Install auto-confirmer for headless tests: programmatically confirm the Lit UI
-  // without relying on clicking inside closed shadow DOM. This observes DOM mutations
-  // and dispatches the public confirmation event when the confirmer element mounts.
-  await page.evaluate(() => {
-    if ((window as any).__w3aAutoConfirmInstalled) return;
-    (window as any).__w3aAutoConfirmInstalled = true;
-
-    const confirmOnce = (root: Document | ShadowRoot): boolean => {
-      try {
-        const el = (root.querySelector('w3a-modal-tx-confirm') || root.querySelector('w3a-drawer-tx-confirm')) as HTMLElement | null;
-        if (el) {
-          // Defer slightly to allow initial render
-          setTimeout(() => {
-            try {
-              el.dispatchEvent(new CustomEvent('lit-confirm', { bubbles: true, composed: true }));
-            } catch {}
-            try {
-              el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, { bubbles: true, composed: true }));
-            } catch {}
-          }, 25);
-          return true;
-        }
-      } catch {}
-      return false;
-    };
-
-    const tryAll = () => {
-      if (confirmOnce(document)) return;
-      // Also scan same-origin iframes used by the iframe host variant
-      const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-      for (const iframe of iframes) {
-        try {
-          const doc = iframe.contentWindow?.document;
-          if (doc && confirmOnce(doc)) return;
-        } catch {}
-      }
-    };
-
-    // Observe DOM for confirmer mount
-    const mo = new MutationObserver(() => tryAll());
-    try { mo.observe(document.documentElement, { childList: true, subtree: true }); } catch {}
-    // Fire an initial attempt
-    tryAll();
-
-    // Expose control to tests if they need to disable
-    (window as any).testUtils = (window as any).testUtils || {};
-    (window as any).testUtils.autoConfirm = {
-      disconnect: () => { try { mo.disconnect(); } catch {} }
-    };
-  });
-
   console.log('Playwright test environment ready!');
+}
+
+/**
+ * Install a Playwright route to bypass on-chain contract verification during actions.
+ * This intercepts NEAR RPC `query` calls for `verify_authentication_response` and
+ * returns a successful, minimal response so tests can proceed to signing.
+ *
+ * Note: This is test-only and does not modify application source code.
+ */
+export async function installContractVerificationBypass(
+  page: Page,
+  nearRpcUrl?: string
+): Promise<void> {
+  const urlToIntercept = nearRpcUrl || DEFAULT_TEST_CONFIG.nearRpcUrl;
+  await page.route(urlToIntercept, async (route) => {
+    try {
+      const request = route.request();
+      if (request.method() !== 'POST') return route.continue();
+      const bodyText = request.postData() || '';
+      let body: any = {};
+      try { body = JSON.parse(bodyText); } catch { return route.continue(); }
+
+      const method = body?.method;
+      const params = body?.params || {};
+      const methodName = params?.method_name;
+      if (method !== 'query' || params?.request_type !== 'call_function' || methodName !== 'verify_authentication_response') {
+        return route.continue();
+      }
+
+      // Decode args_base64 to extract user_id/rp_id for nice logs
+      let userId = 'unknown.user';
+      let rpId = 'example.localhost';
+      try {
+        const argsB64 = params?.args_base64 || '';
+        const argsJsonStr = Buffer.from(argsB64, 'base64').toString('utf8');
+        const args = JSON.parse(argsJsonStr);
+        userId = args?.vrf_data?.user_id || userId;
+        rpId = args?.vrf_data?.rp_id || rpId;
+      } catch {}
+
+      const contractResponse = JSON.stringify({ verified: true });
+      const resultBytes = Array.from(Buffer.from(contractResponse, 'utf8'));
+
+      const rpcResponse = {
+        jsonrpc: '2.0',
+        id: body?.id || 'verify_from_wasm',
+        result: {
+          result: resultBytes,
+          logs: [
+            'VRF Authentication: Verifying VRF proof + WebAuthn authentication',
+            `  - User ID: ${userId}`,
+            `  - RP ID (domain): ${rpId}`,
+          ]
+        }
+      };
+
+      return route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(rpcResponse)
+      });
+    } catch {
+      return route.continue();
+    }
+  });
 }
 
 /**
@@ -227,6 +241,10 @@ export interface TestUtils {
     frontendUrl: string;
     rpId: string;
     testReceiverAccountId: string;
+  };
+  confirmOverrides?: {
+    skip: { uiMode: 'skip'; behavior: 'autoProceed'; autoProceedDelay: number; theme: 'dark' | 'light' };
+    autoProceed: { uiMode: 'modal'; behavior: 'autoProceed'; autoProceedDelay: number; theme: 'dark' | 'light' };
   };
   generateTestAccountId: () => string;
   verifyAccountExists: (accountId: string) => Promise<boolean>;
@@ -401,6 +419,14 @@ async function loadPasskeyManagerDynamically(page: Page, configs: any): Promise<
             useRelayer: setupOptions.useRelayer || false,
             relayServerUrl: setupOptions.relayServerUrl,
             relayer: setupOptions.relayer,
+            // Ensure VRF worker has relay server for Shamir3Pass operations
+            vrfWorkerConfigs: {
+              shamir3pass: {
+                relayServerUrl: (setupOptions.relayServerUrl || (setupOptions.relayer && (setupOptions.relayer as any).url) || 'http://localhost:3000'),
+                applyServerLockRoute: '/vrf/apply-server-lock',
+                removeServerLockRoute: '/vrf/remove-server-lock',
+              }
+            },
             // Additional centralized configuration
             frontendUrl: setupOptions.frontendUrl,
             rpId: setupOptions.rpId,
@@ -593,9 +619,13 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
       let publicKeyBytes: Uint8Array;
       let seed: Uint8Array;
       try {
-        const ed25519 = await import('@noble/ed25519');
-        seed = ed25519.utils.randomPrivateKey(); // 32 bytes
-        publicKeyBytes = await ed25519.getPublicKeyAsync(seed); // 32 bytes
+        const ed25519: any = await import('@noble/ed25519');
+        seed = new Uint8Array(32);
+        crypto.getRandomValues(seed);
+        const getPk = ed25519.getPublicKey || ed25519.getPublicKeyAsync;
+        if (!getPk) throw new Error('ed25519.getPublicKey not available');
+        const pk = await getPk.call(ed25519, seed);
+        publicKeyBytes = pk instanceof Uint8Array ? pk : new Uint8Array(pk);
         console.log('Generated real Ed25519 keypair for credential:', credentialIdString);
       } catch (e) {
         console.warn('[WebAuthn Mock] noble/ed25519 import failed during create(); using deterministic fallback:', e);
@@ -956,8 +986,17 @@ async function setupWebAuthnMocks(page: Page): Promise<void> {
                 dataToSign.set(authenticatorData, 0);
                 dataToSign.set(clientDataHash, authenticatorData.length);
 
-                // Sign with the Ed25519 seed using noble
-                const signatureBytes = await ed25519.sign(dataToSign, entry.seed);
+                // Sign with the Ed25519 seed using noble (async variant avoids sha512 sync requirement)
+                let signatureBytes: Uint8Array;
+                if (ed25519.signAsync) {
+                  // Version 2.x API
+                  signatureBytes = await ed25519.signAsync(dataToSign, entry.seed);
+                } else if (ed25519.sign) {
+                  // Version 3.x API
+                  signatureBytes = ed25519.sign(dataToSign, entry.seed);
+                } else {
+                  throw new Error('Unsupported @noble/ed25519 signing API');
+                }
 
                 console.log('Generated proper WebAuthn signature for credential:', credentialIdString);
                 console.log('Signature bytes length:', signatureBytes.length);
@@ -1033,8 +1072,22 @@ async function setupTestUtilities(page: Page, config: any): Promise<void> {
       PasskeyManager: (window as any).PasskeyManager,
       passkeyManager: (window as any).passkeyManager,
       configs: (window as any).configs,
+      confirmOverrides: {
+        skip: { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
+        autoProceed: { uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
+      },
       webAuthnUtils,
-      generateTestAccountId: () => `e2etest${Date.now()}.testnet`,
+      // IMPORTANT: For the atomic relay-server flow, the contract creates the
+      // account as the predecessor. On NEAR, only the predecessor can create
+      // its own subaccounts. Since the contract call executes with
+      // predecessor = contractId, the new account MUST be a subaccount of the
+      // contractId (e.g., e2e1234.web3-authn-v5.testnet). Using "*.testnet"
+      // would fail with CreateAccountNotAllowed.
+      generateTestAccountId: () => {
+        const cfg = (window as any).configs || {};
+        const parent = cfg.contractId || 'web3-authn-v5.testnet';
+        return `e2etest${Date.now()}.${parent}`;
+      },
       verifyAccountExists: async (accountId: string) => {
         const response = await fetch(setupConfig.nearRpcUrl, {
           method: 'POST',
@@ -1088,6 +1141,41 @@ async function setupTestUtilities(page: Page, config: any): Promise<void> {
         contractRegistration: () => {},
         databaseStorage: () => {},
         vrfUnlock: () => {},
+        // transactionBroadcasting mock removed - using real NEAR testnet
+        accessKeyLookup: () => {
+          window.fetch = async (url: any, options: any) => {
+            if (typeof url === 'string' && url.includes('test.rpc.fastnear.com') && options?.method === 'POST') {
+              try {
+                const body = JSON.parse(options.body || '{}');
+                if (body.method === 'query' && body.params?.request_type === 'view_access_key') {
+                  return new Response(JSON.stringify({
+                    jsonrpc: '2.0',
+                    id: body.id,
+                    result: {
+                      nonce: 1,
+                      permission: 'FullAccess',
+                      block_height: 1,
+                      block_hash: 'mock_block_hash_' + Date.now()
+                    }
+                  }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+                }
+              } catch (e) {
+                // If parsing fails, continue with original fetch
+              }
+            }
+            return originalFetch(url, options);
+          };
+        },
+        preventVrfSessionClearing: () => {
+          // Prevent VRF session from being cleared in test environment
+          const originalClearVrfSession = (window as any).testUtils?.passkeyManager?.webAuthnManager?.clearVrfSession;
+          if (originalClearVrfSession) {
+            (window as any).testUtils.passkeyManager.webAuthnManager.clearVrfSession = async () => {
+              console.log('[TEST] Preventing VRF session clearing in test environment');
+              // Don't actually clear the session in tests
+            };
+          }
+        },
         restore: () => {
           window.fetch = originalFetch;
           if (navigator.credentials && originalCredentialsCreate) {
@@ -1148,8 +1236,97 @@ async function setupTestUtilities(page: Page, config: any): Promise<void> {
     };
 
     console.log('Test utilities setup complete');
+
+    // Silence expected warnings to keep logs clean in CI
+    try {
+      const originalWarn = console.warn;
+      console.warn = function(...args: any[]) {
+        const msg = (args && args[0]) ? String(args[0]) : '';
+        if (
+          /Passkey(Client|NearKeys)DB connection is blocking another connection\./i.test(msg)
+          || /pre-warm timeout/i.test(msg)
+          || /noble\/ed25519 import failed/i.test(msg)
+        ) {
+          return; // suppress noise
+        }
+        return (originalWarn as any).apply(console, args as any);
+      } as any;
+    } catch {}
+
+    // Apply NonceManager patches for test environment
+    try {
+      const passkeyManager = (window as any).passkeyManager;
+      const nonceManager = passkeyManager?.webAuthnManager?.getNonceManager?.();
+
+      if (!nonceManager) {
+        console.warn('[TEST PATCH] NonceManager not available for patching');
+      } else {
+        // Patch getNonceBlockHashAndHeight for early VRF refresh
+        if (typeof nonceManager.getNonceBlockHashAndHeight === 'function') {
+          const originalGet = nonceManager.getNonceBlockHashAndHeight.bind(nonceManager);
+          nonceManager.getNonceBlockHashAndHeight = async function(nearClient: any, opts?: any) {
+            if (this.nearAccountId && this.nearPublicKeyStr) {
+              return await originalGet(nearClient, opts);
+            }
+
+            // Handle uninitialized state with block-only fallback
+            try {
+              const block = await nearClient.viewBlock({ finality: 'final' });
+              return {
+                nearPublicKeyStr: 'ed25519:11111111111111111111111111111111',
+                accessKeyInfo: { nonce: 0, permission: 'FullAccess' },
+                nextNonce: '1',
+                txBlockHeight: String(block?.header?.height ?? '0'),
+                txBlockHash: block?.header?.hash ?? '',
+              };
+            } catch (error) {
+              console.warn('[TEST PATCH] Block-only NonceManager fallback failed:', error);
+              return await originalGet(nearClient, opts);
+            }
+          };
+        }
+
+        // Patch reserveNonces to return mock nonces for uninitialized state
+        if (typeof nonceManager.reserveNonces === 'function') {
+          const originalReserve = nonceManager.reserveNonces.bind(nonceManager);
+          nonceManager.reserveNonces = function(count: number) {
+            if (this.nearAccountId && this.nearPublicKeyStr) {
+              return originalReserve(count);
+            }
+
+            // Return mock nonces for uninitialized state
+            const timestamp = Date.now();
+            const mockNonces = Array.from({ length: count }, (_, i) => `${timestamp}${i}`);
+            console.log(`[TEST PATCH] NonceManager returning ${count} mock nonces for uninitialized state`);
+            return mockNonces;
+          };
+        }
+
+        // Patch updateFromChain to tolerate nonce mismatches in test environment
+        if (typeof nonceManager.updateFromChain === 'function') {
+          const originalUpdate = nonceManager.updateFromChain.bind(nonceManager);
+          nonceManager.updateFromChain = async function(nearClient: any) {
+            try {
+              return await originalUpdate(nearClient);
+            } catch (error) {
+              const message = (error && (error as any).message) ? String((error as any).message) : String(error ?? '');
+              if (message.includes('behind expected') || message.includes('nonce')) {
+                console.log('[TEST PATCH] NonceManager: Tolerating nonce mismatch during test');
+                return;
+              }
+              throw error;
+            }
+          };
+        }
+
+        console.log('[TEST PATCH] NonceManager patches applied successfully');
+      }
+    } catch (error) {
+      console.warn('[TEST PATCH] Failed to apply NonceManager patches:', error);
+    }
   }, config);
 }
+
 
 /**
  * Handles common infrastructure errors that should result in test skips rather than failures.

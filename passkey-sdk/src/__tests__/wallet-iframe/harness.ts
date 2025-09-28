@@ -169,7 +169,7 @@ export const initRouter = async (
     // @ts-ignore - runtime import resolved by dev server during tests
     const base = window.location.origin === 'null' ? 'https://example.localhost' : window.location.origin;
     const module = await import(new URL('/sdk/esm/core/WalletIframe/client/router.js', base).toString());
-    const { WalletIframeRouter } = module as typeof import('../../../core/WalletIframe/client/router');
+    const { WalletIframeRouter } = module as typeof import('../../core/WalletIframe/client/router');
     const router = new WalletIframeRouter(routerOptions);
     (window as any).__walletRouter = router;
   }, opts);

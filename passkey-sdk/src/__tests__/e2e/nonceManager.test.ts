@@ -12,10 +12,13 @@ test.describe('NonceManager Integration Tests', () => {
 
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
-    // Enable mock relay server to avoid network calls during testing
-    await page.evaluate(() => {
-      (window as any).__W3A_USE_RELAY_MOCK = true;
-    });
+    const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
+    // If not using a real relay server, enable SDK short-circuit mock
+    await page.evaluate(({ useServer }) => {
+      if (!useServer) {
+        (window as any).__W3A_USE_RELAY_MOCK = true;
+      }
+    }, { useServer: USE_RELAY_SERVER });
     await page.waitForTimeout(500);
   });
 
@@ -27,7 +30,9 @@ test.describe('NonceManager Integration Tests', () => {
         const testAccountId = generateTestAccountId();
 
         // Register and login to get a working session
-        const registrationResult = await passkeyManager.registerPasskey(testAccountId);
+        const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
+          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
+        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
@@ -99,7 +104,9 @@ test.describe('NonceManager Integration Tests', () => {
         const testAccountId = generateTestAccountId();
 
         // Register and login
-        const registrationResult = await passkeyManager.registerPasskey(testAccountId);
+        const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
+          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
+        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }
@@ -176,7 +183,9 @@ test.describe('NonceManager Integration Tests', () => {
         const testAccountId = generateTestAccountId();
 
         // Register and login
-        const registrationResult = await passkeyManager.registerPasskey(testAccountId);
+        const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
+          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
+        const registrationResult = await passkeyManager.registerPasskeyInternal(testAccountId, {}, cfg);
         if (!registrationResult.success) {
           throw new Error(`Registration failed: ${registrationResult.error}`);
         }

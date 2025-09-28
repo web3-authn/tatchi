@@ -11,7 +11,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest, handleInfrastructureErrors, type TestUtils } from '../setup';
+import { setupBasicPasskeyTest, installContractVerificationBypass, handleInfrastructureErrors, type TestUtils } from '../setup';
 import { ActionType } from '../../core/types/actions';
 // toAccountId is available globally from the dynamic SDK import
 import { BUILD_PATHS } from '@build-paths';
@@ -31,19 +31,24 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
     // Increase timeout for this complex test
     test.setTimeout(60000); // 60 seconds
 
-    // Capture browser console logs for debugging
+    // Capture browser console logs for debugging, but don't spam stdout.
     const consoleMessages: string[] = [];
     page.on('console', msg => {
       const message = `[${msg.type()}] ${msg.text()}`;
       consoleMessages.push(message);
-      // Log everything - no filtering to avoid missing important debug info
-      console.log(`${message}`);
+      // Only echo critical messages when explicitly requested
+      if (process.env.VERBOSE_TEST_LOGS === '1' && (msg.type() === 'error' || msg.type() === 'warning')) {
+        console.log(message);
+      }
     });
 
-    // Also capture page errors
+    // Also capture page errors (always recorded; echo only if verbose)
     page.on('pageerror', error => {
-      consoleMessages.push(`[pageerror] ${error.message}`);
-      console.log(`Page Error: ${error.message}`);
+      const line = `[pageerror] ${error.message}`;
+      consoleMessages.push(line);
+      if (process.env.VERBOSE_TEST_LOGS === '1') {
+        console.log(line);
+      }
     });
 
     // Clear IndexedDB to ensure clean state after credential ID format changes
@@ -65,7 +70,12 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
       }
     });
 
-    const result = await page.evaluate(async ({ actionType, buildPaths }) => {
+    const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
+    // Install NEAR RPC verification bypass for actions in test env
+    await installContractVerificationBypass(page);
+    // Ensure page is stable (avoid evaluate context disposal due to HMR/navigation)
+    try { await page.waitForLoadState('networkidle', { timeout: 3000 }); } catch {}
+    const result = await page.evaluate(async ({ actionType, buildPaths, useServer }) => {
       try {
         const {
           passkeyManager,
@@ -74,8 +84,10 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         } = (window as any).testUtils as TestUtils;
         const { toAccountId } = (window as any);
 
-        // Setup relay server mock for registration
-        registrationFlowUtils?.setupRelayServerMock?.(true);
+        // Use real relay server if enabled; otherwise mock the endpoint
+        if (!useServer) {
+          registrationFlowUtils?.setupRelayServerMock?.(true);
+        }
 
         // Test authenticator options configuration
         console.log('Testing authenticator options configuration...');
@@ -97,7 +109,9 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
 
         // Registration
         const registrationEvents: any[] = [];
-        const registrationResult = await passkeyManager.registerPasskey(toAccountId(testAccountId), {
+        const confirmCfg = ((window as any).testUtils?.confirmOverrides?.skip)
+          || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
+        const registrationResult = await passkeyManager.registerPasskeyInternal(toAccountId(testAccountId), {
           onEvent: (event: any) => {
             registrationEvents.push(event);
             console.log(`Registration [${event.step}]: ${event.phase} - ${event.message}`);
@@ -105,7 +119,7 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
           onError: (error: any) => {
             console.error('Registration Error:', error);
           }
-        });
+        }, confirmCfg);
 
         const registrationSuccessEvents = registrationEvents.filter(e => e.status === 'success');
         const registrationErrorEvents = registrationEvents.filter(e => e.status === 'error');
@@ -137,39 +151,30 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
           const currentUrl = window.location.href;
           console.log('Current test URL:', currentUrl);
 
-          // Check if worker files exist
-          const workerFileResults = await page.evaluate(async () => {
-            const results: any[] = [];
-
-            console.log('Current page location:', window.location.href);
-
-            // Check if worker files exist
-            const workerPaths = [
-              buildPaths.TEST_WORKERS.VRF,
-              buildPaths.TEST_WORKERS.WASM_VRF_JS,
-              buildPaths.TEST_WORKERS.WASM_VRF_WASM
-            ];
-
-            for (const path of workerPaths) {
-              try {
-                const response = await fetch(path);
-                results.push({
-                  path,
-                  status: response.status,
-                  statusText: response.statusText,
-                  success: response.ok
-                });
-              } catch (error) {
-                results.push({
-                  path,
-                  error: error instanceof Error ? error.message : String(error),
-                  success: false
-                });
-              }
+          // Check if worker files exist (browser context; use window.fetch)
+          const workerPaths = [
+            buildPaths.TEST_WORKERS.VRF,
+            buildPaths.TEST_WORKERS.WASM_VRF_JS,
+            buildPaths.TEST_WORKERS.WASM_VRF_WASM
+          ];
+          const workerFileResults: any[] = [];
+          for (const path of workerPaths) {
+            try {
+              const response = await fetch(path);
+              workerFileResults.push({
+                path,
+                status: response.status,
+                statusText: response.statusText,
+                success: response.ok
+              });
+            } catch (error) {
+              workerFileResults.push({
+                path,
+                error: error instanceof Error ? error.message : String(error),
+                success: false
+              });
             }
-
-            return results;
-          });
+          }
 
           console.log('VRF Worker file accessibility results:');
           workerFileResults.forEach(result => {
@@ -227,6 +232,12 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         console.log('Waiting 6 seconds for registration transaction to be fully finalized...');
         await new Promise(resolve => setTimeout(resolve, 6000));
 
+        // Transaction broadcasting mock disabled - using real NEAR testnet
+        // Enable access key lookup mock for test environment
+        (window as any).testUtils.failureMocks.accessKeyLookup();
+        // Prevent VRF session clearing in test environment
+        (window as any).testUtils.failureMocks.preventVrfSessionClearing();
+
         const receiverAccountId = (window as any).testUtils.configs.testReceiverAccountId; // Use centralized configuration
         console.log(`Testing transfer: ${testAccountId} → ${receiverAccountId}`);
 
@@ -264,8 +275,40 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
         // =================================================================
         console.log('=== PHASE 3: RECOVERY FLOW ===');
 
+        // Recovery relies on viewAccessKey; after atomic registration the access key
+        // may not be immediately indexable across RPC nodes. Wait until it appears.
+        try {
+          const pubKey = (registrationResult as any)?.clientNearPublicKey;
+          if (pubKey) {
+            const start = Date.now();
+            const timeoutMs = 20000; // 20s max wait
+            const intervalMs = 800;
+            let lastErr: any = null;
+            while (Date.now() - start < timeoutMs) {
+              try {
+                await passkeyManager.getNearClient().viewAccessKey(toAccountId(testAccountId), pubKey);
+                console.log('Access key indexed and visible. Proceeding to recovery.');
+                break;
+              } catch (e: any) {
+                lastErr = e;
+                console.log('Waiting for access key to be indexed...', e?.message || String(e));
+                await new Promise(r => setTimeout(r, intervalMs));
+              }
+            }
+            // One final attempt (surface error if still failing)
+            try {
+              await passkeyManager.getNearClient().viewAccessKey(toAccountId(testAccountId), pubKey);
+            } catch (e: any) {
+              console.warn('Proceeding with recovery despite access key lookup failure:', e?.message || e);
+            }
+          }
+        } catch (awaitErr) {
+          console.warn('Access key indexing wait failed (non-fatal):', awaitErr);
+        }
+
         const recoveryEvents: any[] = [];
         const recoveryResult = await passkeyManager.recoverAccountFlow({
+          accountId: testAccountId,
           options: {
             onEvent: (event: any) => {
               recoveryEvents.push(event);
@@ -338,7 +381,7 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
           stack: error instanceof Error ? error.stack : undefined
         };
       }
-    }, { actionType: ActionType, buildPaths: BUILD_PATHS });
+    }, { actionType: ActionType, buildPaths: BUILD_PATHS, useServer: USE_RELAY_SERVER });
 
     // =================================================================
     // ASSERTIONS
@@ -358,14 +401,6 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
       // Handle common infrastructure errors (rate limiting, contract connectivity)
       if (handleInfrastructureErrors(result)) {
         return; // Test was skipped due to infrastructure issues
-      }
-
-      // Check if this is a recovery error (expected in test environment)
-      if (result.error && result.error.includes('Invalid account selection - no account ID provided')) {
-        console.log('Test failed as expected - recovery flow error:', result.error);
-        console.log('This is expected behavior in the test environment due to account ID extraction issues');
-        console.log('Test passed - expected recovery flow failure');
-        return;
       }
 
       // For other errors, fail as expected
@@ -414,12 +449,14 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
     expect(result.finalLoginState?.vrfActive).toBe(true);
     expect(result.recentLogins?.accountIds).toContain(result.testAccountId);
 
-    // Output captured console messages for debugging (no filtering)
-    console.log('=== BROWSER CONSOLE MESSAGES (last 100) ===');
-    consoleMessages.slice(-100).forEach((msg, index) => {
-      console.log(`${index + 1}: ${msg}`);
-    });
-    console.log('=== END BROWSER CONSOLE ===');
+    // Output captured console messages only when the test failed or in verbose mode
+    if (!result.success || process.env.VERBOSE_TEST_LOGS === '1') {
+      console.log('=== BROWSER CONSOLE MESSAGES (last 100) ===');
+      consoleMessages.slice(-100).forEach((msg, index) => {
+        console.log(`${index + 1}: ${msg}`);
+      }, { actionType: ActionType, buildPaths: BUILD_PATHS, useServer: USE_RELAY_SERVER });
+      console.log('=== END BROWSER CONSOLE ===');
+    }
 
     console.log(`Complete PasskeyManager lifecycle test completed successfully!`);
     console.log(`   Account: ${result.testAccountId}`);

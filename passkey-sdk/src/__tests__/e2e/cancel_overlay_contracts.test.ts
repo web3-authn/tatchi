@@ -1,7 +1,7 @@
 // Validates the iframe cancel path collapses the overlay reliably across flows without host responses
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
-import { buildWalletServiceHtml, registerWalletServiceRoute } from '../wallet-iframe/playwright/harness';
+import { buildWalletServiceHtml, registerWalletServiceRoute } from '../wallet-iframe/harness';
 
 test.describe('Wallet iframe overlay contracts on cancel', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
     const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service*';
     await registerWalletServiceRoute(page, buildWalletServiceHtml(), WALLET_SERVICE_ROUTE);
   });
-  
+
   test.afterEach(async ({ page }) => {
     const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service*';
     await page.unroute(WALLET_SERVICE_ROUTE).catch(() => {});

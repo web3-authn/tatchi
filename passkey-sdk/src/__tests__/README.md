@@ -155,6 +155,25 @@ npm test -- --reporter=line
 npm test -- --video=on
 ```
 
+### How to use
+
+Fast path (no .env needed):
+```
+USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Customize caching window:
+```
+RELAY_PROVISION_TTL_MINUTES=720 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Force fresh relayer:
+```
+FORCE_RELAY_REPROVISION=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+Keep an existing .env intact:
+```
+REUSE_EXISTING_RELAY_ENV=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
+```
+
 ### Manual Build (without tests)
 ```bash
 # Just build the SDK (dev server will serve from dist/)
