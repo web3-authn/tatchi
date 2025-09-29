@@ -37,6 +37,7 @@ export class IframeModalHost extends LitElementWithProps {
     theme: { type: String, attribute: 'theme' },
     variant: { type: String, attribute: 'variant' },
     showLoading: { type: Boolean, attribute: 'show-loading' },
+    errorMessage: { type: String, attribute: 'error-message' },
     intentDigest: { type: String, attribute: 'intent-digest' },
     options: { type: Object },
     passkeyManagerContext: { type: Object },
@@ -59,6 +60,7 @@ export class IframeModalHost extends LitElementWithProps {
   declare theme: 'dark' | 'light';
   declare variant: 'modal' | 'drawer';
   declare showLoading: boolean;
+  declare errorMessage?: string;
   declare intentDigest: string | undefined;
   declare options: SignAndSendTransactionHooksOptions | undefined;
   declare passkeyManagerContext: PasskeyManagerContext | null;
@@ -77,6 +79,7 @@ export class IframeModalHost extends LitElementWithProps {
     this.intentDigest = undefined;
     this.options = {};
     this.passkeyManagerContext = null;
+    this.errorMessage = undefined;
   }
 
   static styles = css`
@@ -178,6 +181,10 @@ export class IframeModalHost extends LitElementWithProps {
     if (changed.has('showLoading')) {
       this.postToIframe('SET_LOADING', this.showLoading);
     }
+    if (changed.has('errorMessage')) {
+      const msg = typeof this.errorMessage === 'string' ? this.errorMessage : '';
+      this.syncErrorToAttrAndIframe(msg);
+    }
   }
 
   // ==============================
@@ -228,6 +235,9 @@ export class IframeModalHost extends LitElementWithProps {
             variant: this.variant
           });
           this.postToIframe('SET_LOADING', this.showLoading);
+          if (typeof this.errorMessage === 'string') {
+            this.syncErrorToAttrAndIframe(this.errorMessage || '');
+          }
           return;
 
         case 'CONFIRM':
@@ -309,6 +319,18 @@ export class IframeModalHost extends LitElementWithProps {
         }
       }, 3000);
     });
+  }
+
+  // Keep error attribute and inner iframe modal state in sync
+  private syncErrorToAttrAndIframe(msg: string): void {
+    try {
+      if (msg) {
+        this.setAttribute('data-error-message', msg);
+      } else {
+        this.removeAttribute('data-error-message');
+      }
+    } catch {}
+    this.postToIframe('SET_ERROR', msg);
   }
 
   private async handleConfirm() {

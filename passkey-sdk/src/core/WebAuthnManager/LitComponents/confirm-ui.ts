@@ -10,6 +10,17 @@ import type IframeModalHost from './IframeTxConfirmer/iframe-host';
 // The drawer variant is imported by the iframe bootstrap script.
 import './IframeTxConfirmer/viewer-modal';
 
+// Small helper to keep a host element's error attribute in sync
+function setErrorAttribute(el: HTMLElement, msg: string): void {
+  try {
+    if (msg) {
+      el.setAttribute('data-error-message', msg);
+    } else {
+      el.removeAttribute('data-error-message');
+    }
+  } catch {}
+}
+
 // ========= Iframe Modal helpers =========
 async function ensureIframeModalDefined(): Promise<void> {
 if (customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) return;
@@ -117,6 +128,7 @@ async function mountHostUiWithHandle({
   if (vrfChallenge) el.vrfChallenge = vrfChallenge;
   if (theme) el.theme = theme;
   if (loading != null) el.loading = !!loading;
+  try { el.removeAttribute('data-error-message'); } catch {}
   // Two-phase close: let caller control removal
   try { el.deferClose = true; } catch {}
   const portal = ensureConfirmPortal();
@@ -129,7 +141,11 @@ async function mountHostUiWithHandle({
       if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
       if (props.theme != null) (el as any).theme = props.theme;
       if (props.loading != null) (el as any).loading = !!props.loading;
-      if ('errorMessage' in props) (el as any).errorMessage = props.errorMessage || '';
+      if ('errorMessage' in props) {
+        const msg = props.errorMessage ?? '';
+        (el as any).errorMessage = msg;
+        setErrorAttribute(el, msg);
+      }
       (el as any).requestUpdate?.();
     } catch {}
   };
@@ -164,6 +180,7 @@ async function awaitHostUiDecisionWithHandle({
     el.intentDigest = summary?.intentDigest;
     if (vrfChallenge) el.vrfChallenge = vrfChallenge;
     if (theme) el.theme = theme;
+    try { el.removeAttribute('data-error-message'); } catch {}
     try { el.deferClose = true; } catch {}
 
     const onConfirm = (_e: Event) => {
@@ -176,7 +193,11 @@ async function awaitHostUiDecisionWithHandle({
           if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
           if (props.theme != null) (el as any).theme = props.theme;
           if (props.loading != null) (el as any).loading = !!props.loading;
-          if ('errorMessage' in props) (el as any).errorMessage = props.errorMessage || '';
+          if ('errorMessage' in props) {
+            const msg = props.errorMessage ?? '';
+            (el as any).errorMessage = msg;
+            setErrorAttribute(el, msg);
+          }
           (el as any).requestUpdate?.();
         } catch {}
       };
@@ -192,7 +213,11 @@ async function awaitHostUiDecisionWithHandle({
           if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
           if (props.theme != null) (el as any).theme = props.theme;
           if (props.loading != null) (el as any).loading = !!props.loading;
-          if ('errorMessage' in props) (el as any).errorMessage = props.errorMessage || '';
+          if ('errorMessage' in props) {
+            const msg = props.errorMessage ?? '';
+            (el as any).errorMessage = msg;
+            setErrorAttribute(el, msg);
+          }
           (el as any).requestUpdate?.();
         } catch {}
       };
@@ -250,6 +275,7 @@ async function mountIframeHostUiWithHandle({
   if (variant) {
     (el as any).variant = variant;
   }
+  try { el.removeAttribute('data-error-message'); } catch {}
   const portal = ensureConfirmPortal();
   portal.replaceChildren(el);
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
@@ -260,6 +286,17 @@ async function mountIframeHostUiWithHandle({
       if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
       if (props.theme != null) (el as any).theme = props.theme;
       if (props.loading != null) (el as any).showLoading = !!props.loading;
+      if ('errorMessage' in props) {
+        const msg = props.errorMessage ?? '';
+        (el as any).errorMessage = msg;
+        try {
+          if (msg) {
+            el.setAttribute('data-error-message', msg);
+          } else {
+            el.removeAttribute('data-error-message');
+          }
+        } catch {}
+      }
       (el as any).requestUpdate?.();
     } catch {}
   };
@@ -293,6 +330,7 @@ async function awaitIframeHostUiDecisionWithHandle({
     el.vrfChallenge = vrfChallenge;
     if (theme) { el.theme = theme; }
     if (variant) { (el as any).variant = variant; }
+    try { el.removeAttribute('data-error-message'); } catch {}
 
     const onConfirm = (e: Event) => {
       const ce = e as CustomEvent<{ confirmed: boolean; error?: string }>;
@@ -306,6 +344,11 @@ async function awaitIframeHostUiDecisionWithHandle({
           if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
           if (props.theme != null) (el as any).theme = props.theme;
           if (props.loading != null) (el as any).showLoading = !!props.loading;
+          if ('errorMessage' in props) {
+            const msg = props.errorMessage ?? '';
+            (el as any).errorMessage = msg;
+            setErrorAttribute(el, msg);
+          }
           (el as any).requestUpdate?.();
         } catch {}
       };
@@ -322,6 +365,17 @@ async function awaitIframeHostUiDecisionWithHandle({
           if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
           if (props.theme != null) (el as any).theme = props.theme;
           if (props.loading != null) (el as any).showLoading = !!props.loading;
+          if ('errorMessage' in props) {
+            const msg = props.errorMessage ?? '';
+            (el as any).errorMessage = msg;
+            try {
+              if (msg) {
+                el.setAttribute('data-error-message', msg);
+              } else {
+                el.removeAttribute('data-error-message');
+              }
+            } catch {}
+          }
           (el as any).requestUpdate?.();
         } catch {}
       };

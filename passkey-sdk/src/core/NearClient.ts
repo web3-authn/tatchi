@@ -161,15 +161,100 @@ export interface NearClient {
 }
 
 export class MinimalNearClient implements NearClient {
-  private readonly rpcUrl: string;
+  private readonly rpcUrls: string[];
 
-  constructor(rpcUrl: string) {
-    this.rpcUrl = rpcUrl;
+  constructor(rpcUrl: string | string[]) {
+    this.rpcUrls = MinimalNearClient.normalizeRpcUrls(rpcUrl);
+  }
+
+  private static normalizeRpcUrls(input: string | string[]): string[] {
+    const urls = Array.isArray(input)
+      ? input
+      : input
+          .split(/[\s,]+/)
+          .map(url => url.trim())
+          .filter(Boolean);
+
+    const normalized = urls.map(url => {
+      try {
+        return new URL(url).toString();
+      } catch (err) {
+        const message = errorMessage(err) || `Invalid NEAR RPC URL: ${url}`;
+        throw new Error(message);
+      }
+    });
+
+    if (!normalized.length) {
+      throw new Error('NEAR RPC URL cannot be empty');
+    }
+
+    return Array.from(new Set(normalized));
   }
 
   // ===========================
   // PRIVATE HELPER FUNCTIONS
   // ===========================
+
+  /** Build a JSON-RPC 2.0 POST body (stringified). */
+  private buildRequestBody<P>(method: string, params: P): string {
+    return JSON.stringify({
+      jsonrpc: '2.0',
+      id: crypto.randomUUID(),
+      method,
+      params
+    });
+  }
+
+  /** Perform a single POST to one endpoint and return parsed RpcResponse. */
+  private async postOnce(url: string, requestBody: string): Promise<RpcResponse> {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: requestBody
+    });
+
+    if (!response.ok) {
+      throw new Error(`RPC request failed: ${response.status} ${response.statusText}`);
+    }
+
+    const text = await response.text();
+    if (!text?.trim()) {
+      throw new Error('Empty response from RPC server');
+    }
+
+    return JSON.parse(text) as RpcResponse;
+  }
+
+  /** Try each configured RPC endpoint in order and return the first successful RpcResponse. */
+  private async requestWithFallback(requestBody: string): Promise<RpcResponse> {
+    let lastError: unknown;
+    for (const [index, url] of this.rpcUrls.entries()) {
+      try {
+        const result = await this.postOnce(url, requestBody);
+        if (index > 0) console.warn(`[NearClient] RPC succeeded via fallback: ${url}`);
+        return result;
+      } catch (err) {
+        lastError = err;
+        const remaining = index < this.rpcUrls.length - 1;
+        console.warn(`[NearClient] RPC call to ${url} failed${remaining ? ', trying next' : ''}: ${errorMessage(err) || 'RPC request failed'}`);
+        if (!remaining) throw err instanceof Error ? err : new Error(String(err));
+      }
+    }
+    throw new Error(errorMessage(lastError) || 'RPC request failed');
+  }
+
+  /** Validate and unwrap RpcResponse into the typed result. */
+  private unwrapRpcResult<T>(rpc: RpcResponse, operationName: string): T {
+    if (rpc.error) {
+      const msg = rpc.error?.data?.message || rpc.error?.message || 'RPC error';
+      throw new Error(msg);
+    }
+    const result = rpc.result as any;
+    if (result?.error) {
+      throw new Error(`${operationName} Error: ${result.error}`);
+    }
+    return rpc.result as T;
+  }
 
   /**
    * Execute RPC call with proper error handling and result extraction
@@ -179,44 +264,9 @@ export class MinimalNearClient implements NearClient {
     params: P,
     operationName: string
   ): Promise<T> {
-
-    const body = {
-      jsonrpc: '2.0',
-      id: crypto.randomUUID(),
-      method,
-      params
-    };
-
-    const response = await fetch(this.rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    }).catch(err => {
-      console.error(err);
-      throw new Error(errorMessage(err) || 'RPC request failed');
-    });
-
-    if (!response.ok) {
-      throw new Error(`RPC request failed: ${response.status} ${response.statusText}`);
-    }
-
-    const responseText = await response.text();
-    if (!responseText?.trim()) {
-      throw new Error('Empty response from RPC server');
-    }
-
-    const result = JSON.parse(responseText) as RpcResponse;
-    if (result.error) {
-      const msg = result.error?.data?.message || result.error?.message || 'RPC error';
-      throw new Error(msg);
-    }
-
-    // Check for query-specific errors in result.result
-    if ((result.result as any)?.error) {
-      throw new Error(`${operationName} Error: ${(result.result as any).error}`);
-    }
-
-    return result.result as T;
+    const requestBody = this.buildRequestBody(method, params);
+    const rpc = await this.requestWithFallback(requestBody);
+    return this.unwrapRpcResult<T>(rpc, operationName);
   }
 
   // ===========================
@@ -275,8 +325,8 @@ export class MinimalNearClient implements NearClient {
       wait_until: waitUntil
     };
 
-    // Retry a few times on transient RPC errors commonly seen with concurrent broadcasts
-    const maxAttempts = 3;
+    // Retry on transient RPC errors commonly seen with shared/public nodes
+    const maxAttempts = 5;
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -284,13 +334,13 @@ export class MinimalNearClient implements NearClient {
       } catch (err: unknown) {
         lastError = err;
         const msg = errorMessage(err);
-        const retryable = /server error|internal|temporar|timeout|too many requests|429/i.test(msg || '');
+        const retryable = /server error|internal|temporar|timeout|too many requests|429|unavailable|bad gateway|gateway timeout/i.test(msg || '');
         if (!retryable || attempt === maxAttempts) {
           throw err;
         }
-        // Exponential backoff with jitter (100–400ms approx)
-        const base = 100 * Math.pow(2, attempt - 1);
-        const jitter = Math.floor(Math.random() * 75);
+        // Exponential backoff with jitter (200–1200ms approx across attempts)
+        const base = 200 * Math.pow(2, attempt - 1);
+        const jitter = Math.floor(Math.random() * 150);
         await new Promise(r => setTimeout(r, base + jitter));
       }
     }

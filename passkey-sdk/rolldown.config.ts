@@ -121,6 +121,35 @@ export default defineConfig([
       alias: aliasConfig
     },
   },
+  // Express router helper ESM bundle
+  {
+    input: 'src/server/router/express.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/server/router`,
+      format: 'esm',
+      entryFileNames: 'express.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Express router helper CJS bundle
+  {
+    input: 'src/server/router/express.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
+      format: 'cjs',
+      entryFileNames: 'express.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
   // React ESM build
   {
     input: 'src/react/index.ts',

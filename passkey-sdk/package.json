@@ -61,6 +61,9 @@
     "dev": "rolldown -c rolldown.config.ts -w",
     "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test",
     "test:inline": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:unit": "playwright test src/__tests__/unit",
+    "test:wallet-iframe": "playwright test src/__tests__/wallet-iframe",
+    "test:lit-components": "playwright test src/__tests__/lit-components",
     "build:check:fresh": "./scripts/check-build-freshness.sh",
     "type-check": "tsc --noEmit"
   },
@@ -89,7 +92,8 @@
     "react-dom": ">=16.8.0",
     "lucide-react": ">=0.541.0",
     "qrcode": ">=1.5.4",
-    "jsqr": ">=1.4.0"
+    "jsqr": ">=1.4.0",
+    "express": ">=4.17.0"
   },
   "peerDependenciesMeta": {
     "react": {
@@ -106,6 +110,9 @@
     },
     "jsqr": {
       "optional": true
+    },
+    "express": {
+      "optional": true
     }
   },
   "dependencies": {
@@ -119,6 +126,7 @@
   "devDependencies": {
     "@near-js/types": "^2.0.1",
     "@types/qrcode": "^1.5.5",
+    "@types/express": "^4.17.21",
     "@playwright/test": "^1.40.0",
     "@types/node": "^20.19.9",
     "@types/react": "^19.1.12",
@@ -129,6 +137,7 @@
     "react-dom": "^19.1.1",
     "rolldown": "^1.0.0-beta.27",
     "rollup-plugin-css-only": "^4.5.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "express": "^4.21.2"
   }
 }
