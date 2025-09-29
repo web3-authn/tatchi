@@ -120,6 +120,7 @@ type Pending = {
   reject: (reason?: unknown) => void;
   timer: number | undefined;
   onProgress?: (payload: ProgressPayload) => void;
+  onTimeout: () => Error;
 };
 
 type PostResult<T> = {
@@ -822,8 +823,8 @@ export class WalletIframeRouter {
       if (pend) {
         if (pend.timer) window.clearTimeout(pend.timer);
         pend.timer = window.setTimeout(() => {
-          this.pending.delete(requestId);
-          pend.reject(new Error('Wallet request timeout'));
+          const err = pend.onTimeout();
+          pend.reject(err);
         }, this.opts.requestTimeoutMs);
       }
       return;
@@ -905,16 +906,23 @@ export class WalletIframeRouter {
     const { options } = full;
 
     return new Promise<PostResult<T>>((resolve, reject) => {
-      // Step 3: Set up timeout handler for request
-      const timer = window.setTimeout(() => {
-        // Timeout: clean up local state and best-effort cancel on host
+      const onTimeout = () => {
+        const pending = this.pending.get(requestId);
+        try {
+          if (pending?.timer !== undefined) window.clearTimeout(pending.timer);
+        } catch {}
         try { this.pending.delete(requestId); } catch {}
         try { this.progressBus.unregister(requestId); } catch {}
         try { this.overlay.setSticky(false); } catch {}
-        try { this.hideFrameForActivation(); } catch {}
-        // Ask the wallet host to cancel any UI/flow associated with the original request
-        try { this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
-        reject(new Error(`Wallet request timeout for ${envelope.type}`));
+      try { this.hideFrameForActivation(); } catch {}
+      this.sendBestEffortCancel(requestId);
+      return new Error(`Wallet request timeout for ${envelope.type}`);
+      };
+
+      // Step 3: Set up timeout handler for request
+      const timer = window.setTimeout(() => {
+        const err = onTimeout();
+        reject(err);
       }, this.opts.requestTimeoutMs);
 
       // Step 4: Register pending request for correlation
@@ -922,7 +930,8 @@ export class WalletIframeRouter {
         resolve: (v) => resolve(v as PostResult<T>),
         reject,
         timer,
-        onProgress: options?.onProgress
+        onProgress: options?.onProgress,
+        onTimeout,
       });
 
       // Step 5: Register progress handler for real-time updates
@@ -1048,6 +1057,19 @@ export class WalletIframeRouter {
   private hideFrameForActivation(): void {
     if (!this.overlay.getState().visible) return;
     try { this.overlay.hide(); } catch {}
+  }
+
+  private sendBestEffortCancel(targetRequestId?: string): void {
+    const port = this.port;
+    if (!port) return;
+    try {
+      const cancelEnvelope: ParentToChildEnvelope = {
+        type: 'PM_CANCEL',
+        requestId: `cancel-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+        payload: targetRequestId ? { requestId: targetRequestId } : {}
+      };
+      port.postMessage(cancelEnvelope);
+    } catch {}
   }
 
   /**
