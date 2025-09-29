@@ -8,7 +8,10 @@ const COMPONENT_TAG = 'w3a-button-with-tooltip';
 test.describe('Lit component – button-with-tooltip', () => {
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
-    await ensureComponentModule(page, { modulePath: COMPONENT_MODULE, tagName: COMPONENT_TAG });
+    await ensureComponentModule(page, {
+      modulePath: COMPONENT_MODULE,
+      tagName: COMPONENT_TAG
+    });
 
     await mountComponent(page, {
       tagName: COMPONENT_TAG,
@@ -28,7 +31,7 @@ test.describe('Lit component – button-with-tooltip', () => {
   // ensures the custom element upgrades and renders the embedded lit component shell
   test('upgrades custom element and renders interactive shim', async ({ page }) => {
     const upgradeState = await page.evaluate(() => {
-    const host = document.querySelector('w3a-button-with-tooltip');
+      const host = document.querySelector('w3a-button-with-tooltip');
       if (!host) {
         return { exists: false };
       }
@@ -55,13 +58,19 @@ test.describe('Lit component – button-with-tooltip', () => {
 
   // checks tooltip hover interactions wire through the shim and toggle visibility cues
   test('shows and hides tooltip on hover transitions', async ({ page }) => {
-    const hostHandle = await page.evaluateHandle(() => document.querySelector('w3a-button-with-tooltip'));
+    const hostHandle = await page.evaluateHandle(() =>
+      document.querySelector('w3a-button-with-tooltip')
+    );
     if (!hostHandle) {
       throw new Error('w3a-button-with-tooltip host not found');
     }
 
-    const buttonHandle = await hostHandle.evaluateHandle((element: Element | null) => element?.shadowRoot?.querySelector('[data-embedded-btn]'));
-    const tooltipHandle = await hostHandle.evaluateHandle((element: Element | null) => element?.shadowRoot?.querySelector('[data-tooltip-content]'));
+    const buttonHandle = await hostHandle.evaluateHandle((element: Element | null) =>
+      element?.shadowRoot?.querySelector('[data-embedded-btn]')
+    );
+    const tooltipHandle = await hostHandle.evaluateHandle((element: Element | null) =>
+      element?.shadowRoot?.querySelector('[data-tooltip-content]')
+    );
 
     const buttonEl = buttonHandle.asElement();
     const tooltipEl = tooltipHandle.asElement();

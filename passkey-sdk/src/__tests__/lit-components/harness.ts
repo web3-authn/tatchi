@@ -33,7 +33,12 @@ export interface MountComponentOptions {
 
 export const mountComponent = async (
   page: Page,
-  { tagName, attributes = {}, props = {}, containerId = 'test-root' }: MountComponentOptions
+  {
+    tagName,
+    attributes = {},
+    props = {},
+    containerId = 'test-root'
+  }: MountComponentOptions
 ): Promise<void> => {
   await page.evaluate(
     ({ tag, attrs, componentProps, id }) => {
@@ -64,6 +69,11 @@ export const mountComponent = async (
 
       container.appendChild(element);
     },
-    { tag: tagName, attrs: attributes, componentProps: props, id: containerId }
+    {
+      tag: tagName,
+      attrs: attributes,
+      componentProps: props,
+      id: containerId
+    }
   );
 };

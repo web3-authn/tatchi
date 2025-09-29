@@ -6,20 +6,24 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { handleInfrastructureErrors } from '../setup';
+
+const IMPORT_PATHS = {
+  nonceManager: '/sdk/esm/core/nonceManager.js',
+} as const;
 
 test.describe('NonceManager Pure Unit Tests', () => {
 
   test.beforeEach(async ({ page }) => {
-    await setupBasicPasskeyTest(page);
-    await page.waitForTimeout(500);
+    // Minimal bootstrap for pure unit tests: ensure origin is available for /sdk imports
+    await page.goto('/');
   });
 
   test('NonceManager - Basic Nonce Reservation', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
         // @ts-ignore - Runtime import
-        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
+        const nonceManager = (await import(paths.nonceManager)).default;
         nonceManager.clear();
 
         // Initialize with test data
@@ -69,7 +73,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
           stack: error.stack
         };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     // Handle infrastructure errors
     if (!result.success) {
@@ -94,10 +98,10 @@ test.describe('NonceManager Pure Unit Tests', () => {
   });
 
   test('NonceManager - Batch Transaction Scenarios', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
         // @ts-ignore - Runtime import
-        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
+        const nonceManager = (await import(paths.nonceManager)).default;
         nonceManager.clear();
 
         // Initialize with test data
@@ -145,7 +149,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
           stack: error.stack
         };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {
@@ -168,10 +172,10 @@ test.describe('NonceManager Pure Unit Tests', () => {
   });
 
   test('NonceManager - Error Handling', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
         // @ts-ignore - Runtime import
-        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
+        const nonceManager = (await import(paths.nonceManager)).default;
         nonceManager.clear();
 
         const errors: string[] = [];
@@ -215,7 +219,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
           stack: error.stack
         };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {
@@ -234,10 +238,10 @@ test.describe('NonceManager Pure Unit Tests', () => {
   });
 
   test('NonceManager - Consecutive Transaction Simulation (Mocked)', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
         // @ts-ignore - Runtime import
-        const nonceManager = (await import('/sdk/esm/core/nonceManager.js')).default;
+        const nonceManager = (await import(paths.nonceManager)).default;
         nonceManager.clear();
 
         // Test consecutive transaction simulation without requiring full PasskeyManager setup
@@ -287,7 +291,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
           stack: error.stack
         };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) {

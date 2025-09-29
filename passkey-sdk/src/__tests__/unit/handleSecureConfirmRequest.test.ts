@@ -1,6 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 
+const IMPORT_PATHS = {
+  handle: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
+} as const;
+
 test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests', () => {
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
@@ -8,16 +12,21 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
   });
 
   test('Unsupported type falls back to structured error', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
         // Dynamically import orchestrator from built ESM bundle
-        const mod = await import('/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js');
+        const mod = await import(paths.handle);
         const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
 
         // Minimal SignerWorkerManagerContext stub (determineConfirmationConfig uses user preferences)
         const ctx: any = {
           userPreferencesManager: {
-            getConfirmationConfig: () => ({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0, theme: 'dark' })
+            getConfirmationConfig: () => ({
+              uiMode: 'modal',
+              behavior: 'requireClick',
+              autoProceedDelay: 0,
+              theme: 'dark'
+            })
           }
         };
 
@@ -34,13 +43,16 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
           payload: { any: 'value' },
         } as any;
 
-        await handle(ctx, { type: 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD', data: request }, worker);
+        await handle(ctx, {
+          type: 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD',
+          data: request
+        }, worker);
 
         return { success: true, responses };
       } catch (error: any) {
         return { success: false, error: error?.message, stack: error?.stack };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;
@@ -56,14 +68,19 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
   });
 
   test('Missing payload returns validation error', async ({ page }) => {
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async ({ paths }) => {
       try {
-        const mod = await import('/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js');
+        const mod = await import(paths.handle);
         const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
 
         const ctx: any = {
           userPreferencesManager: {
-            getConfirmationConfig: () => ({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0, theme: 'dark' })
+            getConfirmationConfig: () => ({
+              uiMode: 'modal',
+              behavior: 'requireClick',
+              autoProceedDelay: 0,
+              theme: 'dark'
+            })
           }
         };
 
@@ -78,13 +95,16 @@ test.describe('handlePromptUserConfirmInJsMainThread - Orchestrator Unit Tests',
           // payload omitted
         } as any;
 
-        await handle(ctx, { type: 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD', data: request }, worker);
+        await handle(ctx, {
+          type: 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD',
+          data: request
+        }, worker);
 
         return { success: true, responses };
       } catch (error: any) {
         return { success: false, error: error?.message, stack: error?.stack };
       }
-    });
+    }, { paths: IMPORT_PATHS });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;

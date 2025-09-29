@@ -49,9 +49,15 @@ export function printGroupHeader(category: LogCategory): void {
 
 // Indented step line like:
 //   [step 1] message
-export function printStepLine(step: string | number, message: string, indent = 1): void {
+export function printStepLine(
+  step: string | number,
+  message: string,
+  indent = 1,
+  category: LogCategory = 'setup'
+): void {
   const pad = INDENT_UNIT.repeat(Math.max(0, indent));
-  console.log(`${pad}[step ${step}] ${message}`);
+  const label = `${category}: ${step}`;
+  console.log(`${pad}[${label}] ${message}`);
 }
 
 export function createConsoleCapture(

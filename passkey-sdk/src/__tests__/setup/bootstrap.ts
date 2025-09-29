@@ -1,5 +1,5 @@
 import { Page } from '@playwright/test';
-import { printGroupHeader, printStepLine, printLog } from './logging';
+import { printStepLine } from './logging';
 import type { PasskeyTestConfig } from './types';
 
 async function setupWebAuthnVirtualAuthenticator(page: Page): Promise<string> {
@@ -110,7 +110,7 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      printStepLine(4, `attempt ${attempt}/${maxRetries} importing PasskeyManager`, 2);
+      printStepLine(4, `importing PasskeyManager: attempt ${attempt}/${maxRetries}`, 1);
 
       const loadHandle = await page.waitForFunction(async (setupOptions) => {
         try {
@@ -269,8 +269,7 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
  * Orchestrator function that executes all 5 setup steps sequentially
  */
 export async function executeSequentialSetup(page: Page, configs: PasskeyTestConfig): Promise<string> {
-  printGroupHeader('setup');
-  printStepLine('bootstrap', 'starting 5-step sequential bootstrap');
+  printStepLine('bootstrap', 'starting 5-step sequential bootstrap', 0);
 
   // Step 1: ENVIRONMENT SETUP
   const authenticatorId = await setupWebAuthnVirtualAuthenticator(page);
@@ -287,6 +286,7 @@ export async function executeSequentialSetup(page: Page, configs: PasskeyTestCon
   // Step 5: GLOBAL FALLBACK
   await ensureGlobalFallbacks(page);
 
-  printStepLine('bootstrap', 'finished', 1);
+  console.log('[setup] finished');
+  console.log('========================================');
   return authenticatorId;
 }
