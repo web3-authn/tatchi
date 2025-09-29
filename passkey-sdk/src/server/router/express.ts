@@ -1,5 +1,5 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
-import { Router } from 'express';
+import express from 'express';
 import type { AuthService } from '../core/AuthService';
 import type {
   CreateAccountAndRegisterRequest,
@@ -13,7 +13,7 @@ export interface RelayRouterOptions {
 }
 
 export function createRelayRouter(service: AuthService, opts: RelayRouterOptions = {}): ExpressRouter {
-  const router = Router();
+  const router = express.Router();
 
   router.post(
     '/create_account_and_register_user',
