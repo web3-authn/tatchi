@@ -42,11 +42,8 @@ jobs:
       - name: Setup Bun (for worker bundling)
         uses: oven-sh/setup-bun@v2
 
-      - name: Install Playwright browsers
-        uses: microsoft/playwright-github-action@v1
-        with:
-          browsers: 'chromium'
-          with-deps: true
+      - name: Install Playwright (Chromium + system deps)
+        run: pnpm -C passkey-sdk exec playwright install --with-deps chromium
 
       - name: Type-check SDK
         run: pnpm --filter @web3authn/passkey type-check
