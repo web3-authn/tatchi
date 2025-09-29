@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../../setup';
+import { setupBasicPasskeyTest } from '../setup';
 import { ensureComponentModule, mountComponent } from './harness';
 
 const COMPONENT_MODULE = '/sdk/esm/react/embedded/w3a-button-with-tooltip.js';

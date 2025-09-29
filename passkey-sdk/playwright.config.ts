@@ -10,8 +10,9 @@ export default defineConfig({
   testMatch: [
     '**/e2e/**/*.test.ts',
     '**/unit/**/*.test.ts',
-    '**/wallet-iframe/playwright/**/*.test.ts',
-    '**/lit-components/playwright/**/*.test.ts',
+    // Include wallet-iframe + lit-components tests regardless of subfolder
+    '**/wallet-iframe/**/*.test.ts',
+    '**/lit-components/**/*.test.ts',
   ],
   fullyParallel: false,
   retries: 0,

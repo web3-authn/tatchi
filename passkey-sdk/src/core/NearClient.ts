@@ -275,8 +275,8 @@ export class MinimalNearClient implements NearClient {
       wait_until: waitUntil
     };
 
-    // Retry a few times on transient RPC errors commonly seen with concurrent broadcasts
-    const maxAttempts = 3;
+    // Retry on transient RPC errors commonly seen with shared/public nodes
+    const maxAttempts = 5;
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
@@ -284,13 +284,13 @@ export class MinimalNearClient implements NearClient {
       } catch (err: unknown) {
         lastError = err;
         const msg = errorMessage(err);
-        const retryable = /server error|internal|temporar|timeout|too many requests|429/i.test(msg || '');
+        const retryable = /server error|internal|temporar|timeout|too many requests|429|unavailable|bad gateway|gateway timeout/i.test(msg || '');
         if (!retryable || attempt === maxAttempts) {
           throw err;
         }
-        // Exponential backoff with jitter (100–400ms approx)
-        const base = 100 * Math.pow(2, attempt - 1);
-        const jitter = Math.floor(Math.random() * 75);
+        // Exponential backoff with jitter (200–1200ms approx across attempts)
+        const base = 200 * Math.pow(2, attempt - 1);
+        const jitter = Math.floor(Math.random() * 150);
         await new Promise(r => setTimeout(r, base + jitter));
       }
     }
