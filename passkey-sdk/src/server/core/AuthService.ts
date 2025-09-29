@@ -159,7 +159,9 @@ export class AuthService {
   }
 
   private isNodeEnvironment(): boolean {
-    return typeof window === 'undefined' || Boolean((globalThis as any).process?.versions?.node);
+    // Detect true Node.js; Cloudflare Workers and other runtimes also lack window,
+    // so avoid treating them as Node. Only check for process.versions.node.
+    return Boolean((globalThis as any).process?.versions?.node);
   }
 
   /**
@@ -236,6 +238,10 @@ export class AuthService {
   }
 
   private async loadGraceKeysFromFile(): Promise<Array<{ e_s_b64u: string; d_s_b64u: string }>> {
+    // Filesystem access is only possible in true Node.js environments.
+    if (!this.isNodeEnvironment()) {
+      return [];
+    }
     const filePath = this.graceKeysFilePath?.trim();
     if (!filePath) {
       return [];
@@ -279,6 +285,9 @@ export class AuthService {
   }
 
   private async persistGraceKeysToDisk(): Promise<void> {
+    if (!this.isNodeEnvironment()) {
+      return;
+    }
     const filePath = this.graceKeysFilePath?.trim();
     if (!filePath) {
       return;
