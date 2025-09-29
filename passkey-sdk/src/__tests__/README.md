@@ -1,223 +1,180 @@
-# PasskeyManager E2E Test Suite
+# Passkey SDK Test Suite
 
-Playwright end-to-end testing for the PasskeyManager SDK with WebAuthn virtual authenticator support.
+Playwright tests for the Passkey SDK, covering WebAuthn + PRF flows, wallet iframe behavior, Lit confirm UI, orchestrator logic, and VRF/nonce subsystems.
 
 ## Table of Contents
 
-- [Test Architecture](#test-architecture)
-- [Build & Asset Management](#build--asset-management)
-- [Test Environment Setup](#test-environment-setup)
-- [Running Tests](#running-tests)
-- [Test Files Overview](#test-files-overview)
+- [Suites & Scope](#suites--scope)
+- [Coverage Overview](#coverage-overview)
+- [Build & Assets](#build--assets)
+- [Setup Architecture](#setup-architecture)
+- [Fixtures & Helpers](#fixtures--helpers)
+- [Running](#running)
+- [Environment](#environment)
+- [Suite Quick Reference](#suite-quick-reference)
+- [Fixes & Learnings](#fixes--learnings)
 - [Troubleshooting](#troubleshooting)
-  - [Wallet iframe READY timeout under COEP](#wallet-iframe-ready-timeout-under-coep)
+- [Gaps & Next Steps](#gaps--next-steps)
 
-## Test Architecture
+## Suites & Scope
 
-The test suite uses Playwright with a Chromium browser to test real WebAuthn functionality using virtual authenticators. Tests run against a local development server and import the built SDK served at `/sdk/*` by the Vite dev plugin (no file copying).
+- End‑to‑End: registration, login, actions, recovery, worker wiring
+- Unit: orchestrator helpers, progress heuristics, nonce, confirm handler
+- Wallet Iframe: handshake, overlay routing, sticky/anchored behavior
+- Lit Components: modal/drawer host + iframe confirm UI
 
-### Key Components
+Playwright config includes wallet‑iframe and lit‑components suites in `testMatch`.
 
-- **Virtual WebAuthn Authenticator**: Simulates hardware security keys
-- **Import Map**: Provides NEAR.js dependencies in browser context
-- **Built SDK Assets**: Tests run against production-like built files
-- **Dynamic Module Loading**: SDK modules loaded at runtime in browser
+## Coverage Overview
 
-## Build & Asset Management
+- VRF + Nonce: strong unit/integration coverage
+- Wallet Iframe: CONNECT→READY handshake, intent mapping, timeout hide, anchored pre‑show, sticky lifecycle; progress heuristics partially covered
+- Confirm Orchestrator: success and defensive paths; batching and local‑only cancel remain
+- Lit Confirm UI: host/iframe modal + drawer behavior covered; theme guardrails pending
 
-### Automatic Build Process
+Status highlights from recent additions:
+- ProgressBus default heuristics for show/hide/none mapping and cancelled → hide
+- Overlay controller CSS/ARIA semantics; sticky prevents hide
+- Router behavior for pre‑show, timeout hide, anchored bounds, sticky lifecycle
+- awaitSecureConfirmationV2 error handling via signer worker global
+- confirmTxFlow success/defensive paths and helpers sanitization/parsing
 
-When you run `npm test`, the following happens in order:
+## Build & Assets
 
-1. **Build Freshness Check**: `npm run build:check:fresh`
-   - Compares timestamps of source files vs built files
-   - Checks entire directories: `src/core/`, `src/wasm_signer_worker/`, `src/wasm_vrf_worker/`
-   - If build is fresh, skips to step 4
+- Build freshness check runs before tests; stale builds trigger `npm run build`
+- Dev plugin serves SDK at `/sdk/*` directly from `dist/`
+- Assets of interest:
+  - `dist/esm/**` ES modules (SDK + embedded bundles)
+  - `dist/cjs/**` CommonJS modules
+  - `dist/workers/**` Worker bundles and WASM binaries
 
-2. **Conditional Rebuild**: If build is stale:
-   ```bash
-   npm run build
-   ```
+## Setup Architecture
 
-3. **Run Tests**: `playwright test` (the Vite plugin serves `/sdk/*` directly from `dist/`)
+The test bootstrap is a precise 5‑step sequence to avoid WebAuthn/import‑map races. It’s split for clarity:
 
-### Asset Locations
+- `passkey-sdk/src/__tests__/setup/bootstrap.ts`: `executeSequentialSetup()`
+  1) WebAuthn Virtual Authenticator (Chromium CDP)
+  2) Import map injection (NEAR + lit deps)
+  3) Environment stabilization
+  4) Dynamic import from `/sdk/esm/...` and instance wiring
+  5) Global fallbacks (e.g., base64UrlEncode)
 
-SDK assets live under `dist/` and are served at `/sdk/*` by the dev plugin:
-- `dist/esm/**` - ES modules (main SDK and embedded bundles)
-- `dist/cjs/**` - CommonJS modules
-- `dist/types/**` - TypeScript definitions
-- `dist/workers/**` - Worker bundles and WASM binaries
+- `passkey-sdk/src/__tests__/setup/index.ts`:
+  - `setupBasicPasskeyTest(page, overrides)` orchestrates the 5 steps
+  - `handleInfrastructureErrors()` centralizes CI‑skip for faucet 429
+  - `setupRelayServerTest()` / `setupTestnetFaucetTest()` presets
 
-## Test Environment Setup
+- `passkey-sdk/src/__tests__/setup/mocks.ts`: WebAuthn PRF‑capable mocks, utilities, NonceManager test patches
+- `passkey-sdk/src/__tests__/setup/intercepts.ts`: RPC bypass + relay/faucet mocks
+- `passkey-sdk/src/__tests__/setup/logging.ts`: quiet‑by‑default console capture (`VERBOSE_TEST_LOGS`)
 
-### 5-Step Sequential Setup Process
+## Fixtures & Helpers
 
-Every test runs through `setupBasicPasskeyTest()` which performs:
+- `passkey-sdk/src/__tests__/setup/fixtures.ts` extends Playwright `test` with:
+  - `passkey.setup(overrides?)` to run bootstrap lazily
+  - `passkey.withTestUtils(cb)` to run in browser with wired `testUtils`
+  - `consoleCapture` to collect logs; prints only on failure unless verbose
 
-#### Step 1: WebAuthn Virtual Authenticator
-```typescript
-// Set up virtual authenticator for WebAuthn testing
-const authenticatorId = await page.evaluate(() => {
-  return navigator.credentials.create({
-    publicKey: {
-      // Virtual authenticator configuration
-    }
-  });
+- Flow helpers in `passkey-sdk/src/__tests__/setup/flows.ts`:
+  - `registerPasskey(passkey, opts?)`
+  - `loginPasskey(passkey, { accountId })`
+  - `executeTransfer(passkey, { accountId, receiverId, amountYocto })`
+  - `recoverAccount(passkey, { accountId })`
+
+Example (see `e2e/complete_ux_flow.test.ts`):
+```ts
+import { test, expect } from '../setup/fixtures';
+import { registerPasskey, loginPasskey } from '../setup/flows';
+
+test('register → login', async ({ passkey }) => {
+  const reg = await registerPasskey(passkey);
+  expect(reg.success).toBe(true);
+  const login = await loginPasskey(passkey, { accountId: reg.accountId });
+  expect(login.success).toBe(true);
 });
 ```
 
-#### Step 2: Import Map Injection
-```typescript
-// Inject import map for NEAR.js dependencies
-await page.addInitScript(() => {
-  const importMap = {
-    "imports": {
-      "near-api-js": "https://cdn.jsdelivr.net/npm/near-api-js@latest/dist/near-api-js.min.js",
-      // ... other dependencies
-    }
-  };
-  document.head.appendChild(importMapScript);
-});
-```
+## Running
 
-#### Step 3: Environment Stabilization
-```typescript
-// Wait for environment to be ready
-await page.waitForFunction(() => {
-  return window.navigator && window.crypto && window.indexedDB;
-});
-```
+- Root scripts:
+  - `pnpm test` → `pnpm -C passkey-sdk test`
+  - `pnpm test:inline` → line reporter
+  - `pnpm test:unit`, `pnpm test:wallet-iframe`, `pnpm test:lit-components`
+  - `pnpm show-report` to open Playwright HTML report
 
-#### Step 4: PasskeyManager Loading
-```typescript
-// Dynamically load PasskeyManager from served SDK assets
-const { PasskeyManager } = await import('/sdk/esm/index.js');
-const passkeyManager = new PasskeyManager(config);
-```
-
-#### Step 5: Global Fallbacks
-```typescript
-// Ensure required globals are available
-window.testUtils = {
-  passkeyManager,
-  generateTestAccountId,
-  // ... other utilities
-};
-```
-
-### Virtual Authenticator Configuration
-
-The virtual authenticator is configured with:
-- **Protocol**: CTAP2
-- **Transport**: USB
-- **Resident Key**: Supported
-- **User Verification**: Supported
-- **PRF Extension**: Enabled (for dual PRF functionality)
-
-## Running Tests
-
-### Run All Tests
+- Direct Playwright subset examples:
 ```bash
-npm test
+pnpm -C passkey-sdk exec playwright test **/e2e/**/*.test.ts
+pnpm -C passkey-sdk exec playwright test **/unit/**/*.test.ts
 ```
 
-### Run Specific Test File
+Chromium only; `workers=1` to avoid relay/faucet rate limits.
+
+## Environment
+
+- `USE_RELAY_SERVER=1` run with relay (fast path, no .env)
+- `RELAY_PROVISION_TTL_MINUTES=720` control relay provision cache TTL
+- `FORCE_RELAY_REPROVISION=1` ignore cache and reprovision
+- `REUSE_EXISTING_RELAY_ENV=1` keep existing `.env`
+- `VERBOSE_TEST_LOGS=1` print captured console logs live
+
+Manual build without tests:
 ```bash
-# Run VRF worker tests
-npm test -- src/__tests__/e2e/vrfWorkerManager_dual_prf.test.ts
-
-# Run complete UX flow test
-npm test -- src/__tests__/e2e/complete_ux_flow.test.ts
-
-# Run registration rollback tests
-npm test -- src/__tests__/e2e/registration-rollback.test.ts
+pnpm -C passkey-sdk build
 ```
 
-### Run Specific Test Case
-```bash
-# Run specific test by name
-npm test -- --grep "VRF Worker Manager - Initialization"
+## Suite Quick Reference
 
-# Run tests matching pattern
-npm test -- --grep "Error Handling"
-```
+- E2E
+  - `e2e/complete_ux_flow.test.ts` lifecycle: register → login → action → recovery
+  - `e2e/worker_events.test.ts` signer/vrf worker wiring and events
+  - `e2e/nonceManager.test.ts` reserved nonce lifecycle in real session
+  - `e2e/cancel_overlay_contracts.test.ts` cancel + contract verification bypass
+  - `e2e/debug_*` import map and setup diagnostics
 
-### Development Mode
-```bash
-# Run tests in headed mode (see browser)
-npm test -- --headed
+- Unit
+  - `unit/confirmTxFlow.successPaths.test.ts` register/sign/local‑only success
+  - `unit/confirmTxFlow.defensivePaths.test.ts` cancel releases nonces, PRF errors
+  - `unit/confirmTxFlow.determineConfirmationConfig.test.ts` override precedence
+  - `unit/confirmTxFlow.common.helpers.test.ts` sanitization + summary parsing
+  - `unit/awaitSecureConfirmationV2.test.ts` error/abort/timeout/mismatch via worker global
+  - `unit/progressBus.defaultPhaseHeuristics.test.ts` phase → visibility mapping
+  - `unit/overlayController.test.ts` aria/anchor/sticky behavior
+  - `unit/handleSecureConfirmRequest.test.ts` request handler behavior
 
-# Run tests with debug output
-npm test -- --reporter=line
+- Wallet Iframe
+  - `wallet-iframe/handshake.test.ts` CONNECT→READY handshake
+  - `wallet-iframe/router.behavior.test.ts` pre‑show, timeout hide, anchored overlay
+  - `wallet-iframe/router.behavior.sticky.test.ts` sticky lifecycle + cancelAll
+  - `wallet-iframe/router.computeOverlayIntent.test.ts` intent mapping
 
-# Run tests with video recording
-npm test -- --video=on
-```
+- Lit Components
+  - `lit-components/confirm-ui.host-and-iframe.test.ts` modal/drawer confirm/cancel
+  - `lit-components/confirm-ui.handle.test.ts` handle.update/close DOM asserts
+  - `lit-components/button-with-tooltip.test.ts` behavior + themes
 
-### How to use
+## Fixes & Learnings
 
-Fast path (no .env needed):
-```
-USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
-```
-Customize caching window:
-```
-RELAY_PROVISION_TTL_MINUTES=720 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
-```
-Force fresh relayer:
-```
-FORCE_RELAY_REPROVISION=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
-```
-Keep an existing .env intact:
-```
-REUSE_EXISTING_RELAY_ENV=1 USE_RELAY_SERVER=1 pnpm -C passkey-sdk test
-```
-
-### Manual Build (without tests)
-```bash
-# Just build the SDK (dev server will serve from dist/)
-npm run build
-```
-
-## Test Files Overview
-
-### Core Test Files
-
-#### `complete_ux_flow.test.ts`
-- **Purpose**: End-to-end user journey testing
-- **Flow**: Registration → Login → Actions → Recovery
-- **Features**: Complete PasskeyManager lifecycle
-- **Duration**: ~30-45 seconds
-
-#### `vrfWorkerManager_dual_prf.test.ts`
-- **Purpose**: VRF worker functionality testing
-- **Tests**: Keypair generation, deterministic derivation, session management
-- **Features**: Dual PRF support, error handling, WASM worker communication
-- **Duration**: ~15-20 seconds
-
-#### `registration-rollback.test.ts`
-- **Purpose**: Registration rollback and cleanup testing
-- **Tests**: Presigned delete transactions, account cleanup
-- **Features**: NEAR testnet account management
-- **Duration**: ~10-15 seconds
-
-#### Test Reports
-HTML reports generated at: `test-results/`
-```bash
-# View report
-npx playwright show-report
-```
+- Use signer worker bundle for `awaitSecureConfirmationV2`; read export from global, not `/sdk/esm` direct
+- Target the iframe with `allow` containing `publickey-credentials` in tests
+- Router hide asserts should check `aria-hidden` and 0×0 with opacity 0
+- Registration VRF JIT path may reuse bootstrap challenge in tests
 
 ## Troubleshooting
 
 ### Wallet iframe READY timeout under COEP
 
-Chromium enforces [Cross-Origin-Embedder-Policy](https://web.dev/coop-coep/) during our tests because the example app serves `COEP: require-corp`. If the wallet iframe handshake is posted with `targetOrigin='*'`, the browser silently discards the transferable `MessagePort`, so the client never observes `READY` and the tests fail with `Wallet iframe READY timeout`.
+Chromium enforces COEP. If the initial `CONNECT` is posted with `targetOrigin='*'`, the transferable `MessagePort` is discarded and `READY` never arrives.
 
-To keep the iframe tests stable:
+To keep iframe tests stable:
+- Post initial `CONNECT` to the exact wallet origin (for example `https://wallet.example.localhost`).
 
-- Always post the initial `CONNECT` message to the exact wallet origin (for example `https://wallet.example.localhost`). The real wallet host validates envelopes, so this stays safe while satisfying Chromium’s transferable rules under COEP.
+## Gaps & Next Steps
+
+- ProgressBus lifecycle assertions for sticky subscriber hand‑off and overlay visibility
+- Local‑only cancel flow should release nonce and emit structured error
+- Theme regression guardrails for confirm UI (light vs dark DOM tokens)
+- Router sticky downgrade scenario (PM_RESULT clears sticky → overlay hides without explicit cancel)
 - Ensure the Playwright wallet stub mirrors the production host: send permissive `Cross-Origin-*` headers, adopt incoming ports, reply to `PM_CANCEL` with an `ERROR` (code `CANCELLED`), and emit progress phases such as `ActionPhase.STEP_2_USER_CONFIRMATION`. Without those stubs the overlay visibility assertions will never see the iframe expand.
 
 If you update the handshake logic, re-run:

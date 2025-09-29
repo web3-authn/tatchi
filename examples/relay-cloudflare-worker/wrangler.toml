@@ -1,0 +1,27 @@
+name = "w3a-relay"
+main = "src/worker.ts"
+compatibility_date = "2024-09-01"
+
+# Default inactive; add a cron schedule here when you enable rotation or heartbeats.
+[triggers]
+crons = []
+
+[vars]
+RELAYER_ACCOUNT_ID = "relayer.testnet"
+RELAYER_PRIVATE_KEY = "ed25519:..."
+NEAR_RPC_URL = "https://test.rpc.fastnear.com"
+WEB_AUTHN_CONTRACT_ID = "web3-authn-v5.testnet"
+ACCOUNT_INITIAL_BALANCE = "30000000000000000000000"
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
+
+# Fixed Shamir keys (no rotation by default)
+SHAMIR_P_B64U = "<base64url-of-prime-p>"
+SHAMIR_E_S_B64U = "<base64url-server-exponent-e_s>"
+SHAMIR_D_S_B64U = "<base64url-server-inverse-d_s>"
+
+# Optional CORS
+EXPECTED_ORIGIN = "https://tatchi.xyz/"
+EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz"
+
+# Optional: explicitly enable cron and rotation (defaults to disabled)
+# ENABLE_ROTATION = "0"

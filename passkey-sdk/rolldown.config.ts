@@ -123,7 +123,7 @@ export default defineConfig([
   },
   // Express router helper ESM bundle
   {
-    input: 'src/server/router/express.ts',
+    input: 'src/server/router/express-adaptor.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.ESM}/server/router`,
       format: 'esm',
@@ -137,11 +137,40 @@ export default defineConfig([
   },
   // Express router helper CJS bundle
   {
-    input: 'src/server/router/express.ts',
+    input: 'src/server/router/express-adaptor.ts',
     output: {
       dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
       format: 'cjs',
       entryFileNames: 'express.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Cloudflare Workers router adaptor ESM bundle
+  {
+    input: 'src/server/router/cloudflare-adaptor.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/server/router`,
+      format: 'esm',
+      entryFileNames: 'cloudflare.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Cloudflare Workers router adaptor CJS bundle
+  {
+    input: 'src/server/router/cloudflare-adaptor.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
+      format: 'cjs',
+      entryFileNames: 'cloudflare.js',
       sourcemap: true,
       exports: 'named',
     },

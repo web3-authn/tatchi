@@ -96,7 +96,9 @@ async function main() {
   });
 
   // 5) Start vite dev (foreground)
-  const vite = spawn('pnpm', ['-C', '../examples/vite', 'dev'], { stdio: 'inherit', cwd: ROOT });
+  const viteScript = (process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1') ? 'dev:ci' : 'dev';
+  console.log(`[start-servers] Starting Vite with script '${viteScript}' (NO_CADDY=${process.env.NO_CADDY || ''}, CI=${process.env.CI || ''})`);
+  const vite = spawn('pnpm', ['-C', '../examples/vite', viteScript], { stdio: 'inherit', cwd: ROOT });
 
   // Cleanup on exit
   function shutdown(code = 0) {

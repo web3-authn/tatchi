@@ -6,7 +6,6 @@ import {
   LoginPhase,
   PasskeyAuthMenu,
   AuthMenuMode,
-  WalletIframePasskeyAuthMenu,
 } from '@web3authn/passkey/react'
 import toast from 'react-hot-toast'
 
@@ -161,72 +160,21 @@ export function PasskeyLoginMenu() {
   return (
     <div className="passkey-login-container-root" style={{
     }}>
-      {Boolean(passkeyManager?.configs?.iframeWallet?.walletOrigin) ? (
-        <WalletIframePasskeyAuthMenu
-          defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
-          socialProviders={[]}
-          onAuthProgress={(detail) => {
-            const payload = detail as { mode?: AuthMenuMode; event?: unknown };
-            if (!payload) return;
-            if (payload.mode === AuthMenuMode.Register) {
-              handleRegistrationEvent(payload.event as RegistrationSSEEvent);
-            } else if (payload.mode === AuthMenuMode.Login) {
-              handleLoginEvent(payload.event as any);
-            }
-          }}
-          onAuthSuccess={(detail) => {
-            const payload = detail as { mode?: AuthMenuMode; result?: any };
-            if (!payload) return;
-            switch (payload.mode) {
-              case AuthMenuMode.Register:
-                toast.success('Registration completed successfully!', { id: 'registration' });
-                refreshLoginState(payload.result?.nearAccountId);
-                break;
-              case AuthMenuMode.Login:
-                toast.success(`Logged in as ${payload.result?.nearAccountId || targetAccountId}!`, { id: 'login' });
-                refreshLoginState(payload.result?.nearAccountId);
-                break;
-              case AuthMenuMode.Recover:
-                toast.success('Account recovered successfully!');
-                refreshLoginState(payload.result?.nearAccountId);
-                break;
-              default:
-                break;
-            }
-          }}
-          onAuthError={(detail) => {
-            const payload = detail as { mode?: AuthMenuMode; error?: unknown };
-            const message = payload?.error instanceof Error
-              ? payload.error.message
-              : friendlyWebAuthnMessage(payload?.error);
-            toast.error(message || 'Authentication failed');
-          }}
-          onLinkDeviceSuccess={() => {
-            toast.success('Device linked successfully!');
-            refreshLoginState();
-          }}
-          onLinkDeviceError={(detail) => {
-            const payload = detail as { event?: { message?: string } };
-            toast.error(payload?.event?.message || 'Device linking failed');
-          }}
-        />
-      ) : (
-        <PasskeyAuthMenu
-          defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
-          socialLogin={{}}
-          onLogin={async () => {
-            if (!targetAccountId) throw new Error('Missing account id');
-            return onLogin();
-          }}
-          onRegister={async () => {
-            if (!targetAccountId) throw new Error('Missing account id');
-            return onRegister();
-          }}
-          onRecoverAccount={async () => {
-            return onRecover();
-          }}
-        />
-      )}
+      <PasskeyAuthMenu
+        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
+        socialLogin={{}}
+        onLogin={async () => {
+          if (!targetAccountId) throw new Error('Missing account id');
+          return onLogin();
+        }}
+        onRegister={async () => {
+          if (!targetAccountId) throw new Error('Missing account id');
+          return onRegister();
+        }}
+        onRecoverAccount={async () => {
+          return onRecover();
+        }}
+      />
     </div>
   );
 }

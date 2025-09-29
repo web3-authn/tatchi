@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
  * @see https://playwright.dev/docs/test-configuration
  */
 const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
+const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
 
 export default defineConfig({
   testDir: './src/__tests__',
@@ -45,7 +46,7 @@ export default defineConfig({
     // If USE_RELAY_SERVER is set, start both servers with a relay health check
     command: USE_RELAY_SERVER
       ? 'node ./src/__tests__/scripts/start-servers.mjs'
-      : 'pnpm -C ../examples/vite dev',
+      : (NO_CADDY ? 'pnpm -C ../examples/vite run dev:ci' : 'pnpm -C ../examples/vite dev'),
     url: 'http://localhost:5173',
     reuseExistingServer: true,
     timeout: 180000, // Allow time for relay health check + build

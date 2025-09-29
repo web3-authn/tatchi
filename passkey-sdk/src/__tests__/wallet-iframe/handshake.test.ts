@@ -13,7 +13,10 @@ test.describe('Wallet iframe handshake', () => {
     page.on('console', (msg) => {
       console.log(`[browser] ${msg.type().toUpperCase()}: ${msg.text()}`);
     });
-    await page.goto('https://example.localhost');
+    const url = (process.env.NO_CADDY === '1' || process.env.CI === '1')
+      ? 'http://localhost:5173'
+      : 'https://example.localhost';
+    await page.goto(url);
   });
 
   test.afterEach(async ({ page }) => {

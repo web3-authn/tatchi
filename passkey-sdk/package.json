@@ -25,7 +25,12 @@
     "./server/router/express": {
       "import": "./dist/esm/server/router/express.js",
       "require": "./dist/cjs/server/router/express.js",
-      "types": "./dist/types/src/server/router/express.d.ts"
+      "types": "./dist/types/src/server/router/express-adaptor.d.ts"
+    },
+    "./server/router/cloudflare": {
+      "import": "./dist/esm/server/router/cloudflare.js",
+      "require": "./dist/cjs/server/router/cloudflare.js",
+      "types": "./dist/types/src/server/router/cloudflare-adaptor.d.ts"
     },
     "./react": {
       "import": "./dist/esm/react/index.js",
