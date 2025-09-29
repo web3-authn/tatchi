@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently --kill-others \"vite\" \"sh run_caddy.sh\"",
+    "dev:ci": "vite",
     "build": "vite build",
     "preview": "vite preview"
   },
