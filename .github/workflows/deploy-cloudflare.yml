@@ -26,7 +26,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install deps (workspace)
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -73,7 +73,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install deps (workspace)
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -184,7 +184,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install deps (workspace)
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Deploy Cloudflare Worker (relay)
         working-directory: examples/relay-cloudflare-worker
@@ -215,7 +215,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install deps (workspace)
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Build example sites
         run: |

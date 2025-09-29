@@ -27,7 +27,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install dependencies (workspace)
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --no-frozen-lockfile
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -60,4 +60,3 @@ jobs:
         env:
           USE_RELAY_SERVER: '1'
         run: pnpm --filter @web3authn/passkey test:lit-components
-
