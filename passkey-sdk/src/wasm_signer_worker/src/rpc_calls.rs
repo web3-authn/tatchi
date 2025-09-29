@@ -292,21 +292,30 @@ async fn execute_rpc_request(
     rpc_url: &str,
     rpc_body: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {
-    // Create headers first
+    // Split comma/whitespace-separated endpoints and try each in order
+    let endpoints: Vec<String> = rpc_url
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+
+    if endpoints.is_empty() {
+        return Err("NEAR RPC URL cannot be empty".to_string());
+    }
+
+    // Create headers once
     let headers = Headers::new().map_err(|e| format!("Failed to create headers: {:?}", e))?;
     headers
         .set("Content-Type", "application/json")
         .map_err(|e| format!("Failed to set Content-Type header: {:?}", e))?;
 
-    // Create HTTP request with headers
+    // Create base options
     let opts = RequestInit::new();
     opts.set_method("POST");
     opts.set_mode(RequestMode::Cors);
     opts.set_headers(&headers);
     opts.set_body(&JsValue::from_str(&rpc_body.to_string()));
-
-    let request = Request::new_with_str_and_init(rpc_url, &opts)
-        .map_err(|e| format!("Failed to create request: {:?}", e))?;
 
     // Get global scope (works in both Window and Worker contexts)
     let global = js_sys::global();
@@ -318,55 +327,108 @@ async fn execute_rpc_request(
         .dyn_into::<js_sys::Function>()
         .map_err(|_| "fetch is not a function".to_string())?;
 
-    // Call fetch with the request
-    let fetch_promise = fetch_fn
-        .call1(&global, &request)
-        .map_err(|e| format!("fetch call failed: {:?}", e))?
-        .dyn_into::<js_sys::Promise>()
-        .map_err(|_| "fetch did not return a Promise".to_string())?;
+    let mut last_error: Option<String> = None;
 
-    // Execute the request
-    let resp_value = JsFuture::from(fetch_promise)
-        .await
-        .map_err(|e| format!("Fetch request failed: {:?}", e))?;
-
-    let resp: Response = resp_value
-        .dyn_into()
-        .map_err(|e| format!("Failed to cast response: {:?}", e))?;
-
-    if !resp.ok() {
-        // Try to get the error response body for debugging
-        let error_text = match resp.text() {
-            Ok(text_promise) => match JsFuture::from(text_promise).await {
-                Ok(text_value) => text_value
-                    .as_string()
-                    .unwrap_or_else(|| "Unable to get error text".to_string()),
-                Err(_) => "Failed to read error response".to_string(),
-            },
-            Err(_) => "Could not access error response".to_string(),
+    for (index, endpoint) in endpoints.iter().enumerate() {
+        // Build request for this endpoint
+        let request = match Request::new_with_str_and_init(endpoint, &opts) {
+            Ok(req) => req,
+            Err(e) => {
+                last_error = Some(format!("Failed to create request: {:?}", e));
+                continue;
+            }
         };
-        return Err(format!(
-            "HTTP error: {} {} - Response: {}",
-            resp.status(),
-            resp.status_text(),
-            error_text
-        ));
+
+        // Call fetch with the request
+        let fetch_promise = match fetch_fn.call1(&global, &request) {
+            Ok(p) => match p.dyn_into::<js_sys::Promise>() {
+                Ok(pr) => pr,
+                Err(_) => {
+                    last_error = Some("fetch did not return a Promise".to_string());
+                    continue;
+                }
+            },
+            Err(e) => {
+                last_error = Some(format!("fetch call failed: {:?}", e));
+                continue;
+            }
+        };
+
+        // Execute the request
+        let resp_value = match JsFuture::from(fetch_promise).await {
+            Ok(v) => v,
+            Err(e) => {
+                last_error = Some(format!("Fetch request failed: {:?}", e));
+                continue;
+            }
+        };
+
+        let resp: Response = match resp_value.dyn_into() {
+            Ok(r) => r,
+            Err(e) => {
+                last_error = Some(format!("Failed to cast response: {:?}", e));
+                continue;
+            }
+        };
+
+        if !resp.ok() {
+            // Try to get the error response body for debugging
+            let error_text = match resp.text() {
+                Ok(text_promise) => match JsFuture::from(text_promise).await {
+                    Ok(text_value) => text_value
+                        .as_string()
+                        .unwrap_or_else(|| "Unable to get error text".to_string()),
+                    Err(_) => "Failed to read error response".to_string(),
+                },
+                Err(_) => "Could not access error response".to_string(),
+            };
+            last_error = Some(format!(
+                "HTTP error from {}: {} {} - Response: {}",
+                endpoint,
+                resp.status(),
+                resp.status_text(),
+                error_text
+            ));
+            continue;
+        }
+
+        // Get response as JSON
+        let json_promise = match resp.json() {
+            Ok(p) => p,
+            Err(e) => {
+                last_error = Some(format!("Failed to get JSON from response: {:?}", e));
+                continue;
+            }
+        };
+
+        let json_value = match JsFuture::from(json_promise).await {
+            Ok(v) => v,
+            Err(e) => {
+                last_error = Some(format!("Failed to parse JSON: {:?}", e));
+                continue;
+            }
+        };
+
+        // Convert to serde_json::Value for easier parsing
+        let result: Value = match serde_wasm_bindgen::from_value(json_value) {
+            Ok(r) => r,
+            Err(e) => {
+                last_error = Some(format!("Failed to deserialize JSON: {:?}", e));
+                continue;
+            }
+        };
+
+        if index > 0 {
+            warn!(
+                "RUST: RPC call succeeded using fallback endpoint: {}",
+                endpoint
+            );
+        }
+
+        return Ok(result);
     }
 
-    // Get response as JSON
-    let json_promise = resp
-        .json()
-        .map_err(|e| format!("Failed to get JSON from response: {:?}", e))?;
-
-    let json_value = JsFuture::from(json_promise)
-        .await
-        .map_err(|e| format!("Failed to parse JSON: {:?}", e))?;
-
-    // Convert to serde_json::Value for easier parsing
-    let result: Value = serde_wasm_bindgen::from_value(json_value)
-        .map_err(|e| format!("Failed to deserialize JSON: {:?}", e))?;
-
-    Ok(result)
+    Err(last_error.unwrap_or_else(|| "RPC request failed".to_string()))
 }
 
 /// Parse response for view-only registration check
