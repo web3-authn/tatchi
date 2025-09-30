@@ -291,3 +291,88 @@ jobs:
       - name: Deploy vite-secure to Cloudflare Pages (primary site)
         run: |
           wrangler pages deploy examples/vite-secure/dist --project-name "$CF_PAGES_PROJECT_VITE"
+
+  deploy-wallet:
+    runs-on: ubuntu-latest
+    needs: build-sdk
+    environment:
+      name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CF_PAGES_PROJECT_WALLET: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Add wasm target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: |
+          curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
+
+      - name: Setup Bun (for worker bundling step in build.sh)
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install deps (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build SDK (@web3authn/passkey)
+        run: pnpm --filter @web3authn/passkey build
+
+      - name: Generate wallet-only static site (wallet-dist)
+        run: |
+          set -euxo pipefail
+          # Create minimal wallet service page
+          mkdir -p wallet-dist/wallet-service wallet-dist/sdk
+          cat > wallet-dist/wallet-service/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Web3Authn Wallet Service</title>
+              <script>window.global ||= window; window.process ||= { env: {} };</script>
+            </head>
+            <body>
+              <script type="module" src="/sdk/esm/react/embedded/wallet-iframe-host.js"></script>
+            </body>
+          </html>
+          HTML
+
+          # Add strict headers required for cross-origin embedding + WebAuthn
+          cat > wallet-dist/_headers <<'HEADERS'
+          /*
+            Cross-Origin-Opener-Policy: same-origin
+            Cross-Origin-Embedder-Policy: require-corp
+            Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
+
+          /sdk/*
+            Cross-Origin-Resource-Policy: cross-origin
+          HEADERS
+
+          # Copy SDK assets (ESM bundles + workers) under /sdk
+          cp -R passkey-sdk/dist/esm wallet-dist/sdk/
+          cp -R passkey-sdk/dist/workers wallet-dist/sdk/
+
+      - name: Install Wrangler
+        run: pnpm add -g wrangler@4
+
+      - name: Deploy wallet static site to Cloudflare Pages
+        run: |
+          wrangler pages deploy wallet-dist --project-name "$CF_PAGES_PROJECT_WALLET"

@@ -9,17 +9,18 @@ crons = []
 
 [vars]
 RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
-RELAYER_PRIVATE_KEY = "ed25519:..."
 NEAR_RPC_URL = "https://test.rpc.fastnear.com"
 NETWORK_ID = "testnet"
 WEB_AUTHN_CONTRACT_ID = "web3-authn-v5.testnet"
 ACCOUNT_INITIAL_BALANCE = "30000000000000000000000"
 CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
 
-# Fixed Shamir keys (no rotation by default)
-SHAMIR_P_B64U = "<base64url-of-prime-p>"
-SHAMIR_E_S_B64U = "<base64url-server-exponent-e_s>"
-SHAMIR_D_S_B64U = "<base64url-server-inverse-d_s>"
+# Secrets are NOT defined here. Set them via Wrangler secrets (they persist across deploys):
+#   wrangler secret put RELAYER_PRIVATE_KEY
+#   wrangler secret put SHAMIR_P_B64U
+#   wrangler secret put SHAMIR_E_S_B64U
+#   wrangler secret put SHAMIR_D_S_B64U
+# Required at runtime by src/worker.ts
 
 # Optional CORS
 EXPECTED_ORIGIN = "https://tatchi.xyz/"
