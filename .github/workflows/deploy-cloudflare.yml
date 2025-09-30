@@ -232,7 +232,6 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CF_PAGES_PROJECT_VITE: ${{ secrets.CF_PAGES_PROJECT_VITE }}
-      CF_PAGES_PROJECT_WALLET: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
       # Vite build-time envs used by the examples
       VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
       VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
@@ -276,16 +275,12 @@ jobs:
       - name: Build SDK (@web3authn/passkey) for Vite builds
         run: pnpm --filter @web3authn/passkey build
 
-      - name: Build example sites
+      - name: Build example site (vite-secure only)
         run: |
-          pnpm -C examples/vite build
           pnpm -C examples/vite-secure build
 
-      - name: Copy SDK runtime assets into Vite dist
+      - name: Copy SDK runtime assets into vite-secure dist
         run: |
-          mkdir -p examples/vite/dist/sdk examples/vite/dist/sdk/workers
-          cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite/dist/sdk/ || true
-          cp -R passkey-sdk/dist/workers/* examples/vite/dist/sdk/workers/ || true
           mkdir -p examples/vite-secure/dist/sdk examples/vite-secure/dist/sdk/workers
           cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite-secure/dist/sdk/ || true
           cp -R passkey-sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
@@ -293,10 +288,6 @@ jobs:
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
 
-      - name: Deploy Vite example to Cloudflare Pages
+      - name: Deploy vite-secure to Cloudflare Pages (primary site)
         run: |
-          wrangler pages deploy examples/vite/dist --project-name "$CF_PAGES_PROJECT_VITE"
-
-      - name: Deploy Vite Secure example to Cloudflare Pages
-        run: |
-          wrangler pages deploy examples/vite-secure/dist --project-name "$CF_PAGES_PROJECT_WALLET"
+          wrangler pages deploy examples/vite-secure/dist --project-name "$CF_PAGES_PROJECT_VITE"
