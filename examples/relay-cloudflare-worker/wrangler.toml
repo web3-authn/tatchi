@@ -28,3 +28,7 @@ EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"
+
+# Observability (Workers Logs). Requires appropriate Cloudflare plan.
+[observability.logs]
+enabled = true

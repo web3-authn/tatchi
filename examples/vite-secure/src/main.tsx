@@ -18,6 +18,7 @@ const env: any = import.meta?.env;
 // Dev fallback: if not provided via Vite env, assume our Caddy dev origin
 const WALLET_ORIGIN: string | undefined = env?.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost';
 const WALLET_SERVICE_PATH: string = env?.VITE_WALLET_SERVICE_PATH || '/wallet-service';
+const RP_ID_OVERRIDE: string | undefined = env?.VITE_RP_ID_OVERRIDE;
 
 // Simple App component to manage layout and potentially shared state later
 function App() {
@@ -30,8 +31,8 @@ function App() {
             iframeWallet: {
               walletOrigin: WALLET_ORIGIN,
               walletServicePath: WALLET_SERVICE_PATH,
-              // Optional: set RP ID base so passkeys work across local subpaths/origins
-              rpIdOverride: 'example.localhost',
+              // Optional: set RP ID base so passkeys work across subdomains/origins
+              ...(RP_ID_OVERRIDE ? { rpIdOverride: RP_ID_OVERRIDE } : {}),
             },
           } : {}),
         }}>
