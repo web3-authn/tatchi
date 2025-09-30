@@ -159,9 +159,12 @@ export class AuthService {
   }
 
   private isNodeEnvironment(): boolean {
-    // Detect true Node.js; Cloudflare Workers and other runtimes also lack window,
-    // so avoid treating them as Node. Only check for process.versions.node.
-    return Boolean((globalThis as any).process?.versions?.node);
+    // Detect true Node.js, not Cloudflare Workers with nodejs_compat polyfills.
+    const isNode = Boolean((globalThis as any).process?.versions?.node);
+    // Cloudflare Workers expose WebSocketPair and may polyfill process.
+    const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== 'undefined'
+      || (typeof navigator !== 'undefined' && (navigator as any).userAgent?.includes?.('Cloudflare-Workers'));
+    return isNode && !isCloudflareWorker;
   }
 
   /**

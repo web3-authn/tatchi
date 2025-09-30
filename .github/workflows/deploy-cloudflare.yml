@@ -275,6 +275,17 @@ jobs:
       - name: Build SDK (@web3authn/passkey) for Vite builds
         run: pnpm --filter @web3authn/passkey build
 
+      - name: Debug - print VITE_* env seen by build
+        run: |
+          echo "VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}"
+          echo "VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}"
+          echo "VITE_RP_ID_OVERRIDE=${VITE_RP_ID_OVERRIDE}"
+          echo "VITE_RELAYER_URL=${VITE_RELAYER_URL}"
+          echo "VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}"
+          echo "VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}"
+          echo "VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}"
+          echo "VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}"
+
       - name: Build example site (vite-secure only)
         run: |
           pnpm -C examples/vite-secure build
@@ -287,6 +298,15 @@ jobs:
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
+
+      - name: Debug - grep built dist for wallet origin
+        run: |
+          echo "Occurrences of wallet origin in built files (if any):"
+          rg -n "wallet\\.tatchi\\.xyz|wallet\\.example\\.localhost" examples/vite-secure/dist || true
+          if rg -n "wallet\\.example\\.localhost" examples/vite-secure/dist; then
+            echo "ERROR: Built assets still reference wallet.example.localhost" >&2
+            exit 1
+          fi
 
       - name: Deploy vite-secure to Cloudflare Pages (primary site)
         run: |
