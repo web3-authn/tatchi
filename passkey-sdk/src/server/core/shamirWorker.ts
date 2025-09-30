@@ -1,10 +1,7 @@
-// Server-side Shamir 3-pass exponent helpers.
+// Server-side and Worker-compatible Shamir 3-pass exponent helpers.
 // Implements modular exponentiation over a shared safe prime p.
-
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
-import { createHash } from 'crypto';
+// Avoids Node-only imports at module scope so this file can be bundled for
+// Cloudflare Workers without requiring Node built-ins.
 // @ts-ignore - WASM imports
 import initWasm, {
   handle_message as wasmHandleMessage,
@@ -28,28 +25,65 @@ export { SHAMIR_P_B64U, get_shamir_p_b64u };
 let wasmInitialized = false;
 let wasmModule: any;
 
+function isNodeEnvironment(): boolean {
+  return Boolean((globalThis as any).process?.versions?.node);
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  const b64 = Buffer.from(bytes).toString('base64');
+  return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+function simpleHash32(str: string): string {
+  let h = 0x811c9dc5; // FNV-1a
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  // Return hex string
+  return ('00000000' + (h >>> 0).toString(16)).slice(-8);
+}
+
+const VRF_WASM_MAIN_PATH = '../../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm';
+const VRF_WASM_FALLBACK_PATH = '../../../workers/wasm_vrf_worker_bg.wasm';
+
+function getVrfWasmUrls(): URL[] {
+  return [
+    new URL(VRF_WASM_MAIN_PATH, import.meta.url),
+    new URL(VRF_WASM_FALLBACK_PATH, import.meta.url),
+  ];
+}
+
 async function ensureWasmInitialized(): Promise<void> {
   if (wasmInitialized) {
     return;
   }
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = dirname(__filename);
-  const candidates = [
-    join(__dirname, '../../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-    join(__dirname, '../../../../../src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-    // Dev fallback path when running from the monorepo
-    join(__dirname, '../../../../../../passkey-sdk/src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
-  ];
-  let bytes: Buffer | undefined;
-  for (const p of candidates) {
-    try { bytes = readFileSync(p); break; } catch {}
+  const candidates = getVrfWasmUrls();
+  if (isNodeEnvironment()) {
+    try {
+      const { fileURLToPath } = await import('node:url');
+      const { readFile } = await import('node:fs/promises');
+      // Try reading bytes from filesystem candidates
+      for (const url of candidates) {
+        try {
+          const p = fileURLToPath(url);
+          const buf = await readFile(p);
+          const u8 = buf instanceof Uint8Array ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) : new Uint8Array(buf as any);
+          const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+          wasmModule = await initWasm({ module_or_path: ab as any });
+          wasmInitialized = true;
+          return;
+        } catch { /* try next */ }
+      }
+    } catch { /* fall through to URL path init */ }
   }
-  if (!bytes) throw new Error('Could not find WASM file for Shamir3Pass');
-  // Suppress wasm-bindgen deprecation warning by passing an options object
-  wasmModule = await initWasm({ module_or_path: bytes });
+
+  // Worker/browser-like environment: let runtime fetch the URL
+  try {
+    await initWasm({ module_or_path: candidates[0] as any });
+  } catch {
+    await initWasm({ module_or_path: candidates[1] as any });
+  }
   wasmInitialized = true;
 }
 
@@ -70,13 +104,8 @@ export class Shamir3PassUtils {
 
   getCurrentKeyId(): string | null {
     if (!this.e_s_b64u) return null;
-    try {
-      // Derive a stable identifier from the public exponent representation
-      const h = createHash('sha256').update(this.e_s_b64u).digest('base64url');
-      return h;
-    } catch {
-      return null;
-    }
+    // Derive a stable identifier without Node crypto; use a simple hash
+    try { return simpleHash32(this.e_s_b64u); } catch { return null; }
   }
 
   async initialize(): Promise<{ p_b64u: string }> {

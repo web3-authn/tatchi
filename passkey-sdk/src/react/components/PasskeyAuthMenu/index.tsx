@@ -159,27 +159,22 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
 
     try {
       if (mode === AuthMenuMode.Recover) {
-        let result = onRecoverAccount?.();
-
+        await onRecoverAccount?.();
       } else if (mode === AuthMenuMode.Login) {
-        let result: any = onLogin?.();
+        await onLogin?.();
         // If login resolves with an explicit failure, return to Login
-        if (result && result.success === false) {
-          setWaiting(false);
-          setShowScanDevice(false);
-          setMode(AuthMenuMode.Login);
-          return;
-        }
-
+        setWaiting(false);
+        setShowScanDevice(false);
+        setMode(AuthMenuMode.Login);
       } else {
-        let result = onRegister?.();
+        await onRegister?.();
       }
     } catch (error) {
       // If login throws (e.g., Touch ID cancelled), send user back to Login
       if (mode === AuthMenuMode.Login) {
         setWaiting(false);
         setShowScanDevice(false);
-        setMode(AuthMenuMode.Login);
+        setMode(mode);
         return;
       }
       onResetToStart();

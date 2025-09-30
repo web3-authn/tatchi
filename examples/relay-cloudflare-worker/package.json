@@ -8,10 +8,9 @@
     "dev": "wrangler dev --local"
   },
   "devDependencies": {
-    "wrangler": "^3.80.0"
+    "wrangler": "^4.40.2"
   },
   "dependencies": {
     "@web3authn/passkey": "workspace:*"
   }
 }
-
