@@ -169,8 +169,8 @@ export class AuthService {
    * Tries multiple candidate locations and falls back to path-based init if needed.
    */
   private async initSignerWasmForNode(candidates: URL[]): Promise<void> {
-    const { fileURLToPath } = await import('url');
-    const { readFile } = await import('fs/promises');
+    const { fileURLToPath } = await import('node:url');
+    const { readFile } = await import('node:fs/promises');
 
     // 1) Try reading and compiling bytes
     for (const url of candidates) {
@@ -248,7 +248,7 @@ export class AuthService {
     }
 
     try {
-      const { readFile } = await import('fs/promises');
+      const { readFile } = await import('node:fs/promises');
       const raw = await readFile(filePath, 'utf8');
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) {
@@ -298,7 +298,7 @@ export class AuthService {
       d_s_b64u: spec.d_s_b64u,
     }));
     try {
-      const { writeFile } = await import('fs/promises');
+      const { writeFile } = await import('node:fs/promises');
       const serialized = JSON.stringify(entries, null, 2);
       await writeFile(filePath, `${serialized}\n`, 'utf8');
     } catch (error) {
