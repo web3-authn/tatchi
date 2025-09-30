@@ -123,10 +123,10 @@ jobs:
           cd passkey-sdk/dist
           cosign sign-blob --yes --output-signature manifest.sig manifest.json
 
-      - name: Install AWS CLI
+      - name: Install AWS CLI (via pip)
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y awscli
+          python3 -m pip install --user awscli
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Publish to Cloudflare R2 (by commit SHA)
         env:
@@ -186,10 +186,12 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
+      - name: Build SDK (@web3authn/passkey) for Worker bundling
+        run: pnpm --filter @web3authn/passkey build
+
       - name: Deploy Cloudflare Worker (relay)
-        working-directory: examples/relay-cloudflare-worker
         run: |
-          pnpm deploy
+          pnpm -C examples/relay-cloudflare-worker run deploy
 
   deploy-pages:
     runs-on: ubuntu-latest

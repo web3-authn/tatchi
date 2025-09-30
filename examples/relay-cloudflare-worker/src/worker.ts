@@ -6,6 +6,8 @@ export interface Env {
   RELAYER_ACCOUNT_ID: string;
   RELAYER_PRIVATE_KEY: string;
   NEAR_RPC_URL: string;
+  // Network can be set via NETWORK_ID ("testnet" | "mainnet"). Defaults to "testnet".
+  NETWORK_ID?: string;
   WEB_AUTHN_CONTRACT_ID: string;
   ACCOUNT_INITIAL_BALANCE?: string;
   CREATE_ACCOUNT_AND_REGISTER_GAS?: string;
@@ -26,7 +28,7 @@ function getService(env: Env) {
       relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
       webAuthnContractId: env.WEB_AUTHN_CONTRACT_ID,
       nearRpcUrl: env.NEAR_RPC_URL,
-      networkId: 'testnet',
+      networkId: env.NETWORK_ID || 'testnet',
       accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE || '30000000000000000000000',
       createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS || '85000000000000',
       shamir: {
