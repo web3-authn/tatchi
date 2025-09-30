@@ -186,6 +186,9 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
+      - name: Build SDK (@web3authn/passkey) for Worker bundling
+        run: pnpm --filter @web3authn/passkey build
+
       - name: Deploy Cloudflare Worker (relay)
         run: |
           pnpm -C examples/relay-cloudflare-worker run deploy
