@@ -2,10 +2,6 @@
 example.localhost {
 	tls internal
 	encode gzip
-	log {
-		output stdout
-		format console
-	}
 	header {
 		Cross-Origin-Embedder-Policy "require-corp"
 		Cross-Origin-Opener-Policy "same-origin"
@@ -21,10 +17,6 @@ example.localhost {
 wallet.example.localhost {
 	tls internal
 	encode gzip
-	log {
-		output stdout
-		format console
-	}
 	header {
 		Cross-Origin-Embedder-Policy "require-corp"
 		Cross-Origin-Opener-Policy "same-origin"

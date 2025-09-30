@@ -210,14 +210,17 @@ export function web3authnWasmMime(): VitePlugin {
 }
 
 export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
-  const walletOrigin = (opts.walletOrigin || process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost').trim()
-  const permissionsPolicy = [
-    `publickey-credentials-get=(self "${walletOrigin}")`,
-    `publickey-credentials-create=(self "${walletOrigin}")`,
-    // Allow clipboard for top-level and wallet origin, so nested iframes can delegate
-    `clipboard-read=(self "${walletOrigin}")`,
-    `clipboard-write=(self "${walletOrigin}")`,
-  ].join(', ')
+  const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
+  const walletOrigin = walletOriginRaw?.trim()
+
+  // Build a Permissions-Policy that only lists self unless a wallet origin is provided.
+  const ppParts: string[] = []
+  ppParts.push(`publickey-credentials-get=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  ppParts.push(`publickey-credentials-create=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  // Allow clipboard for top-level and wallet origin, so nested iframes can delegate
+  ppParts.push(`clipboard-read=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  ppParts.push(`clipboard-write=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  const permissionsPolicy = ppParts.join(', ')
 
   return {
     name: 'web3authn:dev-headers',
@@ -238,7 +241,7 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
   const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_WEB3AUTHN_SDK_BASE, '/sdk')
   const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
-  const walletOrigin = (options.walletOrigin || process.env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost').trim()
+  const walletOrigin = (options.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const setDevHeaders = options.setDevHeaders !== false // default true
   const enableDebugRoutes = options.enableDebugRoutes === true
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
@@ -269,4 +272,3 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
 
 // Named exports for advanced composition
 export default web3authnDev
-

@@ -13,10 +13,9 @@ import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
 
-// Read optional wallet iframe envs to toggle cross-origin mode
-const env: any = import.meta?.env;
-// Dev fallback: if not provided via Vite env, assume our Caddy dev origin
-const WALLET_ORIGIN: string | undefined = env?.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost';
+// Vite requires `import.meta.env` exactly; optional chaining breaks injection.
+const env: any = import.meta.env;
+const WALLET_ORIGIN: string | undefined = env?.VITE_WALLET_ORIGIN as string | undefined;
 const WALLET_SERVICE_PATH: string = env?.VITE_WALLET_SERVICE_PATH || '/wallet-service';
 const RP_ID_OVERRIDE: string | undefined = env?.VITE_RP_ID_OVERRIDE;
 

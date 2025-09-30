@@ -13,7 +13,6 @@ import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
 
-// Simple App component to manage layout and potentially shared state later
 function App() {
   return (
     <BrowserRouter>
@@ -22,6 +21,7 @@ function App() {
           // Same-origin mode (App Wallet) for this example.
           // To demo cross-origin wallet hosting, use the vite-secure example
           // which serves the wallet service on a separate origin.
+          // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
           ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
         }}>
         <Navbar />
