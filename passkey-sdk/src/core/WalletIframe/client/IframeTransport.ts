@@ -183,9 +183,13 @@ export class IframeTransport {
             cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
           } catch (e) {
             // Some browsers will throw if the current document has an opaque
-            // ('null') origin during early navigation. Treat as a transient
-            // and retry until timeout; the wallet page will adopt its final
-            // origin shortly after headers are processed.
+            // ('null') origin during early navigation. As a pragmatic fallback,
+            // attempt a wildcard target to avoid dropping the port, then keep
+            // retrying with the strict origin until timeout.
+            try {
+              cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
+              console.debug('[IframeTransport] CONNECT fallback posted with "*" target; continuing retries');
+            } catch {}
             try { console.debug('[IframeTransport] CONNECT postMessage threw; retrying', e); } catch {}
           }
 
