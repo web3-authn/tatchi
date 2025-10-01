@@ -45,7 +45,7 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
   const merged: PasskeyManagerConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     ...overrides,
-    webauthnContractId: overrides.webauthnContractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+    webauthnContractId: overrides.webauthnContractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId,
     relayer: {
       accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
