@@ -234,7 +234,7 @@ export interface PasskeyContextType {
 export interface PasskeyContextProviderProps {
   children: ReactNode;
   // Allow passing only overrides; provider will resolve full config from env + defaults
-  config?: Partial<PasskeyManagerConfigs>;
+  config: Partial<PasskeyManagerConfigs>;
 }
 
 // === CONVENIENCE RE-EXPORTS ===

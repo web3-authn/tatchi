@@ -10,7 +10,6 @@ export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/defaultConfigs';
 export {
   buildConfigsFromEnv,
-  createPasskeyManagerFromEnv,
 } from './core/defaultConfigs';
 
 ///////////////////////////////////////////////////////////////

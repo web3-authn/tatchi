@@ -3,12 +3,11 @@ import {
   type ClientUserData,
   type ClientAuthenticatorData,
 } from '../IndexedDBManager';
-import { StoreUserDataInput, UserPreferences } from '../IndexedDBManager/passkeyClientDB';
+import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
 import { type NearClient, SignedTransaction } from '../NearClient';
 import { SignerWorkerManager } from './SignerWorkerManager';
 import { VrfWorkerManager } from './VrfWorkerManager';
 import { AllowCredential, TouchIdPrompt } from './touchIdPrompt';
-import { base64UrlEncode } from '../../utils/encoders';
 import { toAccountId } from '../types/accountIds';
 import { UserPreferencesManager } from './userPreferences';
 import UserPreferencesInstance from './userPreferences';

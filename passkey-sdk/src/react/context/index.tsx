@@ -50,7 +50,6 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   children,
   config,
 }) => {
-
   // Authentication state (actual login status)
   // Note: isLoggedIn is true ONLY when VRF worker has private key in memory (vrfActive = true)
   // This means the user can generate VRF challenges without additional TouchID prompts
@@ -80,7 +79,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Initialize manager (PasskeyManager or PasskeyManagerIframe) with singleton pattern
   const passkeyManager = useMemo<PasskeyManager>(() => {
     // Resolve full configs from env + optional overrides. This also validates relayer etc.
-    const finalConfig: PasskeyManagerConfigs = buildConfigsFromEnv(config || {});
+    const finalConfig: PasskeyManagerConfigs = buildConfigsFromEnv(config);
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
       console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
