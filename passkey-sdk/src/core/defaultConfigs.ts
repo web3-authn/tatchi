@@ -50,6 +50,17 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
       accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
     },
+    vrfWorkerConfigs: {
+      shamir3pass: {
+        p: overrides.vrfWorkerConfigs?.shamir3pass?.p
+          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.p,
+        removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
+          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+        applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
+          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+        relayServerUrl: overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
+      }
+    },
     ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
   } as PasskeyManagerConfigs;
 

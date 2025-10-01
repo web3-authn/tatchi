@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider } from '@web3authn/passkey/react';
+import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
 import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
@@ -24,6 +24,11 @@ function App() {
             relayer: {
               url: env.VITE_RELAYER_URL!,
               accountId: env.VITE_RELAYER_ACCOUNT_ID!,
+            },
+            vrfWorkerConfigs: {
+              shamir3pass: {
+                relayServerUrl: env.VITE_RELAYER_URL!,
+              }
             },
             iframeWallet: {
               walletOrigin: env.VITE_WALLET_ORIGIN,
