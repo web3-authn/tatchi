@@ -11,8 +11,6 @@ import { web3authnDev, web3authnDevHeaders } from '@web3authn/passkey/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN
-
   return {
     server: {
       port: 5174,
@@ -34,7 +32,7 @@ export default defineConfig(({ mode }) => {
       // SDK dev headers middleware (COOP/COEP + Permissions-Policy delegating WebAuthn)
       // Enable this if your proxy (e.g., Caddy) is not already setting these headers.
       // No fallback for wallet origin to avoid masking missing env vars.
-      web3authnDevHeaders({ walletOrigin }),
+      web3authnDevHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
     ],
     define: {
       // Shim minimal globals some legacy/browserified deps expect

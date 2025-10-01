@@ -19,17 +19,19 @@ function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <PasskeyProvider config={{
-          relayer: {
-            url: env.RELAYER_URL,
-            accountId: env.RELAYER_ACCOUNT_ID,
-          },
-          iframeWallet: {
-            walletOrigin: env.WALLET_ORIGIN,
-            walletServicePath: env.WALLET_SERVICE_PATH,
-            rpIdOverride: env.RP_ID_BASE,
-          }
-        }}>
+        <PasskeyProvider
+          config={{
+            relayer: {
+              url: env.VITE_RELAYER_URL!,
+              accountId: env.VITE_RELAYER_ACCOUNT_ID!,
+            },
+            iframeWallet: {
+              walletOrigin: env.VITE_WALLET_ORIGIN,
+              walletServicePath: env.VITE_WALLET_SERVICE_PATH,
+              rpIdOverride: env.VITE_RP_ID_BASE,
+            },
+          }}
+        >
           <Navbar />
           <Routes>
             <Route path="/" element={<HomePage />} />
