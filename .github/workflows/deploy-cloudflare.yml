@@ -235,7 +235,7 @@ jobs:
       # Vite build-time envs used by the examples
       VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
       VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
-      VITE_CONTRACT_ID: ${{ vars.VITE_CONTRACT_ID }}
+      VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
       VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
       VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
       VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}

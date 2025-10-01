@@ -9,7 +9,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   // nearRpcUrl: 'https://rpc.testnet.near.org',
   nearRpcUrl: 'https://test.rpc.fastnear.com,https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
+  webauthnContractId: 'web3-authn-v5.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
   relayer: {
     accountId: 'web3-authn-v5.testnet',
@@ -39,12 +39,16 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
 
 // Minimal builder: merge defaults with overrides
 export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
+  const webauthnContractId = overrides.webauthnContractId
+    ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+
   const merged: PasskeyManagerConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     ...overrides,
+    webauthnContractId,
     relayer: {
       accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
-      url: overrides.relayer?.url,
+      url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
     },
     ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
   } as PasskeyManagerConfigs;

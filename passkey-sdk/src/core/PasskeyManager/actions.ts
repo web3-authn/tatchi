@@ -545,7 +545,7 @@ async function wasmAuthenticateAndSignTransactions(
   const signedTxs = await webAuthnManager.signTransactionsWithActions({
     transactions: transactionInputsWasm,
     rpcCall: {
-      contractId: context.configs.contractId,
+      contractId: context.configs.webauthnContractId,
       nearRpcUrl: context.configs.nearRpcUrl,
       nearAccountId: nearAccountId, // caller account
     },

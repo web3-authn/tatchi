@@ -11,7 +11,8 @@ crons = []
 RELAYER_ACCOUNT_ID = "w3a-relayer.testnet"
 NEAR_RPC_URL = "https://test.rpc.fastnear.com"
 NETWORK_ID = "testnet"
-WEB_AUTHN_CONTRACT_ID = "web3-authn-v5.testnet"
+# Align with src/worker.ts Env: WEBAUTHN_CONTRACT_ID
+WEBAUTHN_CONTRACT_ID = "web3-authn-v5.testnet"
 ACCOUNT_INITIAL_BALANCE = "30000000000000000000000"
 CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
 

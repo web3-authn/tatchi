@@ -119,7 +119,7 @@ export class LinkDeviceFlow {
         const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
           nearAccountId: accountId,
           deviceNumber: 2, // default to device 2 for companion flow; server mapping may adjust later
-          contractId: this.context.configs.contractId,
+          contractId: this.context.configs.webauthnContractId,
           nearRpcUrl: this.context.configs.nearRpcUrl,
         });
         if (!confirm.confirmed || !confirm.credential) {
@@ -378,7 +378,7 @@ export class LinkDeviceFlow {
     try {
       const linkingResult = await getDeviceLinkingAccountContractCall(
         this.context.nearClient,
-        this.context.configs.contractId,
+        this.context.configs.webauthnContractId,
         this.session.nearPublicKey
       );
 
@@ -811,7 +811,7 @@ export class LinkDeviceFlow {
         const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
           nearAccountId: realAccountId,
           deviceNumber: this.session.deviceNumber!,
-          contractId: this.context.configs.contractId,
+          contractId: this.context.configs.webauthnContractId,
           nearRpcUrl: this.context.configs.nearRpcUrl,
         });
         if (!confirm.confirmed || !confirm.credential) {
@@ -886,7 +886,7 @@ export class LinkDeviceFlow {
           credential: this.session.credential!,
           options: {
             vrfChallenge: this.session.vrfChallenge,
-            contractId: this.context.configs.contractId,
+            contractId: this.context.configs.webauthnContractId,
             nonce: newKeyNonce, // Use NEW key's actual nonce for the registration transaction
             blockHash: newTxBlockHash,
             // Pass the deterministic VRF public key for contract call
@@ -951,7 +951,7 @@ export class LinkDeviceFlow {
         const confirm2 = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
           nearAccountId: realAccountId,
           deviceNumber: this.session.deviceNumber!,
-          contractId: this.context.configs.contractId,
+          contractId: this.context.configs.webauthnContractId,
           nearRpcUrl: this.context.configs.nearRpcUrl,
         });
         if (!confirm2.confirmed || !confirm2.credential) {

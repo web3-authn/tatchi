@@ -18,7 +18,7 @@ export interface AccountInputState {
 
 export interface UseAccountInputOptions {
   passkeyManager: PasskeyManager;
-  relayerAccount: string;
+  webauthnContractId: string;
   currentNearAccountId?: string | null;
   isLoggedIn: boolean;
 }
@@ -30,7 +30,7 @@ export interface UseAccountInputReturn extends AccountInputState {
 
 export function useAccountInput({
   passkeyManager,
-  relayerAccount,
+  webauthnContractId,
   currentNearAccountId,
   isLoggedIn
 }: UseAccountInputOptions): UseAccountInputReturn {
@@ -107,7 +107,7 @@ export function useAccountInput({
       displayPostfix = `.${parts.slice(1).join('.')}`;
       isUsingExistingAccount = true;
     } else {
-      const postfix = relayerAccount;
+      const postfix = webauthnContractId;
       targetAccountId = `${username}.${postfix}`;
       displayPostfix = `.${postfix}`;
       isUsingExistingAccount = false;
@@ -122,7 +122,7 @@ export function useAccountInput({
 
     // Check if account has credentials
     checkAccountExists(targetAccountId);
-  }, [relayerAccount, passkeyManager]);
+  }, [webauthnContractId, passkeyManager]);
 
   // Check if account has passkey credentials
   const checkAccountExists = useCallback(async (accountId: string) => {

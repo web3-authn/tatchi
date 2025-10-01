@@ -23,7 +23,7 @@ function App() {
           // Same-origin mode (App Wallet) for this example.
           // To demo cross-origin wallet hosting, use the vite-secure example
           // which serves the wallet service on a separate origin.
-          contractId: env.VITE_CONTRACT_ID || 'web3-authn-v5.testnet',
+          webauthnContractId: env.VITE_WEBAUTHN_CONTRACT_ID || 'web3-authn-v5.testnet',
           relayer: {
             url: env.VITE_RELAYER_URL!,
             accountId: env.VITE_RELAYER_ACCOUNT_ID || 'w3a-relayer.testnet',

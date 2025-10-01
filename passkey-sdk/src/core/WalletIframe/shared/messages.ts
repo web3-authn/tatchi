@@ -75,7 +75,7 @@ export interface PMSetConfigPayload {
   // PasskeyManagerConfigs subset for wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
-  contractId?: string;
+  webauthnContractId?: string;
   relayer?: { initialUseRelayer?: boolean; accountId: string; url: string };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;

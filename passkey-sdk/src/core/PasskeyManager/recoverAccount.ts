@@ -283,7 +283,7 @@ async function getAvailablePasskeysForDomain(
 ): Promise<PasskeyOption[]> {
   const { nearClient, configs } = context;
 
-  const credentialIds = await getCredentialIdsContractCall(nearClient, configs.contractId, accountId);
+  const credentialIds = await getCredentialIdsContractCall(nearClient, configs.webauthnContractId, accountId);
 
   // Do not invoke WebAuthn here; just return display options bound to credential IDs
   if (credentialIds.length > 0) {
@@ -518,7 +518,7 @@ async function performAccountRecovery({
     });
 
     // 1. Sync on-chain authenticator data
-    const contractAuthenticators = await syncAuthenticatorsContractCall(nearClient, configs.contractId, accountId);
+    const contractAuthenticators = await syncAuthenticatorsContractCall(nearClient, configs.webauthnContractId, accountId);
 
     // 2. Find the matching authenticator to get the correct device number
     // Serialized auth credential.rawId is already base64url-encoded

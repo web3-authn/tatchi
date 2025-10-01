@@ -89,7 +89,7 @@ export async function registerPasskeyInternal(
     const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber: 1,
-      contractId: context.configs.contractId,
+      contractId: context.configs.webauthnContractId,
       nearRpcUrl: context.configs.nearRpcUrl,
       confirmationConfigOverride: confirmationConfig,
     });
@@ -124,7 +124,7 @@ export async function registerPasskeyInternal(
         nearAccountId,
       }),
       webAuthnManager.checkCanRegisterUser({
-        contractId: context.configs.contractId,
+        contractId: context.configs.webauthnContractId,
         credential,
         vrfChallenge,
         onEvent: (progress) => {

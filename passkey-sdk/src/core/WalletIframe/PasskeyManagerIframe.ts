@@ -118,7 +118,7 @@ export class PasskeyManagerIframe {
       theme: configs.walletTheme,
       nearRpcUrl: configs.nearRpcUrl,
       nearNetwork: configs.nearNetwork,
-      contractId: configs.contractId,
+      contractId: configs.webauthnContractId,
       relayer: configs.relayer,
       vrfWorkerConfigs: configs.vrfWorkerConfigs,
       rpIdOverride: configs.iframeWallet?.rpIdOverride,
