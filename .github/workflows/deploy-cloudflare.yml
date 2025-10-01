@@ -393,13 +393,10 @@ jobs:
             Cross-Origin-Resource-Policy: cross-origin
             Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
 
-          /sdk/*
-            Cross-Origin-Resource-Policy: cross-origin
-
           /wallet-service
-            Cross-Origin-Resource-Policy: cross-origin
+            Cross-Origin-Opener-Policy: unsafe-none
           /wallet-service/
-            Cross-Origin-Resource-Policy: cross-origin
+            Cross-Origin-Opener-Policy: unsafe-none
           HEADERS
 
           # Copy SDK assets (ESM bundles + workers) under /sdk
