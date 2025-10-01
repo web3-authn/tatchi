@@ -9,12 +9,9 @@ export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/defaultConfigs';
 export {
-  getModeFromEnv,
-  buildAppWalletConfigsFromEnv,
-  buildIframeWalletConfigsFromEnv,
   buildConfigsFromEnv,
   createPasskeyManagerFromEnv,
-} from './core/configPresets';
+} from './core/defaultConfigs';
 
 ///////////////////////////////////////////////////////////////
 // === Types re-exported from various type definition files ===

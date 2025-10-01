@@ -1,4 +1,5 @@
 import type { PasskeyManagerConfigs } from './types/passkeyManager';
+import { PasskeyManager } from './PasskeyManager';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
@@ -8,7 +9,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   // First URL is treated as primary, subsequent URLs are fallbacks.
   // nearRpcUrl: 'https://rpc.testnet.near.org',
   nearRpcUrl: 'https://test.rpc.fastnear.com,https://rpc.testnet.near.org',
-  nearNetwork: 'testnet' as const,
+  nearNetwork: 'testnet',
   contractId: 'web3-authn-v5.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
   relayer: {
@@ -36,3 +37,32 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   //   rpIdOverride: 'example.localhost',
   // }
 };
+
+// Minimal builder: merge defaults with overrides
+export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
+
+  const merged: PasskeyManagerConfigs = {
+    ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+    ...overrides,
+    relayer: {
+      accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
+      url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
+    },
+    ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
+  } as PasskeyManagerConfigs;
+
+  if (!merged.relayer?.url || merged.relayer.url.trim().length === 0) {
+    throw new Error('[configPresets] Missing relayer config: set relayer.url and relayer.accountId');
+  }
+
+  return merged;
+}
+
+export async function createPasskeyManagerFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): Promise<PasskeyManager> {
+  const cfg = buildConfigsFromEnv(overrides);
+  const pm = new PasskeyManager(cfg);
+  // Optional chaining safely no-ops when iframe mode is not enabled.
+  // Let errors propagate so callers can handle initialization failures explicitly.
+  await pm.initWalletIframe?.();
+  return pm;
+}

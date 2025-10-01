@@ -4,8 +4,8 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "concurrently --kill-others \"VITE_RELAYER_ACCOUNT_ID=web3-authn-v5.testnet VITE_RELAYER_URL=https://relay-server.localhost VITE_WALLET_ORIGIN=https://wallet.example.localhost VITE_WALLET_SERVICE_PATH=/wallet-service vite\" \"sh run_caddy.sh\"",
-    "dev:ci": "VITE_RELAYER_ACCOUNT_ID=web3-authn-v5.testnet VITE_RELAYER_URL=https://relay-server.localhost VITE_WALLET_ORIGIN=http://localhost:5173 VITE_WALLET_SERVICE_PATH=/wallet-service vite",
+    "dev": "concurrently --kill-others \"VITE_RELAYER_ACCOUNT_ID=w3a-relayer.testnet VITE_RELAYER_URL=https://relay-server.localhost VITE_WALLET_ORIGIN=https://wallet.example.localhost VITE_WALLET_SERVICE_PATH=/wallet-service vite\" \"sh run_caddy.sh\"",
+    "dev:ci": "VITE_RELAYER_ACCOUNT_ID=w3a-relayer.testnet VITE_RELAYER_URL=https://relay-server.localhost VITE_WALLET_ORIGIN=http://localhost:5173 VITE_WALLET_SERVICE_PATH=/wallet-service vite",
     "build": "vite build",
     "preview": "vite preview --host --port 5174"
   },

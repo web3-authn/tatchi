@@ -34,7 +34,7 @@ import type {
 } from '../types';
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
-import { buildConfigsFromEnv } from '@/core/configPresets';
+import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
