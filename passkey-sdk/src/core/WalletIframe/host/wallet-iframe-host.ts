@@ -560,7 +560,11 @@ function postToParent(message: unknown): void {
   try {
     const parentWindow = window.parent;
     if (!parentWindow) return;
-    parentWindow.postMessage(message, parentOrigin || '*');
+    // If the first CONNECT arrived while this document still had an opaque
+    // ('null') origin, MessageEvent.origin can be the literal string 'null'.
+    // Do not lock onto that value; target '*' until a concrete origin is known.
+    const target = (parentOrigin && parentOrigin !== 'null') ? parentOrigin : '*';
+    parentWindow.postMessage(message, target);
   } catch {}
 }
 
@@ -701,7 +705,7 @@ function onWindowMessage(e: MessageEvent) {
   const { data, ports } = e;
   if (!data || !isObject(data)) return;
   if ((data as { type?: unknown }).type === 'CONNECT' && ports && ports[0]) {
-    if (typeof e.origin === 'string' && e.origin.length) {
+    if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
       parentOrigin = e.origin;
     }
     adoptPort(ports[0]);
