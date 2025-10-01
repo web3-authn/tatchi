@@ -291,6 +291,15 @@ jobs:
         run: |
           pnpm -C examples/vite-secure build
 
+      - name: Debug – print built _headers (vite-secure)
+        run: |
+          echo "--- examples/vite-secure/dist/_headers (if present) ---"
+          if [ -f examples/vite-secure/dist/_headers ]; then
+            cat examples/vite-secure/dist/_headers
+          else
+            echo "(no _headers emitted)"
+          fi
+
       - name: Copy SDK runtime assets into vite-secure dist
         run: |
           mkdir -p examples/vite-secure/dist/sdk examples/vite-secure/dist/sdk/workers
@@ -396,6 +405,11 @@ jobs:
           # Copy SDK assets (ESM bundles + workers) under /sdk
           cp -R passkey-sdk/dist/esm wallet-dist/sdk/
           cp -R passkey-sdk/dist/workers wallet-dist/sdk/
+
+      - name: Debug – print built _headers (wallet)
+        run: |
+          echo "--- wallet-dist/_headers ---"
+          cat wallet-dist/_headers
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
