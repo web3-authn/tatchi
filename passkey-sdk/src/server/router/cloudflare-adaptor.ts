@@ -68,7 +68,9 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         let body: unknown;
         try { body = await request.json(); } catch { body = null; }
         if (!isObject(body)) {
-          return json({ success: false, error: 'invalid_body' }, { status: 400 });
+          const res = json({ success: false, error: 'invalid_body' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
         }
 
         const new_account_id = typeof body.new_account_id === 'string' ? body.new_account_id : '';
@@ -81,16 +83,24 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           : undefined;
 
         if (!new_account_id) {
-          return json({ success: false, error: 'Missing or invalid new_account_id' }, { status: 400 });
+          const res = json({ success: false, error: 'Missing or invalid new_account_id' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         if (!new_public_key) {
-          return json({ success: false, error: 'Missing or invalid new_public_key' }, { status: 400 });
+          const res = json({ success: false, error: 'Missing or invalid new_public_key' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         if (!vrf_data) {
-          return json({ success: false, error: 'Missing or invalid vrf_data' }, { status: 400 });
+          const res = json({ success: false, error: 'Missing or invalid vrf_data' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         if (!webauthn_registration) {
-          return json({ success: false, error: 'Missing or invalid webauthn_registration' }, { status: 400 });
+          const res = json({ success: false, error: 'Missing or invalid webauthn_registration' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
         }
 
         const input = {
@@ -110,25 +120,37 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       if (method === 'POST' && pathname === '/vrf/apply-server-lock') {
         if (!service.hasShamir()) {
-          return json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         let body: unknown; try { body = await request.json(); } catch { body = null; }
         const valid = isObject(body) && typeof body.kek_c_b64u === 'string' && body.kek_c_b64u.length > 0;
-        if (!valid) return json({ error: 'invalid_body' }, { status: 400 });
+        if (!valid) {
+          const res = json({ error: 'invalid_body' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
         const out = await service.handleApplyServerLock({ body: { kek_c_b64u: String((body as Record<string, unknown>).kek_c_b64u) } });
         return toResponse(out);
       }
 
       if (method === 'POST' && pathname === '/vrf/remove-server-lock') {
         if (!service.hasShamir()) {
-          return json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         let body: unknown; try { body = await request.json(); } catch { body = null; }
         const valid = isObject(body)
           && typeof body.kek_cs_b64u === 'string' && body.kek_cs_b64u.length > 0
           && typeof (body as Record<string, unknown>).keyId === 'string'
           && String((body as Record<string, unknown>).keyId).length > 0;
-        if (!valid) return json({ error: 'invalid_body' }, { status: 400 });
+        if (!valid) {
+          const res = json({ error: 'invalid_body' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
         const out = await service.handleRemoveServerLock({
           body: {
             kek_cs_b64u: String((body as Record<string, unknown>).kek_cs_b64u),
@@ -140,7 +162,9 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       if (method === 'GET' && pathname === '/shamir/key-info') {
         if (!service.hasShamir()) {
-          return json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          withCors(res.headers, opts, request);
+          return res;
         }
         const out = await service.handleGetShamirKeyInfo();
         return toResponse(out);

@@ -39,13 +39,13 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
 
 // Minimal builder: merge defaults with overrides
 export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
-  const webauthnContractId = overrides.webauthnContractId
-    ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+
+  const shamir3passDefaults = PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass;
 
   const merged: PasskeyManagerConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     ...overrides,
-    webauthnContractId,
+    webauthnContractId: overrides.webauthnContractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
     relayer: {
       accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
@@ -53,11 +53,11 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
     vrfWorkerConfigs: {
       shamir3pass: {
         p: overrides.vrfWorkerConfigs?.shamir3pass?.p
-          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.p,
+          ?? shamir3passDefaults?.p,
         removeServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute
-          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+          ?? shamir3passDefaults?.removeServerLockRoute,
         applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
-          ?? PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+          ?? shamir3passDefaults?.applyServerLockRoute,
         relayServerUrl: overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
       }
     },
