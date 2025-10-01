@@ -1,6 +1,7 @@
 import { AuthService } from '@web3authn/passkey/server';
 import { createCloudflareRouter, createCloudflareCron } from '@web3authn/passkey/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@web3authn/passkey/server/router/cloudflare';
+import signerWasmModule from '../../passkey-sdk/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;
@@ -17,17 +18,12 @@ export interface Env {
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
-  SIGNER_WASM?: WebAssembly.Module;
 }
 
 let service: AuthService | null = null;
 
 function getService(env: Env) {
   if (!service) {
-    const signerWasmModule = env.SIGNER_WASM;
-    if (!signerWasmModule) {
-      throw new Error('Missing SIGNER_WASM module. Configure [wasm_modules] in wrangler.toml to bundle wasm_signer_worker_bg.wasm.');
-    }
     service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,
       relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
