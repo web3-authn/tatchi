@@ -38,6 +38,8 @@ export type WalletServiceOptions = {
 
 export type DevHeadersOptions = {
   walletOrigin?: string
+  walletServicePath?: string
+  sdkBasePath?: string
 }
 
 const requireCjs = createRequire(import.meta.url)
@@ -212,6 +214,8 @@ export function web3authnWasmMime(): VitePlugin {
 export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
+  const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
+  const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_WEB3AUTHN_SDK_BASE, '/sdk')
 
   // Build a Permissions-Policy that only lists self unless a wallet origin is provided.
   const ppParts: string[] = []
@@ -228,9 +232,16 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
     enforce: 'pre',
     configureServer(server) {
       server.middlewares.use((req: any, res: any, next: any) => {
-        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        const url = (req.url || '').split('?')[0] || ''
+        const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
+        res.setHeader('Cross-Origin-Opener-Policy', isWalletRoute ? 'unsafe-none' : 'same-origin')
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
         res.setHeader('Permissions-Policy', permissionsPolicy)
+
+        if (url.startsWith(`${sdkBasePath}/`)) {
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+        }
         next()
       })
     },
@@ -250,7 +261,7 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const sdkPlugin = web3authnServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
   const walletPlugin = web3authnWalletService({ walletServicePath, sdkBasePath })
   const wasmMimePlugin = web3authnWasmMime()
-  const headersPlugin = setDevHeaders ? web3authnDevHeaders({ walletOrigin }) : undefined
+  const headersPlugin = setDevHeaders ? web3authnDevHeaders({ walletOrigin, walletServicePath, sdkBasePath }) : undefined
 
   return {
     name: 'web3authn:dev',
@@ -280,6 +291,7 @@ export default web3authnDev
 export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
+  const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
 
   // Build Permissions-Policy mirroring the dev plugin format
   const ppParts: string[] = []
@@ -308,7 +320,7 @@ export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): Vit
           console.warn('[web3authn] _headers already exists in outDir; skipping auto-emission')
           return
         }
-        const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Permissions-Policy: ${permissionsPolicy}\n`
+        const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Cross-Origin-Resource-Policy: cross-origin\n  Permissions-Policy: ${permissionsPolicy}\n\n${walletServicePath}\n  Cross-Origin-Opener-Policy: unsafe-none\n${walletServicePath}/\n  Cross-Origin-Opener-Policy: unsafe-none\n`
         fs.mkdirSync(outDir, { recursive: true })
         fs.writeFileSync(hdrPath, content, 'utf-8')
         console.log('[web3authn] emitted _headers with COOP/COEP + Permissions-Policy')
