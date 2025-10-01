@@ -20,10 +20,10 @@ extra requirements and limitations compared to the Express example.
 
 ## WASM bundling
 
-- The signer worker WASM is imported directly from the published package in
-  `src/worker.ts` (`import signerWasm from '@web3authn/passkey/wasm'`).
-  Wrangler's bundler recognizes this asset and includes it automatically, so no
-  `[wasm_modules]` block is required in `wrangler.toml`.
+- The signer worker WASM is imported directly from the package sources
+  (`import signerWasm from '@web3authn/passkey/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm'`).
+  Wrangler bundles the referenced file automatically; no `[wasm_modules]`
+  section is required in `wrangler.toml`.
 - Do **not** try to `fetch` the WASM from an arbitrary URL at runtime. Workers
   sit behind restricted networking rules and cannot access `file://` or other
   private origins.
@@ -50,7 +50,7 @@ extra requirements and limitations compared to the Express example.
    npx wrangler secret put SHAMIR_E_S_B64U
    npx wrangler secret put SHAMIR_D_S_B64U
    ```
-4. Deploy: `npx wrangler deploy` (CI uses the same command).
+4. Deploy: `npx wrangler deploy` (Wrangler will bundle the SDK WASM automatically).
 5. Tail logs during testing: `npx wrangler tail`.
 
 ## Local testing tips
