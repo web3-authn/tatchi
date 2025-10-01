@@ -235,12 +235,13 @@ jobs:
       # Vite build-time envs used by the examples
       VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
       VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+      VITE_CONTRACT_ID: ${{ vars.VITE_CONTRACT_ID }}
       VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
       VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
       VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
       VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
       VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
-      VITE_RP_ID_OVERRIDE: ${{ vars.VITE_RP_ID_OVERRIDE }}
+      VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

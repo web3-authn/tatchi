@@ -21,13 +21,13 @@ function App() {
       <ThemeProvider>
         <PasskeyProvider config={{
           relayer: {
-            url: env.RELAYER_URL!,
+            url: env.RELAYER_URL,
             accountId: env.RELAYER_ACCOUNT_ID,
           },
           iframeWallet: {
             walletOrigin: env.WALLET_ORIGIN,
             walletServicePath: env.WALLET_SERVICE_PATH,
-            rpIdOverride: env.RP_ID_BASE
+            rpIdOverride: env.RP_ID_BASE,
           }
         }}>
           <Navbar />
