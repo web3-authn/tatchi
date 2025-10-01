@@ -280,7 +280,7 @@ jobs:
         run: |
           echo "VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}"
           echo "VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}"
-          echo "VITE_RP_ID_OVERRIDE=${VITE_RP_ID_OVERRIDE}"
+          echo "VITE_RP_ID_BASE=${VITE_RP_ID_BASE}"
           echo "VITE_RELAYER_URL=${VITE_RELAYER_URL}"
           echo "VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}"
           echo "VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}"
@@ -395,7 +395,7 @@ jobs:
 
           /sdk/*
             Cross-Origin-Resource-Policy: cross-origin
-          
+
           /wallet-service
             Cross-Origin-Resource-Policy: cross-origin
           /wallet-service/
