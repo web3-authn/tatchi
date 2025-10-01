@@ -17,12 +17,17 @@ export interface Env {
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
+  SIGNER_WASM?: WebAssembly.Module;
 }
 
 let service: AuthService | null = null;
 
 function getService(env: Env) {
   if (!service) {
+    const signerWasmModule = env.SIGNER_WASM;
+    if (!signerWasmModule) {
+      throw new Error('Missing SIGNER_WASM module. Configure [wasm_modules] in wrangler.toml to bundle wasm_signer_worker_bg.wasm.');
+    }
     service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,
       relayerPrivateKey: env.RELAYER_PRIVATE_KEY,
@@ -36,6 +41,9 @@ function getService(env: Env) {
         shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
         shamir_d_s_b64u: env.SHAMIR_D_S_B64U,
         graceShamirKeysFile: '', // Do not use FS on Workers
+      },
+      signerWasm: {
+        moduleOrPath: signerWasmModule,
       },
     });
   }

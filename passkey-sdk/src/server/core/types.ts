@@ -5,6 +5,7 @@ import {
   OriginPolicyInput
 } from '../../core/types/authenticatorOptions';
 import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
+import type { InitInput } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 
 /**
  * WASM Bindgen generates a `free` method on all structs.
@@ -63,6 +64,21 @@ export interface ShamirConfig {
   graceShamirKeysFile?: string;
 }
 
+export type SignerWasmModuleSupplier =
+  | InitInput
+  | Promise<InitInput>
+  | (() => InitInput | Promise<InitInput>);
+
+export interface SignerWasmConfig {
+  /**
+   * Optional override for locating the signer WASM module. Useful for serverless
+   * runtimes (e.g. Workers) where filesystem-relative URLs are unavailable.
+   * Accepts any value supported by `initSignerWasm({ module_or_path })` or a
+   * function that resolves to one.
+   */
+  moduleOrPath?: SignerWasmModuleSupplier;
+}
+
 export interface AuthServiceConfig {
   relayerAccountId: string;
   relayerPrivateKey: string;
@@ -73,6 +89,7 @@ export interface AuthServiceConfig {
   createAccountAndRegisterGas: string;
   // grouped Shamir settings under `shamir`
   shamir?: ShamirConfig;
+  signerWasm?: SignerWasmConfig;
 }
 
 // Account creation and registration types (imported from relay-server types)

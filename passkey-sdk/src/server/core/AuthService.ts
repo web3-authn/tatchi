@@ -2,7 +2,12 @@ import type { FinalExecutionOutcome } from '@near-js/types';
 import { MinimalNearClient } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
-import initSignerWasm, { handle_signer_message, WorkerRequestType, WorkerResponseType } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
+import initSignerWasm, {
+  handle_signer_message,
+  WorkerRequestType,
+  WorkerResponseType,
+  type InitInput
+} from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { validateConfigs } from './config';
 import { isObject, isString } from '../../core/WalletIframe/validation';
 
@@ -16,10 +21,24 @@ const SIGNER_WASM_MAIN_PATH = '../../wasm_signer_worker/pkg/wasm_signer_worker_b
 const SIGNER_WASM_FALLBACK_PATH = '../../../workers/wasm_signer_worker_bg.wasm';
 
 function getSignerWasmUrls(): URL[] {
-  return [
-    new URL(SIGNER_WASM_MAIN_PATH, import.meta.url),
-    new URL(SIGNER_WASM_FALLBACK_PATH, import.meta.url),
-  ];
+  const paths = [SIGNER_WASM_MAIN_PATH, SIGNER_WASM_FALLBACK_PATH];
+  const resolved: URL[] = [];
+  const baseUrl = import.meta.url;
+
+  for (const path of paths) {
+    try {
+      if (!baseUrl) throw new Error('import.meta.url is undefined');
+      resolved.push(new URL(path, baseUrl));
+    } catch (err) {
+      console.warn(`Failed to resolve signer WASM relative URL for path "${path}":`, err);
+    }
+  }
+
+  if (!resolved.length) {
+    throw new Error('Unable to resolve signer WASM location from import.meta.url. Provide AuthServiceConfig.signerWasm.moduleOrPath in this runtime.');
+  }
+
+  return resolved;
 }
 import {
   Shamir3PassUtils,
@@ -38,6 +57,7 @@ import type {
   ShamirRemoveServerLockRequest,
   ShamirApplyServerLockResponse,
   ShamirRemoveServerLockResponse,
+  SignerWasmModuleSupplier,
 } from './types';
 
 /**
@@ -80,6 +100,7 @@ export class AuthService {
       createAccountAndRegisterGas: config.createAccountAndRegisterGas
         || '120000000000000', // 120 TGas
       shamir: config.shamir,
+      signerWasm: config.signerWasm,
     };
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.graceKeysFilePath = graceFileCandidate || 'grace-keys.json';
@@ -142,19 +163,50 @@ export class AuthService {
 
   private async ensureSignerWasm(): Promise<void> {
     if (this.signerWasmReady) return;
+    const override = this.config.signerWasm?.moduleOrPath;
+    if (override) {
+      try {
+        const moduleOrPath = await this.resolveSignerWasmOverride(override);
+        await initSignerWasm({ module_or_path: moduleOrPath as InitInput });
+        this.signerWasmReady = true;
+        return;
+      } catch (e) {
+        console.error('Failed to initialize signer WASM via provided override:', e);
+        throw e;
+      }
+    }
+
+    let candidates: URL[];
     try {
-      const candidates = getSignerWasmUrls();
+      candidates = getSignerWasmUrls();
+    } catch (err) {
+      console.error('Failed to resolve signer WASM URLs:', err);
+      throw err;
+    }
+
+    try {
       if (this.isNodeEnvironment()) {
         await this.initSignerWasmForNode(candidates);
-      } else {
-        // Browser-like environment: URL fetch works
-        await initSignerWasm({ module_or_path: candidates[0] as any });
+        this.signerWasmReady = true;
+        return;
       }
-      this.signerWasmReady = true;
-      return;
+
+      let lastError: unknown = null;
+      for (const candidate of candidates) {
+        try {
+          await initSignerWasm({ module_or_path: candidate as InitInput });
+          this.signerWasmReady = true;
+          return;
+        } catch (err) {
+          lastError = err;
+          console.warn(`Failed to initialize signer WASM from ${candidate.toString()}, trying next candidate...`);
+        }
+      }
+
+      throw lastError ?? new Error('Unable to initialize signer WASM from any candidate URL');
     } catch (e) {
       console.error('Failed to initialize signer WASM:', e);
-      throw e;
+      throw e instanceof Error ? e : new Error(String(e));
     }
   }
 
@@ -165,6 +217,18 @@ export class AuthService {
     const isCloudflareWorker = typeof (globalThis as any).WebSocketPair !== 'undefined'
       || (typeof navigator !== 'undefined' && (navigator as any).userAgent?.includes?.('Cloudflare-Workers'));
     return isNode && !isCloudflareWorker;
+  }
+
+  private async resolveSignerWasmOverride(override: SignerWasmModuleSupplier): Promise<InitInput> {
+    const candidate = typeof override === 'function'
+      ? await (override as () => InitInput | Promise<InitInput>)()
+      : await override;
+
+    if (!candidate) {
+      throw new Error('Signer WASM override resolved to an empty value');
+    }
+
+    return candidate;
   }
 
   /**
