@@ -104,6 +104,17 @@ R2_ACCESS_KEY_ID=<your_access_key_id>
 R2_SECRET_ACCESS_KEY=<your_secret_access_key>
 ```
 
+### npm Publish Secret (optional, for automated npm releases)
+If you want CI to publish `@web3authn/passkey` to npm after a successful Cloudflare production deploy, add this secret:
+
+```
+NPM_TOKEN=<an npm access token with "automation" (publish) scope>
+```
+
+- Create a token at: https://www.npmjs.com/settings/<your_user>/tokens
+- Use a Classic token with at least “Publish” permissions (or an Automation token for organizations).
+- Store it either as a repository secret or in the `production` Environment (recommended).
+
 ## Cloudflare Pages Project Setup
 
 ### 1. Create Pages Projects (One-time)
@@ -157,7 +168,65 @@ CF_PAGES_PROJECT_WALLET=tatchi-wallet-iframe
 
 ## Worker Environment Configuration
 
+## Automated npm publish flow (optional)
+
+When enabled (by adding `NPM_TOKEN`), the workflow will also publish the SDK to npm after a successful production deploy.
+
+- Job name: `Publish SDK to npm`
+- Location: `.github/workflows/deploy-cloudflare.yml`
+- Gate: runs only on tag pushes (refs/tags/*) and only after `deploy-worker`, `deploy-pages`, and `deploy-wallet` all succeed
+- Package: `@web3authn/passkey` (from `passkey-sdk/package.json`)
+
+How to cut a release:
+1) Bump the version in `passkey-sdk/package.json` (e.g., 0.1.1)
+2) Create and push a matching tag on the same commit:
+
+```bash
+git tag v0.1.1
+git push origin v0.1.1
+```
+
+3) The `deploy-cloudflare` workflow will run. After all Cloudflare deploy jobs succeed, it will build the SDK and run:
+
+```bash
+npm publish --access public
+```
+
+Safety checks:
+- The job checks if `@web3authn/passkey@<version>` already exists on npm and skips publish if so (idempotent on re‑runs).
+- Requires secret `NPM_TOKEN` with publish permissions.
+
 ### 1. Configure Worker Variables
+
+Set the following Worker environment variables before deploying `examples/relay-cloudflare-worker`:
+
+**Required**
+
+- `RELAYER_ACCOUNT_ID`: NEAR account name the relay uses to send transactions.
+- `RELAYER_PRIVATE_KEY`: Secret ed25519 key for the relayer account. Set via `wrangler secret put RELAYER_PRIVATE_KEY`.
+- `WEBAUTHN_CONTRACT_ID`: On-chain contract handling registration/auth flows.
+- `NEAR_RPC_URL`: RPC endpoint (e.g. `https://test.rpc.fastnear.com`).
+- `NETWORK_ID`: NEAR network id (`testnet` or `mainnet`). Defaults to `testnet` if omitted.
+- `SHAMIR_P_B64U`, `SHAMIR_E_S_B64U`, `SHAMIR_D_S_B64U`: Base64url Shamir parameters required for `/vrf/*` endpoints. Store via `wrangler secret put`.
+
+**Optional**
+
+- `ACCOUNT_INITIAL_BALANCE`: YoctoNEAR deposit for new accounts. Defaults to `30000000000000000000000` (0.03 NEAR).
+- `CREATE_ACCOUNT_AND_REGISTER_GAS`: Gas allocation for atomic create+register. Defaults to `85000000000000` (85 Tgas).
+- `EXPECTED_ORIGIN`: Wallet/host origin allowed for CORS (e.g. `https://tatchi.xyz`).
+- `EXPECTED_WALLET_ORIGIN`: Wallet iframe origin allowed for CORS (e.g. `https://wallet.tatchi.xyz`).
+- `ENABLE_ROTATION`: Set to `"1"` to enable the optional cron handler for Shamir rotation.
+
+Secrets (`RELAYER_PRIVATE_KEY`, `SHAMIR_*`) must be created with Wrangler before deploying:
+
+```bash
+wrangler secret put RELAYER_PRIVATE_KEY
+wrangler secret put SHAMIR_P_B64U
+wrangler secret put SHAMIR_E_S_B64U
+wrangler secret put SHAMIR_D_S_B64U
+```
+
+You can place non-secret values (`RELAYER_ACCOUNT_ID`, `NEAR_RPC_URL`, etc.) in the `[vars]` section of `wrangler.toml` or set them as additional secrets if you prefer.
 
 Edit `examples/relay-cloudflare-worker/wrangler.toml` (Worker does not need RELAYER_URL — the Worker is the relayer):
 
