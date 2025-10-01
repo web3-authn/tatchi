@@ -381,9 +381,15 @@ jobs:
           /*
             Cross-Origin-Opener-Policy: same-origin
             Cross-Origin-Embedder-Policy: require-corp
+            Cross-Origin-Resource-Policy: cross-origin
             Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
 
           /sdk/*
+            Cross-Origin-Resource-Policy: cross-origin
+          
+          /wallet-service
+            Cross-Origin-Resource-Policy: cross-origin
+          /wallet-service/
             Cross-Origin-Resource-Policy: cross-origin
           HEADERS
 
