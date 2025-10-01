@@ -407,6 +407,29 @@
 }
 
 @media (max-width: 420px) {
+  .w3a-signup-menu-root {
+    padding: 1rem;
+    padding-top: calc(1rem + 4px);
+    border-radius: 2rem;
+  }
+
+  .w3a-title {
+    font-size: 20px;
+  }
+
+  .w3a-subhead {
+    font-size: 0.9rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .w3a-input-pill {
+    height: 48px;
+  }
+
+  .w3a-arrow-btn {
+    height: 60px;
+  }
+
   .w3a-seg {
     min-height: 48px;
     padding: 4px;
