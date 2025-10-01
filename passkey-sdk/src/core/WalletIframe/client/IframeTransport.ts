@@ -179,7 +179,15 @@ export class IframeTransport {
           // Explicitly target the wallet origin so Chromium delivers the MessagePort
           // transfer across origins. Using '*' can silently drop the transferable
           // port in stricter environments, preventing the host from ever adopting it.
-          cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
+          try {
+            cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
+          } catch (e) {
+            // Some browsers will throw if the current document has an opaque
+            // ('null') origin during early navigation. Treat as a transient
+            // and retry until timeout; the wallet page will adopt its final
+            // origin shortly after headers are processed.
+            try { console.debug('[IframeTransport] CONNECT postMessage threw; retrying', e); } catch {}
+          }
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
           const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
