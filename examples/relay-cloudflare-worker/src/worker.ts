@@ -1,7 +1,7 @@
 import { AuthService } from '@web3authn/passkey/server';
 import { createCloudflareRouter, createCloudflareCron } from '@web3authn/passkey/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@web3authn/passkey/server/router/cloudflare';
-import signerWasmModule from '../../passkey-sdk/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
+import signerWasmModule from '../../../passkey-sdk/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;
