@@ -34,7 +34,7 @@ import type {
 } from '../types';
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
-import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@/core/defaultConfigs';
+import { buildConfigsFromEnv } from '@/core/configPresets';
 import { toAccountId } from '@/core/types/accountIds';
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
@@ -48,7 +48,7 @@ let globalConfig: PasskeyManagerConfigs | null = null;
 
 export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   children,
-  config = PASSKEY_MANAGER_DEFAULT_CONFIGS,
+  config,
 }) => {
 
   // Authentication state (actual login status)
@@ -79,7 +79,8 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
   // Initialize manager (PasskeyManager or PasskeyManagerIframe) with singleton pattern
   const passkeyManager = useMemo<PasskeyManager>(() => {
-    const finalConfig: PasskeyManagerConfigs = { ...PASSKEY_MANAGER_DEFAULT_CONFIGS, ...config };
+    // Resolve full configs from env + optional overrides. This also validates relayer etc.
+    const finalConfig: PasskeyManagerConfigs = buildConfigsFromEnv(config || {});
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
       console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
@@ -98,7 +99,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     let cancelled = false;
     (async () => {
       try {
-        const useIframe = !!config.iframeWallet?.walletOrigin;
+        const useIframe = !!passkeyManager.configs.iframeWallet?.walletOrigin;
         if (!useIframe) {
           setWalletIframeConnected(false);
           return;

@@ -13,13 +13,16 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   nearExplorerUrl: 'https://testnet.nearblocks.io',
   relayer: {
     accountId: 'web3-authn-v5.testnet',
-    url: 'http://localhost:3000',
+    // No default relayer URL. Force apps to configure via env/overrides.
+    // Using an empty string triggers early validation errors in code paths that require it.
+    url: '',
   },
   vrfWorkerConfigs: {
     shamir3pass: {
       // default Shamir's P in vrf-wasm-worker, needs to match relay server's Shamir P
       p: '3N5w46AIGjGT2v5Vua_TMD5Ywfa9U2F7-WzW8SNDsIM',
-      relayServerUrl: 'http://localhost:3000',
+      // No default relay server URL to avoid accidental localhost usage in non-dev envs
+      relayServerUrl: '',
       applyServerLockRoute: '/vrf/apply-server-lock',
       removeServerLockRoute: '/vrf/remove-server-lock',
     }

@@ -17,7 +17,10 @@ function pickFirst(envs: PublicEnv[], keys: string[]): string | undefined {
 
 export type PresetMode = 'app-wallet' | 'iframe-wallet';
 
-export function getModeFromEnv(): PresetMode {
+export function getModeFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PresetMode {
+  // Prefer explicit override to determine mode
+  const overrideOrigin = overrides?.iframeWallet?.walletOrigin;
+  if (typeof overrideOrigin === 'string' && overrideOrigin.length > 0) return 'iframe-wallet';
   const envs = [readViteEnv(), readProcessEnv()];
   const walletOrigin = pickFirst(envs, [
     'VITE_WALLET_ORIGIN',
@@ -85,7 +88,7 @@ export function buildIframeWalletConfigsFromEnv(overrides: Partial<PasskeyManage
   ]) || '/wallet-service';
 
   const rpIdOverride = overrides.iframeWallet?.rpIdOverride || pickFirst(envs, [
-    'VITE_RP_ID_OVERRIDE', 'NEXT_PUBLIC_RP_ID_OVERRIDE', 'REACT_APP_RP_ID_OVERRIDE', 'RP_ID_OVERRIDE'
+    'VITE_RP_ID_BASE', 'NEXT_PUBLIC_RP_ID_BASE', 'REACT_APP_RP_ID_BASE', 'RP_ID_BASE',
   ]);
 
   return {
@@ -100,7 +103,7 @@ export function buildIframeWalletConfigsFromEnv(overrides: Partial<PasskeyManage
 }
 
 export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
-  return getModeFromEnv() === 'iframe-wallet'
+  return getModeFromEnv(overrides) === 'iframe-wallet'
     ? buildIframeWalletConfigsFromEnv(overrides)
     : buildAppWalletConfigsFromEnv(overrides);
 }

@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently --kill-others \"vite\" \"sh run_caddy.sh\"",
-    "dev:ci": "vite",
+    "dev": "concurrently --kill-others \"VITE_RELAYER_ACCOUNT_ID=web3-authn-v5.testnet VITE_RELAYER_URL=https://relay-server.localhost vite\" \"sh run_caddy.sh\"",
+    "dev:ci": "VITE_RELAYER_ACCOUNT_ID=web3-authn-v5.testnet VITE_RELAYER_URL=https://relay-server.localhost vite",
     "build": "vite build",
     "preview": "vite preview"
   },

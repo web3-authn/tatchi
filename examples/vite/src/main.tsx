@@ -11,7 +11,11 @@ import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
-import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
+
+// Read env vars (Vite requires using import.meta.env exactly)
+const env: any = import.meta.env;
+const RELAYER_URL = env.VITE_RELAYER_URL as any;
+const RELAYER_ACCOUNT_ID = env.VITE_RELAYER_ACCOUNT_ID as any;
 
 function App() {
   return (
@@ -21,8 +25,10 @@ function App() {
           // Same-origin mode (App Wallet) for this example.
           // To demo cross-origin wallet hosting, use the vite-secure example
           // which serves the wallet service on a separate origin.
-          // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
-          ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+          relayer: {
+            url: RELAYER_URL,
+            accountId: RELAYER_ACCOUNT_ID,
+          },
         }}>
         <Navbar />
         <Routes>
