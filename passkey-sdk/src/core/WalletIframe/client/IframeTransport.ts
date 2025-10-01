@@ -140,6 +140,7 @@ export class IframeTransport {
 
       let resolved = false;
       let attempt = 0;
+      let warnedNullOrigin = false;
       const start = Date.now();
       const overallTimeout = this.opts.connectTimeoutMs;
 
@@ -182,6 +183,16 @@ export class IframeTransport {
           try {
             cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
           } catch (e) {
+            const message = e instanceof Error ? e.message ?? String(e) : String(e);
+            if (!warnedNullOrigin && message.includes("'null'")) {
+              warnedNullOrigin = true;
+              try {
+                console.warn(
+                  '[IframeTransport] CONNECT blocked; iframe origin appears to be null. Check that %s is reachable and responds with Cross-Origin-Resource-Policy: cross-origin.',
+                  this.walletServiceUrl.toString(),
+                );
+              } catch {}
+            }
             // Some browsers will throw if the current document has an opaque
             // ('null') origin during early navigation. As a pragmatic fallback,
             // attempt a wildcard target to avoid dropping the port, then keep

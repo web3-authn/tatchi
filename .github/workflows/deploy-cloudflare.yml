@@ -397,10 +397,8 @@ jobs:
             Cross-Origin-Resource-Policy: cross-origin
 
           /wallet-service
-            Cross-Origin-Opener-Policy: unsafe-none
             Cross-Origin-Resource-Policy: cross-origin
           /wallet-service/
-            Cross-Origin-Opener-Policy: unsafe-none
             Cross-Origin-Resource-Policy: cross-origin
           HEADERS
 
