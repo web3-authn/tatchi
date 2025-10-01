@@ -20,9 +20,10 @@ extra requirements and limitations compared to the Express example.
 
 ## WASM bundling
 
-- The signer worker WASM is imported directly in `src/worker.ts`. Wrangler's
-  bundler detects the `.wasm` import and packages the module automatically, so
-  no `[wasm_modules]` block is required in `wrangler.toml`.
+- The signer worker WASM is imported directly from the published package in
+  `src/worker.ts` (`import signerWasm from '@web3authn/passkey/wasm'`).
+  Wrangler's bundler recognizes this asset and includes it automatically, so no
+  `[wasm_modules]` block is required in `wrangler.toml`.
 - Do **not** try to `fetch` the WASM from an arbitrary URL at runtime. Workers
   sit behind restricted networking rules and cannot access `file://` or other
   private origins.
