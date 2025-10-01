@@ -288,7 +288,9 @@ export class WalletIframeRouter {
           theme: this.opts.theme,
           nearRpcUrl: this.opts.nearRpcUrl,
           nearNetwork: this.opts.nearNetwork,
-          contractId: this.opts.contractId,
+          // Align with PMSetConfigPayload which expects `webauthnContractId`
+          // while keeping RouterOptions field name `contractId` for external API.
+          webauthnContractId: this.opts.contractId,
           relayer: this.opts.relayer,
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,

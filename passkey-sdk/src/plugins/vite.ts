@@ -272,3 +272,51 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
 
 // Named exports for advanced composition
 export default web3authnDev
+
+// === Build-time helper: emit Cloudflare Pages/Netlify _headers ===
+// This plugin writes a _headers file into Vite's outDir with COOP/COEP and a
+// Permissions-Policy delegating WebAuthn to the configured wallet origin.
+// It is a no-op if a _headers file already exists (to avoid overriding app settings).
+export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): VitePlugin {
+  const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
+  const walletOrigin = walletOriginRaw?.trim()
+
+  // Build Permissions-Policy mirroring the dev plugin format
+  const ppParts: string[] = []
+  ppParts.push(`publickey-credentials-get=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  ppParts.push(`publickey-credentials-create=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  ppParts.push(`clipboard-read=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  ppParts.push(`clipboard-write=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
+  const permissionsPolicy = ppParts.join(', ')
+
+  let outDir = 'dist'
+
+  // We intentionally return a broader shape than VitePlugin; cast at the end
+  const plugin = {
+    name: 'web3authn:build-headers',
+    apply: 'build' as const,
+    enforce: 'post' as const,
+    // Capture the resolved outDir
+    configResolved(config: any) {
+      try { outDir = (config?.build?.outDir as string) || outDir } catch {}
+    },
+    generateBundle() {
+      try {
+        const hdrPath = path.join(outDir, '_headers')
+        if (fs.existsSync(hdrPath)) {
+          // Do not override existing headers; leave a note in build logs
+          console.warn('[web3authn] _headers already exists in outDir; skipping auto-emission')
+          return
+        }
+        const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Permissions-Policy: ${permissionsPolicy}\n`
+        fs.mkdirSync(outDir, { recursive: true })
+        fs.writeFileSync(hdrPath, content, 'utf-8')
+        console.log('[web3authn] emitted _headers with COOP/COEP + Permissions-Policy')
+      } catch (e) {
+        console.warn('[web3authn] failed to emit _headers:', e)
+      }
+    },
+  }
+
+  return plugin as unknown as VitePlugin
+}
