@@ -1,23 +1,30 @@
 
 import React, { useState, useCallback } from 'react';
-import { ActionStatus, usePasskeyContext } from '@web3authn/passkey/react';
+import {
+  ActionPhase,
+  ActionStatus,
+  ActionType,
+  SecureSendTxButton,
+  TouchIdWithText,
+  TxExecutionStatus,
+  usePasskeyContext,
+} from '@web3authn/passkey/react';
 import type { ActionArgs } from '@web3authn/passkey/react';
-import { ActionType, ActionPhase, TxExecutionStatus } from '@web3authn/passkey/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import toast from 'react-hot-toast';
 import './MultiTxConfirmPage.css';
+import './EmbeddedTxConfirmPage.css';
 import { GlassBorder } from '../components/GlassBorder';
 import { LoadingButton } from '../components/LoadingButton';
+import { useSetGreeting } from '../hooks/useSetGreeting';
 
 /**
- * Demo page showing how to use EmbeddedTxConfirm with the setGreeting functionality.
+ * Demo page combining the modal multi-action confirmation and embedded iframe button flows.
  *
- * This demonstrates the complete flow:
- * 1. Embedded component displays transaction details for setting a greeting
- * 2. User clicks "Send Transaction" button
- * 3. Component dispatches to WASM worker for automatic validation
- * 4. WASM worker processes the transaction without additional confirmation
- * 5. Transaction result is returned to the main thread
+ * Users can:
+ * 1. Configure a multi-action transaction and execute it through the modal
+ * 2. Batch sign and broadcast multiple transfers in sequence
+ * 3. Trigger the embedded iframe button, which validates transactions against the displayed tooltip
  */
 export const MultiTxConfirmPage: React.FC = () => {
   const {
@@ -25,6 +32,7 @@ export const MultiTxConfirmPage: React.FC = () => {
     passkeyManager,
   } = usePasskeyContext();
 
+  const { fetchGreeting } = useSetGreeting();
   const [greetingInput, setGreetingInput] = useState('Hello from Multi Tx Confirm!');
   const [transferRecipient, setTransferRecipient] = useState('web3-authn-v5.testnet');
   const [transferAmount, setTransferAmount] = useState('0.001');
@@ -36,6 +44,44 @@ export const MultiTxConfirmPage: React.FC = () => {
   // Batch transfer state
   const [batchTransferAmount, setBatchTransferAmount] = useState('0.001');
   const [isBatchSigning, setIsBatchSigning] = useState(false);
+
+  // Embedded button state
+  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Component!');
+  const [embeddedResult, setEmbeddedResult] = useState('');
+  const [embeddedError, setEmbeddedError] = useState('');
+  const [isEmbeddedLoading, setIsEmbeddedLoading] = useState(false);
+
+  const createEmbeddedGreetingAction = useCallback((): ActionArgs => {
+    const newGreetingMessage = `${embeddedGreetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
+    return {
+      type: ActionType.FunctionCall,
+      methodName: 'set_greeting',
+      args: { greeting: newGreetingMessage },
+      gas: '30000000000000',
+      deposit: '0',
+    };
+  }, [embeddedGreetingInput]);
+
+  const handleEmbeddedCancel = useCallback(() => {
+    setIsEmbeddedLoading(false);
+    setEmbeddedResult('Transaction cancelled by user');
+    setEmbeddedError('');
+  }, []);
+
+  const handleEmbeddedSuccess = useCallback((result: unknown) => {
+    setEmbeddedResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
+    setEmbeddedError('');
+    setTimeout(() => {
+      void fetchGreeting();
+    }, 1100);
+  }, [fetchGreeting]);
+
+  const handleEmbeddedError = useCallback((error: unknown) => {
+    setIsEmbeddedLoading(false);
+    const message = error instanceof Error ? error.message : String(error);
+    setEmbeddedError(`Transaction failed: ${message}`);
+    setEmbeddedResult('');
+  }, []);
 
   // Helper function to convert NEAR to yoctoNEAR
   const nearToYocto = (nearAmount: string): string => {
@@ -261,8 +307,8 @@ export const MultiTxConfirmPage: React.FC = () => {
         <div className="modal-tx-translucent-container">
           <div className="modal-tx-content-area">
             <div className="modal-tx-login-prompt">
-              <h2 className="modal-tx-heading">Log in to see the Multi Tx Confirm Page</h2>
-              <p className="modal-tx-body">You must be logged in to test the modal transaction confirmation feature.</p>
+              <h2 className="modal-tx-heading">Log in to explore the transaction confirm demos</h2>
+              <p className="modal-tx-body">You must be logged in to try the modal and embedded transaction confirmation flows.</p>
             </div>
           </div>
         </div>
@@ -270,14 +316,14 @@ export const MultiTxConfirmPage: React.FC = () => {
     );
   }
 
-    return (
+  return (
     <div className="modal-tx-confirm-page">
       <GlassBorder>
         <div className="modal-tx-confirm-page-content">
-          <h1>Multi Tx Confirm Page - Combined Transaction</h1>
-          <p>Configure all NEAR actions and execute them in a single transaction</p>
-
           <div className="action-section">
+            <h1>Multi Tx Confirm - Combined Transaction</h1>
+            <p>Configure NEAR actions and execute them in a single transaction.</p>
+
             <h2>Transaction Parameters</h2>
 
             <div className="input-group">
@@ -350,15 +396,15 @@ export const MultiTxConfirmPage: React.FC = () => {
               />
             </div>
 
-                         <LoadingButton
-               onClick={handleExecuteTransaction}
-               loading={isExecuting}
-               loadingText="Executing Transaction..."
-               variant="primary"
-               size="medium"
-             >
-               Execute Combined Transaction
-             </LoadingButton>
+            <LoadingButton
+              onClick={handleExecuteTransaction}
+              loading={isExecuting}
+              loadingText="Executing Transaction..."
+              variant="primary"
+              size="medium"
+            >
+              Execute Combined Transaction
+            </LoadingButton>
           </div>
 
           <div className="action-section">
@@ -387,6 +433,119 @@ export const MultiTxConfirmPage: React.FC = () => {
              >
                Sign 3 Transactions
              </LoadingButton>
+          </div>
+
+          <div className="action-section">
+            <h2>Embedded Transaction Button Demo</h2>
+            <p className="embedded-tx-caption">
+              This embedded iframe button shows the same transaction details the worker validates before signing.
+            </p>
+
+            <div className="embedded-tx-input-group">
+              <label className="embedded-tx-input-label">Greeting Input:</label>
+              <input
+                type="text"
+                value={embeddedGreetingInput}
+                onChange={(e) => setEmbeddedGreetingInput(e.target.value)}
+                placeholder="Enter your greeting message"
+                className="embedded-tx-input embedded-tx-focus-ring"
+              />
+              <p className="embedded-tx-input-help">
+                The greeting is set on-chain after the transaction is finalized.
+              </p>
+            </div>
+
+            <div className="test-embedded-section">
+              <label className="test-embedded-section-label">Embedded Component:</label>
+              <SecureSendTxButton
+                nearAccountId={nearAccountId!}
+                txSigningRequests={[
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [
+                      createEmbeddedGreetingAction(),
+                      {
+                        type: ActionType.Transfer,
+                        amount: '100000000000000000000',
+                      },
+                    ],
+                  },
+                  {
+                    receiverId: WEBAUTHN_CONTRACT_ID,
+                    actions: [
+                      {
+                        type: ActionType.Transfer,
+                        amount: '200000000000000000000',
+                      },
+                    ],
+                  },
+                ]}
+                options={{
+                  beforeCall: () => {
+                    setIsEmbeddedLoading(true);
+                    setEmbeddedError('');
+                    setEmbeddedResult('');
+                  },
+                  waitUntil: TxExecutionStatus.FINAL,
+                  afterCall: () => {
+                    setIsEmbeddedLoading(false);
+                  },
+                  onError: (error) => {
+                    handleEmbeddedError(error);
+                  },
+                }}
+                buttonStyle={{
+                  background: '#0353A4',
+                  borderRadius: '24px',
+                  border: 'none',
+                  transition: 'all 0.3s ease',
+                  boxShadow: '0px 1px 1px 2px rgba(0, 0, 0, 0.1)',
+                  fontSize: '16px',
+                  height: '44px',
+                }}
+                buttonHoverStyle={{
+                  background: '#0466c8',
+                  boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
+                }}
+                tooltipPosition={{
+                  width: '330px',
+                  height: 'auto',
+                  position: 'bottom-left',
+                }}
+                txTreeTheme="light"
+                buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
+                onCancel={handleEmbeddedCancel}
+                onSuccess={handleEmbeddedSuccess}
+              />
+            </div>
+
+            {isEmbeddedLoading && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Processing:</label>
+                <div className="embedded-tx-loading">
+                  <div className="embedded-tx-spinner"></div>
+                  Processing transaction...
+                </div>
+              </div>
+            )}
+
+            {embeddedResult && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Success:</label>
+                <div className="embedded-tx-success">
+                  <pre>{embeddedResult}</pre>
+                </div>
+              </div>
+            )}
+
+            {embeddedError && (
+              <div className="embedded-tx-status-section">
+                <label className="embedded-tx-status-label">Error:</label>
+                <div className="embedded-tx-error">
+                  <pre>{embeddedError}</pre>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </GlassBorder>

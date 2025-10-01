@@ -348,6 +348,11 @@ wrangler pages deploy wallet-dist --project-name <CF_PAGES_PROJECT_WALLET>
 
    > Note: Having duplicate identical CORP headers is harmless; the root cause is the header missing on the live response, not the duplication itself.
 
+6. **Console shows `[PasskeyManager] No iframeWallet.walletOrigin configured…` inside the wallet host**
+   - Symptom: After the wallet iframe boots, the wallet console logs `No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin…`.
+   - Explanation: The wallet bundle intentionally clears `iframeWallet.walletOrigin` when it runs on its own origin (e.g., `https://wallet.example.com`). This prevents it from treating itself as an embedded client. As long as the iframe is actually served from the dedicated wallet origin, this message is expected and safe to ignore.
+   - Action: None required unless you intentionally run the wallet on the same origin as the parent app.
+
 ### Debug Commands
 ```bash
 # Test Wrangler connection
