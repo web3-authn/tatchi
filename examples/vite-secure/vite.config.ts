@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
           '..',
           '../..',
           '../../passkey-sdk/dist'
-          // serve SDK dist directly from workspace (zero-copy)
+          // serve SDK dist directly from workspace
         ]
       },
     },
