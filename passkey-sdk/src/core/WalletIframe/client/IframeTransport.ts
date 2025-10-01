@@ -78,6 +78,9 @@ export class IframeTransport {
             });
           } catch {}
         }
+        if (type === 'SERVICE_HOST_LOG') {
+          try { console.log('[IframeTransport][wallet-log]', (data as { payload?: unknown }).payload); } catch {}
+        }
       });
     } catch {}
   }
@@ -192,6 +195,17 @@ export class IframeTransport {
             cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
           } catch (e) {
             const message = e instanceof Error ? e.message ?? String(e) : String(e);
+            try {
+              console.warn('[IframeTransport] CONNECT threw', {
+                attempt,
+                elapsed,
+                message,
+                targetOrigin: this.walletOrigin,
+                iframeLocation: (() => {
+                  try { return iframe.contentWindow?.location?.href; } catch { return undefined; }
+                })(),
+              });
+            } catch {}
             if (!warnedNullOrigin && message.includes("'null'")) {
               warnedNullOrigin = true;
               try {
@@ -209,14 +223,7 @@ export class IframeTransport {
               cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
               console.debug('[IframeTransport] CONNECT fallback posted with "*" target; continuing retries');
             } catch {}
-            try {
-              console.debug(
-                '[IframeTransport] CONNECT attempt %d threw after %d ms; retrying. message: %s',
-                attempt,
-                elapsed,
-                message,
-              );
-            } catch {}
+            try { console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed); } catch {}
           }
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)

@@ -38,6 +38,11 @@
 try { (globalThis as unknown as { global?: unknown }).global = (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown); } catch {}
 try { (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} }; } catch {}
 try { console.debug('[WalletHost] booting wallet service at', window.location.href); } catch {}
+try {
+  if (window.location.origin === 'null') {
+    console.warn('[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.');
+  }
+} catch {}
 try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
