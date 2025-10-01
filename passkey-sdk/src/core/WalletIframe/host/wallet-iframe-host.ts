@@ -39,6 +39,7 @@ try { (globalThis as unknown as { global?: unknown }).global = (globalThis as un
 try { (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} }; } catch {}
 try { console.debug('[WalletHost] booting wallet service at', window.location.href); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
+try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
 try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
 try {

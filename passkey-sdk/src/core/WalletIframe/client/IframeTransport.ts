@@ -62,13 +62,21 @@ export class IframeTransport {
     try {
       window.addEventListener('message', (e) => {
         const data = e.data as unknown;
-        if (
-          e.origin === this.walletOrigin &&
-          isObject(data) &&
-          (data as { type?: unknown }).type === 'SERVICE_HOST_BOOTED'
-        ) {
+        if (!isObject(data)) return;
+        const type = (data as { type?: unknown }).type;
+        if (type === 'SERVICE_HOST_BOOTED' && e.origin === this.walletOrigin) {
           try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
           this.serviceBooted = true;
+          return;
+        }
+        if (type === 'SERVICE_HOST_DEBUG_ORIGIN') {
+          try {
+            console.debug('[IframeTransport] wallet debug origin', {
+              reportedOrigin: (data as { origin?: unknown }).origin,
+              reportedHref: (data as { href?: unknown }).href,
+              eventOrigin: e.origin,
+            });
+          } catch {}
         }
       });
     } catch {}
@@ -201,7 +209,14 @@ export class IframeTransport {
               cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
               console.debug('[IframeTransport] CONNECT fallback posted with "*" target; continuing retries');
             } catch {}
-            try { console.debug('[IframeTransport] CONNECT postMessage threw; retrying', e); } catch {}
+            try {
+              console.debug(
+                '[IframeTransport] CONNECT attempt %d threw after %d ms; retrying. message: %s',
+                attempt,
+                elapsed,
+                message,
+              );
+            } catch {}
           }
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
@@ -227,9 +242,18 @@ export class IframeTransport {
     if (iframe._svc_loaded) return;
     await new Promise<void>((resolve) => {
       try {
-        iframe.addEventListener?.('load', () => resolve(), { once: true });
+        let timeout: number | undefined;
+        iframe.addEventListener?.('load', () => {
+          if (typeof timeout === 'number') {
+            clearTimeout(timeout);
+          }
+          resolve();
+        }, { once: true });
         // Safety net: resolve shortly even if load listener fails to attach
-        setTimeout(() => resolve(), 150);
+        timeout = window.setTimeout(() => {
+          try { console.debug('[IframeTransport] waitForLoad did not observe load event within 150ms; continuing'); } catch {}
+          resolve();
+        }, 150);
       } catch {
         resolve();
       }

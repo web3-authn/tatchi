@@ -388,7 +388,6 @@ jobs:
           # Add strict headers required for cross-origin embedding + WebAuthn
           cat > wallet-dist/_headers <<'HEADERS'
           /*
-            Cross-Origin-Opener-Policy: same-origin
             Cross-Origin-Embedder-Policy: require-corp
             Cross-Origin-Resource-Policy: cross-origin
             Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
