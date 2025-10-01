@@ -173,6 +173,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       justify-content: center;
     }
     .padlock-icon { width: 12px; height: 12px; margin-right: 4px; color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255)); }
+
+    .security-details {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
     .block-height-icon {
       width: 12px;
       height: 12px;

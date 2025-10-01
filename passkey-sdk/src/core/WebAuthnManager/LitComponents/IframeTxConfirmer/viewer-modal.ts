@@ -227,8 +227,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
     .rpid {
       display: flex;
-      align-items: center;
-      gap: 6px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 2px;
       margin-top: 2px;
       font-size: 0.7rem;
       color: var(--w3a-modal__label__color);
@@ -261,7 +262,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       align-items: center;
       justify-content: center;
       color: var(--w3a-modal__security-details__color, rgba(255, 255, 255, 0.6));
-      margin-left: 8px;
     }
 
     /* Hero section with halo and headings */
@@ -270,7 +270,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       justify-items: center;
       align-items: center;
       gap: 1rem;
-      padding: var(--w3a-modal__hero__padding, 0rem 0.5rem);
       position: relative;
       display: flex;
     }
