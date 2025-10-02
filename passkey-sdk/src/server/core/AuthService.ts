@@ -406,7 +406,11 @@ export class AuthService {
       console.warn('[AuthService] Missing Shamir p_b64u; cannot add grace key');
       return null;
     }
-    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u: e, d_s_b64u: d });
+    const util = new Shamir3PassUtils({
+      p_b64u,
+      e_s_b64u: e,
+      d_s_b64u: d,
+    });
 
     let keyId = util.getCurrentKeyId();
     if (!keyId) {
@@ -491,7 +495,11 @@ export class AuthService {
     const { e_s_b64u, d_s_b64u } = await this.shamir3pass.generateServerKeypair();
     const p_b64u = this.config.shamir?.shamir_p_b64u;
     if (!p_b64u) throw new Error('Shamir not configured');
-    const util = new Shamir3PassUtils({ p_b64u, e_s_b64u, d_s_b64u });
+    const util = new Shamir3PassUtils({
+      p_b64u,
+      e_s_b64u,
+      d_s_b64u,
+    });
     let keyId: string | null = null;
     try {
       keyId = util.getCurrentKeyId();

@@ -1,5 +1,7 @@
 import type { AuthService } from '../core/AuthService';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
+import { setShamirWasmModuleOverride } from '../core/shamirWorker';
+import type { InitInput as ShamirInitInput } from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
@@ -14,6 +16,17 @@ export interface CfScheduledEvent { scheduledTime?: number; cron?: string }
 
 export type FetchHandler = (request: Request, env?: CfEnv, ctx?: CfExecutionContext) => Promise<Response>;
 export type ScheduledHandler = (event: CfScheduledEvent, env?: CfEnv, ctx?: CfExecutionContext) => Promise<void>;
+
+type ShamirModuleSupplier =
+  | ShamirInitInput
+  | Promise<ShamirInitInput>
+  | (() => ShamirInitInput | Promise<ShamirInitInput>);
+
+export function configureCloudflareShamirWasm(
+  override: ShamirModuleSupplier | null
+): void {
+  setShamirWasmModuleOverride(override);
+}
 
 function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
   const headers = new Headers({ 'Content-Type': 'application/json; charset=utf-8' });

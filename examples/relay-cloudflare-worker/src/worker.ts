@@ -1,7 +1,10 @@
 import { AuthService } from '@web3authn/passkey/server';
-import { createCloudflareRouter, createCloudflareCron } from '@web3authn/passkey/server/router/cloudflare';
+import { createCloudflareRouter, createCloudflareCron, configureCloudflareShamirWasm } from '@web3authn/passkey/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@web3authn/passkey/server/router/cloudflare';
 import signerWasmModule from '@web3authn/passkey/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
+import shamirWasmModule from '@web3authn/passkey/src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm';
+
+configureCloudflareShamirWasm(shamirWasmModule);
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;

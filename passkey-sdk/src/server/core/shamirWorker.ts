@@ -8,6 +8,7 @@ import initWasm, {
   configure_shamir_p,
   get_shamir_p_b64u,
   SHAMIR_P_B64U,
+  type InitInput,
 } from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import {
   VRFWorkerMessage,
@@ -21,9 +22,23 @@ import {
 
 export { SHAMIR_P_B64U, get_shamir_p_b64u };
 
+type ShamirWasmModuleSupplier = InitInput
+  | Promise<InitInput>
+  | (() => InitInput | Promise<InitInput>);
 
 let wasmInitialized = false;
 let wasmModule: any;
+let wasmModuleOverride: ShamirWasmModuleSupplier | null = null;
+let wasmInitPromise: Promise<void> | null = null;
+
+export function setShamirWasmModuleOverride(
+  supplier: ShamirWasmModuleSupplier | null
+): void {
+  wasmModuleOverride = supplier;
+  wasmInitialized = false;
+  wasmModule = null;
+  wasmInitPromise = null;
+}
 
 function isNodeEnvironment(): boolean {
   return Boolean((globalThis as any).process?.versions?.node);
@@ -54,37 +69,88 @@ function getVrfWasmUrls(): URL[] {
   ];
 }
 
+async function resolveWasmOverride(override: ShamirWasmModuleSupplier): Promise<InitInput> {
+  const candidate = typeof override === 'function'
+    ? (override as () => InitInput | Promise<InitInput>)()
+    : override;
+  const resolved = await candidate;
+  if (!resolved) {
+    throw new Error('Shamir WASM override resolved to an empty value');
+  }
+  return resolved;
+}
+
+async function initWasmFromFilesystem(candidates: URL[]): Promise<boolean> {
+  try {
+    const { fileURLToPath } = await import('node:url');
+    const { readFile } = await import('node:fs/promises');
+
+    for (const url of candidates) {
+      try {
+        const p = fileURLToPath(url);
+        const buf = await readFile(p);
+        const u8 = buf instanceof Uint8Array
+          ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength)
+          : new Uint8Array(buf as any);
+        const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+        wasmModule = await initWasm({ module_or_path: ab as any });
+        return true;
+      } catch {
+        // Try next candidate
+      }
+    }
+  } catch {
+    // Fall back to URL-based initialization
+  }
+  return false;
+}
+
 async function ensureWasmInitialized(): Promise<void> {
   if (wasmInitialized) {
     return;
   }
-  const candidates = getVrfWasmUrls();
-  if (isNodeEnvironment()) {
-    try {
-      const { fileURLToPath } = await import('node:url');
-      const { readFile } = await import('node:fs/promises');
-      // Try reading bytes from filesystem candidates
-      for (const url of candidates) {
-        try {
-          const p = fileURLToPath(url);
-          const buf = await readFile(p);
-          const u8 = buf instanceof Uint8Array ? new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength) : new Uint8Array(buf as any);
-          const ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
-          wasmModule = await initWasm({ module_or_path: ab as any });
-          wasmInitialized = true;
-          return;
-        } catch { /* try next */ }
-      }
-    } catch { /* fall through to URL path init */ }
+  if (wasmInitPromise) {
+    await wasmInitPromise;
+    return;
   }
 
-  // Worker/browser-like environment: let runtime fetch the URL
+  wasmInitPromise = (async () => {
+    if (wasmModuleOverride) {
+      const moduleOrPath = await resolveWasmOverride(wasmModuleOverride);
+      await initWasm({ module_or_path: moduleOrPath as any });
+      wasmInitialized = true;
+      return;
+    }
+
+    const candidates = getVrfWasmUrls();
+
+    if (isNodeEnvironment()) {
+      const initialized = await initWasmFromFilesystem(candidates);
+      if (initialized) {
+        wasmInitialized = true;
+        return;
+      }
+    }
+
+    let lastError: unknown = null;
+    for (const candidate of candidates) {
+      try {
+        await initWasm({ module_or_path: candidate as any });
+        wasmInitialized = true;
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+
+    throw lastError ?? new Error('Failed to initialize Shamir WASM from any candidate URL');
+  })();
+
   try {
-    await initWasm({ module_or_path: candidates[0] as any });
-  } catch {
-    await initWasm({ module_or_path: candidates[1] as any });
+    await wasmInitPromise;
+  } finally {
+    wasmInitPromise = null;
   }
-  wasmInitialized = true;
 }
 
 export class Shamir3PassUtils {
@@ -95,7 +161,7 @@ export class Shamir3PassUtils {
   constructor(opts: {
     p_b64u?: string;
     e_s_b64u?: string;
-    d_s_b64u?: string
+    d_s_b64u?: string;
   }) {
     this.p_b64u = opts.p_b64u ?? '';
     this.e_s_b64u = opts.e_s_b64u ?? '';
