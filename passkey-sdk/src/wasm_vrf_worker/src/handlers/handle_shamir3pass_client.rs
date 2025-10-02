@@ -159,7 +159,17 @@ pub async fn perform_shamir3pass_client_encrypt_current_vrf_keypair(
     let kek_c_b64u = encode_biguint_b64u(&kek_c);
 
     // POST to server to lock (double locked)
-    let url = format!("{}{}", relay_url, apply_lock_route);
+    let relay_url_trimmed = relay_url.trim().trim_end_matches('/');
+    let apply_route_trimmed = apply_lock_route.trim();
+    let url = if apply_route_trimmed.starts_with("http://") || apply_route_trimmed.starts_with("https://") {
+        apply_route_trimmed.to_string()
+    } else {
+        format!(
+            "{}/{}",
+            relay_url_trimmed,
+            apply_route_trimmed.trim_start_matches('/')
+        )
+    };
     let apply_resp = match post_apply_server_lock(&url, &kek_c_b64u).await {
         Ok(v) => v,
         Err(e) => return Err(e),
@@ -243,7 +253,17 @@ pub async fn handle_shamir3pass_client_decrypt_vrf_keypair(
     let kek_cs_b64u = encode_biguint_b64u(&kek_cs);
 
     // POST KEK_cs to server /remove-server-lock and receive KEK_c back
-    let url = format!("{}{}", relay_url, remove_route);
+    let relay_url_trimmed = relay_url.trim().trim_end_matches('/');
+    let remove_route_trimmed = remove_route.trim();
+    let url = if remove_route_trimmed.starts_with("http://") || remove_route_trimmed.starts_with("https://") {
+        remove_route_trimmed.to_string()
+    } else {
+        format!(
+            "{}/{}",
+            relay_url_trimmed,
+            remove_route_trimmed.trim_start_matches('/')
+        )
+    };
     let kek_c_b64u = match post_remove_server_lock(&url, &kek_cs_b64u, payload.key_id.clone()).await {
         Ok(v) => v.kek_c_b64u,
         Err(e) => return VrfWorkerResponse::fail(message_id, e),
