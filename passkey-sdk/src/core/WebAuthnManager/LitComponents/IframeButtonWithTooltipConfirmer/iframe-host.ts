@@ -180,6 +180,14 @@ export class IframeButtonHost extends LitElementWithProps {
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private hostRef: Ref<HTMLDivElement> = createRef();
   private tooltipVisible: boolean = false;
+  // Assets base readiness (set by wallet host via __W3A_EMBEDDED_BASE__)
+  private assetsBaseReady = false;
+  private onAssetsBaseSet = (_ev: Event) => {
+    this.assetsBaseReady = true;
+    if (!this.iframeInitialized) {
+      try { this.initializeIframe(); this.iframeInitialized = true; } catch {}
+    }
+  };
   // Robustness: handle rare races where embedded bundles base isn't set yet
   private etxDefinedReceived = false;
   private initRetryTimer: number | undefined;
@@ -257,6 +265,9 @@ export class IframeButtonHost extends LitElementWithProps {
     this.setupClipPathSupport();
     // Apply button style CSS variables on initial connection
     this.applyButtonStyle();
+    // Mark embedded assets base readiness and subscribe to event
+    try { this.assetsBaseReady = !!((window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__); } catch {}
+    try { window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any, { passive: true }); } catch {}
   }
 
   updated(changedProperties: PropertyValues) {
@@ -268,8 +279,11 @@ export class IframeButtonHost extends LitElementWithProps {
 
     // Only initialize iframe once, then use postMessage for updates
     if (!this.iframeInitialized) {
-      this.initializeIframe();
-      this.iframeInitialized = true;
+      // Defer until wallet host configures embedded base
+      if (this.assetsBaseReady || (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__) {
+        this.initializeIframe();
+        this.iframeInitialized = true;
+      }
     } else {
       // Use postMessage to update iframe properties instead of recreating HTML
       this.updateIframeViaPostMessage(changedProperties);
@@ -283,6 +297,7 @@ export class IframeButtonHost extends LitElementWithProps {
       this.messageHandler = undefined;
     }
     try { document.removeEventListener('pointerdown', this.onDocPointerDown, true); } catch {}
+    try { window.removeEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any); } catch {}
   }
 
   private applyButtonStyle() {

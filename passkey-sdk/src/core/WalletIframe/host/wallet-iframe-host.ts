@@ -47,6 +47,14 @@ try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
 try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
+// Establish a default embedded assets base as soon as this module loads.
+// This points to the directory containing this file (e.g., '/sdk/esm/react/embedded/').
+try {
+  const here = new URL('.', import.meta.url).toString();
+  const norm = here.endsWith('/') ? here : (here + '/');
+  const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
+  if (!w.__W3A_EMBEDDED_BASE__) w.__W3A_EMBEDDED_BASE__ = norm;
+} catch {}
 try {
   window.addEventListener('click', (e) => {
     try {
@@ -652,6 +660,9 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       }
       (window as any).__W3A_EMBEDDED_BASE__ = resolvedBase;
       try { console.debug('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
+      try {
+        window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: resolvedBase }));
+      } catch {}
     } catch {}
     nearClient = null; passkeyManager = null;
     // Forward UI registry to lit-elem-mounter if provided
