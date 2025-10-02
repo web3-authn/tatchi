@@ -16,7 +16,7 @@
 
 .glass-border-inner {
   box-sizing: border-box;
-  background: var(--w3a-colors-colorBackground);
+  background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: var(--fe-radius-lg);
   padding: 2rem;

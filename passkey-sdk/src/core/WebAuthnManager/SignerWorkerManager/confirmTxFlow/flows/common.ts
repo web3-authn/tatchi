@@ -10,6 +10,7 @@ import {
 import { TransactionContext, VRFChallenge } from '../../../../types';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
+import { isIOS, isSafari } from '@/utils';
 import { addLitCancelListener } from '../../../LitComponents/lit-events';
 import { isObject, isFunction, isString } from '../../../../WalletIframe/validation';
 import { errorMessage, toError } from '../../../../../utils/errors';
@@ -266,6 +267,7 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
+        const forceIframeForSafari = (() => { try { return isIOS() || isSafari(); } catch { return false; } })();
         const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -276,7 +278,7 @@ export async function renderConfirmUI({
           theme: confirmationConfig.theme,
           uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
-          useIframe: !!ctx.iframeModeDefault
+          useIframe: !!ctx.iframeModeDefault || forceIframeForSafari
         });
         return { confirmed, confirmHandle: handle };
       }
@@ -299,6 +301,7 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
+        const forceIframeForSafari = (() => { try { return isIOS() || isSafari(); } catch { return false; } })();
         const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -309,7 +312,7 @@ export async function renderConfirmUI({
           theme: confirmationConfig.theme,
           uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
-          useIframe: !!ctx.iframeModeDefault
+          useIframe: !!ctx.iframeModeDefault || forceIframeForSafari
         });
         return { confirmed, confirmHandle: handle };
       }
