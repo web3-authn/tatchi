@@ -28,6 +28,7 @@ declare global {
 // Notify parent that we're ready to receive HS1_INIT
 function notifyReady(): void {
   try {
+    try { console.debug('[IframeButtonBootstrap] READY'); } catch {}
     const message: IframeButtonMessage = { type: 'READY' };
     window.parent.postMessage(message, '*');
   } catch {}
@@ -132,6 +133,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
     window.customElements.whenDefined(tag).then(() => {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;
+      try { console.debug('[IframeButtonBootstrap] ETX_DEFINED for', tag); } catch {}
       const definedMessage: IframeButtonMessage = { type: 'ETX_DEFINED' };
       try { window.parent.postMessage(definedMessage, PARENT_ORIGIN || '*'); } catch {}
     });

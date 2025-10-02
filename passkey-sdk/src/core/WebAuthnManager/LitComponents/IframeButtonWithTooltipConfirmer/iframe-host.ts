@@ -180,18 +180,13 @@ export class IframeButtonHost extends LitElementWithProps {
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private hostRef: Ref<HTMLDivElement> = createRef();
   private tooltipVisible: boolean = false;
-  // Assets base readiness (set by wallet host via __W3A_EMBEDDED_BASE__)
-  private assetsBaseReady = false;
+  // (optional) event hook; not used for gating init anymore
   private onAssetsBaseSet = (_ev: Event) => {
-    this.assetsBaseReady = true;
+    // If init hasn't happened yet for some reason, do it now
     if (!this.iframeInitialized) {
       try { this.initializeIframe(); this.iframeInitialized = true; } catch {}
     }
   };
-  // Robustness: handle rare races where embedded bundles base isn't set yet
-  private etxDefinedReceived = false;
-  private initRetryTimer: number | undefined;
-  private initAttempts = 0;
   private onDocPointerDown = (ev: PointerEvent) => {
     // Click-away to close tooltip when visible
     if (!this.tooltipVisible) return;
@@ -265,8 +260,7 @@ export class IframeButtonHost extends LitElementWithProps {
     this.setupClipPathSupport();
     // Apply button style CSS variables on initial connection
     this.applyButtonStyle();
-    // Mark embedded assets base readiness and subscribe to event
-    try { this.assetsBaseReady = !!((window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__); } catch {}
+    // Subscribe to wallet host base-set event (best-effort)
     try { window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any, { passive: true }); } catch {}
   }
 
@@ -279,11 +273,8 @@ export class IframeButtonHost extends LitElementWithProps {
 
     // Only initialize iframe once, then use postMessage for updates
     if (!this.iframeInitialized) {
-      // Defer until wallet host configures embedded base
-      if (this.assetsBaseReady || (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__) {
-        this.initializeIframe();
-        this.iframeInitialized = true;
-      }
+      this.initializeIframe();
+      this.iframeInitialized = true;
     } else {
       // Use postMessage to update iframe properties instead of recreating HTML
       this.updateIframeViaPostMessage(changedProperties);
@@ -410,8 +401,12 @@ export class IframeButtonHost extends LitElementWithProps {
   private generateIframeHtml() {
     const embeddedTxButtonTag = W3A_BUTTON_WITH_TOOLTIP_ID;
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
-    // Honor runtime-configured assets base if provided by wallet host
-    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
+    // Resolve base robustly: prefer wallet host base, else derive from this module URL
+    const winBase = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__;
+    const derived = (() => { try { return new URL('.', import.meta.url).toString(); } catch { return EMBEDDED_SDK_BASE_PATH; } })();
+    const base = (typeof winBase === 'string' && winBase.length)
+      ? (winBase.endsWith('/') ? winBase : (winBase + '/'))
+      : (derived.endsWith('/') ? derived : (derived + '/'));
     return `<!DOCTYPE html>
       <html>
         <head>
@@ -562,8 +557,6 @@ export class IframeButtonHost extends LitElementWithProps {
           return;
         case 'ETX_DEFINED':
           // The embedded element is fully upgraded; send initial state now
-          this.etxDefinedReceived = true;
-          if (this.initRetryTimer) { try { clearTimeout(this.initRetryTimer); } catch {} this.initRetryTimer = undefined; }
           this.postInitialStateToIframe();
           return;
         case 'HS2_POSITIONED':
@@ -609,16 +602,6 @@ export class IframeButtonHost extends LitElementWithProps {
           // Apply optimistic clip-path immediately to prevent blocking clicks
           // This will be replaced once HS5_GEOMETRY_RESULT is received
           this.applyOptimisticClipPath();
-          // If the embedded element never upgrades (e.g., wrong base path at first paint),
-          // retry once after a short delay using the latest embedded base.
-          this.etxDefinedReceived = false;
-          if (this.initRetryTimer) { try { clearTimeout(this.initRetryTimer); } catch {} }
-          this.initRetryTimer = window.setTimeout(() => {
-            if (!this.etxDefinedReceived && this.initAttempts < 1) {
-              this.initAttempts += 1;
-              try { this.forceIframeReinitialize(); } catch {}
-            }
-          }, 1500);
           return;
         case 'CONFIRM':
           this.handleConfirm();
