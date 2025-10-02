@@ -114,6 +114,24 @@ export class AuthService {
     return Boolean(this.config.shamir && this.shamir3pass);
   }
 
+  /**
+   * Ensures Shamir 3-pass is ready (initializes if configured but not loaded).
+   */
+  public async ensureShamirReady(): Promise<boolean> {
+    if (!this.config.shamir) {
+      return false;
+    }
+    if (this.shamir3pass) {
+      return true;
+    }
+    try {
+      await this._ensureSignerAndRelayerAccount();
+    } catch (err) {
+      console.error('Failed to initialize Shamir 3-pass:', err);
+    }
+    return this.hasShamir();
+  }
+
   // Backward-compat getter, no longer returns near-js Account
   async getRelayerAccount(): Promise<{ accountId: string; publicKey: string }> {
     await this._ensureSignerAndRelayerAccount();

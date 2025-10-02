@@ -119,7 +119,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'POST' && pathname === '/vrf/apply-server-lock') {
-        if (!service.hasShamir()) {
+        if (!(await service.ensureShamirReady())) {
           const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
@@ -136,7 +136,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'POST' && pathname === '/vrf/remove-server-lock') {
-        if (!service.hasShamir()) {
+        if (!(await service.ensureShamirReady())) {
           const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
@@ -161,7 +161,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'GET' && pathname === '/shamir/key-info') {
-        if (!service.hasShamir()) {
+        if (!(await service.ensureShamirReady())) {
           const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
