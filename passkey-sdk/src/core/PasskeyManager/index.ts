@@ -153,6 +153,8 @@ export class PasskeyManager {
       relayer: this.configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
       rpIdOverride: walletIframeConfig?.rpIdOverride,
+      // Allow apps/CI to control where embedded bundles are served from
+      sdkBasePath: walletIframeConfig?.sdkBasePath,
     });
     await this.iframeRouter.init();
     // Opportunistically warm remote NonceManager (no-op if user not initialized yet)

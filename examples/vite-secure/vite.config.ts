@@ -28,7 +28,15 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       // Web3Authn dev integration: serves SDK, wallet service route, WASM MIME.
-      web3authnDev({ mode: 'self-contained', setDevHeaders: false, enableDebugRoutes: true }),
+      web3authnDev({
+        mode: 'self-contained',
+        setDevHeaders: false,
+        enableDebugRoutes: true,
+        // Read SDK base path so dev mirrors production asset layout
+        sdkBasePath: env.VITE_SDK_BASE_PATH || env.VITE_WEB3AUTHN_SDK_BASE || '/sdk',
+        // Keep wallet service path consistent with env
+        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
+      }),
       // SDK dev headers middleware (COOP/COEP + Permissions-Policy delegating WebAuthn)
       // Enable this if your proxy (e.g., Caddy) is not already setting these headers.
       // No fallback for wallet origin to avoid masking missing env vars.

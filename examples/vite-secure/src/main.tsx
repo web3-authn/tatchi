@@ -34,6 +34,8 @@ function App() {
               walletOrigin: env.VITE_WALLET_ORIGIN,
               walletServicePath: env.VITE_WALLET_SERVICE_PATH,
               rpIdOverride: env.VITE_RP_ID_BASE,
+              // Align dev with production asset layout
+              sdkBasePath: env.VITE_SDK_BASE_PATH,
             },
           }}
         >

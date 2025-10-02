@@ -13,6 +13,7 @@ interface ImportMetaEnv {
   readonly VITE_WALLET_ORIGIN?: string;
   readonly VITE_WALLET_SERVICE_PATH?: string;
   readonly VITE_WEB3AUTHN_SDK_BASE?: string;
+  readonly VITE_SDK_BASE_PATH?: string;
   readonly VITE_RP_ID_BASE?: string;
 }
 
