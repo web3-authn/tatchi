@@ -391,7 +391,8 @@ export class IframeButtonHost extends LitElementWithProps {
   private generateIframeHtml() {
     const embeddedTxButtonTag = W3A_BUTTON_WITH_TOOLTIP_ID;
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
-    const base = EMBEDDED_SDK_BASE_PATH;
+    // Honor runtime-configured assets base if provided by wallet host
+    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
     return `<!DOCTYPE html>
       <html>
         <head>

@@ -22,9 +22,10 @@ type ShamirModuleSupplier =
   | Promise<ShamirInitInput>
   | (() => ShamirInitInput | Promise<ShamirInitInput>);
 
-export function configureCloudflareShamirWasm(
-  override: ShamirModuleSupplier | null
-): void {
+/**
+ * Log Cloudflare WASM module configuration details for debugging
+ */
+function logCloudflareWasmConfig(override: ShamirModuleSupplier | null): void {
   try {
     const kind = override === null ? 'null' : typeof override;
     const isModule = override instanceof WebAssembly.Module;
@@ -32,6 +33,7 @@ export function configureCloudflareShamirWasm(
     const isArrayBuffer = override instanceof ArrayBuffer;
     const isTypedArray = ArrayBuffer.isView(override);
     const toStringTag = Object.prototype.toString.call(override);
+
     // eslint-disable-next-line no-console
     console.log(`[CloudflareRouter] configureCloudflareShamirWasm called:
     • kind: ${kind}
@@ -43,6 +45,21 @@ export function configureCloudflareShamirWasm(
   } catch (err) {
     console.error('[CloudflareRouter] Error logging override details:', err);
   }
+}
+
+/**
+ * Configure Shamir WASM module for Cloudflare Workers
+ *
+ * @deprecated This function is deprecated. Pass the WASM module via
+ * `AuthService` config instead: `shamir: { moduleOrPath: shamirWasmModule }`
+ *
+ * This ensures proper module initialization in Cloudflare Workers where
+ * module-level global state doesn't work reliably due to bundler isolation.
+ */
+export function configureCloudflareShamirWasm(
+  override: ShamirModuleSupplier | null
+): void {
+  logCloudflareWasmConfig(override);
   setShamirWasmModuleOverride(override);
 }
 

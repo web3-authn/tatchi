@@ -1,8 +1,8 @@
 import { AuthService } from '@web3authn/passkey/server';
-import { createCloudflareRouter, createCloudflareCron, configureCloudflareShamirWasm } from '@web3authn/passkey/server/router/cloudflare';
+import { createCloudflareRouter, createCloudflareCron } from '@web3authn/passkey/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@web3authn/passkey/server/router/cloudflare';
-import signerWasmModule from '@web3authn/passkey/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
-import shamirWasmModule from '@web3authn/passkey/src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm';
+import signerWasmModule from '@web3authn/passkey/server/wasm/signer';
+import shamirWasmModule from '@web3authn/passkey/server/wasm/vrf';
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;
@@ -22,17 +22,8 @@ export interface Env {
 }
 
 let service: AuthService | null = null;
-let wasmConfigured = false;
 
 function getService(env: Env) {
-  // Configure WASM modules before creating the service (only once)
-  if (!wasmConfigured) {
-    console.log('[Worker] Configuring Shamir WASM module override...');
-    configureCloudflareShamirWasm(shamirWasmModule);
-    wasmConfigured = true;
-    console.log('[Worker] Shamir WASM module override configured');
-  }
-
   if (!service) {
     service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,
@@ -47,6 +38,7 @@ function getService(env: Env) {
         shamir_e_s_b64u: env.SHAMIR_E_S_B64U,
         shamir_d_s_b64u: env.SHAMIR_D_S_B64U,
         graceShamirKeysFile: '', // Do not use FS on Workers
+        moduleOrPath: shamirWasmModule, // Pass WASM module for Cloudflare Workers
       },
       signerWasm: {
         moduleOrPath: signerWasmModule,

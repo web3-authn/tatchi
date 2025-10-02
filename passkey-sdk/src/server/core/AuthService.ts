@@ -138,13 +138,29 @@ export class AuthService {
     return { accountId: this.config.relayerAccountId, publicKey: this.relayerPublicKey };
   }
 
+  /**
+   * Configure Shamir WASM module override for serverless environments
+   * Required for Cloudflare Workers where import.meta.url doesn't work
+   */
+  private async configureShamirWasmForServerless(): Promise<void> {
+    if (!this.config.shamir?.moduleOrPath) {
+      return;
+    }
+
+    const { setShamirWasmModuleOverride } = await import('./shamirWorker.js');
+    setShamirWasmModuleOverride(this.config.shamir.moduleOrPath);
+  }
+
   private async _ensureSignerAndRelayerAccount(): Promise<void> {
     if (this.isInitialized) {
       return;
     }
 
-    // Initialize Shamir3Pass WASM module (loads same worker wasm)
+    // Initialize Shamir3Pass WASM module
     if (!this.shamir3pass && this.config.shamir) {
+      // Configure WASM override for serverless environments (Cloudflare Workers, etc.)
+      await this.configureShamirWasmForServerless();
+
       this.shamir3pass = new Shamir3PassUtils({
         p_b64u: this.config.shamir.shamir_p_b64u,
         e_s_b64u: this.config.shamir.shamir_e_s_b64u,

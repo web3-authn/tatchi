@@ -50,6 +50,11 @@ export interface ServerResponse {
 }
 
 // Server configuration interface
+export type ShamirWasmModuleSupplier =
+  | InitInput
+  | Promise<InitInput>
+  | (() => InitInput | Promise<InitInput>);
+
 export interface ShamirConfig {
   // Shamir 3-pass configuration (base64url BigInts)
   shamir_p_b64u: string;
@@ -62,6 +67,13 @@ export interface ShamirConfig {
   }>;
   // Optional path for persisting grace keys (default: ./grace-keys.json)
   graceShamirKeysFile?: string;
+  /**
+   * Optional override for locating the Shamir VRF WASM module. Useful for serverless
+   * runtimes (e.g. Cloudflare Workers) where filesystem-relative URLs are unavailable.
+   * Accepts any value supported by `initVrfWasm({ module_or_path })` or a
+   * function that resolves to one.
+   */
+  moduleOrPath?: ShamirWasmModuleSupplier;
 }
 
 export type SignerWasmModuleSupplier =
