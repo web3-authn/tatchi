@@ -310,6 +310,32 @@ This workflow supports GitHub Environments. When you trigger it manually, you ca
   - `environment: name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}`
 - Ensure your Environment (e.g., `production`) contains these secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `R2_ENDPOINT`, `R2_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CF_PAGES_PROJECT_VITE`, `CF_PAGES_PROJECT_WALLET`.
 
+### Pages Environment Variables (required)
+
+Configure these build-time environment variables for your Cloudflare Pages projects so dev/prod behave consistently and embedded assets resolve from the right path.
+
+- Contract and Network
+  - `VITE_WEBAUTHN_CONTRACT_ID = web3-authn-v5.testnet` (preferred)
+  - `VITE_CONTRACT_ID = web3-authn-v5.testnet` (alias supported by some setups)
+  - `VITE_NEAR_NETWORK = testnet`
+  - `VITE_NEAR_RPC_URL = https://test.rpc.fastnear.com`
+  - `VITE_NEAR_EXPLORER = https://testnet.nearblocks.io`
+
+- Relayer (Worker) configuration
+  - `VITE_RELAYER_URL = https://relay.tatchi.xyz`
+  - `VITE_RELAYER_ACCOUNT_ID = w3a-relayer.testnet`
+  - `VITE_RP_ID_BASE = tatchi.xyz` (optional; base RP ID for cross‑subdomain passkeys)
+
+- Wallet iframe hosting
+  - `VITE_WALLET_ORIGIN = https://wallet.tatchi.xyz`
+  - `VITE_WALLET_SERVICE_PATH = /wallet-service` (trailing slash optional; normalized at runtime)
+  - `VITE_SDK_BASE_PATH = /sdk/esm/react` (ensures embedded bundles load from `/sdk/esm/react/embedded/`)
+
+Notes
+- The examples and workflow use these vars during build (see `.github/workflows/deploy-cloudflare.yml`).
+- `VITE_SDK_BASE_PATH` replaces older `VITE_WEB3AUTHN_SDK_BASE`; use the new name.
+- If you customize paths/domains, keep wallet origin and RP ID aligned with your DNS setup.
+
 ## Local Testing (Optional)
 
 ### Test Worker Locally

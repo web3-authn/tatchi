@@ -215,7 +215,7 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
-  const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_WEB3AUTHN_SDK_BASE, '/sdk')
+  const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
 
   // Build a Permissions-Policy that only lists self unless a wallet origin is provided.
   const ppParts: string[] = []
@@ -250,7 +250,7 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
 
 export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
-  const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_WEB3AUTHN_SDK_BASE, '/sdk')
+  const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const walletOrigin = (options.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const setDevHeaders = options.setDevHeaders !== false // default true

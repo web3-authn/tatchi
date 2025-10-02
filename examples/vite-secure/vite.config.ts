@@ -33,7 +33,7 @@ export default defineConfig(({ mode }) => {
         setDevHeaders: false,
         enableDebugRoutes: true,
         // Read SDK base path so dev mirrors production asset layout
-        sdkBasePath: env.VITE_SDK_BASE_PATH || env.VITE_WEB3AUTHN_SDK_BASE || '/sdk',
+        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         // Keep wallet service path consistent with env
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
       }),
