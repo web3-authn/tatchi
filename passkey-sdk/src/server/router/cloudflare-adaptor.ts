@@ -27,9 +27,22 @@ export function configureCloudflareShamirWasm(
 ): void {
   try {
     const kind = override === null ? 'null' : typeof override;
+    const isModule = override instanceof WebAssembly.Module;
+    const isResponse = override instanceof Response;
+    const isArrayBuffer = override instanceof ArrayBuffer;
+    const isTypedArray = ArrayBuffer.isView(override);
+    const toStringTag = Object.prototype.toString.call(override);
     // eslint-disable-next-line no-console
-    console.log(`[CloudflareRouter] configureCloudflareShamirWasm override kind=${kind}`);
-  } catch {}
+    console.log(`[CloudflareRouter] configureCloudflareShamirWasm called:
+    • kind: ${kind}
+    • isWebAssembly.Module: ${isModule}
+    • isResponse: ${isResponse}
+    • isArrayBuffer: ${isArrayBuffer}
+    • isTypedArray: ${isTypedArray}
+    • toString: ${toStringTag}`);
+  } catch (err) {
+    console.error('[CloudflareRouter] Error logging override details:', err);
+  }
   setShamirWasmModuleOverride(override);
 }
 

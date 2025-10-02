@@ -4,8 +4,6 @@ import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@web3authn/pas
 import signerWasmModule from '@web3authn/passkey/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm';
 import shamirWasmModule from '@web3authn/passkey/src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm';
 
-configureCloudflareShamirWasm(shamirWasmModule);
-
 export interface Env {
   RELAYER_ACCOUNT_ID: string;
   RELAYER_PRIVATE_KEY: string;
@@ -24,8 +22,17 @@ export interface Env {
 }
 
 let service: AuthService | null = null;
+let wasmConfigured = false;
 
 function getService(env: Env) {
+  // Configure WASM modules before creating the service (only once)
+  if (!wasmConfigured) {
+    console.log('[Worker] Configuring Shamir WASM module override...');
+    configureCloudflareShamirWasm(shamirWasmModule);
+    wasmConfigured = true;
+    console.log('[Worker] Shamir WASM module override configured');
+  }
+
   if (!service) {
     service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,

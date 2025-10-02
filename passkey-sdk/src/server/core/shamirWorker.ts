@@ -82,7 +82,13 @@ async function resolveWasmOverride(override: ShamirWasmModuleSupplier): Promise<
   if (!resolved) {
     throw new Error('Shamir WASM override resolved to an empty value');
   }
+
+  // Handle string paths
   if (typeof resolved === 'string') {
+    // In Cloudflare Workers, we cannot use import.meta.url reliably
+    if (!isNodeEnvironment()) {
+      throw new Error('Shamir WASM override cannot be a string path in Cloudflare Workers. Please provide a WebAssembly.Module or Response object.');
+    }
     try {
       const finalUrl = new URL(resolved, import.meta.url);
       logInit(`override resolved (string->URL): ${finalUrl.toString()}`);
@@ -91,7 +97,28 @@ async function resolveWasmOverride(override: ShamirWasmModuleSupplier): Promise<
       throw new Error(`Shamir WASM override produced invalid URL string: ${resolved}`);
     }
   }
-  logInit(`override resolved (non-string): ${typeof resolved}`);
+
+  // Handle WebAssembly.Module
+  if (resolved instanceof WebAssembly.Module) {
+    logInit(`override resolved (WebAssembly.Module)`);
+    return resolved as InitInput;
+  }
+
+  // Handle Response or Promise<Response>
+  if (resolved instanceof Response || (resolved && typeof (resolved as any).then === 'function')) {
+    logInit(`override resolved (Response or Promise)`);
+    return resolved as InitInput;
+  }
+
+  // Handle ArrayBuffer or typed arrays
+  if (resolved instanceof ArrayBuffer || ArrayBuffer.isView(resolved)) {
+    logInit(`override resolved (ArrayBuffer/TypedArray)`);
+    return resolved as InitInput;
+  }
+
+  // Log the actual type for debugging
+  const resolvedType = Object.prototype.toString.call(resolved);
+  logInit(`override resolved (unknown type: ${typeof resolved}, toString: ${resolvedType})`);
   return resolved;
 }
 
@@ -131,12 +158,26 @@ async function ensureWasmInitialized(): Promise<void> {
 
   wasmInitPromise = (async () => {
     if (wasmModuleOverride) {
-      logInit('using override to initialize WASM');
-      const moduleOrPath = await resolveWasmOverride(wasmModuleOverride);
-      await initWasm({ module_or_path: moduleOrPath as any });
-      wasmInitialized = true;
-      logInit('initialized from override');
-      return;
+      logInit(`using override to initialize WASM (type: ${typeof wasmModuleOverride})`);
+      try {
+        const moduleOrPath = await resolveWasmOverride(wasmModuleOverride);
+        logInit(`resolved override (type: ${typeof moduleOrPath}, isModule: ${moduleOrPath instanceof WebAssembly.Module})`);
+        await initWasm({ module_or_path: moduleOrPath as any });
+        wasmInitialized = true;
+        logInit('initialized from override successfully');
+        return;
+      } catch (overrideError) {
+        // Log the error but don't fall back in Cloudflare Workers environment
+        const errMsg = (overrideError as Error)?.message || String(overrideError);
+        logInit(`FATAL: override initialization failed: ${errMsg}`);
+        // In Cloudflare Workers, we cannot fall back to URL-based loading
+        if (!isNodeEnvironment()) {
+          throw new Error(`Shamir WASM override failed in Workers environment: ${errMsg}. URL-based fallback is not available in Cloudflare Workers.`);
+        }
+        logInit('falling back to URL candidates (Node environment only)');
+      }
+    } else {
+      logInit('WARNING: No WASM module override set. This will likely fail in Cloudflare Workers.');
     }
 
     const candidates = getVrfWasmUrls();
