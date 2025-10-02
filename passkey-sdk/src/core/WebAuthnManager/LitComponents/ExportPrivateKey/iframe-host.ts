@@ -2,7 +2,8 @@
 import { html, css, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
-import { EMBEDDED_SDK_BASE_PATH, IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
+import { IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
+import { resolveEmbeddedBase } from '../asset-base';
 import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
@@ -135,7 +136,7 @@ export class IframeExportHost extends LitElementWithProps {
   }
 
   private generateIframeHtml(): string {
-    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
+    const base = resolveEmbeddedBase();
     const viewerBundle = EXPORT_VIEWER_BUNDLE;
     const bootstrap = IFRAME_EXPORT_BOOTSTRAP_MODULE;
     return `<!DOCTYPE html>

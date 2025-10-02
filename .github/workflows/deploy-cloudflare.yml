@@ -304,8 +304,9 @@ jobs:
 
       - name: Copy SDK runtime assets into vite-secure dist
         run: |
-          mkdir -p examples/vite-secure/dist/sdk examples/vite-secure/dist/sdk/workers
-          cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite-secure/dist/sdk/ || true
+          # Serve embedded bundles under /sdk/esm/react/embedded to match production layout
+          mkdir -p examples/vite-secure/dist/sdk/esm/react/embedded examples/vite-secure/dist/sdk/workers
+          cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite-secure/dist/sdk/esm/react/embedded/ || true
           cp -R passkey-sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
 
       - name: Install Wrangler

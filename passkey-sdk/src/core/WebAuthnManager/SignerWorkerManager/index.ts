@@ -120,7 +120,7 @@ export class SignerWorkerManager {
   createSecureWorker(): Worker {
     // Simple path resolution - build:all copies worker files to /workers/
     const workerUrl = new URL(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL, window.location.origin);
-    console.debug('Creating secure worker from:', workerUrl.href);
+    // console.debug('Creating secure worker from:', workerUrl.href);
     try {
       const worker = new Worker(workerUrl, {
         type: SIGNER_WORKER_MANAGER_CONFIG.WORKER.TYPE,

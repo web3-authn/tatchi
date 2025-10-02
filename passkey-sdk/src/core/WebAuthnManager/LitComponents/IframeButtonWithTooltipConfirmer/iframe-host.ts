@@ -9,12 +9,8 @@ import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import type { TxTreeStyles } from '../TxTree';
 import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
-import {
-  EMBEDDED_SDK_BASE_PATH,
-  W3A_BUTTON_WITH_TOOLTIP_ID,
-  IFRAME_TX_BUTTON_BOOTSTRAP_MODULE,
-  defineTag
-} from '../tags';
+import { W3A_BUTTON_WITH_TOOLTIP_ID, IFRAME_TX_BUTTON_BOOTSTRAP_MODULE, defineTag } from '../tags';
+import { resolveEmbeddedBase } from '../asset-base';
 import {
   computeExpandedIframeSizeFromGeometryPure,
   computeIframeSizePure,
@@ -401,12 +397,7 @@ export class IframeButtonHost extends LitElementWithProps {
   private generateIframeHtml() {
     const embeddedTxButtonTag = W3A_BUTTON_WITH_TOOLTIP_ID;
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
-    // Resolve base robustly: prefer wallet host base, else derive from this module URL
-    const winBase = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__;
-    const derived = (() => { try { return new URL('.', import.meta.url).toString(); } catch { return EMBEDDED_SDK_BASE_PATH; } })();
-    const base = (typeof winBase === 'string' && winBase.length)
-      ? (winBase.endsWith('/') ? winBase : (winBase + '/'))
-      : (derived.endsWith('/') ? derived : (derived + '/'));
+    const base = resolveEmbeddedBase();
     return `<!DOCTYPE html>
       <html>
         <head>

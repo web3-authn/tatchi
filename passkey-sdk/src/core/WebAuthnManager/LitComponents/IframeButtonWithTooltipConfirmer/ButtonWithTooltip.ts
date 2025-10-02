@@ -356,11 +356,19 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     // Detect coarse pointer environments (mobile/tablets) to adapt interactions
     try {
-      this.isCoarsePointer = window.matchMedia('(pointer: coarse), (hover: none)').matches;
-      // Keep in sync if device characteristics change (rare but safe)
-      this.mqlCoarse = window.matchMedia('(pointer: coarse), (hover: none)');
+      // Robust coarse-pointer detection: require actual touch capability to avoid headless/CI false positives
+      const mql = window.matchMedia('(pointer: coarse)');
+      const hasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
+        ? (navigator as any).maxTouchPoints > 0
+        : false;
+      this.isCoarsePointer = (mql?.matches === true) && hasTouch;
+      // Keep in sync if device characteristics change (rare)
+      this.mqlCoarse = mql;
       this.mqlCoarse.addEventListener?.('change', (e) => {
-        this.isCoarsePointer = e.matches;
+        const updatedHasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
+          ? (navigator as any).maxTouchPoints > 0
+          : false;
+        this.isCoarsePointer = (e.matches === true) && updatedHasTouch;
         this.requestUpdate();
       });
       // Default to press-to-preview on coarse pointers (can be overridden via SET_STYLE)

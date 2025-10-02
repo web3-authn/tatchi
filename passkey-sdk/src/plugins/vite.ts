@@ -104,9 +104,14 @@ function tryFile(...candidates: string[]): string | undefined {
 }
 
 export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
-  const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
+  const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
+
+  // In dev we want both '/sdk' and a custom base (e.g. '/sdk/esm/react') to work.
+  const bases = Array.from(new Set([configuredBase, normalizeBase('/sdk')]))
+    // Prefer longest base match first (e.g., '/sdk/esm/react' before '/sdk')
+    .sort((a, b) => b.length - a.length)
 
   return {
     name: 'web3authn:serve-sdk',
@@ -121,13 +126,15 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         })
       }
 
-      // Serve files under sdkBasePath from sdkDistRoot with fallbacks
+      // Serve files under any recognized base from sdkDistRoot with fallbacks
       server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next()
         const url = req.url.split('?')[0]
-        if (!url.startsWith(sdkBasePath + '/')) return next()
 
-        const rel = url.slice((sdkBasePath + '/').length)
+        const matchBase = bases.find((b) => url.startsWith(b + '/'))
+        if (!matchBase) return next()
+
+        const rel = url.slice((matchBase + '/').length)
         // Try direct dist, then dist/esm, then dist/esm/react
         const candidate = tryFile(
           path.join(sdkDistRoot, rel),
@@ -175,7 +182,11 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
     </script>
   </head>
   <body>
-    <script type="module" src="${sdkBasePath}/esm/react/embedded/wallet-iframe-host.js"></script>
+    <!-- sdkBasePath already points to the SDK root (e.g. '/sdk' or '/sdk/esm/react').
+         Append '/embedded/wallet-iframe-host.js' so both forms are supported:
+         - '/sdk/embedded/wallet-iframe-host.js' (dev server maps to dist/esm/react/embedded)
+         - '/sdk/esm/react/embedded/wallet-iframe-host.js' (direct ESM path) -->
+    <script type="module" src="${sdkBasePath}/embedded/wallet-iframe-host.js"></script>
   </body>
 </html>`
 

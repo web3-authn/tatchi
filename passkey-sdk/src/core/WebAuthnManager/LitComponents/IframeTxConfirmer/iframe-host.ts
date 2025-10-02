@@ -8,12 +8,8 @@ import type { PasskeyManagerContext } from '../../../PasskeyManager';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
-import {
-  EMBEDDED_SDK_BASE_PATH,
-  W3A_IFRAME_TX_CONFIRMER_ID,
-  IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE,
-  MODAL_TX_CONFIRM_BUNDLE
-} from '../tags';
+import { W3A_IFRAME_TX_CONFIRMER_ID, IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE, MODAL_TX_CONFIRM_BUNDLE } from '../tags';
+import { resolveEmbeddedBase } from '../asset-base';
 import { IframeModalMessageType, IframeModalMessagePayloads } from '../common/iframe-messages';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
@@ -133,7 +129,7 @@ export class IframeModalHost extends LitElementWithProps {
   private generateIframeHtml() {
     const modalBundle = MODAL_TX_CONFIRM_BUNDLE;
     const iframeBootstrap = IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE;
-    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || EMBEDDED_SDK_BASE_PATH;
+    const base = resolveEmbeddedBase();
     return `<!DOCTYPE html>
       <html>
         <head>

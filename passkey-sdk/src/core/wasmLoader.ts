@@ -75,7 +75,7 @@ export function resolveWasmUrl(wasmFilename: string, workerName: string, customB
   // - SDK building: bundlers put worker + WASM in the same directory
   // - E2E tests: Vite dev plugin serves co-located worker + WASM under /sdk/workers
   // - Simple npm usage: bundlers typically preserve relative relationships
-  console.debug(`[wasmLoader: ${workerName}] Using default import.meta.url path: ${import.meta.url}`);
+  // console.debug(`[wasmLoader: ${workerName}] Using default import.meta.url path: ${import.meta.url}`);
   return new URL(`./${wasmFilename}`, import.meta.url);
 }
 
