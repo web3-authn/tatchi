@@ -178,10 +178,12 @@ export class IframeButtonHost extends LitElementWithProps {
   private tooltipVisible: boolean = false;
   // (optional) event hook; not used for gating init anymore
   private onAssetsBaseSet = (_ev: Event) => {
-    // If init hasn't happened yet for some reason, do it now
-    if (!this.iframeInitialized) {
-      try { this.initializeIframe(); this.iframeInitialized = true; } catch {}
-    }
+    // Reinitialize to pick up the new embedded base path set by the wallet host
+    try {
+      this.iframeInitialized = false;
+      this.initializeIframe();
+      this.iframeInitialized = true;
+    } catch {}
   };
   private onDocPointerDown = (ev: PointerEvent) => {
     // Click-away to close tooltip when visible
@@ -267,7 +269,7 @@ export class IframeButtonHost extends LitElementWithProps {
       this.applyButtonStyle();
     }
 
-    // Only initialize iframe once, then use postMessage for updates
+    // Initialize once; base is resolved via resolveEmbeddedBase() with a stable default
     if (!this.iframeInitialized) {
       this.initializeIframe();
       this.iframeInitialized = true;

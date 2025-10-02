@@ -16,13 +16,6 @@ export function resolveEmbeddedBase(): string {
     }
   } catch {}
 
-  // Fall back to the directory of this module
-  try {
-    const here = new URL('.', import.meta.url).toString();
-    return here.endsWith('/') ? here : (here + '/');
-  } catch {}
-
-  // Final fallback for non-ESM/browserless contexts
+  // Use stable SDK default if host has not set a base yet
   return '/sdk/embedded/';
 }
-

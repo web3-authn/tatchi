@@ -304,9 +304,9 @@ jobs:
 
       - name: Copy SDK runtime assets into vite-secure dist
         run: |
-          # Serve embedded bundles under /sdk/esm/react/embedded to match production layout
-          mkdir -p examples/vite-secure/dist/sdk/esm/react/embedded examples/vite-secure/dist/sdk/workers
-          cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite-secure/dist/sdk/esm/react/embedded/ || true
+          # Serve embedded bundles under /sdk/embedded for uniform layout
+          mkdir -p examples/vite-secure/dist/sdk/embedded examples/vite-secure/dist/sdk/workers
+          cp -R passkey-sdk/dist/esm/react/embedded/* examples/vite-secure/dist/sdk/embedded/ || true
           cp -R passkey-sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
 
       - name: Install Wrangler
@@ -383,7 +383,7 @@ jobs:
               <script>window.global ||= window; window.process ||= { env: {} };</script>
             </head>
             <body>
-              <script type="module" src="/sdk/esm/react/embedded/wallet-iframe-host.js"></script>
+              <script type="module" src="/sdk/embedded/wallet-iframe-host.js"></script>
             </body>
           </html>
           HTML
@@ -403,7 +403,9 @@ jobs:
           HEADERS
 
           # Copy SDK assets (ESM bundles + workers) under /sdk
-          cp -R passkey-sdk/dist/esm wallet-dist/sdk/
+          # Copy embedded bundles and workers under /sdk
+          mkdir -p wallet-dist/sdk/embedded wallet-dist/sdk/workers
+          cp -R passkey-sdk/dist/esm/react/embedded/* wallet-dist/sdk/embedded/
           cp -R passkey-sdk/dist/workers wallet-dist/sdk/
 
       - name: Debug – print built _headers (wallet)
