@@ -44,6 +44,12 @@ function isNodeEnvironment(): boolean {
   return Boolean((globalThis as any).process?.versions?.node);
 }
 
+function isCloudflareWorkerEnvironment(): boolean {
+  // Cloudflare Workers expose WebSocketPair; some polyfills may also set navigator UA
+  return typeof (globalThis as any).WebSocketPair !== 'undefined'
+    || (typeof navigator !== 'undefined' && (navigator as any).userAgent?.includes?.('Cloudflare-Workers'));
+}
+
 function toBase64Url(bytes: Uint8Array): string {
   const b64 = Buffer.from(bytes).toString('base64');
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
@@ -76,6 +82,13 @@ async function resolveWasmOverride(override: ShamirWasmModuleSupplier): Promise<
   const resolved = await candidate;
   if (!resolved) {
     throw new Error('Shamir WASM override resolved to an empty value');
+  }
+  if (typeof resolved === 'string') {
+    try {
+      return new URL(resolved, import.meta.url) as unknown as InitInput;
+    } catch (err) {
+      throw new Error(`Shamir WASM override produced invalid URL string: ${resolved}`);
+    }
   }
   return resolved;
 }
@@ -120,6 +133,21 @@ async function ensureWasmInitialized(): Promise<void> {
       await initWasm({ module_or_path: moduleOrPath as any });
       wasmInitialized = true;
       return;
+    }
+
+    // Robust path for Cloudflare Workers: dynamically import the WASM asset so the bundler
+    // rewrites it correctly, then hand that to wasm-bindgen initializer.
+    if (isCloudflareWorkerEnvironment()) {
+      try {
+        // Use dynamic import so this code remains tree-shakeable in non-Workers builds
+        const wasmImport: any = await import('../../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm');
+        const moduleOrPath = (wasmImport && (wasmImport.default ?? wasmImport)) as InitInput;
+        await initWasm({ module_or_path: moduleOrPath as any });
+        wasmInitialized = true;
+        return;
+      } catch (_err) {
+        // Fall through to generic URL-based probing
+      }
     }
 
     const candidates = getVrfWasmUrls();
