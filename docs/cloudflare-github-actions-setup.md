@@ -329,7 +329,7 @@ Configure these build-time environment variables for your Cloudflare Pages proje
 - Wallet iframe hosting
   - `VITE_WALLET_ORIGIN = https://wallet.tatchi.xyz`
   - `VITE_WALLET_SERVICE_PATH = /wallet-service` (trailing slash optional; normalized at runtime)
-  - `VITE_SDK_BASE_PATH = /sdk/esm/react` (ensures embedded bundles load from `/sdk/esm/react/embedded/`)
+  - `VITE_SDK_BASE_PATH = /sdk` (ensures bundles load from `/sdk/`)
 
 Notes
 - The examples and workflow use these vars during build (see `.github/workflows/deploy-cloudflare.yml`).
@@ -371,7 +371,7 @@ cat > wallet-dist/wallet-service/index.html <<'HTML'
     <script>window.global ||= window; window.process ||= { env: {} };</script>
   </head>
   <body>
-    <script type="module" src="/sdk/esm/react/embedded/wallet-iframe-host.js"></script>
+    <script type="module" src="/sdk/wallet-iframe-host.js"></script>
   </body>
 </html>
 HTML
@@ -387,7 +387,7 @@ cat > wallet-dist/_headers <<'HEADERS'
 /wallet-service/
   Cross-Origin-Opener-Policy: unsafe-none
 HEADERS
-cp -R passkey-sdk/dist/esm wallet-dist/sdk/
+cp -R passkey-sdk/dist/esm/sdk/* wallet-dist/sdk/
 cp -R passkey-sdk/dist/workers wallet-dist/sdk/
 wrangler pages deploy wallet-dist --project-name <CF_PAGES_PROJECT_WALLET>
 ```

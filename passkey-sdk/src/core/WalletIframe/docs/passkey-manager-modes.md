@@ -12,7 +12,7 @@ The configuration surface remains unified via `iframeWallet.walletOrigin`: add i
 **Current dev setup:**
 - App origin: `https://example.localhost` (front app served by Vite via Caddy)
 - Wallet origin: `https://wallet.example.localhost` (reverse-proxies to the same Vite instance)
-- Wallet service route: `GET /wallet-service` returns minimal HTML that loads `/sdk/esm/react/embedded/wallet-iframe-host.js`
+- Wallet service route: `GET /wallet-service` returns minimal HTML that loads `/sdk/wallet-iframe-host.js`
 - SDK assets + workers/WASM: served under `/sdk` directly from `passkey-sdk/dist`
 
 ### Mode Selector
@@ -63,7 +63,7 @@ Examples
 
 Production
 - Serve `/sdk` from CDN/object storage
-- Serve a minimal wallet service HTML at the wallet origin that loads `${sdkBasePath}/esm/react/embedded/wallet-iframe-host.js`
+- Serve a minimal wallet service HTML at the wallet origin that loads `${sdkBasePath}/wallet-iframe-host.js`
 - Set headers at the edge (front: COOP/COEP + Permissions‑Policy; wallet: COOP/COEP + `Cross-Origin-Resource-Policy: cross-origin`)
 
 ## Goals
@@ -267,7 +267,7 @@ Note: Choose one source of truth for these headers (proxy or Vite plugin) to avo
 ### SDK Assets
 
 - Serve SDK assets under `/sdk` in both apps
-- Wallet service page loads embedded bundles from `/sdk/esm/react/embedded/`
+- Wallet service page loads embedded bundles from `/sdk/`
 - In dev, the Vite plugin serves from `passkey-sdk/dist` (workspace or node_modules)
 - Minimal wallet service HTML (for production):
 
@@ -281,7 +281,7 @@ Note: Choose one source of truth for these headers (proxy or Vite plugin) to avo
     <script>window.global ||= window; window.process ||= { env: {} };</script>
   </head>
   <body>
-    <script type="module" src="/sdk/esm/react/embedded/wallet-iframe-host.js"></script>
+    <script type="module" src="/sdk/wallet-iframe-host.js"></script>
   </body>
   </html>
 ```

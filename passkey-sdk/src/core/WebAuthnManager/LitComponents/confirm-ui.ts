@@ -31,7 +31,7 @@ if (customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) return;
       existing.addEventListener('error', (e) => reject(e), { once: true });
       return;
     }
-    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || '/sdk/embedded/';
+    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || '/sdk/';
     const script = document.createElement('script');
     script.type = 'module';
     script.async = true;

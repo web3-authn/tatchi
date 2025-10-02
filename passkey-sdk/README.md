@@ -182,7 +182,7 @@ When you do host the wallet on a dedicated origin, expose two things:
 - Static SDK assets under `/sdk` (workers and embedded bundles):
   - `/sdk/workers/web3authn-signer.worker.js`
   - `/sdk/workers/web3authn-vrf.worker.js`
-  - `/sdk/esm/react/embedded/wallet-iframe-host.js` (and other embedded bundles)
+  - `/sdk/wallet-iframe-host.js` (and other embedded bundles)
 - A service page at `/service` that loads the service host module.
 
 You do not need to copy files into your app bundle; you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
@@ -200,8 +200,8 @@ const pkgEntry = require.resolve('@web3authn/passkey/dist/esm/index.js');
 const distEsmDir = path.dirname(pkgEntry);           // .../node_modules/@web3authn/passkey/dist/esm
 const distRoot = path.resolve(distEsmDir, '..');     // .../node_modules/@web3authn/passkey/dist
 
-// Serve SDK assets at /sdk
-app.use('/sdk', express.static(path.join(distRoot, 'esm')));
+// Serve SDK assets at /sdk (serve the sdk subfolder)
+app.use('/sdk', express.static(path.join(distRoot, 'esm', 'sdk')));
 app.use('/sdk/workers', express.static(path.join(distRoot, 'workers')));
 
 // Service page at /service
@@ -322,4 +322,4 @@ Dev headers and proxies:
 
 Debugging:
 - `GET /__sdk-root` returns the resolved SDK `dist` root used by the plugin.
-- Wallet service is served at `GET /wallet-service` and loads `/sdk/esm/react/embedded/wallet-iframe-host.js`.
+- Wallet service is served at `GET /wallet-service` and loads `/sdk/wallet-iframe-host.js`.

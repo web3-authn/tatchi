@@ -26,6 +26,6 @@ Open:
 
 ## Notes
 
-- The route `/wallet-service` is provided by the Vite plugin and loads `/sdk/esm/react/embedded/wallet-iframe-host.js`.
+- The route `/wallet-service` is provided by the Vite plugin and loads `/sdk/wallet-iframe-host.js`.
 - The dev server includes cross-origin isolation headers (COEP/COOP) and a WebAuthn `Permissions-Policy` (via `server.headers` and Caddy). Avoid setting conflicting headers in multiple places.
 - The `/sdk/*` path is mapped by the plugin to the workspace `passkey-sdk/dist` (zero-copy). Keep the SDK in `dev` or re-run `build` after changes.

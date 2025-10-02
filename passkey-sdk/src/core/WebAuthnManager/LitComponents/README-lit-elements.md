@@ -185,14 +185,14 @@ Implementation reference:
 
 ### Embedded asset serving (dev)
 
-- Embedded UIs that render in a child srcdoc iframe must import their bundles from `/sdk/embedded/` (viewer + bootstrap). Rolldown produces these under `dist/esm/react/embedded/`.
-- The Vite dev plugin serves `/sdk/**` by probing `dist/`, `dist/esm/`, and `dist/esm/react/` so no manual copy is needed:
-  - `/sdk/embedded/export-private-key-viewer.js`
-  - `/sdk/embedded/iframe-export-bootstrap.js`
-- Wallet host initializes the base: `window.__W3A_EMBEDDED_BASE__ = '/sdk/embedded/'` during `PM_SET_CONFIG` handling.
+- Embedded UIs that render in a child srcdoc iframe must import their bundles from `/sdk/` (viewer + bootstrap). Rolldown produces these under `dist/esm/sdk/`.
+- The Vite dev plugin serves `/sdk/**` by probing `dist/esm/sdk` (canonical), with fallbacks to `dist/esm` and `dist` so no manual copy is needed:
+  - `/sdk/export-private-key-viewer.js`
+  - `/sdk/iframe-export-bootstrap.js`
+- Wallet host initializes the base: `window.__W3A_EMBEDDED_BASE__ = '/sdk/'` during `PM_SET_CONFIG` handling.
 
 Sanity checks in the wallet origin devtools:
-- Network 200 for `/sdk/embedded/<bundle>.js` requests
+- Network 200 for `/sdk/<bundle>.js` requests
 - Console: no “Unknown custom element” warnings; the element should upgrade and post READY back to parent
 
 ### Sticky overlay for two‑phase flows
@@ -219,7 +219,7 @@ Implementation reference:
 - For any new iframe‑hosted UI:
   - Add a bundle for the child iframe bootstrap (e.g., `iframe-<feature>-bootstrap.js`)
   - Add a bundle for the viewer element (`<feature>-viewer.js`)
-  - Ensure both end up under `dist/esm/react/embedded/`
+- Ensure both end up under `dist/esm/sdk/`
 
 Implementation reference:
 - `rolldown.config.ts` entries for:
@@ -230,7 +230,7 @@ Implementation reference:
 
 ### Quick checklist (copy/paste for new components)
 
-1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/react/embedded)
+1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/sdk)
 2) In the wallet host code path that uses it, add a dynamic `await import('<module>')` before `document.createElement('<tag>')`
 3) Prevent tree-shaking of required sub-elements when composing
    - If your component composes other custom elements (e.g., Drawer, TxTree), reference them in a private field so bundlers don’t drop the import:
@@ -251,6 +251,6 @@ Implementation reference:
 3) Ensure the child iframe HTML (srcdoc) loads the viewer and bootstrap with `type="module"` under `__W3A_EMBEDDED_BASE__`
 4) Add rolldown entries so both viewer and bootstrap bundles are emitted
 5) For two‑phase or long‑lived UIs, mark the wallet request sticky and hide the overlay only on WALLET_UI_CLOSED
-6) Dev validate: Network 200 for `/sdk/embedded/*.js`; element upgrades; READY/SET_* messages flow between parent and child
+6) Dev validate: Network 200 for `/sdk/*.js`; element upgrades; READY/SET_* messages flow between parent and child
 
 Following this checklist prevents “empty custom element” regressions when introducing new Lit components into the wallet‑iframe architecture.

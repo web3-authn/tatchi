@@ -35,7 +35,7 @@ export function defineTag(key: TagKey, ctor: CustomElementConstructor): void {
 }
 
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
-export const EMBEDDED_SDK_BASE_PATH = '/sdk/embedded/';
+export const EMBEDDED_SDK_BASE_PATH = '/sdk/';
 export const IFRAME_TX_BUTTON_BOOTSTRAP_MODULE = 'iframe-tx-button-bootstrap.js';
 // Modal iframe host + bootstrap + modal bundle
 export const W3A_IFRAME_TX_CONFIRMER_ID = 'w3a-iframe-tx-confirmer';

@@ -108,7 +108,7 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
 
-  // In dev we want both '/sdk' and a custom base (e.g. '/sdk/esm/react') to work.
+  // In dev we want both '/sdk' and a custom base to work.
   const bases = Array.from(new Set([configuredBase, normalizeBase('/sdk')]))
     // Prefer longest base match first (e.g., '/sdk/esm/react' before '/sdk')
     .sort((a, b) => b.length - a.length)
@@ -135,11 +135,11 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         if (!matchBase) return next()
 
         const rel = url.slice((matchBase + '/').length)
-        // Try direct dist, then dist/esm, then dist/esm/react
+        // Try dist/esm/sdk first (canonical), then common fallbacks
         const candidate = tryFile(
+          path.join(sdkDistRoot, 'esm', 'sdk', rel),
           path.join(sdkDistRoot, rel),
-          path.join(sdkDistRoot, 'esm', rel),
-          path.join(sdkDistRoot, 'esm', 'react', rel)
+          path.join(sdkDistRoot, 'esm', rel)
         )
 
         if (!candidate) {
@@ -182,11 +182,8 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
     </script>
   </head>
   <body>
-    <!-- sdkBasePath already points to the SDK root (e.g. '/sdk' or '/sdk/esm/react').
-         Append '/embedded/wallet-iframe-host.js' so both forms are supported:
-         - '/sdk/embedded/wallet-iframe-host.js' (dev server maps to dist/esm/react/embedded)
-         - '/sdk/esm/react/embedded/wallet-iframe-host.js' (direct ESM path) -->
-    <script type="module" src="${sdkBasePath}/embedded/wallet-iframe-host.js"></script>
+    <!-- sdkBasePath points to the SDK root (e.g. '/sdk'). Load the host directly. -->
+    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>
   </body>
 </html>`
 

@@ -4,7 +4,7 @@
  * Priority:
  * 1) window.__W3A_EMBEDDED_BASE__ when set by the wallet host (absolute URL)
  * 2) Directory of the current ESM module (import.meta.url), which is absolute
- * 3) Last-resort static fallback '/sdk/embedded/'
+ * 3) Last-resort static fallback '/sdk/'
  */
 export function resolveEmbeddedBase(): string {
   // Prefer the wallet host-provided absolute base
@@ -17,5 +17,5 @@ export function resolveEmbeddedBase(): string {
   } catch {}
 
   // Use stable SDK default if host has not set a base yet
-  return '/sdk/embedded/';
+  return '/sdk/';
 }

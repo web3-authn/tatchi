@@ -51,7 +51,7 @@ const external = [
 
 // External dependencies for embedded components.
 // IMPORTANT: Externalize Lit so the host app's bundler (e.g., Vite) serves a consistent copy.
-// Bundling Lit into /sdk/embedded caused internal node_modules paths and ESM export mismatches.
+// Bundling Lit directly into SDK bundles caused internal node_modules paths and ESM export mismatches.
 // Embedded bundles are loaded directly in the browser (no bundler/import maps),
 // so do NOT externalize dependencies. Bundle everything needed.
 const embeddedExternal: (string | RegExp)[] = [];
@@ -340,7 +340,7 @@ export default defineConfig([
   {
     input: 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/ButtonWithTooltip.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
       format: 'esm',
       // Align emitted filename with iframe srcdoc import expectation
       entryFileNames: 'w3a-button-with-tooltip.js'
@@ -355,7 +355,7 @@ export default defineConfig([
   {
     input: 'src/core/WebAuthnManager/LitComponents/confirm-ui.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
       format: 'esm',
       entryFileNames: 'tx-confirm-ui.js'
     },
@@ -379,7 +379,7 @@ export default defineConfig([
       'iframe-export-bootstrap': 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts',
     },
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
       format: 'esm',
       entryFileNames: '[name].js'
     },
@@ -392,7 +392,7 @@ export default defineConfig([
   {
     input: 'src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts',
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
       format: 'esm',
       entryFileNames: 'export-private-key-viewer.js',
     },
@@ -408,7 +408,7 @@ export default defineConfig([
       'passkey-halo-loading': 'src/core/WebAuthnManager/LitComponents/PasskeyHaloLoading/index.ts',
     },
     output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/react/embedded`,
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
       format: 'esm',
       entryFileNames: '[name].js',
     },

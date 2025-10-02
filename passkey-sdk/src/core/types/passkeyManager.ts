@@ -607,8 +607,8 @@ export interface PasskeyManagerConfigs {
     walletOrigin?: string; // e.g., https://wallet.example.com
     walletServicePath?: string; // defaults to '/service'
     // Optional SDK assets base used by the parent app to tell the wallet
-    // where to load embedded bundles from. The wallet host will append
-    // 'embedded/' at runtime. Example: '/sdk/esm/react' -> '/sdk/esm/react/embedded/'.
+    // where to load embedded bundles from. The wallet host will use this
+    // base as-is (ensure it ends with a trailing '/'). Example: '/sdk/'.
     sdkBasePath?: string;
     // Internal flag set only inside the wallet iframe host context. Not for public consumption.
     // Signals that WebAuthn flows are executing within the wallet.* origin.

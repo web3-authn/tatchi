@@ -130,7 +130,7 @@ The iframe loads a minimal HTML page that imports the service host:
     <title>Web3Authn Wallet Service</title>
   </head>
   <body>
-    <script type="module" src="/sdk/esm/react/embedded/wallet-iframe-host.js"></script>
+    <script type="module" src="/sdk/wallet-iframe-host.js"></script>
   </body>
 </html>
 ```

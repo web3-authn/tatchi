@@ -147,7 +147,7 @@ Thanks — changes landed to simplify the default same‑origin flow and clarify
     - No HTML copying; no external servers.
   - Separate wallet origin (for dedicated‑domain security properties):
     - Host SDK assets on the wallet origin:
-  - `/sdk/esm/react/embedded/wallet-iframe-host.js` and the rest of embedded bundles.
+  - `/sdk/wallet-iframe-host.js` and the rest of embedded bundles.
       - `/sdk/workers/web3authn-signer.worker.js`, `/sdk/workers/web3authn-vrf.worker.js`, and their WASM files.
     - Expose a `/service` route that returns `getWalletServiceHtml('/sdk')`.
     - Set `walletOrigin` (e.g., `https://wallet.myco.com`) and `walletServicePath` (e.g., `/service`) in `PasskeyManager` configs. The SDK loads that page; no app‑side file copying.

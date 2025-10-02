@@ -71,8 +71,8 @@ This document outlines the strategy for shipping the Web3Authn Passkey SDK as a 
     },
     "./wasm/signer-binary": "./dist/wasm_signer_worker_bg.wasm",
     "./wasm/vrf-binary": "./dist/wasm_vrf_worker/wasm_vrf_worker_bg.wasm",
-    "./embedded/embedded-tx-button": "./dist/esm/react/embedded/embedded-tx-button.js",
-    "./embedded/w3a-tx-button": "./dist/esm/react/embedded/w3a-tx-button.js"
+    "./sdk/w3a-button-with-tooltip": "./dist/esm/sdk/w3a-button-with-tooltip.js",
+    "./sdk/wallet-iframe-host": "./dist/esm/sdk/wallet-iframe-host.js"
   }
 }
 ```

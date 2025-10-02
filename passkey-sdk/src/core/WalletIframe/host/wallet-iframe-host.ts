@@ -48,7 +48,7 @@ try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.
 try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
 try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
 // Establish a default embedded assets base as soon as this module loads.
-// This points to the directory containing this file (e.g., '/sdk/esm/react/embedded/').
+// This points to the directory containing this file (e.g., '/sdk/').
 try {
   const here = new URL('.', import.meta.url).toString();
   const norm = here.endsWith('/') ? here : (here + '/');
@@ -640,21 +640,21 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     // Configure SDK embedded asset base for Lit modal/embedded components
     try {
       const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
-      // Default to serving embedded assets from this wallet origin under /sdk/embedded/
+      // Default to serving embedded assets from this wallet origin under /sdk/
       const defaultRoot = (() => {
         try {
           const base = new URL('/sdk/', window.location.origin).toString();
           return base.endsWith('/') ? base : base + '/';
         } catch { return '/sdk/'; }
       })();
-      let resolvedBase = defaultRoot + 'embedded/';
+      let resolvedBase = defaultRoot;
       if (isString(assetsBaseUrl)) {
         try {
           const u = new URL(assetsBaseUrl, window.location.origin);
           // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
           if (u.origin === window.location.origin) {
             const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
-            resolvedBase = norm + 'embedded/';
+            resolvedBase = norm;
           }
         } catch {}
       }
