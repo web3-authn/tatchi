@@ -31,6 +31,10 @@ let wasmModule: any;
 let wasmModuleOverride: ShamirWasmModuleSupplier | null = null;
 let wasmInitPromise: Promise<void> | null = null;
 
+function logInit(msg: string): void {
+  try { console.log(`[ShamirWasmInit] ${msg}`); } catch { /* ignore */ }
+}
+
 export function setShamirWasmModuleOverride(
   supplier: ShamirWasmModuleSupplier | null
 ): void {
@@ -80,11 +84,14 @@ async function resolveWasmOverride(override: ShamirWasmModuleSupplier): Promise<
   }
   if (typeof resolved === 'string') {
     try {
-      return new URL(resolved, import.meta.url) as unknown as InitInput;
+      const finalUrl = new URL(resolved, import.meta.url);
+      logInit(`override resolved (string->URL): ${finalUrl.toString()}`);
+      return finalUrl as unknown as InitInput;
     } catch (err) {
       throw new Error(`Shamir WASM override produced invalid URL string: ${resolved}`);
     }
   }
+  logInit(`override resolved (non-string): ${typeof resolved}`);
   return resolved;
 }
 
@@ -124,18 +131,22 @@ async function ensureWasmInitialized(): Promise<void> {
 
   wasmInitPromise = (async () => {
     if (wasmModuleOverride) {
+      logInit('using override to initialize WASM');
       const moduleOrPath = await resolveWasmOverride(wasmModuleOverride);
       await initWasm({ module_or_path: moduleOrPath as any });
       wasmInitialized = true;
+      logInit('initialized from override');
       return;
     }
 
     const candidates = getVrfWasmUrls();
 
     if (isNodeEnvironment()) {
+      logInit('attempting Node filesystem initialization for WASM');
       const initialized = await initWasmFromFilesystem(candidates);
       if (initialized) {
         wasmInitialized = true;
+        logInit('initialized from Node filesystem');
         return;
       }
     }
@@ -143,11 +154,14 @@ async function ensureWasmInitialized(): Promise<void> {
     let lastError: unknown = null;
     for (const candidate of candidates) {
       try {
+        logInit(`trying URL candidate: ${candidate.toString()}`);
         await initWasm({ module_or_path: candidate as any });
         wasmInitialized = true;
+        logInit('initialized from URL candidate');
         return;
       } catch (err) {
         lastError = err;
+        logInit(`failed URL candidate: ${candidate.toString()} (${(err as Error)?.message || String(err)})`);
       }
     }
 

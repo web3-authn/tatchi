@@ -25,6 +25,11 @@ type ShamirModuleSupplier =
 export function configureCloudflareShamirWasm(
   override: ShamirModuleSupplier | null
 ): void {
+  try {
+    const kind = override === null ? 'null' : typeof override;
+    // eslint-disable-next-line no-console
+    console.log(`[CloudflareRouter] configureCloudflareShamirWasm override kind=${kind}`);
+  } catch {}
   setShamirWasmModuleOverride(override);
 }
 
