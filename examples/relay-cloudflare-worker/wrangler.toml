@@ -3,6 +3,20 @@ main = "src/worker.ts"
 compatibility_date = "2024-09-24"
 compatibility_flags = ["nodejs_compat"]
 
+# Use custom esbuild configuration for WASM modules
+[build]
+command = ""
+
+[build.custom_build]
+# Tell esbuild to use binary loader for WASM
+esbuild_config = "esbuild.config.js"
+
+# Configure module rules for WASM imports
+[[rules]]
+type = "CompiledWasm"
+globs = ["**/*.wasm"]
+fallthrough = true
+
 # Default inactive; add a cron schedule here when you enable rotation or heartbeats.
 [triggers]
 crons = []

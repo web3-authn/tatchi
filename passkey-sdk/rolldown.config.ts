@@ -44,6 +44,9 @@ const external = [
   'tslib',
   // UI libs used by React components should be provided by the app bundler
   'lucide-react',
+
+  // WASM modules - externalize so bundlers handle them correctly
+  /\.wasm$/,
 ];
 
 // External dependencies for embedded components.
@@ -171,6 +174,64 @@ export default defineConfig([
       dir: `${BUILD_PATHS.BUILD.CJS}/server/router`,
       format: 'cjs',
       entryFileNames: 'cloudflare.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // WASM signer re-export ESM
+  {
+    input: 'src/server/wasm/signer.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/server/wasm`,
+      format: 'esm',
+      entryFileNames: 'signer.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // WASM signer re-export CJS
+  {
+    input: 'src/server/wasm/signer.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/server/wasm`,
+      format: 'cjs',
+      entryFileNames: 'signer.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // WASM VRF re-export ESM
+  {
+    input: 'src/server/wasm/vrf.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/server/wasm`,
+      format: 'esm',
+      entryFileNames: 'vrf.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // WASM VRF re-export CJS
+  {
+    input: 'src/server/wasm/vrf.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/server/wasm`,
+      format: 'cjs',
+      entryFileNames: 'vrf.js',
       sourcemap: true,
       exports: 'named',
     },

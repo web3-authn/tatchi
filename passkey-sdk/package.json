@@ -32,8 +32,16 @@
       "require": "./dist/cjs/server/router/cloudflare.js",
       "types": "./dist/types/src/server/router/cloudflare-adaptor.d.ts"
     },
-    "./server/wasm/signer": "./dist/workers/wasm_signer_worker_bg.wasm",
-    "./server/wasm/vrf": "./dist/workers/wasm_vrf_worker_bg.wasm",
+    "./server/wasm/signer": {
+      "import": "./dist/esm/server/wasm/signer.js",
+      "require": "./dist/cjs/server/wasm/signer.js",
+      "types": "./dist/types/src/server/wasm/signer.d.ts"
+    },
+    "./server/wasm/vrf": {
+      "import": "./dist/esm/server/wasm/vrf.js",
+      "require": "./dist/cjs/server/wasm/vrf.js",
+      "types": "./dist/types/src/server/wasm/vrf.d.ts"
+    },
     "./react": {
       "import": "./dist/esm/react/index.js",
       "require": "./dist/cjs/react/index.js",
