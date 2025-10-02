@@ -283,9 +283,9 @@ export const LIGHT_THEME = {
   textMuted: GREY_COLORS.grey350,
 
   colorBackground: GREY_COLORS.grey50,
-  surface: GREY_COLORS.slate150,
-  surface2: GREY_COLORS.slate200,
-  surface3: GREY_COLORS.slate250,
+  surface: GREY_COLORS.slate100,
+  surface2: GREY_COLORS.slate150,
+  surface3: GREY_COLORS.slate200,
 
   // Canonical palette aliases (align with React tokens)
   primary: CHROMA_COLORS.blue500,
