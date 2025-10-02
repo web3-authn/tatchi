@@ -411,6 +411,7 @@
     padding: 1rem;
     padding-top: calc(1rem + 4px);
     border-radius: 2rem;
+    max-width: calc(100vw - 0.5rem);
   }
 
   .w3a-title {
