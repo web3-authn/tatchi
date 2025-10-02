@@ -27,20 +27,16 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
-      // Web3Authn dev integration: serves SDK, wallet service route, WASM MIME.
+      // Web3Authn dev integration: serves SDK, wallet service route, WASM MIME, and sets dev headers
       web3authnDev({
         mode: 'self-contained',
-        setDevHeaders: false,
         enableDebugRoutes: true,
         // Read SDK base path so dev mirrors production asset layout
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         // Keep wallet service path consistent with env
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
+        walletOrigin: env.VITE_WALLET_ORIGIN,
       }),
-      // SDK dev headers middleware (COOP/COEP + Permissions-Policy delegating WebAuthn)
-      // Enable this if your proxy (e.g., Caddy) is not already setting these headers.
-      // No fallback for wallet origin to avoid masking missing env vars.
-      web3authnDevHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
       // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and
       // a Permissions-Policy delegating WebAuthn to the wallet origin.
       // If your CI already writes a _headers file, this plugin will no-op.

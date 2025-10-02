@@ -20,12 +20,11 @@ export default defineConfig({
       // Allow serving files from the repo (linked workspace)
       allow: ['..', '../..']
     },
-    // headers: Managed by Caddy in Caddyfile
   },
   plugins: [
     react(),
-    // Serve SDK assets from workspace/node_modules at /sdk
-    web3authnDev({ mode: 'self-contained', setDevHeaders: false }),
+    // Serve SDK assets and set dev headers (COEP/COOP) for wallet iframe
+    web3authnDev({ mode: 'self-contained' }),
   ],
   define: {
     // Shim minimal globals some legacy/browserified deps expect

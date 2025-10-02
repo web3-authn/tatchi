@@ -1,31 +1,14 @@
-# App (Vite dev server)
+# App (Vite dev server) - headers set by Vite plugin
 example.localhost {
 	tls internal
 	encode gzip
-	header {
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		# Allow WebAuthn in this app and delegate to wallet origin iframe; include clipboard for export UI
-		Permissions-Policy "publickey-credentials-get=(self \"https://wallet.example.localhost\"), publickey-credentials-create=(self \"https://wallet.example.localhost\"), clipboard-read=(self \"https://wallet.example.localhost\"), clipboard-write=(self \"https://wallet.example.localhost\")"
-		# Allow embedding of cross-origin resources that opt into CORP
-		Cross-Origin-Resource-Policy "same-origin"
-	}
 	reverse_proxy localhost:5174
 }
 
-# Wallet host (placeholder for dedicated wallet dev server)
+# Wallet host (self-contained mode - shares same Vite server) - headers set by Vite plugin
 wallet.example.localhost {
 	tls internal
 	encode gzip
-	header {
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		# Wallet host can use WebAuthn and clipboard locally (nested iframes will be delegated explicitly)
-		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)"
-		# Opt in all wallet resources to cross-origin embedding from the app origin
-		Cross-Origin-Resource-Policy "cross-origin"
-	}
-	# If you run a wallet dev server on 5174, proxy here
 	reverse_proxy localhost:5174
 }
 

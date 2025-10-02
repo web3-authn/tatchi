@@ -144,6 +144,9 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
 
         try {
           setContentType(res, candidate)
+          // SDK assets need COEP headers to work in wallet iframe with COEP enabled
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
           const stream = fs.createReadStream(candidate)
           stream.on('error', () => next())
           stream.pipe(res)

@@ -2,7 +2,7 @@
 	debug
 }
 
-# App (Vite dev server)
+# App (Vite dev server) - headers set by Vite plugin
 example.localhost {
 	tls internal
 	encode gzip
@@ -10,16 +10,10 @@ example.localhost {
 		output stdout
 		format console
 	}
-	header {
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		# Allow WebAuthn in this app and delegate to wallet origin iframe
-		Permissions-Policy "publickey-credentials-get=(self \"https://wallet.example.localhost\"), publickey-credentials-create=(self \"https://wallet.example.localhost\")"
-	}
 	reverse_proxy localhost:5173
 }
 
-# Wallet host (placeholder for dedicated wallet dev server)
+# Wallet host (self-contained mode - shares same Vite server) - headers set by Vite plugin
 wallet.example.localhost {
 	tls internal
 	encode gzip
@@ -27,13 +21,7 @@ wallet.example.localhost {
 		output stdout
 		format console
 	}
-	header {
-		Cross-Origin-Embedder-Policy "require-corp"
-		Cross-Origin-Opener-Policy "same-origin"
-		Permissions-Policy "publickey-credentials-get=(self), publickey-credentials-create=(self)"
-	}
-	# If you run a wallet dev server on 5174, proxy here
-	reverse_proxy localhost:5174
+	reverse_proxy localhost:5173
 }
 
 # Relay server on separate origin
