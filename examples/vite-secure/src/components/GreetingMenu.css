@@ -71,7 +71,7 @@
 }
 
 .webauthn-contract-link a {
-  color: #2E54D3;
+  color: var(--fe-primary);
   text-decoration: none;
   font-weight: 500;
 }
@@ -86,7 +86,7 @@
   align-items: center;
   gap: var(--fe-gap-3);
   padding: var(--fe-gap-2);
-  background: #f8fafc;
+  background: var(--fe-bg-secondary);
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-sm);
   margin-bottom: var(--fe-gap-2);
@@ -133,8 +133,8 @@
   padding: var(--fe-gap-3) var(--fe-gap-4);
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-sm);
-  background-color: var(--fe-bg-dark-3);
-  color: var(--slate-grey-200);
+  background-color: var(--fe-input-bg);
+  color: var(--fe-input-text);
   font-size: 0.9rem;
   font-family: var(--fe-font-sans);
   transition: all var(--fe-fast) var(--fe-ease);
@@ -143,11 +143,11 @@
 .greeting-input-group input:focus {
   outline: none;
   border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
 }
 
 .greeting-input-group input::placeholder {
-  color: var(--fe-text-dim);
+  color: var(--fe-input-placeholder);
 }
 
 /* Transfer Section */
@@ -176,19 +176,19 @@
   border-radius: var(--fe-radius-sm);
   font-size: 0.9rem;
   font-family: var(--fe-font-sans);
-  background-color: var(--fe-bg-dark-3);
-  color: var(--slate-grey-200);
+  background-color: var(--fe-input-bg);
+  color: var(--fe-input-text);
   transition: all var(--fe-fast) var(--fe-ease);
 }
 
 .transfer-input-group input:focus {
   outline: none;
   border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
 }
 
 .transfer-input-group input::placeholder {
-  color: var(--fe-text-dim);
+  color: var(--fe-input-placeholder);
 }
 
 /* Button System */
@@ -220,39 +220,39 @@
 }
 
 .greeting-btn-primary:disabled {
-  background: #718096;
-  color: white;
+  background: var(--fe-input-bg);
+  color: var(--fe-input-placeholder);
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
 }
 
 .greeting-btn-secondary {
-  background: #6F8DDF;
+  background: var(--cobalt-light);
   color: white;
-  border: 1px solid #6F8DDF;
+  border: 1px solid var(--cobalt-light);
 }
 
 .greeting-btn-secondary:hover:not(:disabled) {
-  background: #99AEE8;
+  background: var(--cobalt-lighter);
   color: white;
-  border-color: #99AEE8;
+  border-color: var(--cobalt-lighter);
 }
 
 .greeting-btn-secondary:disabled {
-  background: #718096;
-  color: white;
+  background: var(--fe-input-bg);
+  color: var(--fe-input-placeholder);
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 /* Error Message */
 .error-message {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--fe-error-bg);
+  border: 1px solid var(--fe-error);
   border-radius: var(--fe-radius-sm);
   padding: var(--fe-gap-3);
-  color: #dc2626;
+  color: var(--fe-error);
   font-size: 0.9rem;
   margin-top: var(--fe-gap-4);
 }
@@ -293,7 +293,7 @@
 }
 
 .greeting-focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.18);
+  box-shadow: 0 0 0 3px var(--cobalt-focus);
   border-color: var(--fe-border-strong);
 }
 
@@ -323,15 +323,15 @@
 }
 
 .greeting-container-root::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: var(--fe-bg-secondary);
   border-radius: 3px;
 }
 
 .greeting-container-root::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: var(--fe-border-strong);
   border-radius: 3px;
 }
 
 .greeting-container-root::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+  background: var(--fe-text-secondary);
 }

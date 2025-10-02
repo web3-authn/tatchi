@@ -159,10 +159,10 @@
 
 /* Loading State */
 .embedded-tx-loading {
-  background: #e8f5e8;
+  background: var(--fe-success-bg);
   padding: var(--fe-gap-3);
   border-radius: var(--fe-radius-sm);
-  color: #2d5a2d;
+  color: var(--fe-text-primary);
   display: flex;
   align-items: center;
   gap: var(--fe-gap-3);
@@ -171,7 +171,7 @@
 .embedded-tx-spinner {
   width: 16px;
   height: 16px;
-  border: 2px solid #2d5a2d;
+  border: 2px solid var(--fe-success);
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -184,10 +184,10 @@
 
 /* Success State */
 .embedded-tx-success {
-  background: #e8f5e8;
+  background: var(--fe-success-bg);
   padding: var(--fe-gap-3);
   border-radius: var(--fe-radius-sm);
-  color: #2d5a2d;
+  color: var(--fe-text-primary);
 }
 
 .embedded-tx-success pre {
@@ -200,10 +200,10 @@
 
 /* Error State */
 .embedded-tx-error {
-  background: #ffe8e8;
+  background: var(--fe-error-bg);
   padding: var(--fe-gap-3);
   border-radius: var(--fe-radius-sm);
-  color: #5a2d2d;
+  color: var(--fe-text-primary);
 }
 
 .embedded-tx-error pre {

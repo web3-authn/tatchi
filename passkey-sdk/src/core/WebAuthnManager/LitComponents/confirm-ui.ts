@@ -6,9 +6,10 @@ import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/ty
 import { isBoolean } from '../../WalletIframe/validation';
 import type IframeModalHost from './IframeTxConfirmer/iframe-host';
 
-// Ensure the modal element is defined when this bundle is loaded in an iframe
-// The drawer variant is imported by the iframe bootstrap script.
+// Ensure host-rendered elements are defined when this bundle loads.
+// Modal is used broadly; Drawer is required for registration flows and on Safari/iOS.
 import './IframeTxConfirmer/viewer-modal';
+import './IframeTxConfirmer/viewer-drawer';
 
 // Small helper to keep a host element's error attribute in sync
 function setErrorAttribute(el: HTMLElement, msg: string): void {

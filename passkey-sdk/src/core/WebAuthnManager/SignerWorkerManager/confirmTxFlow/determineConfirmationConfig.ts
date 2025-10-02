@@ -2,6 +2,7 @@ import type { ConfirmationConfig } from '../../../types/signer-worker';
 import type { SignerWorkerManagerContext } from '../index';
 import type { SecureConfirmRequest } from './types';
 import { SecureConfirmationType } from './types';
+import { needsExplicitActivation } from '@/utils';
 
 /**
  * determineConfirmationConfig
@@ -56,6 +57,21 @@ export function determineConfirmationConfig(
     try { return window.self !== window.top; } catch { return true; }
   })();
 
+  // On Safari/iOS or mobile devices without a fresh user activation,
+  // clamp to a clickable UI to reliably satisfy WebAuthn requirements.
+  // - If caller/user set uiMode: 'skip', promote to 'modal' + requireClick
+  // - If behavior is 'autoProceed', upgrade to 'requireClick'
+  try {
+    if (needsExplicitActivation()) {
+      const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'skip') ? 'drawer' : cfg.uiMode;
+      cfg = {
+        ...cfg,
+        uiMode: newUiMode,
+        behavior: 'requireClick',
+      } as ConfirmationConfig;
+    }
+  } catch {}
+
   // In wallet‑iframe host context: registration/link flows default to an explicit click.
   // However, if the effective config explicitly opts into auto‑proceed (or skip), honor it.
   if (
@@ -63,18 +79,24 @@ export function determineConfirmationConfig(
     request?.type &&
     (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
   ) {
-    // If the request explicitly provided a confirmationConfig, honor it as-is
-    if (hasOverride) {
-      return cfg;
-    } else {
-      // Otherwise, default to a safe modal that requires a click
+    // On Safari/iOS/mobile or when activation is likely missing, force a Drawer + requireClick
+    // so the click lands inside the wallet iframe and satisfies activation for create().
+    if (needsExplicitActivation()) {
       return {
-        uiMode: 'modal',
+        uiMode: 'drawer',
         behavior: 'requireClick',
         autoProceedDelay: cfg.autoProceedDelay,
         theme: cfg.theme || 'dark',
       } as ConfirmationConfig;
     }
+    // Otherwise, honor explicit override if provided; else default to safe Modal + requireClick
+    if (hasOverride) return cfg;
+    return {
+      uiMode: 'modal',
+      behavior: 'requireClick',
+      autoProceedDelay: cfg.autoProceedDelay,
+      theme: cfg.theme || 'dark',
+    } as ConfirmationConfig;
   }
 
   // Otherwise honor caller/user configuration

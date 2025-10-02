@@ -134,7 +134,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   }
                 }}
                 buttonStyle={{
-                  background: '#0353A4', // cobalt-primary
+                  background: 'var(--cobalt-primary)',
                   borderRadius: '24px',
                   border: 'none',
                   transition: 'all 0.3s ease',
@@ -143,7 +143,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   height: '44px',
                 }}
                 buttonHoverStyle={{
-                  background: '#0466c8', // cobalt-primary-hover
+                  background: 'var(--cobalt-primary-hover)',
                   boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
                 }}
                 tooltipPosition={{
@@ -151,8 +151,7 @@ export const EmbeddedTxConfirmPage: React.FC = () => {
                   height: 'auto',
                   position: 'bottom-left'
                 }}
-                txTreeTheme="light"
-                // txTreeTheme="dark"
+                /* Theme follows ThemeProvider via SecureSendTxButton */
                 buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
                 onCancel={handleCancel}
                 onSuccess={(result) => {

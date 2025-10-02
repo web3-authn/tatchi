@@ -111,8 +111,8 @@
   border-radius: var(--fe-radius-sm);
   font-size: var(--fe-text-sm);
   font-family: var(--fe-font-sans);
-  background: var(--fe-bg-dark-3);
-  color: var(--slate-grey-200);
+  background: var(--fe-input-bg);
+  color: var(--fe-input-text);
   transition: all var(--fe-fast) var(--fe-ease);
   display: block;
   box-sizing: border-box;
@@ -131,8 +131,8 @@
 
 /* Modal TX Input with Dark Background */
 .modal-tx-input {
-  background: var(--fe-bg-dark-3);
-  color: var(--slate-grey-200);
+  background: var(--fe-input-bg);
+  color: var(--fe-input-text);
   border: 1px solid var(--fe-border);
   border-radius: 8px;
   padding: 12px 16px;
@@ -147,23 +147,23 @@
   outline: none;
   border-color: var(--cobalt-primary);
   box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
-  background: var(--fe-bg-dark-3);
+  background: var(--fe-input-bg);
 }
 
 .modal-tx-input::placeholder {
-  color: var(--slate-grey-200);
+  color: var(--fe-input-placeholder);
   opacity: 0.8;
 }
 
 .modal-tx-input:hover {
   border-color: var(--fe-border-strong);
-  background: var(--fe-bg-dark-3);
+  background: var(--fe-input-bg);
 }
 
 /* Button Styles */
 .action-section button {
   background: var(--cobalt-primary);
-  color: var(--slate-grey-200);
+  color: white;
   border: none;
   border-radius: var(--fe-radius-sm);
   padding: var(--fe-gap-3) var(--fe-gap-4);
@@ -184,7 +184,7 @@
 
 .action-section button:hover {
   background: var(--cobalt-primary);
-  color: var(--slate-grey-200);
+  color: white;
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
 }
@@ -201,8 +201,8 @@
 }
 
 .action-section button:disabled {
-  background: var(--fe-bg-dark-3);
-  color: var(--slate-grey-200);
+  background: var(--fe-input-bg);
+  color: var(--fe-input-placeholder);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
@@ -234,7 +234,7 @@
 /* Button Variants */
 .button--primary {
   background: var(--cobalt-primary);
-  color: var(--slate-grey-200);
+  color: white;
 }
 
 .button--primary:hover:not(:disabled) {
@@ -256,18 +256,18 @@
 
 .button--secondary:hover:not(:disabled) {
   background: var(--cobalt-primary);
-  color: var(--slate-grey-200);
+  color: white;
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
 }
 
 .button--danger {
-  background: #ef4444;
+  background: var(--fe-error);
   color: white;
 }
 
 .button--danger:hover:not(:disabled) {
-  background: #dc2626;
+  background: var(--fe-error);
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
 }
@@ -331,16 +331,16 @@
 
 .action-section button.is-secondary:hover {
   background: var(--cobalt-primary);
-  color: var(--slate-grey-200);
+  color: white;
 }
 
 .action-section button.is-danger {
-background: var(--fe-error);
+  background: var(--fe-error);
   color: white;
 }
 
 .action-section button.is-danger:hover {
-  background: #ef4444;
+  background: var(--fe-error);
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(239, 68, 68, 0.3);
 }

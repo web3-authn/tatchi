@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
+import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@web3authn/passkey/react';
 import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
@@ -16,6 +16,15 @@ import { ToasterThemed } from './components/ToasterThemed';
 const env = import.meta.env;
 
 function App() {
+  // Mirror theme onto <body> so overscroll shows correct background
+  const BodyThemeSync: React.FC = () => {
+    const { theme } = useTheme();
+    React.useEffect(() => {
+      try { document.body.setAttribute('data-w3a-theme', theme); } catch {}
+    }, [theme]);
+    return null;
+  };
+
   return (
     <BrowserRouter>
       <ThemeProvider>
@@ -39,13 +48,16 @@ function App() {
             },
           }}
         >
-          <Navbar />
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
-            <Route path="/multitx" element={<MultiTxConfirmPage/>} />
-          </Routes>
-          <ToasterThemed />
+          <ThemeScope as="div" className="app-theme-scope">
+            <BodyThemeSync />
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
+              <Route path="/multitx" element={<MultiTxConfirmPage/>} />
+            </Routes>
+            <ToasterThemed />
+          </ThemeScope>
         </PasskeyProvider>
       </ThemeProvider>
     </BrowserRouter>

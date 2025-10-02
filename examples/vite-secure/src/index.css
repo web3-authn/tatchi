@@ -3,11 +3,7 @@
   line-height: 1.6;
   font-weight: 400;
 
-  background-color: #fafafa;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d7d7d7' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-
-  color-scheme: light;
-  color: #333333;
+  /* Global defaults kept minimal; ThemeScope handles background & text */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -92,6 +88,68 @@
   --fe-med: 400ms;
 }
 
+/*
+  ThemeScope-driven variable mapping
+  - ThemeProvider + ThemeScope expose design tokens as CSS variables with the `--w3a-` prefix
+  - Map existing `--fe-*` variables to `--w3a-*` so the app styles respond to light/dark
+*/
+.app-theme-scope {
+  /* Ensure default text/background derive from theme */
+  color: var(--fe-text);
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding-top: calc(65px + 0.5rem); /* 65px + 8px (nav bar height + margin-top) */
+
+  /* Colors */
+  --fe-primary: var(--w3a-colors-primary);
+  --fe-primary-hover: var(--w3a-colors-primaryHover);
+  --fe-bg: var(--w3a-colors-colorBackground);
+  --fe-surface: var(--w3a-colors-surface);
+  --fe-surface-solid: var(--w3a-colors-surface2);
+  --fe-text: var(--w3a-colors-textPrimary);
+  --fe-text-primary: var(--w3a-colors-textPrimary);
+  --fe-text-secondary: var(--w3a-colors-textSecondary);
+  --fe-text-dim: var(--w3a-colors-textSecondary);
+  --fe-border: var(--w3a-colors-borderPrimary);
+  --fe-border-strong: var(--w3a-colors-borderHover);
+  --fe-shadow: var(--w3a-shadows-sm);
+  --fe-shadow-strong: var(--w3a-shadows-md);
+  --fe-bg-secondary: var(--w3a-colors-surface2);
+  --fe-bg-tertiary: var(--w3a-colors-surface3);
+
+  /* Inputs */
+  --fe-input-bg: var(--w3a-colors-surface3);
+  --fe-input-text: var(--w3a-colors-textPrimary);
+  --fe-input-placeholder: var(--w3a-colors-textSecondary);
+
+  /* Status */
+  --fe-error: var(--w3a-colors-error);
+  --fe-success: var(--w3a-colors-success);
+
+  /* Focus ring (fallback to token focus) */
+  --cerulean-focus: var(--w3a-colors-focus);
+}
+
+.app-theme-scope[data-w3a-theme="light"] {
+  /* Tinted status backgrounds (light) */
+  --fe-success-bg: #e8f5e8;
+  --fe-error-bg: #ffe8e8;
+  /* Light patterned background */
+  background-color: #fafafa;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d1d5db' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+.app-theme-scope[data-w3a-theme="dark"] {
+  /* Tinted status backgrounds (dark) */
+  --fe-success-bg: #14321b;
+  --fe-error-bg: #3a1414;
+  /* Dark subtle grid background */
+  background-color: #21212a; /* slate grey 900 */
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a3a3a3' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
 a {
   font-weight: 500;
   color: var(--fe-primary);
@@ -103,7 +161,23 @@ a:hover {
 
 body {
   margin: 0;
-  color: #333333;
+  color: var(--fe-text);
+  background: transparent;
+}
+
+html, body, #root, .app-theme-scope {
+  min-height: 100dvh;
+}
+
+/* Mirror themed background to <body> to handle overscroll bounce */
+body[data-w3a-theme="light"] {
+  background-color: #fafafa;
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d1d5db' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+}
+
+body[data-w3a-theme="dark"] {
+  background-color: #0f172a; /* slate grey 900 */
+  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a3a3a3' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
 
 * {
@@ -113,7 +187,7 @@ body {
 h1 {
   font-size: 2.5rem;
   line-height: 1.2;
-  color: #1a1a1a;
+  color: var(--fe-text-primary);
   font-weight: 600;
 }
 
@@ -136,23 +210,11 @@ h4 {
   margin-top: 0.5rem;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
-}
+/* Theme is driven by ThemeScope; avoid color-scheme media overrides */
 
 #root {
   max-width: 1280px;
   margin: 0 auto;
-  padding-top: calc(65px + 0.5rem); /* 65px + 8px (nav bar height + margin-top) */
 }
 
 main {
@@ -191,7 +253,7 @@ button {
 }
 
 nav {
-  background-color: #f0f0f0;
+  background-color: var(--w3a-colors-surface2);
   padding: 1rem;
 }
 
@@ -209,31 +271,31 @@ nav ul li {
 
 nav ul li a {
   text-decoration: none;
-  color: #333;
+  color: var(--fe-text-primary);
   font-weight: bold;
 }
 
 nav ul li a:hover {
-  color: #007bff;
+  color: var(--fe-primary-hover);
 }
 
 .input-field {
     width: 100%;
     padding: 0.75rem 1rem;
     margin-bottom: 1.5rem;
-    border: 1px solid #e0e0e0;
+    border: 1px solid var(--fe-border);
     border-radius: 8px;
     font-size: 1rem;
-    background-color: #ffffff;
-    color: #333333;
+    background-color: var(--fe-surface-solid);
+    color: var(--fe-text);
     box-sizing: border-box;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .error-message {
-    color: #dc3545;
-    background-color: #f8d7da;
-    border-color: #f5c6cb;
+    color: var(--fe-error);
+    background-color: var(--fe-error-bg);
+    border-color: var(--fe-error);
     padding: .75rem 1.25rem;
     margin-top: 1rem;
     border: 1px solid transparent;
@@ -241,9 +303,9 @@ nav ul li a:hover {
 }
 
 .info-message {
-    color: #166534;
-    background-color: #f0fdf4;
-    border: 1px solid #bbf7d0;
+    color: var(--fe-success);
+    background-color: var(--fe-success-bg);
+    border: 1px solid var(--fe-success);
     padding: 1rem 1.25rem;
     margin-top: 1rem;
     border-radius: 8px;
