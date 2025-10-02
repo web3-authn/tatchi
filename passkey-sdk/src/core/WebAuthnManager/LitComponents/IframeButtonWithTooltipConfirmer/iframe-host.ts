@@ -180,6 +180,10 @@ export class IframeButtonHost extends LitElementWithProps {
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private hostRef: Ref<HTMLDivElement> = createRef();
   private tooltipVisible: boolean = false;
+  // Robustness: handle rare races where embedded bundles base isn't set yet
+  private etxDefinedReceived = false;
+  private initRetryTimer: number | undefined;
+  private initAttempts = 0;
   private onDocPointerDown = (ev: PointerEvent) => {
     // Click-away to close tooltip when visible
     if (!this.tooltipVisible) return;
@@ -543,6 +547,8 @@ export class IframeButtonHost extends LitElementWithProps {
           return;
         case 'ETX_DEFINED':
           // The embedded element is fully upgraded; send initial state now
+          this.etxDefinedReceived = true;
+          if (this.initRetryTimer) { try { clearTimeout(this.initRetryTimer); } catch {} this.initRetryTimer = undefined; }
           this.postInitialStateToIframe();
           return;
         case 'HS2_POSITIONED':
@@ -588,6 +594,16 @@ export class IframeButtonHost extends LitElementWithProps {
           // Apply optimistic clip-path immediately to prevent blocking clicks
           // This will be replaced once HS5_GEOMETRY_RESULT is received
           this.applyOptimisticClipPath();
+          // If the embedded element never upgrades (e.g., wrong base path at first paint),
+          // retry once after a short delay using the latest embedded base.
+          this.etxDefinedReceived = false;
+          if (this.initRetryTimer) { try { clearTimeout(this.initRetryTimer); } catch {} }
+          this.initRetryTimer = window.setTimeout(() => {
+            if (!this.etxDefinedReceived && this.initAttempts < 1) {
+              this.initAttempts += 1;
+              try { this.forceIframeReinitialize(); } catch {}
+            }
+          }, 1500);
           return;
         case 'CONFIRM':
           this.handleConfirm();
