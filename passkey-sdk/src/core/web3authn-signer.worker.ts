@@ -151,6 +151,37 @@ try {
 } catch (_) { /* ignore */ }
 
 /**
+ * Maps a WorkerRequestType to its corresponding failure response type
+ */
+function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseType {
+  switch (requestType) {
+    case WorkerRequestType.DeriveNearKeypairAndEncrypt:
+      return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
+    case WorkerRequestType.RecoverKeypairFromPasskey:
+      return WorkerResponseType.RecoverKeypairFromPasskeyFailure;
+    case WorkerRequestType.CheckCanRegisterUser:
+      return WorkerResponseType.CheckCanRegisterUserFailure;
+    case WorkerRequestType.DecryptPrivateKeyWithPrf:
+      return WorkerResponseType.DecryptPrivateKeyWithPrfFailure;
+    case WorkerRequestType.SignTransactionsWithActions:
+      return WorkerResponseType.SignTransactionsWithActionsFailure;
+    case WorkerRequestType.ExtractCosePublicKey:
+      return WorkerResponseType.ExtractCosePublicKeyFailure;
+    case WorkerRequestType.SignTransactionWithKeyPair:
+      return WorkerResponseType.SignTransactionWithKeyPairFailure;
+    case WorkerRequestType.SignNep413Message:
+      return WorkerResponseType.SignNep413MessageFailure;
+    case WorkerRequestType.RegistrationCredentialConfirmation:
+      return WorkerResponseType.RegistrationCredentialConfirmationFailure;
+    case WorkerRequestType.ExportNearKeypairUI:
+      return WorkerResponseType.ExportNearKeypairUiFailure;
+    default:
+      // Fallback for unknown request types
+      return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
+  }
+}
+
+/**
  * Process a WASM worker message (main operation)
  */
 async function processWorkerMessage(event: MessageEvent): Promise<void> {
@@ -168,8 +199,13 @@ async function processWorkerMessage(event: MessageEvent): Promise<void> {
     self.close();
   } catch (error: any) {
     console.error('[signer-worker]: Message processing failed:', error);
+    // Determine the correct failure response type based on the request type
+    const failureType = typeof event.data?.type === 'number'
+      ? getFailureResponseType(event.data.type)
+      : WorkerResponseType.DeriveNearKeypairAndEncryptFailure; // Fallback for invalid requests
+
     self.postMessage({
-      type: WorkerResponseType.DeriveNearKeypairAndEncryptFailure,
+      type: failureType,
       payload: {
         error: errorMessage(error),
         context: { type: event.data.type }
@@ -195,9 +231,15 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
 
   // Handle different message types explicitly
   switch (true) {
-    case !messageProcessed:
-      // Case 1: First message - process as normal worker operation
+    case !messageProcessed && typeof eventType === 'number':
+      // Case 1: First message with numeric type - process as normal worker operation
       await processWorkerMessage(event);
+      break;
+
+    case !messageProcessed && typeof eventType !== 'number':
+      // Case 1b: First message but non-numeric type - ignore control messages
+      // This prevents control pings or invalid messages from being forwarded to Rust
+      console.warn('[signer-worker]: Ignoring message with non-numeric type:', eventType);
       break;
 
     case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
