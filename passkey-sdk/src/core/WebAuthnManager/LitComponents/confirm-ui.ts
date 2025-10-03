@@ -6,9 +6,27 @@ import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/ty
 import { isBoolean } from '../../WalletIframe/validation';
 import type IframeModalHost from './IframeTxConfirmer/iframe-host';
 
+// Minimal host element interface for modal/drawer variants used directly in the host document
+// These elements mirror the properties set by our mounting helpers
+interface HostTxConfirmerElement extends HTMLElement {
+  nearAccountId: string;
+  txSigningRequests: TransactionInputWasm[];
+  intentDigest?: string;
+  vrfChallenge?: VRFChallenge;
+  theme?: 'dark' | 'light';
+  loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
+  deferClose?: boolean;   // two‑phase close coordination
+  errorMessage?: string;
+  requestUpdate?: () => void; // Lit element update hook (optional)
+}
+
 // Ensure the modal element is defined when this bundle is loaded in an iframe
 // The drawer variant is imported by the iframe bootstrap script.
 import './IframeTxConfirmer/viewer-modal';
+
+// ===== Config =====
+const HOST_BUNDLE_TIMEOUT_MS = 8000;
+const DEFINITION_POLL_MS = 50;
 
 // Small helper to keep a host element's error attribute in sync
 function setErrorAttribute(el: HTMLElement, msg: string): void {
@@ -23,26 +41,103 @@ function setErrorAttribute(el: HTMLElement, msg: string): void {
 
 // ========= Iframe Modal helpers =========
 async function ensureIframeModalDefined(): Promise<void> {
-if (customElements.get(W3A_IFRAME_TX_CONFIRMER_ID)) return;
+  // If already defined, we are good.
+  if (isIframeModalDefined()) return;
+
+  const base = embeddedBase();
+  const url = `${base}${W3A_IFRAME_TX_CONFIRMER_ID}.js`;
+
+  // Prefer a direct dynamic import (works well across browsers) with a timeout.
+  // If it fails for any reason (pathing, CSP, or fetch), fall back to an injected script tag
+  // with load/error listeners and a timeout + polling for the customElements definition.
+  try {
+    // @vite-ignore to avoid Vite pre-bundling the runtime-computed path
+    await withTimeout(import(/* @vite-ignore */ url), HOST_BUNDLE_TIMEOUT_MS);
+    if (isIframeModalDefined()) return;
+  } catch {
+    // Fallback to script tag injection if dynamic import fails
+  }
+
   await new Promise<void>((resolve, reject) => {
-  const existing = document.querySelector(`script[data-w3a="${W3A_IFRAME_TX_CONFIRMER_ID}"]`) as HTMLScriptElement | null;
+    let settled = false;
+    const done = (ok: boolean, err?: unknown) => { if (settled) return; settled = true; ok ? resolve() : reject(err); };
+
+    const existing = document.querySelector(`script[data-w3a="${W3A_IFRAME_TX_CONFIRMER_ID}"]`) as HTMLScriptElement | null;
+
+    const stopWhenDefined = () => {
+      try { if (isIframeModalDefined()) done(true); } catch {}
+    };
+
+    // Hard timeout to avoid hanging indefinitely if the browser never fires load/error
+    const timeoutId = window.setTimeout(() => {
+      try { if (isIframeModalDefined()) return done(true); } catch {}
+      console.error('[LitComponents/confirm-ui] Iframe modal host bundle load timeout', url);
+      done(false, new Error('iframe modal host bundle load timeout'));
+    }, HOST_BUNDLE_TIMEOUT_MS);
+    const clearTimer = () => { try { clearTimeout(timeoutId); } catch {} };
+
+    // If a tag already exists, attach listeners and also poll for definition (in case it is already cached)
     if (existing) {
-      existing.addEventListener('load', () => resolve(), { once: true });
-      existing.addEventListener('error', (e) => reject(e), { once: true });
+      const pollId = window.setInterval(() => {
+        if (isIframeModalDefined()) {
+          try { clearInterval(pollId); } catch {}
+          clearTimer();
+          done(true);
+        }
+      }, DEFINITION_POLL_MS);
+      const stopPoll = () => { try { clearInterval(pollId); } catch {} };
+      existing.addEventListener('load', () => {
+        stopPoll();
+        clearTimer();
+        stopWhenDefined();
+      }, { once: true });
+      existing.addEventListener('error', (e) => {
+        stopPoll();
+        clearTimer();
+        done(false, e);
+      }, { once: true });
       return;
     }
-    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__ || '/sdk/';
+
+    // Otherwise, create a fresh module script tag
     const script = document.createElement('script');
     script.type = 'module';
     script.async = true;
-  script.dataset.w3a = W3A_IFRAME_TX_CONFIRMER_ID;
-  script.src = `${base}${W3A_IFRAME_TX_CONFIRMER_ID}.js`;
-    script.onload = () => resolve();
+    script.dataset.w3a = W3A_IFRAME_TX_CONFIRMER_ID;
+    script.src = url;
+    script.onload = () => {
+      clearTimer();
+      stopWhenDefined();
+    };
     script.onerror = (e) => {
       console.error('[LitComponents/confirm-ui] Failed to load iframe modal host bundle', script.src);
-      reject(e);
+      clearTimer();
+      done(false, e);
     };
     document.head.appendChild(script);
+  });
+}
+
+// Helper: check custom element definition
+function isIframeModalDefined(): boolean {
+  return !!customElements.get(W3A_IFRAME_TX_CONFIRMER_ID);
+}
+
+// Helper: return embedded base path (set by host script) or default '/sdk/'
+function embeddedBase(): string {
+  try {
+    const base = (window as unknown as { __W3A_EMBEDDED_BASE__?: string }).__W3A_EMBEDDED_BASE__;
+    return base || '/sdk/';
+  } catch {
+    return '/sdk/';
+  }
+}
+
+// Generic promise timeout
+function withTimeout<T>(p: Promise<T>, ms = HOST_BUNDLE_TIMEOUT_MS): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error('timeout')), ms);
+    p.then((v) => { clearTimeout(id); resolve(v); }, (e) => { clearTimeout(id); reject(e); });
   });
 }
 
@@ -121,10 +216,15 @@ async function mountHostUiWithHandle({
   await ensureHostElementDefined(v);
   cleanupExistingConfirmers();
   const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRMER_ID : W3A_MODAL_TX_CONFIRMER_ID;
-  const el = document.createElement(tag) as any;
+  const el = document.createElement(tag) as HostTxConfirmerElement;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
-  el.intentDigest = summary?.intentDigest;
+  // Only enable UI digest validation for transaction-signing flows where txs exist.
+  // Registration/link and other non-tx flows should not set intentDigest to avoid
+  // spurious INTENT_DIGEST_MISMATCH on confirm.
+  if ((txSigningRequests?.length || 0) > 0) {
+    el.intentDigest = summary?.intentDigest;
+  }
   if (vrfChallenge) el.vrfChallenge = vrfChallenge;
   if (theme) el.theme = theme;
   if (loading != null) el.loading = !!loading;
@@ -136,17 +236,17 @@ async function mountHostUiWithHandle({
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   const update = (props: ConfirmUIUpdate) => {
     try {
-      if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-      if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-      if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-      if (props.theme != null) (el as any).theme = props.theme;
-      if (props.loading != null) (el as any).loading = !!props.loading;
+      if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+      if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+      if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+      if (props.theme != null) el.theme = props.theme;
+      if (props.loading != null) el.loading = !!props.loading;
       if ('errorMessage' in props) {
         const msg = props.errorMessage ?? '';
-        (el as any).errorMessage = msg;
+        el.errorMessage = msg;
         setErrorAttribute(el, msg);
       }
-      (el as any).requestUpdate?.();
+      el.requestUpdate?.();
     } catch {}
   };
   return { close, update };
@@ -174,10 +274,12 @@ async function awaitHostUiDecisionWithHandle({
   return new Promise((resolve) => {
     cleanupExistingConfirmers();
     const tag = v === 'drawer' ? W3A_DRAWER_TX_CONFIRMER_ID : W3A_MODAL_TX_CONFIRMER_ID;
-    const el = document.createElement(tag) as any;
+    const el = document.createElement(tag) as HostTxConfirmerElement;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
-    el.intentDigest = summary?.intentDigest;
+    if ((txSigningRequests?.length || 0) > 0) {
+      el.intentDigest = summary?.intentDigest;
+    }
     if (vrfChallenge) el.vrfChallenge = vrfChallenge;
     if (theme) el.theme = theme;
     try { el.removeAttribute('data-error-message'); } catch {}
@@ -188,17 +290,17 @@ async function awaitHostUiDecisionWithHandle({
       const close = (_c: boolean) => { try { el.remove(); } catch {} };
       const update = (props: ConfirmUIUpdate) => {
         try {
-          if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) (el as any).theme = props.theme;
-          if (props.loading != null) (el as any).loading = !!props.loading;
+          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+          if (props.theme != null) el.theme = props.theme;
+          if (props.loading != null) el.loading = !!props.loading;
           if ('errorMessage' in props) {
             const msg = props.errorMessage ?? '';
-            (el as any).errorMessage = msg;
+            el.errorMessage = msg;
             setErrorAttribute(el, msg);
           }
-          (el as any).requestUpdate?.();
+          el.requestUpdate?.();
         } catch {}
       };
       resolve({ confirmed: true, handle: { close, update } });
@@ -208,17 +310,17 @@ async function awaitHostUiDecisionWithHandle({
       const close = (_c: boolean) => { try { el.remove(); } catch {} };
       const update = (props: ConfirmUIUpdate) => {
         try {
-          if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) (el as any).theme = props.theme;
-          if (props.loading != null) (el as any).loading = !!props.loading;
+          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+          if (props.theme != null) el.theme = props.theme;
+          if (props.loading != null) el.loading = !!props.loading;
           if ('errorMessage' in props) {
             const msg = props.errorMessage ?? '';
-            (el as any).errorMessage = msg;
+            el.errorMessage = msg;
             setErrorAttribute(el, msg);
           }
-          (el as any).requestUpdate?.();
+          el.requestUpdate?.();
         } catch {}
       };
       resolve({ confirmed: false, handle: { close, update } });
@@ -264,7 +366,9 @@ async function mountIframeHostUiWithHandle({
   const el = document.createElement(W3A_IFRAME_TX_CONFIRMER_ID) as IframeModalHost;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
-  el.intentDigest = summary?.intentDigest;
+  if ((txSigningRequests?.length || 0) > 0) {
+    el.intentDigest = summary?.intentDigest;
+  }
   if (vrfChallenge) {
     el.vrfChallenge = vrfChallenge;
   }
@@ -273,7 +377,7 @@ async function mountIframeHostUiWithHandle({
     el.theme = theme;
   }
   if (variant) {
-    (el as any).variant = variant;
+    el.variant = variant;
   }
   try { el.removeAttribute('data-error-message'); } catch {}
   const portal = ensureConfirmPortal();
@@ -281,14 +385,14 @@ async function mountIframeHostUiWithHandle({
   const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
   const update = (props: ConfirmUIUpdate) => {
     try {
-      if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-      if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-      if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-      if (props.theme != null) (el as any).theme = props.theme;
-      if (props.loading != null) (el as any).showLoading = !!props.loading;
+      if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+      if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+      if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+      if (props.theme != null) el.theme = props.theme;
+      if (props.loading != null) el.showLoading = !!props.loading;
       if ('errorMessage' in props) {
         const msg = props.errorMessage ?? '';
-        (el as any).errorMessage = msg;
+        el.errorMessage = msg;
         try {
           if (msg) {
             el.setAttribute('data-error-message', msg);
@@ -297,7 +401,7 @@ async function mountIframeHostUiWithHandle({
           }
         } catch {}
       }
-      (el as any).requestUpdate?.();
+      el.requestUpdate?.();
     } catch {}
   };
   return { close, update };
@@ -326,10 +430,12 @@ async function awaitIframeHostUiDecisionWithHandle({
     const el = document.createElement(W3A_IFRAME_TX_CONFIRMER_ID) as IframeModalHost;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
-    el.intentDigest = summary?.intentDigest;
+    if ((txSigningRequests?.length || 0) > 0) {
+      el.intentDigest = summary?.intentDigest;
+    }
     el.vrfChallenge = vrfChallenge;
     if (theme) { el.theme = theme; }
-    if (variant) { (el as any).variant = variant; }
+    if (variant) { el.variant = variant; }
     try { el.removeAttribute('data-error-message'); } catch {}
 
     const onConfirm = (e: Event) => {
@@ -339,17 +445,17 @@ async function awaitIframeHostUiDecisionWithHandle({
       const close = (_c: boolean) => { try { el.remove(); } catch {} };
       const update = (props: ConfirmUIUpdate) => {
         try {
-          if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) (el as any).theme = props.theme;
-          if (props.loading != null) (el as any).showLoading = !!props.loading;
+          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+          if (props.theme != null) el.theme = props.theme;
+          if (props.loading != null) el.showLoading = !!props.loading;
           if ('errorMessage' in props) {
             const msg = props.errorMessage ?? '';
-            (el as any).errorMessage = msg;
+            el.errorMessage = msg;
             setErrorAttribute(el, msg);
           }
-          (el as any).requestUpdate?.();
+          el.requestUpdate?.();
         } catch {}
       };
       resolve({ confirmed: ok, handle: { close, update } });
@@ -360,14 +466,14 @@ async function awaitIframeHostUiDecisionWithHandle({
       const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
       const update = (props: ConfirmUIUpdate) => {
         try {
-          if (props.nearAccountId != null) (el as any).nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) (el as any).txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) (el as any).vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) (el as any).theme = props.theme;
-          if (props.loading != null) (el as any).showLoading = !!props.loading;
+          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+          if (props.theme != null) el.theme = props.theme;
+          if (props.loading != null) el.showLoading = !!props.loading;
           if ('errorMessage' in props) {
             const msg = props.errorMessage ?? '';
-            (el as any).errorMessage = msg;
+            el.errorMessage = msg;
             try {
               if (msg) {
                 el.setAttribute('data-error-message', msg);
@@ -376,7 +482,7 @@ async function awaitIframeHostUiDecisionWithHandle({
               }
             } catch {}
           }
-          (el as any).requestUpdate?.();
+          el.requestUpdate?.();
         } catch {}
       };
       resolve({ confirmed: false, handle: { close, update } });
@@ -440,16 +546,21 @@ export async function mountConfirmUI({
   const variant: 'modal' | 'drawer' = (uiMode === 'drawer') ? 'drawer' : 'modal';
   const useIframe = isBoolean(iframeMode) ? iframeMode : !!ctx?.iframeModeDefault;
   if (useIframe) {
-    return await mountIframeHostUiWithHandle({
-      ctx,
-      summary,
-      txSigningRequests,
-      vrfChallenge,
-      loading,
-      theme,
-      variant,
-      nearAccountIdOverride,
-    });
+    try {
+      return await mountIframeHostUiWithHandle({
+        ctx,
+        summary,
+        txSigningRequests,
+        vrfChallenge,
+        loading,
+        theme,
+        variant,
+        nearAccountIdOverride,
+      });
+    } catch (e) {
+      // Safari/edge-case fallback: if iframe hydration fails, degrade to host-rendered UI
+      try { console.warn('[LitComponents/confirm-ui] iframe mount failed, falling back to host UI', e); } catch {}
+    }
   }
   return await mountHostUiWithHandle({
     ctx,
@@ -484,15 +595,20 @@ export async function awaitConfirmUIDecision({
 }): Promise<{ confirmed: boolean; handle: ConfirmUIHandle }> {
   const variant: 'modal' | 'drawer' = (uiMode === 'drawer') ? 'drawer' : 'modal';
   if (useIframe) {
-    return await awaitIframeHostUiDecisionWithHandle({
-      ctx,
-      summary,
-      txSigningRequests,
-      vrfChallenge,
-      theme,
-      variant,
-      nearAccountIdOverride,
-    });
+    try {
+      return await awaitIframeHostUiDecisionWithHandle({
+        ctx,
+        summary,
+        txSigningRequests,
+        vrfChallenge,
+        theme,
+        variant,
+        nearAccountIdOverride,
+      });
+    } catch (e) {
+      // Safari/edge-case fallback: if iframe hydration fails, degrade to host-rendered UI
+      try { console.warn('[LitComponents/confirm-ui] iframe await failed, falling back to host UI', e); } catch {}
+    }
   }
   return await awaitHostUiDecisionWithHandle({
     ctx,
