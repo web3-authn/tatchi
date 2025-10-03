@@ -75,7 +75,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     // Main modal container
     modalBackdropBlur: {
-      background: 'oklch(0.2 0.01 240 / 0.8)', // grey800 with alpha 0.8
+      background: 'oklch(0.2 0.01 240 / 0.1)', // grey800 with alpha 0.1
       // backdropFilter: 'blur(0px)',
       // animation: 'none',
       // willChange: 'none',

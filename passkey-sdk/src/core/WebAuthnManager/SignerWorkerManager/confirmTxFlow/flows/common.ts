@@ -215,8 +215,17 @@ export async function renderConfirmUI({
   vrfChallenge: VRFChallenge;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
+  try { console.debug('[RenderConfirmUI] start', {
+    type: request?.type,
+    uiMode: confirmationConfig?.uiMode,
+    behavior: confirmationConfig?.behavior,
+    theme: confirmationConfig?.theme,
+    nearAccountIdForUi,
+    intentDigest: transactionSummary?.intentDigest,
+  }); } catch {}
   // Show-only export viewer: mount with provided key and return immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
+    try { console.debug('[RenderConfirmUI] SHOW_SECURE_PRIVATE_KEY_UI'); } catch {}
     try { await import('../../../LitComponents/ExportPrivateKey/iframe-host'); } catch {}
     const host = document.createElement('w3a-export-viewer-iframe') as ExportViewerIframeElement;
     try { host.theme = confirmationConfig.theme || 'dark'; } catch {}
@@ -247,10 +256,12 @@ export async function renderConfirmUI({
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
   switch (uiMode) {
     case 'skip': {
+      try { console.debug('[RenderConfirmUI] uiMode=skip'); } catch {}
       return { confirmed: true, confirmHandle: undefined };
     }
     case 'drawer': {
       if (confirmationConfig.behavior === 'autoProceed') {
+        try { console.debug('[RenderConfirmUI] drawer + autoProceed'); } catch {}
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -268,6 +279,7 @@ export async function renderConfirmUI({
         return { confirmed: true, confirmHandle: handle };
       } else {
         const forceIframeForSafari = (() => { try { return isIOS() || isSafari(); } catch { return false; } })();
+        try { console.debug('[RenderConfirmUI] drawer + requireClick', { forceIframeForSafari, iframeDefault: !!ctx.iframeModeDefault }); } catch {}
         const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -280,11 +292,13 @@ export async function renderConfirmUI({
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault || forceIframeForSafari
         });
+        try { console.debug('[RenderConfirmUI] drawer decision', { confirmed }); } catch {}
         return { confirmed, confirmHandle: handle };
       }
     }
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
+        try { console.debug('[RenderConfirmUI] modal + autoProceed'); } catch {}
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -302,6 +316,7 @@ export async function renderConfirmUI({
         return { confirmed: true, confirmHandle: handle };
       } else {
         const forceIframeForSafari = (() => { try { return isIOS() || isSafari(); } catch { return false; } })();
+        try { console.debug('[RenderConfirmUI] modal + requireClick', { forceIframeForSafari, iframeDefault: !!ctx.iframeModeDefault }); } catch {}
         const { confirmed, handle } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -314,10 +329,12 @@ export async function renderConfirmUI({
           nearAccountIdOverride: nearAccountIdForUi,
           useIframe: !!ctx.iframeModeDefault || forceIframeForSafari
         });
+        try { console.debug('[RenderConfirmUI] modal decision', { confirmed }); } catch {}
         return { confirmed, confirmHandle: handle };
       }
     }
     default: {
+      try { console.debug('[RenderConfirmUI] default branch → mount modal loading'); } catch {}
       const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,

@@ -37,7 +37,7 @@
  */
 try { (globalThis as unknown as { global?: unknown }).global = (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown); } catch {}
 try { (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} }; } catch {}
-try { console.debug('[WalletHost] booting wallet service at', window.location.href); } catch {}
+try { console.log('[WalletHost] booting wallet service at', window.location.href); } catch {}
 try {
   if (window.location.origin === 'null') {
     console.warn('[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.');
@@ -45,8 +45,8 @@ try {
 } catch {}
 try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
-try { window.addEventListener('error', (e) => console.debug('[WalletHost] window error', e.error || e.message)); } catch {}
-try { window.addEventListener('unhandledrejection', (e) => console.debug('[WalletHost] unhandledrejection', e.reason)); } catch {}
+try { window.addEventListener('error', (e) => console.log('[WalletHost] window error', e.error || e.message)); } catch {}
+try { window.addEventListener('unhandledrejection', (e) => console.log('[WalletHost] unhandledrejection', e.reason)); } catch {}
 // Establish a default embedded assets base as soon as this module loads.
 // This points to the directory containing this file (e.g., '/sdk/').
 try {
@@ -54,6 +54,31 @@ try {
   const norm = here.endsWith('/') ? here : (here + '/');
   const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
   if (!w.__W3A_EMBEDDED_BASE__) w.__W3A_EMBEDDED_BASE__ = norm;
+} catch {}
+// Preload worker and WASM assets to encourage Safari to fetch them
+try {
+  const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
+  const base = (w.__W3A_EMBEDDED_BASE__ || '/sdk/').replace(/\/?$/, '/');
+  const addLink = (rel: string, href: string, attrs?: Record<string, string>) => {
+    try {
+      const link = document.createElement('link');
+      link.rel = rel;
+      link.href = href;
+      if (attrs) {
+        for (const [k, v] of Object.entries(attrs)) {
+          try { (link as any)[k] = v; } catch {}
+          try { link.setAttribute(k, v); } catch {}
+        }
+      }
+      document.head.appendChild(link);
+      try { console.log('[WalletHost] preload hint added', { rel, href }); } catch {}
+    } catch {}
+  };
+  addLink('modulepreload', new URL('workers/web3authn-signer.worker.js', base).toString());
+  addLink('modulepreload', new URL('workers/web3authn-vrf.worker.js', base).toString());
+  const wasmAttrs = { as: 'fetch', crossOrigin: 'anonymous', type: 'application/wasm' } as Record<string, string>;
+  addLink('preload', new URL('workers/wasm_signer_worker_bg.wasm', base).toString(), wasmAttrs);
+  addLink('preload', new URL('workers/wasm_vrf_worker_bg.wasm', base).toString(), wasmAttrs);
 } catch {}
 try {
   window.addEventListener('click', (e) => {
@@ -659,7 +684,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         } catch {}
       }
       (window as any).__W3A_EMBEDDED_BASE__ = resolvedBase;
-      try { console.debug('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
+      try { console.log('[WalletHost] assets base set:', (window as any).__W3A_EMBEDDED_BASE__); } catch {}
       try {
         window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: resolvedBase }));
       } catch {}
