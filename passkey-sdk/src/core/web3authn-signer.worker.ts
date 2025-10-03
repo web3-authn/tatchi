@@ -237,25 +237,24 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
       break;
 
     case !messageProcessed && typeof eventType !== 'number':
-      // Case 1b: First message but non-numeric type - ignore control messages
-      // This prevents control pings or invalid messages from being forwarded to Rust
-      console.warn('[signer-worker]: Ignoring message with non-numeric type:', eventType);
+      // Case 2: First message but non-numeric type - ignore control messages
+      console.warn('[signer-worker]: Ignoring message with invalid non-numeric type:', eventType);
       break;
 
     case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
-      // Case 2: User confirmation response - let it bubble to awaitSecureConfirmationV2 listener
+      // Case 3: User confirmation response - let it bubble to awaitSecureConfirmationV2 listener
       // By breaking here without consuming the event, the message continues to propagate
       // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmationV2
       break;
 
     case messageProcessed:
-      // Case 3: Worker already processed initial message and this isn't a confirmation
+      // Case 4: Worker already processed initial message and this isn't a confirmation
       console.error('[signer-worker]: Invalid message - worker already processed initial message');
       sendInvalidMessageError('Worker has already processed a message');
       break;
 
     default:
-      // Case 4: Unexpected state
+      // Case 5: Unexpected state
       console.error('[signer-worker]: Unexpected message state');
       sendInvalidMessageError('Unexpected message state');
       break;
