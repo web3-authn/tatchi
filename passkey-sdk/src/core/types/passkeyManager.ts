@@ -619,6 +619,10 @@ export interface PasskeyManagerConfigs {
     // Force WebAuthn rpId to a base domain so credentials work across subdomains
     // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
     rpIdOverride?: string;
+    // Safari-only workaround: allow bridging navigator.credentials.get() to the top-level
+    // parent when Safari throws the ancestor error in cross-origin iframes. Disabled by
+    // default; registration create() uses the bridge automatically when needed.
+    enableSafariGetWebauthnRegistrationFallback?: boolean;
   };
   // Relay Server is used to create new NEAR accounts
   relayer: {

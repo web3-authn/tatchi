@@ -28,6 +28,22 @@
 
 import type { ChildToParentEnvelope } from '../shared/messages';
 import { isObject } from '../validation';
+import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../WebAuthnManager/credentialsHelpers';
+
+// Message constants for clarity and typo safety
+const MSG_CONNECT = 'CONNECT' as const;
+const MSG_READY = 'READY' as const;
+const MSG_SERVICE_HOST_BOOTED = 'SERVICE_HOST_BOOTED' as const;
+const MSG_SERVICE_HOST_DEBUG_ORIGIN = 'SERVICE_HOST_DEBUG_ORIGIN' as const;
+const MSG_SERVICE_HOST_LOG = 'SERVICE_HOST_LOG' as const;
+const MSG_CREATE = 'WALLET_WEBAUTHN_CREATE' as const;
+const MSG_GET = 'WALLET_WEBAUTHN_GET' as const;
+const MSG_CREATE_RESULT = 'WALLET_WEBAUTHN_CREATE_RESULT' as const;
+const MSG_GET_RESULT = 'WALLET_WEBAUTHN_GET_RESULT' as const;
+
+// Bridge request payloads
+type CreateReq = { requestId?: string; publicKey?: PublicKeyCredentialCreationOptions };
+type GetReq = { requestId?: string; publicKey?: PublicKeyCredentialRequestOptions };
 
 export interface IframeTransportOptions {
   walletOrigin: string;     // e.g., https://wallet.example.com
@@ -65,21 +81,23 @@ export class IframeTransport {
         if (!isObject(data)) return;
         const type = (data as { type?: unknown }).type;
         if (type === 'SERVICE_HOST_BOOTED' && e.origin === this.walletOrigin) {
-          try { console.debug('[IframeTransport] SERVICE_HOST_BOOTED from wallet'); } catch {}
           this.serviceBooted = true;
           return;
         }
         if (type === 'SERVICE_HOST_DEBUG_ORIGIN') {
-          try {
-            console.debug('[IframeTransport] wallet debug origin', {
-              reportedOrigin: (data as { origin?: unknown }).origin,
-              reportedHref: (data as { href?: unknown }).href,
-              eventOrigin: e.origin,
-            });
-          } catch {}
         }
         if (type === 'SERVICE_HOST_LOG') {
-          try { console.log('[IframeTransport][wallet-log]', (data as { payload?: unknown }).payload); } catch {}
+          // Only surface wallet logs when debug is enabled
+          console.debug('[IframeTransport][wallet-log]', (data as { payload?: unknown }).payload);
+        }
+        // Parent‑performed WebAuthn bridge for Safari cross‑origin scenarios.
+        // Only accept requests originating from the wallet iframe origin.
+        if (e.origin === this.walletOrigin) {
+          if (type === 'WALLET_WEBAUTHN_CREATE' || type === 'WALLET_WEBAUTHN_GET') {
+            // Delegate to common bridge handler
+            this.performWebAuthnBridge(type as 'WALLET_WEBAUTHN_CREATE' | 'WALLET_WEBAUTHN_GET', data, e);
+            return;
+          }
         }
       });
     } catch {}
@@ -106,8 +124,7 @@ export class IframeTransport {
 
     // Delegate WebAuthn + clipboard capabilities to the wallet origin frame
     try {
-      const allow = `publickey-credentials-get ${this.walletOrigin}; publickey-credentials-create ${this.walletOrigin}; clipboard-read; clipboard-write`;
-      iframe.setAttribute('allow', allow);
+      iframe.setAttribute('allow', this.buildAllowAttr(this.walletOrigin));
     } catch {
       iframe.setAttribute('allow', "publickey-credentials-get 'self'; publickey-credentials-create 'self'; clipboard-read; clipboard-write");
     }
@@ -119,11 +136,11 @@ export class IframeTransport {
     } catch {}
 
     const src = this.walletServiceUrl.toString();
-    try { console.debug('[IframeTransport] mount: external origin', src); } catch {}
+    console.debug('[IframeTransport] mount: external origin', src);
     iframe.src = src;
 
     document.body.appendChild(iframe);
-    try { console.debug('[IframeTransport] mount: iframe appended'); } catch {}
+    console.debug('[IframeTransport] mount: iframe appended');
     this.iframeEl = iframe;
     return iframe;
   }
@@ -160,7 +177,7 @@ export class IframeTransport {
           if (resolved) return;
           const elapsed = Date.now() - start;
           if (elapsed >= overallTimeout) {
-            try { console.debug('[IframeTransport] handshake timeout after %d ms', elapsed); } catch {}
+            console.debug('[IframeTransport] handshake timeout after %d ms', elapsed);
             return reject(new Error('Wallet iframe READY timeout'));
           }
 
@@ -172,7 +189,7 @@ export class IframeTransport {
 
           port1.onmessage = (e: MessageEvent<ChildToParentEnvelope>) => {
             const data = e.data;
-            if (data.type === 'READY') {
+            if (data.type === MSG_READY) {
               resolved = true;
               cleanup();
               port1.start?.();
@@ -192,39 +209,26 @@ export class IframeTransport {
           // transfer across origins. Using '*' can silently drop the transferable
           // port in stricter environments, preventing the host from ever adopting it.
           try {
-            cw.postMessage({ type: 'CONNECT' }, this.walletOrigin, [port2]);
-          } catch (e) {
-            const message = e instanceof Error ? e.message ?? String(e) : String(e);
-            try {
-              console.warn('[IframeTransport] CONNECT threw', {
-                attempt,
-                elapsed,
-                message,
-                targetOrigin: this.walletOrigin,
-                iframeLocation: (() => {
-                  try { return iframe.contentWindow?.location?.href; } catch { return undefined; }
-                })(),
-              });
-            } catch {}
-            if (!warnedNullOrigin && message.includes("'null'")) {
-              warnedNullOrigin = true;
-              try {
+            cw.postMessage({ type: MSG_CONNECT }, this.walletOrigin, [port2]);
+            } catch (e) {
+              const message = e instanceof Error ? e.message ?? String(e) : String(e);
+              if (!warnedNullOrigin && message.includes("'null'")) {
+                warnedNullOrigin = true;
                 console.warn(
                   '[IframeTransport] CONNECT blocked; iframe origin appears to be null. Check that %s is reachable and responds with Cross-Origin-Resource-Policy: cross-origin.',
                   this.walletServiceUrl.toString(),
                 );
-              } catch {}
-            }
-            // Some browsers will throw if the current document has an opaque
-            // ('null') origin during early navigation. As a pragmatic fallback,
-            // attempt a wildcard target to avoid dropping the port, then keep
-            // retrying with the strict origin until timeout.
+              }
+              // Some browsers will throw if the current document has an opaque
+              // ('null') origin during early navigation. As a pragmatic fallback,
+              // attempt a wildcard target to avoid dropping the port, then keep
+              // retrying with the strict origin until timeout.
             try {
-              cw.postMessage({ type: 'CONNECT' }, '*', [port2]);
+              cw.postMessage({ type: MSG_CONNECT }, '*', [port2]);
               console.debug('[IframeTransport] CONNECT fallback posted with "*" target; continuing retries');
             } catch {}
-            try { console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed); } catch {}
-          }
+            console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed);
+            }
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
           const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
@@ -258,12 +262,73 @@ export class IframeTransport {
         }, { once: true });
         // Safety net: resolve shortly even if load listener fails to attach
         timeout = window.setTimeout(() => {
-          try { console.debug('[IframeTransport] waitForLoad did not observe load event within 150ms; continuing'); } catch {}
+          console.debug('[IframeTransport] waitForLoad did not observe load event within 150ms; continuing');
           resolve();
         }, 150);
       } catch {
         resolve();
       }
     });
+  }
+
+  private buildAllowAttr(walletOrigin: string): string {
+    return `publickey-credentials-get 'self' ${walletOrigin}; publickey-credentials-create 'self' ${walletOrigin}; clipboard-read; clipboard-write`;
+  }
+
+  private postBridgeResult(
+    source: WindowProxy | null,
+    type: 'WALLET_WEBAUTHN_CREATE_RESULT' | 'WALLET_WEBAUTHN_GET_RESULT',
+    requestId: string,
+    ok: boolean,
+    payload: { credential?: unknown; error?: string },
+  ): void {
+    try { source?.postMessage({ type, requestId, ok, ...payload }, this.walletOrigin); } catch {}
+  }
+
+  private performWebAuthnBridge(
+    kind: typeof MSG_CREATE | typeof MSG_GET,
+    raw: unknown,
+    e: MessageEvent,
+  ): void {
+    if (kind === MSG_CREATE) {
+      (async () => {
+        const req = raw as CreateReq;
+        const requestId = req?.requestId || '';
+        try {
+          const src = req?.publicKey || ({} as PublicKeyCredentialCreationOptions);
+          const rpName = src.rp?.name || 'WebAuthn';
+          const rpId = src.rp?.id || window.location.hostname;
+          const pub: PublicKeyCredentialCreationOptions = { ...src, rp: { name: rpName, id: rpId } };
+          console.debug('[IframeTransport][bridge] CREATE received', { requestId, from: e.origin, rpId: pub.rp?.id });
+          const cred = await navigator.credentials.create({ publicKey: pub }) as PublicKeyCredential;
+          const serialized = serializeRegistrationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
+          this.postBridgeResult(e.source as WindowProxy | null, MSG_CREATE_RESULT, requestId, true, { credential: serialized });
+          console.debug('[IframeTransport][bridge] CREATE ok', { requestId });
+        } catch (err) {
+          try { console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+          this.postBridgeResult(e.source as WindowProxy | null, MSG_CREATE_RESULT, requestId, false, { error: String((err as Error)?.message || err) });
+        }
+      })();
+      return;
+    }
+
+    // kind === 'WALLET_WEBAUTHN_GET'
+    (async () => {
+      const req = raw as GetReq;
+      const requestId = req?.requestId || '';
+      try {
+        const src = req?.publicKey || ({} as PublicKeyCredentialRequestOptions);
+        const rpId = src.rpId || window.location.hostname;
+        const pub: PublicKeyCredentialRequestOptions = { ...src, rpId };
+        console.debug('[IframeTransport][bridge] GET received', { requestId, from: e.origin, rpId: pub.rpId });
+        const cred = await navigator.credentials.get({ publicKey: pub }) as PublicKeyCredential;
+        const serialized = serializeAuthenticationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
+        this.postBridgeResult(e.source as WindowProxy | null, MSG_GET_RESULT, requestId, true, { credential: serialized });
+        console.debug('[IframeTransport][bridge] GET ok', { requestId });
+      } catch (err) {
+        try { console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+        this.postBridgeResult(e.source as WindowProxy | null, MSG_GET_RESULT, requestId, false, { error: String((err as Error)?.message || err) });
+      }
+    })();
   }
 }

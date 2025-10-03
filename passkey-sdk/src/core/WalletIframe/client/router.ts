@@ -734,6 +734,7 @@ export class WalletIframeRouter {
         if (ev.origin !== origin) return;
         const data = ev.data as unknown;
         if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
+        try { this.overlay.setSticky(false); } catch {}
         this.hideFrameForActivation();
         window.removeEventListener('message', onUiClosed);
       } catch {}

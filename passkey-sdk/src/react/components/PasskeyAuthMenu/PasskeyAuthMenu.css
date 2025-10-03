@@ -428,8 +428,11 @@
   }
 
   .w3a-arrow-btn {
-    width: 60px;
     height: 60px;
+  }
+
+  .w3a-arrow-btn.is-enabled {
+    width: 60px;
   }
 
   .w3a-seg {
