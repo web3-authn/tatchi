@@ -149,6 +149,9 @@ export class WalletIframeRouter {
   // When set, overlay.show() uses this rect instead of fullscreen
   private anchoredRect: { top: number; left: number; width: number; height: number } | null = null;
   private overlay: OverlayController;
+  // Force the overlay to remain fullscreen during critical flows (e.g., registration)
+  // and ignore anchored rect updates from helper hooks.
+  private overlayForceFullscreen = false;
   // Overlay register button window-message bridging (wallet-host UI → parent)
   private readonly registerOverlayResultListeners = new Set<(
     payload: { ok: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
@@ -217,6 +220,12 @@ export class WalletIframeRouter {
         if (!data || typeof data !== 'object') return;
         const type = (data as { type?: unknown }).type;
         if (type === 'REGISTER_BUTTON_SUBMIT') {
+          // User clicked the register arrow inside the wallet-anchored UI
+          // Force the overlay to fullscreen immediately so the TxConfirmer
+          // can mount and capture activation in Safari/iOS/mobile.
+          this.overlayForceFullscreen = true;
+          try { this.overlay.setSticky(true); } catch {}
+          try { this.overlay.showFullscreen(); } catch {}
           for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
             try { cb(); } catch {}
           }
@@ -230,6 +239,11 @@ export class WalletIframeRouter {
           for (const cb of Array.from(this.registerOverlayResultListeners)) {
             try { cb({ ok, result: payload?.result, cancelled: (payload as any)?.cancelled, error: (payload as any)?.error }); } catch {}
           }
+          // Release overlay lock after result
+          this.overlayForceFullscreen = false;
+          try { this.overlay.setSticky(false); } catch {}
+          // Progress bus will hide after completion; hide defensively here
+          try { this.hideFrameForActivation(); } catch {}
           if (ok) {
             const acct = payload?.result?.nearAccountId;
             Promise.resolve().then(async () => {
@@ -416,8 +430,14 @@ export class WalletIframeRouter {
       onEvent?: (ev: RegistrationSSEEvent) => void
     }
   }): Promise<RegistrationResult> {
-    // Step 1: Show iframe overlay immediately for WebAuthn activation
-    this.showFrameForActivation();
+    // Step 1: For registration, force fullscreen overlay (not anchored to CTA)
+    // so the TxConfirmer (drawer/modal) has space to render and capture activation.
+    // Clear any previously set anchored rect before showing.
+    try { this.clearAnchoredOverlay(); } catch {}
+    // Lock overlay to fullscreen for the duration of registration
+    this.overlayForceFullscreen = true;
+    try { this.overlay.setSticky(true); } catch {}
+    try { this.overlay.showFullscreen(); } catch { this.showFrameForActivation(); }
 
     try {
       // Optional one-time confirmation override (non-persistent)
@@ -450,7 +470,10 @@ export class WalletIframeRouter {
 
       return res?.result;
     } finally {
-      // Step 5: Always hide overlay when done (success or error)
+      // Step 5: Always release overlay lock and hide when done (success or error)
+      this.overlayForceFullscreen = false;
+      try { this.overlay.setSticky(false); } catch {}
+      try { this.clearAnchoredOverlay(); } catch {}
       this.hideFrameForActivation();
     }
   }
@@ -1053,7 +1076,13 @@ export class WalletIframeRouter {
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
     this.transport.ensureIframeMounted();
-    try { this.overlay.showPreferAnchored(); } catch {}
+    try {
+      if (this.overlayForceFullscreen) {
+        this.overlay.showFullscreen();
+      } else {
+        this.overlay.showPreferAnchored();
+      }
+    } catch {}
   }
 
   private hideFrameForActivation(): void {
@@ -1080,7 +1109,12 @@ export class WalletIframeRouter {
    */
   setOverlayVisible(visible: boolean): void {
     if (visible) {
-      this.showFrameForActivation();
+      // Respect fullscreen lock when present
+      if (this.overlayForceFullscreen) {
+        try { this.overlay.showFullscreen(); } catch {}
+      } else {
+        this.showFrameForActivation();
+      }
     } else {
       this.hideFrameForActivation();
     }
@@ -1096,6 +1130,7 @@ export class WalletIframeRouter {
    * overlay using absolute positioning in document coordinates.
    */
   setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    if (this.overlayForceFullscreen) return; // ignore anchored bounds while locked to fullscreen
     this.transport.ensureIframeMounted();
     try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
   }
@@ -1104,6 +1139,7 @@ export class WalletIframeRouter {
    * Anchored overlay helpers: keep a preferred bounds rect that overlay.show() will apply
    */
   setAnchoredOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
+    if (this.overlayForceFullscreen) return; // ignore updates while locked
     this.anchoredRect = { ...rect };
     try { this.overlay.setAnchoredRect(rect as DOMRectLike); } catch {}
   }

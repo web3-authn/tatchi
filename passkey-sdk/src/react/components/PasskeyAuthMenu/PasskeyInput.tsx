@@ -6,6 +6,7 @@ import { AccountExistsBadge } from './AccountExistsBadge';
 import ArrowButton from './ArrowButton';
 import { usePasskeyContext } from '../../context';
 import { useArrowButtonOverlay } from './ArrowButtonOverlayHooks';
+import { isIOS, isSafari, isMobileDevice } from '@/utils';
 // We mount the arrow inside the wallet iframe using the UI registry.
 // The local Lit wrapper is not used here.
 
@@ -143,8 +144,12 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   const normalizedMode = (typeof mode === 'number' ? (AuthMenuModeMap as any)[mode] : mode) || 'register';
 
   // Anchored wallet-iframe arrow mounting via hook
+  const overlayAllowed = React.useMemo(() => {
+    try { return !(isIOS() || isSafari() || isMobileDevice()); } catch { return false; }
+  }, []);
+
   const { arrowAnchorRef, mountArrowAtRect } = useArrowButtonOverlay({
-    enabled: canShowArrow,
+    enabled: canShowArrow && useIframeArrowButtonOverlay && overlayAllowed,
     waiting,
     mode: normalizedMode,
     nearAccountId,
@@ -194,11 +199,11 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
       {isRegisterMode ? (
         <ArrowButton
           disabled={!canProceed || !!waiting}
-          onClick={useIframeArrowButtonOverlay ? mountArrowAtRect : onProceed}
+          onClick={(useIframeArrowButtonOverlay && overlayAllowed) ? mountArrowAtRect : onProceed}
           // iframe mode only
-          arrowAnchorRef={useIframeArrowButtonOverlay ? arrowAnchorRef : undefined}
-          mountArrowAtRect={useIframeArrowButtonOverlay ? mountArrowAtRect : undefined}
-          fallbackRegister={!!useIframeArrowButtonOverlay}
+          arrowAnchorRef={(useIframeArrowButtonOverlay && overlayAllowed) ? arrowAnchorRef : undefined}
+          mountArrowAtRect={(useIframeArrowButtonOverlay && overlayAllowed) ? mountArrowAtRect : undefined}
+          fallbackRegister={!!(useIframeArrowButtonOverlay && overlayAllowed)}
         />
       ) : (
         // For Login and Recover: always show the React ArrowButton (original variant)
