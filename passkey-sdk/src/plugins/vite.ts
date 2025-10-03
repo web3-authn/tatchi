@@ -198,6 +198,17 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
         if (url !== walletServicePath) return next()
         res.statusCode = 200
         res.setHeader('Content-Type', 'text/html; charset=utf-8')
+        // Enable cross-origin isolation to make module workers + WASM more reliable in Safari
+        // These headers mirror the SDK asset responses and help ensure the iframe document
+        // participates in the same agent cluster required by some engines.
+        try {
+          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          // Allow SDK assets to load across origins when needed
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Delegate WebAuthn to this wallet origin explicitly (defense-in-depth for Safari)
+          res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self)`)
+        } catch {}
         res.end(html)
       })
     },
