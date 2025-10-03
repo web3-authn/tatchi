@@ -214,7 +214,6 @@ export function PasskeyLoginMenu() {
             toast.error(error.message || 'Device linking failed', { id: toastId });
           }
         }}
-        useIframeArrowButtonOverlay={true}
       />
     </div>
   );
