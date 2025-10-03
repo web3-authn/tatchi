@@ -1,7 +1,7 @@
 import { ClientAuthenticatorData } from '../IndexedDBManager';
-import { base64Decode, base64UrlDecode } from '../../utils/encoders';
+import { base64UrlDecode } from '../../utils/encoders';
 import { outputAs32Bytes, VRFChallenge } from '../types/vrf-worker';
-import { serializeAuthenticationCredentialWithPRF, serializeRegistrationCredential, serializeRegistrationCredentialWithPRF } from './credentialsHelpers';
+import { serializeAuthenticationCredentialWithPRF } from './credentialsHelpers';
 import type {
   WebAuthnAuthenticationCredential,
   WebAuthnRegistrationCredential
@@ -69,9 +69,11 @@ export function generateEd25519Salt(nearAccountId: string): Uint8Array {
  */
 export class TouchIdPrompt {
   private rpIdOverride?: string;
+  private safariGetWebauthnRegistrationFallback: boolean;
 
-  constructor(rpIdOverride?: string) {
+  constructor(rpIdOverride?: string, safariGetWebauthnRegistrationFallback = false) {
     this.rpIdOverride = rpIdOverride;
+    this.safariGetWebauthnRegistrationFallback = safariGetWebauthnRegistrationFallback === true;
   }
 
   getRpId(): string {
@@ -79,8 +81,9 @@ export class TouchIdPrompt {
     try {
       const host = (window?.location?.hostname || '').toLowerCase();
       const override = (this.rpIdOverride || '').toLowerCase();
-      if (override && TouchIdPrompt._isRegistrableSuffix(host, override)) return override;
-      return host;
+      const ok = override && TouchIdPrompt._isRegistrableSuffix(host, override);
+      const rp = ok ? override : host;
+      return rp;
     } catch {
       return (this.rpIdOverride || '');
     }
@@ -94,6 +97,62 @@ export class TouchIdPrompt {
     if (!host || !cand) return false;
     if (host === cand) return true;
     return host.endsWith('.' + cand);
+  }
+
+  // Utility helpers for cross‑origin fallback
+  private static _inIframe(): boolean {
+    try { return window.self !== window.top; } catch { return true; }
+  }
+
+  private static _isAncestorOriginError(err: unknown): boolean {
+    const msg = String((err as { message?: unknown })?.message || '');
+    return /origin of the document is not the same as its ancestors/i.test(msg);
+  }
+
+  // PostMessage bridge to parent window for WebAuthn operations
+  private async requestParentWebAuthn(
+    kind: 'WALLET_WEBAUTHN_GET',
+    publicKey: PublicKeyCredentialRequestOptions,
+    timeoutMs?: number,
+  ): Promise<WebAuthnAuthenticationCredential | null>;
+  private async requestParentWebAuthn(
+    kind: 'WALLET_WEBAUTHN_CREATE',
+    publicKey: PublicKeyCredentialCreationOptions,
+    timeoutMs?: number,
+  ): Promise<WebAuthnRegistrationCredential | null>;
+  private async requestParentWebAuthn(
+    kind: 'WALLET_WEBAUTHN_GET' | 'WALLET_WEBAUTHN_CREATE',
+    publicKey: PublicKeyCredentialRequestOptions | PublicKeyCredentialCreationOptions,
+    timeoutMs = 60000,
+  ): Promise<WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential | null> {
+    const requestId = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const resultType = kind === 'WALLET_WEBAUTHN_GET' ? 'WALLET_WEBAUTHN_GET_RESULT' : 'WALLET_WEBAUTHN_CREATE_RESULT';
+
+    type GetResult = { type: 'WALLET_WEBAUTHN_GET_RESULT'; requestId: string; ok: boolean; credential?: WebAuthnAuthenticationCredential; error?: string };
+    type CreateResult = { type: 'WALLET_WEBAUTHN_CREATE_RESULT'; requestId: string; ok: boolean; credential?: WebAuthnRegistrationCredential; error?: string };
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (val: WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential | null) => {
+        if (settled) return; settled = true; resolve(val);
+      };
+
+      const onMessage = (ev: MessageEvent) => {
+        const payload = ev?.data as unknown;
+        if (!payload || typeof (payload as { type?: unknown }).type !== 'string') return;
+        const t = (payload as { type: string }).type;
+        if (t !== resultType) return;
+        const rid = (payload as { requestId?: unknown }).requestId;
+        if (rid !== requestId) return;
+        try { window.removeEventListener('message', onMessage); } catch {}
+        const ok = !!(payload as { ok?: unknown }).ok;
+        const cred = (payload as GetResult | CreateResult).credential as WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential | undefined;
+        finish(ok && cred ? cred : null);
+      };
+      window.addEventListener('message', onMessage);
+      try { window.parent?.postMessage({ type: kind, requestId, publicKey }, '*'); } catch {}
+      setTimeout(() => { try { window.removeEventListener('message', onMessage); } catch {}; finish(null); }, timeoutMs);
+    });
   }
 
 
@@ -113,13 +172,17 @@ export class TouchIdPrompt {
     challenge: VRFChallenge
     allowCredentials: AllowCredential[]
   }): Promise<WebAuthnAuthenticationCredential> {
-    const credential = await this.getAuthenticationCredentialsInternal({
+    const credentialMaybe = (await this.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge,
       allowCredentials,
-    });
+    })) as unknown;
+    // Support parent-bridge fallback returning an already-serialized credential
+    if (isSerializedAuthenticationCredential(credentialMaybe)) {
+      return credentialMaybe;
+    }
     return serializeAuthenticationCredentialWithPRF({
-      credential,
+      credential: credentialMaybe as PublicKeyCredential,
       firstPrfOutput: true,
       secondPrfOutput: false,
     })
@@ -142,13 +205,17 @@ export class TouchIdPrompt {
     challenge: VRFChallenge,
     allowCredentials: AllowCredential[],
   }): Promise<WebAuthnAuthenticationCredential> {
-    const credential = await this.getAuthenticationCredentialsInternal({
+    const credentialMaybe = (await this.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge,
       allowCredentials,
-    });
+    })) as unknown;
+    // Support parent-bridge fallback returning an already-serialized credential
+    if (isSerializedAuthenticationCredential(credentialMaybe)) {
+      return credentialMaybe;
+    }
     return serializeAuthenticationCredentialWithPRF({
-      credential,
+      credential: credentialMaybe as PublicKeyCredential,
       firstPrfOutput: true,
       secondPrfOutput: true,
     });
@@ -166,41 +233,40 @@ export class TouchIdPrompt {
     challenge,
     deviceNumber,
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
-    return await navigator.credentials.create({
-      publicKey: {
-        challenge: outputAs32Bytes(challenge),
-        rp: {
-          name: 'WebAuthn VRF Passkey',
-          id: this.getRpId()
-        },
-        user: {
-          // CRITICAL: user.id must be device-specific or
-          // Chrome passkey sync will overwrite credentials between devices
-          id: new TextEncoder().encode(generateDeviceSpecificUserId(nearAccountId, deviceNumber)),
-          name: generateDeviceSpecificUserId(nearAccountId, deviceNumber),
-          displayName: generateUserFriendlyDisplayName(nearAccountId, deviceNumber)
-        },
-        pubKeyCredParams: [
-          { alg: -7, type: 'public-key' }, // ES256
-          { alg: -257, type: 'public-key' } // RS256
-        ],
-        authenticatorSelection: {
-          residentKey: 'required',
-          userVerification: 'preferred'
-        },
-        timeout: 60000,
-        attestation: 'none',
-        extensions: {
-          prf: {
-            eval: {
-              // Always use NEAR account ID for PRF salts to ensure consistent keypair derivation across devices
-              first: generateChaCha20Salt(nearAccountId),  // ChaCha20Poly1305 encryption keys
-              second: generateEd25519Salt(nearAccountId)   // Ed25519 signing keys
-            }
+    const rpId = this.getRpId();
+    const publicKey: PublicKeyCredentialCreationOptions = {
+      challenge: outputAs32Bytes(challenge) as BufferSource,
+      rp: { name: 'WebAuthn VRF Passkey', id: rpId },
+      user: {
+        id: new TextEncoder().encode(generateDeviceSpecificUserId(nearAccountId, deviceNumber)),
+        name: generateDeviceSpecificUserId(nearAccountId, deviceNumber),
+        displayName: generateUserFriendlyDisplayName(nearAccountId, deviceNumber)
+      },
+      pubKeyCredParams: [ { alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' } ],
+      authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+      timeout: 60000,
+      attestation: 'none',
+      extensions: {
+        prf: {
+          eval: {
+            // Always use NEAR account ID for PRF salts to ensure consistent keypair derivation across devices
+            first: generateChaCha20Salt(nearAccountId) as BufferSource,  // ChaCha20Poly1305 encryption keys
+            second: generateEd25519Salt(nearAccountId) as BufferSource   // Ed25519 signing keys
           }
         }
-      } as PublicKeyCredentialCreationOptions
-    }) as PublicKeyCredential
+      },
+    };
+    try {
+      const cred = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
+      return cred;
+    } catch (e: unknown) {
+      // Safari cross-origin fallback: request top-level to perform WebAuthn create()
+      if (TouchIdPrompt._isAncestorOriginError(e) && TouchIdPrompt._inIframe()) {
+        const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_CREATE', publicKey);
+        if (bridged) return bridged as unknown as PublicKeyCredential;
+      }
+      throw e;
+    }
   }
 
   /**
@@ -222,28 +288,51 @@ export class TouchIdPrompt {
     challenge,
     allowCredentials,
   }: AuthenticateCredentialsArgs): Promise<PublicKeyCredential> {
-    return await navigator.credentials.get({
-      publicKey: {
-        challenge: outputAs32Bytes(challenge),
-        rpId: this.getRpId(),
-        allowCredentials: allowCredentials.map(credential => ({
-          id: base64UrlDecode(credential.id),
-          type: credential.type,
-          transports: credential.transports
-        })),
-        userVerification: 'preferred' as UserVerificationRequirement,
-        timeout: 60000,
-        extensions: {
-          prf: {
-            eval: {
-              first: generateChaCha20Salt(nearAccountId),  // ChaCha20Poly1305 encryption keys
-              second: generateEd25519Salt(nearAccountId)   // Ed25519 signing keys
-            }
+    const rpId = this.getRpId();
+    const publicKey: PublicKeyCredentialRequestOptions = {
+      challenge: outputAs32Bytes(challenge) as BufferSource,
+      rpId,
+      allowCredentials: allowCredentials.map((credential) => ({
+        id: base64UrlDecode(credential.id) as BufferSource,
+        type: 'public-key' as PublicKeyCredentialType,
+        transports: credential.transports,
+      })),
+      userVerification: 'preferred' as UserVerificationRequirement,
+      timeout: 60000,
+      extensions: {
+        prf: {
+          eval: {
+            // Always use NEAR account ID for PRF salts to ensure consistent keypair derivation across devices
+            first: generateChaCha20Salt(nearAccountId) as BufferSource,  // ChaCha20Poly1305 encryption keys
+            second: generateEd25519Salt(nearAccountId) as BufferSource   // Ed25519 signing keys
           }
         }
-      } as PublicKeyCredentialRequestOptions
-    }) as PublicKeyCredential
+      }
+    };
+    try {
+      const cred = await navigator.credentials.get({ publicKey }) as PublicKeyCredential;
+      return cred;
+    } catch (e: unknown) {
+      // Safari cross-origin fallback: request top-level to perform WebAuthn get()
+      if (
+        this.safariGetWebauthnRegistrationFallback &&
+        TouchIdPrompt._isAncestorOriginError(e) &&
+        TouchIdPrompt._inIframe()
+      ) {
+        const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_GET', publicKey);
+        if (bridged) return bridged as unknown as PublicKeyCredential;
+      }
+      throw e;
+    }
   }
+}
+
+// Type guard for already-serialized authentication credential
+function isSerializedAuthenticationCredential(x: unknown): x is WebAuthnAuthenticationCredential {
+  if (!x || typeof x !== 'object') return false;
+  const obj = x as { response?: unknown };
+  const resp = obj.response as { authenticatorData?: unknown } | undefined;
+  return typeof resp?.authenticatorData === 'string';
 }
 
 /**

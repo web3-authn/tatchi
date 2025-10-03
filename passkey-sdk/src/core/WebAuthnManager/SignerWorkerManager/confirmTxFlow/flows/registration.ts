@@ -9,7 +9,8 @@ import {
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
 import { renderConfirmUI, fetchNearContext, maybeRefreshVrfChallenge, getNearAccountId, getIntentDigest, sanitizeForPostMessage } from './common';
-import { serializeRegistrationCredentialWithPRF, extractPrfFromCredential } from '../../../credentialsHelpers';
+import { serializeRegistrationCredentialWithPRF, extractPrfFromCredential, isSerializedRegistrationCredential } from '../../../credentialsHelpers';
+import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
 import { toError } from '../../../../../utils/errors';
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 
@@ -128,12 +129,15 @@ export async function handleRegistrationFlow(
   }
 
   const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: true });
-  if (!dualPrfOutputs.chacha20PrfOutput) throw new Error('Failed to extract PRF output from credential');
-
-  const serialized = serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true });
+  if (!dualPrfOutputs.chacha20PrfOutput) {
+    throw new Error('Failed to extract PRF output from credential');
+  }
+  // Support parent-performed fallback that may already return serialized credential
+  const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+    ? (credential as unknown as WebAuthnRegistrationCredential)
+    : serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true });
 
   // 6) Respond + close
-  try { console.debug('[RegistrationFlow] sending result to worker'); } catch {}
   send(worker, {
     requestId: request.requestId,
     intentDigest: getIntentDigest(request),
@@ -152,5 +156,9 @@ function send(worker: Worker, response: any) {
 }
 
 function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  try { handle?.close?.(confirmed); } catch (e) { console.warn('[SecureConfirm][Registration] close error', e); }
+  try {
+    handle?.close?.(confirmed);
+  } catch (e) {
+    console.warn('[SecureConfirm][Registration] close error', e);
+  }
 }

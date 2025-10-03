@@ -17,6 +17,32 @@ export interface DualPrfOutputs {
   ed25519PrfOutput: string;
 }
 
+/////////////////////////////////////////
+// TYPE GUARDS
+/////////////////////////////////////////
+
+/**
+ * Returns true when the input looks like a serialized registration credential
+ * (i.e., plain object with base64url string fields), not a live PublicKeyCredential.
+ */
+export function isSerializedRegistrationCredential(x: unknown): x is WebAuthnRegistrationCredential {
+  if (!isObject(x)) return false;
+  const resp = (x as { response?: unknown }).response;
+  if (!isObject(resp)) return false;
+  const r = resp as { clientDataJSON?: unknown; attestationObject?: unknown; transports?: unknown };
+  // Minimal required fields to consider it serialized
+  if (!isString(r.clientDataJSON)) return false;
+  if (!isString(r.attestationObject)) return false;
+  // Optional transports array (be lenient)
+  if (r.transports != null && !isArray<string>(r.transports)) return false;
+  // Basic top-level shape checks (id/type/rawId as strings)
+  const id = (x as { id?: unknown }).id;
+  const rawId = (x as { rawId?: unknown }).rawId;
+  const type = (x as { type?: unknown }).type;
+  if (!isString(id) || !isString(rawId) || !isString(type)) return false;
+  return true;
+}
+
 /**
  * Extract PRF outputs from WebAuthn credential extension results
  * ENCODING: Uses base64url for WASM compatibility

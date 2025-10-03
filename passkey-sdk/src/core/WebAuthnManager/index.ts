@@ -67,8 +67,11 @@ export class WebAuthnManager {
       applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
       removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
-    // Respect rpIdOverride for WebAuthn get()/create() calls (cross-origin wallet scenarios)
-    this.touchIdPrompt = new TouchIdPrompt(passkeyManagerConfigs.iframeWallet?.rpIdOverride);
+    // Respect rpIdOverride and enable/disable get() bridge fallback (cross-origin wallet scenarios)
+    this.touchIdPrompt = new TouchIdPrompt(
+      passkeyManagerConfigs.iframeWallet?.rpIdOverride,
+      !!passkeyManagerConfigs.iframeWallet?.enableSafariGetWebauthnRegistrationFallback,
+    );
     this.userPreferencesManager = UserPreferencesInstance;
     this.nonceManager = NonceManagerInstance;
     this.nearClient = nearClient;
