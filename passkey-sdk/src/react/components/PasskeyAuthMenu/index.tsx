@@ -12,7 +12,6 @@ import QRCodeIcon from '../QRCodeIcon';
 import { useAuthMenuMode } from './useAuthMenuMode';
 import { useProceedEligibility } from './useProceedEligibility';
 import type { DeviceLinkingSSEEvent } from '../../../core/types/passkeyManager';
-import { useRegisterOverlayWaitingBridge } from './ArrowButtonOverlayHooks';
 import {
   AuthMenuMode,
   AuthMenuModeMap,
@@ -55,12 +54,6 @@ export interface SignupMenuProps {
     onEvent?: (event: DeviceLinkingSSEEvent) => void;
     onError?: (error: Error) => void;
   };
-  /**
-   * Registration: skips an extra confirm click, by mounting an iframe registration button
-   * on the same domain as the wallet-iframe.
-   * The ArrowButtonOverlayLit register button is mounted on hover in PasskeyInput.
-   */
-  useIframeArrowButtonOverlay?: boolean
 }
 
 export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
@@ -90,7 +83,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   isSecureContext,
   onRecoverAccount,
   linkDeviceOptions,
-  useIframeArrowButtonOverlay = false,
 }) => {
   const { tokens, isDark } = useTheme();
   // Access Passkey context if available (tolerate absence)
@@ -204,8 +196,7 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   const handleLinkDeviceEvent = linkDeviceOptions?.onEvent ?? fallbackOnEvent;
   const handleLinkDeviceError = linkDeviceOptions?.onError ?? fallbackOnError;
 
-  // Bridge wallet-iframe overlay register button submit/result → waiting state
-  useRegisterOverlayWaitingBridge({ enabled: !!useIframeArrowButtonOverlay, setWaiting });
+  // Overlay-based arrow removed; no waiting-bridge needed
 
   return (
     <div
@@ -270,12 +261,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
           isUsingExistingAccount={isUsingExistingAccountResolved}
           canProceed={canShowContinue}
           onProceed={onArrowClick}
-          variant="both"
-          primaryLabel={mode === AuthMenuMode.Login ? 'Login' : mode === AuthMenuMode.Recover ? 'Recover account' : 'Register'}
           mode={mode}
           secure={secure}
           waiting={waiting}
-          useIframeArrowButtonOverlay={useIframeArrowButtonOverlay}
         />
 
         {/* Segmented control: Register | Login | Recover (generic API) */}

@@ -1,14 +1,13 @@
 import React from 'react';
-// Arrow visuals handled by the Lit wrapper component
-// Refactored: React-driven postfix positioning (no imperative DOM writes)
 import { AuthMenuMode, AuthMenuModeMap } from './index';
 import { AccountExistsBadge } from './AccountExistsBadge';
 import ArrowButton from './ArrowButton';
 import { usePasskeyContext } from '../../context';
-import { useArrowButtonOverlay } from './ArrowButtonOverlayHooks';
-import { isIOS, isSafari, isMobileDevice } from '@/utils';
+
+// Arrow visuals handled by the Lit wrapper component
 // We mount the arrow inside the wallet iframe using the UI registry.
 // The local Lit wrapper is not used here.
+// import { useArrowButtonOverlay } from './ArrowButtonOverlayHooks';
 
 export interface PasskeyInputProps {
   value: string;
@@ -18,25 +17,12 @@ export interface PasskeyInputProps {
   isUsingExistingAccount?: boolean;
   canProceed: boolean;
   onProceed: () => void;
-  /** Controls which proceed controls render */
-  variant?: 'arrow' | 'label' | 'both';
-  /** Text for the primary labeled button (e.g., Login/Register) */
-  primaryLabel?: string;
   /** Current signup mode for status badge */
   mode?: AuthMenuMode;
   /** Whether the current context is secure (HTTPS) */
   secure?: boolean;
   /** Whether the parent flow is waiting on passkey resolution */
   waiting?: boolean;
-  /** Hide local arrow when wallet-iframe renders the register button */
-  hideLocalArrow?: boolean;
-  /**
-   * When true (default=false), mount the register arrow inside the wallet iframe overlay
-   * to capture activation in the wallet origin. When false, render a local
-   * Lit-based arrow button (w3a-arrow-register-button) and dispatch onProceed
-   * directly from the parent origin (requires an extra confirm click)
-   */
-  useIframeArrowButtonOverlay?: boolean;
 }
 
 export const PasskeyInput: React.FC<PasskeyInputProps> = ({
@@ -47,14 +33,10 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   isUsingExistingAccount,
   canProceed,
   onProceed,
-  variant = 'arrow',
-  primaryLabel,
   mode,
   secure,
   waiting = false,
-  hideLocalArrow = false,
-  useIframeArrowButtonOverlay = false,
-}) => {
+}: PasskeyInputProps) => {
   const ctx = (() => {
     try {
       return usePasskeyContext();
@@ -126,35 +108,7 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   }, []);
 
   const isRegisterMode = mode === AuthMenuMode.Register || (typeof mode === 'number' && (AuthMenuModeMap as any)[mode] === 'register');
-  const canShowArrow = isRegisterMode && canProceed && !waiting;
   const inputEnabled = canProceed && !waiting;
-
-  const resolveNearAccountId = React.useCallback((): string | null => {
-    // Prefer context-derived full account id
-    const fromCtx = ctx?.accountInputState?.targetAccountId;
-    if (typeof fromCtx === 'string' && fromCtx.trim().length > 0) return fromCtx.trim();
-    // Fallback: derive from value + postfixText when available
-    if (typeof value === 'string' && value.trim().length > 0 && typeof postfixText === 'string' && postfixText.length > 0) {
-      return `${value.trim()}${postfixText}`;
-    }
-    return null;
-  }, [ctx, value, postfixText]);
-
-  const nearAccountId = resolveNearAccountId();
-  const normalizedMode = (typeof mode === 'number' ? (AuthMenuModeMap as any)[mode] : mode) || 'register';
-
-  // Anchored wallet-iframe arrow mounting via hook
-  const overlayAllowed = React.useMemo(() => {
-    try { return !(isIOS() || isSafari() || isMobileDevice()); } catch { return false; }
-  }, []);
-
-  const { arrowAnchorRef, mountArrowAtRect } = useArrowButtonOverlay({
-    enabled: canShowArrow && useIframeArrowButtonOverlay && overlayAllowed,
-    waiting,
-    mode: normalizedMode,
-    nearAccountId,
-    id: 'w3a-auth-menu-arrow',
-  });
 
   return (
     <div className="w3a-passkey-row">
@@ -199,11 +153,7 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
       {isRegisterMode ? (
         <ArrowButton
           disabled={!canProceed || !!waiting}
-          onClick={(useIframeArrowButtonOverlay && overlayAllowed) ? mountArrowAtRect : onProceed}
-          // iframe mode only
-          arrowAnchorRef={(useIframeArrowButtonOverlay && overlayAllowed) ? arrowAnchorRef : undefined}
-          mountArrowAtRect={(useIframeArrowButtonOverlay && overlayAllowed) ? mountArrowAtRect : undefined}
-          fallbackRegister={!!(useIframeArrowButtonOverlay && overlayAllowed)}
+          onClick={onProceed}
         />
       ) : (
         // For Login and Recover: always show the React ArrowButton (original variant)

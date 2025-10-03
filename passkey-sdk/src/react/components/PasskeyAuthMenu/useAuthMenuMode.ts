@@ -22,7 +22,7 @@ export function getModeTitle(mode: AuthMenuMode): AuthMenuTitle {
     case AuthMenuMode.Register:
       return {
         title: 'Register Account',
-        subtitle: 'Create a wallet with a Passkey',
+        subtitle: 'Create a wallet with a Passkey1',
       };
     case AuthMenuMode.Recover:
       return {
