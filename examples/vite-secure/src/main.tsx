@@ -45,6 +45,8 @@ function App() {
               rpIdOverride: env.VITE_RP_ID_BASE,
               // Align dev with production asset layout
               sdkBasePath: env.VITE_SDK_BASE_PATH,
+              // Safari: allow GET fallback bridging when iframe doc loses focus or ancestor restrictions apply
+              enableSafariGetWebauthnRegistrationFallback: true,
             },
           }}
         >

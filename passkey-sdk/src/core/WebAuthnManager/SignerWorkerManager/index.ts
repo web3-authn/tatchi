@@ -91,10 +91,11 @@ export class SignerWorkerManager {
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
     rpIdOverride?: string,
-    iframeModeDefault?: boolean
+    iframeModeDefault?: boolean,
+    enableSafariGetWebauthnRegistrationFallback: boolean = false,
   ) {
     this.indexedDB = IndexedDBManager;
-    this.touchIdPrompt = new TouchIdPrompt(rpIdOverride);
+    this.touchIdPrompt = new TouchIdPrompt(rpIdOverride, enableSafariGetWebauthnRegistrationFallback);
     this.vrfWorkerManager = vrfWorkerManager;
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;

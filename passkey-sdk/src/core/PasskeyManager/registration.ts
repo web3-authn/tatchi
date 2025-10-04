@@ -365,7 +365,8 @@ export async function generateBootstrapVrfChallenge(
   const vrfResult = await webAuthnManager.generateVrfKeypairBootstrap({
     vrfInputData: {
       userId: nearAccountId,
-      rpId: window.location.hostname,
+      // Keep VRF rpId consistent with WebAuthn rpId selection logic.
+      rpId: webAuthnManager.getRpId(),
       blockHeight: String(blockInfo.header.height),
       blockHash: blockInfo.header.hash,
     },

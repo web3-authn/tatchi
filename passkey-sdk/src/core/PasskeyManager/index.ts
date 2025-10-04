@@ -1035,8 +1035,6 @@ export {
   DeviceLinkingErrorCode
 } from '../types/linkDevice';
 
-// (No longer re-exporting LinkDeviceFlow; flow is internal only)
-
 // Re-export account recovery types and classes
 export type {
   RecoveryResult,

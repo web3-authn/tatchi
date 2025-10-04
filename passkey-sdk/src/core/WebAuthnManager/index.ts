@@ -81,10 +81,19 @@ export class WebAuthnManager {
       UserPreferencesInstance,
       NonceManagerInstance,
       passkeyManagerConfigs.iframeWallet?.rpIdOverride,
-      !!passkeyManagerConfigs.iframeWallet?.walletOrigin
+      !!passkeyManagerConfigs.iframeWallet?.walletOrigin,
+      !!passkeyManagerConfigs.iframeWallet?.enableSafariGetWebauthnRegistrationFallback,
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
+  }
+
+  /**
+   * Resolve the effective rpId used for WebAuthn operations.
+   * Delegates to TouchIdPrompt to centralize rpId selection logic.
+   */
+  getRpId(): string {
+    try { return this.touchIdPrompt.getRpId(); } catch { return ''; }
   }
 
   /**

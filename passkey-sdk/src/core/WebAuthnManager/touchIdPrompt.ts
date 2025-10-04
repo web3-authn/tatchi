@@ -109,6 +109,42 @@ export class TouchIdPrompt {
     return /origin of the document is not the same as its ancestors/i.test(msg);
   }
 
+  private static _isDocumentNotFocusedError(err: unknown): boolean {
+    // Safari commonly throws NotAllowedError with message variants containing 'focus'
+    const name = (err as { name?: unknown })?.name;
+    const msg = String((err as { message?: unknown })?.message || '');
+    const isNotAllowed = typeof name === 'string' && name === 'NotAllowedError';
+    const mentionsFocus = /document is not focused|not focused|focus/i.test(msg);
+    return !!(isNotAllowed && mentionsFocus);
+  }
+
+  // Should we run create() via parent bridge to align clientDataJSON.origin with rpId?
+  // This is relevant when executing inside a cross-origin iframe whose hostname does not
+  // match the configured rpId. The top-level host should equal the rpId domain.
+  private static _shouldBridgeCreate(rpId: string): boolean {
+    if (!rpId || typeof rpId !== 'string') return false;
+    if (!TouchIdPrompt._inIframe()) return false;
+    try {
+      const host = window.location.hostname || '';
+      return !!host && host !== rpId;
+    } catch {
+      return false;
+    }
+  }
+
+  private static async _attemptRefocus(retries = 2): Promise<boolean> {
+    try { (window as any).focus?.(); } catch {}
+    try { (document?.body as any)?.focus?.(); } catch {}
+    // Give the browser a moment to update focus state
+    const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+    for (let i = 0; i <= retries; i++) {
+      await wait(i === 0 ? 50 : 120);
+      try { if (document.hasFocus()) return true; } catch {}
+      try { (window as any).focus?.(); } catch {}
+    }
+    try { return document.hasFocus(); } catch { return false; }
+  }
+
   // PostMessage bridge to parent window for WebAuthn operations
   private async requestParentWebAuthn(
     kind: 'WALLET_WEBAUTHN_GET',
@@ -126,10 +162,24 @@ export class TouchIdPrompt {
     timeoutMs = 60000,
   ): Promise<WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential | null> {
     const requestId = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
-    const resultType = kind === 'WALLET_WEBAUTHN_GET' ? 'WALLET_WEBAUTHN_GET_RESULT' : 'WALLET_WEBAUTHN_CREATE_RESULT';
+    const resultType = kind === 'WALLET_WEBAUTHN_GET'
+      ? 'WALLET_WEBAUTHN_GET_RESULT'
+      : 'WALLET_WEBAUTHN_CREATE_RESULT';
 
-    type GetResult = { type: 'WALLET_WEBAUTHN_GET_RESULT'; requestId: string; ok: boolean; credential?: WebAuthnAuthenticationCredential; error?: string };
-    type CreateResult = { type: 'WALLET_WEBAUTHN_CREATE_RESULT'; requestId: string; ok: boolean; credential?: WebAuthnRegistrationCredential; error?: string };
+    type GetResult = {
+      type: 'WALLET_WEBAUTHN_GET_RESULT';
+      requestId: string;
+      ok: boolean;
+      credential?: WebAuthnAuthenticationCredential;
+      error?: string
+    };
+    type CreateResult = {
+      type: 'WALLET_WEBAUTHN_CREATE_RESULT';
+      requestId: string;
+      ok: boolean;
+      credential?: WebAuthnRegistrationCredential;
+      error?: string
+    };
 
     return new Promise((resolve) => {
       let settled = false;
@@ -233,10 +283,15 @@ export class TouchIdPrompt {
     challenge,
     deviceNumber,
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
+    // Single source of truth for rpId: use getRpId().
+    // VRF challenges should also embed this value to keep flows aligned.
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialCreationOptions = {
       challenge: outputAs32Bytes(challenge) as BufferSource,
-      rp: { name: 'WebAuthn VRF Passkey', id: rpId },
+      rp: {
+        name: 'WebAuthn VRF Passkey',
+        id: rpId
+      },
       user: {
         id: new TextEncoder().encode(generateDeviceSpecificUserId(nearAccountId, deviceNumber)),
         name: generateDeviceSpecificUserId(nearAccountId, deviceNumber),
@@ -257,13 +312,33 @@ export class TouchIdPrompt {
       },
     };
     try {
+      // Execute at top-level when origin != rpId so clientDataJSON.origin aligns
+      if (TouchIdPrompt._shouldBridgeCreate(rpId)) {
+        const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_CREATE', publicKey);
+        if (bridged) return bridged as unknown as PublicKeyCredential;
+      }
       const cred = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
       return cred;
     } catch (e: unknown) {
-      // Safari cross-origin fallback: request top-level to perform WebAuthn create()
+      // 1) Safari cross-origin ancestor restriction: bridge to parent
       if (TouchIdPrompt._isAncestorOriginError(e) && TouchIdPrompt._inIframe()) {
         const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_CREATE', publicKey);
         if (bridged) return bridged as unknown as PublicKeyCredential;
+      }
+      // 2) Safari "document is not focused" edge: try refocus and retry
+      if (TouchIdPrompt._isDocumentNotFocusedError(e)) {
+        const focused = await TouchIdPrompt._attemptRefocus();
+        if (focused) {
+          try {
+            const cred = await navigator.credentials.create({ publicKey }) as PublicKeyCredential;
+            return cred;
+          } catch {}
+        }
+        // If inside an iframe, attempt parent bridge as a last resort
+        if (TouchIdPrompt._inIframe()) {
+          const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_CREATE', publicKey);
+          if (bridged) return bridged as unknown as PublicKeyCredential;
+        }
       }
       throw e;
     }
@@ -288,6 +363,8 @@ export class TouchIdPrompt {
     challenge,
     allowCredentials,
   }: AuthenticateCredentialsArgs): Promise<PublicKeyCredential> {
+    // Single source of truth for rpId: use getRpId().
+    // VRF challenges should also embed this value to keep flows aligned.
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialRequestOptions = {
       challenge: outputAs32Bytes(challenge) as BufferSource,
@@ -313,7 +390,7 @@ export class TouchIdPrompt {
       const cred = await navigator.credentials.get({ publicKey }) as PublicKeyCredential;
       return cred;
     } catch (e: unknown) {
-      // Safari cross-origin fallback: request top-level to perform WebAuthn get()
+      // 1) Safari cross-origin ancestor restriction: bridge to parent (gated by flag)
       if (
         this.safariGetWebauthnRegistrationFallback &&
         TouchIdPrompt._isAncestorOriginError(e) &&
@@ -321,6 +398,22 @@ export class TouchIdPrompt {
       ) {
         const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_GET', publicKey);
         if (bridged) return bridged as unknown as PublicKeyCredential;
+      }
+
+      // 2) Safari "document is not focused" edge: try refocus and retry then bridge if in iframe
+      if (TouchIdPrompt._isDocumentNotFocusedError(e)) {
+        const focused = await TouchIdPrompt._attemptRefocus();
+        if (focused) {
+          try {
+            const cred = await navigator.credentials.get({ publicKey }) as PublicKeyCredential;
+            return cred;
+          } catch {}
+        }
+        // Even if the flag is disabled, doc-not-focused in an iframe can be recovered via parent bridge
+        if (TouchIdPrompt._inIframe()) {
+          const bridged = await this.requestParentWebAuthn('WALLET_WEBAUTHN_GET', publicKey);
+          if (bridged) return bridged as unknown as PublicKeyCredential;
+        }
       }
       throw e;
     }
