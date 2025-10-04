@@ -86,6 +86,12 @@ export function getUserFriendlyErrorMessage(
     return getTouchIdCancellationMessage(context);
   }
 
+  // Missing PRF outputs
+  if (msg.includes('PRF outputs missing')) {
+    const op = context === 'registration' ? 'Registration' : 'Login';
+    return `${op} failed because your browser did not return the required passkey PRF results. On some mobile browsers this is not available for create(); try updating your browser or use a desktop browser. We’re working on an alternate path for broader device support.`;
+  }
+
   // Handle other common errors
   if (msg.includes('one of the credentials already registered')) {
     return `A passkey for '${nearAccountId || 'this account'}' already exists. Please try logging in instead.`;

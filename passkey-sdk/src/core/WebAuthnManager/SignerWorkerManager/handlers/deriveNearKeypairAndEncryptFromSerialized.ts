@@ -13,6 +13,22 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
 import { toError } from '@/utils/errors';
 
+function logPrfSupportHint(ua: string, hasFirst: boolean, hasSecond: boolean) {
+  try {
+    const missing = !hasFirst || !hasSecond;
+    if (!missing) return;
+    const note = [
+      '[PRF] Compatibility hint (non-authoritative):',
+      '- PRF is an optional WebAuthn extension and some mobile engines omit PRF results on create().',
+      '- Desktop Chrome (recent) and macOS Safari (recent) typically return PRF results; iOS engines may omit them.',
+      '- We rely on runtime feature detection rather than user agent checks.',
+      '- See docs/mobile-registration-errors.md for mitigations.'
+    ].join(' ');
+    // Single consolidated line to keep devtools logs tidy
+    console.warn(`${note} UA=${ua}`);
+  } catch {}
+}
+
 /**
  * Derive NEAR keypair and encrypt it from a serialized WebAuthn registration credential
  * (shape compatible with SerializedRegistrationCredential from WASM) by extracting PRF outputs from it.
@@ -44,7 +60,15 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   try {
     const first = credential?.clientExtensionResults?.prf?.results?.first as string | undefined;
     const second = credential?.clientExtensionResults?.prf?.results?.second as string | undefined;
-    if (!first || !second) {
+    const hasFirst = typeof first === 'string' && first.length > 0;
+    const hasSecond = typeof second === 'string' && second.length > 0;
+    // Log PRF presence to help diagnose mobile engines that omit PRF on create()
+    try {
+      const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : 'server');
+      console.debug('[deriveNearKeypairAndEncryptFromSerialized] PRF presence', { hasFirst, hasSecond, ua });
+      logPrfSupportHint(ua, hasFirst, hasSecond);
+    } catch {}
+    if (!hasFirst || !hasSecond) {
       throw new Error('PRF outputs missing from serialized credential');
     }
 

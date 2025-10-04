@@ -1,4 +1,5 @@
 import { WorkerRequestType, isWorkerError, isWorkerSuccess, type ConfirmationConfig } from '../../../types/signer-worker';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import type { SignerWorkerManagerContext } from '..';
 import { parseAndValidateRegistrationCredentialConfirmationPayload, type RegistrationCredentialConfirmationPayload } from './validation';
 
@@ -17,14 +18,19 @@ export async function requestRegistrationCredentialConfirmation({
   nearRpcUrl: string,
   confirmationConfig?: ConfirmationConfig,
 }): Promise<RegistrationCredentialConfirmationPayload> {
+  // Ensure required fields are present; JSON.stringify drops undefined causing Rust parse failure
+  const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+  // Use the first URL if defaults include a failover list
+  const resolvedNearRpcUrl = nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl);
+
   const res = await ctx.sendMessage<WorkerRequestType.RegistrationCredentialConfirmation>({
     message: {
       type: WorkerRequestType.RegistrationCredentialConfirmation,
       payload: {
         nearAccountId,
         deviceNumber,
-        contractId,
-        nearRpcUrl,
+        contractId: resolvedContractId,
+        nearRpcUrl: resolvedNearRpcUrl,
         ...(confirmationConfig ? { confirmationConfig } : {}),
       },
     },

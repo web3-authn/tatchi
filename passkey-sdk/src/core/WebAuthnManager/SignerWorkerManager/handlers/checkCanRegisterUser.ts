@@ -1,5 +1,6 @@
 
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../../config";
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from "../../../defaultConfigs";
 import {
   WorkerRequestType,
   isWorkerError,
@@ -59,6 +60,10 @@ export async function checkCanRegisterUser({
       ? credential
       : serializeRegistrationCredentialWithPRF({ credential: credential });
 
+    // Ensure required fields are present; avoid undefined which gets dropped by JSON.stringify in the worker
+    const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+    const resolvedNearRpcUrl = nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl);
+
     const response = await ctx.sendMessage<WorkerRequestType.CheckCanRegisterUser>({
       message: {
         type: WorkerRequestType.CheckCanRegisterUser,
@@ -74,8 +79,8 @@ export async function checkCanRegisterUser({
             blockHash: vrfChallenge.blockHash,
           },
           credential: serializedCredential,
-          contractId,
-          nearRpcUrl,
+          contractId: resolvedContractId,
+          nearRpcUrl: resolvedNearRpcUrl,
           authenticatorOptions: authenticatorOptions ? {
             userVerification: toEnumUserVerificationPolicy(authenticatorOptions.userVerification),
             originPolicy: authenticatorOptions.originPolicy,

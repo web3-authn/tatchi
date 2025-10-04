@@ -52,6 +52,7 @@ export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmExtractCosePublicKeyRequest
   | WasmSignNep413MessageRequest
   | WasmSignTransactionWithKeyPairRequest
+  | WasmRegistrationCredentialConfirmationRequest
   | WasmExportNearKeypairUiRequest;
 
 // WASM Worker Response Types
