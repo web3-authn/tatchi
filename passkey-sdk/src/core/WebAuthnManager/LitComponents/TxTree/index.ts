@@ -314,12 +314,19 @@ export class TxTree extends LitElementWithProps {
 
     /*
      * For the last child in a folder, shorten the vertical segment so it
-     * stops at the elbow (renders └ instead of ├).
+     * stops at the elbow (renders └ instead of ├) by default.
      */
     .folder-children > details:last-child > summary .indent::before {
-      /* For the last child, stop at the elbow (midline),
-         but still bridge any row gap below to avoid visual truncation */
       height: calc(50% + var(--w3a-tree__row__gap, 0px));
+    }
+
+    /*
+     * Exception: if the last child is a file node with expandable content,
+     * extend the vertical connector the full height to visually cover the
+     * file-content block as well.
+     */
+    .folder-children > details.file:last-child > summary .indent::before {
+      height: calc(100% + var(--w3a-tree__row__gap, 0px));
     }
 
     /* Top-level Transactions have no connector lines */

@@ -117,7 +117,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       border: `1px solid none`,
       color: DARK_THEME.textSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      borderRadius: '0.5rem 1rem 1rem 0.5rem',
+      borderRadius: '0.5rem',
       padding: '0.5rem',
       scrollbarTrackBackground: DARK_THEME.surface,
       scrollbarThumbBackground: DARK_THEME.textSecondary
@@ -241,7 +241,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       border: `1px solid ${LIGHT_THEME.borderPrimary}`,
       color: LIGHT_THEME.textPrimary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-      borderRadius: '0.5rem 1rem 1rem 0.5rem',
+      borderRadius: '0.5rem',
       padding: '0.5rem',
       scrollbarTrackBackground: LIGHT_THEME.surface,
       scrollbarThumbBackground: LIGHT_THEME.borderPrimary
