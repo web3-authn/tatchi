@@ -7,12 +7,16 @@ type Kind = 'create' | 'get';
 
 type BridgeKind = 'WALLET_WEBAUTHN_CREATE' | 'WALLET_WEBAUTHN_GET';
 
+type BridgeOk = { ok: true; credential: unknown };
+type BridgeErr = { ok: false; error?: string; timeout?: boolean };
+type BridgeResponse = BridgeOk | BridgeErr;
+
 type BridgeClient = {
   request(
     kind: BridgeKind,
     publicKey: PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions,
     timeoutMs?: number,
-  ): Promise<unknown | null>;
+  ): Promise<BridgeResponse>;
 };
 
 export interface OrchestratorDeps {
@@ -40,13 +44,16 @@ export async function executeWithFallbacks(
 
   // For create(): if iframe host differs from rpId, prefer top-level bridge so clientDataJSON.origin aligns.
   if (kind === 'create' && inIframe) {
-    try {
-      const host = window.location.hostname;
-      if (host && rpId && host !== rpId) {
-        const bridged = await bridgeClient.request('WALLET_WEBAUTHN_CREATE', publicKey as PublicKeyCredentialCreationOptions, timeoutMs);
-        if (bridged) return bridged;
+    const host = window.location.hostname;
+    if (host && rpId && host !== rpId) {
+      const bridged = await bridge(kind, publicKey, bridgeClient, timeoutMs);
+      if (bridged.ok) return bridged.credential as unknown;
+      // If bridge responded (non-timeout) with error (e.g., user cancelled), do not attempt native
+      if (!bridged.timeout) {
+        throw notAllowedError(bridged.error || 'WebAuthn create cancelled or failed (bridge)');
       }
-    } catch {}
+      // If bridge timed out (no parent listener), fall back to native attempt
+    }
   }
 
   try {
@@ -58,7 +65,10 @@ export async function executeWithFallbacks(
         throw e;
       }
       const bridged = await bridge(kind, publicKey, bridgeClient, timeoutMs);
-      if (bridged) return bridged;
+      if (bridged.ok) return bridged.credential;
+      if (!bridged.timeout) {
+        throw notAllowedError(bridged.error || 'WebAuthn get cancelled or failed (bridge)');
+      }
     }
 
     // Document-not-focused: refocus and retry, then bridge if still blocked and in iframe
@@ -69,7 +79,10 @@ export async function executeWithFallbacks(
       }
       if (inIframe) {
         const bridged = await bridge(kind, publicKey, bridgeClient, timeoutMs);
-        if (bridged) return bridged;
+        if (bridged.ok) return bridged.credential;
+        if (!bridged.timeout) {
+          throw notAllowedError(bridged.error || 'WebAuthn get cancelled or failed (bridge)');
+        }
       }
     }
 
@@ -82,7 +95,7 @@ async function bridge(
   publicKey: PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions,
   client: BridgeClient,
   timeoutMs: number,
-): Promise<unknown | null> {
+): Promise<BridgeResponse> {
   if (kind === 'create') {
     return client.request('WALLET_WEBAUTHN_CREATE', publicKey as PublicKeyCredentialCreationOptions, timeoutMs);
   }
@@ -95,13 +108,13 @@ class ParentBridgeClient implements BridgeClient {
     kind: BridgeKind,
     publicKey: PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions,
     timeoutMs = 60000,
-  ): Promise<unknown | null> {
+  ): Promise<BridgeResponse> {
     const requestId = `${kind}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
     const resultType = kind === 'WALLET_WEBAUTHN_GET' ? 'WALLET_WEBAUTHN_GET_RESULT' : 'WALLET_WEBAUTHN_CREATE_RESULT';
 
     return new Promise((resolve) => {
       let settled = false;
-      const finish = (val: unknown | null) => { if (!settled) { settled = true; resolve(val); } };
+      const finish = (val: BridgeResponse) => { if (!settled) { settled = true; resolve(val); } };
 
       const onMessage = (ev: MessageEvent) => {
         const payload = ev?.data as unknown;
@@ -113,12 +126,24 @@ class ParentBridgeClient implements BridgeClient {
         try { window.removeEventListener('message', onMessage); } catch {}
         const ok = !!(payload as { ok?: unknown }).ok;
         const cred = (payload as { credential?: unknown }).credential;
-        finish(ok && cred ? cred : null);
+        const err = (payload as { error?: unknown }).error;
+        if (ok && cred) return finish({ ok: true, credential: cred });
+        return finish({ ok: false, error: typeof err === 'string' ? err : undefined });
       };
       window.addEventListener('message', onMessage);
       try { window.parent?.postMessage({ type: kind, requestId, publicKey }, '*'); } catch {}
-      setTimeout(() => { try { window.removeEventListener('message', onMessage); } catch {}; finish(null); }, timeoutMs);
+      setTimeout(() => { try { window.removeEventListener('message', onMessage); } catch {}; finish({ ok: false, timeout: true }); }, timeoutMs);
     });
+  }
+}
+
+function notAllowedError(message: string): Error {
+  try {
+    const e = new Error(message);
+    (e as any).name = 'NotAllowedError';
+    return e;
+  } catch {
+    return new Error(message);
   }
 }
 
@@ -160,4 +185,3 @@ async function attemptRefocus(maxRetries = 2, delays: number[] = [50, 120]): Pro
   }
   try { return document.hasFocus(); } catch { return false; }
 }
-
