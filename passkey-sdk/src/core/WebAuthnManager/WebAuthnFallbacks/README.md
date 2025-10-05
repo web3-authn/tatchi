@@ -1,6 +1,6 @@
 # WebAuthnFallbacks - Safari WebAuthn and WASM Worker Compatibility Layer
 
-This directory contains utilities and fallback mechanisms to handle Safari-specific limitations with WebAuthn in cross-origin iframe contexts and WASM worker interactions.
+This directory contains fallback mechanisms to handle Safari-specific limitations with WebAuthn in cross-origin iframe contexts and WASM worker interactions.
 
 ## Overview
 
