@@ -80,6 +80,8 @@ export function useAccountInput({
 
   // Update derived state when inputs change
   const updateDerivedState = useCallback((username: string, accounts: string[]) => {
+    // Normalize username to lowercase to avoid iOS autocapitalize causing invalid NEAR IDs
+    const uname = (username || '').toLowerCase();
     if (!username.trim()) {
       setState(prevState => ({
         ...prevState,
@@ -93,7 +95,7 @@ export function useAccountInput({
 
     // Check if username matches any existing account in IndexDB
     const existingAccount = accounts.find(accountId =>
-      accountId.split('.')[0].toLowerCase() === username.toLowerCase()
+      accountId.split('.')[0].toLowerCase() === uname
     );
 
     let targetAccountId: string;
@@ -108,7 +110,7 @@ export function useAccountInput({
       isUsingExistingAccount = true;
     } else {
       const postfix = webauthnContractId;
-      targetAccountId = `${username}.${postfix}`;
+      targetAccountId = `${uname}.${postfix}`;
       displayPostfix = `.${postfix}`;
       isUsingExistingAccount = false;
     }
@@ -143,8 +145,9 @@ export function useAccountInput({
 
   // Handle username input changes
   const setInputUsername = useCallback((username: string) => {
-    setState(prevState => ({ ...prevState, inputUsername: username }));
-    updateDerivedState(username, state.indexDBAccounts);
+    const uname = (username || '').toLowerCase();
+    setState(prevState => ({ ...prevState, inputUsername: uname }));
+    updateDerivedState(uname, state.indexDBAccounts);
   }, [state.indexDBAccounts, updateDerivedState]);
 
   // onInitialMount: Load last logged in user and prefill

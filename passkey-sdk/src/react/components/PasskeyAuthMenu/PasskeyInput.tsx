@@ -128,6 +128,10 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
             placeholder={placeholder}
             className="w3a-input"
             aria-describedby={statusId}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            inputMode="text"
           />
           {postfixText && value.length > 0 && (
             <span

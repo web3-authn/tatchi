@@ -49,6 +49,34 @@ export function authenticatorsToAllowCredentials(
   }));
 }
 
+// Utility: inspect a serialized registration credential for dual PRF results and log helpful context.
+// Throws a specific Error when either PRF output is missing so callers can surface a precise message.
+export function assertCredentialHasDualPrf(
+  credential: WebAuthnRegistrationCredential,
+  label: string = 'Registration',
+): void {
+  try {
+    const prf: any = (credential as any)?.clientExtensionResults?.prf?.results;
+    const hasFirst = typeof prf?.first === 'string' && prf.first.length > 0;
+    const hasSecond = typeof prf?.second === 'string' && prf.second.length > 0;
+    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : 'server');
+    console.warn(`[${label}] PRF presence in credential`, { hasFirst, hasSecond, ua });
+    if (!hasFirst || !hasSecond) {
+      // Non-authoritative hint to aid debugging across devices
+      const hint = [
+        '[PRF] Some mobile browsers do not return PRF results on create().',
+        'We detect this at runtime; see docs/mobile-registration-errors.md for mitigations.'
+      ].join(' ');
+      console.warn(hint);
+      throw new Error('PRF outputs missing from serialized credential');
+    }
+  } catch (e) {
+    // If inspection itself fails, do not mask the original failure path; just rethrow
+    if (e instanceof Error) throw e;
+    throw new Error('PRF outputs missing from serialized credential');
+  }
+}
+
 /**
  * Generate ChaCha20Poly1305 salt using account-specific HKDF for encryption key derivation
  * @param nearAccountId - NEAR account ID to scope the salt to

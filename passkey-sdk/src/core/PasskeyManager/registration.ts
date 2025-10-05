@@ -18,7 +18,7 @@ import type { ConfirmationConfig } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
+import { authenticatorsToAllowCredentials, assertCredentialHasDualPrf } from '../WebAuthnManager/touchIdPrompt';
 
 /**
  * Core registration function that handles passkey registration
@@ -143,19 +143,7 @@ export async function registerPasskeyInternal(
       }
       if (!nearKeyResult.success || !nearKeyResult.publicKey) {
         // Validate whether the registration credential actually contained PRF results.
-        let specificError: Error | null = null;
-        try {
-          const prf = (credential as any)?.clientExtensionResults?.prf?.results;
-          const hasFirst = typeof prf?.first === 'string' && prf.first.length > 0;
-          const hasSecond = typeof prf?.second === 'string' && prf.second.length > 0;
-          console.warn('Registration: NEAR key derivation failed. PRF presence in credential:', { hasFirst, hasSecond });
-          if (!hasFirst || !hasSecond) {
-            specificError = new Error('PRF outputs missing from serialized credential');
-          }
-        } catch {
-          // ignore inspection failure; will use generic error below
-        }
-        if (specificError) throw specificError;
+        try { assertCredentialHasDualPrf(credential, 'Registration'); } catch (e) { throw e; }
         throw new Error('Failed to generate NEAR keypair with PRF');
       }
       if (!canRegisterUserResult.verified) {

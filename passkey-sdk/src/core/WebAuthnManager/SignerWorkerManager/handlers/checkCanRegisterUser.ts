@@ -14,6 +14,7 @@ import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '../../../types/webauthn';
 import { errorMessage } from '@/utils/errors';
+import { base64UrlDecode } from '@/utils/encoders';
 import { isObject, isString } from '../../../WalletIframe/validation';
 
 
@@ -59,6 +60,18 @@ export async function checkCanRegisterUser({
     const serializedCredential: WebAuthnRegistrationCredential = isSerialized(credential)
       ? credential
       : serializeRegistrationCredentialWithPRF({ credential: credential });
+
+    // Debug: inspect clientDataJSON.origin vs VRF rpId to catch origin/rpId mismatches on mobile
+    try {
+      const cdjBytes = base64UrlDecode(serializedCredential.response.clientDataJSON);
+      const cdjStr = new TextDecoder().decode(cdjBytes);
+      const cdj = JSON.parse(cdjStr) as { origin?: string; type?: string };
+      console.debug('[checkCanRegisterUser] clientDataJSON', {
+        origin: cdj?.origin,
+        type: cdj?.type,
+        vrfRpId: vrfChallenge.rpId,
+      });
+    } catch {}
 
     // Ensure required fields are present; avoid undefined which gets dropped by JSON.stringify in the worker
     const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
