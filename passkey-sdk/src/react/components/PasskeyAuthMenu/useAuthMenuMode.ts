@@ -17,12 +17,12 @@ export function getModeTitle(mode: AuthMenuMode): AuthMenuTitle {
     case AuthMenuMode.Login:
       return {
         title: 'Login',
-        subtitle: 'Fast passwordless, keyless login',
+        subtitle: 'Login with Passkey',
       };
     case AuthMenuMode.Register:
       return {
         title: 'Register Account',
-        subtitle: 'Create a wallet with a Passkey1',
+        subtitle: 'Create a wallet with Passkey',
       };
     case AuthMenuMode.Recover:
       return {
@@ -32,7 +32,7 @@ export function getModeTitle(mode: AuthMenuMode): AuthMenuTitle {
     default:
       return {
         title: 'Login',
-        subtitle: 'Fast passwordless, keyless login',
+        subtitle: 'Login with Passkey',
       };
   }
 }
