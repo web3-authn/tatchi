@@ -526,8 +526,8 @@ function ensurePasskeyManager(): void {
   if (!walletConfigs || !walletConfigs.nearRpcUrl) {
     throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
   }
-  if (!walletConfigs.webauthnContractId) {
-    throw new Error('Wallet service misconfigured: webauthnContractId is required.');
+  if (!walletConfigs.contractId) {
+    throw new Error('Wallet service misconfigured: contractId is required.');
   }
   if (!nearClient) nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   if (!passkeyManager) {
@@ -630,10 +630,10 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
     walletConfigs = {
       nearRpcUrl: payload?.nearRpcUrl || walletConfigs?.nearRpcUrl || '',
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',
-      // Accept both legacy `contractId` and canonical `webauthnContractId`
-      webauthnContractId: (payload as any)?.webauthnContractId
+      // Accept both legacy `contractId` and canonical `contractId`
+      contractId: (payload as any)?.contractId
         || (payload as any)?.contractId
-        || walletConfigs?.webauthnContractId
+        || walletConfigs?.contractId
         || '',
       nearExplorerUrl: walletConfigs?.nearExplorerUrl,
       relayer: payload?.relayer || walletConfigs?.relayer,

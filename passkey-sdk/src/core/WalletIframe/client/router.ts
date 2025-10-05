@@ -185,7 +185,7 @@ export class WalletIframeRouter {
     } as Required<WalletIframeRouterOptions>;
     this.walletOriginUrl = parsedOrigin;
     this.walletOriginOrigin = parsedOrigin.origin;
-    this.debug = !!this.opts.debug || !!((globalThis as unknown as { __W3A_DEBUG__?: boolean }).__W3A_DEBUG__);
+    this.debug = !!this.opts.debug;
     // Encapsulate iframe mount + handshake logic in transport
     this.transport = new IframeTransport({
       walletOrigin: this.opts.walletOrigin,
@@ -300,9 +300,9 @@ export class WalletIframeRouter {
           theme: this.opts.theme,
           nearRpcUrl: this.opts.nearRpcUrl,
           nearNetwork: this.opts.nearNetwork,
-          // Align with PMSetConfigPayload which expects `webauthnContractId`
+          // Align with PMSetConfigPayload which expects `contractId`
           // while keeping RouterOptions field name `contractId` for external API.
-          webauthnContractId: this.opts.contractId,
+          contractId: this.opts.contractId,
           relayer: this.opts.relayer,
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,
