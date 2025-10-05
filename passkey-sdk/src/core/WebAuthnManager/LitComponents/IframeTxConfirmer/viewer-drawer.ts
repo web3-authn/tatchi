@@ -101,6 +101,10 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   static styles = css`
     :host { display: contents; }
+    /* Narrower sheet for tx confirmer drawer */
+    w3a-drawer {
+      --w3a-drawer__max-width: 420px;
+    }
     .drawer-tx-confirmer-root {
       display: grid;
       place-content: center;
@@ -109,11 +113,15 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 2rem;
+      margin-top: 1rem;
       margin-bottom: 0.5rem;
       gap: 12px;
     }
-    .drawer-title { margin: 0; font-size: 20px; font-weight: 700; }
+    .drawer-title {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
     .drawer-actions { display: flex; gap: 8px; }
     .drawer-btn {
       border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
@@ -137,12 +145,12 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     }
     .section {
       margin: 8px 0;
-      max-width: 600px;
+      max-width: 420px;
     }
     .responsive-card {
       position: relative;
       min-width: 320px;
-      max-width: 600px;
+      max-width: 420px;
       overflow: visible;
       border-radius: 1rem;
       z-index: 1;
@@ -195,7 +203,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.txSigningRequests = [];
     this.theme = 'dark';
     this.loading = false;
-    this.title = 'Sign transaction with Passkey';
+    this.title = 'Confirm action with Passkey';
     this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;

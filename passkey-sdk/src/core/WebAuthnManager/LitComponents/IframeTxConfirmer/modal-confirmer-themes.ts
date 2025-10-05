@@ -88,12 +88,11 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: DARK_THEME.textPrimary,
     },
     modalContainerRoot: {
-      // background: DARK_THEME.grey750,
-      // border: `1px solid ${DARK_THEME.borderPrimary}`,
-      // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
-      background: 'none',
-      border: 'none',
-      boxShadow: 'none',
+      background: DARK_THEME.colorBackground,
+      border: `1px solid ${DARK_THEME.borderPrimary}`,
+      borderRadius: '2rem',
+      padding: '0.75rem',
+      boxShadow: '0 16px 48px rgba(0,0,0,0.35)',
       margin: '1rem 0 0 0',
     },
     responsiveCard: {
@@ -225,13 +224,13 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     passkeyHaloLoadingTouchIcon: {
       color: DARK_THEME.textSecondary,
       margin: '0.75rem',
-      strokeWidth: '4',
+      strokeWidth: '3',
     },
 
     hero: {
     },
     heroHeading: {
-      color: LIGHT_THEME.grey100,
+      color: DARK_THEME.textPrimary,
     },
     heroSubheading: {
       color: LIGHT_THEME.grey400,
@@ -303,12 +302,11 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       color: LIGHT_THEME.textPrimary,
     },
     modalContainerRoot: {
-      // background: DARK_THEME.grey100,
-      // border: `1px solid ${LIGHT_THEME.borderPrimary}`,
-      // boxShadow: '0 2px 4px 0px rgba(25, 25, 25, 0.2)',
-      background: 'none',
-      border: 'none',
-      boxShadow: 'none',
+      background: LIGHT_THEME.colorBackground,
+      border: `1px solid ${LIGHT_THEME.borderPrimary}`,
+      borderRadius: '2rem',
+      padding: '0.75rem',
+      boxShadow: '0 16px 48px rgba(0,0,0,0.15)',
       margin: '1rem 0 0 0',
     },
     responsiveCard: {
@@ -443,13 +441,13 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     passkeyHaloLoadingTouchIcon: {
       color: LIGHT_THEME.textMuted,
       margin: '0.75rem',
-      strokeWidth: '4',
+      strokeWidth: '3',
     },
 
     hero: {
     },
     heroHeading: {
-      color: LIGHT_THEME.grey100,
+      color: LIGHT_THEME.textPrimary,
     },
     heroSubheading: {
       color: LIGHT_THEME.grey400,

@@ -64,7 +64,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: DARK_THEME.colorBackground,
+      background: DARK_THEME.surface2,
       border: 'none',
       color: DARK_THEME.textPrimary,
     },
@@ -81,7 +81,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: DARK_THEME.surface2,
+      background: DARK_THEME.surface,
       borderColor: DARK_THEME.textSecondary,
     },
     row: {
@@ -113,12 +113,12 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: DARK_THEME.surface,
+      background: DARK_THEME.surface2,
       border: `1px solid none`,
       color: DARK_THEME.textSecondary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem',
-      padding: '0.5rem',
+      padding: '0.25rem',
       scrollbarTrackBackground: DARK_THEME.surface,
       scrollbarThumbBackground: DARK_THEME.textSecondary
     },
@@ -187,7 +187,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
     // Component-specific tree variables
     tooltipTreeRoot: {
       padding: '0.5rem',
-      background: LIGHT_THEME.colorBackground,
+      background: LIGHT_THEME.surface,
       border: 'none',
       color: LIGHT_THEME.textPrimary,
     },
@@ -205,7 +205,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       background: 'transparent',
     },
     summaryRowHover: {
-      background: LIGHT_THEME.slate100,
+      background: LIGHT_THEME.surface2,
       borderColor: LIGHT_THEME.borderPrimary
     },
     row: {
@@ -237,12 +237,12 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
       fontSize: '0.875rem'
     },
     fileContent: {
-      background: LIGHT_THEME.slate100,
+      background: LIGHT_THEME.surface,
       border: `1px solid ${LIGHT_THEME.borderPrimary}`,
       color: LIGHT_THEME.textPrimary,
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
       borderRadius: '0.5rem',
-      padding: '0.5rem',
+      padding: '0.25rem',
       scrollbarTrackBackground: LIGHT_THEME.surface,
       scrollbarThumbBackground: LIGHT_THEME.borderPrimary
     },

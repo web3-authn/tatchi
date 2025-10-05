@@ -87,7 +87,7 @@ export class DrawerElement extends LitElementWithProps {
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
       padding: 2rem;
       /* Constrain width and center horizontally */
-      max-width: 600px;
+      max-width: var(--w3a-drawer__max-width, 420px);
       margin-left: auto;
       margin-right: auto;
       /* Use a tall sheet so we can overpull without clipping */
@@ -122,8 +122,8 @@ export class DrawerElement extends LitElementWithProps {
     /* full-open removed */
     .close-btn {
       position: absolute;
-      right: 0rem;
-      top: 0rem;
+      right: -0.5rem;
+      top: -0.5rem;
       background: none;
       border: none;
       color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #99a0aa));

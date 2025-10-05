@@ -46,7 +46,7 @@ export class VrfWorkerManager {
     this.config = {
       // Default to client-hosted worker file using centralized config
       vrfWorkerUrl: BUILD_PATHS.RUNTIME.VRF_WORKER,
-      workerTimeout: 10000,
+      workerTimeout: 60_000,
       debug: false,
       ...config
     };
@@ -182,7 +182,7 @@ export class VrfWorkerManager {
         return;
       }
 
-      const timeoutMs = customTimeout || 30000;
+      const timeoutMs = (customTimeout ?? this.config.workerTimeout ?? 60_000);
       const timeout = setTimeout(() => {
         reject(new Error(`VRF Web Worker communication timeout (${timeoutMs}ms) for message type: ${message.type}`));
       }, timeoutMs);

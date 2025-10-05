@@ -65,19 +65,27 @@ export class TxConfirmContentElement extends LitElementWithProps {
     .label { font-size: 12px; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
     .value { font-size: 13px; color: var(--w3a-colors-textPrimary, #f6f7f8); word-break: break-word; }
     :host([theme="light"]) .value { color: var(--w3a-colors-textPrimary, #181a1f); }
-    .actions { display: grid; grid-auto-flow: column; gap: 10px; justify-content: end; margin-top: 12px; }
+    .actions {
+      display: grid;
+      grid-auto-flow: column;
+      gap: 10px;
+      justify-content: end;
+      margin-top: 0.75rem;
+    }
 
     button { font: inherit; border-radius: 14px; padding: 10px 14px; cursor: pointer; }
     .cancel {
       background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.08)));
       color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary, #f6f7f8));
       border: var(--w3a-modal__btn-cancel__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)));
+      border-radius: 2rem;
       min-width: 80px;
     }
     .confirm {
       background: var(--w3a-modal__btn-confirm__background-color, var(--w3a-colors-accent, #3b82f6));
       color: var(--w3a-modal__btn-confirm__color, #fff);
       border: var(--w3a-modal__btn-confirm__border, 1px solid transparent);
+      border-radius: 2rem;
       min-width: 80px;
       display: inline-flex;
       align-items: center;

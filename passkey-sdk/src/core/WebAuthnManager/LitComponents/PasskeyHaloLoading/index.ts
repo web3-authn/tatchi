@@ -92,7 +92,7 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
       margin: 'var(--w3a-modal__passkey-halo-loading-touch-icon__margin, 0.75rem)',
     } as Record<string, string>;
 
-    const strokeWidth = 'var(--w3a-modal__passkey-halo-loading-touch-icon__stroke-width, 4)';
+    const strokeWidth = 'var(--w3a-modal__passkey-halo-loading-touch-icon__stroke-width, 3)';
 
     return html`
       <svg

@@ -151,7 +151,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       justify-content: center;
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
-      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(3px));
+      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(1px));
       animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in);
       will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }
@@ -182,14 +182,15 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       display: grid;
       gap: 0.5rem;
       position: var(--w3a-modal__modal-container-root__position, relative);
-      border: var(--w3a-modal__modal-container-root__border, none);
-      border-radius: var(--w3a-modal__modal-container-root__border-radius, 0rem);
+      border: var(--w3a-modal__modal-container-root__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)));
+      border-radius: var(--w3a-modal__modal-container-root__border-radius, 2rem);
       margin: var(--w3a-modal__modal-container-root__margin, 0px);
-      padding: var(--w3a-modal__modal-container-root__padding, 0px);
+      padding: var(--w3a-modal__modal-container-root__padding, 0.75rem);
       height: var(--w3a-modal__modal-container-root__height, auto);
       overflow: var(--w3a-modal__modal-container-root__overflow, hidden);
-      box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
-      background: var(--w3a-modal__modal-container-root__background);
+      box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 16px 48px rgba(0, 0, 0, 0.35));
+      background: var(--w3a-modal__modal-container-root__background, var(--w3a-colors-colorBackground, #111));
+      backdrop-filter: blur(4px);
       animation: fadeIn 32ms ease-in;
       will-change: opacity, transform;
     }
@@ -207,7 +208,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
     .responsive-card {
       position: relative;
-      min-width: 420px;
       max-width: 600px;
       overflow: visible;
       border-radius: 2rem;
@@ -283,7 +283,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       margin: 0;
       font-size: var(--w3a-font-size-lg);
       font-weight: 500;
-      color: var(--w3a-modal__hero-heading__color);
+      color: var(--w3a-modal__hero-heading__color, var(--w3a-colors-textPrimary));
       text-align: start;
     }
     .hero-subheading {
@@ -547,7 +547,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Responsive adjustments */
     @media (max-width: 640px) {
       .responsive-card {
-        min-width: var(--w3a-modal__mobile__responsive-card__min-width, 320px);
         max-width: var(--w3a-modal__mobile__responsive-card__max-width, 100vw - 1rem);
       }
 
@@ -586,7 +585,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Tablet adjustments */
     @media (min-width: 641px) and (max-width: 1024px) {
       .responsive-card {
-        min-width: var(--w3a-modal__tablet__responsive-card__min-width, 400px);
         max-width: var(--w3a-modal__tablet__responsive-card__max-width, 500px);
       }
     }
@@ -594,7 +592,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Large desktop adjustments */
     @media (min-width: 1025px) {
       .responsive-card {
-        min-width: var(--w3a-modal__desktop__responsive-card__min-width, 420px);
         max-width: var(--w3a-modal__desktop__responsive-card__max-width, 600px);
       }
     }
@@ -734,14 +731,14 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                 .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
                 .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
                 .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
-                .height=${40}
-                .width=${40}
+                .height=${36}
+                .width=${36}
               ></w3a-passkey-halo-loading>
               <div class="hero-container">
                 <!-- Hero heading -->
                 ${(() => {
                   const isRegistration = (this.txSigningRequests?.length || 0) === 0;
-                  const heading = isRegistration ? 'Register with Passkey' : 'Sign transaction with Passkey';
+                  const heading = isRegistration ? 'Register with Passkey' : 'Confirm action with Passkey';
                   return html`<h2 class="hero-heading">${heading}</h2>`;
                 })()}
                 ${this.errorMessage
