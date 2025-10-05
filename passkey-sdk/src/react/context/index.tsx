@@ -157,7 +157,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Use account input hook
   const accountInputHook = useAccountInput({
     passkeyManager: passkeyManager,
-    webauthnContractId: passkeyManager.configs.webauthnContractId,
+    contractId: passkeyManager.configs.contractId,
     currentNearAccountId: loginState.nearAccountId,
     isLoggedIn: loginState.isLoggedIn
   });

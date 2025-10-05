@@ -114,7 +114,7 @@ export async function executeDeviceLinkingContractCalls({
   // Sign three transactions with one PRF authentication
   const signedTransactions = await context.webAuthnManager.signTransactionsWithActions({
     rpcCall: {
-      contractId: context.webAuthnManager.passkeyManagerConfigs.webauthnContractId,
+      contractId: context.webAuthnManager.passkeyManagerConfigs.contractId,
       nearRpcUrl: context.webAuthnManager.passkeyManagerConfigs.nearRpcUrl,
       nearAccountId: device1AccountId
     },
@@ -134,7 +134,7 @@ export async function executeDeviceLinkingContractCalls({
       },
       // Transaction 2: Store temporary mapping in contract so Device2 can lookup Device1's accountID.
       {
-        receiverId: context.webAuthnManager.passkeyManagerConfigs.webauthnContractId,
+        receiverId: context.webAuthnManager.passkeyManagerConfigs.contractId,
         actions: [{
           action_type: ActionType.FunctionCall,
           method_name: 'store_device_linking_mapping',

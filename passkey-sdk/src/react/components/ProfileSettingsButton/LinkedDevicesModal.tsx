@@ -63,7 +63,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
 
     try {
       const nearClient = passkeyManager.getNearClient();
-      const contractId = passkeyManager.configs.webauthnContractId;
+      const contractId = passkeyManager.configs.contractId;
       const tuples = await getAuthenticatorsByUser(nearClient, contractId, toAccountId(nearAccountId));
 
       // Map each authenticator to a single row with credentialId and registered timestamp

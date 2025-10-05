@@ -442,5 +442,3 @@ export class MinimalNearClient implements NearClient {
     };
   }
 }
-
-// errorMessage moved to utils/errors

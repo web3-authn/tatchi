@@ -14,8 +14,6 @@ declare global {
     _svc_loaded?: boolean;
   }
   interface Window {
-    // Optional debug flag toggled in local/dev environments
-    __W3A_DEBUG__?: boolean;
     // Absolute base URL for embedded SDK assets inside wallet host
     __W3A_EMBEDDED_BASE__?: string;
   }

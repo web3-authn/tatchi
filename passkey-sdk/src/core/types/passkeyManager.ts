@@ -599,7 +599,7 @@ export interface GetRecentLoginsResult {
 export interface PasskeyManagerConfigs {
   nearRpcUrl: string;
   nearNetwork: 'testnet' | 'mainnet';
-  webauthnContractId: 'web3-authn-v5.testnet' | 'web3-authn.near' | string;
+  contractId: 'web3-authn-v5.testnet' | 'web3-authn.near' | string;
   nearExplorerUrl?: string; // NEAR Explorer URL for transaction links
   walletTheme?: 'dark' | 'light';
   // Iframe Wallet configuration (when using a separate wallet origin)

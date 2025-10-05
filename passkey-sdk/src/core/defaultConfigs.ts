@@ -7,9 +7,9 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
   // You can provide a single URL or a comma-separated list for failover.
   // First URL is treated as primary, subsequent URLs are fallbacks.
   // nearRpcUrl: 'https://rpc.testnet.near.org',
-  nearRpcUrl: 'https://test.rpc.fastnear.com,https://rpc.testnet.near.org',
+  nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
-  webauthnContractId: 'web3-authn-v5.testnet',
+  contractId: 'web3-authn-v5.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
   relayer: {
     accountId: 'web3-authn-v5.testnet',
@@ -45,7 +45,7 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
   const merged: PasskeyManagerConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     ...overrides,
-    webauthnContractId: overrides.webauthnContractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId,
+    contractId: overrides.contractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
     relayer: {
       accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
