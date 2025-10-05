@@ -1,54 +1,25 @@
-/* Web3Authn SDK Style Guide Implementation for EmbeddedTxConfirmPage */
 
 /* Base Layout */
 .embedded-tx-page-root {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: grid;
+  align-items: flex-start;
   justify-content: center;
+  gap: 1rem;
   width: 100%;
-  max-width: 480px;
-  margin: 0 auto;
-  margin-top: 1rem;
-  padding: var(--fe-gap-4);
-  font-family: var(--fe-font-sans);
-}
-
-/* Translucent outer shell wrapping solid content */
-.embedded-tx-translucent-container {
-  background: transparent;
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  border: 1px solid var(--fe-border);
-  border-radius: var(--fe-radius-lg);
-  padding: var(--fe-gap-2);
-  width: 100%;
-  box-shadow: 0 4px 20px var(--fe-shadow-strong);
+  padding: 1rem;
 }
 
 /* Solid content area inside translucent shell */
 .embedded-tx-content-area {
-  background: var(--fe-surface-solid);
-  border: 1px solid var(--fe-border);
-  border-radius: var(--fe-radius);
   padding: var(--fe-gap-6);
-  box-shadow: 0 2px 4px var(--fe-shadow);
-  position: relative;
-}
-
-/* Header Section */
-.embedded-tx-header {
-  text-align: center;
-  margin-bottom: var(--fe-gap-6);
-  border-bottom: 1px solid var(--fe-border);
-  padding-bottom: var(--fe-gap-4);
 }
 
 .embedded-tx-title {
-  font-size: var(--fe-text-2xl);
-  font-weight: var(--fe-font-bold);
-  color: var(--fe-text-primary);
-  margin: 0 0 var(--fe-gap-2) 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fe-text);
+  margin: 1rem 0 0 0;
+  text-align: center;
 }
 
 .embedded-tx-caption {
@@ -129,10 +100,11 @@
   margin: 0;
 }
 
-/* Component Section */
+/* Embedded component shell */
 .test-embedded-section {
   display: flex;
   flex-direction: column;
+  gap: var(--fe-gap-2);
 }
 
 .test-embedded-section-label {
@@ -140,21 +112,18 @@
   font-weight: var(--fe-font-semibold);
   color: var(--fe-text-primary);
   margin: 0;
-  margin-bottom: var(--fe-gap-2);
 }
 
-/* Status Sections */
+/* Status Section */
 .embedded-tx-status-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fe-gap-4);
 }
 
 .embedded-tx-status-label {
+  display: block;
   font-size: var(--fe-text-sm);
   font-weight: var(--fe-font-semibold);
   color: var(--fe-text-primary);
-  margin: 0;
+  margin-bottom: var(--fe-gap-2);
 }
 
 /* Loading State */
@@ -184,10 +153,12 @@
 
 /* Success State */
 .embedded-tx-success {
-  background: #e8f5e8;
+  background: var(--fe-bg);
   padding: var(--fe-gap-3);
   border-radius: var(--fe-radius-sm);
-  color: #2d5a2d;
+  color: #4d9a8d;
+  max-height: 200px;
+  overflow: scroll;
 }
 
 .embedded-tx-success pre {
@@ -200,10 +171,10 @@
 
 /* Error State */
 .embedded-tx-error {
-  background: #ffe8e8;
+  background: var(--fe-bg);
   padding: var(--fe-gap-3);
   border-radius: var(--fe-radius-sm);
-  color: #5a2d2d;
+  color: #8a4d4d;
 }
 
 .embedded-tx-error pre {
@@ -283,3 +254,4 @@
 .embedded-tx-page-root::-webkit-scrollbar-thumb:hover {
   background: var(--fe-text-secondary);
 }
+

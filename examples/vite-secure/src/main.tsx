@@ -6,7 +6,6 @@ import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeS
 import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
-import { EmbeddedTxConfirmPage } from './pages/EmbeddedTxConfirmPage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
@@ -55,7 +54,6 @@ function App() {
             <Navbar />
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
               <Route path="/multitx" element={<MultiTxConfirmPage/>} />
             </Routes>
             <ToasterThemed />

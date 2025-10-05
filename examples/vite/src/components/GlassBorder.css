@@ -3,8 +3,8 @@
 /* Translucent outer shell wrapping solid content */
 .glass-border-root {
   box-sizing: border-box;
-  background: transparent;
-  backdrop-filter: blur(2px);
+  background: var(--w3a-colors-surface2);
+  backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(2px);
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-xl);
@@ -16,17 +16,17 @@
 
 .glass-border-inner {
   box-sizing: border-box;
-  background: var(--fe-surface-solid);
-  border: 1px solid var(--fe-border);
+  background: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: var(--fe-radius-lg);
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
 }
 
 .black-gradient-border {
   --border-angle: 0deg;
-  background: linear-gradient(#ffffff, #ffffff) padding-box,
+  background: linear-gradient(var(--fe-surface-solid), var(--fe-surface-solid)) padding-box,
     conic-gradient(
       from var(--border-angle),
       rgba(0, 0, 0, 0.0) 0%,

@@ -2,40 +2,62 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider } from '@web3authn/passkey/react';
+import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@web3authn/passkey/react';
 import '@web3authn/passkey/react/styles';
 
 import { HomePage } from './pages/HomePage';
-import { EmbeddedTxConfirmPage } from './pages/EmbeddedTxConfirmPage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
 
-// Read env vars (Vite requires using import.meta.env exactly)
+// Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
 const env = import.meta.env;
 
 function App() {
+  // Mirror theme onto <body> so overscroll shows correct background
+  const BodyThemeSync: React.FC = () => {
+    const { theme } = useTheme();
+    React.useEffect(() => {
+      try { document.body.setAttribute('data-w3a-theme', theme); } catch {}
+    }, [theme]);
+    return null;
+  };
+
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <PasskeyProvider config={{
-          // Same-origin mode (App Wallet) for this example.
-          // To demo cross-origin wallet hosting, use the vite-secure example
-          // which serves the wallet service on a separate origin.
-          webauthnContractId: env.VITE_WEBAUTHN_CONTRACT_ID || 'web3-authn-v5.testnet',
-          relayer: {
-            url: env.VITE_RELAYER_URL!,
-            accountId: env.VITE_RELAYER_ACCOUNT_ID || 'w3a-relayer.testnet',
-          },
-        }}>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/embedded" element={<EmbeddedTxConfirmPage/>} />
-          <Route path="/modal" element={<MultiTxConfirmPage/>} />
-        </Routes>
-        <ToasterThemed />
+        <PasskeyProvider
+          config={{
+            relayer: {
+              url: env.VITE_RELAYER_URL!,
+              accountId: env.VITE_RELAYER_ACCOUNT_ID!,
+            },
+            vrfWorkerConfigs: {
+              shamir3pass: {
+                relayServerUrl: env.VITE_RELAYER_URL!,
+              }
+            },
+            iframeWallet: {
+              walletOrigin: env.VITE_WALLET_ORIGIN,
+              walletServicePath: env.VITE_WALLET_SERVICE_PATH,
+              rpIdOverride: env.VITE_RP_ID_BASE,
+              // Align dev with production asset layout
+              sdkBasePath: env.VITE_SDK_BASE_PATH,
+              // Safari: allow GET fallback bridging when iframe doc loses focus or ancestor restrictions apply
+              enableSafariGetWebauthnRegistrationFallback: true,
+            },
+          }}
+        >
+          <ThemeScope as="div" className="app-theme-scope">
+            <BodyThemeSync />
+            <Navbar />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/multitx" element={<MultiTxConfirmPage/>} />
+            </Routes>
+            <ToasterThemed />
+          </ThemeScope>
         </PasskeyProvider>
       </ThemeProvider>
     </BrowserRouter>

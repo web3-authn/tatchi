@@ -267,35 +267,6 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
             </button>
           </div>
 
-          <div className="transfer-section">
-            <h3>Send NEAR</h3>
-            <div className="transfer-input-group">
-              <input
-                type="text"
-                value={transferRecipient}
-                onChange={(e) => setTransferRecipient(e.target.value)}
-                placeholder="Recipient account (e.g., alice.testnet)"
-                className="greeting-focus-ring"
-              />
-              <input
-                type="number"
-                value={transferAmount}
-                onChange={(e) => setTransferAmount(e.target.value)}
-                placeholder="Amount in NEAR"
-                className="greeting-focus-ring"
-                min="0"
-                step="0.01"
-              />
-              <button
-                onClick={handleSendNear}
-                className="greeting-btn greeting-btn-primary"
-                disabled={isLoading || !transferRecipient.trim() || !transferAmount.trim()}
-              >
-                {isLoading ? 'Processing...' : 'Send NEAR'}
-              </button>
-            </div>
-          </div>
-
           {error && (
             <div className="error-message">
               Error: {error}

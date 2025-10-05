@@ -34,7 +34,6 @@ export const Navbar: React.FC = () => {
 
   return (
     <ThemeScope>
-      <DebugBanner />
       <nav className="navbar-container">
       <div className="navbar-title">
         <Link to="/">
@@ -50,6 +49,8 @@ export const Navbar: React.FC = () => {
           Transaction Demos
         </Link>
       </div>
+
+      <DebugBanner />
 
       {
         loginState.isLoggedIn &&

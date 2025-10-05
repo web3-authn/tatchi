@@ -19,7 +19,7 @@
   background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: var(--fe-radius-lg);
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
 }

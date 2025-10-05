@@ -78,6 +78,7 @@ export function PasskeyLoginMenu() {
             break;
           case RegistrationPhase.STEP_7_REGISTRATION_COMPLETE:
             if (event.status === RegistrationStatus.SUCCESS) {
+              // Final toast with tx hash will be shown after the promise resolves
               toast.success('Registration completed successfully!', { id: 'registration' });
             }
             break;
@@ -93,7 +94,9 @@ export function PasskeyLoginMenu() {
     });
 
     if (result.success && result.nearAccountId) {
-      // Registration successful - the context will handle updating account data
+      // Registration successful – replace with final toast including tx hash
+      const tx = result.transactionId ? ` (tx: ${result.transactionId})` : '';
+      toast.success(`Registration completed successfully${tx}`, { id: 'registration' });
       return; // success: resolve
     }
     // Ensure failure propagates to caller so UI can reset
@@ -156,8 +159,7 @@ export function PasskeyLoginMenu() {
   };
 
   return (
-    <div className="passkey-login-container-root" style={{
-    }}>
+    <div className="passkey-login-container-root">
       <PasskeyAuthMenu
         defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
         socialLogin={{}}

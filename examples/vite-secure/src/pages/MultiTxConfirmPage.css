@@ -1,26 +1,23 @@
 /* Web3Authn SDK Style Guide Implementation for ModalTxConfirmPage */
 
 /* Base Layout */
-.modal-tx-confirm-page {
+.multi-tx-confirm-page {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
   width: 100%;
-  max-width: 600px;
+  max-width: 480px;
   margin: 0 auto;
-  margin-top: 1rem;
-  padding: var(--fe-gap-4);
   font-family: var(--fe-font-sans);
 }
 
-.modal-tx-confirm-page-content {
+.multi-tx-confirm-page-content {
   width: 100%;
-  padding: 2rem 1rem;
 }
 
 /* Login Prompt */
-.modal-tx-page-root {
+.multi-tx-page-root {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -33,7 +30,7 @@
   font-family: var(--fe-font-sans);
 }
 
-.modal-tx-translucent-container {
+.multi-tx-translucent-container {
   background: transparent;
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
@@ -44,7 +41,7 @@
   box-shadow: 0 4px 20px var(--fe-shadow-strong);
 }
 
-.modal-tx-content-area {
+.multi-tx-content-area {
   background: var(--fe-surface-solid);
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius);
@@ -53,19 +50,19 @@
   position: relative;
 }
 
-.modal-tx-login-prompt {
+.multi-tx-login-prompt {
   text-align: center;
   padding: var(--fe-gap-6);
 }
 
-.modal-tx-heading {
+.multi-tx-heading {
   font-size: var(--fe-text-lg);
   font-weight: var(--fe-font-semibold);
   color: var(--fe-text-primary);
   margin: 0 0 var(--fe-gap-3) 0;
 }
 
-.modal-tx-body {
+.multi-tx-body {
   font-size: var(--fe-text-sm);
   color: var(--fe-text-secondary);
   line-height: 1.5;
@@ -129,7 +126,7 @@
 }
 
 /* Modal TX Input with Dark Background */
-.modal-tx-input {
+.multi-tx-input {
   background: var(--fe-input-bg);
   color: var(--fe-input-text);
   border: 1px solid var(--fe-border);
@@ -142,19 +139,19 @@
   width: 100%;
 }
 
-.modal-tx-input:focus {
+.multi-tx-input:focus {
   outline: none;
   border-color: var(--cobalt-primary);
   box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
   background: var(--fe-input-bg);
 }
 
-.modal-tx-input::placeholder {
+.multi-tx-input::placeholder {
   color: var(--fe-input-placeholder);
   opacity: 0.8;
 }
 
-.modal-tx-input:hover {
+.multi-tx-input:hover {
   border-color: var(--fe-border-strong);
   background: var(--fe-input-bg);
 }
@@ -345,7 +342,7 @@
 }
 
 /* Page Header */
-.modal-tx-confirm-page h1 {
+.multi-tx-confirm-page h1 {
   font-size: var(--fe-text-2xl);
   font-weight: var(--fe-font-bold);
   color: var(--fe-text-primary);
@@ -353,7 +350,7 @@
   text-align: center;
 }
 
-.modal-tx-confirm-page p {
+.multi-tx-confirm-page p {
   font-size: var(--fe-text-sm);
   color: var(--fe-text-secondary);
   line-height: 1.5;
@@ -363,8 +360,7 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .modal-tx-confirm-page {
-    padding: var(--fe-gap-3);
+  .multi-tx-confirm-page {
     max-width: 100%;
   }
 
@@ -376,26 +372,26 @@
     font-size: var(--fe-text-base);
   }
 
-  .modal-tx-confirm-page h1 {
+  .multi-tx-confirm-page h1 {
     font-size: var(--fe-text-xl);
   }
 }
 
 /* Scrollbar Styling */
-.modal-tx-confirm-page::-webkit-scrollbar {
+.multi-tx-confirm-page::-webkit-scrollbar {
   width: 6px;
 }
 
-.modal-tx-confirm-page::-webkit-scrollbar-track {
+.multi-tx-confirm-page::-webkit-scrollbar-track {
   background: var(--fe-bg-secondary);
   border-radius: var(--fe-radius-sm);
 }
 
-.modal-tx-confirm-page::-webkit-scrollbar-thumb {
+.multi-tx-confirm-page::-webkit-scrollbar-thumb {
   background: var(--fe-border-strong);
   border-radius: var(--fe-radius-sm);
 }
 
-.modal-tx-confirm-page::-webkit-scrollbar-thumb:hover {
+.multi-tx-confirm-page::-webkit-scrollbar-thumb:hover {
   background: var(--fe-text-secondary);
 }

@@ -7,12 +7,29 @@ import {
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
-  ThemeScope
+  ThemeScope,
+  useTheme,
 } from '@web3authn/passkey/react';
 
 export const Navbar: React.FC = () => {
-  const { loginState } = usePasskeyContext();
+  const { loginState, passkeyManager } = usePasskeyContext();
   const navigate = useNavigate();
+  const { setTheme } = useTheme();
+
+  // Keep ThemeProvider synchronized with user preference (per-component)
+  React.useEffect(() => {
+    const up = passkeyManager?.userPreferences;
+    if (!up) return;
+
+    try {
+      const t = up.getUserTheme?.();
+      if (t === 'light' || t === 'dark') setTheme(t);
+    } catch {}
+
+    let unsub: (() => void) | undefined;
+    try { unsub = up.onThemeChange?.((t: 'light' | 'dark') => setTheme(t)); } catch {}
+    return () => { try { unsub?.(); } catch {} };
+  }, [passkeyManager, setTheme]);
 
   return (
     <ThemeScope>

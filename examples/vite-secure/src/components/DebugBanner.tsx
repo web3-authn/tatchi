@@ -2,6 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { usePasskeyContext } from '@web3authn/passkey/react';
 
 export const DebugBanner: React.FC = () => {
+  // Hide on mobile devices (coarse pointers / typical UA tokens)
+  try {
+    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
+    const coarse = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const mobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+    if (coarse || mobileUA) return null;
+  } catch {}
+
   const { walletIframeConnected, accountInputState, passkeyManager } = usePasskeyContext();
   const [recentCount, setRecentCount] = useState<number>(accountInputState.indexDBAccounts?.length || 0);
   const [connecting, setConnecting] = useState<boolean>(false);
@@ -27,18 +35,22 @@ export const DebugBanner: React.FC = () => {
 
   return (
     <div style={{
-      position: 'fixed', bottom: 0, zIndex: 2147483647,
-      background: walletIframeConnected ? 'rgba(16,185,129,0.15)' : 'rgba(234,179,8,0.15)',
-      borderBottom: '1px solid rgba(0,0,0,0.1)',
-      borderRadius: '0px 4px 0px 0px',
-      padding: '6px 10px', fontSize: '12px', display: 'flex', gap: '12px', alignItems: 'center'
+      position: 'absolute',
+      bottom: '-1rem',
+      left: '0rem',
+      color: walletIframeConnected ? 'rgba(66,140,240,0.4)' : 'rgba(234,179,8,0.4)',
+      padding: '4px 4px 0px 4px',
+      lineHeight: '0.75rem',
+      fontSize: '10px',
+      display: 'flex',
+      gap: '6px',
+      alignItems: 'center',
     }}>
-      <strong>Wallet Iframe:</strong> <span>{status}</span>
+      <strong>wallet iframe:</strong> <span>{status}</span>
       <span>|</span>
-      <strong>Recent Accounts:</strong> <span>{recentCount}</span>
+      <strong>accounts:</strong> <span>{recentCount}</span>
     </div>
   );
 };
 
 export default DebugBanner;
-
