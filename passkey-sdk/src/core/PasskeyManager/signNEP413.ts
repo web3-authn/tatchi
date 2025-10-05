@@ -94,7 +94,7 @@ export async function signNEP413Message(args: {
     // Get credential for NEP-413 signing
     const vrfChallenge = await webAuthnManager.generateVrfChallenge({
       userId: nearAccountId,
-      rpId: window.location.hostname,
+      rpId: webAuthnManager.getRpId(),
       blockHash: txBlockHash,
       blockHeight: txBlockHeight,
     });

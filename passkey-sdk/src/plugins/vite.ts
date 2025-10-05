@@ -248,6 +248,13 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   ppParts.push(`clipboard-write=(self${walletOrigin ? ` "${walletOrigin}"` : ''})`)
   const permissionsPolicy = ppParts.join(', ')
 
+  // Optional: Related Origin Requests (ROR) dev endpoint support
+  const rorEnv = process.env.VITE_ROR_ALLOWED_ORIGINS
+  const rorAllowedOrigins = (rorEnv || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0)
+
   return {
     name: 'web3authn:dev-headers',
     apply: 'serve',
@@ -260,6 +267,14 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
         res.setHeader('Permissions-Policy', permissionsPolicy)
+
+        // Serve /.well-known/webauthn for ROR when configured
+        if (url === '/.well-known/webauthn' && rorAllowedOrigins.length > 0) {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.end(JSON.stringify({ origins: rorAllowedOrigins }))
+          return
+        }
 
         if (url.startsWith(`${sdkBasePath}/`)) {
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')

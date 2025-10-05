@@ -655,7 +655,7 @@ export class LinkDeviceFlow {
       const { txBlockHash, txBlockHeight } = await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
       const authChallenge = await this.context.webAuthnManager.generateVrfChallenge({
         userId: accountId,
-        rpId: window.location.hostname,
+        rpId: this.context.webAuthnManager.getRpId(),
         blockHash: txBlockHash,
         blockHeight: txBlockHeight,
       });

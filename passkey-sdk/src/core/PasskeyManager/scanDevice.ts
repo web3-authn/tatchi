@@ -75,7 +75,7 @@ export async function linkDeviceWithScannedQRData(
 
     const vrfInputData: VRFInputData = {
       userId: device1AccountId,
-      rpId: window.location.hostname,
+      rpId: context.webAuthnManager.getRpId(),
       blockHeight: txBlockHeight,
       blockHash: txBlockHash,
     };

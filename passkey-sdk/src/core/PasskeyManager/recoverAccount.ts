@@ -369,7 +369,7 @@ export async function recoverAccount(
 
     const vrfInputData: VRFInputData = {
       userId: accountId,
-      rpId: window.location.hostname,
+      rpId: webAuthnManager.getRpId(),
       blockHeight,
       blockHash,
     };

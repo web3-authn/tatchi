@@ -236,7 +236,7 @@ export async function registerPasskeyInternal(
       const txBlockHeight = String(blockInfo.header?.height ?? '');
       const vrfChallenge2 = await webAuthnManager.generateVrfChallenge({
         userId: nearAccountId,
-        rpId: window.location.hostname,
+        rpId: webAuthnManager.getRpId(),
         blockHash: txBlockHash,
         blockHeight: txBlockHeight,
       });

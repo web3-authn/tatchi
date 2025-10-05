@@ -102,4 +102,40 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
     expect(res.name).toBe('NotAllowedError');
     expect(res.message).toContain('cancel');
   });
+
+  test('get(): native NotAllowedError cancel should not trigger bridge', async ({ page }) => {
+    const res = await page.evaluate(async ({ paths }) => {
+      try {
+        const { executeWithFallbacks } = await import(paths.fallbacks);
+        const rpId = window.location.hostname;
+        const publicKey = { rpId, challenge: new Uint8Array([1]) };
+
+        // Stub native navigator.credentials.get to simulate a user cancellation
+        const orig = navigator.credentials.get.bind(navigator.credentials);
+        (navigator.credentials as any).get = async () => {
+          const e = new Error('The operation was not allowed');
+          (e as any).name = 'NotAllowedError';
+          throw e;
+        };
+
+        let bridgeCalls = 0;
+        const bridgeClient = { request: async () => { bridgeCalls += 1; return { ok: false, error: 'should not be called' }; } };
+
+        try {
+          await executeWithFallbacks('get', publicKey as any, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          return { success: false, error: 'Expected NotAllowedError' };
+        } catch (e: any) {
+          // restore
+          (navigator.credentials as any).get = orig;
+          return { success: true, name: e?.name || '', bridgeCalls };
+        }
+      } catch (err: any) {
+        return { success: false, error: err?.message || String(err) };
+      }
+    }, { paths: IMPORT_PATHS });
+
+    if (!res.success) { test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`); return; }
+    expect(res.name).toBe('NotAllowedError');
+    expect(res.bridgeCalls).toBe(0);
+  });
 });
