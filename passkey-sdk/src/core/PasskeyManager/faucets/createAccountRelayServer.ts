@@ -109,24 +109,6 @@ export async function createAccountAndRegisterWithRelayServer(
       message: 'Registering user with Web3Authn contract...',
     });
 
-    // Test-mode short-circuit: when running E2E, allow bypassing the real relay server
-    // if the page sets a global flag. This keeps prod behavior unchanged and stabilizes tests.
-    try {
-      const testMode = typeof window !== 'undefined' && (window as unknown as { __W3A_USE_RELAY_MOCK?: boolean }).__W3A_USE_RELAY_MOCK;
-      if (testMode) {
-        onEvent?.({
-          step: 6,
-          phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
-          status: RegistrationStatus.SUCCESS,
-          message: 'User registered with Web3Authn contract successfully (mocked)',
-        });
-        return {
-          success: true,
-          transactionId: 'mock_atomic_transaction_hash_' + Date.now(),
-        };
-      }
-    } catch {}
-
     // Call the atomic endpoint
     const response = await fetch(`${configs.relayer.url}/create_account_and_register_user`, {
       method: 'POST',
