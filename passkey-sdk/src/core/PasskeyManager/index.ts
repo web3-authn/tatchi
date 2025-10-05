@@ -97,7 +97,7 @@ export class PasskeyManager {
     this.configs = configs;
     // Use provided client or create default one
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
-    this.webAuthnManager = new WebAuthnManager(configs, this.nearClient);
+    this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
 
     const walletOrigin = configs.iframeWallet?.walletOrigin;
@@ -148,7 +148,7 @@ export class PasskeyManager {
       theme: this.configs.walletTheme,
       nearRpcUrl: this.configs.nearRpcUrl,
       nearNetwork: this.configs.nearNetwork,
-      contractId: this.configs.webauthnContractId,
+      contractId: this.configs.contractId,
       // Ensure relay server config reaches the wallet host for atomic registration
       relayer: this.configs.relayer,
       vrfWorkerConfigs: this.configs.vrfWorkerConfigs,

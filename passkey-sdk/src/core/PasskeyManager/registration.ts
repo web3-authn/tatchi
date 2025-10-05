@@ -89,7 +89,7 @@ export async function registerPasskeyInternal(
     const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
       nearAccountId,
       deviceNumber: 1,
-      contractId: context.configs.webauthnContractId,
+      contractId: context.configs.contractId,
       nearRpcUrl: context.configs.nearRpcUrl,
       confirmationConfigOverride: confirmationConfig,
     });
@@ -124,7 +124,7 @@ export async function registerPasskeyInternal(
         nearAccountId,
       }),
       webAuthnManager.checkCanRegisterUser({
-        contractId: context.configs.webauthnContractId,
+        contractId: context.configs.contractId,
         credential,
         vrfChallenge,
         onEvent: (progress) => {
@@ -362,7 +362,6 @@ export async function generateBootstrapVrfChallenge(
 
   const blockInfo = await nearClient.viewBlock({ finality: 'final' });
 
-  console.log('Generating VRF keypair for registration');
   // Generate VRF keypair and persist in worker memory
   const vrfResult = await webAuthnManager.generateVrfKeypairBootstrap({
     vrfInputData: {
@@ -379,7 +378,6 @@ export async function generateBootstrapVrfChallenge(
   if (!vrfResult.vrfChallenge) {
     throw new Error('Registration VRF keypair generation failed');
   }
-  console.log('bootstrap VRF keypair generated and persisted in worker memory');
   return vrfResult.vrfChallenge;
 }
 
