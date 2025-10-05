@@ -11,15 +11,9 @@ import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 test.describe('NonceManager Integration Tests', () => {
 
   test.beforeEach(async ({ page }) => {
+    // Initialize test environment without SDK short-circuit flags
     await setupBasicPasskeyTest(page);
-    const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
-    // If not using a real relay server, enable SDK short-circuit mock
-    await page.evaluate(({ useServer }) => {
-      if (!useServer) {
-        (window as any).__W3A_USE_RELAY_MOCK = true;
-      }
-    }, { useServer: USE_RELAY_SERVER });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(300);
   });
 
   // validates remote nonce fetch + caching via PasskeyManager integration helpers

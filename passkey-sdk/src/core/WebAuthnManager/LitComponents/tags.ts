@@ -6,14 +6,12 @@
 export const W3A_BUTTON_WITH_TOOLTIP_ID = 'w3a-button-with-tooltip';
 export const W3A_TX_BUTTON_ID = 'w3a-tx-button';
 export const W3A_TX_BUTTON_HOST_ID = 'w3a-tx-button-host';
-export const W3A_ARROW_REGISTER_BUTTON_ID = 'w3a-arrow-register-button';
 
 // Consolidated tag registry and helpers
 export type TagDef = { id: string; aliases?: string[] };
 export const TAG_DEFS = {
   txButton: { id: W3A_TX_BUTTON_ID, aliases: [] },
   txHost: { id: W3A_TX_BUTTON_HOST_ID, aliases: ['w3a-wallet-tx-host'] },
-  registerButton: { id: W3A_ARROW_REGISTER_BUTTON_ID, aliases: ['w3a-register-button'] },
 } satisfies Record<string, TagDef>;
 export type TagKey = keyof typeof TAG_DEFS;
 

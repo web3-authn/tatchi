@@ -19,7 +19,7 @@ export async function requestRegistrationCredentialConfirmation({
   confirmationConfig?: ConfirmationConfig,
 }): Promise<RegistrationCredentialConfirmationPayload> {
   // Ensure required fields are present; JSON.stringify drops undefined causing Rust parse failure
-  const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.webauthnContractId;
+  const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
   // Use the first URL if defaults include a failover list
   const resolvedNearRpcUrl = nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl);
 

@@ -67,6 +67,8 @@ async function main() {
   const cache = await readCache(CACHE_PATH || DEFAULT_CACHE_PATH);
   if (!cache) throw new Error('missing provision cache');
   const relayPort = Number(process.env.RELAY_PORT || '3000');
+  const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
+  const defaultOrigin = NO_CADDY ? 'http://localhost:5173' : 'https://example.localhost';
   const relayEnv = {
     ...process.env,
     PORT: String(relayPort),
@@ -74,7 +76,8 @@ async function main() {
     RELAYER_PRIVATE_KEY: cache.nearPrivateKey,
     NEAR_NETWORK_ID: 'testnet',
     NEAR_RPC_URL: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
-    EXPECTED_ORIGIN: process.env.EXPECTED_ORIGIN || 'https://example.localhost',
+    // Allow CORS for the actual frontend origin used in tests
+    EXPECTED_ORIGIN: process.env.EXPECTED_ORIGIN || defaultOrigin,
     EXPECTED_WALLET_ORIGIN: process.env.EXPECTED_WALLET_ORIGIN || 'https://wallet.example.localhost',
     ROTATE_EVERY: process.env.ROTATE_EVERY || '60',
     SHAMIR_P_B64U: cache.shamir?.p_b64u,

@@ -11,6 +11,7 @@ import {
 import { AccountId } from "../../../types/accountIds";
 import { SignerWorkerManagerContext } from '..';
 import { RpcCallPayload } from '../../../types/signer-worker';
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { toAccountId } from '../../../types/accountIds';
 import { getDeviceNumberForAccount } from '../getDeviceNumber';
 
@@ -78,11 +79,18 @@ export async function signTransactionsWithActions({
       || ctx.userPreferencesManager.getConfirmationConfig();
 
     // Send batch signing request to WASM worker
+    // Normalize rpcCall to ensure required fields are present
+    const resolvedRpcCall = {
+      contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
+      nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
+      nearAccountId: rpcCall.nearAccountId,
+    } as RpcCallPayload;
+
     const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
         payload: {
-          rpcCall: rpcCall,
+          rpcCall: resolvedRpcCall,
           decryption: {
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
             encryptedPrivateKeyIv: encryptedKeyData.iv

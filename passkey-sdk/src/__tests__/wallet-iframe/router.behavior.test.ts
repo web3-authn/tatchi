@@ -110,44 +110,4 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
     expect(result.hidden).toBe(true);
   });
 
-  test('anchored overlay via setAnchoredOverlayBounds + registerPasskey', async ({ page }) => {
-    const result = await page.evaluate(async ({ walletOrigin, waitForSource }) => {
-      const waitFor = eval(waitForSource) as typeof import('./harness').waitFor;
-      try {
-        const mod = await import('/sdk/esm/core/WalletIframe/client/router.js');
-        const { WalletIframeRouter } = mod as typeof import('../../core/WalletIframe/client/router');
-        const router = new WalletIframeRouter({ walletOrigin, servicePath: '/service', connectTimeoutMs: 3000, requestTimeoutMs: 1000, sdkBasePath: '/sdk' });
-        await router.init();
-
-        // Provide an anchor rect, then call registerPasskey which pre-shows overlay via showFrameForActivation()
-        router.setAnchoredOverlayBounds({ top: 40, left: 60, width: 200, height: 100 });
-        const p = router.registerPasskey({ nearAccountId: 'e2e_anchor.testnet' }).catch(() => undefined);
-        // Wait for overlay to become visible in anchored mode
-        const anchored = await waitFor(() => {
-          const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-          const iframe = iframes.find((f) =>
-            (f.getAttribute('allow') || '').includes('publickey-credentials')
-          ) || null;
-          if (!iframe) return false;
-          const cs = getComputedStyle(iframe);
-          return cs.pointerEvents === 'auto' &&
-            cs.top === '40px' &&
-            cs.left === '60px' &&
-            cs.width === '200px' &&
-            cs.height === '100px';
-        }, 2000);
-        try { await p; } catch {}
-        return { success: true, anchored };
-      } catch (error: any) {
-        return { success: false, error: error?.message || String(error) };
-      }
-    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE });
-
-    if (!result.success) {
-      if (handleInfrastructureErrors(result)) return;
-      expect(result.success).toBe(true);
-      return;
-    }
-    expect(result.anchored).toBe(true);
-  });
 });

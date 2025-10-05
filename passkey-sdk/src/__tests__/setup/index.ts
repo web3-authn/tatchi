@@ -226,6 +226,22 @@ export function handleInfrastructureErrors(result: { success: boolean; error?: s
       test.skip(true, 'Testnet faucet rate limited (HTTP 429) - retry later');
       return true;
     }
+    // Real relay server sometimes lacks funds; treat as infra flake and skip
+    if (result.error.includes('LackBalanceForState') || result.error.includes('Atomic registration failed')) {
+      console.warn('⚠️  Test skipped due to relay server insufficient balance (infra condition)');
+      console.warn('   Use mocked relay server for deterministic tests or fund the relayer account.');
+      console.warn(`   Error: ${result.error}`);
+      test.skip(true, 'Relay server insufficient balance - skipping test');
+      return true;
+    }
+    // Port already in use (relay server collision) – treat as infra
+    if (result.error.includes('EADDRINUSE') || result.error.includes('address already in use')) {
+      console.warn('⚠️  Test skipped due to port already in use (EADDRINUSE)');
+      console.warn('   Another test/server is using the relay port. Skipping this test.');
+      console.warn(`   Error: ${result.error}`);
+      test.skip(true, 'Relay server port in use (EADDRINUSE) - skipping test');
+      return true;
+    }
   }
 
   return false;

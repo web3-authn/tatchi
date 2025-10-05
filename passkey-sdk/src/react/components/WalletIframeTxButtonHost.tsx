@@ -109,6 +109,7 @@ export function WalletIframeTxButtonHost({
 
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = useState(false);
+  const idRef = useRef<string>(`w3a-tx-host-${Math.random().toString(36).slice(2)}`);
 
   useEffect(() => {
     const onMessage = (evt: MessageEvent) => {
@@ -119,6 +120,8 @@ export function WalletIframeTxButtonHost({
         setReady(true);
       } else if (type === 'TX_BUTTON_RESULT') {
         const ok = isObject(payload) ? (payload.ok as boolean | undefined) : undefined;
+        const id = isObject(payload) ? (payload.id as string | undefined) : undefined;
+        if (id && id !== idRef.current) return;
         if (ok) {
           const result = (payload as { result?: ActionResult[] }).result;
           if (result) onSuccess?.(result);
@@ -141,19 +144,24 @@ export function WalletIframeTxButtonHost({
     try { w.postMessage({ type: 'WALLET_SET_CONFIG', payload: pmConfigs }, '*'); } catch {}
     try {
       w.postMessage({
-        type: 'WALLET_SHOW_TX_BUTTON',
+        type: 'WALLET_UI_MOUNT',
         payload: {
-          nearAccountId,
-          transactions,
-          text,
-          theme,
-          className,
-          buttonStyle: style,
-          // Hint to render inline (no nested iframe) inside wallet host
-          renderMode: 'inline'
+          key: 'w3a-tx-button-host',
+          id: idRef.current,
+          props: {
+            nearAccountId,
+            transactions,
+            text,
+            theme,
+            className,
+            buttonStyle: style,
+          }
         }
       }, '*');
     } catch {}
+    return () => {
+      try { w?.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id: idRef.current } }, '*'); } catch {}
+    };
   }, [className, nearAccountId, pmConfigs, ready, style, text, theme, transactions]);
 
   // Convert number|string to CSS length string, adding px for finite numbers
