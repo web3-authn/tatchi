@@ -85,7 +85,9 @@ export async function fetchNearContext(
 }> {
   try {
     // Prefer NonceManager when initialized (signing flows)
-    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
+    // Use cached transaction context if fresh; avoid forcing a refresh here.
+    // JIT refresh later will force a new block height for the VRF challenge.
+    const transactionContext = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient);
 
     // Reserve nonces for this request to avoid parallel collisions
     const txCount = opts.txCount || 1;

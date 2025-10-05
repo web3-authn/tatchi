@@ -277,6 +277,8 @@ pub async fn handle_sign_transactions_with_actions(
         .and_then(|r| r.vrf_challenge.clone())
         .ok_or_else(|| "Missing VRF challenge from confirmation result".to_string())?;
 
+    // VRF challenge is passed to contract verification below; block height freshness is enforced there.
+
     // Get credential from confirmation result (mandatory now)
     let credential_json_value = confirmation_result_opt
         .as_ref()

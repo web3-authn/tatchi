@@ -125,6 +125,8 @@ pub async fn verify_authentication_response_rpc_call(
 ) -> Result<ContractVerificationResult, String> {
     info!("RUST: Performing contract verification via WASM HTTP");
 
+    // Perform contract verification; VRF height freshness is validated by the contract logic.
+
     // Build contract arguments
     let contract_args = serde_json::json!({
         "vrf_data": vrf_data,

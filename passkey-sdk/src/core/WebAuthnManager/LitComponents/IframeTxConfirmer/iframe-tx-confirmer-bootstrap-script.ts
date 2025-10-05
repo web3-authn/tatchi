@@ -78,10 +78,19 @@ interface ModalElementShape extends HTMLElement {
 type ModalElementType = HTMLElement & ModalElementShape;
 
 let CURRENT_VARIANT: Variant = 'modal';
+// Track if we've received the initial TX data. Until then, defer creating the
+// element so we don't accidentally mount the wrong variant (e.g., processing
+// SET_LOADING first would otherwise create a default 'modal' then swap).
+let HAS_INITIAL_TX_DATA = false;
+// Queue updates that may arrive before initial TX data
+let QUEUED_LOADING: boolean | null = null;
+let QUEUED_ERROR: string | null = null;
+// Cache the current element instance to avoid redundant lookups
+let CACHED_EL: ModalElementType | null = null;
 
 function ensureElement(): ModalElementType {
   const id = 'mtx';
-  let el = document.getElementById(id) as ModalElementType | null;
+  let el = (CACHED_EL && CACHED_EL.isConnected ? CACHED_EL : null) || (document.getElementById(id) as ModalElementType | null);
   // Prefer canonical "-tx-confirmer" suffix, while legacy aliases remain defined
   const desiredTag = (CURRENT_VARIANT === 'drawer') ? 'w3a-drawer-tx-confirmer' : 'w3a-modal-tx-confirmer';
 
@@ -99,6 +108,7 @@ function ensureElement(): ModalElementType {
     // Two-phase close: do not remove on confirm/cancel; wait for CLOSE_MODAL
     try { (el as any).deferClose = true; } catch {}
   }
+  CACHED_EL = el;
   return el;
 }
 
@@ -169,25 +179,46 @@ function onMessage(e: MessageEvent<IframeModalMessage>): void {
         if (payload.theme && isString(payload.theme)) {
           el.theme = payload.theme;
         }
+        // Apply any queued state now that the element exists with correct variant
+        if (QUEUED_LOADING !== null) {
+          try { el.loading = !!QUEUED_LOADING; } catch {}
+          QUEUED_LOADING = null;
+        }
+        if (typeof QUEUED_ERROR === 'string') {
+          try { el.errorMessage = QUEUED_ERROR; } catch {}
+          QUEUED_ERROR = null;
+        }
+        HAS_INITIAL_TX_DATA = true;
         el.requestUpdate?.();
       }
       break;
     }
     case 'SET_LOADING': {
       if (isSetLoadingPayload(payload)) {
-        const el = ensureElement();
-        el.loading = payload;
-        el.requestUpdate?.();
+        if (!HAS_INITIAL_TX_DATA) {
+          // Defer until we know the correct variant and data
+          QUEUED_LOADING = !!payload;
+        } else {
+          const el = ensureElement();
+          el.loading = payload;
+          el.requestUpdate?.();
+        }
       }
       break;
     }
     case 'SET_ERROR': {
       try {
         if (isString(payload)) {
-          const el = ensureElement();
-          el.errorMessage = payload;
-          el.loading = false;
-          el.requestUpdate?.();
+          if (!HAS_INITIAL_TX_DATA) {
+            // Defer error until element is created with proper variant
+            QUEUED_ERROR = payload;
+            QUEUED_LOADING = false;
+          } else {
+            const el = ensureElement();
+            el.errorMessage = payload;
+            el.loading = false;
+            el.requestUpdate?.();
+          }
         }
       } catch {}
       break;

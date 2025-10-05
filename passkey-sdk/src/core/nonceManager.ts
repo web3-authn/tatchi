@@ -23,6 +23,8 @@ export class NonceManager {
   public nearPublicKeyStr: string | null = null;
   public transactionContext: TransactionContext | null = null;
   private inflightFetch: Promise<TransactionContext> | null = null;
+  // Monotonic identifier to disambiguate concurrent fetches and prevent stale commits/clears
+  private inflightId: number = 0;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
   private prefetchTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -33,8 +35,8 @@ export class NonceManager {
   // Freshness thresholds (ms)
   // Treat context older than 5s as stale enough to refetch
   private readonly NONCE_FRESHNESS_THRESHOLD = 5 * 1000; // 5 seconds
-  private readonly BLOCK_FRESHNESS_THRESHOLD = 5 * 1000; // 5 seconds
-  private readonly PREFETCH_DEBOUNCE_MS = 150; // small debounce to avoid hover spam
+  private readonly BLOCK_FRESHNESS_THRESHOLD = 20 * 1000; // 20 seconds (less frequent block refreshes)
+  private readonly PREFETCH_DEBOUNCE_MS = 400; // less aggressive prefetch debounce to reduce churn
 
   // Private constructor for singleton pattern
   private constructor() {}
@@ -106,6 +108,7 @@ export class NonceManager {
    * Returns cached data if fresh, otherwise fetches synchronously
    */
   public async getNonceBlockHashAndHeight(nearClient: NearClient, opts?: { force?: boolean }): Promise<TransactionContext> {
+    try { console.debug('[NonceManager]: getNonceBlockHashAndHeight called', { force: !!opts?.force }); } catch {}
     // Always prefer a fresh fetch for critical paths; coalesced by fetchFreshData.
     // This minimizes subtle cache bugs after key rotations/linking and across devices.
     if (!this.nearAccountId || !this.nearPublicKeyStr) {
@@ -160,18 +163,29 @@ export class NonceManager {
    * Fetch fresh transaction context data from NEAR RPC
    */
   private async fetchFreshData(nearClient: NearClient, force: boolean = false): Promise<TransactionContext> {
-    // Coalesce concurrent fetches
-    if (this.inflightFetch) return this.inflightFetch;
+    // Coalesce concurrent refreshes when not forced to reduce redundant network calls.
+    // Force=true is used by latency-critical paths (e.g., JIT VRF refresh) to guarantee a fresh block height.
+    if (this.inflightFetch && !force) {
+      return this.inflightFetch;
+    }
 
     const capturedAccountId = this.nearAccountId;
     const capturedPublicKey = this.nearPublicKeyStr;
-
-    this.inflightFetch = (async () => {
+    // Start a new fetch; assign a unique id to guard commit and cleanup
+    const requestId = (++this.inflightId);
+    const fetchPromise = (async () => {
       try {
         // Determine what is actually stale so we only fetch what we need
         const now = Date.now();
         const isNonceStale = force || !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
         const isBlockStale = force || !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
+        try { console.debug('[NonceManager]: freshness check', {
+          force,
+          isNonceStale,
+          isBlockStale,
+          lastNonceAgeMs: this.lastNonceUpdate ? (now - this.lastNonceUpdate) : null,
+          lastBlockAgeMs: this.lastBlockHeightUpdate ? (now - this.lastBlockHeightUpdate) : null,
+        }); } catch {}
 
         let accessKeyInfo = this.transactionContext?.accessKeyInfo;
         let txBlockHeight = this.transactionContext?.txBlockHeight;
@@ -248,6 +262,7 @@ export class NonceManager {
           }
           txBlockHeight = String(maybeBlock.header.height);
           txBlockHash = maybeBlock.header.hash;
+          try { console.debug('[NonceManager]: fetched block', { txBlockHeight, txBlockHash }); } catch {}
         }
 
         // Derive nextNonce from access key info + current context + reservations
@@ -267,17 +282,26 @@ export class NonceManager {
           txBlockHash: txBlockHash!,
         };
 
-        // Only commit if identity did not change during fetch
+        // Only commit if identity did not change AND this fetch is still the latest.
+        // This guards against stale commits from races when a forced refresh overtakes a cached one.
         if (
           capturedAccountId === this.nearAccountId &&
-          capturedPublicKey === this.nearPublicKeyStr
+          capturedPublicKey === this.nearPublicKeyStr &&
+          requestId === this.inflightId
         ) {
           this.transactionContext = transactionContext;
           const now = Date.now();
           if (fetchAccessKey) this.lastNonceUpdate = now;
           if (fetchBlock) this.lastBlockHeightUpdate = now;
+          try { console.debug('[NonceManager]: committed context', {
+            nextNonce: transactionContext.nextNonce,
+            txBlockHeight: transactionContext.txBlockHeight,
+            txBlockHash: transactionContext.txBlockHash,
+            lastNonceUpdate: this.lastNonceUpdate,
+            lastBlockHeightUpdate: this.lastBlockHeightUpdate,
+          }); } catch {}
         } else {
-          console.debug('[NonceManager]: Discarded fetch result due to identity change');
+          // Discard results from outdated or identity-mismatched fetches; a newer fetch has already committed.
         }
 
         return transactionContext;
@@ -285,11 +309,15 @@ export class NonceManager {
         console.error('[NonceManager]: Failed to fetch fresh transaction context:', error);
         throw error;
       } finally {
-        this.inflightFetch = null;
+        // Only clear inflight if this promise is still the latest.
+        if (requestId === this.inflightId) {
+          this.inflightFetch = null;
+        }
       }
     })();
 
-    return this.inflightFetch;
+    this.inflightFetch = fetchPromise;
+    return fetchPromise;
   }
 
   /**
