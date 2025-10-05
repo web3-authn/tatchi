@@ -115,6 +115,14 @@ export async function executeWebAuthnWithParentFallbacksSafari(
   try {
     return await tryNative();
   } catch (e: unknown) {
+    // If the user explicitly cancelled (generic NotAllowedError without Safari-specific hints),
+    // do not attempt any bridge fallbacks that would re-prompt Touch ID. Propagate immediately.
+    // This avoids double prompts when a user cancels the native sheet.
+    const name = safeName(e);
+    if (name === 'NotAllowedError' && !isAncestorOriginError(e) && !isDocumentNotFocusedError(e)) {
+      throw e;
+    }
+
     // Step 2: ancestor-origin restriction → parent bridge (when in iframe)
     if (isAncestorOriginError(e) && inIframe) {
       if (kind === 'get' && !permitGetBridgeOnAncestorError) {

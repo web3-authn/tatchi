@@ -55,7 +55,10 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       justify-content: center;
       transition: all 0.2s ease;
     }
-    .close-btn:hover { color: var(--w3a-colors-textPrimary, #f6f7f8); background: var(--w3a-colors-surface, rgba(255,255,255,0.08)); }
+    .close-btn:hover {
+      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      background: var(--w3a-colors-surface, rgba(255,255,255,0.08));
+    }
     .warning {
       background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
       border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
@@ -63,7 +66,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       padding: 12px;
       border-radius: 1rem;
       font-size: 0.9rem;
-      margin: 0;
+      margin-bottom: 1rem;
     }
     .fields { display: flex; flex-direction: column; gap: 16px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
