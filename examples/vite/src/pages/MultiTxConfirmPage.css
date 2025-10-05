@@ -361,7 +361,7 @@
 /* Responsive Design */
 @media (max-width: 768px) {
   .multi-tx-confirm-page {
-    max-width: 100%;
+    max-width: 480px;
   }
 
   .action-section {

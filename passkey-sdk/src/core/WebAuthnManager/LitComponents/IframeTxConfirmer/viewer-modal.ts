@@ -151,7 +151,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       justify-content: center;
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
-      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(1px));
+      backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(0px));
       animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in);
       will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }

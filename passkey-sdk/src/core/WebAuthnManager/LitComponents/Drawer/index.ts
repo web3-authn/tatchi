@@ -62,7 +62,7 @@ export class DrawerElement extends LitElementWithProps {
       position: fixed;
       inset: 0;
       /* Match modal backdrop look */
-      background: oklch(0.2 0.01 240 / 0.8);
+      background: oklch(0.2 0.01 240 / 0.6);
       z-index: 2147483646;
       opacity: 0;
       pointer-events: none;
