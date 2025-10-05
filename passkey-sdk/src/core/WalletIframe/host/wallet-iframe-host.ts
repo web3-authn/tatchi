@@ -88,7 +88,7 @@ import type {
 } from '../shared/messages';
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient, SignedTransaction } from '../../NearClient';
-import { setupLitElemMounter } from './lit-elem-mounter';
+import { setupLitElemMounter } from './iframe-lit-elem-mounter';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
 import { isObject, isString, isNumber, isFiniteNumber, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx } from '../validation';
 import { errorMessage } from '../../../utils/errors';
@@ -674,7 +674,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       } catch {}
     } catch {}
     nearClient = null; passkeyManager = null;
-    // Forward UI registry to lit-elem-mounter if provided
+    // Forward UI registry to iframe-lit-elem-mounter if provided
     try {
       const uiRegistry = payload?.uiRegistry;
       if (uiRegistry && isObject(uiRegistry)) {

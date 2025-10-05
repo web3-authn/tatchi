@@ -1,22 +1,25 @@
 /**
  * ProgressBus - Client-Side Communication Layer
  *
- * This module manages the overlay visibility and progress event routing for the
- * wallet iframe. It uses intelligent heuristics to show/hide the iframe overlay
- * at the right moments to capture user activation for WebAuthn operations.
+ * Manages progress event routing and overlay visibility for the wallet iframe.
+ * Uses phase heuristics to decide when the overlay should be visible to capture
+ * user activation for WebAuthn operations, and aggregates visibility across
+ * multiple concurrent requests.
  *
  * Key Responsibilities:
- * - Overlay Control: Shows/hides the iframe overlay based on operation phases
- * - Progress Routing: Routes progress events to appropriate subscribers
- * - Sticky Subscriptions: Manages long-running subscriptions that persist after completion
- * - Phase Heuristics: Uses intelligent logic to determine when overlay is needed
- * - Event Statistics: Tracks progress event counts and timing for debugging
+ * - Progress Routing: Dispatches typed progress payloads to per-request subscribers
+ * - Overlay Control: Applies SHOW/HIDE based on phase heuristics
+ * - Concurrent Aggregation: Tracks overlay demand per requestId and only hides
+ *   when no request still requires SHOW (multi-request safe)
+ * - Sticky Subscriptions: Supports long-running subscriptions that persist after completion
+ * - Phase Heuristics: Pluggable logic to map phases → 'show' | 'hide' | 'none'
+ * - Event Statistics: Tracks counts/timestamps for debugging
  *
  * Overlay Logic:
- * - Shows overlay during phases that require user activation (WebAuthn, confirmation)
- * - Hides overlay during non-interactive phases (signing, broadcasting, completion)
- * - Minimizes blocking time by hiding as soon as activation is complete
- * - Ensures modal visibility for requireClick behavior
+ * - Show when phases require user interaction (confirmation, WebAuthn)
+ * - Hide when phases are post-activation (signing, broadcasting, completion)
+ * - With concurrency, the latest demand per requestId is recorded; the overlay
+ *   remains visible if any request demands 'show'.
  *
  * Phase Heuristics:
  * - SHOW_PHASES: Phases that need immediate user interaction (TouchID, confirmation)
@@ -26,7 +29,7 @@
  * Security Considerations:
  * - Overlay is intentionally invisible but captures pointer events during activation
  * - Uses high z-index to ensure it's above other content when visible
- * - Automatically hides to minimize interaction blocking
+ * - Automatically hides to minimize interaction blocking (subject to aggregation)
  */
 
 import type { ProgressPayload as MessageProgressPayload } from '../shared/messages';
@@ -106,6 +109,10 @@ export class ProgressBus {
   private logger?: (msg: string, data?: Record<string, unknown>) => void;
   private overlay: OverlayController;
   private heuristic: PhaseHeuristics;
+  // Track the most recent overlay intent per requestId so that we can
+  // aggregate visibility across concurrent requests. If any request's
+  // latest intent is 'show', we keep the overlay visible.
+  private overlayDemands = new Map<string, 'show' | 'hide' | 'none'>();
 
   constructor(overlay: OverlayController, heuristic: PhaseHeuristics, logger?: (msg: string, data?: Record<string, unknown>) => void) {
     this.overlay = overlay;
@@ -113,6 +120,10 @@ export class ProgressBus {
     this.logger = logger;
   }
 
+  /**
+   * Register a subscriber for a requestId.
+   * Initializes demand tracking to 'none' (neutral) until phases arrive.
+   */
   register({ requestId, onProgress, sticky = false }: {
     requestId: string,
     sticky: boolean,
@@ -123,15 +134,31 @@ export class ProgressBus {
       sticky,
       stats: { count: 0, lastPhase: null, lastAt: null }
     });
+    // Initialize demand tracking for this request as neutral
+    this.overlayDemands.set(requestId, 'none');
     this.log('register', { requestId, sticky });
   }
 
+  /**
+   * Unregister a subscriber and clear its overlay demand.
+   * If no remaining requests demand 'show', the overlay is hidden.
+   */
   unregister(requestId: string): void {
     if (this.subs.delete(requestId)) this.log('unregister', { requestId });
+    // Remove any overlay demand for this request
+    this.overlayDemands.delete(requestId);
+    // If no remaining requests demand 'show', we can safely hide
+    if (!this.wantsVisible()) {
+      try { this.overlay.hide(); } catch {}
+    }
   }
 
+  /**
+   * Remove all subscribers and demands; overlay demand set is cleared.
+   */
   clearAll(): void {
     this.subs.clear();
+    this.overlayDemands.clear();
     this.log('clearAll');
   }
 
@@ -140,6 +167,10 @@ export class ProgressBus {
     return !!sub?.sticky;
   }
 
+  /**
+   * Dispatch a progress payload to a request's subscriber and update
+   * the aggregate overlay demand based on the phase heuristic.
+   */
   dispatch({ requestId, payload }: {
     requestId: string,
     payload: ProgressPayload
@@ -148,8 +179,19 @@ export class ProgressBus {
     const phase = String((payload || {}).phase || '');
     const action = this.heuristic(payload);
 
-    if (action === 'show') { this.overlay.show(); }
-    if (action === 'hide') { this.overlay.hide(); }
+    // Update the latest demand for this request
+    this.overlayDemands.set(requestId, action);
+
+    // Apply aggregated overlay visibility:
+    // - If any request currently demands 'show', ensure overlay is visible
+    // - Only hide when no outstanding 'show' demands remain
+    if (action === 'show') {
+      try { this.overlay.show(); } catch {}
+    } else if (action === 'hide') {
+      if (!this.wantsVisible()) {
+        try { this.overlay.hide(); } catch {}
+      }
+    }
 
     const sub = this.subs.get(requestId);
     if (sub) {
@@ -178,6 +220,17 @@ export class ProgressBus {
   } | null {
     const sub = this.subs.get(requestId);
     return sub ? sub.stats : null;
+  }
+
+  /**
+   * Returns true if any tracked request currently demands the overlay be visible.
+   * Useful for higher layers (router) to avoid premature hides on completion/timeout.
+   */
+  wantsVisible(): boolean {
+    for (const v of this.overlayDemands.values()) {
+      if (v === 'show') return true;
+    }
+    return false;
   }
 
   private findSticky(requestId: string): ProgressSubscriber | null {

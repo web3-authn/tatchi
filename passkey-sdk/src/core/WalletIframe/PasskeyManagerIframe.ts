@@ -46,7 +46,7 @@ import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksO
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 import type { RecoveryResult } from '../PasskeyManager';
 import { toError } from '../../utils/errors';
-import type { WalletUIRegistry } from './host/lit-element-registry';
+import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 
 
 export class PasskeyManagerIframe {

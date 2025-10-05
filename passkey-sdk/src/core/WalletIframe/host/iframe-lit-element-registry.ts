@@ -1,5 +1,5 @@
 /**
- * Lit Element Registry - Host-Side Execution Layer
+ * Iframe Lit Element Registry - Host-Side Execution Layer
  *
  * This module provides a declarative registry of UI components that can be mounted
  * inside the wallet iframe. It defines the available components and how they should
@@ -43,11 +43,9 @@
 import {
   W3A_TX_BUTTON_HOST_ID,
   W3A_TX_BUTTON_ID,
-  W3A_ARROW_REGISTER_BUTTON_ID,
 } from '../../WebAuthnManager/LitComponents/tags';
 
 export type PmActionName =
-  | 'registerPasskey'
   | 'signAndSendTransactions';
 
 export type UIEventBinding = {
@@ -105,20 +103,6 @@ export const uiBuiltinRegistry: WalletUIRegistry = {
       messageType: 'TX_BUTTON_RESULT'
     }
   },
-  // Simple register button that triggers Passkey registration in wallet origin
-  'w3a-arrow-register-button': {
-    tag: W3A_ARROW_REGISTER_BUTTON_ID,
-    // Expect a nearAccountId prop to be passed when mounting
-    eventBindings: [
-      {
-        event: 'arrow-submit',
-        action: 'registerPasskey',
-        argsFromProps: { nearAccountId: 'nearAccountId' },
-        resultMessageType: 'REGISTER_BUTTON_RESULT',
-      },
-    ],
-  },
-
   // Back-compat alias keys mapping to preferred ones
   'tx-host': { tag: W3A_TX_BUTTON_HOST_ID },
   'tx-button': { tag: W3A_TX_BUTTON_ID },

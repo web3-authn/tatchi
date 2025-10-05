@@ -15,7 +15,7 @@
  * - PasskeyManager Integration: Wires UI actions to actual wallet operations
  *
  * Architecture:
- * - Uses lit-element-registry.ts for component definitions
+ * - Uses iframe-lit-element-registry.ts for component definitions
  * - Maintains mounted component instances by ID
  * - Provides typed prop/event bindings for PasskeyManager actions
  * - Handles both direct component mounting and registry-based mounting
@@ -43,56 +43,27 @@
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 // Import arrow register button so it's defined and not tree-shaken in wallet origin
-import ArrowRegisterButtonElement from '../../WebAuthnManager/LitComponents/ArrowRegisterButton';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import { PasskeyManager } from '../../PasskeyManager';
-import { ConfirmationConfig } from '../../types/signer-worker';
+import { SignAndSendTransactionHooksOptions } from '../../types/passkeyManager';
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
-import { EmbeddedTxButtonTheme } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
-import {
-  SignAndSendTransactionHooksOptions,
-  ActionResult,
-} from '../../types/passkeyManager';
-import { uiBuiltinRegistry, type WalletUIRegistry } from './lit-element-registry';
+import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-registry';
 import { errorMessage } from '../../../utils/errors';
-import { isObject, isString, isFiniteNumber } from '../validation';
-import { defineTag, getTag } from '../../WebAuthnManager/LitComponents/tags';
+import { isObject, isString } from '../validation';
+import { defineTag } from '../../WebAuthnManager/LitComponents/tags';
 // Keep essential custom elements from being tree-shaken
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensureTreeDefinition = [__IframeButtonKeep, ArrowRegisterButtonElement];
+const __ensureTreeDefinition = [__IframeButtonKeep];
 // Define the element defensively in case the side-effect define was optimized away
 
-import { type WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
 // Wallet host lit wrappers (no nested wallet iframe)
 import './WalletHostElements';
 
 try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
-try { defineTag('registerButton', ArrowRegisterButtonElement as unknown as CustomElementConstructor); } catch {}
 
 export type EnsurePasskeyManager = () => void;
 export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
 export type UpdateWalletConfigs = (patch: Record<string, unknown>) => void;
-
-type IframeButtonLitElementProps = HTMLElement & {
-  style: Record<string, string> | CSSStyleDeclaration;
-  nearAccountId: string,
-  txSigningRequests: TransactionInput[],
-  buttonTextElement: string;
-  txTreeTheme: EmbeddedTxButtonTheme;
-  buttonStyle?: Record<string, string> | CSSStyleDeclaration;
-  buttonHoverStyle?: Record<string, string> | CSSStyleDeclaration;
-  tooltipPosition: Record<string, string>,
-  externalConfirm(args: {
-    nearAccountId: string,
-    txSigningRequests: TransactionInput[],
-    options?: SignAndSendTransactionHooksOptions,
-    theme?: 'dark' | 'light'
-  }): Promise<ActionResult[]>;
-  onSuccess(result: ActionResult[]): void;
-  onCancel(): void;
-}
-
-// Removed EmbeddedRegisterButton types and usage
 
 export function setupLitElemMounter(opts: {
   ensurePasskeyManager: EnsurePasskeyManager;
@@ -100,34 +71,13 @@ export function setupLitElemMounter(opts: {
   updateWalletConfigs: UpdateWalletConfigs;
   postToParent: (message: unknown) => void;
 }) {
-  /**
-   * Message API (window.postMessage) expected from the parent document:
-   * - WALLET_SET_CONFIG: { nearRpcUrl, nearNetwork, contractId, ... }
-   *   Merges into the running PasskeyManager configs before rendering elements.
-   * - WALLET_SHOW_REGISTER_BUTTON: {
-   *     nearAccountId: string,
-   *     text?: string,
-   *     theme?: 'dark' | 'light',
-   *     width?: number|string,
-   *     height?: number|string,
-   *     className?: string,
-   *     style?: Record<string, string|number>,
-   *     autoClose?: boolean
-   *   }
-   *   Renders an embedded control inline and wires its click
-   *   to PasskeyManager.registerPasskey. No modals are used; confirmation config
-   *   is temporarily forced to { uiMode: 'skip', behavior: 'autoProceed' }.
-   * - WALLET_HIDE_REGISTER_BUTTON: removes the element if present.
-   */
+  // Message API: register-button overlay deprecated – only tx button APIs remain
   const { ensurePasskeyManager, getPasskeyManager, updateWalletConfigs } = opts;
 
-  let txBtnEl: HTMLElement | null = null;
-  let hostTxEl: HTMLElement | null = null;
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
   const mountedById = new Map<string, HTMLElement>();
   let uidCounter = 0;
-  let busy = false;
 
   try {
     document.documentElement.style.background = 'transparent';
@@ -140,26 +90,6 @@ export function setupLitElemMounter(opts: {
     document.body.style.padding = '0';
   } catch {}
 
-  const toPx = (v: unknown, fallback: string) => {
-    if (v == null) return fallback;
-    if (isFiniteNumber(v)) return `${v}px`;
-    const s = String(v).trim();
-    return s ? s : fallback;
-  };
-
-  const normalizeButtonStyle = (
-    style: Record<string, string>
-  ): Record<string, string> | undefined => {
-    if (!style || !isObject(style)) return undefined;
-    const out: Record<string, string> = {};
-    for (const [k, v] of Object.entries(style)) {
-      if (v == null) continue;
-      const key = k.replace(/([A-Z])/g, '-$1').toLowerCase();
-      out[key] = isFiniteNumber(v) ? `${v}px` : String(v);
-    }
-    return out;
-  };
-
   const pickRoot = (selector?: string | null): HTMLElement => {
     try {
       if (selector && isString(selector)) {
@@ -168,143 +98,6 @@ export function setupLitElemMounter(opts: {
       }
     } catch {}
     return document.body || document.documentElement;
-  };
-
-  const removeTxBtn = () => {
-    try { txBtnEl?.remove(); } catch {}
-    txBtnEl = null;
-  };
-  const removeTxHost = () => {
-    try { hostTxEl?.remove(); } catch {}
-    hostTxEl = null;
-  };
-
-  type NormalizedTxConfig = {
-    nearAccountId: string;
-    transactions: TransactionInput[];
-    className: string;
-    text: string;
-    theme: 'dark' | 'light';
-    buttonStyle?: Record<string, string>;
-    buttonHoverStyle?: Record<string, string>;
-    tooltipPosition?: Record<string, string>;
-    targetSelector?: string;
-  };
-
-  const normalizeTxConfig = (cfg: WalletIframeTxButtonHostProps, context: 'TxHost' | 'TxBtn'): NormalizedTxConfig | null => {
-    const nearAccountId = String(cfg?.nearAccountId || '').trim();
-    const transactions = Array.isArray(cfg?.transactions) ? cfg.transactions : [];
-    if (!nearAccountId || transactions.length === 0) {
-      console.warn(`[ElemMounter:${context}] missing nearAccountId or transactions`);
-      return null;
-    }
-
-    const className = cfg?.className ? String(cfg.className) : '';
-    const text = String(cfg?.text || 'Send Transaction');
-    const theme = (cfg?.theme === 'light' || cfg?.theme === 'dark') ? cfg.theme : 'dark';
-    const buttonStyle = normalizeButtonStyle(cfg?.buttonStyle as Record<string, string>);
-    const buttonHoverStyle = normalizeButtonStyle(cfg?.buttonHoverStyle as Record<string, string>);
-    const tooltipPosition = cfg?.tooltipPosition || undefined;
-    const targetSelector = ((cfg as unknown as { targetSelector?: string })?.targetSelector) || undefined;
-
-    return {
-      nearAccountId,
-      transactions,
-      className,
-      text,
-      theme,
-      buttonStyle,
-      buttonHoverStyle,
-      tooltipPosition,
-      targetSelector,
-    };
-  };
-
-  const attachTxCallbacks = (el: {
-    externalConfirm?: (args: {
-      nearAccountId: string;
-      txSigningRequests: TransactionInput[];
-      options?: SignAndSendTransactionHooksOptions;
-    }) => Promise<ActionResult[]>;
-    onSuccess?: (result: ActionResult[]) => void;
-    onCancel?: () => void;
-  }) => {
-    el.externalConfirm = async ({ nearAccountId, txSigningRequests, options }) => {
-      const pm = getPasskeyManager();
-      return await pm!.signAndSendTransactions({ nearAccountId, transactions: txSigningRequests, options });
-    };
-    el.onSuccess = (result: ActionResult[]) => {
-      try { opts.postToParent({ type: 'TX_BUTTON_RESULT', payload: { ok: true, result } }); } catch {}
-    };
-    el.onCancel = () => {
-      try { opts.postToParent({ type: 'TX_BUTTON_RESULT', payload: { ok: false, cancelled: true } }); } catch {}
-    };
-  };
-
-  // Mount tx host wrapper (Lit) that mirrors the React host API
-  const showTxHost = async (cfg: WalletIframeTxButtonHostProps) => {
-    try { ensurePasskeyManager(); } catch {}
-    const normalized = normalizeTxConfig(cfg, 'TxHost');
-    if (!normalized) return;
-
-    removeTxHost();
-
-    const el = document.createElement(getTag('txHost')) as HTMLElement & {
-      externalConfirm?: (args: {
-        nearAccountId: string;
-        txSigningRequests: TransactionInput[];
-        options?: SignAndSendTransactionHooksOptions;
-      }) => Promise<ActionResult[]>;
-      onSuccess?: (result: ActionResult[]) => void;
-      onCancel?: () => void;
-      buttonStyle?: Record<string, string>;
-      buttonHoverStyle?: Record<string, string>;
-      tooltipPosition?: Record<string, string>;
-      nearAccountId?: string;
-      transactions?: TransactionInput[];
-      text?: string;
-      theme?: 'dark' | 'light';
-    };
-
-    try { el.style.display = 'inline-block'; } catch {}
-    el.className = normalized.className;
-    el.nearAccountId = normalized.nearAccountId;
-    el.transactions = normalized.transactions;
-    el.text = normalized.text;
-    el.theme = normalized.theme;
-    if (normalized.buttonStyle) el.buttonStyle = normalized.buttonStyle;
-    if (normalized.buttonHoverStyle) el.buttonHoverStyle = normalized.buttonHoverStyle;
-    if (normalized.tooltipPosition) el.tooltipPosition = normalized.tooltipPosition;
-
-    attachTxCallbacks(el);
-
-    pickRoot(normalized.targetSelector).appendChild(el);
-    hostTxEl = el;
-  };
-
-  const showTxBtn = async (cfg: WalletIframeTxButtonHostProps) => {
-    try { ensurePasskeyManager(); } catch {}
-    const normalized = normalizeTxConfig(cfg, 'TxBtn');
-    if (!normalized) return;
-
-    removeTxBtn();
-
-    const el = document.createElement(getTag('txButton')) as IframeButtonLitElementProps;
-    try { el.style.display = 'inline-block'; } catch {}
-    if (normalized.className) try { el.className = normalized.className; } catch {}
-
-    el.nearAccountId = normalized.nearAccountId;
-    el.txSigningRequests = normalized.transactions;
-    el.buttonTextElement = normalized.text;
-    el.txTreeTheme = normalized.theme;
-    if (normalized.buttonStyle) el.buttonStyle = normalized.buttonStyle;
-    if (normalized.buttonHoverStyle) el.buttonHoverStyle = normalized.buttonHoverStyle;
-    if (normalized.tooltipPosition) el.tooltipPosition = normalized.tooltipPosition;
-
-    attachTxCallbacks(el);
-
-    pickRoot(normalized.targetSelector).appendChild(el);
-    txBtnEl = el;
   };
 
   // ===== Generic UI registry mount helpers =====
@@ -319,33 +112,13 @@ export function setupLitElemMounter(opts: {
     const pm = getPasskeyManager();
     ensurePasskeyManager();
     switch (action) {
-      case 'registerPasskey': {
-        const accountId = String(args?.nearAccountId || '').trim();
-        if (!accountId) throw new Error('nearAccountId required');
-        const anyPm = pm as unknown as {
-          registerPasskeyInternal?: (id: string, opts?: any, cfg?: ConfirmationConfig) => Promise<unknown>;
-          registerPasskey: (id: string, opts?: any) => Promise<unknown>;
-        };
-
-        // For the ArrowRegisterButton overlay flow, skip the extra confirmation UI
-        const overrideCfg: ConfirmationConfig = {
-          uiMode: 'skip',
-          behavior: 'autoProceed',
-          autoProceedDelay: 0,
-        } as ConfirmationConfig;
-
-        if (typeof anyPm.registerPasskeyInternal === 'function') {
-          return await anyPm.registerPasskeyInternal(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} }, overrideCfg);
-        }
-        return await pm!.registerPasskey(accountId, { onEvent: () => {}, onError: () => {}, beforeCall: async () => {}, afterCall: () => {} });
-      }
       case 'signAndSendTransactions': {
         const nearAccountId = String((args as { nearAccountId?: unknown })?.nearAccountId || '').trim();
         const txsCandidate = (args as { transactions?: unknown; txSigningRequests?: unknown });
         const transactions: TransactionInput[] = Array.isArray(txsCandidate?.transactions || txsCandidate?.txSigningRequests)
           ? (txsCandidate?.transactions || txsCandidate?.txSigningRequests) as TransactionInput[]
           : [];
-        const options = (args as { options?: import('../../types/passkeyManager').SignAndSendTransactionHooksOptions })?.options || {};
+        const options = (args as { options?: SignAndSendTransactionHooksOptions })?.options || {};
         if (!nearAccountId || transactions.length === 0) throw new Error('nearAccountId and transactions required');
         return await pm!.signAndSendTransactions({ nearAccountId, transactions, options });
       }
@@ -378,18 +151,8 @@ export function setupLitElemMounter(opts: {
         try {
           el.addEventListener(b.event, async () => {
             try {
-              // Notify parent immediately when certain UI events fire (pre-submit hint)
-              // Used by parent to toggle UI state (e.g., show waiting spinner on register click)
-              try {
-                if (key === 'w3a-arrow-register-button' && b.event === 'arrow-submit') {
-                  opts.postToParent({ type: 'REGISTER_BUTTON_SUBMIT', payload: { id, key } });
-                  // Immediately reflect waiting state locally to hide the button until parent responds
-                  try { (el as unknown as Record<string, unknown>)['waiting'] = true; } catch {}
-                } else {
-                  // Generic bridge for other UI events if needed in the future
-                  opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } });
-                }
-              } catch {}
+              // Generic bridge for other UI events if needed in the future
+              try { opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } }); } catch {}
 
               const args: Record<string, unknown> = {};
               if (b.argsFromProps) {
@@ -399,11 +162,11 @@ export function setupLitElemMounter(opts: {
               }
               const result = await runPmAction(b.action, args);
               if (b.resultMessageType) {
-                try { opts.postToParent({ type: b.resultMessageType, payload: { ok: true, result } }); } catch {}
+                try { opts.postToParent({ type: b.resultMessageType, payload: { ok: true, id, result } }); } catch {}
               }
             } catch (err: unknown) {
               const type = b.resultMessageType || 'UI_ACTION_RESULT';
-              try { opts.postToParent({ type, payload: { ok: false, error: errorMessage(err) } }); } catch {}
+              try { opts.postToParent({ type, payload: { ok: false, id, error: errorMessage(err) } }); } catch {}
             }
           });
         } catch {}
@@ -426,10 +189,10 @@ export function setupLitElemMounter(opts: {
     if (def.bridgeProps) {
       const { successProp, cancelProp, messageType } = def.bridgeProps;
       if (successProp) {
-        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { opts.postToParent({ type: messageType, payload: { ok: true, result } }); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { opts.postToParent({ type: messageType, payload: { ok: true, id, result } }); } catch {} }; } catch {}
       }
       if (cancelProp) {
-        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { opts.postToParent({ type: messageType, payload: { ok: false, cancelled: true } }); } catch {} }; } catch {}
+        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { opts.postToParent({ type: messageType, payload: { ok: false, id, cancelled: true } }); } catch {} }; } catch {}
       }
     }
 
@@ -566,25 +329,6 @@ export function setupLitElemMounter(opts: {
     },
     WALLET_UI_UNMOUNT: (payload) => {
       try { unmountUiComponent(payload as { id: string }); } catch {}
-    },
-    WALLET_SHOW_TX_HOST: (payload) => {
-      showTxHost(payload as WalletIframeTxButtonHostProps);
-    },
-    WALLET_HIDE_TX_HOST: () => {
-      removeTxHost();
-    },
-    WALLET_SHOW_TX_BUTTON: (payload) => {
-      const data = payload as WalletIframeTxButtonHostProps & { renderMode?: string };
-      try {
-        if (data?.renderMode === 'inline') {
-          showTxHost(data);
-          return;
-        }
-      } catch {}
-      showTxBtn(data);
-    },
-    WALLET_HIDE_TX_BUTTON: () => {
-      removeTxBtn();
     },
   };
 

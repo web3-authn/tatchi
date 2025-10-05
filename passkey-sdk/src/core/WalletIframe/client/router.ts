@@ -68,7 +68,7 @@ import {
 import { IframeTransport } from './IframeTransport';
 import OverlayController, { type DOMRectLike } from './overlay-controller';
 import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
-import type { WalletUIRegistry } from '../host/lit-element-registry';
+import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { toError } from '../../../utils/errors';
 import {
   DeviceLinkingQRData,
@@ -146,8 +146,6 @@ export class WalletIframeRouter {
   private debug = false;
   private readonly walletOriginUrl: URL;
   private readonly walletOriginOrigin: string;
-  // When set, overlay.show() uses this rect instead of fullscreen
-  private anchoredRect: { top: number; left: number; width: number; height: number } | null = null;
   private overlay: OverlayController;
   // Force the overlay to remain fullscreen during critical flows (e.g., registration)
   // and ignore anchored rect updates from helper hooks.
@@ -432,8 +430,6 @@ export class WalletIframeRouter {
   }): Promise<RegistrationResult> {
     // Step 1: For registration, force fullscreen overlay (not anchored to CTA)
     // so the TxConfirmer (drawer/modal) has space to render and capture activation.
-    // Clear any previously set anchored rect before showing.
-    try { this.clearAnchoredOverlay(); } catch {}
     // Lock overlay to fullscreen for the duration of registration
     this.overlayForceFullscreen = true;
     try { this.overlay.setSticky(true); } catch {}
@@ -473,7 +469,6 @@ export class WalletIframeRouter {
       // Step 5: Always release overlay lock and hide when done (success or error)
       this.overlayForceFullscreen = false;
       try { this.overlay.setSticky(false); } catch {}
-      try { this.clearAnchoredOverlay(); } catch {}
       this.hideFrameForActivation();
     }
   }
@@ -857,10 +852,12 @@ export class WalletIframeRouter {
     }
 
     const pending = this.pending.get(requestId);
-    // Hide iframe overlay when a request completes (success or error),
-    // unless this request was registered as sticky (UI-managed lifecycle).
+    // Hide overlay on completion only if no other requests still need it,
+    // and this request wasn't marked sticky (UI-managed lifecycle).
     if (!this.progressBus.isSticky(requestId)) {
-      this.hideFrameForActivation();
+      if (!this.progressBus.wantsVisible()) {
+        this.hideFrameForActivation();
+      }
     }
     if (!pending) {
       // Even if no pending exists (e.g., early cancel or pre-resolved),
@@ -940,7 +937,11 @@ export class WalletIframeRouter {
         try { this.pending.delete(requestId); } catch {}
         try { this.progressBus.unregister(requestId); } catch {}
         try { this.overlay.setSticky(false); } catch {}
-      try { this.hideFrameForActivation(); } catch {}
+      try {
+        if (!this.progressBus.wantsVisible()) {
+          this.hideFrameForActivation();
+        }
+      } catch {}
       this.sendBestEffortCancel(requestId);
       return new Error(`Wallet request timeout for ${envelope.type}`);
       };
@@ -1081,7 +1082,8 @@ export class WalletIframeRouter {
       if (this.overlayForceFullscreen) {
         this.overlay.showFullscreen();
       } else {
-        this.overlay.showPreferAnchored();
+        // Prefer fullscreen by default; anchored pre-show is deprecated for registration flows
+        this.overlay.showFullscreen();
       }
     } catch {}
   }
@@ -1136,19 +1138,7 @@ export class WalletIframeRouter {
     try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
   }
 
-  /**
-   * Anchored overlay helpers: keep a preferred bounds rect that overlay.show() will apply
-   */
-  setAnchoredOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
-    if (this.overlayForceFullscreen) return; // ignore updates while locked
-    this.anchoredRect = { ...rect };
-    try { this.overlay.setAnchoredRect(rect as DOMRectLike); } catch {}
-  }
-
-  clearAnchoredOverlay(): void {
-    this.anchoredRect = null;
-    try { this.overlay.clearAnchoredRect(); } catch {}
-  }
+  // setAnchoredOverlayBounds/clearAnchoredOverlay removed with Arrow overlay deprecation
 
   // Post a window message and surface errors in debug mode instead of silently swallowing them
   private postWindowMessage(w: Window, data: unknown, target: string): void {

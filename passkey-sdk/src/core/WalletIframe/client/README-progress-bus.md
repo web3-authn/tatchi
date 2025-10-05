@@ -20,7 +20,7 @@ The wallet iframe mounts as a hidden 0×0 element in the parent document. When a
 
 ## Progress → Overlay behavior
 
-The `ProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay.
+The `ProgressBus` class receives typed progress payloads and applies a phase heuristic to decide when to show/hide the overlay. It also aggregates overlay visibility across concurrent requests so one flow cannot prematurely hide the overlay needed by another.
 
 - Show phases (need transient activation):
   - `ActionPhase.STEP_2_USER_CONFIRMATION` (non‑negotiable for requireClick)
@@ -41,8 +41,12 @@ The `ProgressBus` class receives typed progress payloads and applies a phase heu
 
 When the heuristic returns:
 
-- `show`: the router calls `showFrameForActivation()` and expands the iframe to a full‑screen, invisible overlay (see below for exact CSS changes).
-- `hide`: the router calls `hideFrameForActivation()` and immediately collapses the iframe back to 0×0 with `pointer-events: none`.
+- `show`: ProgressBus records a "show" demand for this `requestId` and calls overlay.show().
+- `hide`: ProgressBus records a "hide" demand; it will only call overlay.hide() when no tracked request still demands "show".
+
+This aggregation ensures that if two flows overlap (e.g., a background broadcast finishing while a new confirmation begins), the overlay stays visible until the last active flow no longer requires it.
+
+Router integration: when a request completes or times out, the router will only hide the overlay if the request wasn’t sticky and `ProgressBus.wantsVisible()` is false (no remaining show demands).
 
 Key points:
 
@@ -55,18 +59,34 @@ Key points:
 
 File: `passkey-sdk/src/core/WalletIframe/client/router.ts`
 
-`showFrameForActivation()` ensures the service iframe is mounted, then sets these styles:
+`showFrameForActivation()` ensures the service iframe is mounted, then delegates to the OverlayController to expand to fullscreen. Effective styles are:
 
 - `position: fixed; inset: 0; top: 0; left: 0; width: 100vw; height: 100vh;`
 - `opacity: 1; pointer-events: auto; z-index: 2147483646;`
 - Removes `aria-hidden` and `tabindex` attributes
 
-This makes the wallet iframe cover the viewport so clicks and the WebAuthn transient activation are captured in the wallet document. The actual transaction modal or secure UI is rendered inside the wallet iframe (either directly or inside its own nested, same‑origin iframe for the modal host). Once activation completes (or moves to non‑interactive phases), `hideFrameForActivation()` restores the iframe to:
+This makes the wallet iframe cover the viewport so clicks and the WebAuthn transient activation are captured in the wallet document. The actual transaction modal or secure UI is rendered inside the wallet iframe (either directly or inside its own nested, same‑origin iframe for the modal host). Once activation completes (or moves to non‑interactive phases), `hideFrameForActivation()` (via the OverlayController) restores the iframe to:
 
 - `width: 0px; height: 0px; opacity: 0; pointer-events: none; z-index: ''`
 - Restores `aria-hidden` and `tabindex="-1"`
 
 This minimizes any interaction blocking of the parent app and keeps the iframe invisible when not needed.
+
+See: `passkey-sdk/src/core/WalletIframe/client/overlay-controller.ts` for the single source of truth that applies these CSS mutations and manages sticky mode.
+
+
+## Concurrency: multiple in‑flight requests
+
+The overlay must not close while any request still needs user activation. ProgressBus maintains a per‑request demand map and applies aggregated visibility:
+
+- On every progress event, the latest demand for that `requestId` is stored.
+- Overlay is shown when any demand is `show`.
+- Overlay hides only when all demands are `hide` or `none`.
+- On completion/timeout, the router unregisters the request; if no other request wants visibility, the overlay is hidden.
+
+API surface:
+
+- `ProgressBus.wantsVisible(): boolean` — returns true if any in‑flight request currently demands `show`. The router uses this to avoid premature hides.
 
 
 ## Iframe permissions policy

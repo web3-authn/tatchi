@@ -50,11 +50,11 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
   - Executes wallet operations (register, login, sign, etc.)
   - Sends progress events back to the parent
   - Handles UI component mounting requests
-- **`host/lit-elem-mounter.ts`** - Manages Lit-based UI components inside the iframe:
+- **`host/iframe-lit-elem-mounter.ts`** - Manages Lit-based UI components inside the iframe:
   - Mounts transaction buttons and other UI elements
   - Wires UI interactions to PasskeyManager methods
   - Handles component lifecycle (mount/unmount/update)
-- **`host/lit-element-registry.ts`** - Declarative registry of available UI components:
+- **`host/iframe-lit-element-registry.ts`** - Declarative registry of available UI components:
   - Defines which Lit components can be mounted
   - Maps UI events to PasskeyManager actions
   - Provides type-safe component definitions

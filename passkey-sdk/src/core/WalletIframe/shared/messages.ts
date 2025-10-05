@@ -1,7 +1,7 @@
 
 // Typed RPC messages for the wallet service iframe channel (PasskeyManager-first)
 import { AuthenticatorOptions } from '@/server';
-import type { WalletUIRegistry } from '../host/lit-element-registry';
+import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { ActionArgs, TransactionInput } from '../../types';
 import {
   BaseHooksOptions,
