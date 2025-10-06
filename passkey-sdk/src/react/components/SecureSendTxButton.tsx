@@ -81,7 +81,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   buttonHoverStyle,
   buttonTextElement = <TouchIdWithText />,
   tooltipPosition = {
-    width: '360px',
+    width: '340px',
     height: 'auto',
     position: 'top-center',
   },

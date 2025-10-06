@@ -710,11 +710,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   private _updateTxTreeWidth() {
     try {
       const w = window.innerWidth || 0;
-      // Breakpoints: 360 / 380 / 400
-      let next: string | number = 'min(400px, 100%)';
-      if (w <= 640) next = 'min(360px, 100%)';
-      else if (w <= 1024) next = 'min(380px, 100%)';
-      else next = 'min(400px, 100%)';
+      // Breakpoints: 340 / 360 / 380
+      let next: string | number = 'min(380px, 100%)';
+      if (w <= 640) next = 'min(340px, 100%)';
+      else if (w <= 1024) next = 'min(360px, 100%)';
+      else next = 'min(380px, 100%)';
       if (this._txTreeWidth !== next) {
         this._txTreeWidth = next;
         this.requestUpdate();
@@ -725,7 +725,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   }
 
   render() {
-    const displayTotalAmount = (this.totalAmount === '0' || this.totalAmount === '');
     return html`
       <!-- Separate backdrop layer for independent animation -->
       <div class="modal-backdrop-blur" @click=${this._handleBackdropClick}></div>

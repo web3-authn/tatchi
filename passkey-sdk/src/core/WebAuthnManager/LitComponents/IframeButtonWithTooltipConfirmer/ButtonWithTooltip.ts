@@ -41,7 +41,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   color: string = '#667eea';
   loadingTouchIdPrompt: boolean = false;
   tooltip: TooltipPositionInternal = {
-    width: '360px',
+    width: '340px',
     height: 'auto',
     position: 'top-center',
     offset: '4px'
@@ -206,37 +206,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       --w3a-tree__host__padding-right: 0px;
     }
 
-    /* Optional mobile header within tooltip for coarse pointers */
-    [data-tooltip-header] {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 8px 12px;
-      position: sticky;
-      top: 0;
-      background: inherit;
-      z-index: 1;
-      border-bottom: 1px solid transparent;
-    }
-    [data-tooltip-title] {
-      font-size: 0.9rem;
-      font-weight: 600;
-      color: inherit;
-    }
-    [data-close-btn] {
-      appearance: none;
-      border: 1px solid transparent;
-      background: transparent;
-      color: inherit;
-      font: inherit;
-      line-height: 1;
-      padding: 6px 8px;
-      border-radius: 8px;
-      cursor: pointer;
-    }
-    [data-close-btn]:hover { background: rgba(255,255,255,0.08); }
-
     /* Top positions: aligned with button corners */
     [data-tooltip-content][data-position="top-left"] {
       bottom: 100%;
@@ -373,21 +342,30 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     // Detect coarse pointer environments (mobile/tablets) to adapt interactions
     try {
-      // Robust coarse-pointer detection: require actual touch capability to avoid headless/CI false positives
+      // 1) Primary signal: (pointer: coarse)
       const mql = window.matchMedia('(pointer: coarse)');
+      // 2) Touch capability
       const hasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
         ? (navigator as any).maxTouchPoints > 0
-        : false;
-      this.isCoarsePointer = (mql?.matches === true) && hasTouch;
+        : ('ontouchstart' in window);
+      // 3) UA/mobile hint (covers Chrome on iOS where (pointer: coarse) can be unreliable in iframes)
+      const ua = (typeof navigator !== 'undefined' && (navigator as any).userAgent) ? String((navigator as any).userAgent) : '';
+      const isMobileUA = /Android|iPhone|iPad|iPod/i.test(ua);
+
+      this.isCoarsePointer = ((mql?.matches === true) || isMobileUA) && !!hasTouch;
+
       // Keep in sync if device characteristics change (rare)
       this.mqlCoarse = mql;
       this.mqlCoarse.addEventListener?.('change', (e) => {
         const updatedHasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
           ? (navigator as any).maxTouchPoints > 0
-          : false;
-        this.isCoarsePointer = (e.matches === true) && updatedHasTouch;
+          : ('ontouchstart' in window);
+        const ua2 = (typeof navigator !== 'undefined' && (navigator as any).userAgent) ? String((navigator as any).userAgent) : '';
+        const mobile2 = /Android|iPhone|iPad|iPod/i.test(ua2);
+        this.isCoarsePointer = ((e.matches === true) || mobile2) && !!updatedHasTouch;
         this.requestUpdate();
       });
+
       // Default to press-to-preview on coarse pointers (can be overridden via SET_STYLE)
       if (this.isCoarsePointer) {
         this.activationMode = 'press';
@@ -1088,12 +1066,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          ${this.isCoarsePointer && this.tooltipVisible ? html`
-            <div data-tooltip-header>
-              <span data-tooltip-title>Transaction Details</span>
-              <button data-close-btn @click=${() => this.hideTooltip()} aria-label="Close details">✕</button>
-            </div>
-          ` : ''}
           <w3a-tx-tree
             .node=${tree}
             .depth=${0}

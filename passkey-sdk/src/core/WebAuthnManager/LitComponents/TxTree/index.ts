@@ -352,7 +352,7 @@ export class TxTree extends LitElementWithProps {
       min-height: var(--w3a-tree__file-content__min-height, 60px);
       /* Ensure file content obeys the provided TxTree width */
       width: var(--w3a-tree__file-content__width, auto);
-      max-width: var(--w3a-tree__tooltip-tree-root__width, 345px);
+      max-width: var(--w3a-tree__tooltip-tree-root__width, 100%);
       overflow: var(--w3a-tree__file-content__overflow, auto);
       color: var(--w3a-tree__file-content__color, #e2e8f0);
       font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);

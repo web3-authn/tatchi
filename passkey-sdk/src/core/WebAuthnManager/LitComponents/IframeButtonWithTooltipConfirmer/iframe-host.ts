@@ -520,6 +520,8 @@ export class IframeButtonHost extends LitElementWithProps {
       tooltipTreeStyles: themeStyles,
       embeddedButtonTheme: embeddedButtonTheme,
       theme: this.txTreeTheme,
+      // Force consistent mobile behavior across browsers: tap confirms, long‑press shows tooltip
+      activationMode: 'press',
     });
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the

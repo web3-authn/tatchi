@@ -49,9 +49,9 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
-  // Consistent tree width across containers (match modal's breakpoints)
-  private _txTreeWidth: string | number = '400px';
-  private _onResize = () => this._updateTxTreeWidth();
+  // Tree width now sourced from a single CSS var so host can control it.
+  // Falls back to the embedded tooltip width, and then to 340px.
+  private _txTreeWidth: string | number = 'min(var(--w3a-confirm-tree-width, var(--tooltip-width, 340px)), 100%)';
 
   static styles = css`
     :host {
@@ -189,10 +189,10 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private _updateTxTreeWidth() {
     try {
       const w = window.innerWidth || 0;
-      let next: string | number = '400px';
-      if (w <= 640) next = '360px';
-      else if (w <= 1024) next = '380px';
-      else next = '400px';
+      let next: string | number = '380px';
+      if (w <= 640) next = '340px';
+      else if (w <= 1024) next = '360px';
+      else next = '380px';
       if (this._txTreeWidth !== next) {
         this._txTreeWidth = next;
         this.requestUpdate();
