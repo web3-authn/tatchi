@@ -102,9 +102,9 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;
       // Show just the top portion above the fold; prefer dynamic viewport units when supported
       try {
-        drawer.height = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '50dvh')) ? '50dvh' : '50vh';
+        drawer.height = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '55dvh')) ? '55dvh' : '55vh';
       } catch {
-        drawer.height = '50vh';
+        drawer.height = '55vh';
       }
       drawer.showCloseButton = true;
       drawer.dragToClose = true;

@@ -46,7 +46,7 @@ export const Navbar: React.FC = () => {
           Home
         </Link>
         <Link to="/multitx">
-          Transaction Demos
+          Demos
         </Link>
       </div>
 

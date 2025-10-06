@@ -81,10 +81,16 @@ export class OverlayController {
     iframe.style.inset = '0';
     iframe.style.top = '0';
     iframe.style.left = '0';
-    // Avoid Safari horizontal overflow from 100vw/100vh.
-    // Rely on fixed positioning + inset: 0 to fill the viewport.
-    iframe.style.width = '';
-    iframe.style.height = '';
+    // Use dynamic viewport units when supported; fall back to classic vw/vh.
+    try {
+      const useDvw = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('width', '100dvw');
+      const useDvh = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '100dvh');
+      iframe.style.width = useDvw ? '100dvw' : '100vw';
+      iframe.style.height = useDvh ? '100dvh' : '100vh';
+    } catch {
+      iframe.style.width = '100vw';
+      iframe.style.height = '100vh';
+    }
 
     // Step 2: Make overlay visible and interactive
     iframe.style.opacity = '1';

@@ -35,8 +35,14 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
 
   static styles = css`
     :host { display: block; position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
-    .content { display: flex; flex-direction: column; gap: 24px; }
-    .title { margin: 1rem 0rem; font-size: 20px; font-weight: 700; text-align: left; }
+    .content { display: flex; flex-direction: column; gap: 1rem; }
+    .title {
+      margin: 0rem;
+      padding-left: 0.5rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      text-align: left;
+    }
     .close-btn {
       position: absolute;
       right: 8px;
@@ -60,16 +66,23 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       background: var(--w3a-colors-surface, rgba(255,255,255,0.08));
     }
     .warning {
-      background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
-      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
       color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
       padding: 12px;
       border-radius: 1rem;
       font-size: 0.9rem;
-      margin-bottom: 1rem;
+      margin-bottom: 1.25rem;
     }
-    .fields { display: flex; flex-direction: column; gap: 16px; }
-    .field { display: flex; flex-direction: column; gap: 6px; }
+    .fields { display: flex; flex-direction: column; gap: 0.5rem; }
+    .field {
+      display: flex;
+      flex-direction:
+      column;
+      gap: 0.25rem;
+      border: 1px solid var(--w3a-colors-borderPrimary);
+      background: var(--w3a-colors-surface2);
+      padding: 0.75rem;
+      border-radius: 1rem;
+    }
     .field-label { color: var(--w3a-colors-textPrimary, #f6f7f8); font-size: 0.95rem; font-weight: 600; }
     .field-value {
       display: flex;
@@ -80,7 +93,14 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     .value {
       color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      word-break: break-all;
+      word-break: break-all; /* allow breaks within long keys */
+      /* Clamp to 2 lines with ellipsis for overflow */
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: normal;
       user-select: text;
       -webkit-user-select: text;
       -moz-user-select: text;
@@ -324,8 +344,8 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
           </div>
         </div>
         <div class="warning">
-          Warning: Revealing your private key grants full control of your account and funds.
-          Keep the private key in a secret place.
+          Warning: your private key grants full control of your account and funds.
+          Keep it in a secret place.
         </div>
       </div>
     `;

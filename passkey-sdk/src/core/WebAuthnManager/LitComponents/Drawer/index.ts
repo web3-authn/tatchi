@@ -102,13 +102,18 @@ export class DrawerElement extends LitElementWithProps {
 
     /* Default to closed (100%) until JS computes the open translate.
        This avoids a flash at 0% then shrinking to content. */
-    :host([open]) .drawer { transform: translateY(var(--w3a-drawer__open-translate, 100%)); }
+    :host([open]) .drawer {
+      /* Allow a small upward offset (in px) to compensate for mobile UI chrome */
+      transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
+    }
     /* full-open removed; drawer opens to content height (capped) */
     .drawer.dragging { transition: none; }
     .handle {
-      width: 36px; height: 4px; border-radius: 2px;
+      width: 36px;
+      height: 4px;
+      border-radius: 2px;
       background: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.25)));
-      margin: 6px auto 10px;
+      margin: 1rem auto;
     }
 
     /* Ensure the body can actually shrink so overflow works inside grid */
@@ -142,6 +147,8 @@ export class DrawerElement extends LitElementWithProps {
       justify-content: center;
       transition: all .2s ease;
       z-index: 3;
+      /* Ensure taps map to click reliably on mobile */
+      touch-action: manipulation;
     }
     .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8)); background: var(--w3a-colors-surface, var(--w3a-color-surface, rgba(255,255,255,0.08))); }
     .close-btn:active { transform: scale(0.96); }
@@ -159,11 +166,13 @@ export class DrawerElement extends LitElementWithProps {
     /* Responsive adjustments */
     @media (max-width: 640px) {
       .drawer {
-        padding: 0;
+        padding: 0.5rem;
         border-radius: 2rem;
+        /* Nudge drawer upward slightly on mobile */
+        --w3a-drawer__open-offset: 1rem;
       }
       .handle {
-        margin: 2rem auto 0rem auto;
+        margin: 1rem auto;
       }
       .close-btn { right: 1rem; top: 1rem; width: 44px; height: 44px; font-size: 26px; }
     }
@@ -366,6 +375,14 @@ export class DrawerElement extends LitElementWithProps {
   private handleTouchStart = (e: TouchEvent) => {
     if (this.loading || !this.open) return;
 
+    // Do not initiate a drawer drag when the touch starts on the close button
+    try {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest && target.closest('.close-btn')) {
+        return;
+      }
+    } catch {}
+
     const touch = e.touches[0];
     this.pendingDrag = true;
     this.startY = touch.clientY;
@@ -451,6 +468,8 @@ export class DrawerElement extends LitElementWithProps {
       const ty = this.parseTranslateY(transform);
       // If transform is 'none', use the rest position
       this.startTranslateYPx = Number.isFinite(ty) ? ty : this.openRestTranslateYPx;
+      // Align logical "rest" with actual CSS transform (which may include offsets)
+      if (Number.isFinite(ty)) this.openRestTranslateYPx = ty as number;
 
       this.drawerElement.classList.add('dragging');
     }
@@ -648,7 +667,7 @@ export class DrawerElement extends LitElementWithProps {
       <section class="drawer" role="dialog" aria-modal="true">
         <div style="position: relative;">
           <div class="handle" @click=${this.onHandleClick}></div>
-          ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${this.onClose}>×</button>` : null}
+          ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${this.onClose} @touchend=${this.onClose}>×</button>` : null}
         </div>
         <div class="body">
           ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
