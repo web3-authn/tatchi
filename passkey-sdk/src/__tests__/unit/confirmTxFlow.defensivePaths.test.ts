@@ -249,7 +249,12 @@ test.describe('confirmTxFlow – defensive paths', () => {
           viewBlock: async () => ({ header: { height: 1, hash: 'h1' } }),
         },
         vrfWorkerManager: {
-          generateVrfChallenge: async ({ blockHeight, blockHash }: any) => ({ vrfOutput: 'out', vrfProof: 'proof', blockHeight, blockHash }),
+          generateVrfChallenge: async ({ blockHeight, blockHash }: any) => ({
+            vrfOutput: 'out',
+            vrfProof: 'proof',
+            blockHeight,
+            blockHash
+          }),
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',

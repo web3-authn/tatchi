@@ -49,7 +49,12 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       // Stub to avoid Window.postMessage signature issues when used by worker-style code
       (self as any).postMessage = (_msg: unknown) => {};
       try {
-        await awaitV2(JSON.stringify({ schemaVersion: 2, requestId: 'id-3', type: 'signTransaction', payload: {} }), { timeoutMs: 50 });
+        await awaitV2(JSON.stringify({
+          schemaVersion: 2,
+          requestId: 'id-3',
+          type: 'signTransaction',
+          payload: {}
+        }), { timeoutMs: 50 });
         return { ok: true };
       } catch (e: any) {
         return { ok: false, message: String(e?.message || e) };
@@ -71,7 +76,10 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
       setTimeout(() => {
         // Dispatch a message event with a mismatched requestId; listener should ignore it
         self.dispatchEvent(new MessageEvent('message', {
-          data: { type: 'USER_PASSKEY_CONFIRM_RESPONSE', data: { requestId: 'DIFFERENT', confirmed: true } }
+          data: {
+            type: 'USER_PASSKEY_CONFIRM_RESPONSE',
+            data: { requestId: 'DIFFERENT', confirmed: true }
+          }
         }));
       }, 10);
       try {

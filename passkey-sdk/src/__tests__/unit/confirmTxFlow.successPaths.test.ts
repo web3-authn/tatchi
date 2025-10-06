@@ -83,11 +83,26 @@ test.describe('confirmTxFlow – success paths', () => {
           })
         },
         nonceManager: {
-          async getNonceBlockHashAndHeight(_nc: any, _opts?: any) { return { nearPublicKeyStr: 'pk', accessKeyInfo: { nonce: 100 }, nextNonce: '101', txBlockHeight: '1000', txBlockHash: 'hash0' }; },
-          reserveNonces(n: number) { nonceReserved = Array.from({ length: n }, (_, i) => String(101 + i)); return nonceReserved; },
+          async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {
+            return {
+              nearPublicKeyStr: 'pk',
+              accessKeyInfo: { nonce: 100 },
+              nextNonce: '101',
+              txBlockHeight: '1000',
+              txBlockHash: 'hash0'
+            };
+          },
+          reserveNonces(n: number) {
+            nonceReserved = Array.from({ length: n }, (_, i) => String(101 + i));
+            return nonceReserved;
+          },
           releaseNonce(_n: string) {},
         },
-        nearClient: { async viewBlock() { return { header: { height: 1001, hash: 'hash1' } }; } },
+        nearClient: {
+          async viewBlock() {
+            return { header: { height: 1001, hash: 'hash1' } };
+          }
+        },
         vrfWorkerManager: {
           async generateVrfKeypairBootstrap({ vrfInputData }: any) {
             return {
@@ -114,8 +129,18 @@ test.describe('confirmTxFlow – success paths', () => {
           getRpId: () => 'example.localhost',
           generateRegistrationCredentialsInternal: async () => ({
             id: 'reg-cred', type: 'public-key', rawId: new Uint8Array([1,2,3]).buffer,
-            response: { clientDataJSON: new Uint8Array([1]).buffer, attestationObject: new Uint8Array([4]).buffer, getTransports: () => ['internal'] },
-            getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(8), second: new Uint8Array(32).fill(9) } } })
+            response: {
+              clientDataJSON: new Uint8Array([1]).buffer,
+              attestationObject: new Uint8Array([4]).buffer,
+              getTransports: () => ['internal']
+            },
+            getClientExtensionResults: () => ({
+              prf: {
+                results: {
+                  first: new Uint8Array(32).fill(8),
+                  second: new Uint8Array(32).fill(9) }
+                }
+              })
           }) as any,
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
@@ -123,13 +148,22 @@ test.describe('confirmTxFlow – success paths', () => {
 
       const request = {
         schemaVersion: 2, requestId: 'r2', type: types.SecureConfirmationType.REGISTER_ACCOUNT,
-        summary: {}, payload: { nearAccountId: 'bob.testnet', rpcCall: { method: 'create', argsJson: {} } }
+        summary: {},
+        payload: {
+          nearAccountId: 'bob.testnet',
+          rpcCall: { method: 'create', argsJson: {} }
+        }
       };
       const msgs: any[] = [];
       const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
       await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
       const resp = msgs[0]?.data;
-      return { confirmed: resp?.confirmed, vrf: resp?.vrfChallenge, tx: resp?.transactionContext, reserved: nonceReserved, jitRefreshed };
+      return {
+        confirmed: resp?.confirmed,
+        vrf: resp?.vrfChallenge,
+        tx: resp?.transactionContext,
+        reserved: nonceReserved, jitRefreshed
+     };
     }, { paths: IMPORT_PATHS });
 
     expect(result.confirmed).toBe(true);
@@ -159,8 +193,19 @@ test.describe('confirmTxFlow – success paths', () => {
           })
         },
         nonceManager: {
-          async getNonceBlockHashAndHeight(_nc: any, _opts?: any) { return { nearPublicKeyStr: 'pk', accessKeyInfo: { nonce: 200 }, nextNonce: '201', txBlockHeight: '2000', txBlockHash: 'h0' }; },
-          reserveNonces(n: number) { reserved = Array.from({ length: n }, (_, i) => String(201 + i)); return reserved; },
+          async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {
+            return {
+              nearPublicKeyStr: 'pk',
+              accessKeyInfo: { nonce: 200 },
+              nextNonce: '201',
+              txBlockHeight: '2000',
+              txBlockHash: 'h0'
+            };
+          },
+          reserveNonces(n: number) {
+            reserved = Array.from({ length: n }, (_, i) => String(201 + i));
+            return reserved;
+          },
           releaseNonce(_n: string) {},
         },
         nearClient: {
@@ -169,7 +214,15 @@ test.describe('confirmTxFlow – success paths', () => {
           }
         },
         vrfWorkerManager: {
-          async generateVrfChallenge({ blockHeight, blockHash }: any) { refreshed++; return { vrfOutput: 'v-out', vrfProof: 'v-proof', blockHeight, blockHash }; },
+          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+            refreshed++;
+            return {
+              vrfOutput: 'v-out',
+              vrfProof: 'v-proof',
+              blockHeight,
+              blockHash
+            };
+          },
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
@@ -181,8 +234,14 @@ test.describe('confirmTxFlow – success paths', () => {
               signature: new Uint8Array([3]).buffer,
               userHandle: null
             },
-            getClientExtensionResults: () => ({ prf: { results: { first: new Uint8Array(32).fill(5) } } })
-          }) as any,
+            getClientExtensionResults: () => ({
+              prf: {
+                results: {
+                  first: new Uint8Array(32).fill(5)
+                }
+              }
+            })
+          }),
         },
         indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
       };
@@ -207,7 +266,10 @@ test.describe('confirmTxFlow – success paths', () => {
       } as any;
       const msgs: any[] = [];
       const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
-      await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
+      await handle(ctx, {
+        type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+        data: request
+      }, worker);
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,

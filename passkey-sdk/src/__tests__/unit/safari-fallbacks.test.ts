@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
+import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
   // Use concrete module path that exists in dist
@@ -18,25 +18,36 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         const { executeWithFallbacks } = await import(paths.fallbacks);
 
         const rpId = 'example.com';
-        const publicKey = { rp: { id: rpId, name: 'Test' }, user: { id: new Uint8Array([1]), name: 'u', displayName: 'u' }, challenge: new Uint8Array([1]) };
+        const publicKey = {
+          rp: { id: rpId, name: 'Test' },
+          user: { id: new Uint8Array([1]), name: 'u', displayName: 'u' },
+          challenge: new Uint8Array([1])
+        };
         // Test hook: force native to fail
         (window as any).__W3A_TEST_FORCE_NATIVE_FAIL = true;
         // Bridge returns an explicit cancellation (not a timeout)
         const bridgeClient = { request: async () => ({ ok: false, error: 'User cancelled' }) };
         try {
-          await executeWithFallbacks('create', publicKey as any, { rpId, inIframe: true, timeoutMs: 500, bridgeClient });
+          await executeWithFallbacks('create', publicKey, { rpId, inIframe: true, timeoutMs: 500, bridgeClient });
           return { success: false, error: 'Expected rejection' };
         } catch (e: any) {
           // Clear test flag
           try { delete (window as any).__W3A_TEST_FORCE_NATIVE_FAIL; } catch {}
-          return { success: true, name: e?.name || '', message: String(e?.message || e) };
+          return {
+            success: true,
+            name: e?.name || '',
+            message: String(e?.message || e)
+          };
         }
       } catch (err: any) {
         return { success: false, error: err?.message || String(err) };
       }
     }, { paths: IMPORT_PATHS });
 
-    if (!res.success) { test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`); return; }
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
 
     expect(res.name).toBe('NotAllowedError');
     expect(res.message).toContain('cancel');
@@ -48,14 +59,18 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         const { executeWithFallbacks } = await import(paths.fallbacks);
 
         const rpId = 'example.com';
-        const publicKey = { rp: { id: rpId, name: 'Test' }, user: { id: new Uint8Array([1]), name: 'u', displayName: 'u' }, challenge: new Uint8Array([1]) };
+        const publicKey = {
+          rp: { id: rpId, name: 'Test' },
+          user: { id: new Uint8Array([1]), name: 'u', displayName: 'u' },
+          challenge: new Uint8Array([1])
+        };
 
         // Force native to fail; observe internal counter; simulate bridge timeout
         (window as any).__W3A_TEST_FORCE_NATIVE_FAIL = true;
         const bridgeClient = { request: async () => ({ ok: false, timeout: true }) };
         let threw = false;
         try {
-          await executeWithFallbacks('create', publicKey as any, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWithFallbacks('create', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
         } catch {
           threw = true;
         }
@@ -69,7 +84,10 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
       }
     }, { paths: IMPORT_PATHS });
 
-    if (!res.success) { test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`); return; }
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
 
     expect(res.calls?.nativeCreate).toBe(1);
     expect(res.threw).toBe(true);
@@ -84,9 +102,11 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         // Force native to fail
         (window as any).__W3A_TEST_FORCE_NATIVE_FAIL = true;
         // Bridge returns explicit cancel
-        const bridgeClient = { request: async () => ({ ok: false, error: 'User cancelled' }) };
+        const bridgeClient = {
+          request: async () => ({ ok: false, error: 'User cancelled' })
+        };
         try {
-          await executeWithFallbacks('get', publicKey as any, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWithFallbacks('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
           return { success: false, error: 'Expected rejection' };
         } catch (e: any) {
           try { delete (window as any).__W3A_TEST_FORCE_NATIVE_FAIL; } catch {}
@@ -97,7 +117,10 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
       }
     }, { paths: IMPORT_PATHS });
 
-    if (!res.success) { test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`); return; }
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
 
     expect(res.name).toBe('NotAllowedError');
     expect(res.message).toContain('cancel');
@@ -112,17 +135,22 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
 
         // Stub native navigator.credentials.get to simulate a user cancellation
         const orig = navigator.credentials.get.bind(navigator.credentials);
-        (navigator.credentials as any).get = async () => {
+        navigator.credentials.get = async () => {
           const e = new Error('The operation was not allowed');
           (e as any).name = 'NotAllowedError';
           throw e;
         };
 
         let bridgeCalls = 0;
-        const bridgeClient = { request: async () => { bridgeCalls += 1; return { ok: false, error: 'should not be called' }; } };
+        const bridgeClient = {
+          request: async () => {
+            bridgeCalls += 1;
+            return { ok: false, error: 'should not be called' };
+          }
+        };
 
         try {
-          await executeWithFallbacks('get', publicKey as any, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWithFallbacks('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
           return { success: false, error: 'Expected NotAllowedError' };
         } catch (e: any) {
           // restore
@@ -134,7 +162,10 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
       }
     }, { paths: IMPORT_PATHS });
 
-    if (!res.success) { test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`); return; }
+    if (!res.success) {
+      test.skip(true, `Safari fallback test skipped: ${res.error || 'unknown error'}`);
+      return;
+    }
     expect(res.name).toBe('NotAllowedError');
     expect(res.bridgeCalls).toBe(0);
   });

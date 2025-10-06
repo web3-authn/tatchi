@@ -5,12 +5,11 @@ import type {
   AccountId,
   StoredAuthenticator,
   VRFChallenge,
-  WebAuthnRegistrationCredential,
   WebAuthnAuthenticationCredential
 } from '../types';
-import { serializeAuthenticationCredentialWithPRF } from '../WebAuthnManager/credentialsHelpers';
 import type { EncryptedVRFKeypair, ServerEncryptedVrfKeypair } from '../types/vrf-worker';
 import { validateNearAccountId } from '../../utils/validation';
+import { parseAccountIdFromUserHandle } from '../WebAuthnManager/userHandle';
 import { toAccountId } from '../types/accountIds';
 import { createRandomVRFChallenge } from '../types/vrf-worker';
 import { WebAuthnManager } from '../WebAuthnManager';
@@ -124,15 +123,7 @@ export class AccountRecoveryFlow {
         let inferredAccountId: string | null = null;
         try {
           const assertion: any = credential.response as any;
-          const userHandle: ArrayBuffer | null | undefined = assertion?.userHandle;
-          if (userHandle && (userHandle as ArrayBuffer).byteLength > 0) {
-            const decoded = new TextDecoder().decode(new Uint8Array(userHandle));
-            // Remove optional " (n)" suffix to get base account id
-            const base = decoded.replace(/ \(\d+\)$/g, '');
-            if (validateNearAccountId(base).valid) {
-              inferredAccountId = base;
-            }
-          }
+          inferredAccountId = parseAccountIdFromUserHandle(assertion?.userHandle);
         } catch {}
 
         const option: PasskeyOption = {
@@ -195,7 +186,25 @@ export class AccountRecoveryFlow {
         throw new Error('Invalid selection - account not found in available options');
       }
       if (!selectedOption.accountId) {
-        throw new Error('Invalid account selection - no account ID provided');
+        // Attempt a one-time re-prompt to infer accountId from userHandle for this credential
+        try {
+          const challenge = createRandomVRFChallenge();
+          const cred = await this.context.webAuthnManager.getAuthenticationCredentialsForRecovery({
+            nearAccountId: '' as any,
+            challenge: challenge as VRFChallenge,
+            credentialIds: selectedOption.credentialId && selectedOption.credentialId !== 'manual-input'
+              ? [selectedOption.credentialId]
+              : [],
+          });
+          const assertion: any = cred.response as any;
+          const maybeAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
+          if (maybeAccount) {
+            selectedOption.accountId = maybeAccount as any as AccountId;
+          }
+        } catch {}
+        if (!selectedOption.accountId) {
+          throw new Error('Invalid account selection - no account ID provided');
+        }
       }
 
       // If multiple credentials exist for this account, allow the platform chooser UI

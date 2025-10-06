@@ -43,7 +43,12 @@ test.describe('determineConfirmationConfig', () => {
       return { cfg };
     }, { paths: IMPORT_PATHS });
 
-    expect(res.cfg).toEqual({ uiMode: 'drawer', behavior: 'autoProceed', autoProceedDelay: 7, theme: 'dark' });
+    expect(res.cfg).toEqual({
+      uiMode: 'drawer',
+      behavior: 'autoProceed',
+      autoProceedDelay: 7,
+      theme: 'dark'
+    });
   });
 
   test('decryptPrivateKeyWithPrf defaults to uiMode=skip and preserves theme', async ({ page }) => {
@@ -54,7 +59,12 @@ test.describe('determineConfirmationConfig', () => {
 
       const ctx: any = {
         userPreferencesManager: {
-          getConfirmationConfig: () => ({ uiMode: 'modal', behavior: 'requireClick', autoProceedDelay: 0, theme: 'light' })
+          getConfirmationConfig: () => ({
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'light'
+          })
         }
       };
 
@@ -89,7 +99,12 @@ test.describe('determineConfirmationConfig', () => {
         const determine = mod.determineConfirmationConfig as Function;
         const ctx: any = {
           userPreferencesManager: {
-            getConfirmationConfig: () => ({ uiMode: 'drawer', behavior: 'autoProceed', autoProceedDelay: 5, theme: 'dark' })
+            getConfirmationConfig: () => ({
+              uiMode: 'drawer',
+              behavior: 'autoProceed',
+              autoProceedDelay: 5,
+              theme: 'dark'
+            })
           }
         };
         const req1 = { type: types.SecureConfirmationType.REGISTER_ACCOUNT } as any;
