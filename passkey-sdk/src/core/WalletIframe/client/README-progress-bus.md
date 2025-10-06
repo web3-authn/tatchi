@@ -61,7 +61,7 @@ File: `passkey-sdk/src/core/WalletIframe/client/router.ts`
 
 `showFrameForActivation()` ensures the service iframe is mounted, then delegates to the OverlayController to expand to fullscreen. Effective styles are:
 
-- `position: fixed; inset: 0; top: 0; left: 0; width: 100vw; height: 100vh;`
+- `position: fixed; inset: 0; top: 0; left: 0;` (fills viewport without 100vw/100vh)
 - `opacity: 1; pointer-events: auto; z-index: 2147483646;`
 - Removes `aria-hidden` and `tabindex` attributes
 

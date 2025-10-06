@@ -88,16 +88,14 @@ export class IframeModalHost extends LitElementWithProps {
     .iframe-modal-host {
       position: fixed;
       inset: 0;
-      width: 100vw;
-      height: 100vh;
+      /* Fill viewport via inset; avoid 100vw/100vh for Safari */
     }
     iframe {
       border: none;
       background: transparent;
       position: fixed;
       inset: 0;
-      width: 100vw;
-      height: 100vh;
+      /* Fill viewport via inset; avoid 100vw/100vh for Safari */
       z-index: 2147483647;
     }
   `;

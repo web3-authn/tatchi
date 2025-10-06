@@ -149,6 +149,26 @@ export class LitElementWithProps extends LitElement {
     const setVar = (name: string, val: string) => this.style.setProperty(name, val);
     const toKebab = (s: string) => this.camelToKebab(s);
 
+    // Prefer dynamic viewport units on capable browsers to avoid Safari 100vh/100vw issues
+    const transformViewportUnits = (val: string): string => {
+      if (!val || typeof val !== 'string') return val;
+      try {
+        const supportsDvh = typeof CSS !== 'undefined' && !!(CSS as any).supports && CSS.supports('height', '1dvh');
+        const supportsDvw = typeof CSS !== 'undefined' && !!(CSS as any).supports && CSS.supports('width', '1dvw');
+        let out = val;
+        if (supportsDvh && out.includes('vh')) {
+          // Replace numeric vh occurrences (e.g., 50vh, calc(100vh - 1rem)) with dvh
+          out = out.replace(/([0-9]+(?:\.[0-9]+)?)vh\b/g, '$1dvh');
+        }
+        if (supportsDvw && out.includes('vw')) {
+          out = out.replace(/([0-9]+(?:\.[0-9]+)?)vw\b/g, '$1dvw');
+        }
+        return out;
+      } catch {
+        return val;
+      }
+    };
+
     // Map known tokens to canonical CSS variables
     const colorMappings: Record<string, string> = {
       colorSecondary: '--w3a-colors-secondary',
@@ -173,19 +193,21 @@ export class LitElementWithProps extends LitElement {
     Object.entries(styles).forEach(([key, value]) => {
       if (typeof value !== 'string') return;
 
+      const maybeTransformed = transformViewportUnits(value);
+
       if (key in colorMappings) {
-        setVar(colorMappings[key], value);
+        setVar(colorMappings[key], maybeTransformed);
         return;
       }
 
       const r = key.match(radiusMatcher);
-      if (r) { setVar(`--w3a-border-radius-${r[1].toLowerCase()}`, value); return; }
+      if (r) { setVar(`--w3a-border-radius-${r[1].toLowerCase()}`, maybeTransformed); return; }
 
       const s = key.match(shadowMatcher);
-      if (s) { setVar(`--w3a-shadows-${s[1].toLowerCase()}`, value); return; }
+      if (s) { setVar(`--w3a-shadows-${s[1].toLowerCase()}`, maybeTransformed); return; }
 
       // No legacy gap variables; rely on spacing tokens only.
-      setVar(`--w3a-${toKebab(key)}`, value);
+      setVar(`--w3a-${toKebab(key)}`, maybeTransformed);
     });
 
     // Component-scoped CSS variables
@@ -195,7 +217,8 @@ export class LitElementWithProps extends LitElement {
           const kebabSection = toKebab(section);
           const kebabProp = toKebab(prop);
           const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
-          this.style.setProperty(cssVarNew, String(value));
+          const v = typeof value === 'string' ? transformViewportUnits(value) : String(value);
+          this.style.setProperty(cssVarNew, v);
         });
       }
     });

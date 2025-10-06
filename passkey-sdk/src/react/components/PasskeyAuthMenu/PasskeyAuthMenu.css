@@ -17,6 +17,11 @@
   will-change: height, min-height;
 }
 
+/* Prefer dvw on capable browsers to avoid Safari horizontal scroll */
+@supports (width: 1dvw) {
+  .w3a-signup-menu-root { max-width: 100dvw; }
+}
+
 /* Back button */
 .w3a-back-button {
   position: absolute;
@@ -412,6 +417,10 @@
     padding-top: calc(1rem + 4px);
     border-radius: 2rem;
     max-width: calc(100vw - 0.5rem);
+  }
+
+  @supports (width: 1dvw) {
+    .w3a-signup-menu-root { max-width: calc(100dvw - 0.5rem); }
   }
 
   .w3a-title {

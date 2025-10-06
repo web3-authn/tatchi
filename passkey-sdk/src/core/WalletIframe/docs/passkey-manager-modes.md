@@ -175,7 +175,7 @@ The wallet iframe is shown only when user activation is needed and otherwise rem
 
 - Modes
   - `hidden`: no footprint, `pointer-events: none`.
-  - `fullscreen`: `position: fixed; inset: 0; width: 100vw; height: 100vh`.
+- `fullscreen`: `position: fixed; inset: 0` (fills viewport without 100vw/100vh).
   - `anchored`: `position: fixed; top/left/width/height` from a viewport `DOMRect`.
 
 - Preflight overlay intent

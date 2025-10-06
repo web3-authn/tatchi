@@ -358,12 +358,18 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       padding: var(--w3a-modal__action-content__padding, 0.5rem);
       font-size: var(--w3a-font-size-sm);
       line-height: 1.4;
-
       max-height: var(--w3a-modal__action-content__max-height, 50vh);
       overflow: scroll;
       scrollbar-width: thin;
       background: var(--w3a-modal__action-content__background, #242628);
       border-radius: 12px;
+    }
+
+    /* Prefer dynamic viewport units when supported (iOS Safari address bar) */
+    @supports (height: 1dvh) {
+      .action-content {
+        max-height: var(--w3a-modal__action-content__max-height, 50dvh);
+      }
     }
 
     .action-content-min-height {
@@ -547,7 +553,14 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Responsive adjustments */
     @media (max-width: 640px) {
       .responsive-card {
-        max-width: var(--w3a-modal__mobile__responsive-card__max-width, 100vw - 1rem);
+        max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100vw - 1rem));
+      }
+
+      /* Override with dvw on capable browsers for Safari correctness */
+      @supports (width: 1dvw) {
+        .responsive-card {
+          max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100dvw - 1rem));
+        }
       }
 
       .summary-row {

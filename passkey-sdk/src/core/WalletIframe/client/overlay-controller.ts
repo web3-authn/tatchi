@@ -81,8 +81,10 @@ export class OverlayController {
     iframe.style.inset = '0';
     iframe.style.top = '0';
     iframe.style.left = '0';
-    iframe.style.width = '100vw';
-    iframe.style.height = '100vh';
+    // Avoid Safari horizontal overflow from 100vw/100vh.
+    // Rely on fixed positioning + inset: 0 to fill the viewport.
+    iframe.style.width = '';
+    iframe.style.height = '';
 
     // Step 2: Make overlay visible and interactive
     iframe.style.opacity = '1';

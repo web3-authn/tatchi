@@ -107,7 +107,11 @@
 
   .w3a-access-keys-modal-inner {
     max-width: 100%;
-    max-height: 90vh;
+  max-height: 90vh;
+  /* Prefer dynamic viewport height on capable browsers */
+  @supports (height: 1dvh) {
+    max-height: 90dvh;
+  }
   }
 
   .w3a-access-keys-modal-header {

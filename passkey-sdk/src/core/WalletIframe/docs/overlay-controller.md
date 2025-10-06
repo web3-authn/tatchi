@@ -11,7 +11,7 @@ Goal: centralize all wallet iframe overlay sizing/visibility logic behind a smal
 ## Overlay Modes
 
 - `hidden`: iframe has no footprint, `pointer-events: none`.
-- `fullscreen`: `position: fixed; inset: 0; width: 100vw; height: 100vh`.
+- `fullscreen`: `position: fixed; inset: 0` (fills viewport without 100vw/100vh).
 - `anchored`: `position: fixed; top/left from rect; width/height from rect`.
 
 ## API (v1)

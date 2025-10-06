@@ -171,7 +171,7 @@ The wallet iframe mounts as an invisible 0×0 element and temporarily expands to
   - `passkey-sdk/src/core/WalletIframe/client/IframeTransport.ts` mounts the iframe with `position: fixed`, `width/height: 0`, `opacity: 0`, and `pointer-events: none` so it is invisible yet present in the DOM.
 
 - Expand to full‑screen during activation:
-  - `showFrameForActivation()` in `passkey-sdk/src/core/WalletIframe/client/router.ts` sets `width: 100vw`, `height: 100vh`, `pointer-events: auto`, `opacity: 1`, and `z-index: 2147483646` so the iframe can capture user activation.
+  - `showFrameForActivation()` in `passkey-sdk/src/core/WalletIframe/client/router.ts` sets `position: fixed`, `inset: 0`, `pointer-events: auto`, `opacity: 1`, and `z-index: 2147483646` so the iframe can capture user activation without relying on 100vw/100vh.
   - This is invoked explicitly for sensitive flows (e.g., `registerPasskey()`, `loginPasskey()`, device linking) and implicitly by the progress-heuristic layer described below.
 
 - Collapse back to 0×0:

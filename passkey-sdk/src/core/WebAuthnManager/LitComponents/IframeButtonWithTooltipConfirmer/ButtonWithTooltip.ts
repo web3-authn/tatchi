@@ -188,6 +188,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       opacity: var(--w3a-embedded__tooltip-content__opacity, 0);
       visibility: var(--w3a-embedded__tooltip-content__visibility, hidden);
       pointer-events: none; /* prevent overlay from stealing hover before interactive */
+      /* Ensure the tooltip container itself remains transparent; visuals live inside */
+      background: transparent !important;
+      background-color: transparent !important;
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
       overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
@@ -312,6 +315,12 @@ export class EmbeddedTxButton extends LitElementWithProps {
       pointer-events: auto; /* interactive only when visible */
     }
 
+    /* When hidden, collapse dimensions so it does not affect geometry */
+    [data-tooltip-content][data-visible="false"] {
+      max-height: 0 !important;
+      overflow: hidden !important;
+    }
+
     [data-tooltip-content][data-hiding="true"] {
       transition-delay: var(--w3a-embedded__tooltip-content-hiding__transition-delay, 150ms);
     }
@@ -337,6 +346,14 @@ export class EmbeddedTxButton extends LitElementWithProps {
       --w3a-tree__summary-row__padding: 6px 8px;
       --w3a-tree__file-content__font-size: 0.85rem;
       --w3a-tree__file-content__max-height: 40vh;
+    }
+
+    /* Prefer dynamic viewport units when supported (prevents Safari overflow/bounce) */
+    @supports (width: 1dvw) {
+      [data-tooltip-content][data-mobile-sheet="true"] {
+        width: min(640px, calc(100dvw - 16px));
+        max-height: min(70dvh, 560px);
+      }
     }
   `;
 
@@ -763,7 +780,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       } catch {
 
       }
-      tooltipElement.style.height = typeof this.tooltip.height === 'string' ? this.tooltip.height : `${this.tooltip.height}`;
+      // Critically collapse the element so hidden tooltips do not impact layout/geometry
+      tooltipElement.style.height = '0px';
       this.hideTimeout = null;
 
       // Send updated tooltip state with visible: false (no extra measure scheduling)
@@ -939,8 +957,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
         payload: { hovering: true }
       }, this.getTargetOrigin());
     }
-
-    this.showTooltip();
+    // Only show tooltip on hover for precise pointers; on coarse pointers rely on long-press
+    if (!this.isCoarsePointer) {
+      this.showTooltip();
+    }
   }
 
   private handlePointerLeave() {
@@ -964,7 +984,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
         payload: { focused: true }
       }, this.getTargetOrigin());
     }
-    this.handlePointerEnter();
+    // Do not auto-open tooltip on focus for coarse pointers; preserve tap-to-confirm UX
+    if (!this.isCoarsePointer) {
+      this.handlePointerEnter();
+    }
   }
 
   private handleBlur() {
@@ -1065,7 +1088,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
           @pointerenter=${this.handleTooltipEnter}
           @pointerleave=${this.handleTooltipLeave}
         >
-          ${this.isCoarsePointer ? html`
+          ${this.isCoarsePointer && this.tooltipVisible ? html`
             <div data-tooltip-header>
               <span data-tooltip-title>Transaction Details</span>
               <button data-close-btn @click=${() => this.hideTooltip()} aria-label="Close details">✕</button>

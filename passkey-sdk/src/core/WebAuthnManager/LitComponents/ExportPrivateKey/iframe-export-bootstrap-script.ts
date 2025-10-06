@@ -100,8 +100,12 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
 
       const drawer = getDrawer();
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;
-      // Show just the top portion above the fold; allow closing via overlay/×
-      drawer.height = '50vh';
+      // Show just the top portion above the fold; prefer dynamic viewport units when supported
+      try {
+        drawer.height = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '50dvh')) ? '50dvh' : '50vh';
+      } catch {
+        drawer.height = '50vh';
+      }
       drawer.showCloseButton = true;
       drawer.dragToClose = true;
       drawer.overpullPx = 160;

@@ -41,6 +41,7 @@ export class DrawerElement extends LitElementWithProps {
 
   // Drag state
   private isDragging = false;
+  private pendingDrag = false;
   private startY = 0;
   private currentY = 0;
   private dragDistance = 0;
@@ -48,6 +49,7 @@ export class DrawerElement extends LitElementWithProps {
   private velocity = 0;
   private drawerElement: HTMLElement | null = null;
   private overlayElement: HTMLElement | null = null;
+  private bodyElement: HTMLElement | null = null;
   private drawerHeight = 0;
   private startTranslateYPx = 0; // translateY at gesture start, in px
   private openRestTranslateYPx = 0; // translateY for the default "open" rest position, in px
@@ -92,6 +94,8 @@ export class DrawerElement extends LitElementWithProps {
       margin-right: auto;
       /* Use a tall sheet so we can overpull without clipping */
       height: var(--w3a-drawer__sheet-height, 100vh);
+      /* Prefer dynamic viewport height where supported */
+      height: var(--w3a-drawer__sheet-height, 100dvh);
       display: grid;
       grid-template-rows: auto 1fr;
     }
@@ -211,6 +215,7 @@ export class DrawerElement extends LitElementWithProps {
   firstUpdated() {
     this.drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
     this.overlayElement = this.shadowRoot?.querySelector('.overlay') as HTMLElement;
+    this.bodyElement = this.shadowRoot?.querySelector('.body') as HTMLElement;
     this.syncCssVarsForOpenTranslate();
     // Recalculate when slot content changes or viewport resizes
     const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
@@ -296,7 +301,12 @@ export class DrawerElement extends LitElementWithProps {
     }
 
     // Default: auto-fit to content height (.above-fold)
-    this.style.setProperty('--w3a-drawer__sheet-height', `${SHEET_HEIGHT_VH}vh`);
+    try {
+      const unit = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '1dvh')) ? 'dvh' : 'vh';
+      this.style.setProperty('--w3a-drawer__sheet-height', `${SHEET_HEIGHT_VH}${unit}`);
+    } catch {
+      this.style.setProperty('--w3a-drawer__sheet-height', `${SHEET_HEIGHT_VH}vh`);
+    }
 
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
     const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
@@ -325,13 +335,14 @@ export class DrawerElement extends LitElementWithProps {
       // Remove any existing listeners first
       this.removeDragListeners();
 
-      // Generic drawer: start drag from anywhere inside the drawer
-      drawerElement.addEventListener('mousedown', this.handleMouseDown);
+      // Generic drawer: start drag from anywhere inside the drawer (mouse)
+      drawerElement.addEventListener('mousedown', this.handleMouseDown, { capture: true } as AddEventListenerOptions);
       document.addEventListener('mousemove', this.handleMouseMove);
       document.addEventListener('mouseup', this.handleMouseUp);
 
-      // Touch start on the drawer; move/end on document
-      drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+      // Touch start on the drawer; use capture to run before child handlers that stopPropagation
+      // Defer drag decision to first move to allow content scrolling when appropriate
+      drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false, capture: true });
       document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
       document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
     }, 0);
@@ -356,21 +367,45 @@ export class DrawerElement extends LitElementWithProps {
     if (this.loading || !this.open) return;
 
     const touch = e.touches[0];
-    this.startDrag(touch.clientY);
-    e.preventDefault();
+    this.pendingDrag = true;
+    this.startY = touch.clientY;
+    this.currentY = touch.clientY;
+    // Do not preventDefault yet; decide on first meaningful move to allow normal scrolling when appropriate
   };
 
   private handleTouchMove = (e: TouchEvent) => {
-    if (!this.isDragging) return;
-
     const touch = e.touches[0];
+
+    // Decide whether to begin dragging on first significant move
+    if (this.pendingDrag && !this.isDragging) {
+      const dy = touch.clientY - this.startY;
+      const absDy = Math.abs(dy);
+      const ACTIVATE_PX = 8; // small threshold to distinguish from taps
+      // Determine if content can scroll
+      const body = this.bodyElement;
+      const canScroll = !!body && body.scrollHeight > body.clientHeight;
+      const atTop = !body || body.scrollTop <= 0;
+
+      if (absDy >= ACTIVATE_PX) {
+        // Start drawer drag when pulling down while content is at top; otherwise allow scroll
+        if (dy > 0 && atTop) {
+          this.startDrag(this.startY);
+          this.isDragging = true;
+        }
+        // Either way, we've resolved the pending state
+        this.pendingDrag = false;
+      }
+    }
+
+    if (!this.isDragging) return;
     this.updateDrag(touch.clientY);
     e.preventDefault();
   };
 
   private handleTouchEnd = (e: TouchEvent) => {
+    // Clear any undecided pending drag
+    this.pendingDrag = false;
     if (!this.isDragging) return;
-
     this.endDrag();
     e.preventDefault();
   };
@@ -462,6 +497,7 @@ export class DrawerElement extends LitElementWithProps {
     if (!this.isDragging || !this.drawerElement) return;
 
     this.isDragging = false;
+    this.pendingDrag = false;
     this.drawerElement.classList.remove('dragging');
 
     const drawerHeight = this.drawerHeight || this.drawerElement.offsetHeight;

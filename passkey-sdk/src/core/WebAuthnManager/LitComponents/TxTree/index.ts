@@ -847,7 +847,7 @@ export class TxTree extends LitElementWithProps {
     let content: TemplateResult | undefined;
     if (depth === 0) {
       const extraClass = this.class ? ` ${this.class}` : '';
-      const rootStyle = this.class ? 'overflow:auto;max-height:40vh;' : '';
+      const rootStyle = this.class ? 'overflow:auto;max-height:40vh;max-height:40dvh;' : '';
       // Render only the children as top-level entries
       content = html`
         <div class="tooltip-border-outer">
