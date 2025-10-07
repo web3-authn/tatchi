@@ -62,55 +62,85 @@ export class TxConfirmContentElement extends LitElementWithProps {
       color: inherit;
       touch-action: auto;
       width: fit-content;
-      /* Ensure this component always defines a tooltip width var */
-      --tooltip-width: 340px;
+      /*
+       * Responsive tooltip width that adapts to viewport and zoom:
+       * - Caps at 340px on wide viewports
+       * - Never exceeds viewport width minus a small margin on narrow/zoomed screens
+       * - Uses dynamic viewport units when supported for mobile address-bar resizing
+       */
+      --tooltip-margin: 1.25rem; /* safe breathing room near edges */
+      --tooltip-width: min(340px, calc(100vw - var(--tooltip-margin)));
     }
-    .section { margin: 8px 0; }
-    .summary-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
-    .label { font-size: 12px; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
-    .value { font-size: 13px; color: var(--w3a-colors-textPrimary, #f6f7f8); word-break: break-word; }
+    @supports (width: 1dvw) {
+      :host {
+        --tooltip-width: min(340px, calc(100dvw - var(--tooltip-margin)));
+      }
+    }
+    .section { margin: 0.5rem 0; }
+    .summary-row {
+      display: grid;
+      /* Content-aware label column that adapts under text zoom */
+      grid-template-columns: minmax(8.5em, max-content) 1fr;
+      gap: 0.5rem;
+      align-items: center;
+      margin: 0.375rem 0;
+    }
+    .summary-row > * { min-width: 0; }
+    .label { font-size: 0.75rem; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
+    .value {
+      font-size: 0.8125rem;
+      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      hyphens: auto;
+    }
     :host([theme="light"]) .value { color: var(--w3a-colors-textPrimary, #181a1f); }
     .actions {
       display: grid;
-      grid-auto-flow: column;
-      gap: 10px;
-      justify-content: end;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+      align-items: stretch;
       margin-top: 0.75rem;
     }
+    .actions > * { min-width: 0; }
 
-    button { font: inherit; border-radius: 14px; padding: 10px 14px; cursor: pointer; }
+    button {
+      font: inherit;
+      border-radius: 2rem;
+      padding: 0.7em 1em;
+      cursor: pointer;
+      min-height: 2.75em; /* ~44px at 16px base */
+    }
     .cancel {
       background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.08)));
       color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary, #f6f7f8));
       border: var(--w3a-modal__btn-cancel__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)));
       border-radius: 2rem;
-      min-width: 80px;
     }
     .confirm {
       background: var(--w3a-modal__btn-confirm__background-color, var(--w3a-colors-accent, #3b82f6));
       color: var(--w3a-modal__btn-confirm__color, #fff);
       border: var(--w3a-modal__btn-confirm__border, 1px solid transparent);
       border-radius: 2rem;
-      min-width: 80px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 0.5em;
     }
     .confirm.loading {
       cursor: progress;
       opacity: 0.9;
     }
     .loading-indicator {
-      width: 12px;
-      height: 12px;
+      width: 1em;
+      height: 1em;
       border-radius: 50%;
-      border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.55));
+      border: 0.15em solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.55));
       border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.95));
       animation: tx-confirm-spin 1s linear infinite;
     }
     :host([theme="light"]) .loading-indicator {
-      border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.6));
+      border: 0.15em solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.6));
       border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.98));
     }
     .cancel:hover {
@@ -153,7 +183,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
     this.title = 'Review Transaction';
     this.confirmText = 'Confirm';
     this.cancelText = 'Cancel';
-    this.tooltipWidth = '340px';
+    // Leave tooltipWidth undefined by default so CSS responsive var applies.
   }
 
   protected getComponentPrefix(): string { return 'tx-confirm-content'; }
@@ -200,6 +230,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private _applyTooltipWidthVar() {
     try {
       const w = this._normalizeWidth(this.tooltipWidth);
+      // Only set when a caller explicitly provides a width; otherwise
+      // keep the responsive CSS default defined on :host.
       if (w) this.style.setProperty('--tooltip-width', w);
     } catch {}
   }

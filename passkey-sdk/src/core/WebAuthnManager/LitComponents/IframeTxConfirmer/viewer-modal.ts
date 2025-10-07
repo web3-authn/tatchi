@@ -563,14 +563,20 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     /* Responsive adjustments */
     @media (max-width: 640px) {
       .responsive-card {
-        max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100vw - 1rem));
+        /* Make modal 1rem narrower on small/zoomed viewports */
+        max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100vw - 2rem));
       }
 
       /* Override with dvw on capable browsers for Safari correctness */
       @supports (width: 1dvw) {
         .responsive-card {
-          max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100dvw - 1rem));
+          max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100dvw - 2rem));
         }
+      }
+
+      /* Keep inner content (TxTree) in sync to avoid overflow */
+      .responsive-card w3a-tx-confirm-content {
+        --tooltip-margin: 2rem;
       }
 
       .summary-row {
@@ -602,10 +608,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       .action-content {
         font-size: var(--w3a-font-size-sm);
         max-height: var(--w3a-modal__responsive-action-content__max-height, 100px);
-      }
-
-      .hero-heading {
-        font-size: 1rem;
       }
     }
 
@@ -744,7 +746,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
                 <!-- Hero heading -->
                 ${(() => {
                   const isRegistration = (this.txSigningRequests?.length || 0) === 0;
-                  const heading = isRegistration ? 'Register with Passkey' : 'Confirm action with Passkey';
+                  const heading = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
                   return html`<h2 class="hero-heading">${heading}</h2>`;
                 })()}
                 ${this.errorMessage

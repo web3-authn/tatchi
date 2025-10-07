@@ -211,7 +211,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.txSigningRequests = [];
     this.theme = 'dark';
     this.loading = false;
-    this.title = 'Confirm action with Passkey';
+    this.title = 'Confirm with Passkey';
     this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;

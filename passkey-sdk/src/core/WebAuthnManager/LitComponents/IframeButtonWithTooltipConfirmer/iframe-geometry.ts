@@ -267,6 +267,21 @@ export function utilParsePx(value: string | number): number {
     if (match) {
       return parseFloat(match[1]);
     }
+    // Fallback: try to evaluate CSS length expressions like calc()/min()/max()/viewport units
+    try {
+      if (typeof document !== 'undefined' && document.body) {
+        const probe = document.createElement('div');
+        // Ensure no layout impact
+        probe.style.position = 'absolute';
+        probe.style.visibility = 'hidden';
+        probe.style.width = value as string;
+        document.body.appendChild(probe);
+        const computed = window.getComputedStyle(probe).width;
+        document.body.removeChild(probe);
+        const m2 = computed.match(/^(\d+(?:\.\d+)?)px$/);
+        if (m2) return parseFloat(m2[1]);
+      }
+    } catch {}
     throw new Error(`Invalid pixel value: "${value}". Expected format: "123px" or numeric value.`);
   }
   return 0;

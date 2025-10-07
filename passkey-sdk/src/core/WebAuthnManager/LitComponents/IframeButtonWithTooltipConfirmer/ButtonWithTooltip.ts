@@ -7,7 +7,7 @@ import { LitElementWithProps } from '../LitElementWithProps';
 import TxTree, { type TxTreeStyles } from '../TxTree';
 import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
-import { TooltipGeometry, TooltipPositionInternal } from './iframe-geometry';
+import { TooltipGeometry, TooltipPositionInternal, utilParsePx } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
@@ -491,7 +491,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
-    const gap = this.parsePixelValue(this.tooltip.offset);
+    const gap = utilParsePx(this.tooltip.offset);
     const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, this.tooltipVisible);
     // Rate-limit updates using requestAnimationFrame
     requestAnimationFrame(() => {
@@ -508,7 +508,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
-    const gap = this.parsePixelValue(this.tooltip.offset);
+    const gap = utilParsePx(this.tooltip.offset);
     const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, this.tooltipVisible);
     // Send synchronously if changed
     this.postTooltipStateIfChanged(geometry, true);
@@ -521,7 +521,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
-    const gap = this.parsePixelValue(this.tooltip.offset);
+    const gap = utilParsePx(this.tooltip.offset);
     const geometry = this.buildGeometry(buttonRect, tooltipRect, gap, visible);
     this.postTooltipStateIfChanged(geometry, true);
   }
@@ -612,15 +612,15 @@ export class EmbeddedTxButton extends LitElementWithProps {
     }
 
     // Ensure button has correct dimensions before measuring
-    const expectedHeight = this.parsePixelValue(this.buttonSizing?.height || '48px');
-    const expectedWidth = this.parsePixelValue(this.buttonSizing?.width || '200px');
+    const expectedHeight = utilParsePx(this.buttonSizing?.height || '48px');
+    const expectedWidth = utilParsePx(this.buttonSizing?.width || '200px');
 
     // Force a reflow to ensure button dimensions are correct
     buttonElement.offsetHeight;
 
     const tooltipRect = tooltipElement.getBoundingClientRect();
     const buttonRect = buttonElement.getBoundingClientRect();
-    const gap = this.parsePixelValue(this.tooltip.offset);
+    const gap = utilParsePx(this.tooltip.offset);
 
     // Validate and correct button dimensions if needed
     const buttonHeight = Math.abs(buttonRect.height - expectedHeight) < 5 ? buttonRect.height : expectedHeight;
@@ -665,20 +665,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
     });
   }
 
-  private parsePixelValue(value: string | number): number {
-    if (typeof value === 'number') return value;
-    if (typeof value === 'string') {
-      if (value === 'auto') {
-        throw new Error('Cannot parse "auto" value for pixel calculations. Please provide a specific pixel value.');
-      }
-      const match = value.match(/^(\d+(?:\.\d+)?)px$/);
-      if (match) {
-        return parseFloat(match[1]);
-      }
-      throw new Error(`Invalid pixel value: "${value}". Expected format: "123px" or numeric value.`);
-    }
-    return 0;
-  }
+  // Consolidated: use shared utilParsePx from iframe-geometry for all px parsing.
 
   // ==============================
   // Tooltip Visibility & Pointer Handling
