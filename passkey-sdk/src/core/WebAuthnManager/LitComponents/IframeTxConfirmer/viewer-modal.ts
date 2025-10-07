@@ -269,7 +269,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       display: grid;
       justify-items: center;
       align-items: center;
-      gap: 1rem;
+      gap: 0.5rem;
       position: relative;
       display: flex;
     }
@@ -593,6 +593,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
         font-size: var(--w3a-font-size-sm);
         max-height: var(--w3a-modal__responsive-action-content__max-height, 100px);
       }
+
+      .hero-heading {
+        font-size: 1rem;
+      }
     }
 
     /* Tablet adjustments */
@@ -737,11 +741,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               <w3a-passkey-halo-loading
                 .theme=${this.theme}
                 .animated=${!this.errorMessage ? true : false}
-                .ringGap=${4}
-                .ringWidth=${4}
-                .ringBorderRadius=${'1.5rem'}
+                .ringGap=${3}
+                .ringWidth=${3}
+                .ringBorderRadius=${'1.25rem'}
                 .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
-                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 6px)'}
+                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 5px)'}
                 .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
                 .height=${36}
                 .width=${36}

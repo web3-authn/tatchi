@@ -58,7 +58,10 @@ export class TxTree extends LitElementWithProps {
     depth: { type: Number, attribute: false },
     // styles accepts full CSS customization - reactive to trigger re-renders
     styles: { attribute: false, state: true },
-    theme: { type: String, attribute: false }
+    theme: { type: String, attribute: false },
+    // Optional width for the tree at depth=0. Accepts number (px) or any CSS length string.
+    // Exposed as attribute for convenience, but property binding works too.
+    width: { type: String }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
@@ -69,6 +72,8 @@ export class TxTree extends LitElementWithProps {
   theme?: 'dark' | 'light';
   // Optional class applied to the root container (depth=0 only)
   class?: string;
+  // Optional width for the tree (applies at depth=0 root container). Number is treated as pixels.
+  width?: string | number;
 
   static styles = css`
     :host {
@@ -77,6 +82,9 @@ export class TxTree extends LitElementWithProps {
       font-family: var(--w3a-tree__host__font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
       font-size: var(--w3a-tree__host__font-size, 1rem);
       color: var(--w3a-tree__host__color, #1e293b);
+      background: transparent;
+      /* Prevent iOS Safari text auto-resize from inflating rows */
+      -webkit-text-size-adjust: 100%;
       /* Directional inner padding for shadow room without moving container */
       padding-top: var(--w3a-tree__host__padding-top, 0px);
       padding-bottom: var(--w3a-tree__host__padding-bottom, 0px);
@@ -107,6 +115,7 @@ export class TxTree extends LitElementWithProps {
       width: var(--w3a-tree__tooltip-tree-root__width, auto);
       height: var(--w3a-tree__tooltip-tree-root__height, auto);
       padding: var(--w3a-tree__tooltip-tree-root__padding, 0);
+      -webkit-text-size-adjust: 100%;
     }
     @media (prefers-reduced-motion: reduce) {
       .tooltip-tree-root { transition: none; }
@@ -351,8 +360,8 @@ export class TxTree extends LitElementWithProps {
       resize: var(--w3a-tree__file-content__resize, vertical);
       min-height: var(--w3a-tree__file-content__min-height, 60px);
       /* Ensure file content obeys the provided TxTree width */
+      /* This variable is derived from this.width */
       width: var(--w3a-tree__file-content__width, auto);
-      max-width: var(--w3a-tree__tooltip-tree-root__width, 100%);
       overflow: var(--w3a-tree__file-content__overflow, auto);
       color: var(--w3a-tree__file-content__color, #e2e8f0);
       font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
@@ -838,6 +847,13 @@ export class TxTree extends LitElementWithProps {
       : this.renderFolder(depth, node);
   }
 
+  private _normalizeWidth(val?: string | number): string | undefined {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === 'number' && Number.isFinite(val)) return `${val}px`;
+    const s = String(val).trim();
+    return s.length ? s : undefined;
+  }
+
   render() {
     if (!this.node || (this.node.type === 'folder' && !this.node.children?.length)) {
       return html``;
@@ -847,7 +863,13 @@ export class TxTree extends LitElementWithProps {
     let content: TemplateResult | undefined;
     if (depth === 0) {
       const extraClass = this.class ? ` ${this.class}` : '';
-      const rootStyle = this.class ? 'overflow:auto;max-height:40vh;max-height:40dvh;' : '';
+      const widthNorm = this._normalizeWidth(this.width);
+      const fileContentOffset = '3.45rem';
+      const fileContentWidth = `calc(${widthNorm} - ${fileContentOffset})`
+      const rootStyle = [
+        this.class ? 'overflow:auto; max-height:40vh; max-height:40dvh;' : '',
+        widthNorm ? `--w3a-tree__file-content__width: ${fileContentWidth};` : ''
+      ].join('');
       // Render only the children as top-level entries
       content = html`
         <div class="tooltip-border-outer">

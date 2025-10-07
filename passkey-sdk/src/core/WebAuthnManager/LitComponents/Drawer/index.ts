@@ -174,7 +174,13 @@ export class DrawerElement extends LitElementWithProps {
       .handle {
         margin: 1rem auto;
       }
-      .close-btn { right: 1rem; top: 1rem; width: 44px; height: 44px; font-size: 26px; }
+      .close-btn {
+        right: 0.5rem;
+        top: 0.5rem;
+        width: 40px;
+        height: 40px;
+        font-size: 24px;
+        }
     }
   `;
 

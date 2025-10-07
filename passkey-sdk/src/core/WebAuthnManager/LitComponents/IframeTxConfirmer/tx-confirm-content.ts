@@ -33,6 +33,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
     cancelText: { type: String },
     // Treat internal tree node as reactive state so setting it re-renders immediately
     _treeNode: { attribute: false, state: true },
+    // Optional: set tooltip width via CSS var for nested components
+    tooltipWidth: { type: String, attribute: 'tooltip-width' },
   } as const;
 
   declare nearAccountId: string;
@@ -45,13 +47,14 @@ export class TxConfirmContentElement extends LitElementWithProps {
   declare title: string;
   declare confirmText: string;
   declare cancelText: string;
+  declare tooltipWidth?: string | number;
 
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
   // Tree width now sourced from a single CSS var so host can control it.
   // Falls back to the embedded tooltip width, and then to 340px.
-  private _txTreeWidth: string | number = 'min(var(--w3a-confirm-tree-width, var(--tooltip-width, 340px)), 100%)';
+  private _txTreeWidth: string | number = 'var(--tooltip-width, 100%)';
 
   static styles = css`
     :host {
@@ -59,6 +62,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
       color: inherit;
       touch-action: auto;
       width: fit-content;
+      /* Ensure this component always defines a tooltip width var */
+      --tooltip-width: 340px;
     }
     .section { margin: 8px 0; }
     .summary-row { display: grid; grid-template-columns: 110px 1fr; gap: 8px; align-items: center; margin: 6px 0; }
@@ -148,12 +153,15 @@ export class TxConfirmContentElement extends LitElementWithProps {
     this.title = 'Review Transaction';
     this.confirmText = 'Confirm';
     this.cancelText = 'Cancel';
+    this.tooltipWidth = '340px';
   }
 
   protected getComponentPrefix(): string { return 'tx-confirm-content'; }
 
   connectedCallback(): void {
     super.connectedCallback();
+    // Reflect tooltip width var for nested components
+    this._applyTooltipWidthVar();
     // Prevent drawer drag initiation from content area
     try {
       this.addEventListener('pointerdown', this._stopDragStart as EventListener);
@@ -168,15 +176,15 @@ export class TxConfirmContentElement extends LitElementWithProps {
       this.removeEventListener('mousedown', this._stopDragStart as EventListener);
       this.removeEventListener('touchstart', this._stopDragStart as EventListener);
     } catch {}
-    try { window.removeEventListener('resize', this._onResize as unknown as EventListener); } catch {}
+    // No resize listener to clean up (width is CSS-driven)
     super.disconnectedCallback();
   }
 
   firstUpdated(): void {
     // Build initial tree even if the first assignment happened before upgrade
     this._rebuildTree();
-    this._updateTxTreeWidth();
-    try { window.addEventListener('resize', this._onResize as unknown as EventListener, { passive: true } as AddEventListenerOptions); } catch {}
+    // Width is CSS-driven; no resize handling needed
+    this._applyTooltipWidthVar();
   }
 
   updated(changed: PropertyValues) {
@@ -184,20 +192,23 @@ export class TxConfirmContentElement extends LitElementWithProps {
     if (changed.has('txSigningRequests')) {
       this._rebuildTree();
     }
+    if (changed.has('tooltipWidth')) {
+      this._applyTooltipWidthVar();
+    }
   }
 
-  private _updateTxTreeWidth() {
+  private _applyTooltipWidthVar() {
     try {
-      const w = window.innerWidth || 0;
-      let next: string | number = '380px';
-      if (w <= 640) next = '340px';
-      else if (w <= 1024) next = '360px';
-      else next = '380px';
-      if (this._txTreeWidth !== next) {
-        this._txTreeWidth = next;
-        this.requestUpdate();
-      }
+      const w = this._normalizeWidth(this.tooltipWidth);
+      if (w) this.style.setProperty('--tooltip-width', w);
     } catch {}
+  }
+
+  private _normalizeWidth(val?: string | number): string | undefined {
+    if (val === undefined || val === null) return undefined;
+    if (typeof val === 'number' && Number.isFinite(val)) return `${val}px`;
+    const s = String(val).trim();
+    return s.length ? s : undefined;
   }
 
   private _rebuildTree() {
@@ -238,6 +249,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
                   .node=${this._treeNode}
                   .theme=${this.theme}
                   .styles=${TX_TREE_THEMES[this.theme]}
+                  .width=${this._txTreeWidth}
                 ></w3a-tx-tree>
               </div>`
         : html`<div class="muted">No actions</div>`

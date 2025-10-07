@@ -20,6 +20,9 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     // Local visual props
     height: { type: Number },
     width: { type: Number },
+    // Icon container overrides
+    iconContainerBorderRadius: { type: String, attribute: 'icon-container-border-radius' },
+    iconContainerBackgroundColor: { type: String, attribute: 'icon-container-background-color' },
   } as const;
 
   declare animated?: boolean;
@@ -34,6 +37,8 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
   declare innerBackground?: string;
   declare height?: number;
   declare width?: number;
+  declare iconContainerBorderRadius?: string;
+  declare iconContainerBackgroundColor?: string;
 
   static styles = css`
     :host {
@@ -52,14 +57,16 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     const ringBorderShadow = this.ringBorderShadow;
     const ringBackground = this.ringBackground;
     const padding = this.padding;
-    const innerPadding = this.innerPadding ?? '5px';
+    const innerPadding = this.innerPadding ?? '4px';
     const innerBackground = this.innerBackground;
+    const iconContainerBorderRadius = this.iconContainerBorderRadius ?? '1.125rem';
+    const iconContainerBackgroundColor = this.iconContainerBackgroundColor ?? 'var(--w3a-modal__passkey-halo-loading-icon-container__background-color)';
 
     const iconContainerStyle = {
       display: 'grid',
       placeItems: 'center',
-      backgroundColor: 'var(--w3a-modal__passkey-halo-loading-icon-container__background-color)',
-      borderRadius: '1.25rem',
+      backgroundColor: iconContainerBackgroundColor,
+      borderRadius: iconContainerBorderRadius,
       width: 'fit-content',
       height: 'fit-content',
     } as Record<string, string>;

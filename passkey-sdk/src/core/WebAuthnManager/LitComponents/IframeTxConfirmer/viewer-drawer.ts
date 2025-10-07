@@ -113,9 +113,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-top: 1rem;
+      margin-top: 0.5rem;
       margin-bottom: 0.5rem;
-      gap: 12px;
     }
     .drawer-title {
       margin: 0;

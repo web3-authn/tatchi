@@ -214,16 +214,16 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     // PasskeyHaloLoading CSS variables
     passkeyHaloLoading: {
       innerBackground: DARK_THEME.grey650,
-      innerPadding: '6px',
-      ringBackground: `transparent 0%, ${LIGHT_THEME.green400} 10%, ${LIGHT_THEME.green500} 25%, transparent 35%`
-      // ringBackground: `transparent 0%, ${LIGHT_THEME.yellow200} 10%, ${LIGHT_THEME.yellow300} 25%, transparent 35%`
+      innerPadding: '4px',
+      // ringBackground: `transparent 0%, ${LIGHT_THEME.green400} 10%, ${LIGHT_THEME.green500} 25%, transparent 35%`
+      ringBackground: `transparent 0%, ${LIGHT_THEME.blue500} 10%, ${LIGHT_THEME.blue300} 25%, transparent 35%`
     },
     passkeyHaloLoadingIconContainer: {
       backgroundColor: DARK_THEME.grey750,
     },
     passkeyHaloLoadingTouchIcon: {
       color: DARK_THEME.textSecondary,
-      margin: '0.75rem',
+      margin: '0.5rem',
       strokeWidth: '3',
     },
 
@@ -432,15 +432,15 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
     // PasskeyHaloLoading CSS variables
     passkeyHaloLoading: {
       innerBackground: LIGHT_THEME.grey150,
-      innerPadding: '6px',
-      ringBackground: `transparent 0%, ${LIGHT_THEME.blue300} 10%, ${LIGHT_THEME.blue400} 25%, transparent 35%`
+      innerPadding: '4px',
+      ringBackground: `transparent 0%, ${LIGHT_THEME.blue200} 10%, ${LIGHT_THEME.blue300} 25%, transparent 35%`
     },
     passkeyHaloLoadingIconContainer: {
       backgroundColor: LIGHT_THEME.colorBackground,
     },
     passkeyHaloLoadingTouchIcon: {
       color: LIGHT_THEME.textMuted,
-      margin: '0.75rem',
+      margin: '0.5rem',
       strokeWidth: '3',
     },
 
