@@ -12,6 +12,7 @@
     "show-report": "pnpm -C passkey-sdk exec playwright show-report",
     "frontend": "pnpm -C examples/vite dev",
     "frontend-secure": "pnpm -C examples/vite-secure dev",
+    "frontend-iphone": "pnpm -C examples/vite-secure dev:iphone",
     "server": "pnpm -C examples/relay-server dev",
     "gen:shamir": "pnpm -C examples/relay-server run gen:shamir"
   },
