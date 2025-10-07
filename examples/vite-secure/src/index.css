@@ -88,6 +88,12 @@
   --fe-med: 400ms;
 }
 
+/* Respect user text-size preferences; do not disable scaling */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /*
   ThemeScope-driven variable mapping
   - ThemeProvider + ThemeScope expose design tokens as CSS variables with the `--w3a-` prefix
@@ -167,6 +173,11 @@ html, body, #root, .app-theme-scope {
   min-height: 100dvh;
 }
 
+/* Prevent accidental horizontal scroll while allowing overlays to position correctly */
+html, body, .app-theme-scope, main {
+  overflow-x: hidden;
+}
+
 /* Mirror themed background to <body> to handle overscroll bounce */
 body[data-w3a-theme="light"] {
   background-color: #fafafa;
@@ -226,8 +237,12 @@ main {
 .layout-root {
   display: grid;
   place-content: center;
+  /* Keep a small gutter and cap width responsively; 30rem ~= 480px */
   width: 100%;
-  max-width: 480px;
+  max-inline-size: clamp(20rem, 100% - 1rem, 30rem);
+  max-width: clamp(20rem, 100% - 1rem, 30rem);
+  margin-inline: 0.5rem;
+  min-width: 0;
   justify-content: center;
   align-items: flex-start;
 }
@@ -314,8 +329,12 @@ nav ul li a:hover {
   display: flex;
   justify-content: flex-start;
   align-items: center;
+  flex-wrap: wrap;
+  column-gap: 0.75rem;
+  row-gap: 0.5rem;
   padding: 0.5rem 1rem 0.5rem 1rem;
-  width: fit-content;
+  width: auto;
+  max-inline-size: calc(100% - 1rem);
   margin-top: 0.5rem;
   margin-left: 0.5rem;
   border-radius: 3rem;
@@ -325,7 +344,8 @@ nav ul li a:hover {
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  /* Avoid over-constraining width under zoom; allow content-based width */
+  right: auto;
   z-index: 1000;
   box-shadow: var(--w3a-shadows-sm);
 }
@@ -334,7 +354,7 @@ nav ul li a:hover {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--w3a-colors-textPrimary);
-  margin-right: 2rem;
+  margin-right: 1rem;
 }
 
 .navbar-title a {
@@ -344,7 +364,8 @@ nav ul li a:hover {
 
 .navbar-links {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   align-items: center;
 }
 
@@ -362,6 +383,7 @@ nav ul li a:hover {
 
 .navbar-user-info {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   color: var(--w3a-colors-primary);

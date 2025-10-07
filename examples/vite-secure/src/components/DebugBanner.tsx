@@ -31,7 +31,9 @@ export const DebugBanner: React.FC = () => {
     return () => { mounted = false; };
   }, [passkeyManager]);
 
-  const status = walletIframeConnected ? 'connected' : (connecting ? 'initializing…' : 'waiting for READY');
+  const status = walletIframeConnected
+    ? 'connected'
+    : (connecting ? 'connecting…' : 'waiting for READY');
 
   return (
     <div style={{
@@ -47,8 +49,12 @@ export const DebugBanner: React.FC = () => {
       alignItems: 'center',
     }}>
       <strong>wallet iframe:</strong> <span>{status}</span>
-      <span>|</span>
-      <strong>accounts:</strong> <span>{recentCount}</span>
+      {walletIframeConnected &&
+        <>
+          <span>|</span>
+          <strong>accounts:</strong> <span>{recentCount}</span>
+        </>
+      }
     </div>
   );
 };

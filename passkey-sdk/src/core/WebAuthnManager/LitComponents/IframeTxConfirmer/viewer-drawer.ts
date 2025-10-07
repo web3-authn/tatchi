@@ -103,7 +103,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     :host { display: contents; }
     /* Narrower sheet for tx confirmer drawer */
     w3a-drawer {
-      --w3a-drawer__max-width: 420px;
+      /* Scale with viewport and base font size for better zoom behavior */
+      --w3a-drawer__max-width: min(100vw, 28rem);
     }
     .drawer-tx-confirmer-root {
       display: grid;
@@ -113,12 +114,15 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
+      row-gap: 0.5em;
       margin-top: 0.5rem;
       margin-bottom: 0.5rem;
     }
     .drawer-title {
       margin: 0;
-      font-size: 20px;
+      font-size: var(--w3a-font-size-lg, 1.125rem);
+      line-height: 1.3;
       font-weight: 700;
     }
     .drawer-actions { display: flex; gap: 8px; }
@@ -127,7 +131,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
       color: var(--w3a-colors-textPrimary, #f6f7f8);
       border-radius: 10px;
-      padding: 8px 12px;
+      padding: 0.6em 0.9em;
       font-weight: 600;
       cursor: pointer;
     }
@@ -144,12 +148,14 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     }
     .section {
       margin: 8px 0;
-      max-width: 420px;
+      max-width: clamp(20rem, 90vw, 26rem);
+      min-width: 0;
     }
     .responsive-card {
       position: relative;
-      min-width: 320px;
-      max-width: 420px;
+      /* Scales with viewport and root font size under text zoom */
+      max-width: clamp(20rem, 90vw, 26rem);
+      min-width: 0;
       overflow: visible;
       border-radius: 1rem;
       z-index: 1;
@@ -170,6 +176,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       gap: 6px;
       margin-top: 2px;
       font-size: 0.7rem;
+      overflow-wrap: anywhere;
+      hyphens: auto;
       color: var(--w3a-modal__label__color);
       font-weight: 400;
     }
@@ -179,7 +187,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       align-items: center;
       justify-content: center;
     }
-    .padlock-icon { width: 12px; height: 12px; margin-right: 4px; color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255)); }
+    .padlock-icon { width: 1em; height: 1em; margin-inline-end: 0.5em; flex: none; color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255)); }
 
     .security-details {
       position: relative;
@@ -188,9 +196,10 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       justify-content: center;
     }
     .block-height-icon {
-      width: 12px;
-      height: 12px;
-      margin-right: 4px;
+      width: 1em;
+      height: 1em;
+      margin-inline-end: 0.5em;
+      flex: none;
       color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
     }
     .divider { width: 1px; height: 12px; background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18)); margin: 0 4px; }

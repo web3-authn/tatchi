@@ -125,6 +125,7 @@
 .greeting-input-group {
   display: flex;
   gap: var(--fe-gap-2);
+  flex-wrap: wrap; /* allow wrap under text zoom */
   margin-bottom: var(--fe-gap-6);
 }
 
@@ -150,47 +151,6 @@
   color: var(--fe-input-placeholder);
 }
 
-/* Transfer Section */
-.transfer-section {
-  padding-top: var(--fe-gap-6);
-  border-top: 1px solid var(--fe-border);
-}
-
-.transfer-section h3 {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: var(--fe-text);
-  margin: 0 0 var(--fe-gap-4) 0;
-}
-
-/* Transfer Input Group */
-.transfer-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--fe-gap-3);
-}
-
-.transfer-input-group input {
-  padding: var(--fe-gap-3) var(--fe-gap-4);
-  border: 1px solid var(--fe-border);
-  border-radius: var(--fe-radius-sm);
-  font-size: 0.9rem;
-  font-family: var(--fe-font-sans);
-  background-color: var(--fe-input-bg);
-  color: var(--fe-input-text);
-  transition: all var(--fe-fast) var(--fe-ease);
-}
-
-.transfer-input-group input:focus {
-  outline: none;
-  border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px var(--cobalt-focus);
-}
-
-.transfer-input-group input::placeholder {
-  color: var(--fe-input-placeholder);
-}
-
 /* Button System */
 .greeting-btn {
   padding: var(--fe-gap-3) var(--fe-gap-4);
@@ -205,7 +165,8 @@
   justify-content: center;
   gap: var(--fe-gap-2);
   font-family: var(--fe-font-sans);
-  white-space: nowrap;
+  white-space: normal; /* allow wrap under tight widths */
+  max-inline-size: 100%;
 }
 
 .greeting-btn-primary {

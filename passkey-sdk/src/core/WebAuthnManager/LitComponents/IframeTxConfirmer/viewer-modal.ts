@@ -79,8 +79,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
   private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
-  private _txTreeWidth?: string | number;
-  private _onResize = () => this._updateTxTreeWidth();
+  // Removed fixed JS breakpoints; rely on CSS/container sizing for zoom resilience
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       // Only close for modal-style render modes
@@ -242,15 +241,17 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       justify-content: center;
     }
     .padlock-icon {
-      width: 12px;
-      height: 12px;
-      margin-right: 4px;
+      width: 1em;
+      height: 1em;
+      margin-inline-end: 0.5em;
+      flex: none;
       color: var(--w3a-modal__padlock-icon__color, rgba(255, 255, 255, 0.6));
     }
     .block-height-icon {
-      width: 12px;
-      height: 12px;
-      margin-right: 4px;
+      width: 1em;
+      height: 1em;
+      margin-inline-end: 0.5em;
+      flex: none;
       color: var(--w3a-modal__block-height-icon__color, rgba(255, 255, 255, 0.6));
     }
     .domain-text {
@@ -295,7 +296,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
     .summary-row {
       display: grid;
-      grid-template-columns: 115px 1fr;
+      /* Use content-aware label column that scales with text */
+      grid-template-columns: minmax(8.5em, max-content) 1fr;
       align-items: center;
       gap: var(--w3a-spacing-sm);
       background: transparent;
@@ -304,6 +306,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       position: relative;
       overflow: hidden;
     }
+    .summary-row > * { min-width: 0; }
     .summary-label {
       color: var(--w3a-modal__summary-label__color);
       font-size: var(--w3a-font-size-sm);
@@ -314,6 +317,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       font-size: var(--w3a-font-size-sm);
       font-weight: 500;
       word-break: break-word;
+      overflow-wrap: anywhere;
+      hyphens: auto;
     }
 
     /* Transactions section */
@@ -330,7 +335,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
     .action-row {
       display: grid;
-      grid-template-columns: var(--w3a-modal__action-row__grid-template-columns, 100px 1fr);
+      /* Content-aware label column that adapts to larger text sizes */
+      grid-template-columns: var(--w3a-modal__action-row__grid-template-columns, minmax(7.5em, max-content) 1fr);
       align-items: center;
       gap: var(--w3a-spacing-sm);
       padding: 0;
@@ -338,6 +344,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       background: transparent;
       border-radius: 0;
     }
+    .action-row > * { min-width: 0; }
 
     .action-row:last-child {
       margin-bottom: 0;
@@ -359,7 +366,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       font-size: var(--w3a-font-size-sm);
       line-height: 1.4;
       max-height: var(--w3a-modal__action-content__max-height, 50vh);
-      overflow: scroll;
+      overflow: auto;
+      overscroll-behavior: contain;
       scrollbar-width: thin;
       background: var(--w3a-modal__action-content__background, #242628);
       border-radius: 12px;
@@ -472,11 +480,13 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       margin-right: 1px;
       justify-content: center;
       align-items: center;
-      height: 48px;
+      /* Scalable tap target: ~44px at 16px root */
+      min-height: 2.75em;
       width: 100%;
-      padding: calc(var(--w3a-spacing-sm) + var(--w3a-spacing-xs));
+      padding: var(--w3a-modal__btn__padding, 0.7em 1em);
       font-size: var(--w3a-font-size-base);
       display: inline-flex;
+      gap: 0.5em;
       cursor: pointer;
       border: none;
       font-family: var(--w3a-font-family);
@@ -680,7 +690,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   }
 
   disconnectedCallback() {
-    try { window.removeEventListener('resize', this._onResize as unknown as EventListener); } catch {}
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
     try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
     super.disconnectedCallback();
@@ -692,8 +701,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     try { setTimeout(() => { this._backdropArmed = true; }, 0); } catch {}
     // Initialize styles based on theme
     this.updateTheme();
-    this._updateTxTreeWidth();
-    try { window.addEventListener('resize', this._onResize as unknown as EventListener, { passive: true } as AddEventListenerOptions); } catch {}
     // Listen globally so Escape works regardless of focus target
     try { window.addEventListener('keydown', this._onKeyDown); } catch {}
     // Listen for global timeout notification (posted by SignerWorkerManager on operation timeout)
@@ -709,23 +716,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
         window.focus();
       }
     } catch {}
-  }
-
-  private _updateTxTreeWidth() {
-    try {
-      const w = window.innerWidth || 0;
-      // Breakpoints: 340 / 360 / 380
-      let next: string | number = 'min(380px, 100%)';
-      if (w <= 640) next = 'min(340px, 100%)';
-      else if (w <= 1024) next = 'min(360px, 100%)';
-      else next = 'min(380px, 100%)';
-      if (this._txTreeWidth !== next) {
-        this._txTreeWidth = next;
-        this.requestUpdate();
-      }
-    } catch {
-      // no-op in non-browser contexts
-    }
   }
 
   render() {
