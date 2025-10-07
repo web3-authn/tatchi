@@ -109,8 +109,9 @@ export class IframeButtonHost extends LitElementWithProps {
       cursor: pointer;
       z-index: 1001;
       /* This container should size to button dimensions and provide layout footprint */
-      background: var(--btn-background, var(--btn-color, #222));
-      border-radius: var(--btn-border-radius, 8px);
+      /* Background defaults to transparent to avoid any dark overlay on mobile */
+      background: var(--btn-background, transparent);
+      border-radius: var(--btn-border-radius, 1rem);
       border: var(--btn-border, none);
       box-shadow: var(--btn-box-shadow, none);
       transition: var(--btn-transition, none);
@@ -121,7 +122,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     /* Host-driven hover/focus visuals (mirrored from iframe events) */
     .iframe-button-host[data-hovered="true"] {
-      background: var(--btn-hover-background, var(--btn-background, var(--btn-color, #222)));
+      background: var(--btn-hover-background, var(--btn-background, transparent));
       border: var(--btn-hover-border, var(--btn-border, none));
       box-shadow: var(--btn-hover-box-shadow, var(--btn-box-shadow, none));
       transform: var(--btn-hover-transform, none);
@@ -664,7 +665,7 @@ export class IframeButtonHost extends LitElementWithProps {
     if (!this.iframeRef.value || !this.currentGeometry) return;
     if (!this.clipPathSupported) return;
     try {
-      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry, 4);
+      const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry, 8);
       if (unionClipPath) {
         this.iframeRef.value.style.clipPath = unionClipPath;
         this.iframeRef.value.classList.add('interactive');

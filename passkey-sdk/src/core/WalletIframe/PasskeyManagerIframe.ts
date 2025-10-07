@@ -113,8 +113,10 @@ export class PasskeyManagerIframe {
     this.router = new WalletIframeRouter({
       walletOrigin: parsedWalletOrigin.toString(),
       servicePath: configs.iframeWallet?.walletServicePath || '/service',
-      connectTimeoutMs: 20000,
-      requestTimeoutMs: 30000,
+      // Lower connect timeout to reduce initial boot-wait window (25% of this).
+      // With 3_000ms, boot wait caps at ~750ms; improves sub‑second readiness in dev.
+      connectTimeoutMs: 3_000,
+      requestTimeoutMs: 60_000,
       theme: configs.walletTheme,
       nearRpcUrl: configs.nearRpcUrl,
       nearNetwork: configs.nearNetwork,

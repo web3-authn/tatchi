@@ -180,6 +180,8 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
       window.global ||= window;
       window.process ||= { env: {} };
     </script>
+    <!-- Hint the browser to fetch the host script earlier -->
+    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
   </head>
   <body>
     <!-- sdkBasePath points to the SDK root (e.g. '/sdk'). Load the host directly. -->
@@ -267,6 +269,21 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
         res.setHeader('Permissions-Policy', permissionsPolicy)
+        // Resource hints: help parent pages preconnect to the wallet origin early in dev
+        try {
+          if (walletOrigin) {
+            // Multiple Link headers are allowed; keep idempotent behavior simple.
+            const link = `<${walletOrigin}>; rel=preconnect; crossorigin`;
+            const existing = res.getHeader('Link');
+            if (!existing) {
+              res.setHeader('Link', link);
+            } else if (typeof existing === 'string' && !existing.includes(link)) {
+              res.setHeader('Link', existing + ', ' + link);
+            } else if (Array.isArray(existing) && !existing.includes(link)) {
+              res.setHeader('Link', [...existing, link]);
+            }
+          }
+        } catch {}
 
         // Serve /.well-known/webauthn for ROR when configured
         if (url === '/.well-known/webauthn' && rorAllowedOrigins.length > 0) {

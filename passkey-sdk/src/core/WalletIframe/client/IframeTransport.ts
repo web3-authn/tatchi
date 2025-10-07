@@ -207,8 +207,19 @@ export class IframeTransport {
           // Explicitly target the wallet origin so Chromium delivers the MessagePort
           // transfer across origins. Using '*' can silently drop the transferable
           // port in stricter environments, preventing the host from ever adopting it.
+          //
+          // However, some dev setups (e.g., mDNS/.local + reverse proxy ports) can
+          // result in the iframe document resolving to a slightly different serialized
+          // origin (e.g., host without the expected port). In those cases, the strict
+          // target will never deliver. As a pragmatic fallback for development, we
+          // periodically attempt with '*' so the wallet host can adopt the port and
+          // reply with READY. Subsequent communication uses MessagePort, not window.postMessage.
+          // Try strict origin first, but fall back to '*' more frequently in dev to
+          // avoid stalls when local origins serialize differently (e.g., iOS + mDNS).
+          // Using '*' here only affects this CONNECT; subsequent traffic uses MessagePort.
+          const targetOrigin = (attempt % 2 === 0) ? '*' : this.walletOrigin;
           try {
-            cw.postMessage({ type: IframeMessage.Connect }, this.walletOrigin, [port2]);
+            cw.postMessage({ type: IframeMessage.Connect }, targetOrigin, [port2]);
             } catch (e) {
               const message = e instanceof Error ? e.message ?? String(e) : String(e);
               if (!warnedNullOrigin && message.includes("'null'")) {

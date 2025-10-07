@@ -294,7 +294,7 @@ export class TxTree extends LitElementWithProps {
     .folder-children .row .indent::after {
       content: '';
       position: absolute;
-      top: 50%;
+      top: var(--w3a-tree__connector__elbow-top, 50%);
       height: var(--w3a-tree__connector__thickness);
       /* Span from the vertical anchor across remaining indent and into the label */
       width: calc((var(--indent, 0) - var(--connector-indent, var(--indent, 0))) + var(--w3a-tree__connector__elbow-length));

@@ -308,15 +308,18 @@ export class EmbeddedTxButton extends LitElementWithProps {
       height: auto;
       border-radius: 16px;
       box-shadow: 0 8px 32px rgba(0,0,0,0.35);
-      /* Increase tap targets */
+      /* Increase tap targets without breaking connector alignment */
       --w3a-tree__label__font-size: 0.9rem;
       --w3a-tree__label__line-height: 1.25;
       --w3a-tree__chevron__width: 14px;
       --w3a-tree__chevron__height: 14px;
-      /* Reduce vertical padding for better connector alignment on iOS Safari */
-      --w3a-tree__summary-row__padding: 2px 8px;
-      /* Small explicit row gap helps bridge connector segments between rows */
-      --w3a-tree__row__gap: 2px;
+      /* Make connectors perfectly flush on mobile */
+      --w3a-tree__summary-row__padding: 0px 8px;
+      --w3a-tree__row__gap: 0px;
+      /* Sub-pixel elbow adjust for iOS Safari rounding */
+      --w3a-tree__connector__elbow-top: calc(50% - 0.5px);
+      /* Remove top padding inside the tree root on mobile so content hugs the top rounded edge */
+      --w3a-tree__tooltip-tree-root__padding: 0px 8px 8px 8px;
       --w3a-tree__file-content__font-size: 0.85rem;
       --w3a-tree__file-content__max-height: 40vh;
     }

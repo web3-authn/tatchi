@@ -111,6 +111,10 @@ export class IframeModalHost extends LitElementWithProps {
   // ==============================
   // Lifecycle
   // ==============================
+  connectedCallback(): void {
+    super.connectedCallback();
+  }
+
   updated(changed: PropertyValues) {
     super.updated(changed);
     if (!this.iframeInitialized) {
