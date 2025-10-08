@@ -10,15 +10,16 @@ Terms
 Option A — Wallet‑Scoped Credentials
 - `rpId = <wallet domain>` (e.g., `web3authn.org` or `wallet.example.com`).
 - Behaves like an auth server: a single passkey is reusable across many apps that integrate the wallet.
-- Requires top‑level execution for some browsers and/or Related Origin Requests (ROR) when the app and wallet are on different sites.
+- Top‑level execution is required for cross‑origin flows; and when the app and wallet live on different registrable sites, Related Origin Requests (ROR) must be enabled so the parent can call WebAuthn using the wallet `rpId`.
 
 Pros
 - One credential per user, reusable across multiple apps.
 - Clear trust boundary on the wallet provider domain.
 
 Cons
-- When the wallet is embedded cross‑origin, Safari blocks in‑iframe WebAuthn. You must bridge calls to the top‑level and, if the top‑level origin differs from the wallet rpId, enable ROR.
-- Migrating to a different rpId later won’t show existing credentials.
+- When the wallet is embedded cross‑origin, Safari blocks in‑iframe WebAuthn. The SDK bridges calls to the top‑level; if the top‑level origin differs from the wallet `rpId`, you must enable ROR.
+- Firefox currently lacks broad ROR support; plan an app‑scoped fallback or show a developer‑facing guidance message on that browser.
+- Migrating to a different `rpId` later won’t show existing credentials.
 
 How to implement (Option A)
 1) Choose the wallet domain as your rpId
@@ -26,15 +27,15 @@ How to implement (Option A)
    - The SDK passes this rpId to `navigator.credentials.create/get()`.
 2) Enable top‑level bridge (already implemented)
    - The wallet iframe attempts WebAuthn in‑iframe; if Safari throws the ancestor/focus errors, it bridges to the parent via `postMessage`. The parent runs WebAuthn at top‑level and returns a serialized credential.
-3) Enable ROR when app and wallet are on different sites
-   - Host `/.well-known/webauthn` on the wallet origin with JSON listing allowed app origins:
+3) Enable ROR when app and wallet are on different registrable sites
+   - Host `/.well-known/webauthn` on the wallet origin (it can be a dynamic route) with JSON listing allowed top‑level app origins:
      {
        "origins": [
          "https://app.example.com",
          "https://another-app.example.com"
        ]
      }
-   - With ROR, the top‑level app can execute WebAuthn using `rp.id = '<wallet-domain>'` even though it runs on a different site.
+   - With ROR (supported in Chromium/WebKit), the top‑level app can execute WebAuthn using `rp.id = '<wallet-domain>'` even though it runs on a different site. Firefox may not honor this yet.
 4) Permissions Policy and iframe `allow`
    - Parent response header should delegate:
      `Permissions-Policy: publickey-credentials-get=(self "<wallet-origin>") , publickey-credentials-create=(self "<wallet-origin>")`
@@ -66,7 +67,7 @@ Pros
 
 Cons
 - Each distinct site needs its own credential (cannot reuse across unrelated domains like `example.com` and `web3authn.org`).
-- If you previously registered credentials under the wallet domain, Chrome won’t show them after switching the rpId; users must re‑register.
+- If you previously registered credentials under the wallet domain, Chrome/Edge won’t show them after switching the `rpId`; users must re‑register.
 
 How to implement (Option B)
 1) Choose the app base domain as your rpId
@@ -92,88 +93,36 @@ const passkey = new PasskeyManager({
 
 Choosing at build/runtime
 - Build‑time: hardcode `rpIdOverride` to the mode you want (wallet or app domain).
-- Runtime: derive from environment/tenant config before you instantiate `PasskeyManager`.
-  - Example: `RP_ID_MODE=wallet` → set `rpIdOverride = process.env.WALLET_DOMAIN`.
-  - Example: `RP_ID_MODE=app` → compute base domain from `window.location.hostname`.
+- Runtime: ensure env and server headers line up with your choice.
 
-Migration tips
-- Switching rpId changes which passkeys are visible. To avoid user confusion:
-  - Detect empty credential selection and guide the user to re‑register.
-  - Offer a one‑time migration screen during login (e.g., “We updated our security settings; please confirm to save your passkey under the new domain”).
+Testing Notes
+- Chromium/Edge/Brave: Parent‑run with ROR for wallet‑scoped across unrelated sites.
+- Safari (macOS/iOS): Expect frequent bridge to top‑level; verify focus handling.
+- Firefox: ROR not broadly shipped; validate app‑scoped fallback or guidance.
 
-Safari specifics and focus errors
-- The SDK already handles ancestor and “document is not focused” NotAllowedError by retrying focus and bridging to the top‑level as needed. See `docs/safari-cross-origin-webauthn.md`.
+## NEAR Contract: ROR Allowlist
 
-Security notes
-- Parent bridge means the top‑level app can observe the fact that a WebAuthn call happened. The credential’s private key material is never exposed, but treat this as a conscious UX/security tradeoff.
-- For Option A across unrelated sites, ROR is the standards‑compliant path to keep credentials bound to the wallet domain while executing at the top‑level app.
+Use an on‑chain allowlist of top‑level app origins to drive `/.well-known/webauthn`.
 
-## Current SDK Status (what’s already implemented)
+- Storage
+  - `allowed_origins: IterableSet<String>` — canonical, lowercase origins.
+- View
+  - `get_allowed_origins() -> Vec<String>` — returns sorted canonical origins.
+- Change (admin‑only, 1 yoctoNEAR deposit)
+  - `add_allowed_origin(origin: String) -> bool` — normalizes/validates and inserts; true if inserted.
+  - `remove_allowed_origin(origin: String) -> bool` — normalizes and removes; true if removed.
+  - `set_allowed_origins(origins: Vec<String>) -> bool` — bulk replace; normalizes, validates, dedupes; returns true.
+- Origin format rules
+  - Canonical: `scheme://host[:port]`, lowercase; schemes: `https` (or `http` only for `localhost`/`127.0.0.1`).
+  - Not allowed: path, query, fragment, wildcards, spaces, trailing slash.
+  - Host charset `[A-Za-z0-9.-]`; no leading/trailing `.` or `-`; port 1–65535 if present.
+  - Limits: per‑origin length ≤ 255; max entries ≤ 5000; deduped.
 
-- Centralized rpId selection
-  - The SDK resolves the effective rpId via a single source of truth and propagates it to all flows (registration, login, VRF generation/challenges, device linking, NEP‑413 signing, and recovery) so wallet- or app‑scoped decisions stay consistent.
-- Safari/cross‑origin support via bridge
-  - In‑iframe WebAuthn first; on ancestor/focus errors, bridge to parent/top‑level and return a serialized credential.
-- Permissions plumbing
-  - Iframes created by the SDK include `allow` with `publickey-credentials-*` and dev helpers emit reasonable Permissions‑Policy headers.
-- Dev support for ROR
-  - The Vite dev plugin can serve `/.well-known/webauthn` when `VITE_ROR_ALLOWED_ORIGINS` is set (see Dev Helpers below).
+## Serving `/.well-known/webauthn`
 
-## Dev Helpers (for wallet‑scoped mode)
+You can serve the manifest dynamically from either the relay server or the wallet host:
 
-- Vite dev server
-  - When using the SDK’s dev plugin, set these env vars:
-    - `VITE_WALLET_ORIGIN`: the wallet origin used by the iframe
-    - `VITE_WALLET_SERVICE_PATH`: wallet host path (defaults to `/wallet-service`)
-    - `VITE_SDK_BASE_PATH`: where SDK assets are served (defaults to `/sdk`)
-    - `VITE_RP_ID_BASE`: set to the wallet domain for wallet‑scoped credentials
-    - `VITE_ROR_ALLOWED_ORIGINS`: comma‑separated list of allowed app origins to expose via `/.well-known/webauthn` during dev
-
-Example (.env)
-```
-VITE_WALLET_ORIGIN=https://wallet.example.localhost
-VITE_WALLET_SERVICE_PATH=/wallet-service
-VITE_SDK_BASE_PATH=/sdk
-VITE_RP_ID_BASE=wallet.example.localhost
-VITE_ROR_ALLOWED_ORIGINS=https://app.example.localhost,https://other.example.localhost
-```
-
-## Production Checklist
-
-- rpId selection
-  - Wallet‑scoped: set `rpIdOverride = '<wallet-domain>'` before instantiating the SDK.
-  - App‑scoped: set `rpIdOverride = '<app-base-domain>'` or omit and let host resolve.
-- Top‑level bridge and ROR
-  - For wallet‑scoped across unrelated sites: host `/.well-known/webauthn` on the wallet domain with `{ "origins": ["https://app1", "https://app2"] }`.
-  - Ensure the top‑level app executes WebAuthn with `rp.id = '<wallet-domain>'` when bridged.
-- Permissions‑Policy headers on the app origin
-  - Delegate WebAuthn to the wallet origin: `publickey-credentials-get` and `publickey-credentials-create` include the wallet origin as an allowed origin.
-- Iframe `allow`
-  - The SDK attaches `allow="publickey-credentials-get …; publickey-credentials-create …"` to embedded iframes; verify your CSP does not block it.
-- Safari fallback knob
-  - When embedding cross‑origin, enable `enableSafariGetWebauthnRegistrationFallback: true` to allow GET bridging when Safari focus/ancestor issues appear.
-
-## Testing Notes
-
-- Browser matrix
-  - Chrome/Firefox: in‑iframe with delegated permissions should work; bridge acts as fallback.
-  - Safari: expect frequent bridge use; verify focus fallback and ROR behavior when app/wallet are on different sites.
-- Migration behavior
-  - Switching rpId changes which passkeys surface. Validate re‑registration prompts and guidance for users without matching credentials.
-- Headers/CSP
-  - Validate Permissions‑Policy and CSP in staging; missing/strict policies are the common cause of credential picker not appearing in iframes.
-
-## TODOs (implementation + rollout)
-
-- Code
-  - Keep VRF challenge generation and all WebAuthn flows using the same rpId resolver (done in SDK; verify in your app code paths).
-  - Ensure bridging handlers stay aligned with rpId resolution and serialize credentials with PRF results.
-- Dev/Docs
-  - Document `VITE_ROR_ALLOWED_ORIGINS` in the app’s README and provide a sample dev `.env`.
-  - Add example reverse‑proxy/CDN header snippets for Permissions‑Policy.
-- Infra
-  - Serve `/.well-known/webauthn` on the wallet domain listing allowed app origins.
-  - Set Permissions‑Policy on the app domain to delegate to the wallet origin.
-- QA
-  - Cross‑browser manual pass (Chrome, Firefox, Safari desktop/iOS).
-  - Test both modes (wallet‑scoped and app‑scoped) and switching between them with clear user prompts.
+- Express relay server
+  - `GET /.well-known/webauthn` (and with trailing slash) now returns `{ origins: [...] }` by reading the contract’s `get_allowed_origins` and sanitizing. Headers include `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
+- Cloudflare Worker relay
+  - Same endpoint implemented with optional overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`) and `ROR_METHOD` (defaults to `get_allowed_origins`). Returns the same JSON and cache headers. Existing CORS behavior applies.

@@ -96,16 +96,6 @@ References: `examples/relay-server/src/index.ts:84` and `passkey-sdk/src/server/
 - keyId prevents ambiguous key selection after rotations and removes guesswork server‑side.
 - Grace keys allow short migration windows; prefer trimming the grace list quickly once clients refresh.
 
-## File References
-
-- Client flows: passkey-sdk/src/core/PasskeyManager/login.ts:155
-- Proactive refresh: passkey-sdk/src/core/WebAuthnManager/index.ts:459
-- WASM handlers: passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:18
-- HTTP types: passkey-sdk/src/wasm_vrf_worker/src/types/http.rs:1
-- Relay endpoints: examples/relay-server/src/index.ts:84
-- Rotation: passkey-sdk/src/server/core/AuthService.ts:416
-
-
 ## Rotating In Production - Checklist
 
 - Prepare
@@ -115,7 +105,6 @@ References: `examples/relay-server/src/index.ts:84` and `passkey-sdk/src/server/
 - Rotate
   - Call `AuthService.rotateShamirServerKeypair({ keepCurrentInGrace: true, persistGraceToDisk: true })`.
   - Persist the returned `newKeypair` (`e_s_b64u`, `d_s_b64u`) to your secret store.
-  - If using env-based config, roll processes/restarts with the new values.
 
 - Client migration
   - Clients include `serverKeyId` in stored blobs and in remove‑lock requests automatically.

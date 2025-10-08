@@ -48,7 +48,7 @@ Overview
   - macOS Safari: Develop > [Your iPhone] > select the page
 
 Common errors and fixes
-- Error: “Blocked request. This host ("pta-m4.local") is not allowed. To allow this host, add "pta-m4.local" to `server.allowedHosts` in vite.config.js`”
+- Error: “Blocked request. This host (\"pta-m4.local\") is not allowed. To allow this host, add \"pta-m4.local\" to `server.allowedHosts` in vite.config.js`”
   - Fix: add your Bonjour name to `server.allowedHosts` in `examples/vite-secure/vite.config.ts` (already included in this repo for `pta-m4.local`).
 - HMR not connecting over HTTPS
   - Optional: set `server.hmr` to point at your host/port (only if needed).

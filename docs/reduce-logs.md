@@ -17,7 +17,7 @@ Strategy
 - Centralize logging behind a tiny logger utility with levels and scopes.
   - Levels: `error`, `warn`, `info`, `debug`, `trace`.
   - Scopes: `transport`, `router`, `host`, `worker:signer`, `worker:vrf`, `wasm`, `ui`, `prefs`.
-  - Runtime control via env/flags: `W3A_LOG_LEVEL`, `W3A_DEBUG_SCOPES` (CSV), plus URL param `?w3aDebug=router,transport` and `localStorage.W3A_DEBUG_SCOPES` fallback.
+  - Runtime control via env/flags: `W3A_LOG_LEVEL`, `W3A_DEBUG_SCOPES` (CSV), plus URL param `?w3aDebug=router,transport` and `localStorage/W3A_DEBUG_SCOPES` fallback.
 - Default level = `error` in production, `warn` in dev. Gate all `info/debug/trace` behind flags.
 - Deduplicate/throttle repeating lines (e.g., worker creation, wasm path resolution) using a keyed `once()` and `rateLimit(key, windowMs)` helpers.
 - Emit only critical logs by default (see Keep list). Demote everything else to `debug` or remove entirely.
@@ -95,3 +95,4 @@ once('wasm-url:vrf', () => log.info('wasm', 'VRF wasm URL', url.toString()));
 log.debug('worker:signer', 'spawn', { src: workerUrl });
 log.error('router', 'READY timeout', { elapsedMs });
 ```
+

@@ -113,8 +113,8 @@ if (!this.shamir3pass && this.config.shamir) {
 ### Cloudflare Worker Configuration
 
 ```typescript
-import signerWasmModule from '@web3authn/passkey/server/wasm/signer';
-import shamirWasmModule from '@web3authn/passkey/server/wasm/vrf';
+import signerWasmModule from '@tatchi/sdk/server/wasm/signer';
+import shamirWasmModule from '@tatchi/sdk/server/wasm/vrf';
 
 service = new AuthService({
     // ... other config
@@ -155,4 +155,3 @@ POST /vrf/apply-server-lock
 Status: 200 OK
 Response: {"kek_cs_b64u":"z4ZNEv6Ztz_3bd6lRod80j14-TGJeIIBkoBQDL4Kof8","keyId":"a8d1fe7c"}
 ```
-
