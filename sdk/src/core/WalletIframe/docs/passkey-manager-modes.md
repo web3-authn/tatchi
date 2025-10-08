@@ -38,7 +38,7 @@ Quick start
 // vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { web3authnDev } from '@web3authn/passkey/vite'
+import { tatchiDev } from '@tatchi/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [react(), web3authnDev()],
@@ -111,8 +111,8 @@ Consumers instantiate a single client (or use `PasskeyProvider`) and set `iframe
 const passkey = new PasskeyManager({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
-  relayer: { accountId: 'web3-authn-v5.testnet', url: 'https://relay-server.localhost' }
+  contractId: 'w3a-v1.testnet',
+  relayer: { accountId: 'w3a-v1.testnet', url: 'https://relay-server.localhost' }
   // No iframeWallet = same-origin mode (SDK will log warnings)
 });
 ```
@@ -123,8 +123,11 @@ const passkey = new PasskeyManager({
 const passkey = new PasskeyManager({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
-  relayer: { accountId: 'web3-authn-v5.testnet', url: 'https://relay-server.localhost' },
+  contractId: 'w3a-v1.testnet',
+  relayer: {
+    accountId: 'w3a-v1.testnet',
+    url: 'https://relay-server.localhost'
+  },
   iframeWallet: {
     walletOrigin: 'https://wallet.example.localhost',
     walletServicePath: '/wallet-service',

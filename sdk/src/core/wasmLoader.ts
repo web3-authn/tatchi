@@ -35,7 +35,7 @@ export interface WasmLoaderOptions {
  *    - Relative path works: './filename.wasm'
  *
  * 3. FRONTEND DEV INSTALLING FROM NPM:
- *    - Source: node_modules/@web3authn/passkey/dist/workers/
+ *    - Source: node_modules/@tatchi/dist/workers/
  *    - Potential Issues: bundler separation, custom paths, CDN hosting
  *    - Configuration options available
  *

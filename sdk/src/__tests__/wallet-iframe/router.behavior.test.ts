@@ -62,7 +62,7 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
         // Fire-and-forget request that will time out since the stub never replies with PM_RESULT
         const p = router.executeAction({
           nearAccountId: 'e2e_router_timeout.testnet',
-          receiverId: 'web3-authn-v5.testnet',
+          receiverId: 'w3a-v1.testnet',
           actionArgs: { type: 'Transfer', amount: '1' } as any,
           options: {}
         }).catch((e) => ({ ok: false, error: String(e?.message || e) }));

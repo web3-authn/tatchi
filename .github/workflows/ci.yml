@@ -43,25 +43,25 @@ jobs:
         uses: oven-sh/setup-bun@v2
 
       - name: Install Playwright (Chromium + system deps)
-        run: pnpm -C passkey-sdk exec playwright install --with-deps chromium
+        run: pnpm -C sdk exec playwright install --with-deps chromium
 
       - name: Generate WASM TypeScript types (wasm-pack)
-        run: pnpm -C passkey-sdk exec bash ./scripts/generate-types.sh
+        run: pnpm -C sdk exec bash ./scripts/generate-types.sh
 
       - name: Type-check SDK
-        run: pnpm --filter @web3authn/passkey type-check
+        run: pnpm -C sdk type-check
 
       - name: Build SDK
-        run: pnpm --filter @web3authn/passkey build
+        run: pnpm -C sdk build
 
       - name: Run wallet-iframe unit tests
         env:
           USE_RELAY_SERVER: '1'
           NO_CADDY: '1'
-        run: pnpm --filter @web3authn/passkey test:wallet-iframe
+        run: pnpm -C sdk test:wallet-iframe
 
       - name: Run lit-components unit tests
         env:
           USE_RELAY_SERVER: '1'
           NO_CADDY: '1'
-        run: pnpm --filter @web3authn/passkey test:lit-components
+        run: pnpm -C sdk test:lit-components

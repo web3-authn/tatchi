@@ -223,7 +223,7 @@ The VRF implementation uses a multi-stage build process:
    ```
 
 2. **Dev Asset Serving** (no-copy):
-   - Serve SDK assets at `/sdk/*` using the Vite plugin `@web3authn/passkey/vite`.
+   - Serve SDK assets at `/sdk/*` using the Vite plugin `@tatchi/sdk/plugins/vite`.
    - This maps `dist/` output (including workers and WASM) to `/sdk` during dev.
 
 3. **Development Workflow**:

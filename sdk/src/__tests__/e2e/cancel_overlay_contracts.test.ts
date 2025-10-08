@@ -105,7 +105,7 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
         };
 
         const nearAccountId = ((window as any).testUtils?.generateTestAccountId?.() as string) || `e2e_${Date.now()}`;
-        const receiverId = (window as any).testUtils?.configs?.testReceiverAccountId || 'web3-authn-v5.testnet';
+        const receiverId = (window as any).testUtils?.configs?.testReceiverAccountId || 'w3a-v1.testnet';
 
         const events: Record<string, any[]> = {};
 

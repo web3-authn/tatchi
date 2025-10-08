@@ -548,11 +548,11 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
       // account as the predecessor. On NEAR, only the predecessor can create
       // its own subaccounts. Since the contract call executes with
       // predecessor = contractId, the new account MUST be a subaccount of the
-      // contractId (e.g., e2e1234.web3-authn-v5.testnet). Using "*.testnet"
+      // contractId (e.g., e2e1234.w3a-v1.testnet). Using "*.testnet"
       // would fail with CreateAccountNotAllowed.
       generateTestAccountId: () => {
         const cfg = (window as any).configs || {};
-        const parent = cfg.contractId || 'web3-authn-v5.testnet';
+        const parent = cfg.contractId || 'w3a-v1.testnet';
         return `e2etest${Date.now()}.${parent}`;
       },
       verifyAccountExists: async (accountId: string) => {

@@ -7,7 +7,7 @@ This guide covers the Web3Authn Passkey SDK's transaction confirmation system AP
 ### Configuration
 
 ```typescript
-import { PasskeyManager } from '@web3authn/passkey';
+import { PasskeyManager } from '@tatchi';
 
 const passkeyManager = new PasskeyManager(config);
 
@@ -53,7 +53,7 @@ signerWorkerManager.onSecureConfirmRequest = async (message) => {
 ### React Component
 
 ```tsx
-import { SecureTxConfirmButton } from '@web3authn/passkey/react';
+import { SecureTxConfirmButton } from '@tatchi/sdk/react';
 
 <SecureTxConfirmButton
   nearAccountId="user.near"

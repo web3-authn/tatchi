@@ -8,12 +8,12 @@ export const DEFAULT_TEST_CONFIG: PasskeyTestConfig = {
   frontendUrl: FRONTEND_URL,
   nearNetwork: 'testnet',
   nearRpcUrl: 'https://test.rpc.fastnear.com',
-  contractId: 'web3-authn-v5.testnet',
-  relayerAccount: 'web3-authn-v5.testnet',
+  contractId: 'w3a-v1.testnet',
+  relayerAccount: 'w3a-v1.testnet',
   rpId: 'localhost',
   useRelayer: true,
   relayer: {
     url: 'http://localhost:3000',
   },
-  testReceiverAccountId: 'web3-authn-v5.testnet',
+  testReceiverAccountId: 'w3a-v1.testnet',
 };

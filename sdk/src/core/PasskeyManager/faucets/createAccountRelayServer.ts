@@ -6,7 +6,7 @@ import type { SignedTransaction } from '../../NearClient';
 import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistrationCredential } from '../../WebAuthnManager/credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
-import { CreateAccountAndRegisterResult } from '../../../index';
+import type { CreateAccountAndRegisterResult } from '../../../server/core/types';
 
 /**
  * HTTP Request body for the relay server's /create_account_and_register_user endpoint

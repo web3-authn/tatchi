@@ -5,7 +5,7 @@ This document demonstrates the user-friendly API for creating NEAR actions, whic
 ### API
 
 ```typescript
-import { ActionType, type FunctionCallAction } from '@web3authn/passkey';
+import { ActionType, type FunctionCallAction } from '@tatchi';
 
 // Clear, type-safe interface with only relevant fields
 const newAction: FunctionCallAction = {
@@ -28,7 +28,7 @@ await passkeyManager.executeAction('alice.near', newAction);
 Call smart contract methods with automatic JSON serialization:
 
 ```typescript
-import { functionCall, ActionType, type FunctionCallAction } from '@web3authn/passkey';
+import { functionCall, ActionType, type FunctionCallAction } from '@tatchi';
 
 // Using helper function (recommended)
 const action = functionCall({
@@ -60,7 +60,7 @@ await passkeyManager.executeAction('alice.near', action);
 Send NEAR tokens directly:
 
 ```typescript
-import { transfer, ActionType, type TransferAction } from '@web3authn/passkey';
+import { transfer, ActionType, type TransferAction } from '@tatchi';
 
 // Using helper function
 const action = transfer({
@@ -83,7 +83,7 @@ await passkeyManager.executeAction('alice.near', action);
 Create a new NEAR account:
 
 ```typescript
-import { createAccount } from '@web3authn/passkey';
+import { createAccount } from '@tatchi';
 
 const action = createAccount({
   receiverId: 'newuser.alice.near'
@@ -97,7 +97,7 @@ await passkeyManager.executeAction('alice.near', action);
 Add access keys with proper type safety:
 
 ```typescript
-import { addFullAccessKey, addFunctionCallKey } from '@web3authn/passkey';
+import { addFullAccessKey, addFunctionCallKey } from '@tatchi';
 
 // Full access key
 const fullAccessAction = addFullAccessKey({
@@ -122,7 +122,7 @@ await passkeyManager.executeAction('alice.near', fullAccessAction);
 Execute multiple actions in a single transaction:
 
 ```typescript
-import { functionCall, transfer } from '@web3authn/passkey';
+import { functionCall, transfer } from '@tatchi';
 
 // Create multiple actions
 const actions: ActionArgs[] = [
@@ -148,7 +148,7 @@ for (const action of actions) {
 ### Contract Interaction with Error Handling
 
 ```typescript
-import { functionCall, type ActionResult } from '@web3authn/passkey';
+import { functionCall, type ActionResult } from '@tatchi';
 
 try {
   const action = functionCall({
@@ -188,7 +188,7 @@ try {
 ### Account Management
 
 ```typescript
-import { addFunctionCallKey, deleteKey, deleteAccount } from '@web3authn/passkey';
+import { addFunctionCallKey, deleteKey, deleteAccount } from '@tatchi';
 
 // Add a restricted key for a dApp
 const addKeyAction = addFunctionCallKey({
@@ -239,5 +239,3 @@ const wrongFieldAction: TransferAction = {
   methodName: 'transfer' // Error: Property 'methodName' does not exist on type 'TransferAction'
 };
 ```
-
-

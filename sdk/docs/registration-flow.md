@@ -172,7 +172,7 @@ Start Registration
 ## Implementation Example
 
 ```typescript
-import type { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '@web3authn/passkey';
+import type { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '@tatchi';
 
 function handleRegistrationEvent(event: RegistrationSSEEvent) {
   switch (event.step) {

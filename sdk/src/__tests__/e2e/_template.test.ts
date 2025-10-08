@@ -53,7 +53,7 @@ test.describe('Example PasskeyManager Usage', () => {
     expect(result.hasPasskeyManager).toBe(true);
     expect(result.hasUtilities).toBe(true);
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const contractId = result.contractId || 'web3-authn-v5.testnet';
+    const contractId = result.contractId || 'w3a-v1.testnet';
     const reOld = /^e2etest\d+\.testnet$/;
     const reNew = new RegExp(`^e2etest\\d+\\.${escapeRe(contractId)}$`);
     expect(reOld.test(result.testAccountId) || reNew.test(result.testAccountId)).toBe(true);

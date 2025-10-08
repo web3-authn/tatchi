@@ -46,8 +46,13 @@ jobs:
       - name: Setup Bun (for worker bundling step in build.sh)
         uses: oven-sh/setup-bun@v2
 
-      - name: Build SDK (@web3authn/passkey)
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (sdk)
+        run: pnpm -C sdk build
+      - name: Build @tatchi/* packages
+        run: |
+          pnpm -C sdk/core build
+          pnpm -C sdk/react build
+          pnpm -C sdk/server build
 
   publish-sdk-r2:
     runs-on: ubuntu-latest
@@ -95,8 +100,13 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Build SDK (@web3authn/passkey)
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (sdk)
+        run: pnpm -C sdk build
+      - name: Build @tatchi/* packages
+        run: |
+          pnpm -C sdk/core build
+          pnpm -C sdk/react build
+          pnpm -C sdk/server build
 
       - name: Validate R2 secrets are present
         run: |
@@ -108,7 +118,7 @@ jobs:
 
       - name: Generate sha256 manifest (sorted)
         run: |
-          cd passkey-sdk/dist
+          cd sdk/dist
           find . -type f \
             ! -name 'manifest.json' \
             ! -name 'manifest.sig' \
@@ -116,7 +126,7 @@ jobs:
 
       - name: Convert manifest to JSON
         run: |
-          cd passkey-sdk/dist
+          cd sdk/dist
           python - <<'PY'
           import json, pathlib
           entries = []
@@ -135,7 +145,7 @@ jobs:
         env:
           COSIGN_EXPERIMENTAL: 'true'
         run: |
-          cd passkey-sdk/dist
+          cd sdk/dist
           cosign sign-blob --yes --output-signature manifest.sig manifest.json
 
       - name: Install AWS CLI (via pip)
@@ -149,11 +159,11 @@ jobs:
         run: |
           set -euxo pipefail
           test -n "$R2_ENDPOINT" && test -n "$R2_BUCKET"
-          aws s3 sync passkey-sdk/dist s3://$R2_BUCKET/$PREFIX \
+          aws s3 sync sdk/dist s3://$R2_BUCKET/$PREFIX \
             --endpoint-url "$R2_ENDPOINT" --delete
           # Ensure correct MIME for wasm files
-          for f in $(find passkey-sdk/dist -name "*.wasm" -type f); do
-            key=${f#passkey-sdk/dist/}
+          for f in $(find sdk/dist -name "*.wasm" -type f); do
+            key=${f#sdk/dist/}
             aws s3 cp "$f" s3://$R2_BUCKET/$PREFIX/"$key" \
               --endpoint-url "$R2_ENDPOINT" \
               --content-type application/wasm \
@@ -167,10 +177,10 @@ jobs:
         run: |
           set -euxo pipefail
           test -n "$R2_ENDPOINT" && test -n "$R2_BUCKET"
-          aws s3 sync passkey-sdk/dist s3://$R2_BUCKET/$PREFIX \
+          aws s3 sync sdk/dist s3://$R2_BUCKET/$PREFIX \
             --endpoint-url "$R2_ENDPOINT" --delete
-          for f in $(find passkey-sdk/dist -name "*.wasm" -type f); do
-            key=${f#passkey-sdk/dist/}
+          for f in $(find sdk/dist -name "*.wasm" -type f); do
+            key=${f#sdk/dist/}
             aws s3 cp "$f" s3://$R2_BUCKET/$PREFIX/"$key" \
               --endpoint-url "$R2_ENDPOINT" \
               --content-type application/wasm \
@@ -216,8 +226,13 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (@web3authn/passkey) for Worker bundling
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (sdk) for Worker bundling
+        run: pnpm -C sdk build
+      - name: Build @tatchi/* packages
+        run: |
+          pnpm -C sdk/core build
+          pnpm -C sdk/react build
+          pnpm -C sdk/server build
 
       - name: Deploy Cloudflare Worker (relay)
         run: |
@@ -274,8 +289,13 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (@web3authn/passkey) for Vite builds
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (sdk) for Vite builds
+        run: pnpm -C sdk build
+      - name: Build @tatchi/* packages
+        run: |
+          pnpm -C sdk/core build
+          pnpm -C sdk/react build
+          pnpm -C sdk/server build
 
       - name: Debug - print VITE_* env seen by build
         run: |
@@ -306,8 +326,8 @@ jobs:
         run: |
           # Serve SDK bundles under /sdk for uniform layout
           mkdir -p examples/vite-secure/dist/sdk examples/vite-secure/dist/sdk/workers
-          cp -R passkey-sdk/dist/esm/sdk/* examples/vite-secure/dist/sdk/ || true
-          cp -R passkey-sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
+          cp -R sdk/dist/esm/sdk/* examples/vite-secure/dist/sdk/ || true
+          cp -R sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
@@ -365,8 +385,13 @@ jobs:
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (@web3authn/passkey)
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (sdk)
+        run: pnpm -C sdk build
+      - name: Build @tatchi/* packages
+        run: |
+          pnpm -C packages/core build
+          pnpm -C packages/react build
+          pnpm -C packages/server build
 
       - name: Generate wallet-only static site (wallet-dist)
         run: |
@@ -404,8 +429,8 @@ jobs:
 
           # Copy SDK assets (ESM bundles + workers) under /sdk
           mkdir -p wallet-dist/sdk wallet-dist/sdk/workers
-          cp -R passkey-sdk/dist/esm/sdk/* wallet-dist/sdk/
-          cp -R passkey-sdk/dist/workers wallet-dist/sdk/
+          cp -R sdk/dist/esm/sdk/* wallet-dist/sdk/
+          cp -R sdk/dist/workers wallet-dist/sdk/
 
       - name: Debug – print built _headers (wallet)
         run: |
@@ -461,12 +486,12 @@ jobs:
   #     - name: Install deps (workspace)
   #       run: pnpm install --no-frozen-lockfile
 
-  #     - name: Build SDK (@web3authn/passkey)
-  #       run: pnpm --filter @web3authn/passkey build
+  #     - name: Build SDK (sdk)
+  #       run: pnpm -C sdk build
 
   #     - name: Skip if version already published
   #       id: check_published
-  #       working-directory: passkey-sdk
+  #       working-directory: sdk
   #       env:
   #         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   #       run: |
@@ -482,9 +507,9 @@ jobs:
   #           echo "Not published yet; will publish." >&2
   #         fi
 
-  #     - name: Publish @web3authn/passkey to npm
+  #     - name: Publish @tatchi/* packages to npm
   #       if: steps.check_published.outputs.already == 'false'
-  #       working-directory: passkey-sdk
+  #       working-directory: sdk
   #       env:
   #         NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
   #       run: |

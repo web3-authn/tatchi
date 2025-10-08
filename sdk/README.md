@@ -1,4 +1,4 @@
-# @web3authn/passkey
+# Tatchi SDK
 
 > **⚠️ Development Note**: worker files are copied to `frontend/public/workers/` for development. The code is environment-aware and will automatically use the correct paths in production. This ensures robust operation across different deployment scenarios.
 
@@ -7,12 +7,20 @@ Web3Authn Passkey SDK for NEAR Protocol integration with React components and Ty
 
 ## Installation
 
+Core (framework-agnostic):
+
 ```bash
-pnpm add @web3authn/passkey
+pnpm add @tatchi
 # or
-npm install @web3authn/passkey
+npm install @tatchi
 # or
-yarn add @web3authn/passkey
+yarn add @tatchi
+```
+
+React components (optional):
+
+```bash
+pnpm add @tatchi/sdk
 ```
 
 
@@ -128,7 +136,7 @@ This SDK mounts a hidden, sandboxed “service iframe” that orchestrates WebAu
 ### React usage
 
 ```tsx
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@web3authn/passkey/react';
+import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi/sdk/react';
 
 function App() {
   return (
@@ -152,12 +160,12 @@ function App() {
 ### Vanilla TypeScript usage
 
 ```ts
-import { PasskeyManager } from '@web3authn/passkey';
+import { PasskeyManager } from '@tatchi';
 
 const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
+  contractId: 'w3a-v1.testnet',
   iframeWallet: {
     walletOrigin: 'https://wallet.example.com',
     walletServicePath: '/service',
@@ -191,14 +199,14 @@ You do not need to copy files into your app bundle; you can serve them directly 
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { getWalletServiceHtml } from '@web3authn/passkey/core/WalletIframe/client/html';
+import { getWalletServiceHtml } from '@tatchi/WalletIframe/client/html';
 
 const app = express();
 
 // Resolve the dist directory inside the installed package
-const pkgEntry = require.resolve('@web3authn/passkey/dist/esm/index.js');
-const distEsmDir = path.dirname(pkgEntry);           // .../node_modules/@web3authn/passkey/dist/esm
-const distRoot = path.resolve(distEsmDir, '..');     // .../node_modules/@web3authn/passkey/dist
+const pkgEntry = require.resolve('@tatchi/dist/esm/index.js');
+const distEsmDir = path.dirname(pkgEntry);           // .../node_modules/@tatchi/dist/esm
+const distRoot = path.resolve(distEsmDir, '..');     // .../node_modules/@tatchi/dist
 
 // Serve SDK assets at /sdk (serve the sdk subfolder)
 app.use('/sdk', express.static(path.join(distRoot, 'esm', 'sdk')));
@@ -250,7 +258,7 @@ Then configure the SDK to use this wallet origin:
 const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
+  contractId: 'w3a-v1.testnet',
   iframeWallet: {
     walletOrigin: 'http://localhost:8080', // your wallet site
     walletServicePath: '/service',         // must match the route above
@@ -280,7 +288,7 @@ Minimal usage:
 // vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { web3authnDev } from '@web3authn/passkey/vite'
+import { tatchiDev } from '@tatchi/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [react(), web3authnDev()],
@@ -304,7 +312,7 @@ import {
   web3authnWalletService,
   web3authnWasmMime,
   web3authnDevHeaders,
-} from '@web3authn/passkey/vite'
+} from '@tatchi/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [

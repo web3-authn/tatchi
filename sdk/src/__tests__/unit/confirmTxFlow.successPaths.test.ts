@@ -259,7 +259,7 @@ test.describe('confirmTxFlow – success paths', () => {
             method: 'sign',
             argsJson: {},
             nearAccountId: 'carol.testnet',
-            contractId: 'web3-authn-v5.testnet',
+            contractId: 'w3a-v1.testnet',
             nearRpcUrl: 'https://rpc.testnet.near.org'
           },
         }

@@ -6,12 +6,12 @@ This document demonstrates how to use the NEP-413 message signing functionality 
 
 
 ```typescript
-import { PasskeyManager } from '@web3authn/passkey';
+import { PasskeyManager } from '@tatchi';
 
 const passkeyManager = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
-  contractId: 'web3-authn-v5.testnet',
+  contractId: 'w3a-v1.testnet',
   relayerAccount: 'relayer.testnet'
 });
 
@@ -71,4 +71,3 @@ The implementation follows the NEP-413 standard:
 5. **Hashing**: Computes SHA-256 hash of the prefixed data
 6. **Signing**: Signs the hash using Ed25519 with the user's passkey-derived private key
 7. **Output**: Returns base64-encoded signature with account ID and public key
-

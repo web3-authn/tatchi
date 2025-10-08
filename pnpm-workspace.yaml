@@ -4,4 +4,3 @@ packages:
   - examples/vite
   - examples/vite-secure
   - examples/relay-cloudflare-worker
-  - packages/*

@@ -36,7 +36,7 @@ async function main() {
   const config = {
     relayerAccountId: cache.accountId,
     relayerPrivateKey: cache.nearPrivateKey,
-    webAuthnContractId: 'web3-authn-v5.testnet',
+    webAuthnContractId: 'w3a-v1.testnet',
     nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
     networkId: 'testnet',
     accountInitialBalance: '30000000000000000000000',

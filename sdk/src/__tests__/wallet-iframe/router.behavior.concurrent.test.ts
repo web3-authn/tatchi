@@ -145,7 +145,7 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
 
         const p1 = router.executeAction({
           nearAccountId: 'concurrent1.testnet',
-          receiverId: 'web3-authn-v5.testnet',
+          receiverId: 'w3a-v1.testnet',
           actionArgs,
         });
 
@@ -157,7 +157,7 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
 
         const p2 = router.executeAction({
           nearAccountId: 'concurrent2.testnet',
-          receiverId: 'web3-authn-v5.testnet',
+          receiverId: 'w3a-v1.testnet',
           actionArgs,
         });
 
