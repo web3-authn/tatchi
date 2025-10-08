@@ -533,18 +533,6 @@ function ensurePasskeyManager(): void {
   if (!passkeyManager) {
     // IMPORTANT: The wallet host must not consider itself an iframe client.
     // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
-    // Also clear rpIdOverride so WebAuthn rpId defaults to the host (wallet.example.localhost).
-    // Derive a safe default rpIdOverride for cross-origin iframe WebAuthn: use the
-    // top-level (parent) origin's hostname when available. Safari requires the RP ID
-    // to be a registrable suffix of the top-level origin.
-    let derivedRpId: string | undefined;
-    try {
-      if (parentOrigin && parentOrigin !== 'null') {
-        derivedRpId = new URL(parentOrigin).hostname;
-      }
-    } catch {}
-    // Debug-only: uncomment if diagnosing rpId derivation issues
-    // try { console.debug('[WalletHost] derived rpIdOverride', { parentOrigin, derivedRpId, selfOrigin: window.location.origin }); } catch {}
 
     const cfg = {
       ...walletConfigs,
@@ -552,8 +540,8 @@ function ensurePasskeyManager(): void {
         ...(walletConfigs?.iframeWallet || {}),
         walletOrigin: undefined,
         walletServicePath: undefined,
-        // Prefer explicitly provided rpIdOverride; else fall back to parent origin hostname
-        rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride || derivedRpId,
+        // Rely on rpIdOverride provided by the parent (if any).
+        rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
         isWalletIframeHost: true,
       },
     } as PasskeyManagerConfigs;
@@ -627,6 +615,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   // Handle configuration updates from parent
   if (req.type === 'PM_SET_CONFIG') {
     const payload = req.payload as PMSetConfigPayload;
+    // try { console.debug('[WalletHost] PM_SET_CONFIG received', { rpIdOverride: payload?.rpIdOverride, walletOrigin: (payload as any)?.walletOrigin, parentOrigin }); } catch {}
     walletConfigs = {
       nearRpcUrl: payload?.nearRpcUrl || walletConfigs?.nearRpcUrl || '',
       nearNetwork: payload?.nearNetwork || walletConfigs?.nearNetwork || 'testnet',

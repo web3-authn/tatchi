@@ -100,6 +100,80 @@ Testing Notes
 - Safari (macOS/iOS): Expect frequent bridge to top‑level; verify focus handling.
 - Firefox: ROR not broadly shipped; validate app‑scoped fallback or guidance.
 
+## ROR & No‑Popup Policy (Hybrid)
+
+- rpId immutability: Credentials created under one `rpId` are not usable under another. Serializing across frames does not rebind `rpId`.
+- No popups/redirects: Flows must complete within the current top‑level context. For cross‑site wallet‑scoped, this requires ROR when the top‑level origin’s registrable domain doesn’t match the wallet `rpId`.
+- Browser matrix:
+  - Chromium/WebKit: ROR supported; parent‑run with `rp.id = <wallet-domain>` when allowlisted by `/.well-known/webauthn`.
+  - Firefox: ROR not broadly shipped; default to app‑scoped or present developer guidance.
+- Parent‑run decision:
+  - If current top‑level origin is allowlisted → run WebAuthn at the parent with `rp.id = <wallet-domain>`.
+  - If not allowlisted → do not navigate or open popups; surface a dev error with a link to register the origin (or allow app‑scoped fallback if configured).
+
+FAQ — When is ROR required?
+- ROR is only required when the top‑level origin’s registrable domain does not equal or include the `rpId`.
+  - Not required: top‑level `https://web3authn.org` with `rpId=web3authn.org`.
+  - Not required: top‑level `https://app.example.com` with `rpId=example.com`.
+  - Required: top‑level `https://tatchi.xyz` with `rpId=web3authn.org` (unrelated domains).
+  - Required: top‑level `https://app.example.com` with `rpId=wallet.example.com` (sibling subdomains; `rpId` must be a registrable suffix of the top‑level, which it is not here).
+
+## NEAR Contract: ROR Allowlist
+
+Back the `/.well-known/webauthn` manifest with an on‑chain allowlist.
+
+- Storage
+  - `allowed_origins: IterableSet<String>` — canonical, lowercase origins.
+- View
+  - `get_allowed_origins() -> Vec<String>` — returns sorted canonical origins.
+- Change (admin‑only, 1 yoctoNEAR deposit)
+  - `add_allowed_origin(origin: String) -> bool` — normalizes/validates and inserts; true if inserted.
+  - `remove_allowed_origin(origin: String) -> bool` — normalizes and removes; true if removed.
+  - `set_allowed_origins(origins: Vec<String>) -> bool` — bulk replace; normalizes, validates, dedupes; returns true.
+- Origin format rules
+  - Canonical: `scheme://host[:port]`, lowercase; schemes: `https` (or `http` only for `localhost`/`127.0.0.1`).
+  - Not allowed: path, query, fragment, wildcards, spaces, trailing slash.
+  - Host charset `[A-Za-z0-9.-]`; no leading/trailing `.` or `-`; port 1–65535 if present.
+  - Limits: per‑origin length ≤ 255; max entries ≤ 5000; deduped.
+
+## Serving `/.well-known/webauthn`
+
+You can serve the manifest dynamically from either the relay server or the wallet host:
+
+- Express relay server
+  - `GET /.well-known/webauthn` (and trailing slash) returns `{ origins: [...] }` by reading the contract view and sanitizing. Adds `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
+- Cloudflare Worker relay
+  - Same endpoint with env overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`), `ROR_METHOD` (defaults to `get_allowed_origins`).
+  - Same JSON shape and cache headers; existing CORS behavior applies.
+
+## Deployment Plan: Wallet Host on web3authn.org
+
+1) Example site
+- Create `examples/wallet-scoped-credentials` (uses Web3Authn Vite plugins):
+  - `web3authnDev(...)` for dev routing of `/wallet-service` and `/sdk`.
+  - `web3authnBuildHeaders({ walletOrigin })` to emit `_headers` (COOP/COEP + Permissions‑Policy).
+- Add `public/wallet-service/index.html` that loads `/sdk/wallet-iframe-host.js`.
+- For dev/prod env:
+  - `VITE_WALLET_ORIGIN=https://web3authn.org`
+  - `VITE_WALLET_SERVICE_PATH=/wallet-service`
+  - `VITE_SDK_BASE_PATH=/sdk`
+  - `VITE_RP_ID_BASE=web3authn.org`
+
+2) Cloudflare Pages
+- Map a Pages project to `web3authn.org` (or a wallet subdomain).
+- Configure the env vars above in Pages for consistent asset paths.
+
+3) CI workflows
+- `deploy-cloudflare.yml` and/or `deploy-separate-wallet-host.yml` publish the wallet host:
+  - Build SDK, then build `examples/wallet-scoped-credentials`.
+  - Copy SDK bundles into `dist/sdk`.
+  - Optionally emit a static ROR manifest from `ROR_ALLOWED_ORIGINS`, or serve dynamically from the relay.
+  - Deploy `dist/` to the wallet Pages project.
+- Required secrets:
+  - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_WALLET`.
+  - `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`, and NEAR network vars.
+
+
 ## NEAR Contract: ROR Allowlist
 
 Use an on‑chain allowlist of top‑level app origins to drive `/.well-known/webauthn`.

@@ -76,7 +76,11 @@ export interface PMSetConfigPayload {
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
-  relayer?: { initialUseRelayer?: boolean; accountId: string; url: string };
+  relayer?: {
+    initialUseRelayer?: boolean;
+    accountId: string;
+    url: string
+  };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
   authenticatorOptions?: AuthenticatorOptions;
