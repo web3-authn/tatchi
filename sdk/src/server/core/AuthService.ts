@@ -244,6 +244,49 @@ export class AuthService {
     }
   }
 
+  /**
+   * Fetch Related Origin Requests (ROR) allowed origins from a NEAR view method.
+   * Defaults: contractId = webAuthnContractId, method = 'get_allowed_origins', args = {}.
+   * Returns a sanitized, deduplicated list of absolute origins.
+   */
+  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: any }): Promise<string[]> {
+    const contractId = (opts?.contractId || this.config.webAuthnContractId).trim();
+    const method = (opts?.method || 'get_allowed_origins').trim();
+    const args = opts?.args ?? {};
+
+    const isValidOrigin = (s: unknown): string | null => {
+      if (typeof s !== 'string' || !s) return null;
+      try {
+        const u = new URL(s.trim());
+        const scheme = u.protocol;
+        const host = u.hostname.toLowerCase();
+        const port = u.port ? `:${u.port}` : '';
+        if (scheme !== 'https:' && !(scheme === 'http:' && host === 'localhost')) return null;
+        if ((u.pathname && u.pathname !== '/') || u.search || u.hash) return null;
+        return `${scheme}//${host}${port}`;
+      } catch { return null; }
+    };
+
+    try {
+      const result = await this.nearClient.view<{ } , unknown>({ account: contractId, method, args });
+      let list: string[] = [];
+      if (Array.isArray(result)) {
+        list = result as string[];
+      } else if (result && typeof result === 'object' && Array.isArray((result as any).origins)) {
+        list = (result as any).origins as string[];
+      }
+      const out = new Set<string>();
+      for (const item of list) {
+        const norm = isValidOrigin(item);
+        if (norm) out.add(norm);
+      }
+      return Array.from(out);
+    } catch (e) {
+      console.warn('[AuthService] getRorOrigins failed:', e);
+      return [];
+    }
+  }
+
   private isNodeEnvironment(): boolean {
     // Detect true Node.js, not Cloudflare Workers with nodejs_compat polyfills.
     const isNode = Boolean((globalThis as any).process?.versions?.node);

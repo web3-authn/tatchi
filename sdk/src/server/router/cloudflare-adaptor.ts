@@ -90,7 +90,7 @@ function withCors(headers: Headers, opts?: RelayRouterOptions, request?: Request
 export function createCloudflareRouter(service: AuthService, opts: RelayRouterOptions = {}): FetchHandler {
   const notFound = () => new Response('Not Found', { status: 404 });
 
-  return async function handler(request: Request): Promise<Response> {
+  return async function handler(request: Request, env?: CfEnv): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method.toUpperCase();
@@ -112,6 +112,16 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
     const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
 
     try {
+      // ROR well-known manifest; allow override via env (optional)
+      if (method === 'GET' && (pathname === '/.well-known/webauthn' || pathname === '/.well-known/webauthn/')) {
+        const contractId = (env?.ROR_CONTRACT_ID || env?.WEBAUTHN_CONTRACT_ID || '').toString().trim() || undefined;
+        const methodName = (env?.ROR_METHOD || '').toString().trim() || undefined;
+        const origins = await service.getRorOrigins({ contractId, method: methodName });
+        const res = json({ origins }, { status: 200, headers: { 'Cache-Control': 'max-age=60, stale-while-revalidate=600' } });
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
       if (method === 'POST' && pathname === '/create_account_and_register_user') {
         let body: unknown;
         try { body = await request.json(); } catch { body = null; }
