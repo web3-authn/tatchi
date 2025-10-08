@@ -13,6 +13,12 @@ export interface SegmentedControlProps {
   activeBg: string;
   /** Optional container height (e.g., 54, '54px') */
   height?: number | string;
+  /**
+   * Optional vertical inset between container edge and the active pill.
+   * Defaults to the CSS value (5px). Supply if you need tighter/looser
+   * vertical padding when customizing height.
+   */
+  inset?: number | string;
   /** Optional border radius for container/active pill */
   radius?: number | string;
   /** Optional font size for buttons */
@@ -50,6 +56,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   activeButtonStyle,
   className,
   buttonClassName,
+  inset,
 }) => {
   // Compute layout metrics
   const count = Math.max(1, items.length);
@@ -99,8 +106,12 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
     return () => resizeObserver.disconnect();
   }, [updateActiveMetrics, items.length]);
 
+  const hasCustomHeight = height !== undefined;
+  const insetCss = toCssDim(inset);
   const rootStyle: React.CSSProperties = {
     height: toCssDim(height),
+    // Ensure CSS min-height does not force larger control when a custom height is provided
+    minHeight: toCssDim(height),
     borderRadius: toCssDim(radius),
     ...(containerStyle || {}),
   };
@@ -111,11 +122,18 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
     borderRadius: toCssDim(radius),
     width: activeMetrics.width ? `${activeMetrics.width}px` : undefined,
     opacity: activeMetrics.width ? 1 : 0,
+    // Respect custom inset if provided; otherwise fall back to CSS (5px)
+    top: insetCss,
+    bottom: insetCss,
   };
 
   const btnBaseStyle: React.CSSProperties = {
     fontSize: toCssDim(buttonFontSize),
     padding: toCssDim(buttonPadding),
+    // Keep labels perfectly centered and stretch buttons to the container height
+    height: '100%',
+    // When a custom height is set, allow the button to shrink below the CSS min-height
+    minHeight: hasCustomHeight ? 0 : undefined,
     ...(buttonStyle || {}),
   };
 

@@ -281,9 +281,9 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
         {/* Help copy under segments */}
         <div className="w3a-seg-help-row">
           <div className="w3a-seg-help" aria-live="polite">
-            {mode === AuthMenuMode.Login && 'Sign in with your passkey this device'}
+            {mode === AuthMenuMode.Login && 'Sign in with your passkey'}
             {mode === AuthMenuMode.Register && 'Create a new account'}
-            {mode === AuthMenuMode.Recover && 'Recover an account (iCloud/Chrome passkey sync)'}
+            {mode === AuthMenuMode.Recover && 'Recover account (iCloud/Chrome sync)'}
           </div>
         </div>
 

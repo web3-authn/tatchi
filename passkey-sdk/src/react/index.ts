@@ -81,6 +81,7 @@ export {
 
 // Theme components
 export { ThemeProvider, ThemeScope, useTheme } from './components/theme';
+export { useSyncSafariThemeColor } from './components/theme';
 export type { UseThemeReturn } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 

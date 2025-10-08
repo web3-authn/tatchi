@@ -30,19 +30,23 @@
 }
 
 .w3a-access-keys-modal-content {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 1rem;
   overflow: visible;
   min-height: 200px;
   max-width: 480px;
-  min-width: 360px;
+  min-width: 340px;
   background: var(--w3a-colors-colorBackground);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 2rem;
 }
 
 .w3a-access-keys-modal-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
   background: none;
   border: none;
   font-size: 1rem;

@@ -3,6 +3,7 @@ import { usePasskeyContext } from '../../context';
 import type { DesignTokens, UseThemeReturn } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
+import { useSyncSafariThemeColor } from './useSyncSafariThemeColor';
 
 // Consolidated theme context, hook, scope, and provider in one file to reduce confusion.
 // External API: ThemeProvider, useTheme, ThemeScope, ThemeName
@@ -215,6 +216,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     setTheme,
     vars,
   }), [themeState, tokensForTheme, prefix, toggleTheme, setTheme, vars]);
+
+  // Keep Safari's bar fade in sync with theme; allow overrides, but default
+  // to reading computed background or safe fallbacks.
+  useSyncSafariThemeColor(themeState === 'dark', { darkColor: '#21212a', lightColor: '#fafafa' });
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 };

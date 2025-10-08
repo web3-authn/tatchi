@@ -40,7 +40,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
               <div className="w3a-confirmation-options">
                 Confirmation Options
               </div>
-              <div style={{ width: '100%', maxWidth: 260 }}>
+              <div style={{ width: '100%' }}>
                 <SegmentedControl
                   items={[
                     { value: 'skip', label: 'skip' },
@@ -50,9 +50,9 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                   value={(currentConfirmConfig?.uiMode ?? 'modal')}
                   onValueChange={(v) => onSetUiMode?.(v as 'skip' | 'modal' | 'drawer')}
                   activeBg={'var(--w3a-colors-primary)'}
-                  height={44}
-                  buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-surface2)' }}
+                  height={40}
+                  buttonFontSize={12}
+                  containerStyle={{ background: 'var(--w3a-colors-surface2)', width: '100%' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />
@@ -64,7 +64,7 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                 pointerEvents: disableRequireClick ? 'none' : 'auto'
               }}
             >
-              <div style={{ width: '100%', maxWidth: 260 }}>
+              <div style={{ width: '100%' }}>
                 <SegmentedControl
                   items={[
                     { value: 'auto', label: 'auto proceed' },
@@ -77,9 +77,9 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
                     if (wantsAuto !== isAuto) onToggleSkipClick?.();
                   }}
                   activeBg={'var(--w3a-colors-primary)'}
-                  height={44}
-                  buttonFontSize={13}
-                  containerStyle={{ background: 'var(--w3a-colors-surface2)' }}
+                  height={40}
+                  buttonFontSize={12}
+                  containerStyle={{ background: 'var(--w3a-colors-surface2)', width: '100%' }}
                   buttonStyle={{ display: 'grid', placeItems: 'center', lineHeight: 1, padding: '0 10px' }}
                   activeButtonStyle={{ color: 'var(--w3a-btn-text, #fff)' }}
                 />
