@@ -57,6 +57,8 @@ export class DrawerElement extends LitElementWithProps {
   private isClosing = false;
   private aboveFoldResizeObserver?: ResizeObserver;
   private drawerResizeObserver?: ResizeObserver;
+  private vvSyncTimeout: number | null = null;
+  private detachViewportSync?: () => void;
 
   static styles = css`
     :host { display: contents; }
@@ -66,11 +68,11 @@ export class DrawerElement extends LitElementWithProps {
       /* Match modal backdrop look */
       background: oklch(0.2 0.01 240 / 0.6);
       z-index: 2147483646;
-      opacity: 0;
+      opacity: 0; /* No dim overlay */
       pointer-events: none;
       transition: opacity .15s ease;
     }
-    :host([open]) .overlay { opacity: 1; pointer-events: auto; }
+    :host([open]) .overlay { /* opacity: 1; */ pointer-events: auto; }
 
     .drawer {
       position: fixed;
@@ -86,6 +88,7 @@ export class DrawerElement extends LitElementWithProps {
       border: 1px solid var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.12)));
       transform: translateY(100%);
       transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
+      will-change: transform;
       box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
       padding: 2rem;
       /* Constrain width and center horizontally */
@@ -107,13 +110,13 @@ export class DrawerElement extends LitElementWithProps {
       transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
     }
     /* full-open removed; drawer opens to content height (capped) */
-    .drawer.dragging { transition: none; }
+    .drawer.dragging, .drawer.vv-sync { transition: none; }
     .handle {
       width: 36px;
       height: 4px;
       border-radius: 2px;
       background: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.25)));
-      margin: 1rem auto;
+      margin: 0rem auto 1rem auto;
     }
 
     /* Ensure the body can actually shrink so overflow works inside grid */
@@ -167,9 +170,15 @@ export class DrawerElement extends LitElementWithProps {
     @media (max-width: 640px) {
       .drawer {
         padding: 0.5rem;
+        /* Round all corners on mobile */
         border-radius: 2rem;
-        /* Nudge drawer upward slightly on mobile */
-        --w3a-drawer__open-offset: 1rem;
+        border-bottom-left-radius: 2rem;
+        border-bottom-right-radius: 2rem;
+        /* Lift the drawer slightly so bottom radii are visible */
+        --w3a-drawer__bottom-gap: max(env(safe-area-inset-bottom), 12px);
+        bottom: var(--w3a-drawer__bottom-gap);
+        /* Compensate so the top still sits flush with the address bar */
+        --w3a-drawer__open-offset: calc(-1 * var(--w3a-drawer__bottom-gap));
       }
       .handle {
         margin: 1rem auto;
@@ -199,6 +208,7 @@ export class DrawerElement extends LitElementWithProps {
 
   connectedCallback() {
     super.connectedCallback();
+    this.attachViewportSync();
   }
 
   disconnectedCallback() {
@@ -206,6 +216,8 @@ export class DrawerElement extends LitElementWithProps {
     this.removeDragListeners();
     try { this.aboveFoldResizeObserver?.disconnect(); } catch {}
     try { this.drawerResizeObserver?.disconnect(); } catch {}
+    if (this.detachViewportSync) { try { this.detachViewportSync(); } catch {} this.detachViewportSync = undefined; }
+    if (this.vvSyncTimeout != null) { try { clearTimeout(this.vvSyncTimeout); } catch {} this.vvSyncTimeout = null; }
   }
 
   // Ensure visual state resets immediately when `open` attribute flips
@@ -361,6 +373,37 @@ export class DrawerElement extends LitElementWithProps {
       document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
       document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
     }, 0);
+  }
+
+  private attachViewportSync() {
+    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    if (!drawerElement) return;
+    const vv: any = (typeof window !== 'undefined') ? (window as any).visualViewport : undefined;
+    const schedule = () => this.suppressTransitionForViewportTick();
+
+    try { window.addEventListener('resize', schedule, { passive: true } as AddEventListenerOptions); } catch {}
+    try { window.addEventListener('orientationchange', schedule, { passive: true } as AddEventListenerOptions); } catch {}
+    try { vv && vv.addEventListener && vv.addEventListener('resize', schedule); } catch {}
+    try { vv && vv.addEventListener && vv.addEventListener('scroll', schedule); } catch {}
+
+    this.detachViewportSync = () => {
+      try { window.removeEventListener('resize', schedule as EventListener); } catch {}
+      try { window.removeEventListener('orientationchange', schedule as EventListener); } catch {}
+      try { vv && vv.removeEventListener && vv.removeEventListener('resize', schedule as EventListener); } catch {}
+      try { vv && vv.removeEventListener && vv.removeEventListener('scroll', schedule as EventListener); } catch {}
+    };
+  }
+
+  private suppressTransitionForViewportTick() {
+    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    if (!drawerElement) return;
+    // Avoid fighting with active drag state; dragging already disables transitions
+    if (!this.isDragging) drawerElement.classList.add('vv-sync');
+    if (this.vvSyncTimeout != null) { try { clearTimeout(this.vvSyncTimeout); } catch {} }
+    this.vvSyncTimeout = setTimeout(() => {
+      this.vvSyncTimeout = null as any;
+      try { drawerElement.classList.remove('vv-sync'); } catch {}
+    }, 120) as unknown as number;
   }
 
   private removeDragListeners() {

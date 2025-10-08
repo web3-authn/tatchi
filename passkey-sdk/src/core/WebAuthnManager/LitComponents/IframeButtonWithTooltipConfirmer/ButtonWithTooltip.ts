@@ -665,8 +665,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
     });
   }
 
-  // Consolidated: use shared utilParsePx from iframe-geometry for all px parsing.
-
   // ==============================
   // Tooltip Visibility & Pointer Handling
   // ==============================

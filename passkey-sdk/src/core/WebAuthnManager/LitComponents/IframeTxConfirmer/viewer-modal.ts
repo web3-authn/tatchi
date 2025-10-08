@@ -151,7 +151,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       z-index: 2147483647;
       background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
       backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(0px));
-      animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in);
+      /* animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in); */
+      opacity: 0; /* No dim overlay */
       will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }
 
@@ -187,7 +188,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       padding: var(--w3a-modal__modal-container-root__padding, 0.75rem);
       height: var(--w3a-modal__modal-container-root__height, auto);
       overflow: var(--w3a-modal__modal-container-root__overflow, hidden);
-      box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 16px 48px rgba(0, 0, 0, 0.35));
+      box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 20px 60px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.4));
       background: var(--w3a-modal__modal-container-root__background, var(--w3a-colors-colorBackground, #111));
       backdrop-filter: blur(4px);
       animation: fadeIn 32ms ease-in;
