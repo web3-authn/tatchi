@@ -88,6 +88,11 @@
   --fe-med: 400ms;
 }
 
+/* Keep layout stable and avoid phantom horizontal gutters */
+html {
+  scrollbar-gutter: stable both-edges;
+}
+
 /* Respect user text-size preferences; do not disable scaling */
 html {
   -webkit-text-size-adjust: 100%;
@@ -173,11 +178,6 @@ html, body, #root, .app-theme-scope {
   min-height: 100dvh;
 }
 
-/* Prevent accidental horizontal scroll while allowing overlays to position correctly */
-html, body, .app-theme-scope, main {
-  overflow-x: hidden;
-}
-
 /* Mirror themed background to <body> to handle overscroll bounce */
 body[data-w3a-theme="light"] {
   background-color: #fafafa;
@@ -224,13 +224,21 @@ h4 {
 #root {
   max-width: 1280px;
   margin: 0 auto;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 main {
   display: flex;
-  flex-direction: row;
+  flex-direction: column; /* avoid row overflow under zoom */
   justify-content: center;
   align-items: center;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  /* Clip excess content while not affecting fixed navbar */
+  overflow-x: clip;
 }
 
 /* Homepage Content Layout */

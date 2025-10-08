@@ -76,6 +76,7 @@
     "dev": "rolldown -c rolldown.config.ts -w",
     "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test",
     "test:inline": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
+    "test:e2e": "playwright test src/__tests__/e2e",
     "test:unit": "playwright test src/__tests__/unit",
     "test:wallet-iframe": "playwright test src/__tests__/wallet-iframe",
     "test:lit-components": "playwright test src/__tests__/lit-components",

@@ -6,6 +6,7 @@
     "build:sdk": "pnpm -C passkey-sdk build",
     "test": "pnpm -C passkey-sdk test",
     "test:inline": "pnpm -C passkey-sdk test:inline",
+    "test:e2e": "pnpm -C passkey-sdk test:e2e",
     "test:unit": "pnpm -C passkey-sdk test:unit",
     "test:wallet-iframe": "pnpm -C passkey-sdk test:wallet-iframe",
     "test:lit-components": "pnpm -C passkey-sdk test:lit-components",

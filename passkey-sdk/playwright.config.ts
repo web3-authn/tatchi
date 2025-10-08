@@ -18,6 +18,10 @@ export default defineConfig({
   fullyParallel: false,
   retries: 0,
   workers: 1, // Reduced to 1 to prevent parallel faucet requests and rate limiting
+  // Increase default per-test timeout (Playwright default is 30s). Some
+  // end-to-end flows (registration/login/action) can legitimately exceed 30s
+  // under CI or when relay/network is slow.
+  timeout: 90_000,
   reporter: 'html',
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
