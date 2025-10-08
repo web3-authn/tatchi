@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { web3authnDev } from '@web3authn/passkey/vite'
+import { tatchiDev } from '@tatchi/sdk/plugins/vite'
 
 /**
  * NOTE ABOUT ENV ACCESS IN VITE
@@ -24,7 +24,7 @@ export default defineConfig({
   plugins: [
     react(),
     // Serve SDK assets and set dev headers (COEP/COOP) for wallet iframe
-    web3authnDev({ mode: 'self-contained' }),
+    tatchiDev({ mode: 'self-contained' }),
   ],
   define: {
     // Shim minimal globals some legacy/browserified deps expect

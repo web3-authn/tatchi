@@ -1,6 +1,6 @@
 import express, { Express } from 'express';
-import { AuthService } from '@web3authn/passkey/server';
-import { createRelayRouter } from '@web3authn/passkey/server/router/express';
+import { AuthService } from '@tatchi/sdk/server';
+import { createRelayRouter } from '@tatchi/sdk/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();
@@ -18,7 +18,7 @@ const authService = new AuthService({
   // you can make it the same account as the webauthn contract id.
   relayerAccountId: process.env.RELAYER_ACCOUNT_ID!,
   relayerPrivateKey: process.env.RELAYER_PRIVATE_KEY!,
-  webAuthnContractId: process.env.WEBAUTHN_CONTRACT_ID || 'web3-authn-v5.testnet',
+  webAuthnContractId: process.env.WEBAUTHN_CONTRACT_ID || 'w3a-v1.testnet',
   // Prefer env override; default to FastNEAR which is often more reliable for tests
   nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
   networkId: 'testnet',

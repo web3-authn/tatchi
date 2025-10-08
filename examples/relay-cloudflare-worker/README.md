@@ -21,7 +21,7 @@ extra requirements and limitations compared to the Express example.
 ## WASM bundling
 
 - The signer worker WASM is imported directly from the package sources
-  (`import signerWasm from '@web3authn/passkey/src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm'`).
+  (`import signerWasm from '@tatchi/core/wasm'`).
   Wrangler bundles the referenced file automatically; no `[wasm_modules]`
   section is required in `wrangler.toml`.
 - Do **not** try to `fetch` the WASM from an arbitrary URL at runtime. Workers

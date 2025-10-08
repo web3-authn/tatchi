@@ -9,7 +9,7 @@ import {
   DeviceLinkingStatus,
   ThemeScope,
   useTheme,
-} from '@web3authn/passkey/react';
+} from '@tatchi/sdk/react';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
@@ -47,6 +47,9 @@ export const Navbar: React.FC = () => {
         </Link>
         <Link to="/multitx">
           Demos
+        </Link>
+        <Link to="/docs">
+          Docs
         </Link>
       </div>
 

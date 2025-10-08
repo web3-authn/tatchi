@@ -11,6 +11,6 @@
     "wrangler": "^4.40.2"
   },
   "dependencies": {
-    "@web3authn/passkey": "workspace:*"
+    "@tatchi/sdk": "workspace:*"
   }
 }

@@ -1,0 +1,23 @@
+# Quickstart
+
+Basic initialization example:
+
+```ts
+import { PasskeyManager } from '@tatchi/core'
+
+const manager = new PasskeyManager({
+  // minimal config for local development
+})
+
+async function signIn() {
+  const res = await manager.login()
+  console.log('signed in as', res?.accountId)
+}
+
+signIn()
+```
+
+Next steps
+
+- Explore [Passkeys](/docs/guides/passkeys)
+- Try [Secure Tx Confirmation](/docs/guides/tx-confirmation)

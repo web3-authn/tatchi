@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Shamir3PassUtils } from '@web3authn/passkey/server';
+import { Shamir3PassUtils } from '@tatchi/sdk/server';
 
 async function main() {
   const utils = new Shamir3PassUtils({});
@@ -19,4 +19,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-

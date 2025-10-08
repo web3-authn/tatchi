@@ -7,7 +7,7 @@ import {
   AuthMenuMode,
   DeviceLinkingPhase,
   DeviceLinkingStatus
-} from '@web3authn/passkey/react'
+} from '@tatchi/sdk/react'
 import toast from 'react-hot-toast'
 
 import {
@@ -15,7 +15,7 @@ import {
   AccountRecoveryPhase,
   AccountRecoveryStatus,
   type DeviceLinkingSSEEvent
-} from '@web3authn/passkey/react'
+} from '@tatchi/sdk/react'
 import './PasskeyLoginMenu.css'
 
 function friendlyWebAuthnMessage(err: any): string {

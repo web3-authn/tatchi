@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { web3authnDev, web3authnBuildHeaders } from '@web3authn/passkey/vite'
+import mdx from '@mdx-js/rollup'
+import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
 
 /**
  * Do NOT use optional chaining or dynamic access such as `import.meta?.env`
@@ -23,15 +24,16 @@ export default defineConfig(({ mode }) => {
         allow: [
           '..',
           '../..',
-          '../../passkey-sdk/dist'
+          '../../sdk/dist'
           // serve SDK dist directly from workspace
         ]
       },
     },
     plugins: [
+      mdx(),
       react(),
       // Web3Authn dev integration: serves SDK, wallet service route, WASM MIME, and sets dev headers
-      web3authnDev({
+      tatchiDev({
         mode: 'self-contained',
         enableDebugRoutes: true,
         // Read SDK base path so dev mirrors production asset layout
@@ -43,7 +45,7 @@ export default defineConfig(({ mode }) => {
       // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and
       // a Permissions-Policy delegating WebAuthn to the wallet origin.
       // If your CI already writes a _headers file, this plugin will no-op.
-      web3authnBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
+      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
     ],
     define: {
       // Shim minimal globals some legacy/browserified deps expect

@@ -9,7 +9,7 @@ import {
   DeviceLinkingStatus,
   ThemeScope,
   useTheme,
-} from '@web3authn/passkey/react';
+} from '@tatchi/sdk/react';
 
 export const Navbar: React.FC = () => {
   const { loginState, passkeyManager } = usePasskeyContext();

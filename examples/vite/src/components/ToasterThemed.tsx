@@ -1,6 +1,6 @@
 import React from 'react';
 import { Toaster } from 'react-hot-toast';
-import { useTheme } from '@web3authn/passkey/react';
+import { useTheme } from '@tatchi/sdk/react';
 
 export const ToasterThemed: React.FC = () => {
   const { tokens, isDark } = useTheme();

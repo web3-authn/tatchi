@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
-import { useNearClient } from '@web3authn/passkey/react';
+import { useNearClient } from '@tatchi/sdk/react';
 
 export interface GreetingResult {
   success: boolean;

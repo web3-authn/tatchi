@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import dotenv from 'dotenv';
 dotenv.config();
-import { Shamir3PassUtils } from '@web3authn/passkey/server';
+import { Shamir3PassUtils } from '@tatchi/sdk/server';
 
 async function main() {
 
@@ -23,4 +23,3 @@ main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
-

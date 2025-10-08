@@ -11,8 +11,9 @@
     "preview": "vite preview --host --port 5174"
   },
   "dependencies": {
+    "@mdx-js/react": "^3.0.1",
     "@tanstack/react-query": "^5.76.1",
-    "@web3authn/passkey": "workspace:*",
+    "@tatchi/sdk": "workspace:*",
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",
@@ -23,6 +24,7 @@
     "react-router-dom": "^7.6.1"
   },
   "devDependencies": {
+    "@mdx-js/rollup": "^3.0.1",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",

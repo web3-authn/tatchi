@@ -6,8 +6,8 @@ import {
   ActionType,
   TxExecutionStatus,
   usePasskeyContext,
-} from '@web3authn/passkey/react';
-import type { ActionArgs } from '@web3authn/passkey/react';
+} from '@tatchi/sdk/react';
+import type { ActionArgs } from '@tatchi/sdk/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import toast from 'react-hot-toast';
 import './MultiTxConfirmPage.css';
@@ -28,18 +28,18 @@ export const MultiTxConfirmPage: React.FC = () => {
   } = usePasskeyContext();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Multi Tx Confirm!');
-  const [transferRecipient, setTransferRecipient] = useState('web3-authn-v5.testnet');
+  const [transferRecipient, setTransferRecipient] = useState('w3a-v1.testnet');
   const [transferAmount, setTransferAmount] = useState('0.001');
   const [stakeAmount, setStakeAmount] = useState('0.1');
   const [publicKey, setPublicKey] = useState('ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd');
-  const [beneficiaryId, setBeneficiaryId] = useState('web3-authn-v5.testnet');
+  const [beneficiaryId, setBeneficiaryId] = useState('w3a-v1.testnet');
   const [isExecuting, setIsExecuting] = useState(false);
 
   // Batch transfer state
   const [batchTransferAmount, setBatchTransferAmount] = useState('0.001');
   const [isBatchSigning, setIsBatchSigning] = useState(false);
 
-  
+
 
   // Helper function to convert NEAR to yoctoNEAR
   const nearToYocto = (nearAmount: string): string => {

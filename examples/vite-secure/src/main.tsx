@@ -2,11 +2,17 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@web3authn/passkey/react';
-import '@web3authn/passkey/react/styles';
+import {
+  PasskeyProvider,
+  ThemeProvider,
+  ThemeScope,
+  useTheme
+} from '@tatchi/sdk/react';
+import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
+import { DocsPage } from './pages/DocsPage';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
@@ -55,6 +61,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/multitx" element={<MultiTxConfirmPage/>} />
+              <Route path="/docs/*" element={<DocsPage/>} />
             </Routes>
             <ToasterThemed />
           </ThemeScope>

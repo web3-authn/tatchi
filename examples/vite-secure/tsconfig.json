@@ -10,6 +10,5 @@
     "skipLibCheck": true,
     "types": ["vite/client"]
   },
-  "include": ["**/*.ts", "**/*.tsx", "vite-env.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts", "vite-env.d.ts"]
 }
-

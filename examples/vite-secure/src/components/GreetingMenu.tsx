@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-import { ActionPhase, usePasskeyContext } from '@web3authn/passkey/react';
-import type { FunctionCallAction, TransferAction } from '@web3authn/passkey/react';
-import { ActionType, TxExecutionStatus } from '@web3authn/passkey/react';
+import { ActionPhase, usePasskeyContext } from '@tatchi/sdk/react';
+import type { FunctionCallAction, TransferAction } from '@tatchi/sdk/react';
+import { ActionType, TxExecutionStatus } from '@tatchi/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
 import type { LastTxDetails } from '../types';
@@ -30,7 +30,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
   const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
 
   // NEAR transfer state
-  const [transferRecipient, setTransferRecipient] = useState('web3-authn-v5.testnet');
+  const [transferRecipient, setTransferRecipient] = useState('w3a-v1.testnet');
   const [transferAmount, setTransferAmount] = useState('');
 
   const {
@@ -183,7 +183,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
         afterCall: (success: boolean, result?: any) => {
           if (success) {
             // Reset transfer inputs on successful transaction
-            setTransferRecipient("web3-authn-v5.testnet");
+            setTransferRecipient("w3a-v1.testnet");
             setTransferAmount("");
           }
 

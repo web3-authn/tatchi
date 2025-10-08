@@ -5,8 +5,8 @@ import {
   TouchIdWithText,
   TxExecutionStatus,
   usePasskeyContext,
-} from '@web3authn/passkey/react';
-import type { ActionArgs } from '@web3authn/passkey/react';
+} from '@tatchi/sdk/react';
+import type { ActionArgs } from '@tatchi/sdk/react';
 import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import { GlassBorder } from './GlassBorder';

@@ -2,8 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@web3authn/passkey/react';
-import '@web3authn/passkey/react/styles';
+import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@tatchi/sdk/react';
+import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';

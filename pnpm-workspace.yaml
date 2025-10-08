@@ -1,6 +1,7 @@
 packages:
-  - passkey-sdk
+  - sdk
   - examples/relay-server
   - examples/vite
   - examples/vite-secure
   - examples/relay-cloudflare-worker
+  - packages/*

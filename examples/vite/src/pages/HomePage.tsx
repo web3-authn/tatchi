@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePasskeyContext, useTheme } from '@web3authn/passkey/react';
+import { usePasskeyContext, useTheme } from '@tatchi/sdk/react';
 
 import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
 import { GreetingMenu } from '../components/GreetingMenu';

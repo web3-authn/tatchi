@@ -1,5 +1,5 @@
 {
-  "name": "@web3authn/passkey",
+  "name": "@tatchi",
   "version": "0.1.0",
   "type": "module",
   "description": "An embedded passkey wallet SDK built on NEAR protocol",
@@ -12,7 +12,12 @@
       "require": "./dist/cjs/index.js",
       "types": "./dist/types/src/index.d.ts"
     },
-    "./vite": {
+    "./core": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/src/index.d.ts"
+    },
+    "./plugins/vite": {
       "import": "./dist/esm/plugins/vite.js",
       "require": "./dist/cjs/plugins/vite.js",
       "types": "./dist/types/src/plugins/vite.d.ts"
@@ -48,6 +53,11 @@
       "types": "./dist/types/src/react/index.d.ts"
     },
     "./react/styles": "./dist/esm/react/styles/styles.css",
+    "./WalletIframe/client/html": {
+      "import": "./dist/esm/core/WalletIframe/client/html.js",
+      "require": "./dist/cjs/core/WalletIframe/client/html.js",
+      "types": "./dist/types/src/core/WalletIframe/client/html.d.ts"
+    },
     "./worker": "./dist/web3authn-signer.worker.js",
     "./wasm": "./dist/wasm_signer_worker_bg.wasm",
     "./wasm-js": "./dist/wasm_signer_worker.js",
