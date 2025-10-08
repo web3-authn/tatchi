@@ -20,8 +20,8 @@ import { ThemeProvider, ThemeScope, useTheme } from '../theme';
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@web3authn/passkey/react';
- * import { ProfileSettingsButton } from '@web3authn/passkey/react';
+ * import { PasskeyProvider } from '@tatchi/sdk/react';
+ * import { ProfileSettingsButton } from '@tatchi/sdk/react';
  *
  * function App() {
  *   return (

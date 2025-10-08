@@ -19,8 +19,8 @@ import { QRScanMode } from '@/react/hooks/useQRCamera';
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@web3authn/passkey/react';
- * import { useDeviceLinking } from '@web3authn/passkey/react';
+ * import { PasskeyProvider } from '@tatchi/sdk/react';
+ * import { useDeviceLinking } from '@tatchi/sdk/react';
  *
  * function DeviceLinker() {
  *   const { linkDevice } = useDeviceLinking({

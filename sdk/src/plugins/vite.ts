@@ -54,16 +54,18 @@ function normalizeBase(p?: string, fallback = '/sdk'): string {
 
 function resolveSdkDistRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit)
+  // Resolve the installed package (works with workspace + node_modules)
+  const pkgPath = requireCjs.resolve('@tatchi/sdk/package.json')
+  const pkgDir = path.dirname(pkgPath)
   try {
-    // Resolve the installed package (works with workspace + node_modules)
-    const pkgPath = requireCjs.resolve('@web3authn/passkey/package.json')
-    const pkgDir = path.dirname(pkgPath)
-    const dist = path.join(pkgDir, 'dist')
-    return dist
-  } catch (err) {
-    // Fallback: try relative monorepo path common in this repo
-    const guess = path.resolve(process.cwd(), '../../passkey-sdk/dist')
-    return guess
+    const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { module?: string }
+    const esmEntry = pkgJson.module || 'dist/esm/index.js'
+    const esmAbs = path.resolve(pkgDir, esmEntry)
+    // dist root is one level above the esm folder
+    return path.resolve(path.dirname(esmAbs), '..')
+  } catch {
+    // Best effort: assume conventional dist layout
+    return path.join(pkgDir, 'dist')
   }
 }
 
@@ -103,7 +105,7 @@ function tryFile(...candidates: string[]): string | undefined {
   return undefined
 }
 
-export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
+export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
@@ -114,7 +116,7 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     .sort((a, b) => b.length - a.length)
 
   return {
-    name: 'web3authn:serve-sdk',
+    name: 'tatchi:serve-sdk',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
@@ -165,7 +167,7 @@ export function web3authnServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   }
 }
 
-export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlugin {
+export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin {
   const walletServicePath = normalizeBase(opts.walletServicePath, '/wallet-service')
   const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
 
@@ -190,7 +192,7 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
 </html>`
 
   return {
-    name: 'web3authn:wallet-service',
+    name: 'tatchi:wallet-service',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
@@ -217,9 +219,9 @@ export function web3authnWalletService(opts: WalletServiceOptions = {}): VitePlu
   }
 }
 
-export function web3authnWasmMime(): VitePlugin {
+export function tatchiWasmMime(): VitePlugin {
   return {
-    name: 'web3authn:wasm-mime',
+    name: 'tatchi:wasm-mime',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
@@ -235,7 +237,7 @@ export function web3authnWasmMime(): VitePlugin {
   }
 }
 
-export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
+export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -258,7 +260,7 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
     .filter((s) => s.length > 0)
 
   return {
-    name: 'web3authn:dev-headers',
+    name: 'tatchi:dev-headers',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
@@ -302,7 +304,7 @@ export function web3authnDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   }
 }
 
-export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
+export function tatchiDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
   const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -312,13 +314,13 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
 
   // Build the sub-plugins to keep logic small and testable
-  const sdkPlugin = web3authnServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
-  const walletPlugin = web3authnWalletService({ walletServicePath, sdkBasePath })
-  const wasmMimePlugin = web3authnWasmMime()
-  const headersPlugin = setDevHeaders ? web3authnDevHeaders({ walletOrigin, walletServicePath, sdkBasePath }) : undefined
+  const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
+  const walletPlugin = tatchiWalletService({ walletServicePath, sdkBasePath })
+  const wasmMimePlugin = tatchiWasmMime()
+  const headersPlugin = setDevHeaders ? tatchiDevHeaders({ walletOrigin, walletServicePath, sdkBasePath }) : undefined
 
   return {
-    name: 'web3authn:dev',
+    name: 'tatchi:dev',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
@@ -336,13 +338,13 @@ export function web3authnDev(options: Web3AuthnDevOptions = {}): VitePlugin {
 }
 
 // Named exports for advanced composition
-export default web3authnDev
+export default tatchiDev
 
 // === Build-time helper: emit Cloudflare Pages/Netlify _headers ===
 // This plugin writes a _headers file into Vite's outDir with COOP/COEP and a
 // Permissions-Policy delegating WebAuthn to the configured wallet origin.
 // It is a no-op if a _headers file already exists (to avoid overriding app settings).
-export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): VitePlugin {
+export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -359,7 +361,7 @@ export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): Vit
 
   // We intentionally return a broader shape than VitePlugin; cast at the end
   const plugin = {
-    name: 'web3authn:build-headers',
+    name: 'tatchi:build-headers',
     apply: 'build' as const,
     enforce: 'post' as const,
     // Capture the resolved outDir
@@ -371,15 +373,15 @@ export function web3authnBuildHeaders(opts: { walletOrigin?: string } = {}): Vit
         const hdrPath = path.join(outDir, '_headers')
         if (fs.existsSync(hdrPath)) {
           // Do not override existing headers; leave a note in build logs
-          console.warn('[web3authn] _headers already exists in outDir; skipping auto-emission')
+          console.warn('[tatchi] _headers already exists in outDir; skipping auto-emission')
           return
         }
         const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Cross-Origin-Resource-Policy: cross-origin\n  Permissions-Policy: ${permissionsPolicy}\n\n${walletServicePath}\n  Cross-Origin-Opener-Policy: unsafe-none\n${walletServicePath}/\n  Cross-Origin-Opener-Policy: unsafe-none\n`
         fs.mkdirSync(outDir, { recursive: true })
         fs.writeFileSync(hdrPath, content, 'utf-8')
-        console.log('[web3authn] emitted _headers with COOP/COEP + Permissions-Policy')
+        console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy')
       } catch (e) {
-        console.warn('[web3authn] failed to emit _headers:', e)
+        console.warn('[tatchi] failed to emit _headers:', e)
       }
     },
   }

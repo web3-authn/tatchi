@@ -24,7 +24,7 @@ export type { TxTreeStyles } from './tx-tree-themes';
  *   children: [
  *     {
  *       id: 'tx-0',
- *       label: 'Transaction 1 to web3-authn-v5.testnet',
+ *       label: 'Transaction 1 to w3a-v1.testnet',
  *       type: 'folder',
  *       open: true,
  *       children: [

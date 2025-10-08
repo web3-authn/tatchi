@@ -86,7 +86,7 @@ HTML (plain Web Component):
 React (via @lit/react wrappers):
 
 ```tsx
-import { LitHaloBorder, LitPasskeyHaloLoading } from '@web3authn/passkey/src/react';
+import { LitHaloBorder, LitPasskeyHaloLoading } from '@tatchi/sdk/react';
 
 <LitHaloBorder
   animated

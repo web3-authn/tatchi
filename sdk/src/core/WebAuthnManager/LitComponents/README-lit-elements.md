@@ -100,10 +100,10 @@ When renaming Lit component files, several files must be updated to maintain con
 ### 2. Dev Asset Serving
 
 Use the Vite dev plugin to serve SDK assets at `/sdk/*` directly from the SDK `dist/` directory (no manual copy):
-- Plugin: `@web3authn/passkey/vite`
+- Plugin: `@tatchi/sdk/plugins/vite`
 - Example usage (in `vite.config.ts`):
   ```ts
-  import { web3authnDev } from '@web3authn/passkey/vite'
+  import { tatchiDev } from '@tatchi/sdk/plugins/vite'
   export default defineConfig({
     plugins: [
       web3authnDev({ mode: 'self-contained', setDevHeaders: false }),

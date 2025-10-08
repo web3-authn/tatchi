@@ -8,9 +8,7 @@ export { verifyAuthenticationResponse } from './core/PasskeyManager/login';
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from './core/defaultConfigs';
-export {
-  buildConfigsFromEnv,
-} from './core/defaultConfigs';
+export { buildConfigsFromEnv } from './core/defaultConfigs';
 
 ///////////////////////////////////////////////////////////////
 // === Types re-exported from various type definition files ===
@@ -90,18 +88,3 @@ export type {
   ConfirmationBehavior,
 } from './core/types/signer-worker';
 
-// === SERVER PACKAGE ===
-// Core NEAR Account Service for server-side operations
-export {
-  AuthService,
-  validateConfigs,
-} from './server';
-
-export type {
-  AuthServiceConfig,
-  AccountCreationRequest,
-  AccountCreationResult,
-  CreateAccountAndRegisterRequest,
-  CreateAccountAndRegisterResult,
-  ContractVrfData,
-} from './server';

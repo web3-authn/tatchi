@@ -19,8 +19,8 @@ import { ThemeScope } from './theme';
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@web3authn/passkey/react';
- * import { QRCodeScanner } from '@web3authn/passkey/react';
+ * import { PasskeyProvider } from '@tatchi/sdk/react';
+ * import { QRCodeScanner } from '@tatchi/sdk/react';
  *
  * function App() {
  *   return (

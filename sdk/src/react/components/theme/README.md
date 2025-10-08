@@ -11,7 +11,7 @@ A single theme module powers the UI using a scoped token → CSS variable system
 Import from the barrel for clarity:
 
 ```
-import { ThemeProvider, ThemeScope, useTheme } from '@web3authn/passkey/react/dist/react/components/theme';
+import { ThemeProvider, ThemeScope, useTheme } from '@tatchi/sdk/react';
 // or within this repo: from '../theme'
 ```
 
