@@ -14,7 +14,7 @@ export const ToasterThemed: React.FC = () => {
           background: tokens.colors.surface3,
           color: tokens.colors.textPrimary,
           // Thicker, semi‑transparent base border
-          border: `3px solid color-mix(in srgb, ${tokens.colors.borderPrimary} 35%, transparent)`,
+          border: `2px solid color-mix(in srgb, ${tokens.colors.borderPrimary} 35%, transparent)`,
           boxShadow: tokens.shadows.sm,
           borderRadius: '12px',
           // Make long messages behave nicely
@@ -27,12 +27,12 @@ export const ToasterThemed: React.FC = () => {
         loading: {
           style: {
             background: tokens.colors.surface3,
-            border: `3px solid color-mix(in srgb, ${tokens.colors.textSecondary} 35%, transparent)`,
+            border: `2px solid color-mix(in srgb, ${tokens.colors.textSecondary} 35%, transparent)`,
           },
         },
         success: {
           style: {
-            border: `3px solid color-mix(in srgb, ${tokens.colors.success} 35%, transparent)`,
+            border: `2px solid color-mix(in srgb, ${tokens.colors.success} 35%, transparent)`,
           },
           iconTheme: {
             primary: tokens.colors.success,
@@ -41,7 +41,7 @@ export const ToasterThemed: React.FC = () => {
         },
         error: {
           style: {
-            border: `3px solid color-mix(in srgb, ${tokens.colors.error} 35%, transparent)`,
+            border: `2px solid color-mix(in srgb, ${tokens.colors.error} 35%, transparent)`,
           },
           iconTheme: {
             primary: tokens.colors.error,

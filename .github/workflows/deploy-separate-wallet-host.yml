@@ -31,6 +31,11 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: '1.1.34'
+
       - name: Install dependencies (workspace)
         run: pnpm install --no-frozen-lockfile
 
@@ -65,8 +70,12 @@ jobs:
 
       - name: Copy SDK assets into Pages output
         run: |
-          mkdir -p examples/wallet-scoped-credentials/dist/sdk
+          mkdir -p examples/wallet-scoped-credentials/dist/sdk examples/wallet-scoped-credentials/dist/sdk/workers
           rsync -av --delete sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
+          # Include web workers + colocated WASM binaries expected at /sdk/workers
+          if [ -d sdk/dist/workers ]; then
+            rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
+          fi
 
       - name: Deploy to Cloudflare Pages (wallet host)
         uses: cloudflare/pages-action@v1
