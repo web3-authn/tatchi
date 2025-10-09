@@ -89,10 +89,6 @@ export function ShowQRCode({
 
   return (
     <div className="qr-code-container" onClick={(e) => e.stopPropagation()}>
-      <div className="qr-header">
-        <h2 className="qr-title">Scan and Link Device</h2>
-      </div>
-
       <div className="qr-body">
         {deviceLinkingState.mode === 'device2' && (
           <div className="qr-code-section">
@@ -109,15 +105,18 @@ export function ShowQRCode({
                 <p>Generating QR code...</p>
               </div>
             )}
-            {deviceLinkingState.qrCodeDataURL && (
+            <div className="qr-header">
+              <h2 className="qr-title">Scan and Link Device</h2>
+            </div>
+            {deviceLinkingState.qrCodeDataURL &&
               <>
                 <div className="qr-instruction">Scan to backup your other device.</div>
                 <div className="qr-status">
-                  {deviceLinkingState.lastMessage || 'Waiting for your other device to scan'}
+                  {deviceLinkingState.lastMessage || 'Waiting for device to scan'}
                   <span className="animated-ellipsis"></span>
                 </div>
               </>
-            )}
+            }
           </div>
         )}
       </div>

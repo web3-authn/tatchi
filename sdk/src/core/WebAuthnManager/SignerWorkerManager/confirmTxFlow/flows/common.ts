@@ -280,7 +280,7 @@ export async function renderConfirmUI({
         return { confirmed: true, confirmHandle: handle };
       } else {
         try { console.debug('[RenderConfirmUI] drawer + requireClick'); } catch {}
-        const { confirmed, handle } = await awaitConfirmUIDecision({
+        const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -292,7 +292,7 @@ export async function renderConfirmUI({
           nearAccountIdOverride: nearAccountIdForUi,
         });
         try { console.debug('[RenderConfirmUI] drawer decision', { confirmed }); } catch {}
-        return { confirmed, confirmHandle: handle };
+        return { confirmed, confirmHandle: handle, error };
       }
     }
     case 'modal': {
@@ -315,7 +315,7 @@ export async function renderConfirmUI({
         return { confirmed: true, confirmHandle: handle };
       } else {
         try { console.debug('[RenderConfirmUI] modal + requireClick'); } catch {}
-        const { confirmed, handle } = await awaitConfirmUIDecision({
+        const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
           txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
@@ -327,7 +327,7 @@ export async function renderConfirmUI({
           nearAccountIdOverride: nearAccountIdForUi,
         });
         try { console.debug('[RenderConfirmUI] modal decision', { confirmed }); } catch {}
-        return { confirmed, confirmHandle: handle };
+        return { confirmed, confirmHandle: handle, error };
       }
     }
     default: {

@@ -36,7 +36,7 @@
   line-height: 0;
   border-radius: 50%;
   color: var(--w3a-colors-textPrimary);
-  background: var(--w3a-colors-surface);
+  background: transparent;
   cursor: pointer;
   border: none;
   z-index: 3;
@@ -52,6 +52,7 @@
 }
 .w3a-back-button:hover {
   transform: scale(1.02);
+  background: var(--w3a-colors-surface);
 }
 .w3a-back-button:active {
   transform: scale(0.96);
@@ -462,6 +463,11 @@
     min-height: 42px;
     padding: 0 12px;
     font-size: clamp(12px, 3.4vw, 14px);
+  }
+
+  .w3a-back-button {
+    top: -0.5rem;
+    left: -0.5rem;
   }
 }
 

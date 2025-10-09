@@ -81,7 +81,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare deferClose: boolean;
 
   private readonly childRef: Ref<TxConfirmerVariantElement> = createRef();
-  private reEmittingConfirm = false;
+  private redispatchingEvent = false;
   private currentChild: TxConfirmerVariantElement | null = null;
   private boundConfirmListener = (event: Event) => { void this.handleChildConfirm(event); };
   private boundCancelListener = (_event: Event) => { this.handleChildCancel(); };
@@ -153,28 +153,26 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   private syncChildProps(): void {
     const child = this.childRef.value;
     if (!child) return;
-    try { child.nearAccountId = this.nearAccountId; } catch {}
-    try { child.txSigningRequests = this.txSigningRequests; } catch {}
-    try { child.vrfChallenge = this.vrfChallenge; } catch {}
-    try { child.theme = this.theme; } catch {}
-    try { child.loading = this.loading; } catch {}
-    try { child.errorMessage = this.errorMessage; } catch {}
-    try { child.title = this.title; } catch {}
-    try { child.confirmText = this.confirmText; } catch {}
-    try { child.cancelText = this.cancelText; } catch {}
-    try { child.deferClose = this.deferClose; } catch {}
+    child.nearAccountId = this.nearAccountId;
+    child.txSigningRequests = this.txSigningRequests;
+    child.vrfChallenge = this.vrfChallenge;
+    child.theme = this.theme;
+    child.loading = this.loading;
+    child.errorMessage = this.errorMessage;
+    child.title = this.title;
+    child.confirmText = this.confirmText;
+    child.cancelText = this.cancelText;
+    child.deferClose = this.deferClose;
     child.requestUpdate?.();
     this.attachChildListeners();
   }
 
   private syncErrorAttribute(): void {
-    try {
-      if (this.errorMessage) {
-        this.setAttribute('data-error-message', this.errorMessage);
-      } else {
-        this.removeAttribute('data-error-message');
-      }
-    } catch {}
+    if (this.errorMessage) {
+      this.setAttribute('data-error-message', this.errorMessage);
+    } else {
+      this.removeAttribute('data-error-message');
+    }
   }
 
   private attachChildListeners(): void {
@@ -183,15 +181,15 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     if (this.currentChild) {
       this.detachChildListeners();
     }
-    try { child.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, this.boundConfirmListener as EventListener); } catch {}
-    try { child.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, this.boundCancelListener as EventListener); } catch {}
+    child.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, this.boundConfirmListener as EventListener);
+    child.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, this.boundCancelListener as EventListener);
     this.currentChild = child;
   }
 
   private detachChildListeners(): void {
     if (!this.currentChild) return;
-    try { this.currentChild.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, this.boundConfirmListener as EventListener); } catch {}
-    try { this.currentChild.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, this.boundCancelListener as EventListener); } catch {}
+    this.currentChild.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, this.boundConfirmListener as EventListener);
+    this.currentChild.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, this.boundCancelListener as EventListener);
     this.currentChild = null;
   }
 
@@ -208,53 +206,63 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   }
 
   private async handleChildConfirm(event: Event): Promise<void> {
-    if (this.reEmittingConfirm) return;
-    event.stopImmediatePropagation();
+    if (this.redispatchingEvent) return;
     const child = this.childRef.value;
     let confirmed = true;
     let error: string | undefined;
 
-    if (this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
-      try {
-        const digest = await this.computeIntentDigest();
-        if (digest !== this.intentDigest) {
-          confirmed = false;
-          error = 'INTENT_DIGEST_MISMATCH';
-        }
-      } catch (err) {
-        confirmed = false;
-        error = 'UI_DIGEST_VALIDATION_FAILED';
-        try { console.warn('[TxConfirmerWrapper] intent digest validation failed', err); } catch {}
-      }
-    }
+    this.redispatchingEvent = true;
+    try {
+      event.stopImmediatePropagation();
 
-    if (confirmed) {
-      if (!this.loading) {
-        this.loading = true;
-        this.syncChildProps();
+      if (this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
+        try {
+          const digest = await this.computeIntentDigest();
+          if (digest !== this.intentDigest) {
+            confirmed = false;
+            error = 'INTENT_DIGEST_MISMATCH';
+          }
+        } catch (err) {
+          confirmed = false;
+          error = 'UI_DIGEST_VALIDATION_FAILED';
+          if (typeof console !== 'undefined' && typeof console.warn === 'function') {
+            console.warn('[TxConfirmerWrapper] intent digest validation failed', err);
+          }
+        }
       }
-    } else {
+
+      if (confirmed) {
+        if (!this.loading) {
+          this.loading = true;
+          this.syncChildProps();
+        }
+        this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
+          detail: { confirmed: true },
+          bubbles: true,
+          composed: true,
+        }));
+        return;
+      }
+
       this.loading = false;
       this.syncChildProps();
       // Close the child element if it exposes a close API; otherwise remove wrapper to avoid stale UI
-      try {
-        if (child?.close) {
-          child.close(false);
-        } else {
-          this.remove();
-        }
-      } catch {}
-    }
+      if (child?.close) {
+        child.close(false);
+      } else {
+        this.remove();
+      }
 
-    try {
-      this.reEmittingConfirm = true;
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
-        detail: { confirmed, error },
+      const detail: { confirmed: false; error?: string } = { confirmed: false };
+      if (typeof error === 'string') detail.error = error;
+
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+        detail,
         bubbles: true,
         composed: true,
       }));
     } finally {
-      this.reEmittingConfirm = false;
+      this.redispatchingEvent = false;
     }
   }
 

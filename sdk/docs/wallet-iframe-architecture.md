@@ -21,7 +21,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
   - Loads a minimal wallet bundle under strict CSP; no third‑party runtime CDNs.
   - Spawns signer + VRF workers; owns IndexedDB for encrypted keys.
   - Implements RPC handlers: on `REQUEST_signTransactionsWithActions` or `REQUEST_registerPasskey` performs WebAuthn and calls local workers; returns only signature/signed txs.
-  - For WebAuthn user activation, coordinates a visible wallet‑origin modal (existing `IframeTxConfirmer`) or the embedded button flow; no new popups.
+  - For WebAuthn user activation, coordinates a visible wallet‑origin custom element (`<w3a-tx-confirmer>`) or the embedded button flow; no new popups.
 
 ## Components & Ownership
 
@@ -37,7 +37,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
   - Optional: NEAR RPC client for nonce/block height/hash (can also accept those from parent; they are not secrets).
 
 - Gesture Capture (wallet origin):
-  - Modal path: existing `IframeTxConfirmer` is made visible briefly to capture click/confirm in the wallet origin, then hidden.
+  - Modal path: the inline `<w3a-tx-confirmer>` element is shown briefly to capture click/confirm in the wallet origin, then hidden.
   - Embedded path: existing `IframeButtonWithTooltipConfirmer` captures a click in its own iframe; WebAuthn runs there.
 
 ## Boot Sequence
@@ -75,7 +75,7 @@ Implementation notes:
 
 - Parent calls `signTransactions()` inside a user gesture handler.
 - Parent forwards `REQUEST_signTransactionsWithActions` to service iframe.
-- WalletIframe brings up a wallet‑origin visible modal (existing `IframeTxConfirmer`) to capture the confirm click.
+- WalletIframe brings up the wallet‑origin `<w3a-tx-confirmer>` element to capture the confirm click.
 - WebAuthn runs inside the wallet origin context and returns PRF/credential only within the wallet process boundary.
 - WalletIframe passes PRF/credential to its local signer worker, signs transactions, and returns only signed txs to the parent.
 - The modal closes; the hidden service iframe remains mounted for future requests.
@@ -157,7 +157,7 @@ Notes:
   - Create wallet service page/bundle with strict CSP.
   - Implement RPC server and handlers for `REQUEST_signTransactionsWithActions`/`REQUEST_registerPasskey`.
   - Spawn signer/VRF workers; wire to `WebAuthnManager` and `IndexedDBManager`.
-  - Integrate existing `IframeTxConfirmer` for confirm UI; close after completion.
+  - Integrate `<w3a-tx-confirmer>` for confirm UI; close after completion.
 
 - Shared
   - Define TS types for RPC envelopes and payloads.

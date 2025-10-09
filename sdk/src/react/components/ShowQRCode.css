@@ -1,4 +1,5 @@
 .qr-code-container {
+  padding-top: 1rem;
 }
 
 /* Modal Header */
@@ -53,6 +54,10 @@
   text-align: center;
 }
 
+.qr-status {
+  margin-bottom: 0.5rem;
+}
+
 .animated-ellipsis {
   display: inline-block;
   width: 1.2em;
@@ -100,6 +105,6 @@
   }
 
   .qr-code-display {
-    padding: var(--w3a-spacing-lg, 1.5rem);
+    padding: 1rem;
   }
 }

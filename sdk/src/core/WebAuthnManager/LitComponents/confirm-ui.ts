@@ -23,38 +23,53 @@ import './IframeTxConfirmer/tx-confirmer-wrapper';
 
 // Small helper to keep a host element's error attribute in sync
 function setErrorAttribute(el: HTMLElement, msg: string): void {
-  try {
-    if (msg) {
-      el.setAttribute('data-error-message', msg);
-    } else {
-      el.removeAttribute('data-error-message');
-    }
-  } catch {}
+  if (msg) {
+    el.setAttribute('data-error-message', msg);
+  } else {
+    el.removeAttribute('data-error-message');
+  }
+}
+
+function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpdate): void {
+  if (!props) return;
+  if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
+  if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
+  if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
+  if (props.theme != null) el.theme = props.theme;
+  if (props.loading != null) el.loading = !!props.loading;
+  if ('errorMessage' in (props as Record<string, unknown>)) {
+    const msg = props.errorMessage ?? '';
+    el.errorMessage = msg;
+    setErrorAttribute(el, msg);
+  }
+  el.requestUpdate?.();
+}
+
+function createHostConfirmHandle(el: HostTxConfirmerElement): ConfirmUIHandle {
+  return {
+    close: (_confirmed: boolean) => { el.remove(); },
+    update: (props: ConfirmUIUpdate) => applyHostElementProps(el, props),
+  };
 }
 
 // ===== Inline confirmer helpers =====
 function cleanupExistingConfirmers(): void {
-  try {
-    // First, prefer clearing the portal container which guarantees singleton behavior
-    const portal = document.getElementById(W3A_CONFIRM_PORTAL_ID);
-    if (portal) {
-      try {
-        const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
-        for (const el of existing) {
-          try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true })); } catch {}
-        }
-        portal.replaceChildren();
-        return;
-      } catch {}
+  const portal = document.getElementById(W3A_CONFIRM_PORTAL_ID);
+  if (portal) {
+    const existing = Array.from(portal.querySelectorAll('*')) as HTMLElement[];
+    for (const el of existing) {
+      el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
     }
-    // Fallback: scan the document for any confirmer elements and remove them
-    const selectors = (CONFIRM_UI_ELEMENT_SELECTORS as readonly string[]);
-    const els = selectors.flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
-    for (const el of els) {
-      try { el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true })); } catch {}
-      try { el.remove(); } catch {}
-    }
-  } catch {}
+    portal.replaceChildren();
+    return;
+  }
+
+  const selectors = CONFIRM_UI_ELEMENT_SELECTORS as readonly string[];
+  const els = selectors.flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
+  for (const el of els) {
+    el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
+    el.remove();
+  }
 }
 
 function ensureConfirmPortal(): HTMLElement {
@@ -63,11 +78,12 @@ function ensureConfirmPortal(): HTMLElement {
     portal = document.createElement('div');
     portal.id = W3A_CONFIRM_PORTAL_ID;
     // Keep the portal inert except for stacking; children handle their own overlay
-    try {
-      portal.style.position = 'relative';
-      portal.style.zIndex = '2147483647';
-    } catch {}
-    document.body.appendChild(portal);
+    portal.style.position = 'relative';
+    portal.style.zIndex = '2147483647';
+    const root = document.body ?? document.documentElement;
+    if (root) {
+      root.appendChild(portal);
+    }
   }
   return portal;
 }
@@ -94,7 +110,7 @@ async function mountHostUiWithHandle({
   const v: 'modal' | 'drawer' = variant || 'modal';
   cleanupExistingConfirmers();
   const el = document.createElement(W3A_TX_CONFIRMER_ID) as HostTxConfirmerElement;
-  try { el.variant = v; } catch {}
+  el.variant = v;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
   // Only enable UI digest validation for transaction-signing flows where txs exist.
@@ -106,29 +122,18 @@ async function mountHostUiWithHandle({
   if (vrfChallenge) el.vrfChallenge = vrfChallenge;
   if (theme) el.theme = theme;
   if (loading != null) el.loading = !!loading;
-  try { el.removeAttribute('data-error-message'); } catch {}
+  el.removeAttribute('data-error-message');
   // Two-phase close: let caller control removal
-  try { el.deferClose = true; } catch {}
+  el.deferClose = true;
   const portal = ensureConfirmPortal();
   portal.replaceChildren(el);
-  const close = (_confirmed: boolean) => { try { el.remove(); } catch {} };
-  const update = (props: ConfirmUIUpdate) => {
-    try {
-      if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
-      if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
-      if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
-      if (props.theme != null) el.theme = props.theme;
-      if (props.loading != null) el.loading = !!props.loading;
-      if ('errorMessage' in props) {
-        const msg = props.errorMessage ?? '';
-        el.errorMessage = msg;
-        setErrorAttribute(el, msg);
-      }
-      el.requestUpdate?.();
-    } catch {}
-  };
-  return { close, update };
+  return createHostConfirmHandle(el);
 }
+
+type ConfirmEventDetail = {
+  confirmed?: boolean;
+  error?: string;
+};
 
 async function awaitHostUiDecisionWithHandle({
   ctx,
@@ -146,12 +151,12 @@ async function awaitHostUiDecisionWithHandle({
   theme?: 'dark' | 'light',
   variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
-}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle }> {
+}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
   const v: 'modal' | 'drawer' = variant || 'modal';
   return new Promise((resolve) => {
     cleanupExistingConfirmers();
     const el = document.createElement(W3A_TX_CONFIRMER_ID) as HostTxConfirmerElement;
-    try { el.variant = v; } catch {}
+    el.variant = v;
     el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
     el.txSigningRequests = txSigningRequests || [];
     if ((txSigningRequests?.length || 0) > 0) {
@@ -159,52 +164,38 @@ async function awaitHostUiDecisionWithHandle({
     }
     if (vrfChallenge) el.vrfChallenge = vrfChallenge;
     if (theme) el.theme = theme;
-    try { el.removeAttribute('data-error-message'); } catch {}
-    try { el.deferClose = true; } catch {}
+    el.removeAttribute('data-error-message');
+    el.deferClose = true;
 
-    const onConfirm = (_e: Event) => {
+    const handle = createHostConfirmHandle(el);
+
+    const finalize = (result: { confirmed: boolean; error?: string }) => {
       cleanup();
-      const close = (_c: boolean) => { try { el.remove(); } catch {} };
-      const update = (props: ConfirmUIUpdate) => {
-        try {
-          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) el.theme = props.theme;
-          if (props.loading != null) el.loading = !!props.loading;
-          if ('errorMessage' in props) {
-            const msg = props.errorMessage ?? '';
-            el.errorMessage = msg;
-            setErrorAttribute(el, msg);
-          }
-          el.requestUpdate?.();
-        } catch {}
-      };
-      resolve({ confirmed: true, handle: { close, update } });
+      resolve({ ...result, handle });
     };
-    const onCancel = () => {
-      cleanup();
-      const close = (_c: boolean) => { try { el.remove(); } catch {} };
-      const update = (props: ConfirmUIUpdate) => {
-        try {
-          if (props.nearAccountId != null) el.nearAccountId = props.nearAccountId;
-          if (props.txSigningRequests != null) el.txSigningRequests = props.txSigningRequests;
-          if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
-          if (props.theme != null) el.theme = props.theme;
-          if (props.loading != null) el.loading = !!props.loading;
-          if ('errorMessage' in props) {
-            const msg = props.errorMessage ?? '';
-            el.errorMessage = msg;
-            setErrorAttribute(el, msg);
-          }
-          el.requestUpdate?.();
-        } catch {}
-      };
-      resolve({ confirmed: false, handle: { close, update } });
+
+    const onConfirm = (event: Event) => {
+      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
+      const confirmed = detail?.confirmed !== false;
+      const error = typeof detail?.error === 'string' ? detail.error : undefined;
+      if (!confirmed) {
+        if (error) handle.update({ errorMessage: error, loading: false });
+        else handle.update({ loading: false, errorMessage: '' });
+        finalize({ confirmed: false, error });
+        return;
+      }
+      finalize({ confirmed: true });
+    };
+    const onCancel = (event?: Event) => {
+      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
+      const error = typeof detail?.error === 'string' ? detail.error : undefined;
+      if (error) handle.update({ errorMessage: error, loading: false });
+      else handle.update({ loading: false });
+      finalize({ confirmed: false, error });
     };
     const cleanup = () => {
-      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener); } catch {}
-      try { el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener); } catch {}
+      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
+      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
     };
     // Listen to canonical events only
     el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
@@ -280,7 +271,7 @@ export async function awaitConfirmUIDecision({
   theme: 'dark' | 'light',
   uiMode: ConfirmationUIMode,
   nearAccountIdOverride: string,
-}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle }> {
+}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
   const variant: 'modal' | 'drawer' = (uiMode === 'drawer') ? 'drawer' : 'modal';
   return await awaitHostUiDecisionWithHandle({
     ctx,

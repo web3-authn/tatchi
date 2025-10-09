@@ -13,18 +13,13 @@
   animation: backdrop-opacity 32ms ease-in;
   will-change: opacity;
   transition: background-color 0.1s ease-in-out, backdrop-filter 0.2s ease-in-out;
-  /* Safe area insets for mobile notch devices */
-  padding-top: max(env(safe-area-inset-top), 20px);
-  padding-bottom: max(env(safe-area-inset-bottom), 20px);
-  padding-left: max(env(safe-area-inset-left), 20px);
-  padding-right: max(env(safe-area-inset-right), 20px);
+  padding: 0.5rem;
 }
 
 /* Themed panel similar to ShowQRCode modal content */
 .qr-scanner-panel {
   display: flex;
   flex-direction: column;
-  padding: 0 2rem 2rem 2rem;
   overflow: visible;
   min-height: 200px;
   max-width: 520px;
