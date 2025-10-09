@@ -191,7 +191,6 @@ export class EmbeddedTxButton extends LitElementWithProps {
       /* Ensure the tooltip container itself remains transparent; visuals live inside */
       background: transparent !important;
       background-color: transparent !important;
-      box-shadow: 0 4px 8px rgba(0,0,0,0.25);
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
       overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
