@@ -378,8 +378,7 @@ export default defineConfig([
       'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
       'iframe-tx-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts',
       // Tx Confirmer component
-      'w3a-iframe-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-host.ts',
-      'iframe-tx-confirmer-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/iframe-tx-confirmer-bootstrap-script.ts',
+      'w3a-tx-confirmer': 'src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts',
       // Wallet service host (headless)
       'wallet-iframe-host': 'src/core/WalletIframe/host/wallet-iframe-host.ts',
       // Export viewer host + bootstrap

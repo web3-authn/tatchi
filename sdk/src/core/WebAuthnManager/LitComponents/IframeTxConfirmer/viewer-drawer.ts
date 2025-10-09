@@ -66,11 +66,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
             composed: true,
             detail: { confirmed: false }
           }));
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
-            bubbles: true,
-            composed: true,
-            detail: { confirmed: false }
-          }));
         } catch {}
       }
     } catch {}
@@ -82,13 +77,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       try { this._drawerEl?.handleClose(); } catch {}
       if (!this._drawerEl) {
         try {
-          // New canonical + legacy alias
           this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-            bubbles: true,
-            composed: true,
-            detail: { confirmed: false }
-          }));
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
             bubbles: true,
             composed: true,
             detail: { confirmed: false }
@@ -286,11 +275,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         composed: true,
         detail: { confirmed: false }
       }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
     } catch {}
   };
 
@@ -298,14 +282,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     if (this.loading) return;
     this.loading = true;
     this.requestUpdate();
-    // Bridge semantic event to canonical events (new + legacy)
+    // Bridge semantic event to canonical event
     try {
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: true }
-      }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, {
         bubbles: true,
         composed: true,
         detail: { confirmed: true }
@@ -318,11 +297,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     try { this._drawerEl?.handleClose(); } catch {}
     try {
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
         bubbles: true,
         composed: true,
         detail: { confirmed: false }

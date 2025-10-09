@@ -56,8 +56,6 @@ export interface SignerWorkerManagerContext {
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
   rpIdOverride?: string;
-  // Default for using nested iframe modal when walletOrigin is configured
-  iframeModeDefault?: boolean;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
@@ -83,15 +81,12 @@ export class SignerWorkerManager {
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
 
-  private readonly iframeModeDefault: boolean;
-
   constructor(
     vrfWorkerManager: VrfWorkerManager,
     nearClient: NearClient,
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
     rpIdOverride?: string,
-    iframeModeDefault?: boolean,
     enableSafariGetWebauthnRegistrationFallback: boolean = false,
   ) {
     this.indexedDB = IndexedDBManager;
@@ -100,8 +95,6 @@ export class SignerWorkerManager {
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
-    // Store default UI mode as a boolean
-    this.iframeModeDefault = !!iframeModeDefault;
   }
 
   private getContext(): SignerWorkerManagerContext {
@@ -114,7 +107,6 @@ export class SignerWorkerManager {
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
       rpIdOverride: this.touchIdPrompt.getRpId(),
-      iframeModeDefault: this.iframeModeDefault,
     };
   }
 

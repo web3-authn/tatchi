@@ -18,7 +18,7 @@ The parent page never directly manipulates DOM inside the iframe. Instead, it se
 
 Files:
 - `IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates. The emitted module name is `iframe-tx-button-bootstrap.js`.
-- `IframeTxConfirmer/iframe-tx-confirmer-bootstrap-script.ts`: Same pattern for the modal variant.
+- `IframeTxConfirmer/tx-confirmer-wrapper.ts`: Inline wrapper that chooses modal or drawer.
 
 ## Prop Flow and Data Updates
 
@@ -56,7 +56,7 @@ Confirm UI is container‑agnostic and driven by `uiMode: 'skip' | 'modal' | 'dr
   - deferClose: When true, host controls removal (two‑phase close).
   - close(confirmed): Optional programmatic close.
 
-Example usage (host vs iframe chosen automatically):
+Example usage (inline wrapper rendered inside the wallet iframe):
 
 ```ts
 import { mountConfirmUI, awaitConfirmUIDecision } from '@/core/WebAuthnManager/LitComponents/confirm-ui';
@@ -84,7 +84,6 @@ const { confirmed, handle: h } = await awaitConfirmUIDecision({
   theme: 'dark',
   uiMode: 'modal',
   nearAccountIdOverride: accountId,
-  useIframe: !!ctx.iframeModeDefault,
 });
 if (!confirmed) h.close(false);
 ```

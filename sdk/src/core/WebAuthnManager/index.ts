@@ -81,7 +81,6 @@ export class WebAuthnManager {
       UserPreferencesInstance,
       NonceManagerInstance,
       passkeyManagerConfigs.iframeWallet?.rpIdOverride,
-      !!passkeyManagerConfigs.iframeWallet?.walletOrigin,
       !!passkeyManagerConfigs.iframeWallet?.enableSafariGetWebauthnRegistrationFallback,
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;

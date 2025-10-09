@@ -683,9 +683,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       .flatMap((sel) => Array.from(document.querySelectorAll(sel)) as HTMLElement[]);
     for (const el of els) {
       try {
-        // New canonical + legacy alias
         el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, { bubbles: true, composed: true }));
-        el.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, { bubbles: true, composed: true }));
       } catch {}
     }
     // Also cancel any device linking flow

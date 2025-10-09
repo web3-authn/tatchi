@@ -49,13 +49,11 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Generate WASM TypeScript types (wasm-pack)
-        run: pnpm -C sdk exec bash ./scripts/generate-types.sh
-
       - name: Build SDK (@tatchi/sdk)
         run: pnpm -C sdk build
 
-      - name: Build wallet host example
+      - name: Build wallet host example (if present)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
         env:
           VITE_WALLET_ORIGIN: https://web3authn.org
           VITE_WALLET_SERVICE_PATH: /wallet-service
@@ -68,7 +66,8 @@ jobs:
           VITE_NEAR_EXPLORER: ${{ secrets.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
         run: pnpm -C examples/wallet-scoped-credentials build
 
-      - name: Copy SDK assets into Pages output
+      - name: Copy SDK assets into Pages output (example)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
         run: |
           mkdir -p examples/wallet-scoped-credentials/dist/sdk examples/wallet-scoped-credentials/dist/sdk/workers
           rsync -av --delete sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
@@ -77,11 +76,58 @@ jobs:
             rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
           fi
 
-      - name: Deploy to Cloudflare Pages (wallet host)
+      - name: Fallback: generate minimal wallet-dist when example is missing
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
+        run: |
+          set -euxo pipefail
+          mkdir -p wallet-dist/wallet-service wallet-dist/sdk wallet-dist/sdk/workers
+          cat > wallet-dist/wallet-service/index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+            <head>
+              <meta charset="utf-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1" />
+              <title>Web3Authn Wallet Service</title>
+              <script>window.global ||= window; window.process ||= { env: {} };</script>
+            </head>
+            <body>
+              <script type="module" src="/sdk/wallet-iframe-host.js"></script>
+            </body>
+          </html>
+          HTML
+          cat > wallet-dist/_headers <<'HEADERS'
+          /*
+            Cross-Origin-Opener-Policy: same-origin
+            Cross-Origin-Embedder-Policy: require-corp
+            Cross-Origin-Resource-Policy: cross-origin
+            Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
+
+          /wallet-service
+            Cross-Origin-Opener-Policy: unsafe-none
+          /wallet-service/
+            Cross-Origin-Opener-Policy: unsafe-none
+          HEADERS
+          rsync -av --delete sdk/dist/esm/sdk/ wallet-dist/sdk/
+          if [ -d sdk/dist/workers ]; then
+            rsync -av --delete sdk/dist/workers/ wallet-dist/sdk/workers/
+          fi
+
+      - name: Deploy example to Cloudflare Pages (wallet host)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: examples/wallet-scoped-credentials/dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Deploy fallback wallet-dist to Cloudflare Pages (wallet host)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
+          directory: wallet-dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}

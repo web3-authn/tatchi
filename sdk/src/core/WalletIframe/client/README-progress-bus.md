@@ -106,7 +106,7 @@ The wallet service iframe and the nested modal iframe must be allowed to use Web
 
 2) Modal host iframe (full‑screen UI for confirm in wallet origin)
 
-- File: `passkey-sdk/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/IframeModalHost.ts`
+- File: `sdk/src/core/WebAuthnManager/LitComponents/IframeTxConfirmer/tx-confirmer-wrapper.ts`
 - Uses: `allow="publickey-credentials-get; publickey-credentials-create"`
 - This iframe is same‑origin to the wallet host, so it inherits the wallet origin’s permission context.
 

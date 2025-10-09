@@ -16,7 +16,7 @@ What we tried (chronological)
   - Result: reliable page-height within each document, but not sufficient alone when the parent overlay is still fixed to the inner viewport.
 
 - Iframe modal host outer shims
-  - File: `IframeTxConfirmer/iframe-host.ts`
+  - File: `IframeTxConfirmer/tx-confirmer-wrapper.ts`
   - Added page-anchored top/bottom overlays sized from `visualViewport` offsets to tint under the bars (above the iframe).
   - Result: seam still visible in device testing.
 
@@ -49,4 +49,3 @@ References
 - https://github.com/mui/base-ui/issues/2799
 - https://github.com/mui/material-ui/issues/46953
 - https://x.com/devongovett/status/1968384768703349198
-

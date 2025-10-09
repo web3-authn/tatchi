@@ -30,7 +30,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
             theme: 'dark'
           }),
         },
-        iframeModeDefault: false,
         nonceManager: {
           async getNonceBlockHashAndHeight() {
             return {
@@ -133,7 +132,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
             theme: 'light'
           }),
         },
-        iframeModeDefault: false,
         nonceManager: {
           async getNonceBlockHashAndHeight() {
             return {
@@ -233,7 +231,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
             theme: 'dark'
           }),
         },
-        iframeModeDefault: true,
         nonceManager: {
           getNonceBlockHashAndHeight: async () => ({
             nearPublicKeyStr: '',
@@ -307,7 +304,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
             theme: 'dark'
           }),
         },
-        iframeModeDefault: false,
         nonceManager: {
           async getNonceBlockHashAndHeight() {
             return {
@@ -397,7 +393,6 @@ test.describe('confirmTxFlow – defensive paths', () => {
             theme: 'light'
           }),
         },
-        iframeModeDefault: false,
         nonceManager: {
           async getNonceBlockHashAndHeight() {
             return {

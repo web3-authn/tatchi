@@ -833,14 +833,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   private _handleCancel() {
     if (this.loading) return;
     try {
-      // New canonical event name (include a consistent detail payload)
+      // Canonical event (include a consistent detail payload)
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
-      // Legacy alias for back-compat with the same detail shape
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CANCEL, {
         bubbles: true,
         composed: true,
         detail: { confirmed: false }
@@ -856,14 +850,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     this.loading = true;
     this.requestUpdate();
     try {
-      // New canonical event name (include a consistent detail payload)
+      // Canonical event (include a consistent detail payload)
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: true }
-      }));
-      // Legacy alias for back-compat with the same detail shape
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.MODAL_CONFIRM, {
         bubbles: true,
         composed: true,
         detail: { confirmed: true }

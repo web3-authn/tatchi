@@ -486,10 +486,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private postToIframe<T extends keyof IframeButtonMessagePayloads>(type: T, payload?: IframeButtonMessagePayloads[T]) {
     const w = this.getIframeWindow();
-    if (!w) {
-      console.error(`[IframeButtonHost]: Cannot post message - iframe window not available`);
-      return;
-    }
+    if (!w) return;
     // Post to iframe; for srcdoc + allow-same-origin, this matches parent origin
     const targetOrigin = window.location.origin;
     w.postMessage({ type, payload }, targetOrigin);

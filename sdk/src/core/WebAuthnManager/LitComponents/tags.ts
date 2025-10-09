@@ -35,13 +35,10 @@ export function defineTag(key: TagKey, ctor: CustomElementConstructor): void {
 // Asset path and bootstrap module used by the iframe host to hydrate the embedded element.
 export const EMBEDDED_SDK_BASE_PATH = '/sdk/';
 export const IFRAME_TX_BUTTON_BOOTSTRAP_MODULE = 'iframe-tx-button-bootstrap.js';
-// Modal iframe host + bootstrap + modal bundle
-export const W3A_IFRAME_TX_CONFIRMER_ID = 'w3a-iframe-tx-confirmer';
-export const IFRAME_TX_CONFIRMER_BOOTSTRAP_MODULE = 'iframe-tx-confirmer-bootstrap.js';
-export const MODAL_TX_CONFIRM_BUNDLE = 'tx-confirm-ui.js';
 
 // Transaction confirmer element tags (host-rendered)
 // Canonical tag names use the "-tx-confirmer" suffix for consistency
+export const W3A_TX_CONFIRMER_ID = 'w3a-tx-confirmer';
 export const W3A_MODAL_TX_CONFIRMER_ID = 'w3a-modal-tx-confirmer';
 export const W3A_DRAWER_TX_CONFIRMER_ID = 'w3a-drawer-tx-confirmer';
 export const W3A_TX_CONFIRM_CONTENT_ID = 'w3a-tx-confirm-content';
@@ -54,9 +51,9 @@ export const W3A_PASSKEY_HALO_LOADING_ID = 'w3a-passkey-halo-loading';
 
 // Unified list of confirmer hosts the wallet may need to target for lifecycle events
 export const CONFIRM_UI_ELEMENT_SELECTORS = [
+  W3A_TX_CONFIRMER_ID,
   W3A_MODAL_TX_CONFIRMER_ID,
   W3A_DRAWER_TX_CONFIRMER_ID,
-  W3A_IFRAME_TX_CONFIRMER_ID,
 ] as const;
 
 // Dedicated portal container to enforce a single confirmer instance
