@@ -191,6 +191,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       /* Ensure the tooltip container itself remains transparent; visuals live inside */
       background: transparent !important;
       background-color: transparent !important;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.25);
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
       overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
@@ -307,7 +308,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
       max-height: min(70vh, 560px);
       height: auto;
       border-radius: 16px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+      box-shadow: none;
       /* Increase tap targets without breaking connector alignment */
       --w3a-tree__label__font-size: 0.9rem;
       --w3a-tree__label__line-height: 1.25;

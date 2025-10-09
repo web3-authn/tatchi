@@ -304,15 +304,11 @@ async function getAvailablePasskeysForDomain(
       credential: null,
     }));
   }
-
-  // If no contract credentials found, still allow recovery by letting recover() prompt once
-  return [{
-    credentialId: 'manual-input',
-    accountId: accountId,
-    publicKey: '',
-    displayName: `${accountId}`,
-    credential: null,
-  }];
+  // If no contract credentials found for this specific account, do not fall back
+  // to an unrestricted OS credential prompt here. Returning an empty set lets
+  // the caller surface a precise message (no recoverable accounts for this ID),
+  // avoiding accidental selection of a passkey from a different account.
+  return [];
 }
 
 /**
@@ -356,6 +352,22 @@ export async function recoverAccount(
       reuseCredential,
       allowedCredentialIds
     );
+    // Cross-check: ensure the authenticator's userHandle maps to the same account,
+    // when available. This avoids deriving a key for the wrong account if the user
+    // picks an unrelated passkey from the platform chooser.
+    try {
+      const assertion: any = (credential as any)?.response;
+      const passkeyAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
+      if (passkeyAccount && passkeyAccount !== accountId) {
+        return handleRecoveryError(
+          accountId,
+          `Selected passkey belongs to ${passkeyAccount}, not ${accountId}`,
+          onError,
+          beforeCall,
+          afterCall
+        );
+      }
+    } catch {}
     const recoveredKeypair = await webAuthnManager.recoverKeypairFromPasskey(
       credential,
       accountId
