@@ -45,10 +45,10 @@ jobs:
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
       - name: Generate WASM TypeScript types (wasm-pack)
-        run: pnpm -C passkey-sdk exec bash ./scripts/generate-types.sh
+        run: pnpm -C sdk exec bash ./scripts/generate-types.sh
 
-      - name: Build SDK (@web3authn/passkey)
-        run: pnpm --filter @web3authn/passkey build
+      - name: Build SDK (@tatchi/sdk)
+        run: pnpm -C sdk build
 
       - name: Build wallet host example
         env:
@@ -66,24 +66,7 @@ jobs:
       - name: Copy SDK assets into Pages output
         run: |
           mkdir -p examples/wallet-scoped-credentials/dist/sdk
-          rsync -av --delete passkey-sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
-
-      - name: Emit static ROR manifest (optional)
-        if: ${{ secrets.ROR_ALLOWED_ORIGINS != '' }}
-        env:
-          ROR_ALLOWED_ORIGINS: ${{ secrets.ROR_ALLOWED_ORIGINS }}
-        run: |
-          mkdir -p examples/wallet-scoped-credentials/dist/.well-known
-          printf '{\n  "origins": [\n' > examples/wallet-scoped-credentials/dist/.well-known/webauthn
-          IFS=',' read -ra ORIGS <<< "$ROR_ALLOWED_ORIGINS"
-          for i in "${!ORIGS[@]}"; do
-            ORIGIN=$(echo "${ORIGS[$i]}" | xargs)
-            if [ -n "$ORIGIN" ]; then
-              if [ $i -gt 0 ]; then printf ',\n' >> examples/wallet-scoped-credentials/dist/.well-known/webauthn; fi
-              printf '    "%s"' "$ORIGIN" >> examples/wallet-scoped-credentials/dist/.well-known/webauthn
-            fi
-          done
-          printf '\n  ]\n}\n' >> examples/wallet-scoped-credentials/dist/.well-known/webauthn
+          rsync -av --delete sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
 
       - name: Deploy to Cloudflare Pages (wallet host)
         uses: cloudflare/pages-action@v1
@@ -93,4 +76,3 @@ jobs:
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: examples/wallet-scoped-credentials/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-
