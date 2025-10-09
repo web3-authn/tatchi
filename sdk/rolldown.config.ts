@@ -1,6 +1,7 @@
 import { defineConfig } from 'rolldown';
 import { BUILD_PATHS } from './build-paths.ts';
 import * as path from 'path';
+import * as fs from 'fs';
 
 const external = [
   // React dependencies
@@ -59,6 +60,15 @@ const embeddedExternal: (string | RegExp)[] = [];
 const aliasConfig = {
   '@build-paths': path.resolve(process.cwd(), 'build-paths.ts'),
   '@/*': path.resolve(process.cwd(), 'src/*')
+};
+
+const copyWasmAsset = (source: string, destination: string, label: string): void => {
+  if (!fs.existsSync(source)) {
+    throw new Error(`Missing WASM source at ${source}`);
+  }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
+  fs.copyFileSync(source, destination);
+  console.log(label);
 };
 
 export default defineConfig([
@@ -293,17 +303,15 @@ export default defineConfig([
       {
         name: 'copy-wasm',
         generateBundle() {
-          // Copy WASM file alongside the JS bundle
-          const fs = require('fs');
-          const path = require('path');
-          const wasmSource = path.join(process.cwd(), 'src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm');
-          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm`);
-
           try {
-            fs.copyFileSync(wasmSource, wasmDest);
-            console.log('✅ WASM file copied to dist/esm/wasm_vrf_worker/');
+            copyWasmAsset(
+              path.join(process.cwd(), 'src/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm'),
+              path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm`),
+              '✅ WASM file copied to dist/esm/wasm_vrf_worker/pkg/'
+            );
           } catch (error) {
-            console.warn('⚠️ Could not copy WASM file:', error.message);
+            console.error('❌ Failed to copy VRF WASM asset:', error);
+            throw error;
           }
         }
       }
@@ -321,16 +329,15 @@ export default defineConfig([
       {
         name: 'copy-wasm-signer',
         generateBundle() {
-          const fs = require('fs');
-          const path = require('path');
-          const wasmSource = path.join(process.cwd(), 'src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm');
-          const wasmDest = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm`);
-
           try {
-            fs.copyFileSync(wasmSource, wasmDest);
-            console.log('✅ WASM file copied to dist/esm/wasm_signer_worker/pkg/');
+            copyWasmAsset(
+              path.join(process.cwd(), 'src/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm'),
+              path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/wasm_signer_worker/pkg/wasm_signer_worker_bg.wasm`),
+              '✅ WASM file copied to dist/esm/wasm_signer_worker/pkg/'
+            );
           } catch (error) {
-            console.warn('⚠️ Could not copy signer WASM file:', error.message);
+            console.error('❌ Failed to copy signer WASM asset:', error);
+            throw error;
           }
         }
       }
