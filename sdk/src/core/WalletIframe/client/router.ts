@@ -217,20 +217,6 @@ export class WalletIframeRouter {
         const data = ev.data as unknown;
         if (!data || typeof data !== 'object') return;
         const type = (data as { type?: unknown }).type;
-        // Address bar theme-color override from wallet UI (e.g., drawer/modal)
-        if (type === 'W3A_THEME_COLOR_OVERRIDE') {
-          try {
-            const color = (data as { payload?: { color?: string } }).payload?.color;
-            if (typeof color === 'string' && color.trim()) {
-              this.setThemeColorOverride(color.trim());
-            }
-          } catch {}
-          return;
-        }
-        if (type === 'W3A_THEME_COLOR_CLEAR') {
-          try { this.clearThemeColorOverride(); } catch {}
-          return;
-        }
         if (type === 'REGISTER_BUTTON_SUBMIT') {
           // User clicked the register arrow inside the wallet-anchored UI
           // Force the overlay to fullscreen immediately so the TxConfirmer
@@ -270,30 +256,6 @@ export class WalletIframeRouter {
       } catch {}
     };
     try { window.addEventListener('message', this.windowMsgHandlerBound); } catch {}
-  }
-
-  // ===== Safari/iOS address bar color helpers =====
-  private setThemeColorOverride(color: string): void {
-    if (typeof document === 'undefined') return;
-    try {
-      let meta = document.querySelector('meta[name="theme-color"][data-w3a-override]') as HTMLMetaElement | null;
-      if (!meta) {
-        meta = document.createElement('meta');
-        meta.setAttribute('name', 'theme-color');
-        meta.setAttribute('data-w3a-override', '');
-        // Append at end of <head> so it wins over other theme-color tags
-        document.head.appendChild(meta);
-      }
-      meta.setAttribute('content', color);
-    } catch {}
-  }
-
-  private clearThemeColorOverride(): void {
-    if (typeof document === 'undefined') return;
-    try {
-      const meta = document.querySelector('meta[name="theme-color"][data-w3a-override]');
-      if (meta && meta.parentNode) { meta.parentNode.removeChild(meta); }
-    } catch {}
   }
 
   /**
@@ -792,8 +754,7 @@ export class WalletIframeRouter {
       type: 'PM_RECOVER_ACCOUNT_FLOW',
       payload: { accountId: payload.accountId },
       options: {
-        onProgress: this.wrapOnEvent(payload.onEvent, isAccountRecoverySSEEvent),
-        sticky: true
+        onProgress: this.wrapOnEvent(payload.onEvent, isAccountRecoverySSEEvent)
       }
     });
     return res.result

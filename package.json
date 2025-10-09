@@ -13,8 +13,8 @@
     "test:lit-components": "pnpm -C sdk test:lit-components",
     "show-report": "pnpm -C sdk exec playwright show-report",
     "frontend": "pnpm -C examples/vite dev",
-    "frontend-secure": "pnpm -C examples/vite-secure dev",
-    "frontend-iphone": "pnpm -C examples/vite-secure dev:iphone",
+    "frontend:secure": "pnpm -C examples/vite-secure dev",
+    "frontend:iphone": "pnpm -C examples/vite-secure dev:iphone",
     "server": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
     "server:iphone": "EXPECTED_ORIGIN=https://pta-m4.local EXPECTED_WALLET_ORIGIN=https://pta-m4.local:8443 pnpm -C examples/relay-server dev",
     "gen:shamir": "pnpm -C examples/relay-server run gen:shamir"

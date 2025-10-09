@@ -34,6 +34,15 @@ print_error() {
     echo -e "${RED}❌ $1${NC}"
 }
 
+# Detect Bun binary (prefer PATH, fallback to ~/.bun)
+if command -v bun >/dev/null 2>&1; then
+    BUN_BIN="$(command -v bun)"
+elif [ -x "$HOME/.bun/bin/bun" ]; then
+    BUN_BIN="$HOME/.bun/bin/bun"
+else
+    BUN_BIN=""
+fi
+
 # Step 1: Clean previous build
 print_step "Cleaning previous build artifacts..."
 rm -rf "$BUILD_ROOT/"
@@ -90,12 +99,16 @@ fi
 
 # Step 7: Bundle workers with Bun (handles TypeScript better)
 print_step "Bundling workers with Bun..."
-if ~/.bun/bin/bun build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser && \
-    ~/.bun/bin/bun build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
-    print_success "Bun worker bundling completed"
-else
-    print_error "Bun worker bundling failed"
+if [ -z "$BUN_BIN" ]; then
+    print_error "Bun not found. Install Bun or ensure it is on PATH."
     exit 1
+fi
+if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser && \
+   "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
+  print_success "Bun worker bundling completed"
+else
+  print_error "Bun worker bundling failed"
+  exit 1
 fi
 
 # Step 7.1: Ensure WASM binaries are colocated with worker JS for runtime fetch()
