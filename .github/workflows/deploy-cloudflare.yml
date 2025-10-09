@@ -48,11 +48,6 @@ jobs:
 
       - name: Build SDK (sdk)
         run: pnpm -C sdk build
-      - name: Build @tatchi/* packages
-        run: |
-          pnpm -C sdk/core build
-          pnpm -C sdk/react build
-          pnpm -C sdk/server build
 
   publish-sdk-r2:
     runs-on: ubuntu-latest
@@ -102,11 +97,6 @@ jobs:
 
       - name: Build SDK (sdk)
         run: pnpm -C sdk build
-      - name: Build @tatchi/* packages
-        run: |
-          pnpm -C sdk/core build
-          pnpm -C sdk/react build
-          pnpm -C sdk/server build
 
       - name: Validate R2 secrets are present
         run: |
@@ -228,11 +218,6 @@ jobs:
 
       - name: Build SDK (sdk) for Worker bundling
         run: pnpm -C sdk build
-      - name: Build @tatchi/* packages
-        run: |
-          pnpm -C sdk/core build
-          pnpm -C sdk/react build
-          pnpm -C sdk/server build
 
       - name: Deploy Cloudflare Worker (relay)
         run: |
@@ -291,11 +276,6 @@ jobs:
 
       - name: Build SDK (sdk) for Vite builds
         run: pnpm -C sdk build
-      - name: Build @tatchi/* packages
-        run: |
-          pnpm -C sdk/core build
-          pnpm -C sdk/react build
-          pnpm -C sdk/server build
 
       - name: Debug - print VITE_* env seen by build
         run: |
@@ -387,11 +367,6 @@ jobs:
 
       - name: Build SDK (sdk)
         run: pnpm -C sdk build
-      - name: Build @tatchi/* packages
-        run: |
-          pnpm -C packages/core build
-          pnpm -C packages/react build
-          pnpm -C packages/server build
 
       - name: Generate wallet-only static site (wallet-dist)
         run: |
