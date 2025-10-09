@@ -219,8 +219,8 @@ export const DARK_THEME = {
 
   // Border colors
   borderPrimary: GREY_COLORS.grey650,
-  borderSecondary: GREY_COLORS.grey750,
-  borderHover: GREY_COLORS.grey750,
+  borderSecondary: GREY_COLORS.slate650,
+  borderHover: GREY_COLORS.grey600,
 
   // Background Gradients
   backgroundGradientPrimary: GRADIENTS.blue,

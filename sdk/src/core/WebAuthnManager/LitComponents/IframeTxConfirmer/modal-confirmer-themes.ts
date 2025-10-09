@@ -75,7 +75,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     // Main modal container
     modalBackdropBlur: {
-      background: 'oklch(0.2 0.01 240 / 0.2)', // grey800 with alpha 0.2
+      background: 'oklch(0.2 0.01 240 / 0.2)', // grey800 with alpha
       // backdropFilter: 'blur(0px)',
       // animation: 'none',
       // willChange: 'none',
@@ -92,7 +92,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       border: `1px solid ${DARK_THEME.borderPrimary}`,
       borderRadius: '2rem',
       padding: '0.75rem',
-      boxShadow: '0 16px 48px rgba(0,0,0,0.35)',
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
       margin: '1rem 0 0 0',
     },
     responsiveCard: {
@@ -288,7 +288,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
 
     // Main modal container
     modalBackdropBlur: {
-      background: 'oklch(0.2 0.01 240 / 0.2)', // grey800 with alpha 0.2
+      background: 'oklch(0.2 0.01 240 / 0.2)', // grey800 with alpha
       // backdropFilter: 'blur(0px)',
       // animation: 'none',
       // willChange: 'none',
@@ -306,7 +306,7 @@ export const MODAL_CONFIRMER_THEMES: Record<ModalConfirmerTheme, ModalTxConfirme
       border: `1px solid ${LIGHT_THEME.borderPrimary}`,
       borderRadius: '2rem',
       padding: '0.75rem',
-      boxShadow: '0 16px 48px rgba(0,0,0,0.15)',
+      boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
       margin: '1rem 0 0 0',
     },
     responsiveCard: {

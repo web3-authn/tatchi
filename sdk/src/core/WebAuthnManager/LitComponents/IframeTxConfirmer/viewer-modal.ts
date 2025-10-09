@@ -152,7 +152,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
       backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(0px));
       /* animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in); */
-      opacity: 0; /* No dim overlay */
+      opacity: 1;
       will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
     }
 
@@ -562,6 +562,19 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
 
     /* Responsive adjustments */
+
+    @media (max-width: 375px) {
+      /* Ensure full-bleed width on mobile */
+      .modal-container-root { width: 100vw; }
+      @supports (width: 1dvw) {
+        .modal-container-root { width: 100dvw; }
+      }
+      /* remove backdrop on mobile becasue of Safari 26 address bar bugs */
+      .modal-backdrop-blur {
+        opacity: 0;
+      }
+    }
+
     @media (max-width: 640px) {
       .responsive-card {
         /* Make modal 1rem narrower on small/zoomed viewports */

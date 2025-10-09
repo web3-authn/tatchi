@@ -203,6 +203,11 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
     }
     .divider { width: 1px; height: 12px; background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18)); margin: 0 4px; }
+
+    /* Mobile: remove drawer border to match design */
+    @media (max-width: 640px) {
+      w3a-drawer { --w3a-drawer__border: none; }
+    }
   `;
 
   constructor() {
@@ -239,22 +244,15 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     } catch {}
     // Initialize theme styles
     this.updateTheme();
-    // After initial mount, compute and push Safari address bar color override
-    // so the host page can align its theme-color to the drawer background.
-    Promise.resolve().then(() => this.postThemeColorOverride()).catch(() => {});
   }
 
   firstUpdated(): void {
     this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
-    // Also try again once we have a ref to the drawer internals
-    Promise.resolve().then(() => this.postThemeColorOverride()).catch(() => {});
   }
 
   disconnectedCallback(): void {
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
     try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
-    // Notify parent to clear any theme-color override set while drawer was open
-    this.postThemeColorClear();
     super.disconnectedCallback();
   }
 
@@ -262,47 +260,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     super.updated(changed);
     if (changed.has('theme')) {
       this.updateTheme();
-      // Keep theme-color override in sync if theme flips while open
-      this.postThemeColorOverride();
     }
-  }
-
-  private resolveDrawerBackgroundColor(): string | null {
-    try {
-      // Prefer the actual rendered background color of the drawer surface
-      const el = (this.shadowRoot?.querySelector(W3A_DRAWER_ID) as HTMLElement) || (this._drawerEl as HTMLElement);
-      const drawerRoot = (el && (el.shadowRoot?.querySelector('.drawer') as HTMLElement)) || null;
-      const bg = drawerRoot ? getComputedStyle(drawerRoot).backgroundColor : '';
-      if (bg && typeof bg === 'string' && bg.trim() && bg !== 'transparent' && !bg.includes('rgba(0, 0, 0, 0)')) {
-        return bg.trim();
-      }
-    } catch {}
-    try {
-      // Fallback: read the CSS custom property directly as set by theme styles
-      const host = (this.shadowRoot?.querySelector(W3A_DRAWER_ID) as HTMLElement) || (this._drawerEl as HTMLElement);
-      const v = host ? getComputedStyle(host).getPropertyValue('--w3a-colors-colorBackground') : '';
-      if (v && typeof v === 'string' && v.trim()) return v.trim();
-    } catch {}
-    // Final fallback per theme
-    return (this.theme === 'light') ? '#ffffff' : '#111111';
-  }
-
-  private postThemeColorOverride() {
-    try {
-      const color = this.resolveDrawerBackgroundColor();
-      if (!color) return;
-      if (window && window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'W3A_THEME_COLOR_OVERRIDE', payload: { color } }, '*');
-      }
-    } catch {}
-  }
-
-  private postThemeColorClear() {
-    try {
-      if (window && window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: 'W3A_THEME_COLOR_CLEAR' }, '*');
-      }
-    } catch {}
   }
 
   private updateTheme() {

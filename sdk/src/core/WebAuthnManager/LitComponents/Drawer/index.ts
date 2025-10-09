@@ -85,11 +85,11 @@ export class DrawerElement extends LitElementWithProps {
       font-size: 1rem;
       border-top-left-radius: 3rem;
       border-top-right-radius: 3rem;
-      border: 1px solid var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.12)));
+      border: var(--w3a-drawer__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)));
       transform: translateY(100%);
       transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
       will-change: transform;
-      box-shadow: 0 -10px 28px rgba(0,0,0,0.35);
+      box-shadow: 0 0px 8px rgba(0,0,0,0.2);
       padding: 2rem;
       /* Constrain width and center horizontally */
       max-width: var(--w3a-drawer__max-width, 420px);
@@ -117,10 +117,14 @@ export class DrawerElement extends LitElementWithProps {
       border-radius: 2px;
       background: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.25)));
       margin: 0rem auto 1rem auto;
+      /* Ensure vertical drag gestures on the handle don't trigger page scroll */
+      touch-action: none;
     }
 
     /* Ensure the body can actually shrink so overflow works inside grid */
     .body { overflow: auto; padding: 0; min-height: 0; }
+    /* Prevent scroll chaining to the page while interacting with the drawer */
+    .body { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 
     /* Child container to keep content visible above the fold when fully open */
     .above-fold {
@@ -453,13 +457,19 @@ export class DrawerElement extends LitElementWithProps {
       const atTop = !body || body.scrollTop <= 0;
 
       if (absDy >= ACTIVATE_PX) {
-        // Start drawer drag when pulling down while content is at top; otherwise allow scroll
-        if (dy > 0 && atTop) {
+        // Begin drawer drag when the content is at the top boundary, for both
+        // downward (close) and upward (open further) gestures. If the content
+        // is not at the top yet, keep the gesture pending so the user can keep
+        // scrolling the inner content until it reaches top, then transition into
+        // a drawer drag in the same touch sequence.
+        if (atTop) {
           this.startDrag(this.startY);
           this.isDragging = true;
+          this.pendingDrag = false;
+        } else {
+          // Allow inner scrolling to proceed; keep pending so we can switch to drag when atTop
+          // no-op
         }
-        // Either way, we've resolved the pending state
-        this.pendingDrag = false;
       }
     }
 
