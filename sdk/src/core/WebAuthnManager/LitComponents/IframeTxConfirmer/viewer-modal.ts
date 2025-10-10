@@ -61,7 +61,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   totalAmount = '';
   method = '';
   fingerprint = '';
-  title = 'Sign Transaction';
+  title = 'Sign with Passkey';
   cancelText = 'Cancel';
   confirmText = 'Next';
   txSigningRequests: TransactionInputWasm[] = [];

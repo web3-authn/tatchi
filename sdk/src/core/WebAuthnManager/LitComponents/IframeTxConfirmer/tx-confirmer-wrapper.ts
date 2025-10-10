@@ -94,7 +94,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     this.theme = 'dark';
     this.loading = false;
     this.deferClose = true;
-    this.title = '';
+    this.title = 'Confirm with Passkey';
     this.confirmText = 'Confirm';
     this.cancelText = 'Cancel';
   }

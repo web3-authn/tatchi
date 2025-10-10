@@ -176,7 +176,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       align-items: center;
       justify-content: center;
     }
-    .padlock-icon { width: 1em; height: 1em; margin-inline-end: 0.5em; flex: none; color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255)); }
+    .padlock-icon {
+      width: 1em;
+      height: 1em;
+      margin-inline-end: 0.5em;
+      flex: none;
+      color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255));
+    }
 
     .security-details {
       position: relative;
@@ -191,11 +197,10 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
       flex: none;
       color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
     }
-    .divider { width: 1px; height: 12px; background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18)); margin: 0 4px; }
-
-    /* Mobile: remove drawer border to match design */
-    @media (max-width: 640px) {
-      w3a-drawer { --w3a-drawer__border: none; }
+    .divider {
+      width: 1px; height: 12px;
+      background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18));
+      margin: 0 4px;
     }
   `;
 

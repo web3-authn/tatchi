@@ -83,14 +83,14 @@ export class DrawerElement extends LitElementWithProps {
       color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8));
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
       font-size: 1rem;
-      border-top-left-radius: 3rem;
-      border-top-right-radius: 3rem;
-      border: var(--w3a-drawer__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)));
+      border-radius: 2rem;
+      /* border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); */
+      border: none;
       transform: translateY(100%);
       transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
       will-change: transform;
       box-shadow: 0 0px 8px rgba(0,0,0,0.2);
-      padding: 2rem;
+      padding: 0.5rem;
       /* Constrain width and center horizontally */
       max-width: var(--w3a-drawer__max-width, 420px);
       margin-left: auto;
@@ -103,28 +103,37 @@ export class DrawerElement extends LitElementWithProps {
       grid-template-rows: auto 1fr;
     }
 
-    /* Default to closed (100%) until JS computes the open translate.
-       This avoids a flash at 0% then shrinking to content. */
+    /* Default to closed (100%) until JS computes the open translate. */
     :host([open]) .drawer {
       /* Allow a small upward offset (in px) to compensate for mobile UI chrome */
       transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
     }
+
     /* full-open removed; drawer opens to content height (capped) */
-    .drawer.dragging, .drawer.vv-sync { transition: none; }
+    .drawer.dragging, .drawer.vv-sync {
+      transition: none;
+    }
+
     .handle {
       width: 36px;
       height: 4px;
       border-radius: 2px;
-      background: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(255,255,255,0.25)));
-      margin: 0rem auto 1rem auto;
+      background: var(--w3a-colors-borderPrimary,rgba(255,255,255,0.25));
+      margin: 1rem auto;
       /* Ensure vertical drag gestures on the handle don't trigger page scroll */
       touch-action: none;
     }
 
     /* Ensure the body can actually shrink so overflow works inside grid */
-    .body { overflow: auto; padding: 0; min-height: 0; }
+    .body {
+      overflow: auto;
+      padding: 0; min-height: 0;
+    }
     /* Prevent scroll chaining to the page while interacting with the drawer */
-    .body { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+    .body {
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
 
     /* Child container to keep content visible above the fold when fully open */
     .above-fold {
@@ -138,16 +147,17 @@ export class DrawerElement extends LitElementWithProps {
     /* full-open removed */
     .close-btn {
       position: absolute;
-      right: -0.5rem;
-      top: -0.5rem;
+      right: 0.5rem;
+      top: 0.5rem;
+      width: 40px;
+      height: 40px;
+      font-size: 24px;
       background: none;
       border: none;
-      color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #99a0aa));
+      color: var(--w3a-colors-textMuted, #99a0aa);
       font-size: 28px;
       line-height: 1;
       cursor: pointer;
-      width: 48px;
-      height: 48px;
       border-radius: 2rem;
       display: flex;
       align-items: center;
@@ -157,44 +167,36 @@ export class DrawerElement extends LitElementWithProps {
       /* Ensure taps map to click reliably on mobile */
       touch-action: manipulation;
     }
-    .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8)); background: var(--w3a-colors-surface, var(--w3a-color-surface, rgba(255,255,255,0.08))); }
+    .close-btn:hover {
+      color: var(--w3a-colors-textPrimary, #f6f7f8);
+      background: var(--w3a-colors-surface, rgba(255,255,255,0.08));
+    }
     .close-btn:active { transform: scale(0.96); }
     .close-btn:focus-visible {
       outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, var(--w3a-color-primary, #3b82f6)));
       outline-offset: 3px;
     }
-    /* Light theme adjustments */
-    :host([theme="light"]) .close-btn { color: var(--w3a-colors-textMuted, var(--w3a-text-muted, #667085)); }
-    :host([theme="light"]) .close-btn:hover { color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); background: var(--w3a-colors-surface, var(--w3a-color-surface, rgba(0,0,0,0.06))); }
-    .error { color: var(--w3a-colors-error, var(--w3a-red400, #ff7a7a)); font-size: 13px; margin-top: 6px; }
-    :host([theme="light"]) .drawer { background: var(--w3a-colors-colorBackground, var(--w3a-color-background, #fff)); color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #181a1f)); border-color: var(--w3a-colors-borderPrimary, var(--w3a-color-border, rgba(0,0,0,0.08))); }
-    /* confirm/cancel button styles removed */
 
-    /* Responsive adjustments */
-    @media (max-width: 640px) {
-      .drawer {
-        padding: 0.5rem;
-        /* Round all corners on mobile */
-        border-radius: 2rem;
-        border-bottom-left-radius: 2rem;
-        border-bottom-right-radius: 2rem;
-        /* Lift the drawer slightly so bottom radii are visible */
-        --w3a-drawer__bottom-gap: max(env(safe-area-inset-bottom), 12px);
-        bottom: var(--w3a-drawer__bottom-gap);
-        /* Compensate so the top still sits flush with the address bar */
-        --w3a-drawer__open-offset: calc(-1 * var(--w3a-drawer__bottom-gap));
-      }
-      .handle {
-        margin: 1rem auto;
-      }
-      .close-btn {
-        right: 0.5rem;
-        top: 0.5rem;
-        width: 40px;
-        height: 40px;
-        font-size: 24px;
-        }
+    .error {
+      color: var(--w3a-colors-error, var(--w3a-red400, #ff7a7a));
+      font-size: 0.9rem;
+      margin-top: 0.5rem;
     }
+
+    /* Light theme adjustments */
+    :host([theme="light"]) .close-btn {
+      color: var(--w3a-colors-textMuted, #667085);
+    }
+    :host([theme="light"]) .close-btn:hover {
+      color: var(--w3a-colors-textPrimary, #181a1f);
+      background: var(--w3a-colors-surface,  rgba(0,0,0,0.06));
+    }
+    :host([theme="light"]) .drawer {
+      background: var(--w3a-colors-colorBackground, #fff);
+      color: var(--w3a-colors-textPrimary, #181a1f);
+      border-color: var(--w3a-colors-borderPrimary, rgba(0,0,0,0.08));
+    }
+
   `;
 
   constructor() {
