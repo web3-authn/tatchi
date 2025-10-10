@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Key, Scan, Link, Sliders } from 'lucide-react';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
@@ -6,7 +7,7 @@ import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
 import { usePasskeyContext } from '../../context';
-import type { MenuItem, ProfileButtonProps } from './types';
+import type { MenuItem, ProfileSettingsButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
@@ -42,13 +43,15 @@ import { ThemeProvider, ThemeScope, useTheme } from '../theme';
  * }
  * ```
  */
-const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
-  username: usernameProp,
+const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   nearAccountId: nearAccountIdProp,
-  onLogout: onLogout,
-  toggleColors,
   nearExplorerBaseUrl = 'https://nearblocks.io',
+  username: usernameProp,
+  hideUsername = false,
+  onLogout: onLogout,
   deviceLinkingScannerParams,
+  toggleColors,
+  style,
 }) => {
   // Get values from context if not provided as props
   const {
@@ -179,71 +182,73 @@ const ProfileSettingsButtonInner: React.FC<ProfileButtonProps> = ({
   };
 
   return (
-    <div className={`w3a-profile-button-container`}>
-      <div
-        ref={refs.buttonRef}
-        className={`w3a-profile-button-morphable ${isOpen ? 'open' : 'closed'}`}
-        data-state={isOpen ? 'open' : 'closed'}
-      >
-        <UserAccountButton
-          username={accountName}
-          fullAccountId={nearAccountId || undefined}
-          isOpen={isOpen}
-          onClick={handleToggle}
-          nearExplorerBaseUrl={nearExplorerBaseUrl}
-          theme={theme}
-        />
-
-        {/* Visible menu structure for actual interaction */}
-        <ProfileDropdown
-          ref={refs.dropdownRef}
-          isOpen={isOpen}
-          menuItems={MENU_ITEMS}
-          onLogout={handleLogout}
-          onClose={handleClose}
-          menuItemsRef={refs.menuItemsRef}
-          toggleColors={toggleColors}
-          currentConfirmConfig={currentConfirmConfig}
-          onSetUiMode={handleSetUiMode}
-          onToggleSkipClick={handleToggleSkipClick}
-          onSetDelay={handleSetDelay}
-          onToggleTheme={handleToggleTheme}
-          transactionSettingsOpen={transactionSettingsOpen}
-          theme={theme}
-        />
-      </div>
-
-      {/* QR Scanner Modal */}
-      <QRCodeScanner
-        key="profile-qr-scanner" // Force stable identity
-        isOpen={showQRScanner}
-        fundingAmount={deviceLinkingScannerParams?.fundingAmount || '0.05'}
-        onDeviceLinked={(result) => {
-          deviceLinkingScannerParams?.onDeviceLinked?.(result);
-          setShowQRScanner(false);
-        }}
-        onError={(error) => {
-          deviceLinkingScannerParams?.onError?.(error);
-          setShowQRScanner(false);
-        }}
-        onClose={() => {
-          deviceLinkingScannerParams?.onClose?.();
-          setShowQRScanner(false);
-        }}
-        onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
+    <div
+      ref={refs.buttonRef}
+      className={`w3a-profile-button-morphable ${isOpen ? 'open' : 'closed'}`}
+      style={style}
+      data-state={isOpen ? 'open' : 'closed'}
+    >
+      <UserAccountButton
+        username={accountName}
+        hideUsername={hideUsername}
+        fullAccountId={nearAccountId || undefined}
+        isOpen={isOpen}
+        onClick={handleToggle}
+        nearExplorerBaseUrl={nearExplorerBaseUrl}
+        theme={theme}
       />
 
-      {/* Linked Devices Modal */}
-      <LinkedDevicesModal
-        nearAccountId={nearAccountId!}
-        isOpen={showLinkedDevices}
-        onClose={() => setShowLinkedDevices(false)}
+      {/* Visible menu structure for actual interaction */}
+      <ProfileDropdown
+        ref={refs.dropdownRef}
+        isOpen={isOpen}
+        menuItems={MENU_ITEMS}
+        onLogout={handleLogout}
+        onClose={handleClose}
+        menuItemsRef={refs.menuItemsRef}
+        toggleColors={toggleColors}
+        currentConfirmConfig={currentConfirmConfig}
+        onSetUiMode={handleSetUiMode}
+        onToggleSkipClick={handleToggleSkipClick}
+        onSetDelay={handleSetDelay}
+        onToggleTheme={handleToggleTheme}
+        transactionSettingsOpen={transactionSettingsOpen}
+        theme={theme}
       />
+
+      {/* QR Scanner Modal (portaled to body to avoid transformed ancestors) */}
+      {createPortal(
+        <QRCodeScanner
+          key="profile-qr-scanner"
+          isOpen={showQRScanner}
+          fundingAmount={deviceLinkingScannerParams?.fundingAmount || '0.05'}
+          onDeviceLinked={(result) => {
+            deviceLinkingScannerParams?.onDeviceLinked?.(result);
+            setShowQRScanner(false);
+          }}
+          onError={(error) => {
+            deviceLinkingScannerParams?.onError?.(error);
+            setShowQRScanner(false);
+          }}
+          onClose={() => {
+            deviceLinkingScannerParams?.onClose?.();
+            setShowQRScanner(false);
+          }}
+          onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
+        />, document.body)}
+
+      {/* Linked Devices Modal (portaled to body to avoid transformed ancestors) */}
+      {createPortal(
+        <LinkedDevicesModal
+          nearAccountId={nearAccountId!}
+          isOpen={showLinkedDevices}
+          onClose={() => setShowLinkedDevices(false)}
+        />, document.body)}
     </div>
   );
 };
 
-export const ProfileSettingsButton: React.FC<ProfileButtonProps> = (props) => {
+export const ProfileSettingsButton: React.FC<ProfileSettingsButtonProps> = (props) => {
   return (
     <ThemeProvider>
       <ThemeScope>

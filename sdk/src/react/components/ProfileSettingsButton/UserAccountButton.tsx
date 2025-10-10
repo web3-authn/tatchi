@@ -4,13 +4,13 @@ import type { UserAccountButtonProps } from './types';
 
 export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
   username,
+  hideUsername,
   fullAccountId,
+  nearExplorerBaseUrl,
   isOpen,
   onClick,
-  isHovered,
   onMouseEnter,
   onMouseLeave,
-  nearExplorerBaseUrl,
   theme = 'dark',
   menuId,
   triggerId,
@@ -21,11 +21,12 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
       onClick();
     }
   };
+  const hideWhenClosed = (hideUsername && !isOpen);
   return (
     <div className={`w3a-user-account-button-root ${theme}`}>
       <div
         id={triggerId}
-        className={`w3a-user-account-button-trigger ${isOpen ? 'open' : 'closed'}`}
+        className={`w3a-user-account-button-trigger ${hideWhenClosed ? 'hide-username' : ''} ${isOpen ? 'open' : 'closed'}`}
         onClick={onClick}
         role="button"
         tabIndex={0}
@@ -37,19 +38,22 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
         {...(onMouseLeave && { onMouseLeave })}
       >
         <div className="w3a-user-account--user-content">
-          <div className={`w3a-user-account--avatar ${isOpen ? 'expanded' : 'shrunk'}`}>
+          <div className={`w3a-user-account--avatar ${hideWhenClosed ? 'hide-username' : ''} ${isOpen ? 'expanded' : 'shrunk'}`}>
             <TouchIcon
-              className={`w3a-user-account--gear-icon ${isOpen ? 'open' : 'closed'}`}
+              className={`w3a-user-account--fingerprint-icon ${isOpen ? 'open' : 'closed'}`}
               strokeWidth={1.4}
             />
           </div>
-          <UserAccountId
-            username={username}
-            fullAccountId={fullAccountId}
-            isOpen={isOpen}
-            nearExplorerBaseUrl={nearExplorerBaseUrl}
-            theme={theme}
-          />
+          {
+            !hideWhenClosed &&
+            <UserAccountId
+              username={username}
+              fullAccountId={fullAccountId}
+              isOpen={isOpen}
+              nearExplorerBaseUrl={nearExplorerBaseUrl}
+              theme={theme}
+            />
+          }
         </div>
       </div>
     </div>

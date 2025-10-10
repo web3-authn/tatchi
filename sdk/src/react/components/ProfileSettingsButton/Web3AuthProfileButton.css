@@ -2,18 +2,11 @@
   box-sizing: border-box;
 }
 
-.w3a-profile-button-container {
-  position: fixed;
-  top: 0.5rem;
-  right: 0.5rem;
-  display: inline-block;
-}
-
 .w3a-profile-button-morphable {
   position: relative;
   background-color: var(--w3a-colors-colorBackground);
   border: 1px solid var(--w3a-colors-borderPrimary);
-  border-radius: 28px;
+  border-radius: 2rem;
   box-shadow: var(--w3a-shadows-sm);
   font-size: 14px;
   font-weight: 500;
@@ -23,7 +16,6 @@
   overflow: visible;
   width: fit-content;
   transition: none;
-  transform: scale(1);
 }
 
 .w3a-profile-button-morphable:hover {

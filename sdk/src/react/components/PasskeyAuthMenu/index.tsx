@@ -21,11 +21,15 @@ import {
 export { AuthMenuMode, AuthMenuModeMap };
 export type { AuthMenuModeLabel };
 
-export interface SignupMenuProps {
+export interface PasskeyAuthMenuProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onRecoverAccount?: () => void;
-
+  /** Optional callbacks for the link-device QR flow */
+  linkDeviceOptions?: {
+    onEvent?: (event: DeviceLinkingSSEEvent) => void;
+    onError?: (error: Error) => void;
+  };
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;
   defaultMode?: AuthMenuMode;
@@ -41,22 +45,9 @@ export interface SignupMenuProps {
     x?: () => string;
     apple?: () => string;
   };
-  /** Text to show inline after the input (e.g., .testnet) */
-  postfixText?: string;
-  /** Whether the account domain/postfix corresponds to an existing account */
-  isUsingExistingAccount?: boolean;
-  /** Whether the current account exists (used to enable/disable proceed) */
-  accountExists?: boolean;
-  /** Optionally pass secure-context flag; defaults to window.isSecureContext */
-  isSecureContext?: boolean;
-  /** Optional callbacks for the link-device QR flow */
-  linkDeviceOptions?: {
-    onEvent?: (event: DeviceLinkingSSEEvent) => void;
-    onError?: (error: Error) => void;
-  };
 }
 
-export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
+export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => (
   <ThemeScope>
     <PasskeyAuthMenuInner {...props} />
   </ThemeScope>
@@ -67,58 +58,36 @@ export const PasskeyAuthMenu: React.FC<SignupMenuProps> = (props) => (
  * - Segmented Register/Login with animated highlight
  * - Arrow proceeds to a simple "Waiting for Passkey" view with spinner
  */
-const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
-  defaultMode,
+const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   onLogin,
   onRegister,
-  style,
-  className,
-  header,
-  socialLogin,
-  // userInput,
-  // onUserInputChange,
-  postfixText,
-  isUsingExistingAccount,
-  accountExists,
-  isSecureContext,
   onRecoverAccount,
   linkDeviceOptions,
+  // styles
+  header,
+  defaultMode,
+  style,
+  className,
+  // login options
+  socialLogin,
 }) => {
+
   const { tokens, isDark } = useTheme();
-  // Access Passkey context if available (tolerate absence)
-  let ctx: any = null;
-  try { ctx = usePasskeyContext(); } catch {}
-  const passkeyManager: any = ctx?.passkeyManager || null;
-  // Resolve default mode: prefer prop, otherwise infer from account existence
-  const accountExistsResolved = (typeof accountExists === 'boolean')
-    ? accountExists
-    : (ctx?.accountInputState?.accountExists ?? false);
+  const ctx = usePasskeyContext();
+  const passkeyManager = ctx?.passkeyManager;
+
+  const accountExistsResolved = ctx?.accountInputState?.accountExists;
   const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? AuthMenuMode.Login : AuthMenuMode.Register)) as AuthMenuMode;
 
   const [waiting, setWaiting] = React.useState(false);
   const [showScanDevice, setShowScanDevice] = React.useState(false);
-  const [internalUserInput, setInternalUserInput] = React.useState('');
-  // Hover/press states replaced by CSS :hover/:active
 
-  // const controlled = typeof userInput === 'string' && typeof onUserInputChange === 'function';
-  const usingContext = !!ctx;
-  const currentValue = usingContext
-    ? (ctx.accountInputState?.inputUsername || '')
-    : internalUserInput;
+  const currentValue = ctx.accountInputState?.inputUsername
+  const setCurrentValue = ctx.setInputUsername;
 
-  const setCurrentValue = usingContext
-    ? (ctx.setInputUsername as (v: string) => void)
-    : setInternalUserInput;
-
-  const secure = typeof isSecureContext === 'boolean' ? isSecureContext : (typeof window !== 'undefined' ? window.isSecureContext : true);
-
-  const postfixTextResolved = typeof postfixText === 'string'
-    ? postfixText
-    : (ctx?.accountInputState?.displayPostfix ?? undefined);
-
-  const isUsingExistingAccountResolved = (typeof isUsingExistingAccount === 'boolean')
-    ? isUsingExistingAccount
-    : (ctx?.accountInputState?.isUsingExistingAccount ?? undefined);
+  const secure = typeof window !== 'undefined' ? window.isSecureContext : true;
+  const postfixTextResolved = ctx?.accountInputState?.displayPostfix;
+  const isUsingExistingAccountResolved = ctx?.accountInputState?.isUsingExistingAccount;
 
   const {
     mode,
@@ -182,7 +151,6 @@ const PasskeyAuthMenuInner: React.FC<SignupMenuProps> = ({
   };
 
   // active pill background
-  // const segActiveBg = isDark ? tokens.colors.surface : tokens.colors.surface;
   const segActiveBg = isDark ? tokens.colors.slate600 : tokens.colors.slate50;
 
   const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {

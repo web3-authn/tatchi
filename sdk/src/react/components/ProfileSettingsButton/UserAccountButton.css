@@ -17,6 +17,10 @@
   width: fit-content;
 }
 
+.w3a-user-account-button-trigger .hide-username {
+  padding: 4px;
+}
+
 .w3a-user-account-button-trigger:hover {
   color: var(--w3a-colors-textPrimary);
   transition: color 0.1s ease;
@@ -36,6 +40,10 @@
   gap: 0px;
 }
 
+.w3a-user-account-button-trigger.hide-username {
+  padding: 4px;
+}
+
 .w3a-user-account-button-trigger.open .w3a-user-account--user-content {
   gap: 4px;
   padding: 8px 12px 8px 8px;
@@ -45,6 +53,10 @@
 /* Avatar States and CSS animations */
 .w3a-user-account--avatar.shrunk {
   transform: scale(0.8);
+}
+
+.w3a-user-account--avatar.hide-username {
+  margin-right: 0px;
 }
 
 .w3a-user-account--avatar.expanded {

@@ -46,7 +46,6 @@
   overflow: hidden;
   min-height: 0;
   min-width: 0;
-  padding: 8px 0px 0px 0px;
 }
 
 /* Menu item animation states */
@@ -88,6 +87,6 @@
 /* Logout menu item specific styling */
 .w3a-logout-menu-item {
   border-top: 1px solid var(--w3a-colors-borderPrimary);
-  border-radius: 0px 0px 28px 28px;
-  margin-top: 8px;
+  border-radius: 0px 0px 2rem 2rem;
+  margin-top: 0.5rem;
 }

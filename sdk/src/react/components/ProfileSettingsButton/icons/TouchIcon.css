@@ -1,10 +1,10 @@
 /* TouchIcon specific styles and animations */
 
-.w3a-user-account--gear-icon {
+.w3a-user-account--fingerprint-icon {
   transition: transform 400ms ease;
 }
 
-.w3a-user-account--gear-icon path {
+.w3a-user-account--fingerprint-icon path {
   /* Normalize path length so dash animations are simple */
   stroke: currentColor;
   stroke-dasharray: 1;
@@ -12,13 +12,13 @@
   stroke-width: 1.5;
 }
 
-.w3a-user-account--gear-icon.open path {
+.w3a-user-account--fingerprint-icon.open path {
   /* Draw the fingerprint when expanding/opening */
   animation: w3a-fp-open 1.5s ease-out 0.1s both; /* 100ms delay + hold end */
 }
 
 /* Animate when closing the menu */
-.w3a-user-account--gear-icon.closed path {
+.w3a-user-account--fingerprint-icon.closed path {
   animation: w3a-fp-close 1.5s ease-out 0.1s both; /* 100ms delay */
 }
 
@@ -32,6 +32,6 @@
   to { stroke-dashoffset: 0; }
 }
 
-.w3a-user-account--gear-icon:hover {
+.w3a-user-account--fingerprint-icon:hover {
   transform: rotate(180deg) scale(1.2);
 }

@@ -20,7 +20,9 @@
   transform: translateX(-1rem);
 }
 
-.w3a-dropdown-menu-item:hover { background-color: var(--w3a-colors-hover); }
+.w3a-dropdown-menu-item:hover {
+  background-color: var(--w3a-colors-hover);
+}
 
 .w3a-dropdown-menu-item:disabled {
   cursor: not-allowed;

@@ -31,25 +31,28 @@ export interface DeviceLinkingScannerParams {
   fundingAmount?: string;
 }
 
-export interface ProfileButtonProps {
+export interface ProfileSettingsButtonProps {
   nearAccountId: string;
-  username?: string | null;
-  onLogout?: () => void;
-  toggleColors?: ToggleColorProps;
   nearExplorerBaseUrl?: string;
+  username?: string | null;
+  hideUsername?: boolean;
+  onLogout?: () => void;
   // QR Code Scanner parameters
   deviceLinkingScannerParams?: DeviceLinkingScannerParams;
+  // styles
+  toggleColors?: ToggleColorProps;
+  style?: React.CSSProperties;
 }
 
 export interface UserAccountButtonProps {
   username: string;
+  hideUsername: boolean;
   fullAccountId?: string;
+  nearExplorerBaseUrl?: string;
   isOpen: boolean;
   onClick: () => void;
-  isHovered?: boolean;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
-  nearExplorerBaseUrl?: string;
   theme?: EmbeddedTxButtonTheme;
   // Optional ARIA linkage
   menuId?: string;

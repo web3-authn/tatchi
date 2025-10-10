@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePasskeyContext } from '../../context';
 import './LinkedDevicesModal.css';
-import { useTheme } from '../theme';
+import { useTheme, ThemeScope } from '../theme';
 import { getAuthenticatorsByUser } from '@/core/rpcCalls';
 import type { ContractStoredAuthenticator } from '@/core/PasskeyManager/recoverAccount';
 import { toAccountId } from '@/core/types/accountIds';
@@ -131,6 +131,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   };
 
   return (
+    <ThemeScope>
     <div className={`w3a-access-keys-modal-backdrop theme-${theme}`}
       onClick={handleBackdropClick}
       onMouseDown={(e) => e.stopPropagation()}
@@ -245,5 +246,6 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         )}
       </div>
     </div>
+    </ThemeScope>
   );
 };

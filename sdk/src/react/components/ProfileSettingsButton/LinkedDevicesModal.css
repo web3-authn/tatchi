@@ -221,9 +221,13 @@
   flex: 1;
   margin: 0;
   transition: all 0.2s ease;
+  color: var(--w3a-colors-textPrimary);
 }
 
-.w3a-copyable-key:hover { cursor: pointer; color: var(--w3a-colors-primary); }
+.w3a-copyable-key:hover {
+  cursor: pointer;
+  color: var(--w3a-colors-primary);
+}
 
 /* Tooltip styles */
 .w3a-copyable-key {
@@ -235,14 +239,14 @@
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--w3a-colors-surface);
+  background: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
-  padding: 0.25rem;
-  border-radius: 0.25rem;
+  border: 1px solid var(--w3a-colors-textMuted);
+  padding: 0.25rem 0.5rem;
+  border-radius: 1rem;
   font-size: 0.75rem;
-  font-weight: 500;
   white-space: nowrap;
-  z-index: 10000;
+  z-index: 1000;
   margin-bottom: 0.25rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   animation: tooltipFadeIn 0.1s ease-in-out;
