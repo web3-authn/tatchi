@@ -139,7 +139,7 @@ export type {
   ProfileDimensions,
   ProfileAnimationConfig,
   MenuItem,
-  ProfileButtonProps,
+  ProfileSettingsButtonProps,
   UserAccountButtonProps,
   ProfileDropdownProps,
   MenuItemProps,

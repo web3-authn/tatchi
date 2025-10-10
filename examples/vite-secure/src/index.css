@@ -339,15 +339,15 @@ nav ul li a:hover {
   align-items: center;
   flex-wrap: wrap;
   column-gap: 0.5rem;
-  padding: 0.5rem 1rem 0.5rem 1rem;
+  padding: 0.5rem;
   width: auto;
   max-inline-size: calc(100% - 1rem);
   margin-top: 0.5rem;
   margin-left: 0.5rem;
-  border-radius: 3rem;
   background-color: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
   border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2.5rem;
   position: fixed;
   top: 0;
   left: 0;
@@ -361,7 +361,8 @@ nav ul li a:hover {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--w3a-colors-textPrimary);
-  margin-right: 1rem;
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
 }
 
 .navbar-title a {
@@ -374,6 +375,7 @@ nav ul li a:hover {
   flex-wrap: wrap;
   gap: 1rem;
   align-items: center;
+  margin-right: 0.5rem;
 }
 
 .navbar-links a {
