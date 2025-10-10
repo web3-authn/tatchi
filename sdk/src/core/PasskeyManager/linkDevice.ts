@@ -104,7 +104,6 @@ export class LinkDeviceFlow {
     try {
       if (accountId) {
         // === OPTION E: Account ID provided - generate proper keypair immediately ===
-        console.log(`LinkDeviceFlow: Option E - Using provided account ID: ${accountId}`);
 
         // Validate account ID format
         validateNearAccountId(accountId);
@@ -149,11 +148,8 @@ export class LinkDeviceFlow {
           expiresAt: Date.now() + DEVICE_LINKING_CONFIG.TIMEOUTS.SESSION_EXPIRATION_MS
         };
 
-        console.log(`LinkDeviceFlow: Option E - Generated proper NEAR keypair for ${accountId}`);
-
       } else {
         // === OPTION F: No account ID - generate temporary keypair, replace later ===
-        console.log(`LinkDeviceFlow: Option F - No account provided, using temporary keypair approach`);
         // Generate temporary NEAR keypair WITHOUT TouchID/VRF (just for QR generation)
         const tempNearKeyResult = await this.generateTemporaryNearKeypair();
 
@@ -169,7 +165,6 @@ export class LinkDeviceFlow {
           expiresAt: Date.now() + DEVICE_LINKING_CONFIG.TIMEOUTS.SESSION_EXPIRATION_MS,
           tempPrivateKey: tempNearKeyResult.privateKey // Store temp private key for signing later
         };
-        console.log(`LinkDeviceFlow: Option F - Generated temporary NEAR keypair`);
       }
 
       // Generate QR data (works for both options)
@@ -232,12 +227,8 @@ export class LinkDeviceFlow {
   private async generateTemporaryNearKeypair(): Promise<{ publicKey: string; privateKey: string }> {
     // Generate a temporary random NEAR Ed25519 keypair (browser-safe)
     const { publicKey: publicKeyNear, privateKey: privateKeyNear } = await createNearKeypair();
-
-    console.log(`LinkDeviceFlow: Generated temporary Ed25519 keypair with automatic cleanup`);
-
     // Schedule automatic cleanup of the temporary key from memory
     this.scheduleTemporaryKeyCleanup(publicKeyNear);
-
     return {
       publicKey: publicKeyNear,
       privateKey: privateKeyNear
@@ -253,13 +244,9 @@ export class LinkDeviceFlow {
     if (this.tempKeyCleanupTimer) {
       clearTimeout(this.tempKeyCleanupTimer);
     }
-
     this.tempKeyCleanupTimer = setTimeout(() => {
       this.cleanupTemporaryKeyFromMemory();
-      console.log(`LinkDeviceFlow: Automatic cleanup executed for temporary key: ${publicKey.substring(0, 20)}...`);
     }, this.TEMP_KEY_CLEANUP_DELAY_MS);
-
-    console.log(`LinkDeviceFlow: Scheduled automatic cleanup in ${this.TEMP_KEY_CLEANUP_DELAY_MS / 1000 / 60} minutes for key: ${publicKey.substring(0, 20)}...`);
   }
 
   /**
@@ -271,13 +258,9 @@ export class LinkDeviceFlow {
       // Overwrite the private key string with zeros
       const keyLength = this.session.tempPrivateKey.length;
       this.session.tempPrivateKey = '0'.repeat(keyLength);
-
       // Then set to empty string to release memory
       this.session.tempPrivateKey = '';
-
-      console.log('LinkDeviceFlow: Temporary private key cleaned from memory');
     }
-
     // Clear the cleanup timer
     if (this.tempKeyCleanupTimer) {
       clearTimeout(this.tempKeyCleanupTimer);
@@ -411,7 +394,9 @@ export class LinkDeviceFlow {
         // Store the next device number for this device
         return true;
       } else {
-        if (!this.cancelled) console.log(`LinkDeviceFlow: No mapping found yet...`);
+        if (!this.cancelled) {
+          console.log(`LinkDeviceFlow: No mapping found yet...`);
+        }
       }
 
       return false;
@@ -569,7 +554,7 @@ export class LinkDeviceFlow {
   ): Promise<void> {
     try {
       if (this.cancelled) {
-        console.log('LinkDeviceFlow: Auto-login aborted because flow was cancelled');
+        console.warn('LinkDeviceFlow: Auto-login aborted because flow was cancelled');
         return;
       }
 
@@ -609,7 +594,6 @@ export class LinkDeviceFlow {
         this.context.configs.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
       ) {
         try {
-          console.log('LinkDeviceFlow: Attempting Shamir 3-pass unlock for auto-login');
           const unlockResult = await this.context.webAuthnManager.shamir3PassDecryptVrfKeypair({
             nearAccountId: accountId,
             kek_s_b64u: deterministicKeysResult.serverEncryptedVrfKeypair.kek_s_b64u,
@@ -621,18 +605,14 @@ export class LinkDeviceFlow {
             console.log('LinkDeviceFlow: Shamir 3-pass unlock successful for auto-login');
 
             if (this.cancelled) {
-              console.log('LinkDeviceFlow: Auto-login aborted after Shamir unlock because flow was cancelled');
+              console.warn('LinkDeviceFlow: Auto-login aborted after Shamir unlock because flow was cancelled');
               return;
             }
 
             // Initialize current user after successful VRF unlock
-            try {
-              await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-              // Ensure last-user device number reflects Device2 for future lookups
-              try { await this.context.webAuthnManager.setLastUser(accountId, deviceNumber); } catch {}
-            } catch (initErr) {
-              console.warn('Failed to initialize current user after Shamir 3-pass unlock:', initErr);
-            }
+            await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
+            // Ensure last-user device number reflects Device2 for future lookups
+            await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
 
             this.options?.onEvent?.({
               step: 8,
@@ -673,13 +653,9 @@ export class LinkDeviceFlow {
 
       if (vrfUnlockResult.success) {
         // Initialize current user after successful VRF unlock
-        try {
-          await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
-          // Ensure last-user device number reflects Device2 for future lookups
-          try { await this.context.webAuthnManager.setLastUser(accountId, deviceNumber); } catch {}
-        } catch (initErr) {
-          console.warn('Failed to initialize current user after TouchID unlock:', initErr);
-        }
+        await this.context.webAuthnManager.initializeCurrentUser(accountId, this.context.nearClient);
+        // Ensure last-user device number reflects Device2 for future lookups
+        await this.context.webAuthnManager.setLastUser(accountId, deviceNumber);
 
         this.options?.onEvent?.({
           step: 8,
@@ -734,10 +710,8 @@ export class LinkDeviceFlow {
         throw new Error('Device number not available - cannot determine device-specific account ID');
       }
 
-      // Generate device-specific account ID for storage
-      console.log("Storing device authenticator data with device number: ", this.session.deviceNumber);
-      // Store user data with deviceNumber
-
+      console.debug("Storing device authenticator data with device number: ", this.session.deviceNumber);
+      // Generate device-specific account ID for storage with deviceNumber
       await webAuthnManager.storeUserData({
         nearAccountId: accountId,
         deviceNumber: this.session.deviceNumber,
@@ -768,7 +742,6 @@ export class LinkDeviceFlow {
         syncedAt: new Date().toISOString(),
         vrfPublicKey: deterministicKeysResult.vrfPublicKey,
       });
-      console.log(`LinkDeviceFlow: Successfully stored authenticator data for account: ${accountId}, device number: ${this.session.deviceNumber}`);
 
     } catch (error) {
       console.error(`LinkDeviceFlow: Failed to store authenticator data:`, error);
@@ -801,12 +774,8 @@ export class LinkDeviceFlow {
     const realAccountId = this.session.accountId;
 
     try {
-      console.log(`LinkDeviceFlow: Processing VRF credentials for real account: ${realAccountId}`);
-
       if (!this.session.credential) {
         // === OPTION F: Need to generate WebAuthn credential + derive VRF ===
-        console.log(`LinkDeviceFlow: Option F - Generating WebAuthn credential for ${realAccountId}`);
-
         // Use secureConfirm to collect passkey with device number inside wallet iframe
         const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
           nearAccountId: realAccountId,
@@ -832,8 +801,6 @@ export class LinkDeviceFlow {
           throw new Error('Failed to derive VRF keypair from PRF for real account');
         }
 
-        console.log(`LinkDeviceFlow: Option F - Generated proper credentials, implementing 3-step flow`);
-
         // === STEP 1: Generate NEAR keypair (deterministic, no transaction signing) ===
         // Use base account ID for consistent keypair derivation across devices
         const nearKeyResultStep1 = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
@@ -849,7 +816,6 @@ export class LinkDeviceFlow {
         if (!nearKeyResultStep1.success || !nearKeyResultStep1.publicKey) {
           throw new Error('Failed to derive NEAR keypair in step 1');
         }
-        console.log(`LinkDeviceFlow: Step 1 - Generated keypair: ${nearKeyResultStep1.publicKey}`);
 
         // === STEP 2: Execute Key Replacement Transaction ===
         this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, this.session!.nearPublicKey);
@@ -867,18 +833,17 @@ export class LinkDeviceFlow {
         );
 
         // === STEP 3: Get new key's actual nonce and sign registration transaction ===
+        // Switch NonceManager to the newly added deterministic key
+        this.context.webAuthnManager.getNonceManager().initializeUser(
+          realAccountId,
+          nearKeyResultStep1.publicKey
+        );
         const {
           nextNonce: newKeyNonce,
           txBlockHash: newTxBlockHash,
-        } = await (async () => {
-          try {
-            // Switch NonceManager to the newly added deterministic key
-            this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, nearKeyResultStep1.publicKey);
-          } catch {}
-          return await this.context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(this.context.nearClient);
-        })();
-        console.log("Key Replacement Transaction Block Hash retrieved.");
-        console.log("NewKey's actual nonce >>>> newKeyNonce", newKeyNonce);
+        } = await this.context.webAuthnManager
+          .getNonceManager()
+          .getNonceBlockHashAndHeight(this.context.nearClient);
 
         // Generate the same keypair again (deterministic) but now with with the correct nonce for the registration transaction
         const nearKeyResultStep3 = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
@@ -900,7 +865,6 @@ export class LinkDeviceFlow {
         }
 
         // === STEP 3: Broadcast Registration Transaction ===
-        console.log(`LinkDeviceFlow: Broadcasting Device2 authenticator registration transaction`);
         const registrationTxResult = await this.context.nearClient.sendTransaction(nearKeyResultStep3.signedTransaction);
         // Advance NonceManager immediately after broadcast to avoid reusing the same nonce
         try {
@@ -911,18 +875,13 @@ export class LinkDeviceFlow {
         } catch (e) {
           console.warn('[LinkDeviceFlow]: Failed to update nonce after registration broadcast:', e);
         }
-        console.log(`LinkDeviceFlow: Device2 authenticator registered on-chain:`, registrationTxResult?.transaction?.hash);
 
         // === OPTION F: Clean up temp account VRF data ===
-        // Clean up any temp account VRF data (Option F only)
+        // Clean up any temp account VRF data (Option F only).
         if (this.session?.tempPrivateKey) {
           try {
             await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
-            console.log(`LinkDeviceFlow: Cleaned up temp VRF credentials`);
-          } catch (err) {
-            console.warn(`️LinkDeviceFlow: Could not clean up temp VRF credentials:`, err);
-          }
-
+          } catch {}
           // Clean up temporary private key from memory after successful completion
           this.cleanupTemporaryKeyFromMemory();
         }
@@ -945,7 +904,6 @@ export class LinkDeviceFlow {
 
       } else {
         // === OPTION E: Regenerate credential with device number ===
-        console.log(`LinkDeviceFlow: Option E - Regenerating credentials with device number for ${realAccountId}`);
 
         // Use secureConfirm again to regenerate credential with device number discovered during polling
         const confirm2 = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
@@ -971,7 +929,6 @@ export class LinkDeviceFlow {
         if (!vrfDerivationResult.success || !vrfDerivationResult.encryptedVrfKeypair) {
           throw new Error('Failed to derive VRF keypair from PRF for Option E');
         }
-        console.log(`LinkDeviceFlow: Option E - VRF credentials derived for ${realAccountId}`);
         if (!this.session.credential) {
           throw new Error('WebAuthn credential not available after VRF migration');
         }
@@ -1010,10 +967,6 @@ export class LinkDeviceFlow {
     const { tempPrivateKey, accountId, nearPublicKey: oldPublicKey } = this.session;
 
     try {
-      console.log(`LinkDeviceFlow: Executing key replacement transaction for ${accountId}`);
-      console.log(`   - Old key: ${oldPublicKey}`);
-      console.log(`   - New key: ${newPublicKey}`);
-
       // Build actions: AddKey new + DeleteKey old
       const actions: ActionArgsWasm[] = [
         {
@@ -1055,8 +1008,6 @@ export class LinkDeviceFlow {
         console.warn('[LinkDeviceFlow]: Failed to update nonce after key swap broadcast:', e);
       }
 
-      console.log(`LinkDeviceFlow: Key replacement transaction successful:`, txResult?.transaction?.hash);
-
     } catch (error) {
       console.error(`LinkDeviceFlow: Key replacement transaction failed:`, error);
       throw new Error(`Key replacement failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1067,50 +1018,21 @@ export class LinkDeviceFlow {
    * Clean up failed linking attempts - remove any partially stored data
    */
   private async cleanupFailedLinkingAttempt(): Promise<void> {
-    if (!this.session) return;
-
+    if (!this.session) {
+      return;
+    }
     try {
       const { credential, accountId, nearPublicKey } = this.session;
-
-      console.log(`LinkDeviceFlow: Cleaning up failed linking attempt for ${accountId || 'unknown account'}`);
-
       // Clean up temporary private key from memory first
       this.cleanupTemporaryKeyFromMemory();
-
       // Remove any authenticator data for both base and device-specific accounts (if they were discovered)
       if (accountId && credential) {
-
-        try {
-          await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(accountId);
-          console.log(`LinkDeviceFlow: Removed authenticators for ${accountId}`);
-        } catch (err) {
-          console.warn(`️LinkDeviceFlow: Could not remove authenticators for ${accountId}:`, err);
-        }
-
-        try {
-          await IndexedDBManager.clientDB.deleteUser(accountId);
-          console.log(`LinkDeviceFlow: Removed user data for ${accountId}`);
-        } catch (err) {
-          console.warn(`️LinkDeviceFlow: Could not remove user data for ${accountId}:`, err);
-        }
-
-        // Remove any VRF credentials for both device-specific and base accounts (in case re-derivation happened)
-        try {
-          await IndexedDBManager.nearKeysDB.deleteEncryptedKey(accountId);
-          console.log(`LinkDeviceFlow: Removed VRF credentials for device-specific account ${accountId}`);
-        } catch (err) {
-          console.warn(`️LinkDeviceFlow: Could not remove VRF credentials for ${accountId}:`, err);
-        }
+        try { await IndexedDBManager.clientDB.deleteAllAuthenticatorsForUser(accountId); } catch {}
+        try { await IndexedDBManager.clientDB.deleteUser(accountId); } catch {}
+        try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey(accountId); } catch {}
       }
-
       // Always clean up temp account VRF data (this is where initial QR generation stores data)
-      try {
-        await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
-        console.log(`LinkDeviceFlow: Removed temp VRF credentials`);
-      } catch (err) {
-        console.warn(`️LinkDeviceFlow: Could not remove temp VRF credentials:`, err);
-      }
-
+      try { await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet'); } catch {}
     } catch (error) {
       console.error(`LinkDeviceFlow: Error during cleanup:`, error);
     }
@@ -1121,7 +1043,6 @@ export class LinkDeviceFlow {
    */
   private stopPolling(): void {
     if (this.pollingInterval) {
-      console.log(`LinkDeviceFlow: Stopping polling interval`);
       clearTimeout(this.pollingInterval);
       this.pollingInterval = undefined;
     }
@@ -1133,7 +1054,6 @@ export class LinkDeviceFlow {
    */
   private stopRegistrationRetry(): void {
     if (this.registrationRetryTimeout) {
-      console.log(`LinkDeviceFlow: Stopping registration retry timeout`);
       clearTimeout(this.registrationRetryTimeout);
       this.registrationRetryTimeout = undefined;
     }
@@ -1154,7 +1074,6 @@ export class LinkDeviceFlow {
    * Cancel the flow and cleanup
    */
   cancel(): void {
-    console.log(`LinkDeviceFlow: Cancel called`);
     this.cancelled = true;
     this.stopPolling();
     this.stopRegistrationRetry();

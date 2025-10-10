@@ -187,8 +187,7 @@ export async function executeDeviceLinkingContractCalls({
   let addKeyTxResult: FinalExecutionOutcome;
   let storeDeviceLinkingTxResult: FinalExecutionOutcome;
   try {
-    console.log('LinkDeviceFlow: Broadcasting AddKey transaction...');
-    console.log('LinkDeviceFlow: AddKey transaction details:', {
+    console.debug('LinkDeviceFlow: AddKey transaction details:', {
       receiverId: signedTransactions[0].signedTransaction.transaction.receiverId,
       actions: JSON.parse(signedTransactions[0].signedTransaction.transaction.actionsJson || '[]'),
       transactionKeys: Object.keys(signedTransactions[0].signedTransaction.transaction),
@@ -226,7 +225,6 @@ export async function executeDeviceLinkingContractCalls({
     throw new Error(`Transaction broadcasting failed: ${txError.message}`);
   }
 
-  console.log('LinkDeviceFlow: Sending final success event...');
   onEvent?.({
     step: 6,
     phase: DeviceLinkingPhase.STEP_6_REGISTRATION,

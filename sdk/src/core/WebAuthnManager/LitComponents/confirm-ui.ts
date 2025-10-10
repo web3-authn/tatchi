@@ -1,8 +1,15 @@
-import { TransactionInputWasm, VRFChallenge } from '../../types';
-import { WalletIframeDomEvents } from '../../WalletIframe/events';
-import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_ID } from './tags';
+import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
 import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
 import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
+import { WalletIframeDomEvents } from '../../WalletIframe/events';
+import { TransactionInputWasm, VRFChallenge } from '../../types';
+
+import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_ID } from './tags';
+import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
+export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-digest';
+// Ensure the wrapper element is registered when this module loads.
+import './IframeTxConfirmer/tx-confirmer-wrapper';
 
 // Minimal host element interface for the inline confirmer wrapper.
 interface HostTxConfirmerElement extends HTMLElement {
@@ -18,8 +25,159 @@ interface HostTxConfirmerElement extends HTMLElement {
   requestUpdate?: () => void; // Lit element update hook (optional)
 }
 
-// Ensure the wrapper element is registered when this module loads.
-import './IframeTxConfirmer/tx-confirmer-wrapper';
+////////////////////////////
+// === Public Functions ===
+////////////////////////////
+
+export async function mountConfirmUI({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  loading,
+  theme,
+  uiMode,
+  nearAccountIdOverride,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests?: TransactionInputWasm[],
+  vrfChallenge?: VRFChallenge,
+  loading?: boolean,
+  theme?: 'dark' | 'light',
+  uiMode: ConfirmationUIMode,
+  nearAccountIdOverride?: string,
+}): Promise<ConfirmUIHandle> {
+  // 'skip' mode should never request a UI mount; callers handle this.
+  const variant = uiModeToVariant(uiMode);
+  const { handle } = mountHostElement({
+    ctx,
+    summary,
+    txSigningRequests,
+    vrfChallenge,
+    loading,
+    theme,
+    variant,
+    nearAccountIdOverride,
+  });
+  return handle;
+}
+
+export async function awaitConfirmUIDecision({
+  ctx,
+  summary,
+  txSigningRequests,
+  vrfChallenge,
+  theme,
+  uiMode,
+  nearAccountIdOverride,
+}: {
+  ctx: SignerWorkerManagerContext,
+  summary: TransactionSummary,
+  txSigningRequests: TransactionInputWasm[],
+  vrfChallenge: VRFChallenge,
+  theme: 'dark' | 'light',
+  uiMode: ConfirmationUIMode,
+  nearAccountIdOverride: string,
+}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
+  const variant = uiModeToVariant(uiMode);
+  const v: 'modal' | 'drawer' = variant || 'modal';
+
+  return new Promise((resolve) => {
+    const { el, handle } = mountHostElement({
+      ctx,
+      summary,
+      txSigningRequests,
+      vrfChallenge,
+      theme,
+      variant: v,
+      nearAccountIdOverride,
+    });
+
+    const finalize = (result: { confirmed: boolean; error?: string }) => {
+      cleanup();
+      resolve({ ...result, handle });
+    };
+
+    const onConfirm = async (event: Event) => {
+      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
+      let confirmed = detail?.confirmed !== false;
+      let error = typeof detail?.error === 'string' ? detail.error : undefined;
+      // Defensive UI digest validation in case wrapper capture-phase did not intercept
+      if (confirmed) {
+        const guardErr = await checkIntentDigestGuard(summary, txSigningRequests);
+        if (guardErr) {
+          confirmed = false;
+          if (!error) error = guardErr;
+        }
+      }
+
+      if (!confirmed) {
+        if (error) {
+          handle.update({ errorMessage: error, loading: false });
+        } else {
+          handle.update({ loading: false, errorMessage: '' });
+        }
+        finalize({ confirmed: false, error });
+        return;
+      }
+      finalize({ confirmed: true });
+    };
+
+    const onCancel = (event?: Event) => {
+      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
+      const error = typeof detail?.error === 'string' ? detail.error : undefined;
+      if (error) {
+        handle.update({ errorMessage: error, loading: false });
+      } else {
+        handle.update({ loading: false });
+      }
+      finalize({ confirmed: false, error });
+    };
+
+    const cleanup = () => {
+      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
+      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
+    };
+
+    // Listen to canonical events only
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
+    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
+  });
+}
+
+//////////////////////
+// Internal Functions
+//////////////////////
+
+async function checkIntentDigestGuard(
+  summary: TransactionSummary | undefined,
+  txSigningRequests?: TransactionInputWasm[],
+): Promise<string | undefined> {
+  const hasTxs = (txSigningRequests?.length || 0) > 0;
+  const expected = summary?.intentDigest;
+  if (!hasTxs || !expected) return undefined;
+  try {
+    const normalized: TransactionInputWasm[] = (txSigningRequests || []).map((tx) => ({
+      receiverId: tx.receiverId,
+      actions: (tx.actions || [])
+        .map((a) => (isActionArgsWasm(a) ? a : toActionArgsWasm(a as unknown as ActionArgs)))
+        .map((a) => orderActionForDigest(a as ActionArgsWasm) as ActionArgsWasm),
+    }));
+    const uiDigest = await computeUiIntentDigestFromTxs(normalized);
+    if (uiDigest !== expected) return 'INTENT_DIGEST_MISMATCH';
+    return undefined;
+  } catch {
+    return 'UI_DIGEST_VALIDATION_FAILED';
+  }
+}
+
+function createHostConfirmHandle(el: HostTxConfirmerElement): ConfirmUIHandle {
+  return {
+    close: (_confirmed: boolean) => { el.remove(); },
+    update: (props: ConfirmUIUpdate) => applyHostElementProps(el, props),
+  };
+}
 
 // Small helper to keep a host element's error attribute in sync
 function setErrorAttribute(el: HTMLElement, msg: string): void {
@@ -43,13 +201,6 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
     setErrorAttribute(el, msg);
   }
   el.requestUpdate?.();
-}
-
-function createHostConfirmHandle(el: HostTxConfirmerElement): ConfirmUIHandle {
-  return {
-    close: (_confirmed: boolean) => { el.remove(); },
-    update: (props: ConfirmUIUpdate) => applyHostElementProps(el, props),
-  };
 }
 
 // ===== Inline confirmer helpers =====
@@ -88,7 +239,17 @@ function ensureConfirmPortal(): HTMLElement {
   return portal;
 }
 
-async function mountHostUiWithHandle({
+type ConfirmEventDetail = {
+  confirmed?: boolean;
+  error?: string;
+};
+
+function uiModeToVariant(uiMode: ConfirmationUIMode): 'modal' | 'drawer' {
+  return uiMode === 'drawer' ? 'drawer' : 'modal';
+}
+
+// Create and mount a fresh host element into the tx-confirmer portal
+function mountHostElement({
   ctx,
   summary,
   txSigningRequests,
@@ -106,7 +267,7 @@ async function mountHostUiWithHandle({
   theme?: 'dark' | 'light',
   variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
-}): Promise<ConfirmUIHandle> {
+}): { el: HostTxConfirmerElement; handle: ConfirmUIHandle } {
   const v: 'modal' | 'drawer' = variant || 'modal';
   cleanupExistingConfirmers();
   const el = document.createElement(W3A_TX_CONFIRMER_ID) as HostTxConfirmerElement;
@@ -127,161 +288,8 @@ async function mountHostUiWithHandle({
   el.deferClose = true;
   const portal = ensureConfirmPortal();
   portal.replaceChildren(el);
-  return createHostConfirmHandle(el);
-}
-
-type ConfirmEventDetail = {
-  confirmed?: boolean;
-  error?: string;
-};
-
-async function awaitHostUiDecisionWithHandle({
-  ctx,
-  summary,
-  txSigningRequests,
-  vrfChallenge,
-  theme,
-  variant,
-  nearAccountIdOverride,
-}: {
-  ctx: SignerWorkerManagerContext,
-  summary: TransactionSummary,
-  txSigningRequests?: TransactionInputWasm[],
-  vrfChallenge?: VRFChallenge,
-  theme?: 'dark' | 'light',
-  variant?: 'modal' | 'drawer',
-  nearAccountIdOverride?: string,
-}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
-  const v: 'modal' | 'drawer' = variant || 'modal';
-  return new Promise((resolve) => {
-    cleanupExistingConfirmers();
-    const el = document.createElement(W3A_TX_CONFIRMER_ID) as HostTxConfirmerElement;
-    el.variant = v;
-    el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
-    el.txSigningRequests = txSigningRequests || [];
-    if ((txSigningRequests?.length || 0) > 0) {
-      el.intentDigest = summary?.intentDigest;
-    }
-    if (vrfChallenge) el.vrfChallenge = vrfChallenge;
-    if (theme) el.theme = theme;
-    el.removeAttribute('data-error-message');
-    el.deferClose = true;
-
-    const handle = createHostConfirmHandle(el);
-
-    const finalize = (result: { confirmed: boolean; error?: string }) => {
-      cleanup();
-      resolve({ ...result, handle });
-    };
-
-    const onConfirm = (event: Event) => {
-      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
-      const confirmed = detail?.confirmed !== false;
-      const error = typeof detail?.error === 'string' ? detail.error : undefined;
-      if (!confirmed) {
-        if (error) handle.update({ errorMessage: error, loading: false });
-        else handle.update({ loading: false, errorMessage: '' });
-        finalize({ confirmed: false, error });
-        return;
-      }
-      finalize({ confirmed: true });
-    };
-    const onCancel = (event?: Event) => {
-      const detail = (event as CustomEvent<ConfirmEventDetail> | undefined)?.detail;
-      const error = typeof detail?.error === 'string' ? detail.error : undefined;
-      if (error) handle.update({ errorMessage: error, loading: false });
-      else handle.update({ loading: false });
-      finalize({ confirmed: false, error });
-    };
-    const cleanup = () => {
-      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
-      el.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
-    };
-    // Listen to canonical events only
-    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, onConfirm as EventListener);
-    el.addEventListener(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, onCancel as EventListener);
-
-    const portal = ensureConfirmPortal();
-    portal.replaceChildren(el);
-  });
-}
-
-export type ConfirmationUIMode = 'skip' | 'modal' | 'drawer';
-
-// Public handle returned by mount/await helpers
-export type ConfirmUIUpdate = {
-  nearAccountId?: string;
-  txSigningRequests?: TransactionInputWasm[];
-  vrfChallenge?: VRFChallenge;
-  theme?: 'dark' | 'light';
-  loading?: boolean;
-  errorMessage?: string;
-};
-export interface ConfirmUIHandle {
-  close(confirmed: boolean): void;
-  update(props: ConfirmUIUpdate): void;
-}
-
-export async function mountConfirmUI({
-  ctx,
-  summary,
-  txSigningRequests,
-  vrfChallenge,
-  loading,
-  theme,
-  uiMode,
-  nearAccountIdOverride,
-}: {
-  ctx: SignerWorkerManagerContext,
-  summary: TransactionSummary,
-  txSigningRequests?: TransactionInputWasm[],
-  vrfChallenge?: VRFChallenge,
-  loading?: boolean,
-  theme?: 'dark' | 'light',
-  uiMode: ConfirmationUIMode,
-  nearAccountIdOverride?: string,
-}): Promise<ConfirmUIHandle> {
-  // 'skip' mode should never request a UI mount; callers handle this.
-  const variant: 'modal' | 'drawer' = (uiMode === 'drawer') ? 'drawer' : 'modal';
-  return await mountHostUiWithHandle({
-    ctx,
-    summary,
-    txSigningRequests,
-    vrfChallenge,
-    loading,
-    theme,
-    variant,
-    nearAccountIdOverride,
-  });
-}
-
-export async function awaitConfirmUIDecision({
-  ctx,
-  summary,
-  txSigningRequests,
-  vrfChallenge,
-  theme,
-  uiMode,
-  nearAccountIdOverride,
-}: {
-  ctx: SignerWorkerManagerContext,
-  summary: TransactionSummary,
-  txSigningRequests: TransactionInputWasm[],
-  vrfChallenge: VRFChallenge,
-  theme: 'dark' | 'light',
-  uiMode: ConfirmationUIMode,
-  nearAccountIdOverride: string,
-}): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
-  const variant: 'modal' | 'drawer' = (uiMode === 'drawer') ? 'drawer' : 'modal';
-  return await awaitHostUiDecisionWithHandle({
-    ctx,
-    summary,
-    txSigningRequests,
-    vrfChallenge,
-    theme,
-    variant,
-    nearAccountIdOverride,
-  });
+  const handle = createHostConfirmHandle(el);
+  return { el, handle };
 }
 
 // Types and element export for consumers that need the inline confirmer handle

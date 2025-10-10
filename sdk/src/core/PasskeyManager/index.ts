@@ -722,7 +722,6 @@ export class PasskeyManager {
    *   signedTransactions[0].signedTransaction,
    *   TxExecutionStatus.FINAL
    * );
-   * console.log('Transaction ID:', result.transaction_outcome?.id);
    * ```
    */
   async sendTransaction({ signedTransaction, options }: {
@@ -790,11 +789,6 @@ export class PasskeyManager {
    *   recipient: 'app.example.com',
    *   state: 'optional-state'
    * });
-   *
-   * if (result.success) {
-   *   console.log('Signature:', result.signature);
-   *   console.log('Public key:', result.publicKey);
-   * }
    * ```
    */
   async signNEP413Message(args: {

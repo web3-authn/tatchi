@@ -192,7 +192,6 @@ export async function signTransactionsWithActions(args: {
  *   signedTransactions[0].signedTransaction,
  *   TxExecutionStatus.FINAL
  * );
- * console.log('Transaction ID:', result.transaction_outcome?.id);
  * ```
  *
  * sendTransaction centrally manages nonce lifecycle around broadcast:

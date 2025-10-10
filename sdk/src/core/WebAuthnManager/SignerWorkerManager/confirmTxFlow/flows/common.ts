@@ -93,7 +93,7 @@ export async function fetchNearContext(
     let reservedNonces: string[] | undefined;
     try {
       reservedNonces = ctx.nonceManager.reserveNonces(txCount);
-      console.log(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
+      console.debug(`[NonceManager]: Reserved ${txCount} nonce(s):`, reservedNonces);
       // Provide the first reserved nonce to the worker context; worker handles per-tx assignment
       transactionContext.nextNonce = reservedNonces[0];
     } catch (error) {

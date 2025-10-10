@@ -54,7 +54,7 @@ export async function registerPasskeyInternal(
     contractTransactionId: null as string | null,
   };
 
-  console.log('⚡ Registration: Passkey registration with VRF WebAuthn ceremony');
+  console.log('⚡ Registration: Passkey registration with VRF WebAuthn');
   // Emit started event
   onEvent?.({
     step: 1,
@@ -441,7 +441,7 @@ const validateRegistrationInputs = async (
   } catch (viewError: any) {
     // If viewAccount throws any error, assume the account doesn't exist
     // This is more reliable than parsing specific error formats that vary between RPC servers
-    console.log(`Account ${nearAccountId} is available for registration (viewAccount failed: ${viewError.message})`);
+    console.log(`Account ${nearAccountId} is available for registration (${viewError.message})`);
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,

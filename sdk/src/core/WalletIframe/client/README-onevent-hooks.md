@@ -13,7 +13,6 @@ await walletRouter.registerPasskey({
   options: {
     onEvent: (ev) => {
       // ev is RegistrationSSEEvent
-      console.log('registration progress', ev.phase, ev.status)
     }
   }
 })

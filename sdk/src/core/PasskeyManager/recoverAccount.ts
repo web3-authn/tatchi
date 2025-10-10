@@ -663,7 +663,6 @@ async function restoreUserData({
     iv: encryptedNearKeypair.iv,
     timestamp: Date.now()
   });
-  console.log("user data restored: serverEncryptedVrfKeypair", serverEncryptedVrfKeypair);
 
   if (!existingUser) {
     await webAuthnManager.registerUser({
@@ -725,7 +724,7 @@ async function restoreAuthenticators({
 
     // Extract device number from contract authenticator data (now camelCase)
     const deviceNumber = authenticator.deviceNumber;
-    console.log("Restoring authenticator with device number:", deviceNumber, authenticator);
+    console.debug("Restoring authenticator with device number:", deviceNumber, authenticator);
 
     await webAuthnManager.storeAuthenticator({
       nearAccountId: accountId,

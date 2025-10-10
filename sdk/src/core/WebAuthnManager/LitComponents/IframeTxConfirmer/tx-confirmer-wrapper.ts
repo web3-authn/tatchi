@@ -196,6 +196,19 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this.detachChildListeners();
+    // Remove capture-phase fallback listener
+    this.removeEventListener(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, this.boundConfirmListener as EventListener, { capture: true } as any);
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    // Capture-phase fallback: ensure we catch early CONFIRM events even if child listeners
+    // are not yet attached due to rendering/refs timing.
+    this.addEventListener(
+      WalletIframeDomEvents.TX_CONFIRMER_CONFIRM,
+      this.boundConfirmListener as EventListener,
+      { capture: true } as any
+    );
   }
 
   private handleChildCancel(): void {
@@ -214,10 +227,12 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     this.redispatchingEvent = true;
     try {
       event.stopImmediatePropagation();
+      try { console.debug('[TxConfirmerWrapper] CONFIRM received', { hasIntent: !!this.intentDigest, txCount: (this.txSigningRequests?.length ?? 0) }); } catch {}
 
       if (this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
         try {
           const digest = await this.computeIntentDigest();
+          try { console.debug('[TxConfirmerWrapper] computed digest', { digest, expected: this.intentDigest }); } catch {}
           if (digest !== this.intentDigest) {
             confirmed = false;
             error = 'INTENT_DIGEST_MISMATCH';
