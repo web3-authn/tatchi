@@ -288,7 +288,7 @@ export class Shamir3PassUtils {
   async initialize(): Promise<{ p_b64u: string }> {
     await ensureWasmInitialized();
     if (!this.p_b64u) {
-      console.log('No p_b64u provided, using default');
+      console.warn('No p_b64u provided, using default');
       let default_p_b64u = await getShamirPB64uFromWasm();
       this.p_b64u = default_p_b64u;
     }

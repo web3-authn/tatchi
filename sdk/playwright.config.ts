@@ -1,10 +1,21 @@
 import { defineConfig, devices } from '@playwright/test';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+// Ensure tests default to NO_CADDY mode unless explicitly overridden.
+if (!process.env.USE_CADDY && !process.env.NO_CADDY) {
+  process.env.NO_CADDY = '1';
+}
 
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
 const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
 const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
+
+// Resolve absolute path to the examples/vite folder from this config location
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const EXAMPLES_VITE_DIR = path.resolve(path.join(__dirname, '../examples/vite'));
 
 export default defineConfig({
   testDir: './src/__tests__',
@@ -50,7 +61,7 @@ export default defineConfig({
     // If USE_RELAY_SERVER is set, start both servers with a relay health check
     command: USE_RELAY_SERVER
       ? 'node ./src/__tests__/scripts/start-servers.mjs'
-      : (NO_CADDY ? 'pnpm -C ../examples/vite run dev:ci' : 'pnpm -C ../examples/vite dev'),
+      : (NO_CADDY ? `pnpm -C ${EXAMPLES_VITE_DIR} run dev:ci` : `pnpm -C ${EXAMPLES_VITE_DIR} dev`),
     url: 'http://localhost:5173',
     reuseExistingServer: true,
     timeout: 180000, // Allow time for relay health check + build

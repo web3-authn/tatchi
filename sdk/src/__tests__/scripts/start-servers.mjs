@@ -13,10 +13,13 @@ import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const ROOT = path.resolve(path.join(__dirname, '../../..'));
+// Resolve repository root: this file lives at sdk/src/__tests__/scripts
+// We need to go up four levels to reach repo root
+const ROOT = path.resolve(path.join(__dirname, '../../../..'));
 const RELAY_DIR = path.join(ROOT, 'examples', 'relay-server');
 const DEFAULT_CACHE_PATH = path.join(RELAY_DIR, '.provision-cache.json');
-const REPORT_DIR = path.join(ROOT, 'passkey-sdk', 'playwright-report');
+// Store relay cache and generated artifacts under the SDK's Playwright report
+const REPORT_DIR = path.join(ROOT, 'sdk', 'playwright-report');
 const CACHE_PATH = process.env.RELAY_PROVISION_CACHE_PATH || path.join(REPORT_DIR, 'relay-provision-cache.json');
 
 function run(cmd, args, opts = {}) {
@@ -59,7 +62,7 @@ async function waitForRelayHealth(port, timeoutMs = 120_000) {
 
 async function main() {
   // 1) Provision relayer + shamir keys
-  await runWait('node', ['./src/__tests__/scripts/provision-relay-server.mjs'], {
+  await runWait('node', ['sdk/src/__tests__/scripts/provision-relay-server.mjs'], {
     env: { ...process.env, RELAY_PROVISION_CACHE_PATH: CACHE_PATH }
   });
 
@@ -89,7 +92,7 @@ async function main() {
   };
 
   // 3) Start test relay server in background (self-contained)
-  const relay = spawn('node', ['./src/__tests__/scripts/test-relay-server.mjs'], { stdio: 'inherit', cwd: ROOT, env: relayEnv });
+  const relay = spawn('node', ['sdk/src/__tests__/scripts/test-relay-server.mjs'], { stdio: 'inherit', cwd: ROOT, env: relayEnv });
 
   // 4) Determine port and wait for health
   const port = relayPort;
@@ -101,7 +104,8 @@ async function main() {
   // 5) Start vite dev (foreground)
   const viteScript = (process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1') ? 'dev:ci' : 'dev';
   console.log(`[start-servers] Starting Vite with script '${viteScript}' (NO_CADDY=${process.env.NO_CADDY || ''}, CI=${process.env.CI || ''})`);
-  const vite = spawn('pnpm', ['-C', '../examples/vite', viteScript], { stdio: 'inherit', cwd: ROOT });
+  // Use path relative to ROOT (repo root)
+  const vite = spawn('pnpm', ['-C', 'examples/vite', viteScript], { stdio: 'inherit', cwd: ROOT });
 
   // Cleanup on exit
   function shutdown(code = 0) {

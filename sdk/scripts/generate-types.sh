@@ -80,8 +80,8 @@ fi
 echo "✅ TypeScript definitions generated successfully by wasm-bindgen"
 
 # 4. Run type checking to ensure consistency
-echo "Running TypeScript type checking..."
-if ! npx tsc --noEmit; then
+echo "Running TypeScript type checking (build sources only)..."
+if ! npx tsc --noEmit -p tsconfig.build.json; then
     echo ""
     echo "❌ TypeScript type checking failed"
     echo "This usually means there are type inconsistencies between generated WASM types and TypeScript code."

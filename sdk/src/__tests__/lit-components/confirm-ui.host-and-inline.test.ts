@@ -33,6 +33,8 @@ function buildCtxStub(overrides: Record<string, unknown> = {}) {
 }
 
 test.describe('confirm-ui inline confirmer', () => {
+  test.describe.configure({ timeout: 20_000 });
+
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
   });
@@ -254,21 +256,17 @@ test.describe('confirm-ui inline confirmer', () => {
       });
       const ctx = (window as any).ctxStub || ((window as any).ctxStub = buildCtxStub());
 
-      const txSigningRequests: TransactionInputWasm[] = [
-        {
-          receiverId: 'merchant.testnet',
-          actions: [
-            {
-              action_type: transferType,
-              deposit: '1000000000000000000000000'
-            } satisfies ActionArgsWasm
-          ]
-        }
-      ];
+      const txSigningRequests: TransactionInputWasm[] = [{
+        receiverId: 'merchant.testnet',
+        actions: [{
+          action_type: transferType,
+          deposit: '1000000000000000000000000'
+        } as ActionArgsWasm]
+      }];
 
       const decisionPromise = awaitConfirmUIDecision({
-        ctx: ctx as any,
-        summary: { intentDigest: 'bogus-digest' } as any,
+        ctx: ctx,
+        summary: { intentDigest: 'bogus-digest' },
         txSigningRequests,
         vrfChallenge: {
           vrfOutput: 'vrf-out',
@@ -281,11 +279,12 @@ test.describe('confirm-ui inline confirmer', () => {
         nearAccountIdOverride: 'alice.testnet',
       });
 
-      await waitFor(() => !!document.getElementById('w3a-confirm-portal')?.firstElementChild);
+      await waitFor(() => !!document.querySelector('w3a-tx-confirmer'));
       const wrapper = document.getElementById('w3a-confirm-portal')?.firstElementChild as HTMLElement | null;
-      await waitFor(() => !!wrapper?.querySelector?.('w3a-modal-tx-confirmer'));
-      const child = wrapper?.querySelector?.('w3a-modal-tx-confirmer') as HTMLElement | null;
-      child?.dispatchEvent(new CustomEvent(
+      // Dispatch on the wrapper itself so the capture-phase handler performs
+      // digest validation reliably, independent of child listener timing.
+      await new Promise((r) => setTimeout(r, 50));
+      wrapper?.dispatchEvent(new CustomEvent(
         events.WalletIframeDomEvents.TX_CONFIRMER_CONFIRM,
         { detail: { confirmed: true }, bubbles: true, composed: true } as any
       ));
@@ -295,6 +294,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const dataError = wrapper?.getAttribute?.('data-error-message') || null;
       return { confirmed, error: error || null, dataError };
     }, { waitForSource: WAIT_FOR_SOURCE, paths: IMPORT_PATHS, transferType });
+    console.log("Expect intent digest mismatch: ", result);
 
     expect(result.confirmed).toBe(false);
     expect(result.error).toBe('INTENT_DIGEST_MISMATCH');

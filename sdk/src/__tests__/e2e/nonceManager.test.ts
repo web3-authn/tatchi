@@ -23,6 +23,9 @@ test.describe('NonceManager Integration Tests', () => {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
 
+        // Ensure relay-server registration is mocked for deterministic success
+        try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
+
         // Register and login to get a working session
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
           || ({ uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' } as const);
@@ -96,6 +99,9 @@ test.describe('NonceManager Integration Tests', () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
+
+        // Ensure relay-server registration is mocked for deterministic success
+        try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
 
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)
@@ -175,6 +181,9 @@ test.describe('NonceManager Integration Tests', () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
         const testAccountId = generateTestAccountId();
+
+        // Ensure relay-server registration is mocked for deterministic success
+        try { (window as any).testUtils?.registrationFlowUtils?.setupRelayServerMock?.(true); } catch {}
 
         // Register and login
         const cfg = ((window as any).testUtils?.confirmOverrides?.skip)

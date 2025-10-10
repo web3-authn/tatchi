@@ -168,6 +168,24 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
       return attestationObjectBytes;
     };
 
+    // === Helper utilities for RP ID resolution in tests ===
+    const resolveTestRpId = (): string => {
+      try {
+        const fromConfig = (window as any).testUtils?.configs?.rpId;
+        if (fromConfig && typeof fromConfig === 'string' && fromConfig.length > 0) return fromConfig;
+        const host = (typeof window !== 'undefined' && window.location) ? window.location.hostname : '';
+        return host || 'localhost';
+      } catch {
+        return 'localhost';
+      }
+    };
+
+    const computeRpIdHash = async (rpId: string): Promise<Uint8Array> => {
+      const rpIdBytes = new TextEncoder().encode(rpId);
+      const rpIdHashBuffer = await crypto.subtle.digest('SHA-256', rpIdBytes);
+      return new Uint8Array(rpIdHashBuffer);
+    };
+
     /**
      * Creates mock PRF outputs for WebAuthn PRF extension testing
      */
@@ -243,11 +261,9 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, 200));
 
         const prfRequested = options.publicKey.extensions?.prf;
-        // Use hardcoded RP ID for test consistency (browser context doesn't have access to DEFAULT_TEST_CONFIG)
-        const rpId = 'example.localhost';
-        const rpIdBytes = new TextEncoder().encode(rpId);
-        const rpIdHashBuffer = await crypto.subtle.digest('SHA-256', rpIdBytes);
-        const rpIdHash = new Uint8Array(rpIdHashBuffer);
+        // Resolve RP ID (shared logic for tests)
+        const rpId = resolveTestRpId();
+        const rpIdHash = await computeRpIdHash(rpId);
 
         // Extract account ID from user info for deterministic PRF
         const accountId = options.publicKey.user?.name || 'default-account';
@@ -274,8 +290,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
             clientDataJSON: new TextEncoder().encode(JSON.stringify({
               type: 'webauthn.create',
               challenge: (window as any).base64UrlEncode(new Uint8Array(options.publicKey.challenge)),
-              origin: 'https://example.localhost', // Must match contract expectations
-              rpId: 'example.localhost', // RP ID should match the origin hostname
+              origin: 'https://example.localhost', // Test origin (Caddy)
+              rpId: rpId, // Must match rpIdHash and VRF challenge rpId
               crossOrigin: false
             })),
             attestationObject: attestationObjectBytes,
@@ -384,16 +400,14 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
             clientDataJSON: new TextEncoder().encode(JSON.stringify({
               type: 'webauthn.get',
               challenge: (window as any).base64UrlEncode(new Uint8Array(options.publicKey.challenge)),
-              origin: 'https://example.localhost', // Must match contract expectations
-              rpId: 'example.localhost', // RP ID should match the origin hostname
+              origin: 'https://example.localhost', // Test origin (Caddy)
+              rpId: resolveTestRpId(),
               crossOrigin: false
             })),
             authenticatorData: await (async () => {
               // Create proper authenticatorData with correct RP ID hash (same as registration)
-              const rpId = 'example.localhost'; // Must match registration mock
-              const rpIdBytes = new TextEncoder().encode(rpId);
-              const rpIdHashBuffer = await crypto.subtle.digest('SHA-256', rpIdBytes);
-              const rpIdHash = new Uint8Array(rpIdHashBuffer);
+              const rpId = resolveTestRpId(); // Must match registration mock
+              const rpIdHash = await computeRpIdHash(rpId);
 
               // AuthenticatorData structure: rpIdHash(32) + flags(1) + counter(4)
               const authData = new Uint8Array(37);
@@ -413,10 +427,8 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
                 }
 
                 // Create proper WebAuthn authenticatorData structure (must match response)
-                const rpId = 'example.localhost';
-                const rpIdBytes = new TextEncoder().encode(rpId);
-                const rpIdHashBuffer = await crypto.subtle.digest('SHA-256', rpIdBytes);
-                const rpIdHash = new Uint8Array(rpIdHashBuffer);
+                const rpId = resolveTestRpId();
+                const rpIdHash = await computeRpIdHash(rpId);
 
                 const flags = 0x05; // UP (0x01) + UV (0x04)
                 const counter = new Uint8Array([0x00, 0x00, 0x00, 0x01]); // Counter = 1 (must match response)
@@ -432,7 +444,7 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
                   type: 'webauthn.get',
                   challenge: (window as any).base64UrlEncode(new Uint8Array(options.publicKey.challenge)),
                   origin: 'https://example.localhost',
-                  rpId: 'example.localhost', // RP ID should match the origin hostname
+                  rpId: rpId, // RP ID should match the origin policy + hash
                   crossOrigin: false
                 });
                 const clientDataJSONBytes = new TextEncoder().encode(clientDataJSON);
