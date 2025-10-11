@@ -343,7 +343,7 @@ export async function recoverAccount(
       step: 2,
       phase: AccountRecoveryPhase.STEP_2_WEBAUTHN_AUTHENTICATION,
       status: AccountRecoveryStatus.PROGRESS,
-      message: 'Authenticating with WebAuthn...',
+      message: 'Authenticating with contract...',
     });
 
     const credential = await getOrCreateCredential(

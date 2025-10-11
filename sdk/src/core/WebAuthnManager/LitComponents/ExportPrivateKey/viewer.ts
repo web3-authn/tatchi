@@ -36,6 +36,10 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   static styles = css`
     :host { display: block; position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
     .content { display: flex; flex-direction: column; gap: 1rem; }
+    /* Add comfortable padding on desktop widths */
+    @media (min-width: 769px) {
+      .content { padding: 1rem; }
+    }
     .title {
       margin: 0rem;
       padding-left: 0.5rem;

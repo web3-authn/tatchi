@@ -197,7 +197,7 @@ async function handleLoginUnlockVRF(
         step: 2,
         phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
         status: LoginStatus.PROGRESS,
-        message: 'Authenticating with TouchID to unlock VRF keypair...'
+        message: 'Logging in, unlocking VRF credentials...'
       });
 
       // Get credential for VRF unlock

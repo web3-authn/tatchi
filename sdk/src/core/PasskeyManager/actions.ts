@@ -557,7 +557,7 @@ async function wasmAuthenticateAndSignTransactions(
           step: 4,
           phase: ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
           status: ActionStatus.PROGRESS,
-          message: 'Authenticating with WebAuthn contract...',
+          message: 'Authenticating with contract...',
         });
       }
       if (progressEvent.phase === ActionPhase.STEP_5_AUTHENTICATION_COMPLETE) {
