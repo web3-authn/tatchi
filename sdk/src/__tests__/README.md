@@ -159,6 +159,12 @@ pnpm -C passkey-sdk build
 - Target the iframe with `allow` containing `publickey-credentials` in tests
 - Router hide asserts should check `aria-hidden` and 0×0 with opacity 0
 - Registration VRF JIT path may reuse bootstrap challenge in tests
+- Multi‑iframe overlay selection: the example app (examples/vite) mounts its own wallet iframe via `PasskeyProvider`, so tests often see two wallet iframes. Naive selection picked the hidden 0×0 iframe and caused false “overlay not visible” failures. Fix:
+  - Tag test‑owned iframes by constructing routers with `testOptions: { ownerTag: 'tests' }`.
+  - Centralize selection in `captureOverlay()` (harness.ts): prefer `iframe[data-w3a-owner="tests"]`, else choose the interactive candidate (pointer‑enabled, opacity>0, not `aria-hidden`), else fall back to the newest candidate. Inline confirmer host also counts as visible.
+  - Router now exposes `getIframeEl()` and `getOverlayState()` to aid diagnostics (test‑only usage).
+- Test‑only options: router/transport accept a `testOptions` bag (`routerId`, `ownerTag`, `autoMount`) to aid Playwright without affecting app API.
+- Handshake/WebAuthn bridge: replying to the requesting window with `'*'` target after origin validation removes transient `'null'` origin warnings on Safari‑like early navigation without weakening safety.
 
 ## Troubleshooting
 
@@ -171,11 +177,12 @@ To keep iframe tests stable:
 
 ## Gaps & Next Steps
 
-- ProgressBus lifecycle assertions for sticky subscriber hand‑off and overlay visibility
+- Strengthen lifecycle assertions around sticky flows (handoff and final hide)
 - Local‑only cancel flow should release nonce and emit structured error
-- Theme regression guardrails for confirm UI (light vs dark DOM tokens)
-- Router sticky downgrade scenario (PM_RESULT clears sticky → overlay hides without explicit cancel)
-- Ensure the Playwright wallet stub mirrors the production host: send permissive `Cross-Origin-*` headers, adopt incoming ports, reply to `PM_CANCEL` with an `ERROR` (code `CANCELLED`), and emit progress phases such as `ActionPhase.STEP_2_USER_CONFIRMATION`. Without those stubs the overlay visibility assertions will never see the iframe expand.
+- Theme regression guardrails for confirm UI (light vs dark tokens)
+- Consider gating `data-w3a-router-id` to debug/test builds only (cosmetic)
+- Optional: convenience `waitForOverlayShown/Hidden` helpers in harness (wrap `captureOverlay` + `waitFor`)
+- Keep the wallet stub aligned with production host: adopt ports, reply to `PM_CANCEL` with `ERROR{ code: 'CANCELLED' }`, emit expected phases (e.g., `user-confirmation`) so overlay assertions have signal
 
 If you update the handshake logic, re-run:
 

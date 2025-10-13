@@ -1,7 +1,7 @@
 // Validates the iframe cancel path collapses the overlay reliably across flows without host responses
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
-import { buildWalletServiceHtml, registerWalletServiceRoute } from '../wallet-iframe/harness';
+import { buildWalletServiceHtml, registerWalletServiceRoute, captureOverlay } from '../wallet-iframe/harness';
 
 test.describe('Wallet iframe overlay contracts on cancel', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,7 +24,8 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
   test('Overlay shows then hides on cancel across core routes', async ({ page }) => {
     test.setTimeout(60000);
 
-    const result = await page.evaluate(async () => {
+    const CAPTURE_OVERLAY_SOURCE = `(${captureOverlay.toString()})`;
+    const result = await page.evaluate(async ({ captureOverlaySource }) => {
       try {
         // Dynamically import the wallet iframe client
         // @ts-ignore - runtime import path resolved by SDK build served at /sdk
@@ -46,53 +47,24 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
           nearNetwork: cfg.nearNetwork || 'testnet',
           contractId: cfg.contractId,
           relayer: cfg.useRelayer && cfg.relayServerUrl ? { accountId: cfg.relayerAccount, url: cfg.relayServerUrl } : undefined,
+          // Tag the test-owned iframe for deterministic selection
+          testOptions: { ownerTag: 'tests' },
         });
 
         await router.init();
 
-        // Helper: find the wallet service iframe
-        const getIframe = (): HTMLIFrameElement | null => {
-          const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-          // IframeTransport sets a permissive allow attribute including publickey-credentials-* permissions
-          return (
-            iframes.find((f) => (f.getAttribute('allow') || '').includes('publickey-credentials')) ||
-            null
-          );
-        };
+        const capture = eval(captureOverlaySource) as typeof import('../wallet-iframe/harness').captureOverlay;
 
         const isOverlayVisible = (): boolean => {
-          const iframe = getIframe();
-          if (!iframe) return false;
-          const cs = getComputedStyle(iframe);
-          // Visible overlay: pointer-events enabled and aria-hidden=false
-          return cs.pointerEvents === 'auto' && iframe.getAttribute('aria-hidden') === 'false';
+          const s = capture();
+          return !!(s.exists && (s as any).visible);
         };
 
-        const captureOverlayState = () => {
-          const iframe = getIframe();
-          if (!iframe) return { exists: false };
-          const cs = getComputedStyle(iframe);
-          return {
-            exists: true,
-            pointerEvents: cs.pointerEvents,
-            ariaHidden: iframe.getAttribute('aria-hidden'),
-            width: cs.width,
-            height: cs.height,
-            opacity: cs.opacity,
-            zIndex: iframe.style.zIndex,
-          };
-        };
+        const captureOverlayState = () => capture();
 
         const isOverlayHidden = (): boolean => {
-          const iframe = getIframe();
-          if (!iframe) return true; // treat missing as hidden
-          const cs = getComputedStyle(iframe);
-          // Hidden overlay: pointer-events none and aria-hidden=true and width 0px
-          return (
-            cs.pointerEvents === 'none' &&
-            iframe.getAttribute('aria-hidden') === 'true' &&
-            (cs.width === '0px' || iframe.style.width === '0px')
-          );
+          const s = capture();
+          return !s.exists || !(s as any).visible;
         };
 
         const waitFor = async (pred: () => boolean, timeoutMs = 5000): Promise<boolean> => {
@@ -179,7 +151,7 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
       } catch (error: any) {
         return { success: false, error: error?.message || String(error) };
       }
-    });
+    }, { captureOverlaySource: CAPTURE_OVERLAY_SOURCE });
 
     if (!result.success) {
       console.log('overlay cancel failure', result);

@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
-import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor } from './harness';
+import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor, captureOverlay } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
 const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service*';
 const WAIT_FOR_SOURCE = `(${waitFor.toString()})`;
+const CAPTURE_OVERLAY_SOURCE = `(${captureOverlay.toString()})`;
 
 test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
   test.beforeEach(async ({ page }) => {
@@ -19,8 +20,9 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
   });
 
   test('executeAction shows overlay then hides it after request timeout', async ({ page }) => {
-    const result = await page.evaluate(async ({ walletOrigin, waitForSource }) => {
+    const result = await page.evaluate(async ({ walletOrigin, waitForSource, captureOverlaySource }) => {
       const waitFor = eval(waitForSource) as typeof import('./harness').waitFor;
+      const capture = eval(captureOverlaySource) as typeof import('./harness').captureOverlay;
       try {
         // Dynamically import the router from built ESM
         const mod = await import('/sdk/esm/core/WalletIframe/client/router.js');
@@ -36,64 +38,7 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
         });
         await router.init();
 
-        const capture = () => {
-          const iframe = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-          const overlayIframe = iframe.find((f) => {
-            const allow = (f.getAttribute('allow') || '');
-            const src = f.getAttribute('src') || '';
-            return allow.includes('publickey-credentials') || /wallet\.example\.localhost/.test(src);
-          });
-          if (overlayIframe) {
-            const cs = getComputedStyle(overlayIframe);
-            const rect = overlayIframe.getBoundingClientRect();
-            const ariaHidden = overlayIframe.getAttribute('aria-hidden') === 'true';
-            const opacity = Number.parseFloat(cs.opacity || '1');
-            const pointerEnabled = cs.pointerEvents !== 'none';
-            const area = rect.width > 0 && rect.height > 0;
-            return {
-              exists: true,
-              visible: pointerEnabled && !ariaHidden && opacity > 0,
-              pointerEnabled,
-              ariaHidden,
-              width: rect.width,
-              height: rect.height,
-              opacity,
-            } as const;
-          }
-
-          const portal = document.getElementById('w3a-confirm-portal');
-          const host = portal?.firstElementChild as HTMLElement | null;
-          if (!host) return { exists: false, visible: false } as const;
-          const interactive = host.querySelector<HTMLElement>('w3a-drawer-tx-confirmer, w3a-modal-tx-confirmer, w3a-drawer, w3a-modal');
-          const target = interactive || host;
-          const style = getComputedStyle(target);
-          const rect = target.getBoundingClientRect();
-          const opacity = Number.parseFloat(style.opacity || '1');
-          const pointerEnabled = style.pointerEvents !== 'none';
-          const ariaHidden = target.getAttribute('aria-hidden') === 'true';
-          const visibility = style.visibility !== 'hidden' && style.display !== 'none';
-          const area = rect.width > 0 && rect.height > 0;
-          if (interactive) {
-            return {
-              exists: true,
-              visible: true,
-              pointerEnabled,
-              ariaHidden,
-              width: rect.width,
-              height: rect.height,
-              opacity,
-            } as const;
-          }
-          return {
-            exists: true,
-            visible: visibility && pointerEnabled && !ariaHidden && opacity > 0,
-            pointerEnabled,
-            ariaHidden,
-            width: rect.width,
-            height: rect.height,
-            opacity,
-          } as const;
-        };
+        
 
         // Fire-and-forget request that will time out since the stub never replies with PM_RESULT
         const p = router.executeAction({
@@ -123,7 +68,7 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
       } catch (error: any) {
         return { success: false, error: error?.message || String(error) };
       }
-    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE });
+    }, { walletOrigin: WALLET_ORIGIN, waitForSource: WAIT_FOR_SOURCE, captureOverlaySource: CAPTURE_OVERLAY_SOURCE });
 
     if (!result.success) {
       if (handleInfrastructureErrors(result)) return;

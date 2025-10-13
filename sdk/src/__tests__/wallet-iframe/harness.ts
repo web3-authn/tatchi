@@ -162,6 +162,7 @@ export const initRouter = async (
   const opts = {
     walletOrigin: 'https://wallet.test',
     servicePath: '/wallet-service',
+    testOptions: { ownerTag: 'tests' },
     ...options,
   };
 
@@ -185,6 +186,84 @@ export const waitFor = async (
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   return predicate();
+};
+
+// Browser-executed helper to locate and summarize the wallet overlay state.
+// Prefer the test-owned iframe when present; otherwise choose the interactive
+// wallet iframe (pointer-enabled, opacity>0, not aria-hidden). Falls back to
+// the latest candidate when none are yet interactive. If the inline confirmer
+// host exists, treat it as visible.
+export const captureOverlay = () => {
+  const iframeEls = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
+  const testOwned = iframeEls.filter((f) => f.getAttribute('data-w3a-owner') === 'tests');
+  const overlayCandidates = (testOwned.length ? testOwned : iframeEls).filter((f) => {
+    const allow = f.getAttribute('allow') || '';
+    const src = f.getAttribute('src') || '';
+    return allow.includes('publickey-credentials') || /wallet\.example\.localhost/.test(src);
+  });
+
+  const pickOverlay = (): HTMLIFrameElement | undefined => {
+    for (const candidate of overlayCandidates) {
+      const style = getComputedStyle(candidate);
+      const opacity = Number.parseFloat(style.opacity || '1');
+      const pointerEnabled = style.pointerEvents !== 'none';
+      const ariaHidden = candidate.getAttribute('aria-hidden') === 'true';
+      if (pointerEnabled && !ariaHidden && opacity > 0) {
+        return candidate;
+      }
+    }
+    return overlayCandidates.length ? overlayCandidates[overlayCandidates.length - 1] : undefined;
+  };
+
+  const overlayIframe = pickOverlay();
+  if (overlayIframe) {
+    const cs = getComputedStyle(overlayIframe);
+    const rect = overlayIframe.getBoundingClientRect();
+    const ariaHidden = overlayIframe.getAttribute('aria-hidden') === 'true';
+    const opacity = Number.parseFloat(cs.opacity || '1');
+    const pointerEnabled = cs.pointerEvents !== 'none';
+    return {
+      exists: true,
+      visible: pointerEnabled && !ariaHidden && opacity > 0,
+      pointerEnabled,
+      ariaHidden,
+      width: rect.width,
+      height: rect.height,
+      opacity,
+    } as const;
+  }
+
+  const portal = document.getElementById('w3a-confirm-portal');
+  const host = portal?.firstElementChild as HTMLElement | null;
+  if (!host) return { exists: false, visible: false } as const;
+  const interactive = host.querySelector<HTMLElement>('w3a-drawer-tx-confirmer, w3a-modal-tx-confirmer, w3a-drawer, w3a-modal');
+  const target = interactive || host;
+  const style = getComputedStyle(target);
+  const rect = target.getBoundingClientRect();
+  const opacity = Number.parseFloat(style.opacity || '1');
+  const pointerEnabled = style.pointerEvents !== 'none';
+  const ariaHidden = target.getAttribute('aria-hidden') === 'true';
+  const visibility = style.visibility !== 'hidden' && style.display !== 'none';
+  if (interactive) {
+    return {
+      exists: true,
+      visible: true,
+      pointerEnabled,
+      ariaHidden,
+      width: rect.width,
+      height: rect.height,
+      opacity,
+    } as const;
+  }
+  return {
+    exists: true,
+    visible: visibility && pointerEnabled && !ariaHidden && opacity > 0,
+    pointerEnabled,
+    ariaHidden,
+    width: rect.width,
+    height: rect.height,
+    opacity,
+  } as const;
 };
 
 export const registerWalletServiceRoute = async (

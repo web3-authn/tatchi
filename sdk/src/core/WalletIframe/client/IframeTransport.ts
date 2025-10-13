@@ -48,6 +48,10 @@ export interface IframeTransportOptions {
   walletOrigin: string;     // e.g., https://wallet.example.com
   servicePath?: string;      // default '/service'
   connectTimeoutMs?: number; // total budget for handshake retries
+  testOptions?: {
+    routerId?: string;         // identity tag for the iframe element
+    ownerTag?: string;         // e.g., 'app' | 'tests'
+  };
 }
 
 export class IframeTransport {
@@ -57,6 +61,7 @@ export class IframeTransport {
   private connectInFlight: Promise<MessagePort> | null = null;
   private readonly walletServiceUrl: URL;
   private readonly walletOrigin: string;
+  private readonly testOptions: { routerId?: string; ownerTag?: string };
 
   constructor(options: IframeTransportOptions) {
     this.opts = {
@@ -71,6 +76,10 @@ export class IframeTransport {
       throw new Error(`[IframeTransport] Invalid wallet origin (${options.walletOrigin}) or servicePath (${options.servicePath || '/service'})`);
     }
     this.walletOrigin = this.walletServiceUrl.origin;
+    this.testOptions = {
+      routerId: options.testOptions?.routerId,
+      ownerTag: options.testOptions?.ownerTag,
+    };
 
     // Listen for a best-effort boot hint from the wallet host. Not required for correctness,
     // but helps reduce redundant CONNECT posts while the host script is still booting.
@@ -107,7 +116,9 @@ export class IframeTransport {
 
   /** Ensure the iframe element exists and is appended to the DOM. Idempotent. */
   ensureIframeMounted(): HTMLIFrameElement {
-    if (this.iframeEl) return this.iframeEl;
+    if (this.iframeEl) {
+      return this.iframeEl;
+    }
 
     const iframe = document.createElement('iframe');
     // Hidden by default; higher layers can temporarily show for activation.
@@ -120,6 +131,10 @@ export class IframeTransport {
     iframe.style.pointerEvents = 'none';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
+
+    iframe.dataset.w3aRouterId = this.testOptions?.routerId || '';
+    if (this.testOptions?.ownerTag) iframe.dataset.w3aOwner = this.testOptions.ownerTag;
+    iframe.dataset.w3aOrigin = this.walletOrigin;
 
     // Delegate WebAuthn + clipboard capabilities to the wallet origin frame
     try {
@@ -217,28 +232,22 @@ export class IframeTransport {
           // Try strict origin first, but fall back to '*' more frequently in dev to
           // avoid stalls when local origins serialize differently (e.g., iOS + mDNS).
           // Using '*' here only affects this CONNECT; subsequent traffic uses MessagePort.
-          const targetOrigin = (attempt % 2 === 0) ? '*' : this.walletOrigin;
-          try {
-            cw.postMessage({ type: IframeMessage.Connect }, targetOrigin, [port2]);
-            } catch (e) {
-              const message = e instanceof Error ? e.message ?? String(e) : String(e);
-              if (!warnedNullOrigin && message.includes("'null'")) {
-                warnedNullOrigin = true;
-                console.warn(
-                  '[IframeTransport] CONNECT blocked; iframe origin appears to be null. Check that %s is reachable and responds with Cross-Origin-Resource-Policy: cross-origin.',
-                  this.walletServiceUrl.toString(),
-                );
-              }
-              // Some browsers will throw if the current document has an opaque
-              // ('null') origin during early navigation. As a pragmatic fallback,
-              // attempt a wildcard target to avoid dropping the port, then keep
-              // retrying with the strict origin until timeout.
-            try {
-              cw.postMessage({ type: IframeMessage.Connect }, '*', [port2]);
-              console.debug('[IframeTransport] CONNECT fallback posted with "*" target; continuing retries');
-            } catch {}
-            console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed);
-            }
+          //
+          // Prefer wildcard target until we have observed SERVICE_HOST_BOOTED,
+          // which indicates the iframe has a stable, non-opaque origin and is
+          // ready to adopt a MessagePort. This avoids noisy 'null' origin
+          // warnings while still allowing strict-origin delivery as soon as
+          // the host is booted.
+          const targetOrigin = this.serviceBooted ? this.walletOrigin : '*';
+          ({ warnedNullOrigin } = this.postConnectMessage(
+            cw,
+            { type: IframeMessage.Connect },
+            port2,
+            targetOrigin,
+            warnedNullOrigin,
+            elapsed,
+            attempt,
+          ));
 
           // Schedule next tick if not resolved yet (light backoff to reduce spam)
           const interval = attempt < 10 ? 200 : attempt < 20 ? 400 : 800;
@@ -255,6 +264,31 @@ export class IframeTransport {
       return await this.connectInFlight;
     } finally {
       this.connectInFlight = null;
+    }
+  }
+
+  private postConnectMessage(
+    cw: Window,
+    data: unknown,
+    port2: MessagePort,
+    targetOrigin: string,
+    warnedNullOrigin: boolean,
+    elapsed: number,
+    attempt: number,
+  ): { warnedNullOrigin: boolean } {
+    try {
+      cw.postMessage(data, targetOrigin, [port2]);
+      return { warnedNullOrigin };
+    } catch (e) {
+      const message = e instanceof Error ? e.message ?? String(e) : String(e);
+      if (!warnedNullOrigin && message.includes("'null'")) {
+        warnedNullOrigin = true;
+        console.warn('[IframeTransport] CONNECT blocked; iframe origin appears to be null. Check that %s is reachable and responds with Cross-Origin-Resource-Policy: cross-origin.', this.walletServiceUrl.toString());
+      }
+      // Attempt wildcard fallback and continue retries
+      try { cw.postMessage(data, '*', [port2]); } catch {}
+      console.debug('[IframeTransport] CONNECT attempt %d threw after %d ms; retrying.', attempt, elapsed);
+      return { warnedNullOrigin };
     }
   }
 
@@ -292,7 +326,10 @@ export class IframeTransport {
     ok: boolean,
     payload: { credential?: unknown; error?: string },
   ): void {
-    try { source?.postMessage({ type, requestId, ok, ...payload }, this.walletOrigin); } catch {}
+    // Reply directly to the requesting window; wildcard target avoids transient
+    // 'null' origin warnings during early navigation while remaining safe since
+    // we already validated the sender's origin before bridging.
+    try { source?.postMessage({ type, requestId, ok, ...payload }, '*'); } catch {}
   }
 
   private performWebAuthnBridge(
@@ -301,44 +338,45 @@ export class IframeTransport {
     e: MessageEvent,
   ): void {
     if (kind === WebAuthnBridgeMessage.Create) {
-      (async () => {
-        const req = raw as CreateReq;
-        const requestId = req?.requestId || '';
-        try {
-          const src = req?.publicKey || ({} as PublicKeyCredentialCreationOptions);
-          const rpName = src.rp?.name || 'WebAuthn';
-          const rpId = src.rp?.id || window.location.hostname;
-          const pub: PublicKeyCredentialCreationOptions = { ...src, rp: { name: rpName, id: rpId } };
-          console.debug('[IframeTransport][bridge] CREATE received', { requestId, from: e.origin, rpId: pub.rp?.id });
-          const cred = await navigator.credentials.create({ publicKey: pub }) as PublicKeyCredential;
-          const serialized = serializeRegistrationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
-          this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, true, { credential: serialized });
-          console.debug('[IframeTransport][bridge] CREATE ok', { requestId });
-        } catch (err) {
-          try { console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
-          this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: String((err as Error)?.message || err) });
-        }
-      })();
+      void this.handleWebAuthnCreate(raw as CreateReq, e);
       return;
     }
-
     // kind === 'WALLET_WEBAUTHN_GET'
-    (async () => {
-      const req = raw as GetReq;
-      const requestId = req?.requestId || '';
-      try {
-        const src = req?.publicKey || ({} as PublicKeyCredentialRequestOptions);
-        const rpId = src.rpId || window.location.hostname;
-        const pub: PublicKeyCredentialRequestOptions = { ...src, rpId };
-        console.debug('[IframeTransport][bridge] GET received', { requestId, from: e.origin, rpId: pub.rpId });
-        const cred = await navigator.credentials.get({ publicKey: pub }) as PublicKeyCredential;
-        const serialized = serializeAuthenticationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
-        this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, true, { credential: serialized });
-        console.debug('[IframeTransport][bridge] GET ok', { requestId });
-      } catch (err) {
-        try { console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
-        this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: String((err as Error)?.message || err) });
-      }
-    })();
+    void this.handleWebAuthnGet(raw as GetReq, e);
+  }
+
+  private async handleWebAuthnCreate(req: CreateReq, e: MessageEvent): Promise<void> {
+    const requestId = req?.requestId || '';
+    try {
+      const src = req?.publicKey || ({} as PublicKeyCredentialCreationOptions);
+      const rpName = src.rp?.name || 'WebAuthn';
+      const rpId = src.rp?.id || window.location.hostname;
+      const pub: PublicKeyCredentialCreationOptions = { ...src, rp: { name: rpName, id: rpId } };
+      console.debug('[IframeTransport][bridge] CREATE received', { requestId, from: e.origin, rpId: pub.rp?.id });
+      const cred = await navigator.credentials.create({ publicKey: pub }) as PublicKeyCredential;
+      const serialized = serializeRegistrationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, true, { credential: serialized });
+      console.debug('[IframeTransport][bridge] CREATE ok', { requestId });
+    } catch (err) {
+      try { console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: String((err as Error)?.message || err) });
+    }
+  }
+
+  private async handleWebAuthnGet(req: GetReq, e: MessageEvent): Promise<void> {
+    const requestId = req?.requestId || '';
+    try {
+      const src = req?.publicKey || ({} as PublicKeyCredentialRequestOptions);
+      const rpId = src.rpId || window.location.hostname;
+      const pub: PublicKeyCredentialRequestOptions = { ...src, rpId };
+      console.debug('[IframeTransport][bridge] GET received', { requestId, from: e.origin, rpId: pub.rpId });
+      const cred = await navigator.credentials.get({ publicKey: pub }) as PublicKeyCredential;
+      const serialized = serializeAuthenticationCredentialWithPRF({ credential: cred, firstPrfOutput: true, secondPrfOutput: true });
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, true, { credential: serialized });
+      console.debug('[IframeTransport][bridge] GET ok', { requestId });
+    } catch (err) {
+      try { console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+      this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: String((err as Error)?.message || err) });
+    }
   }
 }

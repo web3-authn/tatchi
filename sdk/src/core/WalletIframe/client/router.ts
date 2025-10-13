@@ -97,6 +97,14 @@ export interface WalletIframeRouterOptions {
   theme?: 'dark' | 'light';
   // Enable verbose client-side logging for debugging
   debug?: boolean;
+  // Test-only/diagnostic options (not part of the public API contract for apps)
+  testOptions?: {
+    // Optional identity/ownership tags for the iframe instance (useful for tests/tools)
+    routerId?: string;
+    ownerTag?: string; // e.g., 'app' | 'tests'
+    // Lazy mounting: when false, do not auto-connect/mount during init(); connect on first use
+    autoMount?: boolean;
+  };
   // Optional config forwarded to wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
@@ -176,11 +184,19 @@ export class WalletIframeRouter {
       }
     }
 
+    const defaultRouterId = `w3a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const testOptions = {
+      routerId: defaultRouterId,
+      ownerTag: undefined as string | undefined,
+      autoMount: true,
+      ...(options?.testOptions || {}),
+    };
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
       servicePath: '/service',
       sdkBasePath: '/sdk',
+      testOptions,
       ...options,
     } as Required<WalletIframeRouterOptions>;
     this.walletOriginUrl = parsedOrigin;
@@ -191,6 +207,10 @@ export class WalletIframeRouter {
       walletOrigin: this.opts.walletOrigin,
       servicePath: this.opts.servicePath,
       connectTimeoutMs: this.opts.connectTimeoutMs,
+      testOptions: {
+        routerId: this.opts.testOptions.routerId,
+        ownerTag: this.opts.testOptions.ownerTag,
+      },
     });
 
     // Centralize overlay sizing/visibility
@@ -289,11 +309,14 @@ export class WalletIframeRouter {
     if (this.ready) return;
     if (this.initInFlight) { return this.initInFlight; }
     this.initInFlight = (async () => {
-      this.port = await this.transport.connect();
-      this.port.onmessage = (ev) => this.onPortMessage(ev);
-      this.port.start?.();
-      this.ready = true;
-      console.debug('[WalletIframeRouter] init: connected, sending PM_SET_CONFIG');
+      // Respect autoMount=false by deferring connect until first use
+      if (this.opts.testOptions.autoMount !== false) {
+        this.port = await this.transport.connect();
+        this.port.onmessage = (ev) => this.onPortMessage(ev);
+        this.port.start?.();
+        this.ready = true;
+      }
+      console.debug('[WalletIframeRouter] init: %s', this.ready ? 'connected' : 'deferred (autoMount=false)');
       await this.post({
         type: 'PM_SET_CONFIG',
         payload: {
@@ -1120,6 +1143,16 @@ export class WalletIframeRouter {
     } else {
       this.hideFrameForActivation();
     }
+  }
+
+  /** Public helper for tests/tools: get the underlying iframe element. */
+  getIframeEl(): HTMLIFrameElement | null {
+    try { return this.transport.getIframeEl(); } catch { return null; }
+  }
+
+  /** Public helper for tests/tools: inspect current overlay state. */
+  getOverlayState(): { visible: boolean; mode: 'hidden' | 'fullscreen' | 'anchored'; sticky: boolean; rect?: DOMRectLike } {
+    try { return this.overlay.getState(); } catch { return { visible: false, mode: 'hidden', sticky: false }; }
   }
 
   /**
