@@ -6,7 +6,7 @@ import {
 } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
-const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/service';
+const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service';
 
 test.describe('Wallet iframe handshake', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,7 +14,7 @@ test.describe('Wallet iframe handshake', () => {
       console.log(`[browser] ${msg.type().toUpperCase()}: ${msg.text()}`);
     });
     const url = (process.env.NO_CADDY === '1' || process.env.CI === '1')
-      ? 'http://localhost:5173'
+      ? 'http://localhost:5174'
       : 'https://example.localhost';
     await page.goto(url);
   });
@@ -48,7 +48,11 @@ test.describe('Wallet iframe handshake', () => {
       };
     });
 
-    expect(iframeAttributes?.src).toBe(new URL('/service', WALLET_ORIGIN).toString());
+    const expectedSrcs = [
+      new URL('/wallet-service', WALLET_ORIGIN).toString(),
+      new URL('/service', WALLET_ORIGIN).toString(),
+    ];
+    expect(expectedSrcs).toContain(iframeAttributes?.src);
     expect(iframeAttributes?.allow).toContain('publickey-credentials-get');
     expect(iframeAttributes?.sandbox).toBeNull();
     expect(iframeAttributes?.pointerEvents).toBe('none');

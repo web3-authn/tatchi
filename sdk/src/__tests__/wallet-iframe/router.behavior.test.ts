@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
-const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/service*';
+const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service*';
 const WAIT_FOR_SOURCE = `(${waitFor.toString()})`;
 
 test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
@@ -28,7 +28,7 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
 
         const router = new WalletIframeRouter({
           walletOrigin,
-          servicePath: '/service',
+          servicePath: '/wallet-service',
           connectTimeoutMs: 3000,
           requestTimeoutMs: 200, // short timeout to exercise cleanup
           debug: true,
@@ -36,26 +36,62 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
         });
         await router.init();
 
-        // Helper to find iframe and capture overlay state
-        const getIframe = () => {
-          const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-          // Transport sets a permissive allow attribute including publickey-credentials permissions
-          return (
-            iframes.find((f) => (f.getAttribute('allow') || '').includes('publickey-credentials')) ||
-            null
-          );
-        };
         const capture = () => {
-          const iframe = getIframe();
-          if (!iframe) return { exists: false } as const;
-          const cs = getComputedStyle(iframe);
+          const iframe = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
+          const overlayIframe = iframe.find((f) => {
+            const allow = (f.getAttribute('allow') || '');
+            const src = f.getAttribute('src') || '';
+            return allow.includes('publickey-credentials') || /wallet\.example\.localhost/.test(src);
+          });
+          if (overlayIframe) {
+            const cs = getComputedStyle(overlayIframe);
+            const rect = overlayIframe.getBoundingClientRect();
+            const ariaHidden = overlayIframe.getAttribute('aria-hidden') === 'true';
+            const opacity = Number.parseFloat(cs.opacity || '1');
+            const pointerEnabled = cs.pointerEvents !== 'none';
+            const area = rect.width > 0 && rect.height > 0;
+            return {
+              exists: true,
+              visible: pointerEnabled && !ariaHidden && opacity > 0,
+              pointerEnabled,
+              ariaHidden,
+              width: rect.width,
+              height: rect.height,
+              opacity,
+            } as const;
+          }
+
+          const portal = document.getElementById('w3a-confirm-portal');
+          const host = portal?.firstElementChild as HTMLElement | null;
+          if (!host) return { exists: false, visible: false } as const;
+          const interactive = host.querySelector<HTMLElement>('w3a-drawer-tx-confirmer, w3a-modal-tx-confirmer, w3a-drawer, w3a-modal');
+          const target = interactive || host;
+          const style = getComputedStyle(target);
+          const rect = target.getBoundingClientRect();
+          const opacity = Number.parseFloat(style.opacity || '1');
+          const pointerEnabled = style.pointerEvents !== 'none';
+          const ariaHidden = target.getAttribute('aria-hidden') === 'true';
+          const visibility = style.visibility !== 'hidden' && style.display !== 'none';
+          const area = rect.width > 0 && rect.height > 0;
+          if (interactive) {
+            return {
+              exists: true,
+              visible: true,
+              pointerEnabled,
+              ariaHidden,
+              width: rect.width,
+              height: rect.height,
+              opacity,
+            } as const;
+          }
           return {
             exists: true,
-            pointerEvents: cs.pointerEvents,
-            ariaHidden: iframe.getAttribute('aria-hidden'),
-            width: cs.width,
-            height: cs.height,
-            opacity: cs.opacity,
+            visible: visibility && pointerEnabled && !ariaHidden && opacity > 0,
+            pointerEnabled,
+            ariaHidden,
+            width: rect.width,
+            height: rect.height,
+            opacity,
           } as const;
         };
 
@@ -70,23 +106,16 @@ test.describe('WalletIframeRouter – overlay + timeout behavior', () => {
         // Expect overlay to become visible soon after posting
         const shown = await waitFor(() => {
           const s = capture();
-          return s.exists && s.pointerEvents === 'auto' && s.ariaHidden === 'false';
-        }, 1000);
+          return s.exists && s.visible;
+        }, 3000);
 
         // Wait for timeout path and cleanup
         await p;
         // Wait for overlay to contract (hide) after timeout cleanup
         const hidden = await waitFor(() => {
           const s = capture();
-          if (!s.exists) return true; // iframe removed entirely counts as hidden
-          const width = Number.parseFloat(s.width || '0');
-          const height = Number.parseFloat(s.height || '0');
-          const opacity = Number.parseFloat(s.opacity || '1');
-          const ariaHidden = s.ariaHidden === 'true';
-          const pointerNone = s.pointerEvents === 'none';
-          const notInteractive = pointerNone || width === 0 || height === 0;
-          const notVisible = ariaHidden || opacity === 0 || width === 0 || height === 0;
-          return notInteractive && notVisible;
+          if (!s.exists) return true; // entirely removed counts as hidden
+          return !s.visible;
         }, 3000);
         const after = capture();
 

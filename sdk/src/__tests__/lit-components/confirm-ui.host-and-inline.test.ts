@@ -178,7 +178,7 @@ test.describe('confirm-ui inline confirmer', () => {
       const { confirmed } = await decisionPromise;
       const tagName = portalChild?.tagName;
       const variantAttr = portalChild?.getAttribute?.('variant');
-      const hasIframe = !!document.querySelector('iframe');
+      const hasIframe = !!portalChild?.querySelector('iframe');
       return { confirmed, tagName, variantAttr, hasIframe };
     }, { vrf: VRF, summary: SUMMARY, waitForSource: WAIT_FOR_SOURCE, paths: IMPORT_PATHS });
 

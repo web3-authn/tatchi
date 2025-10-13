@@ -16,7 +16,7 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
       );
       const router = new WalletIframeRouter({
         walletOrigin,
-        servicePath: '/service',
+        servicePath: '/wallet-service',
         connectTimeoutMs: 1000,
         requestTimeoutMs: 1000,
         sdkBasePath: '/sdk'
@@ -68,4 +68,3 @@ test.describe('WalletIframeRouter.computeOverlayIntent', () => {
     expect(byType['PM_LOGOUT']).toBe('hidden');
   });
 });
-

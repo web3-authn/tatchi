@@ -32,11 +32,11 @@ export default defineConfig({
   // Increase default per-test timeout (Playwright default is 30s). Some
   // end-to-end flows (registration/login/action) can legitimately exceed 30s
   // under CI or when relay/network is slow.
-  timeout: 90_000,
+  timeout: 60_000,
   reporter: 'html',
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5174',
     /* Caddy serves self-signed certs for example.localhost */
     ignoreHTTPSErrors: true,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
@@ -62,8 +62,8 @@ export default defineConfig({
     command: USE_RELAY_SERVER
       ? 'node ./src/__tests__/scripts/start-servers.mjs'
       : (NO_CADDY ? `pnpm -C ${EXAMPLES_VITE_DIR} run dev:ci` : `pnpm -C ${EXAMPLES_VITE_DIR} dev`),
-    url: 'http://localhost:5173',
+    url: 'http://localhost:5174',
     reuseExistingServer: true,
-    timeout: 180000, // Allow time for relay health check + build
+    timeout: 60000, // Allow time for relay health check + build
   },
 });

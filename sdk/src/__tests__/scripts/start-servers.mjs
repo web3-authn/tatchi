@@ -71,7 +71,7 @@ async function main() {
   if (!cache) throw new Error('missing provision cache');
   const relayPort = Number(process.env.RELAY_PORT || '3000');
   const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
-  const defaultOrigin = NO_CADDY ? 'http://localhost:5173' : 'https://example.localhost';
+  const defaultOrigin = NO_CADDY ? 'http://localhost:5174' : 'https://example.localhost';
   const relayEnv = {
     ...process.env,
     PORT: String(relayPort),

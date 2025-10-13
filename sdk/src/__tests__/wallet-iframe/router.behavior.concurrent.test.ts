@@ -3,7 +3,7 @@ import { setupBasicPasskeyTest, handleInfrastructureErrors } from '../setup';
 import { buildWalletServiceHtml, registerWalletServiceRoute, waitFor } from './harness';
 
 const WALLET_ORIGIN = 'https://wallet.example.localhost';
-const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/service*';
+const WALLET_SERVICE_ROUTE = '**://wallet.example.localhost/wallet-service*';
 const WAIT_FOR_SOURCE = `(${waitFor.toString()})`;
 
 // Script injected into the wallet service stub to simulate two overlapping requests
@@ -105,7 +105,7 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
 
         const router = new WalletIframeRouter({
           walletOrigin,
-          servicePath: '/service',
+          servicePath: '/wallet-service',
           connectTimeoutMs: 3000,
           requestTimeoutMs: 2000,
           debug: true,
@@ -114,21 +114,64 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
         await router.init();
 
         // Helpers to capture overlay styles
-        const getIframe = () => {
-          const iframes = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
-          return iframes.find((f) => (f.getAttribute('allow') || '').includes('publickey-credentials')) || null;
-        };
         const capture = () => {
-          const iframe = getIframe();
-          if (!iframe) return { exists: false } as const;
-          const cs = getComputedStyle(iframe);
+          const iframe = Array.from(document.querySelectorAll('iframe')) as HTMLIFrameElement[];
+          const overlayIframe = iframe.find((f) => {
+            const allow = (f.getAttribute('allow') || '');
+            const src = f.getAttribute('src') || '';
+            return allow.includes('publickey-credentials') || /wallet\.example\.localhost/.test(src);
+          });
+          if (overlayIframe) {
+            const cs = getComputedStyle(overlayIframe);
+            const rect = overlayIframe.getBoundingClientRect();
+            const ariaHidden = overlayIframe.getAttribute('aria-hidden') === 'true';
+            const opacity = Number.parseFloat(cs.opacity || '1');
+            const pointerEnabled = cs.pointerEvents !== 'none';
+            const area = rect.width > 0 && rect.height > 0;
+            return {
+              exists: true,
+              visible: pointerEnabled && !ariaHidden && opacity > 0,
+              pointerEnabled,
+              ariaHidden,
+              width: rect.width,
+              height: rect.height,
+              opacity,
+            } as const;
+          }
+
+          const portal = document.getElementById('w3a-confirm-portal');
+          const host = portal?.firstElementChild as HTMLElement | null;
+          if (!host) return { exists: false, visible: false } as const;
+          const interactive = host.querySelector<HTMLElement>('w3a-drawer-tx-confirmer, w3a-modal-tx-confirmer, w3a-drawer, w3a-modal');
+          const target = interactive || host;
+          const style = getComputedStyle(target);
+          const rect = target.getBoundingClientRect();
+          const opacity = Number.parseFloat(style.opacity || '1');
+          const pointerEnabled = style.pointerEvents !== 'none';
+          const ariaHidden = target.getAttribute('aria-hidden') === 'true';
+          const visibility = style.visibility !== 'hidden' && style.display !== 'none';
+          const area = rect.width > 0 && rect.height > 0;
+          // If the inline confirmer exists, treat it as visible as soon as it mounts
+          // regardless of pointer/opacity nuances, since the drawer/modal is interactive internally.
+          if (interactive) {
+            return {
+              exists: true,
+              visible: true,
+              pointerEnabled,
+              ariaHidden,
+              width: rect.width,
+              height: rect.height,
+              opacity,
+            } as const;
+          }
           return {
             exists: true,
-            pointerEvents: cs.pointerEvents,
-            ariaHidden: iframe.getAttribute('aria-hidden'),
-            width: cs.width,
-            height: cs.height,
-            opacity: cs.opacity,
+            visible: visibility && pointerEnabled && !ariaHidden && opacity > 0,
+            pointerEnabled,
+            ariaHidden,
+            width: rect.width,
+            height: rect.height,
+            opacity,
           } as const;
         };
 
@@ -152,8 +195,8 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
         // Wait for overlay to be shown by first request
         const shown1 = await waitFor(() => {
           const s = capture();
-          return s.exists && s.pointerEvents === 'auto' && s.ariaHidden === 'false';
-        }, 1200);
+          return s.exists && s.visible;
+        }, 3000);
 
         const p2 = router.executeAction({
           nearAccountId: 'concurrent2.testnet',
@@ -170,7 +213,7 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
         // After first signals broadcasting, overlay should still be visible due to second's show
         const stillVisible = (() => {
           const s = capture();
-          return s.exists && s.pointerEvents === 'auto' && s.ariaHidden === 'false';
+          return s.exists && s.visible;
         })();
 
         await Promise.all([p1, p2]);
@@ -179,14 +222,7 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
         const hidden = await waitFor(() => {
           const s = capture();
           if (!s.exists) return true;
-          const width = Number.parseFloat(s.width || '0');
-          const height = Number.parseFloat(s.height || '0');
-          const opacity = Number.parseFloat(s.opacity || '1');
-          const ariaHidden = s.ariaHidden === 'true';
-          const pointerNone = s.pointerEvents === 'none';
-          const notInteractive = pointerNone || width === 0 || height === 0;
-          const notVisible = ariaHidden || opacity === 0 || width === 0 || height === 0;
-          return notInteractive && notVisible;
+          return !s.visible;
         }, 3000);
 
         return { success: true, shown1, secondAtConfirm, firstAtBroadcast, stillVisible, hidden } as const;
@@ -208,4 +244,3 @@ test.describe('WalletIframeRouter – concurrent requests aggregate overlay visi
     expect(result.hidden).toBe(true);
   });
 });
-

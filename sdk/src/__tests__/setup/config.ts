@@ -1,7 +1,7 @@
 import type { PasskeyTestConfig } from './types';
 
 const FRONTEND_URL = (process.env.NO_CADDY === '1' || process.env.CI === '1')
-  ? 'http://localhost:5173'
+  ? 'http://localhost:5174'
   : 'https://example.localhost';
 
 export const DEFAULT_TEST_CONFIG: PasskeyTestConfig = {
