@@ -1,9 +1,9 @@
 # App (Vite dev server) - headers set by Vite plugin
-example.localhost {
-	tls internal
-	encode gzip
-	reverse_proxy localhost:5174
-}
+	example.localhost {
+		tls internal
+		encode gzip
+		reverse_proxy localhost:5174
+	}
 
 # Wallet host (self-contained mode - shares same Vite server) - headers set by Vite plugin
 wallet.example.localhost {

@@ -1,6 +1,6 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import mdx from '@mdx-js/rollup'
 import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
 
 /**
@@ -12,6 +12,7 @@ import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url))
   return {
     server: {
       port: 5174,
@@ -22,15 +23,12 @@ export default defineConfig(({ mode }) => {
       open: false,
       fs: {
         allow: [
-          '..',
-          '../..',
-          '../../sdk/dist'
-          // serve SDK dist directly from workspace
+          workspaceRoot
+          // Allow serving files from entire workspace including SDK
         ]
       },
     },
     plugins: [
-      mdx(),
       react(),
       // Web3Authn dev integration: serves SDK, wallet service route, WASM MIME, and sets dev headers
       tatchiDev({

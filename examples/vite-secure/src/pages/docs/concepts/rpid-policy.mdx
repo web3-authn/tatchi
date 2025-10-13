@@ -1,4 +1,17 @@
 # RPID Policy
 
-RPIDs determine WebAuthn relying party scoping. This section outlines guidance for dev & prod environments.
+The WebAuthn `rpId` determines which passkeys are visible and reusable. Choose one of two strategies:
 
+## Wallet‑Scoped Credentials
+
+- `rpId = <wallet domain>` (e.g., `wallet.example.com` or `web3authn.org`)
+- Acts like an auth provider; one credential works across apps embedding the wallet
+- For cross‑site embedding, enable Related Origin Requests by serving `/.well-known/webauthn` on the wallet origin listing allowed top‑level app origins
+
+## App‑Scoped Credentials
+
+- `rpId = <app base domain>` (e.g., `example.com` or `example.localhost`)
+- Works across subdomains of the app
+- Easiest when wallet and app share a registrable suffix; Safari top‑level fallback naturally matches the app domain
+
+Configure via `iframeWallet.rpIdOverride`. See details and config snippets in [Wallet‑Scoped vs App‑Scoped](/concepts/wallet-scoped-credentials).

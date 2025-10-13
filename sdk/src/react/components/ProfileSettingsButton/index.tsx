@@ -12,6 +12,7 @@ import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
 import { ThemeProvider, ThemeScope, useTheme } from '../theme';
+import { toAccountId } from '../../../core/types/accountIds';
 
 /**
  * Profile Settings Button Component
@@ -83,11 +84,44 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
 
   // Load confirmation config on mount
   useEffect(() => {
-    try {
-      const cfg = passkeyManager.getConfirmationConfig();
-      setCurrentConfirmConfig(cfg);
-    } catch (_) {}
-  }, [passkeyManager]);
+    let isActive = true;
+
+    const syncConfirmationConfig = async () => {
+      if (!passkeyManager) return;
+
+      if (!loginState.isLoggedIn || !nearAccountId) {
+        if (isActive) {
+          setCurrentConfirmConfig(null);
+        }
+        return;
+      }
+
+      try {
+        passkeyManager.userPreferences.setCurrentUser(toAccountId(nearAccountId));
+      } catch (_) {}
+
+      try {
+        await passkeyManager.userPreferences.reloadUserSettings();
+      } catch (_) {}
+
+      try {
+        const cfg = passkeyManager.getConfirmationConfig();
+        if (isActive) {
+          setCurrentConfirmConfig(cfg);
+        }
+      } catch (_) {
+        if (isActive) {
+          setCurrentConfirmConfig(null);
+        }
+      }
+    };
+
+    void syncConfirmationConfig();
+
+    return () => {
+      isActive = false;
+    };
+  }, [passkeyManager, loginState.isLoggedIn, nearAccountId]);
 
   // Handlers for transaction settings
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {

@@ -18,6 +18,7 @@ examples/vite/dist
 
 examples/vite-secure/public
 examples/vite-secure/dist
+examples/vite-secure/docs/dist
 
 examples/nextjs/public
 examples/nextjs/dist

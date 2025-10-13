@@ -1,4 +1,40 @@
 # Link Devices (QR)
 
-Link a secondary device by scanning a QR code to authorize actions.
+Add a second device (Device2) to an existing account by scanning a QR code with the original device (Device1). The SDK supports two flows:
 
+- Option E (faster): user provides account ID → generate proper keypair immediately
+- Option F (seamless): no account ID → generate temp keypair → discover account → replace key
+
+## React components
+
+```tsx
+import { ShowQRCode, QRCodeScanner } from '@tatchi/sdk/react'
+
+// Device2: show QR with its public key and metadata
+<ShowQRCode accountId={maybeAccountId} />
+
+// Device1: scan and authorize (adds key + stores mapping)
+<QRCodeScanner onDeviceLinked={(res) => console.log('linked', res)} />
+```
+
+## Server transactions (Device1)
+
+Device1 signs two txs in one prompt:
+
+1) AddKey (add Device2 public key)
+2) Store device→account mapping in contract
+
+```ts
+await passkeyManager.signTransactionsWithActions({
+  transactions: [
+    { nearAccountId: a, receiverId: a, actions: [{ actionType: 'AddKey', public_key: device2Pub, access_key: JSON.stringify({ nonce: 0, permission: { FullAccess: {} } }) }] },
+    { nearAccountId: a, receiverId: contractId, actions: [{ actionType: 'FunctionCall', method_name: 'store_device_linking_mapping', args: JSON.stringify({ device_public_key: device2Pub, target_account_id: a }), gas: '50000000000000', deposit: '0' }] },
+  ],
+})
+```
+
+## Account discovery (Device2, Option F)
+
+Poll the contract for a mapping from the temporary public key to the real account. Once discovered, replace the temp key with a proper key (AddKey new + DeleteKey old).
+
+See also: [Link device by QR code (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/link_device_by_QR_code.md)

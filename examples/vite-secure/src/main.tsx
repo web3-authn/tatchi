@@ -12,7 +12,7 @@ import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
-import { DocsPage } from './pages/DocsPage';
+import { DocsLayout } from './docs/DocsLayout';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
@@ -61,7 +61,7 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/multitx" element={<MultiTxConfirmPage/>} />
-              <Route path="/docs/*" element={<DocsPage/>} />
+              <Route path="/docs/*" element={<DocsLayout />} />
             </Routes>
             <ToasterThemed />
           </ThemeScope>
@@ -71,8 +71,12 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const appRoot = document.getElementById('app-root');
+
+if (appRoot) {
+  ReactDOM.createRoot(appRoot).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
