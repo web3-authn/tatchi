@@ -162,7 +162,7 @@ Note: The deploy-cloudflare workflow also contains a step named “Add security 
 ### 2. Update GitHub Secrets
 Use the project names you created in the GitHub secrets:
 ```
-CF_PAGES_PROJECT_VITE=tatchi-vite-secure
+CF_PAGES_PROJECT_VITE=tatchi-docs
 CF_PAGES_PROJECT_WALLET=tatchi-wallet-iframe
 ```
 

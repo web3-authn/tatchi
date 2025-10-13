@@ -1,24 +1,24 @@
 # App (Vite dev server) - headers set by Vite plugin
-	example.localhost {
-		tls internal
-		encode gzip
+example.localhost {
+	tls internal
+	encode gzip
 
-		# Keep URL as /docs but internally serve /docs/ (trailing slash) for VitePress
-		@docs_root_exact path /docs
-		handle @docs_root_exact {
-			uri replace /docs /docs/
-			reverse_proxy localhost:5222
-		}
-
-		@docs path /docs*
-		handle @docs {
-			reverse_proxy localhost:5222
-		}
-
-		handle {
-			reverse_proxy localhost:5174
-		}
+	# Keep URL as /docs but internally serve /docs/ (trailing slash) for VitePress
+	@docs_root_exact path /docs
+	handle @docs_root_exact {
+		uri replace /docs /docs/
+		reverse_proxy localhost:5222
 	}
+
+	@docs path /docs*
+	handle @docs {
+		reverse_proxy localhost:5222
+	}
+
+	handle {
+		reverse_proxy localhost:5174
+	}
+}
 
 # Wallet host (self-contained mode - shares same Vite server) - headers set by Vite plugin
 wallet.example.localhost {

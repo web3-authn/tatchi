@@ -126,7 +126,7 @@ importers:
         specifier: ^0.24.0
         version: 0.24.0(rollup@4.50.1)(vite@6.3.5(@types/node@22.18.1)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.20.5)(yaml@2.8.1))
 
-  examples/vite-secure:
+  examples/tatchi-docs:
     dependencies:
       '@tanstack/react-query':
         specifier: ^5.76.1

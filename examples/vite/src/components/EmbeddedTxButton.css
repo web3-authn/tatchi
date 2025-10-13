@@ -6,6 +6,7 @@
   justify-content: center;
   gap: 1rem;
   width: 100%;
+  min-width: 0; /* prevent child overflow from forcing page scroll */
   padding: 1rem;
 }
 
@@ -105,6 +106,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--fe-gap-2);
+  max-inline-size: 100%;
 }
 
 .test-embedded-section-label {
@@ -254,4 +256,3 @@
 .embedded-tx-page-root::-webkit-scrollbar-thumb:hover {
   background: var(--fe-text-secondary);
 }
-

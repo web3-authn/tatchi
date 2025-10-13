@@ -88,6 +88,17 @@
   --fe-med: 400ms;
 }
 
+/* Keep layout stable and avoid phantom horizontal gutters */
+html {
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Respect user text-size preferences; do not disable scaling */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 /*
   ThemeScope-driven variable mapping
   - ThemeProvider + ThemeScope expose design tokens as CSS variables with the `--w3a-` prefix
@@ -213,21 +224,33 @@ h4 {
 #root {
   max-width: 1280px;
   margin: 0 auto;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
 }
 
 main {
   display: flex;
-  flex-direction: row;
+  flex-direction: column; /* avoid row overflow under zoom */
   justify-content: center;
   align-items: center;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  min-inline-size: 0;
+  /* Clip excess content while not affecting fixed navbar */
+  overflow-x: clip;
 }
 
 /* Homepage Content Layout */
 .layout-root {
   display: grid;
   place-content: center;
+  /* Keep a small gutter and cap width responsively; 30rem ~= 480px */
   width: 100%;
-  max-width: 480px;
+  max-inline-size: clamp(20rem, 100% - 1rem, 30rem);
+  max-width: clamp(20rem, 100% - 1rem, 30rem);
+  margin-inline: 0.5rem;
+  min-width: 0;
   justify-content: center;
   align-items: flex-start;
 }
@@ -314,18 +337,22 @@ nav ul li a:hover {
   display: flex;
   justify-content: flex-start;
   align-items: center;
-  padding: 0.5rem 1rem 0.5rem 1rem;
-  width: fit-content;
+  flex-wrap: wrap;
+  column-gap: 0.5rem;
+  padding: 0.5rem;
+  width: auto;
+  max-inline-size: calc(100% - 1rem);
   margin-top: 0.5rem;
   margin-left: 0.5rem;
-  border-radius: 3rem;
   background-color: var(--w3a-colors-surface2);
   color: var(--w3a-colors-textPrimary);
   border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2.5rem;
   position: fixed;
   top: 0;
   left: 0;
-  right: 0;
+  /* Avoid over-constraining width under zoom; allow content-based width */
+  right: auto;
   z-index: 1000;
   box-shadow: var(--w3a-shadows-sm);
 }
@@ -334,7 +361,8 @@ nav ul li a:hover {
   font-size: 1.25rem;
   font-weight: 600;
   color: var(--w3a-colors-textPrimary);
-  margin-right: 2rem;
+  margin-right: 0.5rem;
+  margin-left: 0.5rem;
 }
 
 .navbar-title a {
@@ -344,8 +372,10 @@ nav ul li a:hover {
 
 .navbar-links {
   display: flex;
-  gap: 1.5rem;
+  flex-wrap: wrap;
+  gap: 1rem;
   align-items: center;
+  margin-right: 0.5rem;
 }
 
 .navbar-links a {
@@ -362,6 +392,7 @@ nav ul li a:hover {
 
 .navbar-user-info {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 1rem;
   color: var(--w3a-colors-primary);

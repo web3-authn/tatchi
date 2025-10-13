@@ -2,5 +2,5 @@ packages:
   - sdk
   - examples/relay-server
   - examples/vite
-  - examples/vite-secure
+  - examples/tatchi-docs
   - examples/relay-cloudflare-worker

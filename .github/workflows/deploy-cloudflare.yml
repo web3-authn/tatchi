@@ -289,41 +289,74 @@ jobs:
           echo "VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}"
           echo "VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}"
 
-      - name: Build example site (vite-secure only)
+      - name: Write Vite env files for production build
         run: |
-          pnpm -C examples/vite-secure build
+          set -eu
+          cat <<EOF > examples/vite/.env.production
+VITE_RELAYER_URL=${VITE_RELAYER_URL}
+VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}
+VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}
+VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}
+VITE_RP_ID_BASE=${VITE_RP_ID_BASE}
+VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}
+VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}
+VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}
+VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}
+VITE_WEBAUTHN_CONTRACT_ID=${VITE_WEBAUTHN_CONTRACT_ID}
+EOF
 
-      - name: Debug – print built _headers (vite-secure)
+          cat <<EOF > examples/tatchi-docs/.env.production
+VITE_RELAYER_URL=${VITE_RELAYER_URL}
+VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}
+VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}
+VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}
+VITE_RP_ID_BASE=${VITE_RP_ID_BASE}
+VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}
+VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}
+VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}
+VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}
+VITE_WEBAUTHN_CONTRACT_ID=${VITE_WEBAUTHN_CONTRACT_ID}
+EOF
+
+      - name: Build example site (tatchi-docs app)
         run: |
-          echo "--- examples/vite-secure/dist/_headers (if present) ---"
-          if [ -f examples/vite-secure/dist/_headers ]; then
-            cat examples/vite-secure/dist/_headers
+          pnpm -C examples/tatchi-docs build
+
+      - name: Build VitePress docs under /docs
+        run: |
+          pnpm docs:build
+
+      - name: Debug – print built _headers (tatchi-docs)
+        run: |
+          echo "--- examples/tatchi-docs/dist/_headers (if present) ---"
+          if [ -f examples/tatchi-docs/dist/_headers ]; then
+            cat examples/tatchi-docs/dist/_headers
           else
             echo "(no _headers emitted)"
           fi
 
-      - name: Copy SDK runtime assets into vite-secure dist
+      - name: Copy SDK runtime assets into tatchi-docs dist
         run: |
           # Serve SDK bundles under /sdk for uniform layout
-          mkdir -p examples/vite-secure/dist/sdk examples/vite-secure/dist/sdk/workers
-          cp -R sdk/dist/esm/sdk/* examples/vite-secure/dist/sdk/ || true
-          cp -R sdk/dist/workers/* examples/vite-secure/dist/sdk/workers/ || true
+          mkdir -p examples/tatchi-docs/dist/sdk examples/tatchi-docs/dist/sdk/workers
+          cp -R sdk/dist/esm/sdk/* examples/tatchi-docs/dist/sdk/ || true
+          cp -R sdk/dist/workers/* examples/tatchi-docs/dist/sdk/workers/ || true
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
 
-      - name: Debug - grep built dist for wallet origin
+      - name: Debug - grep built dist for wallet origin (tatchi-docs)
         run: |
           echo "Occurrences of wallet origin in built files (if any):"
-          rg -n "wallet\\.tatchi\\.xyz|wallet\\.example\\.localhost" examples/vite-secure/dist || true
-          if rg -n "wallet\\.example\\.localhost" examples/vite-secure/dist; then
+          rg -n "wallet\\.tatchi\\.xyz|wallet\\.example\\.localhost" examples/tatchi-docs/dist || true
+          if rg -n "wallet\\.example\\.localhost" examples/tatchi-docs/dist; then
             echo "ERROR: Built assets still reference wallet.example.localhost" >&2
             exit 1
           fi
 
-      - name: Deploy vite-secure to Cloudflare Pages (primary site)
+      - name: Deploy tatchi-docs to Cloudflare Pages (primary site)
         run: |
-          wrangler pages deploy examples/vite-secure/dist --project-name "$CF_PAGES_PROJECT_VITE"
+          wrangler pages deploy examples/tatchi-docs/dist --project-name "$CF_PAGES_PROJECT_VITE"
 
   deploy-wallet:
     runs-on: ubuntu-latest

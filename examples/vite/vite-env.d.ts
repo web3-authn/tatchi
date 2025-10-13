@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 
-// Project-specific env typings for Vite (same-origin example)
-// Keep keys in sync with .env files and CI/Pages envs.
+// Project-specific env typings for Vite
+// Note: Keep keys in sync with .env files and CI/Pages envs.
 interface ImportMetaEnv {
   readonly VITE_RELAYER_URL?: string;
   readonly VITE_RELAYER_ACCOUNT_ID?: string;

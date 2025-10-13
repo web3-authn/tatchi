@@ -2,14 +2,19 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { PasskeyProvider, ThemeProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS, ThemeScope, useTheme } from '@tatchi/sdk/react';
+import {
+  PasskeyProvider,
+  ThemeProvider,
+  ThemeScope,
+  useTheme
+} from '@tatchi/sdk/react';
 import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
 import { Navbar } from './components/Navbar';
-import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
+import './index.css';
 
 // Note: Vite requires using `import.meta.env` exactly; optional chaining breaks env injection.
 const env = import.meta.env;
@@ -64,8 +69,12 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+const appRoot = document.getElementById('app-root');
+
+if (appRoot) {
+  ReactDOM.createRoot(appRoot).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}

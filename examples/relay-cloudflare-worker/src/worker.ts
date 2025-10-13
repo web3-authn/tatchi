@@ -55,7 +55,7 @@ export default {
       ? [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN]
       : '*';
     const router = createCloudflareRouter(s, { healthz: true, corsOrigins });
-    return router(request, env as CfEnv, ctx);
+    return router(request, env as unknown as CfEnv, ctx);
   },
   // Optional cron; defaults to inactive. Enable by setting ENABLE_ROTATION='1' in vars and adding a [triggers] crons schedule.
   async scheduled(event: CfScheduledEvent, env: Env, ctx: CfExecutionContext) {
@@ -64,6 +64,6 @@ export default {
       enabled: env.ENABLE_ROTATION === '1',
       rotate: env.ENABLE_ROTATION === '1'
     });
-    await cron(event, env as CfEnv, ctx);
+    await cron(event, env as unknown as CfEnv, ctx);
   }
 };

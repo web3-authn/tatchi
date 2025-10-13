@@ -1,0 +1,62 @@
+import React, { useEffect, useState } from 'react';
+import { usePasskeyContext } from '@tatchi/sdk/react';
+
+export const DebugBanner: React.FC = () => {
+  // Hide on mobile devices (coarse pointers / typical UA tokens)
+  try {
+    const ua = (typeof navigator !== 'undefined' ? navigator.userAgent : '') || '';
+    const coarse = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const mobileUA = /Mobi|Android|iPhone|iPad|iPod/i.test(ua);
+    if (coarse || mobileUA) return null;
+  } catch {}
+
+  const { walletIframeConnected, accountInputState, passkeyManager } = usePasskeyContext();
+  const [recentCount, setRecentCount] = useState<number>(accountInputState.indexDBAccounts?.length || 0);
+  const [connecting, setConnecting] = useState<boolean>(false);
+
+  useEffect(() => {
+    setRecentCount(accountInputState.indexDBAccounts?.length || 0);
+  }, [accountInputState.indexDBAccounts]);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setConnecting(true);
+        // Force-init wallet iframe if configured to surface READY state quickly
+        await passkeyManager.initWalletIframe?.();
+      } catch {}
+      finally { if (mounted) setConnecting(false); }
+    })();
+    return () => { mounted = false; };
+  }, [passkeyManager]);
+
+  const status = walletIframeConnected
+    ? 'connected'
+    : (connecting ? 'connecting…' : 'waiting for READY');
+
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: '-1rem',
+      left: '0rem',
+      color: walletIframeConnected ? 'rgba(66,140,240,0.4)' : 'rgba(234,179,8,0.4)',
+      padding: '4px 4px 0px 4px',
+      lineHeight: '0.75rem',
+      fontSize: '10px',
+      display: 'flex',
+      gap: '6px',
+      alignItems: 'center',
+    }}>
+      <strong>wallet iframe:</strong> <span>{status}</span>
+      {walletIframeConnected &&
+        <>
+          <span>|</span>
+          <strong>accounts:</strong> <span>{recentCount}</span>
+        </>
+      }
+    </div>
+  );
+};
+
+export default DebugBanner;

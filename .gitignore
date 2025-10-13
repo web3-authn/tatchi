@@ -28,6 +28,8 @@ examples/relay-server/dist/*
 examples/relay-server/grace-keys.json
 examples/relay-server/.provision-cache.json
 
+examples/relay-cloudflare-worker/.wrangler
+
 # Playwright report
 passkey-sdk/playwright-report
 test-results

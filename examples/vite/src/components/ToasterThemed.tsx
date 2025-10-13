@@ -11,9 +11,10 @@ export const ToasterThemed: React.FC = () => {
       toastOptions={{
         duration: 3500,
         style: {
-          background: tokens.colors.surface,
+          background: tokens.colors.surface3,
           color: tokens.colors.textPrimary,
-          border: `1px solid ${tokens.colors.borderPrimary}`,
+          // Thicker, semi‑transparent base border
+          border: `2px solid color-mix(in srgb, ${tokens.colors.borderPrimary} 35%, transparent)`,
           boxShadow: tokens.shadows.sm,
           borderRadius: '12px',
           // Make long messages behave nicely
@@ -21,15 +22,27 @@ export const ToasterThemed: React.FC = () => {
           whiteSpace: 'normal',          // allow wrapping
           wordBreak: 'break-word',       // break long hashes/words
           overflowWrap: 'anywhere',
-          lineHeight: 1.3,
+          lineHeight: 1.2,
+        },
+        loading: {
+          style: {
+            background: tokens.colors.surface3,
+            border: `2px solid color-mix(in srgb, ${tokens.colors.textSecondary} 35%, transparent)`,
+          },
         },
         success: {
+          style: {
+            border: `2px solid color-mix(in srgb, ${tokens.colors.success} 35%, transparent)`,
+          },
           iconTheme: {
             primary: tokens.colors.success,
             secondary: tokens.colors.surface,
           },
         },
         error: {
+          style: {
+            border: `2px solid color-mix(in srgb, ${tokens.colors.error} 35%, transparent)`,
+          },
           iconTheme: {
             primary: tokens.colors.error,
             secondary: tokens.colors.surface,

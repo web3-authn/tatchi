@@ -77,7 +77,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
   }
 
   return (
-    <GlassBorder style={{ marginTop: '1rem' }}>
+    <GlassBorder style={{ marginTop: '1rem', zIndex: 1 }}>
       <div className="embedded-tx-page-root">
         <h2 className="embedded-tx-title">
           Embedded Iframe Transaction Button
@@ -173,7 +173,8 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
                 boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
               }}
               tooltipPosition={{
-                width: '330px',
+                // Constrain tooltip width to viewport to avoid horizontal scroll on zoom
+                width: 'min(330px, calc(100vw - 1rem))',
                 height: 'auto',
                 position: 'bottom-left',
               }}

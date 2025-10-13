@@ -1,15 +1,17 @@
 {
-  "name": "frontend",
+  "name": "wallet-secure",
   "version": "0.1.0",
   "type": "module",
+  "private": true,
   "scripts": {
-    "dev": "concurrently --kill-others \"VITE_RELAYER_ACCOUNT_ID=w3a-relayer.testnet VITE_RELAYER_URL=https://relay-server.localhost vite\" \"sh run_caddy.sh\"",
-    "dev:ci": "VITE_RELAYER_ACCOUNT_ID=w3a-relayer.testnet VITE_RELAYER_URL=https://relay-server.localhost vite",
+    "dev": "concurrently --kill-others --names app,caddy \"vite\" \"sh run_caddy.sh\"",
+    "dev:with-docs": "concurrently --kill-others --names app,docs,caddy \"vite\" \"pnpm -w docs:dev\" \"sh run_caddy.sh\"",
+    "dev:iphone": "concurrently --kill-others \"vite --mode iphone\" \"sh run_caddy.sh\"",
+    "dev:ci": "vite --mode ci",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --host --port 5174"
   },
   "dependencies": {
-    "@tanstack/react-query": "^5.76.1",
     "@tatchi/sdk": "workspace:*",
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
