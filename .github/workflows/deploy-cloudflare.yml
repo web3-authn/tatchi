@@ -277,7 +277,7 @@ jobs:
       - name: Write Vite env files for production build
         run: |
           set -eu
-          cat <<EOF > examples/vite/.env.production
+          cat > examples/vite/.env.production <<'EOF'
 VITE_RELAYER_URL=${{ vars.VITE_RELAYER_URL }}
 VITE_RELAYER_ACCOUNT_ID=${{ vars.VITE_RELAYER_ACCOUNT_ID }}
 VITE_WALLET_ORIGIN=${{ vars.VITE_WALLET_ORIGIN }}
@@ -290,7 +290,7 @@ VITE_NEAR_EXPLORER=${{ vars.VITE_NEAR_EXPLORER }}
 VITE_WEBAUTHN_CONTRACT_ID=${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
 EOF
 
-          cat <<EOF > examples/tatchi-docs/.env.production
+          cat > examples/tatchi-docs/.env.production <<'EOF'
 VITE_RELAYER_URL=${{ vars.VITE_RELAYER_URL }}
 VITE_RELAYER_ACCOUNT_ID=${{ vars.VITE_RELAYER_ACCOUNT_ID }}
 VITE_WALLET_ORIGIN=${{ vars.VITE_WALLET_ORIGIN }}
@@ -340,6 +340,9 @@ EOF
           fi
 
       - name: Deploy tatchi-docs to Cloudflare Pages (primary site)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           wrangler pages deploy examples/tatchi-docs/dist --project-name "${{ secrets.CF_PAGES_PROJECT_VITE }}"
 
