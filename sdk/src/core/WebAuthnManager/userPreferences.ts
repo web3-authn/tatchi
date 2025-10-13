@@ -47,8 +47,6 @@ export class UserPreferencesManager {
     });
   }
 
-  
-
   private async initializeUserSettings(): Promise<void> {
     try {
       await this.loadUserSettings();

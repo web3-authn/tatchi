@@ -13,6 +13,7 @@ import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
 import { ThemeProvider, ThemeScope, useTheme } from '../theme';
 import { toAccountId } from '../../../core/types/accountIds';
+import { IndexedDBManager } from '../../../core/IndexedDBManager';
 
 /**
  * Profile Settings Button Component
@@ -63,7 +64,8 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
 
   // Use props if provided, otherwise fall back to context
   const accountName = usernameProp || nearAccountIdProp?.split('.')?.[0] || loginState.nearAccountId?.split('.')?.[0] || 'User';
-  const nearAccountId = nearAccountIdProp || loginState.nearAccountId;
+  const loggedInAccountId = loginState.nearAccountId;
+  const nearAccountId = nearAccountIdProp || loggedInAccountId;
 
   // Local state for modals/expanded sections
   const [showQRScanner, setShowQRScanner] = useState(false);
@@ -89,7 +91,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     const syncConfirmationConfig = async () => {
       if (!passkeyManager) return;
 
-      if (!loginState.isLoggedIn || !nearAccountId) {
+      if (!loginState.isLoggedIn || !loggedInAccountId) {
         if (isActive) {
           setCurrentConfirmConfig(null);
         }
@@ -97,22 +99,35 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       }
 
       try {
-        passkeyManager.userPreferences.setCurrentUser(toAccountId(nearAccountId));
+        passkeyManager.userPreferences.setCurrentUser(toAccountId(loggedInAccountId));
       } catch (_) {}
 
+      // Always try to hydrate from source of truth, then mirror locally
+      let fetched: any | null = null;
+      // 1) Wallet iframe (wallet origin) if available
       try {
-        await passkeyManager.userPreferences.reloadUserSettings();
+        const client = passkeyManager.getServiceClient?.();
+        if (client && client.isReady()) {
+          fetched = await client.getConfirmationConfig();
+        }
       } catch (_) {}
+      // 2) Local IndexedDB for this user
+      if (!fetched) {
+        try {
+          fetched = await IndexedDBManager.clientDB.getConfirmationConfig(toAccountId(loggedInAccountId));
+        } catch (_) {}
+      }
+      // 3) Fallback: current in-memory cache
+      if (!fetched) {
+        try { fetched = passkeyManager.getConfirmationConfig(); } catch (_) {}
+      }
 
-      try {
-        const cfg = passkeyManager.getConfirmationConfig();
-        if (isActive) {
-          setCurrentConfirmConfig(cfg);
-        }
-      } catch (_) {
-        if (isActive) {
-          setCurrentConfirmConfig(null);
-        }
+      if (fetched) {
+        // Mirror into local cache for immediate reads and future sessions
+        try { passkeyManager.userPreferences.setConfirmationConfig(fetched); } catch (_) {}
+        if (isActive) setCurrentConfirmConfig(fetched);
+      } else {
+        if (isActive) setCurrentConfirmConfig(null);
       }
     };
 
@@ -121,7 +136,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     return () => {
       isActive = false;
     };
-  }, [passkeyManager, loginState.isLoggedIn, nearAccountId]);
+  }, [passkeyManager, loginState.isLoggedIn, loggedInAccountId]);
 
   // Handlers for transaction settings
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
