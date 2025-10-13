@@ -12,7 +12,6 @@ import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';
-import { DocsLayout } from './docs/DocsLayout';
 import { Navbar } from './components/Navbar';
 import './index.css';
 import { ToasterThemed } from './components/ToasterThemed';
@@ -61,7 +60,6 @@ function App() {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/multitx" element={<MultiTxConfirmPage/>} />
-              <Route path="/docs/*" element={<DocsLayout />} />
             </Routes>
             <ToasterThemed />
           </ThemeScope>

@@ -17,11 +17,17 @@
     "frontend:iphone": "pnpm -C examples/vite-secure dev:iphone",
     "server": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
     "server:iphone": "EXPECTED_ORIGIN=https://pta-m4.local EXPECTED_WALLET_ORIGIN=https://pta-m4.local:8443 pnpm -C examples/relay-server dev",
-    "gen:shamir": "pnpm -C examples/relay-server run gen:shamir"
+    "gen:shamir": "pnpm -C examples/relay-server run gen:shamir",
+    "docs:dev": "vitepress dev examples/vite-secure/src/docs --base /docs/ --port 5222",
+    "docs:build": "vitepress build examples/vite-secure/src/docs --outDir examples/vite-secure/dist/docs",
+    "docs:preview": "vitepress preview examples/vite-secure/src/docs --port 5222",
+    "build:site": "pnpm -C examples/vite-secure build && pnpm docs:build",
+    "dev:all": "concurrently --kill-others --names app,docs \"pnpm -C examples/vite-secure dev\" \"pnpm docs:dev\""
   },
   "devDependencies": {
     "@types/node": "^24.1.0",
     "concurrently": "^9.1.2",
-    "dotenv": "^16.5.0"
+    "dotenv": "^16.5.0",
+    "vitepress": "^1.5.0"
   }
 }

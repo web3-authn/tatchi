@@ -63,9 +63,9 @@ export const Navbar: React.FC = () => {
         <Link to="/multitx">
           Demos
         </Link>
-        <Link to="/docs">
+        <a href="/docs/" rel="external">
           Docs
-        </Link>
+        </a>
       </div>
 
       <DebugBanner />

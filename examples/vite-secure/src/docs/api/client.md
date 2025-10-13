@@ -1,0 +1,10 @@
+---
+title: Client
+---
+
+# Client
+
+Client-level helpers and utilities for interacting with the SDK.
+
+Coming soon: typed method docs and examples.
+
