@@ -19,7 +19,7 @@ The `deploy-cloudflare` workflow:
 - **Purpose**: Relay server for Shamir secret sharing
 
 ### Cloudflare Pages
-- **examples/vite-secure** → CF Pages (primary site)
+- **examples/tatchi-docs** → CF Pages (primary site)
 - **wallet-only static** (generated in CI as `wallet-dist`) → CF Pages (wallet origin)
 
 Note: `examples/vite` is for local testing only and is not deployed.
@@ -142,9 +142,9 @@ wrangler pages project create <CF_PAGES_PROJECT_WALLET>
 
 For Cloudflare Pages (and Netlify), the SDK can emit a `_headers` file at build time so you don’t have to hand‑craft COOP/COEP and Permissions‑Policy headers.
 
-- Ensure your Vite app includes the build plugin:
+- Ensure your app includes the build plugin:
 
-  - File: examples/vite-secure/vite.config.ts:1
+  - File: examples/tatchi-docs/vite.config.ts:1
   - Import: `tatchiBuildHeaders` from `@tatchi/sdk/plugins/vite`
   - In `plugins`, add `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
 
@@ -157,7 +157,7 @@ What it writes to `dist/_headers`:
 
 The plugin is a no‑op if a `_headers` file already exists (it won’t override your app’s headers).
 
-Note: The deploy-cloudflare workflow also contains a step named “Add security headers for vite-secure (COOP/COEP + WebAuthn Permissions-Policy)”. If you keep that step, it will overwrite the file written by the plugin with equivalent content. You can remove the CI step if you prefer to rely solely on the plugin.
+Note: The deploy-cloudflare workflow may also contain a step that writes `_headers` for the site. If you keep that step, it will overwrite the file written by the plugin with equivalent content. You can remove the CI step if you prefer to rely solely on the plugin.
 
 ### 2. Update GitHub Secrets
 Use the project names you created in the GitHub secrets:

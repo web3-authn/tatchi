@@ -117,7 +117,7 @@ jobs:
       - name: Convert manifest to JSON
         run: |
           cd sdk/dist
-          python - <<'PY'
+          python3 - <<'PY'
           import json, pathlib
           entries = []
           for line in pathlib.Path('manifest.sha256').read_text().splitlines():
@@ -220,6 +220,9 @@ jobs:
         run: pnpm -C sdk build
 
       - name: Deploy Cloudflare Worker (relay)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           pnpm -C examples/relay-cloudflare-worker run deploy
 
