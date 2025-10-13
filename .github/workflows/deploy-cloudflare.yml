@@ -228,21 +228,6 @@ jobs:
     needs: [build-sdk, publish-sdk-r2]
     environment:
       name: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
-    env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CF_PAGES_PROJECT_VITE: ${{ secrets.CF_PAGES_PROJECT_VITE }}
-      # Vite build-time envs used by the examples
-      VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
-      VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
-      VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
-      VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
-      VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
-      VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
-      VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
-      VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
-      VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
-      VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -279,43 +264,43 @@ jobs:
 
       - name: Debug - print VITE_* env seen by build
         run: |
-          echo "VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}"
-          echo "VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}"
-          echo "VITE_RP_ID_BASE=${VITE_RP_ID_BASE}"
-          echo "VITE_RELAYER_URL=${VITE_RELAYER_URL}"
-          echo "VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}"
-          echo "VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}"
-          echo "VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}"
-          echo "VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}"
-          echo "VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}"
+          echo "VITE_WALLET_ORIGIN=${{ vars.VITE_WALLET_ORIGIN }}"
+          echo "VITE_WALLET_SERVICE_PATH=${{ vars.VITE_WALLET_SERVICE_PATH }}"
+          echo "VITE_RP_ID_BASE=${{ vars.VITE_RP_ID_BASE }}"
+          echo "VITE_RELAYER_URL=${{ vars.VITE_RELAYER_URL }}"
+          echo "VITE_RELAYER_ACCOUNT_ID=${{ vars.VITE_RELAYER_ACCOUNT_ID }}"
+          echo "VITE_NEAR_NETWORK=${{ vars.VITE_NEAR_NETWORK }}"
+          echo "VITE_NEAR_RPC_URL=${{ vars.VITE_NEAR_RPC_URL }}"
+          echo "VITE_NEAR_EXPLORER=${{ vars.VITE_NEAR_EXPLORER }}"
+          echo "VITE_SDK_BASE_PATH=${{ vars.VITE_SDK_BASE_PATH }}"
 
       - name: Write Vite env files for production build
         run: |
           set -eu
           cat <<EOF > examples/vite/.env.production
-VITE_RELAYER_URL=${VITE_RELAYER_URL}
-VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}
-VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}
-VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}
-VITE_RP_ID_BASE=${VITE_RP_ID_BASE}
-VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}
-VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}
-VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}
-VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}
-VITE_WEBAUTHN_CONTRACT_ID=${VITE_WEBAUTHN_CONTRACT_ID}
+VITE_RELAYER_URL=${{ vars.VITE_RELAYER_URL }}
+VITE_RELAYER_ACCOUNT_ID=${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+VITE_WALLET_ORIGIN=${{ vars.VITE_WALLET_ORIGIN }}
+VITE_WALLET_SERVICE_PATH=${{ vars.VITE_WALLET_SERVICE_PATH }}
+VITE_RP_ID_BASE=${{ vars.VITE_RP_ID_BASE }}
+VITE_SDK_BASE_PATH=${{ vars.VITE_SDK_BASE_PATH }}
+VITE_NEAR_NETWORK=${{ vars.VITE_NEAR_NETWORK }}
+VITE_NEAR_RPC_URL=${{ vars.VITE_NEAR_RPC_URL }}
+VITE_NEAR_EXPLORER=${{ vars.VITE_NEAR_EXPLORER }}
+VITE_WEBAUTHN_CONTRACT_ID=${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
 EOF
 
           cat <<EOF > examples/tatchi-docs/.env.production
-VITE_RELAYER_URL=${VITE_RELAYER_URL}
-VITE_RELAYER_ACCOUNT_ID=${VITE_RELAYER_ACCOUNT_ID}
-VITE_WALLET_ORIGIN=${VITE_WALLET_ORIGIN}
-VITE_WALLET_SERVICE_PATH=${VITE_WALLET_SERVICE_PATH}
-VITE_RP_ID_BASE=${VITE_RP_ID_BASE}
-VITE_SDK_BASE_PATH=${VITE_SDK_BASE_PATH}
-VITE_NEAR_NETWORK=${VITE_NEAR_NETWORK}
-VITE_NEAR_RPC_URL=${VITE_NEAR_RPC_URL}
-VITE_NEAR_EXPLORER=${VITE_NEAR_EXPLORER}
-VITE_WEBAUTHN_CONTRACT_ID=${VITE_WEBAUTHN_CONTRACT_ID}
+VITE_RELAYER_URL=${{ vars.VITE_RELAYER_URL }}
+VITE_RELAYER_ACCOUNT_ID=${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+VITE_WALLET_ORIGIN=${{ vars.VITE_WALLET_ORIGIN }}
+VITE_WALLET_SERVICE_PATH=${{ vars.VITE_WALLET_SERVICE_PATH }}
+VITE_RP_ID_BASE=${{ vars.VITE_RP_ID_BASE }}
+VITE_SDK_BASE_PATH=${{ vars.VITE_SDK_BASE_PATH }}
+VITE_NEAR_NETWORK=${{ vars.VITE_NEAR_NETWORK }}
+VITE_NEAR_RPC_URL=${{ vars.VITE_NEAR_RPC_URL }}
+VITE_NEAR_EXPLORER=${{ vars.VITE_NEAR_EXPLORER }}
+VITE_WEBAUTHN_CONTRACT_ID=${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
 EOF
 
       - name: Build example site (tatchi-docs app)
@@ -356,7 +341,7 @@ EOF
 
       - name: Deploy tatchi-docs to Cloudflare Pages (primary site)
         run: |
-          wrangler pages deploy examples/tatchi-docs/dist --project-name "$CF_PAGES_PROJECT_VITE"
+          wrangler pages deploy examples/tatchi-docs/dist --project-name "${{ secrets.CF_PAGES_PROJECT_VITE }}"
 
   deploy-wallet:
     runs-on: ubuntu-latest
