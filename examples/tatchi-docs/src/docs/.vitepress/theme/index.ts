@@ -28,13 +28,34 @@ const theme: Theme = {
       }, { once: true })
     }
 
+    const resolveAppRoot = (): string => {
+      try {
+        // Optional explicit override via env
+        const envOrigin = (import.meta as any)?.env?.VITE_APP_PUBLIC_ORIGIN as string | undefined
+        if (envOrigin && typeof envOrigin === 'string') {
+          return envOrigin.endsWith('/') ? envOrigin : envOrigin + '/'
+        }
+        // Default: same-origin root
+        const origin = window.location.origin
+        return origin.endsWith('/') ? origin : origin + '/'
+      } catch {
+        // Fallback: relative root
+        return '/'
+      }
+    }
+
+    const appRoot = resolveAppRoot()
+
+    // Respect configured docs base (avoid hardcoding '/docs/')
+    const docsBase = (import.meta as any)?.env?.BASE_URL || '/'
+
     const patchBrandLinks = () => {
       try {
         const anchors = document.querySelectorAll<HTMLAnchorElement>(
           '.VPSidebar .VPSidebarBrand a, .VPNavBarTitle a'
         )
         anchors.forEach((a) => {
-          forceExternal(a, 'https://example.localhost/')
+          forceExternal(a, appRoot)
         })
       } catch {}
     }
@@ -52,9 +73,9 @@ const theme: Theme = {
           .forEach((a) => {
             const label = a.textContent?.trim()
             if (label === 'Home' || (label && label.includes('Back to Home'))) {
-              forceExternal(a, 'https://example.localhost/')
+              forceExternal(a, appRoot)
             } else if (label === 'SDK') {
-              a.href = '/docs/'
+              a.href = docsBase
               a.removeAttribute('rel')
             }
           })
