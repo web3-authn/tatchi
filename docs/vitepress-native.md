@@ -162,6 +162,27 @@ const theme: Theme = {
 export default theme;
 ```
 
+## Env Vars in VitePress (import.meta.env)
+- Source of vars
+  - VitePress is powered by Vite; client-exposed vars come from `.env*` files located under `vite.envDir` (Step 1) and from the shell environment.
+  - Only variables prefixed with `VITE_` are exposed to browser code. Keep secrets out of client bundles.
+
+- Usage pattern
+  - Always access exactly via `import.meta.env` (no optional chaining). Example:
+    ```ts
+    const env = import.meta.env
+    const relayerUrl = env.VITE_RELAYER_URL!
+    ```
+  - Place reads inside client-only code paths. The web component wrapper is only imported on the client (`if (import.meta.env.SSR) return` guard in theme), which is safe for SSR.
+
+- Where values land
+  - In dev, Vite injects values at runtime; in build, they are statically replaced during bundling.
+  - Changing `.env` requires restarting the VitePress dev server.
+
+- Paths and base
+  - Use `import.meta.env.BASE_URL` for the docs base when creating links within VitePress (e.g., pointing the “SDK” nav to the docs root regardless of `/` vs `/docs/`).
+  - For links back to the app root, prefer `window.location.origin` or an explicit `VITE_APP_PUBLIC_ORIGIN` override rather than hardcoding hosts.
+
 ---
 
 ## Step 3 — VitePress Homepage Uses the Web Component
@@ -263,11 +284,23 @@ example.localhost {
 
 ## Testing & Pitfalls
 - Shadow DOM CSS: we inject `index.css` into the custom element using `?raw`; if you add new app styles, they also need to be imported (or compose a dedicated `app-shell.css`).
+- CSS URLs/imports: `?raw` bypasses Vite’s CSS processing. Avoid `url(...)` and `@import` in the injected CSS, or pre-resolve assets. Prefer a minimal `app-shell.css` that doesn’t rely on asset URL rewriting.
+- Dev HMR for CSS: to live-update injected CSS in dev, accept HMR for the `?raw` module and update the style tag:
+  ```ts
+  // inside connectedCallback after creating styleTag
+  if (import.meta.hot) {
+    import.meta.hot.accept('../index.css?raw', (mod: any) => {
+      styleTag.textContent = mod?.default ?? ''
+    })
+  }
+  ```
 - Tokens/styles: `@tatchi/sdk/react/styles` is imported within the wrapper; confirm components read tokens via `ThemeProvider/ThemeScope` correctly in Shadow DOM.
 - Env vars: set `vite.envDir` so `VITE_*` variables resolve during VitePress build.
 - SSR/Client-only: register custom elements only on the client (`import.meta.env.SSR` guards). Use `<ClientOnly>` for the homepage mount.
 - Toaster mounting: `react-hot-toast` renders into `document.body` by default; this is acceptable, but if you want it fully contained within the element, pass a custom `container` or `containerStyle`.
 - Router remnants: after removing React Router, replace `Link`/`useNavigate` with anchors/`window.location` as shown.
+- Dedupe React: if VitePress and the app pull different React copies, add `resolve: { dedupe: ['react','react-dom'] }` in VitePress `vite` config to avoid hooks/context mismatches.
+- FS allowlist: when importing from outside the docs folder via `@app`, keep `server.fs.allow` including the app path; otherwise Vite will block file access.
 
 ---
 
@@ -278,4 +311,3 @@ example.localhost {
 - [ ] Caddy root proxies to VitePress (:5222)
 - [ ] Navbar refactored to anchor-based nav; React Router removed
 - [ ] Build and preview the site from VitePress
-
