@@ -3,20 +3,8 @@ example.localhost {
 	tls internal
 	encode gzip
 
-	# Keep URL as /docs but internally serve /docs/ (trailing slash) for VitePress
-	@docs_root_exact path /docs
-	handle @docs_root_exact {
-		uri replace /docs /docs/
-		reverse_proxy localhost:5222
-	}
-
-	@docs path /docs*
-	handle @docs {
-		reverse_proxy localhost:5222
-	}
-
 	handle {
-		reverse_proxy localhost:5174
+		reverse_proxy localhost:5222
 	}
 }
 
@@ -46,7 +34,7 @@ relay-server.localhost {
 pta-m4.local {
 	tls internal
 	encode gzip
-	reverse_proxy localhost:5174
+	reverse_proxy localhost:5222
 }
 
 # Wallet service on a distinct origin (same host, different port)

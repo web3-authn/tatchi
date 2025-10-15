@@ -54,6 +54,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   deviceLinkingScannerParams,
   toggleColors,
   style,
+  portalTarget,
 }) => {
   // Get values from context if not provided as props
   const {
@@ -185,7 +186,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
           alert(`Key export failed: ${friendly}`);
         }
       },
-      keepOpenOnClick: false,
+      keepOpenOnClick: true,
     },
     {
       icon: <Scan />,
@@ -265,7 +266,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
         theme={theme}
       />
 
-      {/* QR Scanner Modal (portaled to body to avoid transformed ancestors) */}
+      {/* QR Scanner Modal (portaled to nearest root for robustness) */}
       {createPortal(
         <QRCodeScanner
           key="profile-qr-scanner"
@@ -284,15 +285,21 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
             setShowQRScanner(false);
           }}
           onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
-        />, document.body)}
+        />, (portalTarget
+          || ((refs.buttonRef.current?.getRootNode?.() instanceof ShadowRoot)
+              ? (refs.buttonRef.current!.getRootNode() as ShadowRoot)
+              : document.body)))}
 
-      {/* Linked Devices Modal (portaled to body to avoid transformed ancestors) */}
+      {/* Linked Devices Modal (portaled to nearest root for robustness) */}
       {createPortal(
         <LinkedDevicesModal
           nearAccountId={nearAccountId!}
           isOpen={showLinkedDevices}
           onClose={() => setShowLinkedDevices(false)}
-        />, document.body)}
+        />, (portalTarget
+          || ((refs.buttonRef.current?.getRootNode?.() instanceof ShadowRoot)
+              ? (refs.buttonRef.current!.getRootNode() as ShadowRoot)
+              : document.body)))}
     </div>
   );
 };

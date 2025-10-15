@@ -201,10 +201,11 @@ export const DARK_THEME = {
   surface3: GREY_COLORS.slate800,
 
   // Canonical palette aliases (align with React tokens)
-  primary: CHROMA_COLORS.blue500,
-  primaryHover: CHROMA_COLORS.blue600,
-  secondary: GREY_COLORS.grey400,
-  accent: CHROMA_COLORS.blue300,
+  primary: CHROMA_COLORS.blue600,
+  primaryHover: CHROMA_COLORS.blue500,
+  secondary: CHROMA_COLORS.red500,
+  secondaryHover: CHROMA_COLORS.red400,
+  accent: CHROMA_COLORS.blue400,
 
   // Interactive states
   hover: GREY_COLORS.grey850,
@@ -288,10 +289,11 @@ export const LIGHT_THEME = {
   surface3: GREY_COLORS.slate200,
 
   // Canonical palette aliases (align with React tokens)
-  primary: CHROMA_COLORS.blue500,
-  primaryHover: CHROMA_COLORS.blue600,
-  secondary: GREY_COLORS.grey600,
-  accent: CHROMA_COLORS.blue300,
+  primary: CHROMA_COLORS.blue600,
+  primaryHover: CHROMA_COLORS.blue500,
+  secondary: CHROMA_COLORS.red500,
+  secondaryHover: CHROMA_COLORS.red400,
+  accent: CHROMA_COLORS.blue400,
 
   // Interactive states
   hover: GREY_COLORS.grey100,

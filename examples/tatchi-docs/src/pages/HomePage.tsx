@@ -11,21 +11,27 @@ export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
 
   const { loginState } = usePasskeyContext();
-  const { tokens } = useTheme();
+  const { tokens, theme } = useTheme();
 
   return (
-    <main>
-      {loginState.isLoggedIn ? (
-        <div className="layout-root">
-          <GreetingMenu onTransactionUpdate={setLastTxDetails} />
-          <EmbeddedTxButton setLastTxDetails={setLastTxDetails} />
-          <TransactionDetails lastTxDetails={lastTxDetails} />
+    <div className="layout-root">
+      <div className="layout-column">
+        <h2>Tatchi Embedded Wallet SDK</h2>
+        <div>content</div>
+      </div>
+      <div className="layout-column">
+        <div className="layout-workspace" data-w3a-theme={theme}>
+          {
+            loginState.isLoggedIn
+            ? <>
+                <GreetingMenu onTransactionUpdate={setLastTxDetails} />
+                <EmbeddedTxButton setLastTxDetails={setLastTxDetails} />
+                <TransactionDetails lastTxDetails={lastTxDetails} />
+              </>
+            : <PasskeyLoginMenu />
+          }
         </div>
-      ) : (
-        <div className="layout-root">
-          <PasskeyLoginMenu />
-        </div>
-      )}
-    </main>
+      </div>
+    </div>
   );
 }

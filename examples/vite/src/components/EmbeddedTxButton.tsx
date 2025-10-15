@@ -160,7 +160,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
                 },
               }}
               buttonStyle={{
-                background: 'var(--cobalt-primary)',
+                background: 'var(--w3a-colors-primary)',
                 borderRadius: '24px',
                 border: 'none',
                 transition: 'all 0.3s ease',
@@ -169,7 +169,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
                 height: '44px',
               }}
               buttonHoverStyle={{
-                background: 'var(--cobalt-primary-hover)',
+                background: 'var(--w3a-colors-primaryHover)',
                 boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
               }}
               tooltipPosition={{

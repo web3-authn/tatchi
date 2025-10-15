@@ -9,7 +9,7 @@ import {
 } from '@tatchi/sdk/react';
 import type { ActionArgs } from '@tatchi/sdk/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
-import toast from 'react-hot-toast';
+import { toast } from 'sonner';
 import './MultiTxConfirmPage.css';
 import { GlassBorder } from '../components/GlassBorder';
 import { LoadingButton } from '../components/LoadingButton';

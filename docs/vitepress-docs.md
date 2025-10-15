@@ -238,6 +238,78 @@ if (!customElements.get('wallet-navbar')) {
 }
 ```
 
+### Trigger VitePress routes from embedded components (no full reload)
+
+By default, anchors inside a Shadow DOM may not be intercepted by VitePress’s delegated click handler, causing full page loads. To trigger VitePress SPA navigation from React/Web Components:
+
+1) Expose a small router bridge in the VitePress theme (client-only):
+
+```ts
+// examples/vite-secure/src/docs/.vitepress/theme/index.ts
+import DefaultTheme from 'vitepress/theme'
+import type { Theme } from 'vitepress'
+
+const theme: Theme = {
+  ...DefaultTheme,
+  enhanceApp: async (ctx) => {
+    // Optional: keep default behavior
+    // @ts-ignore
+    await (DefaultTheme as any).enhanceApp?.(ctx)
+    if (import.meta.env.SSR) return
+
+    const base = import.meta.env.BASE_URL || '/'
+    const join = (to: string) => {
+      if (/^https?:\/\//.test(to)) return to
+      const b = base.endsWith('/') ? base.slice(0, -1) : base
+      const t = to.startsWith('/') ? to : `/${to}`
+      return `${b}${t}`
+    }
+
+    const go = (to: string) => {
+      const url = join(to)
+      // VitePress exposes router on ctx in recent versions; fall back to hard nav
+      // @ts-ignore
+      if (ctx?.router?.go) ctx.router.go(url)
+      else window.location.href = url
+    }
+
+    // Global function + custom event for consumers in Shadow DOM / React
+    // Avoids relying on VitePress’s internal click interception
+    ;(window as any).__vp_go = go
+    window.addEventListener('vp:navigate', (e: Event) => {
+      const ce = e as CustomEvent<string>
+      try { go(ce.detail) } catch {}
+    })
+  },
+}
+
+export default theme
+```
+
+2) From React (inside your WC or any embedded component), dispatch a navigation event instead of using `Link`:
+
+```tsx
+// Inside Navbar.tsx (docs build)
+const docsBase = import.meta.env.BASE_URL || '/docs/'
+
+function vpNavigate(to: string) {
+  const ce = new CustomEvent<string>('vp:navigate', { detail: to, bubbles: true, composed: true })
+  window.dispatchEvent(ce)
+}
+
+<a
+  href={`${docsBase}guides/`}
+  onClick={(e) => { e.preventDefault(); vpNavigate('/guides/') }}
+>
+  Docs
+</a>
+```
+
+Notes
+- Use `import.meta.env.BASE_URL` to build links that work whether docs are hosted at `/docs/` or `/`.
+- The custom event is composed+bubbling so it works from Shadow DOM.
+- If `ctx.router.go` is not available (older VitePress), the bridge falls back to `window.location.href` (full reload).
+
 Use in a VitePress page (lazy + client-only):
 
 ```md

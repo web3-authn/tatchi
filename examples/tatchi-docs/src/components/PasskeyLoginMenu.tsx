@@ -8,7 +8,7 @@ import {
   DeviceLinkingPhase,
   DeviceLinkingStatus
 } from '@tatchi/sdk/react'
-import toast from 'react-hot-toast'
+import { toast } from 'sonner'
 
 import {
   type RegistrationSSEEvent,

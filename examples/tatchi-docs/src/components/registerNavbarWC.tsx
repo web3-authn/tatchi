@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { Navbar } from './Navbar'
+import { NavbarStatic } from './NavbarStatic'
 
 class WalletNavbarElement extends HTMLElement {
   private root: Root | null = null
@@ -10,7 +10,7 @@ class WalletNavbarElement extends HTMLElement {
     const container = document.createElement('div')
     shadow.appendChild(container)
     this.root = createRoot(container)
-    this.root.render(<Navbar />)
+    this.root.render(<NavbarStatic />)
   }
 
   disconnectedCallback() {

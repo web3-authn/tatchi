@@ -10,7 +10,7 @@
   border-radius: 6px;
   font-size: 14px;
   color: var(--fe-text);
-  border-left: 3px solid var(--cobalt-primary);
+  border-left: 3px solid var(--w3a-colors-primary);
 }
 
 .tx-details {
@@ -28,7 +28,7 @@
 }
 
 .tx-link {
-  color: var(--cobalt-primary) !important;
+  color: var(--w3a-colors-primary) !important;
   margin-top: 2px;
   text-decoration: underline !important;
   font-family: 'Inconsolata', 'Roboto Mono', monospace !important;
@@ -38,12 +38,12 @@
 }
 
 .tx-link:hover {
-  color: var(--cobalt-primary-hover) !important;
+  color: var(--w3a-colors-primaryHover) !important;
   text-decoration: none !important;
 }
 
 .tx-link:focus {
-  outline: 2px solid var(--cobalt-primary);
+  outline: 2px solid var(--w3a-colors-primary);
   outline-offset: 2px;
   border-radius: 2px;
 }

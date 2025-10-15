@@ -56,7 +56,7 @@ export const AccountExistsBadge: React.FC<AccountExistsBadgeProps> = ({
       return;
     }
     setVisible(true);
-    const t = setTimeout(() => setVisible(false), 2000);
+    const t = setTimeout(() => setVisible(false), 20000);
     return () => clearTimeout(t);
   }, [hasContent, message]);
 

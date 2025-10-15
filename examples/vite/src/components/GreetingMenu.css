@@ -144,7 +144,7 @@
 .greeting-input-group input:focus {
   outline: none;
   border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px var(--cobalt-focus);
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
 }
 
 .greeting-input-group input::placeholder {
@@ -170,14 +170,14 @@
 }
 
 .greeting-btn-primary {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
 }
 
 .greeting-btn-primary:hover:not(:disabled) {
-  background: var(--cobalt-primary-hover);
+  background: var(--w3a-colors-primaryHover);
   color: white;
-  box-shadow: 0 2px 4px var(--cobalt-shadow);
+  box-shadow: 0 2px 4px var(--w3a-shadows-lg);
 }
 
 .greeting-btn-primary:disabled {
@@ -189,15 +189,15 @@
 }
 
 .greeting-btn-secondary {
-  background: var(--cobalt-light);
+  background: var(--w3a-colors-primary);
   color: white;
-  border: 1px solid var(--cobalt-light);
+  border: 1px solid var(--w3a-colors-primary);
 }
 
 .greeting-btn-secondary:hover:not(:disabled) {
-  background: var(--cobalt-lighter);
+  background: var(--w3a-colors-primaryHover);
   color: white;
-  border-color: var(--cobalt-lighter);
+  border-color: var(--w3a-colors-primaryHover);
 }
 
 .greeting-btn-secondary:disabled {
@@ -254,7 +254,7 @@
 }
 
 .greeting-focus-ring:focus-visible {
-  box-shadow: 0 0 0 3px var(--cobalt-focus);
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
   border-color: var(--fe-border-strong);
 }
 

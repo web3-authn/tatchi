@@ -42,6 +42,7 @@ try {
     console.warn('[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.');
   }
 } catch {}
+try { applyTransparentIframeSurface(); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
 try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
 // Establish a default embedded assets base as soon as this module loads.
@@ -759,4 +760,33 @@ function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<str
   const autoProceedDelay = isNumber(delayCand) ? delayCand : base.autoProceedDelay;
 
   return { uiMode, behavior, autoProceedDelay, theme };
+}
+function applyTransparentIframeSurface() {
+  const apply = () => {
+    try {
+      const doc = document;
+      doc.documentElement.style.background = 'transparent';
+      doc.documentElement.style.margin = '0';
+      doc.documentElement.style.padding = '0';
+      try {
+        doc.documentElement.style.colorScheme = 'normal';
+        doc.documentElement.classList.remove('dark');
+      } catch {}
+      if (doc.body) {
+        doc.body.style.background = 'transparent';
+        doc.body.style.margin = '0';
+        doc.body.style.padding = '0';
+        try {
+          doc.body.style.colorScheme = 'normal';
+          doc.body.classList.remove('dark');
+        } catch {}
+      }
+    } catch {}
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => apply(), { once: true });
+  } else {
+    apply();
+  }
+  window.addEventListener('load', () => apply(), { once: true });
 }

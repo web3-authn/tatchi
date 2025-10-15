@@ -1,0 +1,28 @@
+/* Minimal Sonner styles (vendored). Ensures correct positioning
+   and stacking in VitePress/Shadow DOM environments. */
+
+/* Viewport */
+[data-sonner-toaster] {
+  position: fixed;
+  z-index: 10000; /* Above app nav & overlays */
+  pointer-events: none; /* allow page interactions outside toasts */
+}
+
+/* Positioning based on toaster data attributes */
+[data-sonner-toaster][data-y-position="top"] { top: 32px; }
+[data-sonner-toaster][data-y-position="bottom"] { bottom: 32px; }
+[data-sonner-toaster][data-x-position="left"] { left: 32px; }
+[data-sonner-toaster][data-x-position="right"] { right: 32px; }
+[data-sonner-toaster][data-x-position="center"] { left: 50%; transform: translateX(-50%); }
+
+/* Tighter offsets on small screens */
+@media (max-width: 640px) {
+  [data-sonner-toaster][data-y-position="top"] { top: 16px; }
+  [data-sonner-toaster][data-y-position="bottom"] { bottom: 16px; }
+  [data-sonner-toaster][data-x-position="left"] { left: 16px; }
+  [data-sonner-toaster][data-x-position="right"] { right: 16px; }
+}
+
+/* Ensure individual toasts remain interactive */
+[data-sonner-toaster] * { pointer-events: auto; }
+

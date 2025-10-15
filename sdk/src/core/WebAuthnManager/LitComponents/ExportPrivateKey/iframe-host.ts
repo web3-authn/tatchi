@@ -150,7 +150,10 @@ export class IframeExportHost extends LitElementWithProps {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-          <style>html,body{margin:0;padding:0;background:transparent}</style>
+          <style>
+            /* Transparent first paint and neutral UA color-scheme */
+            html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
+          </style>
           <script>try{ parent && parent.postMessage({ type: 'READY' }, '*'); } catch(e) {}</script>
           <script type="module" src="${base}${viewerBundle}"></script>
           <script type="module" src="${base}${bootstrap}"></script>
@@ -164,6 +167,10 @@ export class IframeExportHost extends LitElementWithProps {
   private initializeIframe() {
     const iframeEl = this.iframeRef.value;
     if (!iframeEl) return;
+    try {
+      iframeEl.style.background = 'transparent';
+      (iframeEl.style as any).colorScheme = 'normal';
+    } catch {}
     this.setupMessageHandling();
     iframeEl.srcdoc = this.generateIframeHtml();
   }

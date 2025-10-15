@@ -406,7 +406,10 @@ export class IframeButtonHost extends LitElementWithProps {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <style>html,body{margin:0;padding:0;background:transparent}</style>
+          <style>
+            /* Transparent first paint and neutral UA color-scheme */
+            html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
+          </style>
           <script type="module" src="${base}${embeddedTxButtonTag}.js"></script>
           <script type="module" src="${base}${iframeBootstrapTag}"></script>
         </head>
@@ -425,6 +428,12 @@ export class IframeButtonHost extends LitElementWithProps {
 
     const html = this.generateIframeHtml();
     const iframeEl = this.iframeRef.value;
+    try {
+      // Ensure the element itself never contributes an opaque layer
+      iframeEl.style.background = 'transparent';
+      // Prevent UA color-scheme from forcing opaque canvas during initial paint
+      (iframeEl.style as any).colorScheme = 'normal';
+    } catch {}
     iframeEl.srcdoc = html;
 
     // Set up message handling

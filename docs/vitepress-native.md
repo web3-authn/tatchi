@@ -162,6 +162,107 @@ const theme: Theme = {
 export default theme;
 ```
 
+Optional — AppShell single import (no side effects)
+If you prefer VitePress to import a single, side‑effect‑free module instead of a purpose‑built wrapper, extract your app into an AppShell and a small mount helper.
+
+1) Create an App component (no ReactDOM, no Router):
+```tsx
+// examples/tatchi-docs/src/App.tsx
+import React from 'react'
+import { PasskeyProvider, ThemeProvider, ThemeScope } from '@tatchi/sdk/react'
+import '@tatchi/sdk/react/styles'
+import NavbarStatic from './components/NavbarStatic'
+import { HomePage } from './pages/HomePage'
+import { ToasterThemed } from './components/ToasterThemed'
+
+function buildConfig(env: ImportMetaEnv) {
+  return {
+    relayer: { url: env.VITE_RELAYER_URL!, accountId: env.VITE_RELAYER_ACCOUNT_ID! },
+    vrfWorkerConfigs: { shamir3pass: { relayServerUrl: env.VITE_RELAYER_URL! } },
+    iframeWallet: {
+      walletOrigin: env.VITE_WALLET_ORIGIN,
+      walletServicePath: env.VITE_WALLET_SERVICE_PATH,
+      rpIdOverride: env.VITE_RP_ID_BASE,
+      sdkBasePath: env.VITE_SDK_BASE_PATH,
+      enableSafariGetWebauthnRegistrationFallback: true,
+    },
+  }
+}
+
+export const App: React.FC = () => {
+  const env = import.meta.env
+  const config = buildConfig(env)
+  return (
+    <ThemeProvider>
+      <PasskeyProvider config={config}>
+        <ThemeScope as="div" className="app-theme-scope">
+          <NavbarStatic />
+          <main>
+            <HomePage />
+          </main>
+          <ToasterThemed />
+        </ThemeScope>
+      </PasskeyProvider>
+    </ThemeProvider>
+  )
+}
+```
+
+2) Add a small mount helper you can reuse in SPA dev and WC:
+```tsx
+// examples/tatchi-docs/src/mount.tsx
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from './App'
+
+export function mountApp(container: Element) {
+  const root = createRoot(container)
+  root.render(<App />)
+  return () => root.unmount()
+}
+```
+
+3) Update the SPA entry to use `mountApp` (optional, keeps local dev standalone):
+```tsx
+// examples/tatchi-docs/src/main.tsx
+import { mountApp } from './mount'
+
+const el = document.getElementById('app-root')
+if (el) mountApp(el)
+```
+
+4) Make the Web Component minimal by importing the AppShell:
+```tsx
+// examples/tatchi-docs/src/components/registerAppShellWC.tsx
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import { App } from '../App'
+// eslint-disable-next-line
+// @ts-ignore
+import appCss from '../index.css?raw'
+
+class WalletAppElement extends HTMLElement {
+  private root: ReturnType<typeof createRoot> | null = null
+  connectedCallback() {
+    const shadow = this.attachShadow({ mode: 'open' })
+    const style = document.createElement('style')
+    style.textContent = appCss as string
+    shadow.appendChild(style)
+    const host = document.createElement('div')
+    shadow.appendChild(host)
+    this.root = createRoot(host)
+    this.root.render(<App />)
+  }
+  disconnectedCallback() { try { this.root?.unmount() } finally { this.root = null } }
+}
+if (!customElements.get('wallet-app')) customElements.define('wallet-app', WalletAppElement)
+```
+
+Why this helps
+- One import: VitePress only loads `registerAppShellWC` (or `App`) without pulling in a router or bootstrap side effects.
+- Reuse: `mountApp` keeps SPA dev working if you still run the app standalone.
+- Env: `import.meta.env` continues to work when bundling via VitePress because of `vite.envDir`.
+
 ## Env Vars in VitePress (import.meta.env)
 - Source of vars
   - VitePress is powered by Vite; client-exposed vars come from `.env*` files located under `vite.envDir` (Step 1) and from the shell environment.

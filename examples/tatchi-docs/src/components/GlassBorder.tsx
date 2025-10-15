@@ -4,14 +4,12 @@ import './GlassBorder.css';
 interface GlassBorderProps {
   children: React.ReactNode;
   className?: string;
-  animated?: boolean;
   style?: React.CSSProperties;
 }
 
 export const GlassBorder: React.FC<GlassBorderProps> = ({
   children,
   className = '',
-  animated = false,
   style = {}
 }) => {
   return (
@@ -19,7 +17,7 @@ export const GlassBorder: React.FC<GlassBorderProps> = ({
       className={`glass-border-root ${className}`}
       style={style}
     >
-      <div className={`glass-border-inner${animated ? ' black-gradient-border' : ''}`}>
+      <div className={`glass-border-inner`}>
         {children}
       </div>
     </div>

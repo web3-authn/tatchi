@@ -10,17 +10,6 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Cobalt Blue Color Palette */
-  --cobalt-primary: #0353A4;
-  --cobalt-primary-hover: #0466C8;
-  --cobalt-primary-dimmed: #023E7D;
-  --cobalt-light: #5FA8D3;
-  --cobalt-lighter: #89C2D9;
-  --cobalt-lightest: #A9D6E5;
-  --cobalt-shadow: rgba(3, 83, 164, 0.3);
-  --cobalt-focus: rgba(3, 83, 164, 0.18);
-  --cobalt-disabled: #718096;
-
   /* Grayscale Colors */
   --slate-grey-100: #f1f5f9;
   --slate-grey-200: #e2e8f0;
@@ -86,11 +75,6 @@
   --fe-ease: cubic-bezier(0.2, 0.6, 0.2, 1);
   --fe-fast: 200ms;
   --fe-med: 400ms;
-}
-
-/* Keep layout stable and avoid phantom horizontal gutters */
-html {
-  scrollbar-gutter: stable both-edges;
 }
 
 /* Respect user text-size preferences; do not disable scaling */
@@ -219,16 +203,6 @@ h4 {
   margin-top: 0.5rem;
 }
 
-/* Theme is driven by ThemeScope; avoid color-scheme media overrides */
-
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  inline-size: 100%;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-}
-
 main {
   display: flex;
   flex-direction: column; /* avoid row overflow under zoom */
@@ -255,24 +229,7 @@ main {
   align-items: flex-start;
 }
 
-header {
-  margin-bottom: 3rem;
-}
-
-button {
-  cursor: pointer;
-  padding: 0.75rem 1.5rem;
-  font-size: 1rem;
-  border-radius: 4px;
-  border: none;
-  transition: all 0.2s ease;
-}
-
-.App {
-  text-align: center;
-}
-
-nav {
+/* nav {
   background-color: var(--w3a-colors-surface2);
   padding: 1rem;
 }
@@ -297,7 +254,7 @@ nav ul li a {
 
 nav ul li a:hover {
   color: var(--fe-primary-hover);
-}
+} */
 
 .input-field {
     width: 100%;

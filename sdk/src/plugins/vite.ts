@@ -177,6 +177,12 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
+    <style>
+      /* Ensure the initial paint is fully transparent before any JS executes */
+      html, body { background: transparent !important; margin:0; padding:0; }
+      /* Avoid UA dark/light scrollbars forcing opaque backgrounds */
+      html, body { color-scheme: normal; }
+    </style>
     <script>
       // Minimal shims some ESM bundles expect
       window.global ||= window;

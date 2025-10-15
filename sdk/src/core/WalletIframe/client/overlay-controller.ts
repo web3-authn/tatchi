@@ -93,6 +93,8 @@ export class OverlayController {
     }
 
     // Step 2: Make overlay visible and interactive
+    iframe.style.background = 'transparent';
+    (iframe.style as any).colorScheme = 'normal';
     iframe.style.opacity = '1';
     iframe.style.pointerEvents = 'auto';
     iframe.style.zIndex = '2147483646'; // High z-index to be above all content
@@ -130,6 +132,8 @@ export class OverlayController {
     iframe.style.height = `${Math.max(1, Math.round(rect.height))}px`;
 
     // Step 3: Make overlay visible and interactive
+    iframe.style.background = 'transparent';
+    (iframe.style as any).colorScheme = 'normal';
     iframe.style.opacity = '1';
     iframe.style.pointerEvents = 'auto';
     iframe.style.zIndex = '2147483646';

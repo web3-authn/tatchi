@@ -1,0 +1,19 @@
+@import './layout.css';
+@import './components/GreetingMenu.css';
+@import './components/PasskeyLoginMenu.css';
+@import './components/EmbeddedTxButton.css';
+@import './components/TransactionDetails.css';
+@import './components/GlassBorder.css';
+@import './components/Toaster.css';
+
+/* Host should fill its container (container is made full-bleed via VitePress CSS) */
+:host {
+  box-sizing: border-box;
+  inline-size: 100%;
+  display: block;
+  /* Viewport width variable: prefer dvw on capable browsers */
+  --w3a-vw: 100vw;
+}
+@supports (width: 1dvw) {
+  :host { --w3a-vw: 100dvw; }
+}

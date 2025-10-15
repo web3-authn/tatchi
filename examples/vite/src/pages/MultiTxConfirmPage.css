@@ -117,7 +117,7 @@
 .action-section input:focus {
   outline: none;
   border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px var(--cobalt-focus);
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
 }
 
 .action-section input::placeholder {
@@ -141,7 +141,7 @@
 
 .multi-tx-input:focus {
   outline: none;
-  border-color: var(--cobalt-primary);
+  border-color: var(--w3a-colors-primary);
   box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
   background: var(--fe-input-bg);
 }
@@ -158,7 +158,7 @@
 
 /* Button Styles */
 .action-section button {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
   border: none;
   border-radius: var(--fe-radius-sm);
@@ -179,7 +179,7 @@
 }
 
 .action-section button:hover {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
@@ -193,7 +193,7 @@
 .action-section button:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
-  border: 2px solid var(--cobalt-primary);
+  border: 2px solid var(--w3a-colors-primary);
 }
 
 .action-section button:disabled {
@@ -229,12 +229,12 @@
 
 /* Button Variants */
 .button--primary {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
 }
 
 .button--primary:hover:not(:disabled) {
-  background: var(--cobalt-primary-hover);
+  background: var(--w3a-colors-primaryHover);
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
 }
@@ -246,12 +246,12 @@
 
 .button--secondary {
   background: transparent;
-  color: var(--cobalt-primary);
-  border: 2px solid var(--cobalt-primary);
+  color: var(--w3a-colors-primary);
+  border: 2px solid var(--w3a-colors-primary);
 }
 
 .button--secondary:hover:not(:disabled) {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
   transform: translateY(-2px);
   box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
@@ -321,12 +321,12 @@
 /* Button variants */
 .action-section button.is-secondary {
   background: transparent;
-  color: var(--cobalt-primary);
-  border: 2px solid var(--cobalt-primary);
+  color: var(--w3a-colors-primary);
+  border: 2px solid var(--w3a-colors-primary);
 }
 
 .action-section button.is-secondary:hover {
-  background: var(--cobalt-primary);
+  background: var(--w3a-colors-primary);
   color: white;
 }
 

@@ -361,7 +361,7 @@
 
 .w3a-btn-primary:hover:not(:disabled) {
   background: var(--w3a-btn-primary-hover);
-  box-shadow: 0 2px 4px var(--cobalt-shadow);
+  box-shadow: 0 2px 4px var(--w3a-shadows-sm);
   transform: translateY(-1px);
 }
 

@@ -1,0 +1,98 @@
+/* Shadow DOM-scoped toast styles used with Sonner's classNames API */
+
+.w3a-toast {
+  background: var(--w3a-colors-surface);
+  color: var(--w3a-colors-textPrimary);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: var(--w3a-shadows-sm);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.w3a-toast-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--w3a-colors-textSecondary);
+}
+
+.w3a-toast-title {
+  font-weight: 600;
+  color: var(--w3a-colors-textPrimary);
+}
+
+.w3a-toast-desc {
+  color: var(--w3a-colors-textSecondary);
+  margin-top: 2px;
+}
+
+.w3a-toast-close {
+  background: transparent;
+  border: none;
+  padding: 0; /* override global button padding */
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  color: var(--w3a-colors-textSecondary);
+  transition: background-color var(--w3a-transitions-fast, 150ms) ease;
+}
+.w3a-toast-close:hover {
+  background: color-mix(in srgb, var(--w3a-colors-textSecondary), transparent 85%);
+}
+
+.w3a-toast-action {
+  background: var(--w3a-colors-primary);
+  color: var(--w3a-btn-text, #fff);
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-weight: 600;
+}
+
+.w3a-toast-cancel {
+  background: transparent;
+  color: var(--w3a-colors-textSecondary);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+/* Success / error accents */
+.w3a-toast[data-type="success"] {
+  border-color: color-mix(in srgb, var(--w3a-colors-success), transparent 65%);
+}
+.w3a-toast[data-type="error"] {
+  border-color: color-mix(in srgb, var(--w3a-colors-error), transparent 65%);
+}
+
+[data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
+  /* Neutralize default absolute placement and make it a flex item at the end */
+  position: static !important;
+  top: auto !important;
+  right: auto !important;
+  left: auto !important;
+  transform: none !important;
+  order: 999 !important;              /* ensure it renders after content */
+  margin-inline-start: auto !important;/* push to end in LTR/RTL */
+
+  /* Center the icon and remove global padding */
+  padding: 0 !important;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Normalize buttons inside Sonner toast list */
+[data-sonner-toaster] > div > section > ol > li > button {
+  border-radius: 4px;
+  border: none;
+}
