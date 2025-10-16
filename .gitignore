@@ -21,6 +21,7 @@ examples/tatchi-docs/public
 examples/tatchi-docs/dist
 examples/tatchi-docs/docs/dist
 examples/tatchi-docs/src/.vitepress/cache
+examples/.vitepress-cache
 
 examples/nextjs/public
 examples/nextjs/dist
