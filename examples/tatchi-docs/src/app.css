@@ -14,9 +14,6 @@
   /* Viewport width variable: prefer dvw on capable browsers */
   --w3a-vw: 100vw;
 }
-@supports (width: 1dvw) {
-  :host { --w3a-vw: 100dvw; }
-}
 
 :root, :host {
   /* Global defaults kept minimal; Theme boundary handles background & text */

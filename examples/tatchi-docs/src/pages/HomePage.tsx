@@ -52,7 +52,9 @@ export function HomePage() {
   }
 
   return (
-    <div className="layout-root">
+    <div className="layout-root"
+      // style={{ height: '80vh'  }}
+    >
 
       <div className="layout-column-left" data-w3a-theme={theme}>
         <div className="constrained-column">
@@ -201,9 +203,14 @@ export function HomePage() {
         </div>
       </div>
 
-      <div className="layout-column-right" data-w3a-theme={theme}>
-        <div className="constrained-column">
-          <div className="passkey-sticky">
+      <div className="layout-column-right" data-w3a-theme={theme}
+      >
+        <div className="constrained-column"
+          // style={{ height: '200vh', overflow: 'unset', paddingTop: '4rem' }}
+        >
+          <div className="passkey-sticky"
+            // style={{ position: 'sticky', top: 0 }}
+          >
             {
               loginState.isLoggedIn
               ? <>
@@ -214,7 +221,6 @@ export function HomePage() {
               : <PasskeyLoginMenu />
             }
           </div>
-          {/* sticky demo removed; restored real panel */}
         </div>
       </div>
     </div>

@@ -60,7 +60,6 @@ export const NavbarStatic: React.FC = () => {
             nearAccountId={loginState.nearAccountId!}
             nearExplorerBaseUrl="https://testnet.nearblocks.io"
             hideUsername={isMobile}
-            onLogout={() => { try { window.location.href = '/'; } catch {} }}
             deviceLinkingScannerParams={{
               fundingAmount: '0.05',
               onDeviceLinked: (result: any) => {
