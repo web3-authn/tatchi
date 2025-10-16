@@ -93,6 +93,19 @@ export default defineConfig({
       fs: { allow: [appSrc, workspaceRoot] },
       allowedHosts: ['example.localhost', 'pta-m4.local'],
     },
+    // Force a fresh pre-bundle when the cache gets stale and avoid
+    // optimizing our local SDK packages which can confuse the dep optimizer
+    // in monorepo/workspace setups.
+    cacheDir: fileURLToPath(new URL('../../../.vitepress-cache', import.meta.url)),
+    optimizeDeps: {
+      force: true,
+      exclude: [
+        '@tatchi/sdk',
+        '@tatchi/sdk/react',
+        '@tatchi/sdk/plugins/vite',
+      ],
+      include: ['react', 'react-dom']
+    },
     resolve: {
       alias: {
         '@app': appSrc,
