@@ -1,6 +1,6 @@
 import React from 'react';
 import './PasskeyAuthMenu.css';
-import { ThemeScope, useTheme } from '../theme';
+import { Theme, useTheme } from '../theme';
 import { usePasskeyContext } from '../../context';
 import { ArrowLeftIcon } from './icons';
 import { SocialProviders } from './SocialProviders';
@@ -48,16 +48,11 @@ export interface PasskeyAuthMenuProps {
 }
 
 export const PasskeyAuthMenu: React.FC<PasskeyAuthMenuProps> = (props) => (
-  <ThemeScope>
+  <Theme mode="scope-only">
     <PasskeyAuthMenuInner {...props} />
-  </ThemeScope>
+  </Theme>
 );
 
-/**
- * - Uses theme tokens from design-tokens.ts via ThemeProvider/useTheme
- * - Segmented Register/Login with animated highlight
- * - Arrow proceeds to a simple "Waiting for Passkey" view with spinner
- */
 const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   onLogin,
   onRegister,

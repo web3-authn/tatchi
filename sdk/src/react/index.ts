@@ -80,9 +80,12 @@ export {
 } from './components/LitDrawer';
 
 // Theme components
-export { ThemeProvider, ThemeScope, useTheme } from './components/theme';
-export type { UseThemeReturn } from './components/theme';
+export { useTheme, Theme } from './components/theme';
+export type { UseThemeReturn, ThemeProps, ThemeMode } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
+
+// App composition (Theme + PasskeyProvider)
+export { TatchiPasskeyProvider } from './components/shell/TatchiPasskeyProvider';
 
 // === TYPES ===
 export type {

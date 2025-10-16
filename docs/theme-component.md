@@ -1,23 +1,22 @@
 # Theme Component Consolidation Plan
 
-Goal: reduce boilerplate by consolidating `ThemeProvider` and `ThemeScope` into a single ergonomic component while preserving all existing capabilities and enabling a safe, incremental migration.
+Goal: reduce boilerplate by consolidating theming into a single ergonomic component (`Theme`) and removing the legacy `ThemeProvider`/`ThemeScope` wrappers.
 
 ## Summary
 
-- Introduce a new `Theme` component that, by default, both provides theme state and scopes CSS variables/attributes to a boundary element.
-- Keep `ThemeProvider` and `ThemeScope` as thin wrappers around `Theme` for backward compatibility, and mark them deprecated in docs/typings.
+- Introduce a single `Theme` component that, by default, both provides theme state and scopes CSS variables/attributes to a boundary element.
 - Provide an explicit escape hatch to render provider-only or scope-only boundaries to preserve advanced use cases (nested scoping, Shadow DOM, portaled content).
 
 ## Current Responsibilities
 
-- `ThemeProvider`
+- Provider responsibilities (within `Theme`)
   - State source: controlled (`theme` prop) or uncontrolled (`defaultTheme` + persistence).
   - Persistence: integrates with `passkeyManager.userPreferences` when available; falls back to `localStorage`.
   - Tokens: merges overrides (object or function) with `LIGHT_TOKENS` and `DARK_TOKENS`.
   - Context: exposes `{ theme, tokens, isDark, setTheme, toggleTheme, prefix }` and precomputed `vars` (`CSSProperties` mapping via `createCSSVariables`).
-- `ThemeScope`
-  - Boundary: renders an element (`as`, `className`, `style`).
-  - Styling: applies inline CSS custom properties (`vars`) and sets a theme data attribute (default `data-w3a-theme`).
+- Boundary responsibilities (within `Theme`)
+  - Renders an element (`as`, `className`, `style`).
+  - Applies inline CSS custom properties (`vars`) and sets a theme data attribute (default `data-w3a-theme`).
 
 These are already co-located in `sdk/src/react/components/theme/ThemeProvider.tsx`, but used as two wrappers.
 
@@ -33,10 +32,8 @@ These are already co-located in `sdk/src/react/components/theme/ThemeProvider.ts
     - Keeps `style` precedence over generated vars: `style={{ ...vars, ...style }}`.
     - Works under Shadow DOM (same as today), and supports nested scoping.
 
-- Back-compat wrappers
-  - `ThemeProvider` → `({ children, ...rest }) => <Theme mode="provider-only" {...rest}>{children}</Theme>`
-  - `ThemeScope` → `({ children, as, className, style, dataAttr }) => <Theme mode="scope-only" as={as} className={className} style={style} dataAttr={dataAttr}>{children}</Theme>`
-  - Mark both as deprecated in TSDoc and docs with migration guidance.
+No wrappers
+- The legacy wrappers have been removed from the public API. Use `Theme` directly.
 
 ## Usage Examples
 
@@ -75,28 +72,22 @@ These are already co-located in `sdk/src/react/components/theme/ThemeProvider.ts
 ## Migration Plan
 
 1. Add `Theme` component
-   - Implement in `sdk/src/react/components/theme/ThemeProvider.tsx` (or `Theme.tsx`) reusing existing logic.
-   - Compose existing provider logic and boundary rendering in one component with `mode` to control behavior.
-2. Back-compat wrappers
-   - Refactor `ThemeProvider` and `ThemeScope` to be thin wrappers over `Theme` with the appropriate `mode`.
-   - Add TSDoc `@deprecated` with replacement snippets; optionally `console.warn` in dev builds.
-3. Exports
-   - Export `Theme` from `sdk/src/react/components/theme/index.ts` alongside existing exports.
-4. Docs
+   - Implement in `sdk/src/react/components/theme/ThemeProvider.tsx` reusing existing logic.
+   - Compose provider logic and boundary rendering in one component with `mode` to control behavior.
+2. Exports
+   - Export only `Theme`, `useTheme`, tokens and types from the theme barrel; remove legacy exports.
+3. Docs
    - Update theme README and all guides to show `Theme` as the primary API.
-   - Keep a “Legacy usage” section for `ThemeProvider`/`ThemeScope` with a sunset note.
-5. Repo migration (incremental)
+4. Repo migration (incremental)
    - Replace pairs `<ThemeProvider><ThemeScope ...> ... </ThemeScope></ThemeProvider>` with a single `<Theme ...>`.
    - Replace standalone `<ThemeScope>` with `<Theme mode="scope-only">`.
    - Replace standalone `<ThemeProvider>` with `<Theme mode="provider-only">` if necessary.
-6. QA and tests
+5. QA and tests
    - Verify CSS variables resolve and `data-w3a-theme` is set on boundaries.
    - Check uncontrolled persistence (userPreferences/localStorage) and controlled mode.
    - Confirm Shadow DOM and nested scope behavior in examples and Storybook (if available).
-7. Deprecation timeline
-   - vNext: release `Theme`, deprecate old components in typings/docs.
-   - +1 minor: migrate internal examples; emit dev-time warnings for legacy usage.
-   - +2 minors: consider making legacy exports re-export `Theme` types only; remove warnings.
+6. Removal
+   - Remove `ThemeProvider` and `ThemeScope` exports from the public API now that internal usages are migrated.
 
 ## Risk & Considerations
 
@@ -113,11 +104,10 @@ These are already co-located in `sdk/src/react/components/theme/ThemeProvider.ts
 
 ## Work Items Checklist
 
-- [ ] Implement `Theme` with `mode` prop
-- [ ] Refactor wrappers (`ThemeProvider`, `ThemeScope`) to delegate to `Theme`
-- [ ] Export `Theme` from the barrel
-- [ ] Update theming README and usage in docs
-- [ ] Migrate repo examples incrementally
+- [x] Implement `Theme` with `mode` prop
+- [x] Export `Theme` from the barrel (without legacy wrappers)
+- [x] Update theming README and usage in docs
+- [x] Migrate repo examples incrementally
 - [ ] Add minimal tests/QA scenarios for boundary rendering and persistence
 
 ## Open Questions
@@ -142,12 +132,12 @@ Question: Can we consolidate `ThemeProvider` and `ThemeScope` directly into `Pas
   - When truthy, `PasskeyProvider` wraps its children with `<Theme {...(typeof withTheme === 'object' ? withTheme : undefined)} />` using `mode="provider+scope"`.
   - Default `withTheme = false` to preserve current rendering and avoid introducing an extra boundary by default.
 
-- Option B — New App Shell component (recommended)
-  - Introduce `<PasskeyAppShell>` that composes both concerns:
+- Option B — New composed provider (recommended)
+  - Introduce `<TatchiPasskeyProvider>` that composes both concerns:
     ```tsx
-    <PasskeyAppShell theme={{ as: 'main', className: 'app-theme-scope' }} config={config}>
+    <TatchiPasskeyProvider theme={{ as: 'main', className: 'app-theme-scope' }} config={config}>
       {children}
-    </PasskeyAppShell>
+    </TatchiPasskeyProvider>
     ```
     Internally renders:
     ```tsx
@@ -161,33 +151,32 @@ Question: Can we consolidate `ThemeProvider` and `ThemeScope` directly into `Pas
 
 ### Recommendation
 
-- Adopt Option B (new `PasskeyAppShell`) for ergonomic usage in apps and demos.
+- Adopt Option B (new `TatchiPasskeyProvider`) for ergonomic usage in apps and demos.
 - Option A can be added later for convenience, but keep it opt‑in.
 - Do not hard‑merge theme into `PasskeyProvider`.
 
 ### Implementation Steps (Option B)
 
-1. Create `sdk/src/react/components/shell/PasskeyAppShell.tsx` exporting a single component that composes `<Theme>` and `<PasskeyProvider>`.
-2. Export `PasskeyAppShell` from `sdk/src/react/index.ts`.
-3. Update docs and examples to prefer `PasskeyAppShell` where appropriate (replace three‑wrapper boilerplate).
+1. Create `sdk/src/react/components/shell/TatchiPasskeyProvider.tsx` exporting a single component that composes `<Theme>` and `<PasskeyProvider>`.
+2. Export `TatchiPasskeyProvider` from `sdk/src/react/index.ts`.
+3. Update docs and examples to prefer `TatchiPasskeyProvider` where appropriate (replace three‑wrapper boilerplate).
 4. Keep `Theme` standalone and documented for advanced layouts (e.g., nested scopes, Shadow DOM, micro‑frontends).
 
-### Example Migration
+### Example Migration (done)
 
 Current:
 ```tsx
-<ThemeProvider>
-  <ThemeScope as="main" className="app-theme-scope">
-    <PasskeyProvider config={config}>{children}</PasskeyProvider>
-  </ThemeScope>
-</ThemeProvider>
+<Theme as="main" className="app-theme-scope">
+  <PasskeyProvider config={config}>{children}</PasskeyProvider>
+  
+</Theme>
 ```
 
 After:
 ```tsx
-<PasskeyAppShell theme={{ as: 'main', className: 'app-theme-scope' }} config={config}>
+<TatchiPasskeyProvider theme={{ as: 'main', className: 'app-theme-scope' }} config={config}>
   {children}
-</PasskeyAppShell>
+</TatchiPasskeyProvider>
 ```
 
 Or explicit composition with `Theme`:

@@ -4,14 +4,13 @@ A single theme module powers the UI using a scoped token → CSS variable system
 
 ## Exports (single module)
 
-- `ThemeProvider` — subscribes to user preferences (uncontrolled) or accepts a controlled `theme` prop, merges token overrides, and exposes resolved tokens. See: `packages/passkey/src/react/components/theme/ThemeProvider.tsx:1`.
-- `ThemeScope` — applies resolved tokens as CSS custom properties on a wrapping element and sets a `data-w3a-theme` attribute. Exported from `ThemeProvider.tsx`.
-- `useTheme` — reads from context and returns `{ theme, tokens, isDark, toggleTheme, setTheme }`. Exported from `ThemeProvider.tsx`.
+- `Theme` — consolidated component. By default provides theme context and renders a boundary that applies CSS variables and `data-w3a-theme`. `mode` controls behavior: `'provider+scope' | 'provider-only' | 'scope-only'`.
+- `useTheme` — reads from context and returns `{ theme, tokens, isDark, toggleTheme, setTheme }`.
 
 Import from the barrel for clarity:
 
 ```
-import { ThemeProvider, ThemeScope, useTheme } from '@tatchi/sdk/react';
+import { Theme, useTheme } from '@tatchi/sdk/react';
 // or within this repo: from '../theme'
 ```
 
@@ -24,12 +23,12 @@ Tokens are defined in `design-tokens.ts` and converted to CSS custom properties 
 - Radius: `tokens.borderRadius.<key>` → `--<prefix>-border-radius-<key>`
 - Shadows: `tokens.shadows.<key>` → `--<prefix>-shadows-<key>`
 
-The mapping is applied inline by `ThemeScope` on the boundary element.
+The mapping is applied inline by the `Theme` boundary element.
 
 ## Naming Convention
 
 - Token keys are lowerCamelCase (e.g., `colorBackground`, `textSecondary`).
-- CSS variables are prefixed with `--w3a` by default. Change via `ThemeProvider`'s `prefix` prop to avoid collisions when embedding.
+- CSS variables are prefixed with `--w3a` by default. Change via `Theme`'s `prefix` prop to avoid collisions when embedding.
 
 Examples in CSS:
 
@@ -48,21 +47,21 @@ Examples in CSS:
 Pass partial overrides for dark/light only for the keys you need to change:
 
 ```
-<ThemeProvider tokens={{
+<Theme tokens={{
   dark: { colors: { colorBackground: 'oklch(0.25 0.012 240)' } },
   light: { colors: { borderHover: '#cbd5e1' } }
-}}>
-  <ThemeScope>...
+}} as="div" className="app-theme-scope">
+  ...
 ```
 
-You can also provide a function to compute overrides from the base tokens. See `ThemeProviderProps` in `ThemeProvider.tsx`.
+You can also provide a function to compute overrides from the base tokens via the `tokens` prop.
 
 ## CSS Color Variables (reference)
 
 The following CSS variables are generated from `tokens.colors.*` with the default prefix `--w3a`.
 
 ```
-/* Color variables applied on the ThemeScope boundary (default prefix: --w3a) */
+/* Color variables applied on the Theme boundary (default prefix: --w3a) */
 --w3a-colors-primary
 --w3a-colors-primaryHover
 --w3a-colors-secondary

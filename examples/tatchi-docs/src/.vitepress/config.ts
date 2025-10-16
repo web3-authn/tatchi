@@ -25,7 +25,7 @@ export default defineConfig({
 
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'SDK', link: '/docs/getting-started/install' },
+      { text: 'Docs', link: '/docs/getting-started/install' },
     ],
 
     // Global sidebar: always show all sections (collapsible groups)

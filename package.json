@@ -7,7 +7,7 @@
     "build:site": "pnpm -C examples/vite build && pnpm docs:build",
     "frontend": "pnpm -C examples/vite dev",
     "frontend:iphone": "pnpm -C examples/vite dev:iphone",
-    "frontend:docs": "concurrently --kill-others --names app,docs \"pnpm -C examples/tatchi-docs dev\" \"pnpm docs:dev\"",
+    "frontend:docs": "pnpm -C examples/tatchi-docs gen:home-snippets && concurrently --kill-others --names app,docs \"pnpm -C examples/tatchi-docs dev\" \"pnpm docs:dev\"",
     "server": "EXPECTED_ORIGIN=https://example.localhost EXPECTED_WALLET_ORIGIN=https://wallet.example.localhost pnpm -C examples/relay-server dev",
     "server:iphone": "EXPECTED_ORIGIN=https://pta-m4.local EXPECTED_WALLET_ORIGIN=https://pta-m4.local:8443 pnpm -C examples/relay-server dev",
     "gen:shamir": "pnpm -C examples/relay-server run gen:shamir",

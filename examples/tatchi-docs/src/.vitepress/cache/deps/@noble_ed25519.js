@@ -1,6 +1,6 @@
 import {
   __publicField
-} from "./chunk-DC5AMYBS.js";
+} from "./chunk-B4Q33VKO.js";
 
 // ../../../node_modules/.pnpm/@noble+ed25519@2.3.0/node_modules/@noble/ed25519/index.js
 var ed25519_CURVE = {

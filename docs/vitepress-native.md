@@ -51,7 +51,7 @@ export default defineConfig({
 
 ## Step 2 — Wrap React UI as Web Components
 We’ll expose the current React UI as custom elements and mount providers within the shadow root:
-- `wallet-app`: full shell (ThemeProvider + PasskeyProvider + ThemeScope) rendering Navbar, HomePage and Toaster.
+- `wallet-app`: full shell (TatchiPasskeyProvider: Theme + PasskeyProvider) rendering Navbar, HomePage and Toaster.
 - Keep the simple `wallet-navbar` wrapper if you still want standalone usage elsewhere (already exists at `examples/vite-secure/src/components/registerNavbarWC.tsx`).
 
 1) Add `registerAppShellWC.tsx`:
@@ -59,7 +59,7 @@ We’ll expose the current React UI as custom elements and mount providers withi
 // examples/vite-secure/src/components/registerAppShellWC.tsx
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { PasskeyProvider, ThemeProvider, ThemeScope } from '@tatchi/sdk/react';
+import { TatchiPasskeyProvider } from '@tatchi/sdk/react';
 import '@tatchi/sdk/react/styles';
 
 import { Navbar } from './Navbar';
@@ -92,9 +92,8 @@ class WalletAppElement extends HTMLElement {
 
     this.root = createRoot(container);
     this.root.render(
-      <ThemeProvider>
-        <PasskeyProvider
-          config={{
+      <TatchiPasskeyProvider
+        config={{
             relayer: {
               url: env.VITE_RELAYER_URL!,
               accountId: env.VITE_RELAYER_ACCOUNT_ID!,
@@ -112,16 +111,14 @@ class WalletAppElement extends HTMLElement {
               enableSafariGetWebauthnRegistrationFallback: true,
             },
           }}
-        >
-          <ThemeScope as="div" className="app-theme-scope">
-            <Navbar />
-            <main>
-              <HomePage />
-            </main>
-            <ToasterThemed />
-          </ThemeScope>
-        </PasskeyProvider>
-      </ThemeProvider>
+        theme={{ as: 'div', className: 'app-theme-scope' }}
+      >
+        <Navbar />
+        <main>
+          <HomePage />
+        </main>
+        <ToasterThemed />
+      </TatchiPasskeyProvider>
     );
   }
 
@@ -169,7 +166,7 @@ If you prefer VitePress to import a single, side‑effect‑free module instead 
 ```tsx
 // examples/tatchi-docs/src/App.tsx
 import React from 'react'
-import { PasskeyProvider, ThemeProvider, ThemeScope } from '@tatchi/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi/sdk/react'
 import '@tatchi/sdk/react/styles'
 import NavbarStatic from './components/NavbarStatic'
 import { HomePage } from './pages/HomePage'
@@ -193,17 +190,13 @@ export const App: React.FC = () => {
   const env = import.meta.env
   const config = buildConfig(env)
   return (
-    <ThemeProvider>
-      <PasskeyProvider config={config}>
-        <ThemeScope as="div" className="app-theme-scope">
-          <NavbarStatic />
-          <main>
-            <HomePage />
-          </main>
-          <ToasterThemed />
-        </ThemeScope>
-      </PasskeyProvider>
-    </ThemeProvider>
+    <TatchiPasskeyProvider config={config} theme={{ as: 'div', className: 'app-theme-scope' }}>
+      <NavbarStatic />
+      <main>
+        <HomePage />
+      </main>
+      <ToasterThemed />
+    </TatchiPasskeyProvider>
   )
 }
 ```
@@ -320,14 +313,14 @@ We’ll align the in-app UI to VitePress routing, avoiding `react-router-dom`.
 // examples/vite-secure/src/components/Navbar.tsx
 import React from 'react';
 import toast from 'react-hot-toast';
-import { usePasskeyContext, ProfileSettingsButton, DeviceLinkingPhase, DeviceLinkingStatus, ThemeScope, useTheme } from '@tatchi/sdk/react';
+import { usePasskeyContext, ProfileSettingsButton, DeviceLinkingPhase, DeviceLinkingStatus, Theme, useTheme } from '@tatchi/sdk/react';
 
 export const Navbar: React.FC = () => {
   const { loginState } = usePasskeyContext();
   const { setTheme } = useTheme();
   // ... keep the rest
   return (
-    <ThemeScope>
+    <Theme mode="scope-only">
       <nav className="navbar-container">
         <div className="navbar-title">
           <a href="/">Tatchi.xyz</a>
@@ -339,7 +332,7 @@ export const Navbar: React.FC = () => {
         </div>
         {/* ProfileSettingsButton with onLogout={() => (window.location.href = '/')} */}
       </nav>
-    </ThemeScope>
+    </Theme>
   );
 };
 ```
@@ -395,7 +388,7 @@ example.localhost {
     })
   }
   ```
-- Tokens/styles: `@tatchi/sdk/react/styles` is imported within the wrapper; confirm components read tokens via `ThemeProvider/ThemeScope` correctly in Shadow DOM.
+- Tokens/styles: `@tatchi/sdk/react/styles` is imported within the wrapper; confirm components read tokens via the `Theme` boundary correctly in Shadow DOM.
 - Env vars: set `vite.envDir` so `VITE_*` variables resolve during VitePress build.
 - SSR/Client-only: register custom elements only on the client (`import.meta.env.SSR` guards). Use `<ClientOnly>` for the homepage mount.
 - Toaster mounting: `react-hot-toast` renders into `document.body` by default; this is acceptable, but if you want it fully contained within the element, pass a custom `container` or `containerStyle`.

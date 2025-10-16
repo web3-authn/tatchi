@@ -55,15 +55,15 @@ Usage examples
 Wrapper architecture
 - Each element extends HTMLElement and attaches an open ShadowRoot.
 - Injects SDK CSS bundle into the shadow using Constructable Stylesheets (`adoptedStyleSheets`) when available; falls back to a `<style>` tag otherwise.
-- Creates a React root inside the shadow and renders the React component wrapped in `ThemeProvider` + `ThemeScope`.
+- Creates a React root inside the shadow and renders the React component wrapped in `Theme` (provider + boundary).
 - Portals/overlays default to mount into the element’s ShadowRoot. Optional `portalTarget` or `portal-strategy` controls alternative targets.
 - Click‑outside logic uses `event.composedPath()` and registers listeners on the nearest root (ShadowRoot or Document).
 - Style de‑duplication: a small internal registry prevents injecting the same stylesheet multiple times per root.
 
 Styling and theming
-- Theme isolation: Each element owns a `ThemeProvider` with internal defaults (system or stored user preference).
+- Theme isolation: Each element owns a `Theme` provider with internal defaults (system or stored user preference).
 - Host overrides: Allow CSS variable overrides on `:host` (e.g., `--w3a-colors-primary`) and an explicit `theme` attribute. Do not rely on host global CSS.
-- Token mapping: `ThemeScope` exposes `--w3a-*` variables; internal CSS only references those tokens.
+- Token mapping: The `Theme` boundary exposes `--w3a-*` variables; internal CSS only references those tokens.
 
 Build and packaging
 - Location: `sdk/src/web-components/`
@@ -114,4 +114,3 @@ Future enhancements
 - Theme bus to sync theme across multiple instances (opt‑in).
 - Smaller CSS bundles per component (code‑split styles from `@tatchi/sdk/react/styles`).
 - SSR stubs if needed for static HTML export.
-

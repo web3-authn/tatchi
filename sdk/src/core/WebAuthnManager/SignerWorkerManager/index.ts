@@ -87,7 +87,7 @@ export class SignerWorkerManager {
     userPreferencesManager: UserPreferencesManager,
     nonceManager: NonceManager,
     rpIdOverride?: string,
-    enableSafariGetWebauthnRegistrationFallback: boolean = false,
+    enableSafariGetWebauthnRegistrationFallback: boolean = true,
   ) {
     this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt(rpIdOverride, enableSafariGetWebauthnRegistrationFallback);

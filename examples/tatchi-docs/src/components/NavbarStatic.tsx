@@ -6,7 +6,7 @@ import {
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
-  ThemeScope,
+  Theme,
   useTheme,
 } from '@tatchi/sdk/react';
 import { DebugBanner } from './DebugBanner';
@@ -26,18 +26,7 @@ export const NavbarStatic: React.FC = () => {
     return () => { if ('removeEventListener' in mq) mq.removeEventListener('change', onChange); };
   }, []);
 
-  // Keep ThemeProvider synchronized with user preference (per-component)
-  React.useEffect(() => {
-    const up = passkeyManager?.userPreferences;
-    if (!up) return;
-    try {
-      const t = up.getUserTheme?.();
-      if (t === 'light' || t === 'dark') setTheme(t);
-    } catch {}
-    let unsub: (() => void) | undefined;
-    try { unsub = up.onThemeChange?.((t: 'light' | 'dark') => setTheme(t)); } catch {}
-    return () => { try { unsub?.(); } catch {} };
-  }, [passkeyManager, setTheme]);
+  // Theme hydration and syncing now handled inside Theme provider to avoid loops
 
   // Mirror SDK theme to VitePress appearance (toggle html.dark + persist)
   React.useEffect(() => {
@@ -59,7 +48,7 @@ export const NavbarStatic: React.FC = () => {
   }, [loginState.isLoggedIn]);
 
   return (
-    <ThemeScope>
+    <Theme mode="scope-only">
       {loginState.isLoggedIn && (
         <div style={{
           position: 'fixed',
@@ -138,7 +127,7 @@ export const NavbarStatic: React.FC = () => {
           />
         </div>
       )}
-    </ThemeScope>
+    </Theme>
   );
 };
 

@@ -109,7 +109,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
-  // Uncontrolled mode: drive theme from the shared ThemeProvider
+  // Uncontrolled mode: drive theme from the shared Theme context
   const { theme } = useTheme();
   useEffect(() => {
     if (lockTheme) return;

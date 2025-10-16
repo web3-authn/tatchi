@@ -1,7 +1,9 @@
 .passkey-login-container-root {
-  display: grid;
-  place-items: center;
-  min-height: 80vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 4rem;
+  /* height: 100vh; */
 }
 
 /* Responsive Design */

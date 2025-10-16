@@ -1,24 +1,11 @@
 import React from 'react'
-import { PasskeyProvider, ThemeProvider, ThemeScope, useTheme } from '@tatchi/sdk/react'
+import { TatchiPasskeyProvider, useTheme } from '@tatchi/sdk/react'
 import '@tatchi/sdk/react/styles'
 
 import NavbarStatic from './components/NavbarStatic'
 import { HomePage } from './pages/HomePage'
 import { ToasterThemed } from './components/ToasterThemed'
 
-function buildConfig(env: ImportMetaEnv) {
-  return {
-    relayer: { url: env.VITE_RELAYER_URL!, accountId: env.VITE_RELAYER_ACCOUNT_ID! },
-    vrfWorkerConfigs: { shamir3pass: { relayServerUrl: env.VITE_RELAYER_URL! } },
-    iframeWallet: {
-      walletOrigin: env.VITE_WALLET_ORIGIN,
-      walletServicePath: env.VITE_WALLET_SERVICE_PATH,
-      rpIdOverride: env.VITE_RP_ID_BASE,
-      sdkBasePath: env.VITE_SDK_BASE_PATH,
-      enableSafariGetWebauthnRegistrationFallback: true,
-    },
-  }
-}
 
 const BodyThemeSync: React.FC = () => {
   const { theme, tokens } = useTheme()
@@ -35,18 +22,33 @@ const BodyThemeSync: React.FC = () => {
 
 export const App: React.FC = () => {
   const env = import.meta.env
-  const config = buildConfig(env)
   return (
-    <ThemeProvider>
-      <ThemeScope as="main" className="app-theme-scope">
-        <PasskeyProvider config={config}>
-          <BodyThemeSync />
-          <NavbarStatic />
-          <HomePage />
-          <ToasterThemed />
-        </PasskeyProvider>
-      </ThemeScope>
-    </ThemeProvider>
+    <TatchiPasskeyProvider
+      theme={{ as: 'main', className: 'app-theme-scope' }}
+      config={{
+        relayer: {
+          url: env.VITE_RELAYER_URL!,
+          accountId: env.VITE_RELAYER_ACCOUNT_ID!
+        },
+        vrfWorkerConfigs: {
+          shamir3pass: {
+            relayServerUrl: env.VITE_RELAYER_URL!
+          }
+        },
+        iframeWallet: {
+          walletOrigin: env.VITE_WALLET_ORIGIN,
+          walletServicePath: env.VITE_WALLET_SERVICE_PATH,
+          rpIdOverride: env.VITE_RP_ID_BASE,
+          sdkBasePath: env.VITE_SDK_BASE_PATH,
+          enableSafariGetWebauthnRegistrationFallback: true,
+        },
+      }}
+    >
+      <BodyThemeSync />
+      <NavbarStatic />
+      <HomePage />
+      <ToasterThemed />
+    </TatchiPasskeyProvider>
   )
 }
 

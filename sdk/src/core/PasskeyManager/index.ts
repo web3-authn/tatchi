@@ -8,7 +8,7 @@ import {
 } from './actions';
 import { AccountRecoveryFlow, type RecoveryResult } from './recoverAccount';
 import { registerPasskey } from './registration';
-import { registerPasskeyInternal as registerPasskeyCoreInternal } from './registration';
+import { registerPasskeyInternal } from './registration';
 import {
   MinimalNearClient,
   type NearClient,
@@ -272,7 +272,7 @@ export class PasskeyManager {
       }
     }
     // App-wallet path: call core internal with override
-    return registerPasskeyCoreInternal(
+    return registerPasskeyInternal(
       this.getContext(),
       toAccountId(nearAccountId),
       options,

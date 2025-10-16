@@ -3,7 +3,7 @@
   line-height: 1.6;
   font-weight: 400;
 
-  /* Global defaults kept minimal; ThemeScope handles background & text */
+  /* Global defaults kept minimal; Theme boundary handles background & text */
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -84,8 +84,8 @@ html {
 }
 
 /*
-  ThemeScope-driven variable mapping
-  - ThemeProvider + ThemeScope expose design tokens as CSS variables with the `--w3a-` prefix
+  Theme-driven variable mapping
+  - Theme boundary exposes design tokens as CSS variables with the `--w3a-` prefix
   - Map existing `--fe-*` variables to `--w3a-*` so the app styles respond to light/dark
 */
 .app-theme-scope {

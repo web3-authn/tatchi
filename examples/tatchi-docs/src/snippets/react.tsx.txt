@@ -1,0 +1,16 @@
+import { TatchiPasskeyProvider, useTheme } from '@tatchi/sdk/react'
+
+// Build your SDK config (relayer, wallet origin, etc.)
+const config = { /* ... */ }
+
+export function App() {
+  return (
+    <TatchiPasskeyProvider
+      theme={{ as: 'main', className: 'app-theme-scope' }}
+      config={config}
+    >
+      {/* your app */}
+    </TatchiPasskeyProvider>
+  )
+}
+

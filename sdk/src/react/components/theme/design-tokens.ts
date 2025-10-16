@@ -14,7 +14,7 @@ import {
  * runtime tokens to CSS via custom properties (aka CSS variables) so both Lit
  * components and React styles can read the same values.
  *
- * Mapping rules (applied by ThemeProvider/ThemeScope via createCSSVariables):
+ * Mapping rules (applied by Theme via createCSSVariables):
  * - colors:   --w3a-colors-<key>
  *   e.g. tokens.colors.primary → --w3a-colors-primary
  * - spacing:  --w3a-spacing-<key>
@@ -25,7 +25,7 @@ import {
  *   e.g. tokens.shadows.sm     → --w3a-shadow-sm
  *
  * Where they’re used:
- * - ThemeScope injects variables inline on a boundary element; components
+ * - Theme injects variables inline on a boundary element; components
  *   reference them with var(--w3a-colors-primary), etc.
  * - Component-specific helpers (e.g., PROFILE_BUTTON_TOKENS, PROFILE_TOGGLE_TOKENS)
  *   derive from LIGHT_TOKENS/DARK_TOKENS and are read by components directly

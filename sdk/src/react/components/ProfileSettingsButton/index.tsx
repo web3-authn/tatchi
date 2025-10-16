@@ -11,7 +11,7 @@ import type { MenuItem, ProfileSettingsButtonProps } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
-import { ThemeProvider, ThemeScope, useTheme } from '../theme';
+import { Theme, useTheme } from '../theme';
 import { toAccountId } from '../../../core/types/accountIds';
 import { IndexedDBManager } from '../../../core/IndexedDBManager';
 
@@ -82,7 +82,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     handleClose,
   } = useProfileState();
 
-  // Read current theme from ThemeProvider (falls back to system preference)
+  // Read current theme from Theme context (falls back to system preference)
   const { theme } = useTheme();
 
   // Load confirmation config on mount
@@ -161,10 +161,15 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   };
 
   const handleToggleTheme = () => {
-    if (!currentConfirmConfig) return;
-    const newTheme = currentConfirmConfig.theme === 'dark' ? 'light' : 'dark';
-    passkeyManager.setUserTheme(newTheme);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, theme: newTheme } : prev);
+    // Determine next theme from current visible theme when possible
+    const newTheme = (theme === 'dark' ? 'light' : (theme === 'light' ? 'dark' : (currentConfirmConfig?.theme === 'dark' ? 'light' : 'dark')));
+    try { passkeyManager.setUserTheme(newTheme); } catch {}
+    setCurrentConfirmConfig((prev: any) => (prev ? { ...prev, theme: newTheme } : prev));
+    // Always show a quick pulse to acknowledge the press
+    try {
+      document.body.setAttribute('data-w3a-theme-pulse', '1');
+      window.setTimeout(() => { try { document.body.removeAttribute('data-w3a-theme-pulse'); } catch {} }, 220);
+    } catch {}
   };
 
   // Menu items configuration with context-aware handlers
@@ -306,10 +311,8 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
 
 export const ProfileSettingsButton: React.FC<ProfileSettingsButtonProps> = (props) => {
   return (
-    <ThemeProvider>
-      <ThemeScope>
-        <ProfileSettingsButtonInner {...props} />
-      </ThemeScope>
-    </ThemeProvider>
+    <Theme>
+      <ProfileSettingsButtonInner {...props} />
+    </Theme>
   );
 };

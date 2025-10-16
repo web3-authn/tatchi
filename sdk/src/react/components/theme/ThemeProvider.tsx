@@ -5,7 +5,7 @@ import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
 
 // Consolidated theme context, hook, scope, and provider in one file to reduce confusion.
-// External API: ThemeProvider, useTheme, ThemeScope, ThemeName
+// External API: Theme (consolidated), useTheme, ThemeName
 
 export type ThemeName = 'light' | 'dark';
 
@@ -60,7 +60,7 @@ export function useTheme(): UseThemeReturn {
 }
 
 // Public: boundary element that applies CSS variables and data attribute
-export interface ThemeScopeProps {
+interface ThemeScopeProps {
   as?: keyof React.JSX.IntrinsicElements;
   className?: string;
   style?: React.CSSProperties;
@@ -68,7 +68,7 @@ export interface ThemeScopeProps {
   children?: React.ReactNode;
 }
 
-export const ThemeScope: React.FC<ThemeScopeProps> = ({
+const ThemeScope: React.FC<ThemeScopeProps> = ({
   as = 'div',
   className,
   style,
@@ -90,7 +90,7 @@ export interface ThemeOverrides {
   dark?: PartialDeep<DesignTokens>;
 }
 
-export interface ThemeProviderProps {
+interface ThemeProviderProps {
   children: React.ReactNode;
   theme?: ThemeName;                 // controlled
   defaultTheme?: ThemeName;          // uncontrolled
@@ -123,7 +123,7 @@ function safeStoreTheme(t: ThemeName) {
   } catch {}
 }
 
-export const ThemeProvider: React.FC<ThemeProviderProps> = ({
+const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   theme: themeProp,
   defaultTheme,
@@ -187,7 +187,45 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     };
   }, [isControlled, passkeyManager]);
 
+  // Hydrate from persisted user preference when available (post-login)
+  React.useEffect(() => {
+    if (isControlled || !passkeyManager) return;
+    const up = passkeyManager.userPreferences as any;
+    const fn: undefined | (() => Promise<'dark' | 'light' | null>) = up?.getCurrentUserAccountIdTheme?.bind(up);
+    if (!fn) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const persisted = await fn();
+        if (cancelled) return;
+        if ((persisted === 'dark' || persisted === 'light') && persisted !== themeState) {
+          setThemeState(persisted);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isControlled, passkeyManager, themeState]);
+
+  // On login, sync stored user preference to the current theme to avoid "first-click does nothing"
+  React.useEffect(() => {
+    if (isControlled || !passkeyManager?.userPreferences) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
+        if (cancelled) return;
+        // If stored preference differs from current theme, align stored pref to current theme
+        if ((pref === 'light' || pref === 'dark') && pref !== themeState) {
+          try { passkeyManager.userPreferences.setUserTheme?.(themeState); } catch {}
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isControlled, passkeyManager, themeState]);
+
   const setTheme = React.useCallback((t: ThemeName) => {
+    // Avoid redundant writes and subscription loops
+    if (t === themeState) return;
     if (!isControlled) setThemeState(t);
     try {
       const didPersistToProfile = !!passkeyManager?.userPreferences?.setUserTheme?.(t);
@@ -197,7 +235,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
       safeStoreTheme(t);
     }
     onThemeChange?.(t);
-  }, [isControlled, onThemeChange, passkeyManager]);
+  }, [isControlled, onThemeChange, passkeyManager, themeState]);
 
   const toggleTheme = React.useCallback(() => {
     setTheme(themeState === 'dark' ? 'light' : 'dark');
@@ -217,4 +255,61 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   }), [themeState, tokensForTheme, prefix, toggleTheme, setTheme, vars]);
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+};
+
+// Unified Theme component: combines provider and scope with mode control
+export type ThemeMode = 'provider+scope' | 'provider-only' | 'scope-only';
+
+export interface ThemeProps extends Omit<ThemeProviderProps, 'children'>, Omit<ThemeScopeProps, 'children'> {
+  mode?: ThemeMode;
+  children?: React.ReactNode;
+}
+
+/**
+ * Theme — consolidated theming component
+ * - Default: provider + scope boundary
+ * - mode="provider-only": only provides context
+ * - mode="scope-only": only renders boundary using existing context
+ */
+export const Theme: React.FC<ThemeProps> = ({
+  mode = 'provider+scope',
+  children,
+  as,
+  className,
+  style,
+  dataAttr,
+  // Provider props
+  theme,
+  defaultTheme,
+  onThemeChange,
+  tokens,
+  prefix,
+}) => {
+  if (mode === 'scope-only') {
+    return (
+      <ThemeScope as={as} className={className} style={style} dataAttr={dataAttr}>
+        {children}
+      </ThemeScope>
+    );
+  }
+
+  const providerEl = (
+    <ThemeProvider
+      theme={theme}
+      defaultTheme={defaultTheme}
+      onThemeChange={onThemeChange}
+      tokens={tokens}
+      prefix={prefix}
+    >
+      {mode === 'provider-only' ? (
+        <>{children}</>
+      ) : (
+        <ThemeScope as={as} className={className} style={style} dataAttr={dataAttr}>
+          {children}
+        </ThemeScope>
+      )}
+    </ThemeProvider>
+  );
+
+  return providerEl;
 };

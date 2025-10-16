@@ -76,30 +76,29 @@ Reference: [Nextra installation guide](https://nextra.site/docs/getting-started)
    └─ pages/
       └─ index.tsx        // Next.js page
    ```
-2. Implement `pages/index.tsx` using the same providers we currently mount inside Vite:
-   ```tsx
-   import { PasskeyProvider, ThemeProvider, ThemeScope } from '@tatchi/sdk/react';
-   import HomePage from '@/components/HomePage';
-   import Navbar from '@/components/Navbar';
-   import ToasterThemed from '@/components/ToasterThemed';
+2. Implement `pages/index.tsx` using the new `TatchiPasskeyProvider` (Theme + PasskeyProvider):
+```tsx
+import { TatchiPasskeyProvider } from '@tatchi/sdk/react';
+import HomePage from '@/components/HomePage';
+import Navbar from '@/components/Navbar';
+import ToasterThemed from '@/components/ToasterThemed';
 
-   export default function Landing() {
-     const env = process.env;
-     return (
-       <ThemeProvider>
-         <PasskeyProvider config={{ /* map env vars to SDK config */ }}>
-           <ThemeScope as="div" className="app-theme-scope">
-             <Navbar />
-             <main>
-               <HomePage />
-             </main>
-             <ToasterThemed />
-           </ThemeScope>
-         </PasskeyProvider>
-       </ThemeProvider>
-     );
-   }
-   ```
+export default function Landing() {
+  const env = process.env;
+  return (
+    <TatchiPasskeyProvider
+      config={{ /* map env vars to SDK config */ }}
+      theme={{ as: 'div', className: 'app-theme-scope' }}
+    >
+      <Navbar />
+      <main>
+        <HomePage />
+      </main>
+      <ToasterThemed />
+    </TatchiPasskeyProvider>
+  );
+}
+```
 3. Replace `import.meta.env` with `process.env` (Next exposes `NEXT_PUBLIC_*` env vars to the client). Update `.env` files accordingly (`NEXT_PUBLIC_RELAYER_URL`, etc.).
 4. Keep CCA tokens, layout, and toast behaviour identical to today—no Shadow DOM required.
 

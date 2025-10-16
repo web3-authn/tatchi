@@ -7,7 +7,7 @@ import {
   render,
   svg
 } from "./chunk-NIF6JLPD.js";
-import "./chunk-DC5AMYBS.js";
+import "./chunk-B4Q33VKO.js";
 
 // ../../../node_modules/.pnpm/@lit+reactive-element@2.1.1/node_modules/@lit/reactive-element/development/css-tag.js
 var NODE_MODE = false;

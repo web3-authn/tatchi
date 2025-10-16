@@ -48,6 +48,26 @@
   min-width: 0;
 }
 
+/* Global theme pulse when toggling theme */
+@keyframes w3a-theme-pulse {
+  0% { filter: none; }
+  50% { filter: brightness(1.05) saturate(1.06); }
+  100% { filter: none; }
+}
+body[data-w3a-theme-pulse="1"] .w3a-profile-dropdown-menu {
+  animation: w3a-theme-pulse 220ms ease;
+}
+
+/* Press feedback for menu items (animate even if state doesn't change) */
+.w3a-dropdown-menu-item {
+  transition: transform 120ms ease, background-color 160ms ease, box-shadow 160ms ease;
+}
+.w3a-dropdown-menu-item:active {
+  transform: scale(0.98);
+  background: var(--w3a-colors-surface2);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 70%);
+}
+
 /* Menu item animation states */
 
 .w3a-profile-dropdown-morphed[data-state="closed"] .w3a-dropdown-menu-item {

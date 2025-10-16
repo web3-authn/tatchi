@@ -2,12 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import {
-  PasskeyProvider,
-  ThemeProvider,
-  ThemeScope,
-  useTheme
-} from '@tatchi/sdk/react';
+import { TatchiPasskeyProvider, useTheme } from '@tatchi/sdk/react';
 import '@tatchi/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
@@ -31,9 +26,8 @@ function App() {
 
   return (
     <BrowserRouter>
-      <ThemeProvider>
-        <PasskeyProvider
-          config={{
+      <TatchiPasskeyProvider
+        config={{
             relayer: {
               url: env.VITE_RELAYER_URL!,
               accountId: env.VITE_RELAYER_ACCOUNT_ID!,
@@ -53,18 +47,16 @@ function App() {
               enableSafariGetWebauthnRegistrationFallback: true,
             },
           }}
-        >
-          <ThemeScope as="div" className="app-theme-scope">
-            <BodyThemeSync />
-            <Navbar />
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/multitx" element={<MultiTxConfirmPage/>} />
-            </Routes>
-            <ToasterThemed />
-          </ThemeScope>
-        </PasskeyProvider>
-      </ThemeProvider>
+        theme={{ as: 'div', className: 'app-theme-scope' }}
+      >
+        <BodyThemeSync />
+        <Navbar />
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/multitx" element={<MultiTxConfirmPage/>} />
+        </Routes>
+        <ToasterThemed />
+      </TatchiPasskeyProvider>
     </BrowserRouter>
   );
 }

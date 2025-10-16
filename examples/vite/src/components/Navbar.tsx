@@ -7,7 +7,7 @@ import {
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
-  ThemeScope,
+  Theme,
   useTheme,
 } from '@tatchi/sdk/react';
 import { DebugBanner } from './DebugBanner';
@@ -32,7 +32,7 @@ export const Navbar: React.FC = () => {
     };
   }, []);
 
-  // Keep ThemeProvider synchronized with user preference (per-component)
+  // Keep Theme synchronized with user preference (per-component)
   React.useEffect(() => {
     const up = passkeyManager?.userPreferences;
     if (!up) return;
@@ -48,7 +48,7 @@ export const Navbar: React.FC = () => {
   }, [passkeyManager, setTheme]);
 
   return (
-    <ThemeScope>
+    <Theme mode="scope-only">
       <nav className="navbar-container">
       <div className="navbar-title">
         <Link to="/">
@@ -146,6 +146,6 @@ export const Navbar: React.FC = () => {
       }
 
       </nav>
-    </ThemeScope>
+    </Theme>
   );
 };

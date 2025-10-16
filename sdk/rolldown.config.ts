@@ -424,6 +424,24 @@ export default defineConfig([
     },
   }
   ,
+  // Web Components (bundle all deps for vanilla HTML usage)
+  {
+    input: {
+      'profile-settings': 'src/web-components/profile-settings.ts',
+      'index': 'src/web-components/index.ts',
+    },
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/web-components`,
+      format: 'esm',
+      entryFileNames: '[name].js',
+      sourcemap: true,
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
+    },
+  }
+  ,
   // Vite plugin ESM build (source moved to src/plugins)
   {
     input: 'src/plugins/vite.ts',
