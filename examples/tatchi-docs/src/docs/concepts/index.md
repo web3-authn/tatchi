@@ -6,8 +6,7 @@ title: Concepts
 
 Key architectural and security concepts used in the SDK.
 
-- [Shamir 3‑pass](/concepts/shamir3pass)
-- [Server key rotation](/concepts/shamir3pass-rotate-keys)
-- [Nonce manager](/concepts/nonce-manager)
-- [RPID policy](/concepts/rpid-policy)
-
+- [Shamir 3‑pass](./shamir3pass)
+- [Server key rotation](./shamir3pass-rotate-keys)
+- [Nonce manager](./nonce-manager)
+- [RPID policy](./rpid-policy)

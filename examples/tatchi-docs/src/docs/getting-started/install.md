@@ -62,7 +62,7 @@ VITE_WALLET_SERVICE_PATH=/wallet-service
 VITE_SDK_BASE_PATH=/sdk
 ```
 
-Next: [Quickstart](/getting-started/quickstart)
+Next: [Quickstart](./quickstart)
 
 ---
 

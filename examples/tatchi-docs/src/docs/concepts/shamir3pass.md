@@ -26,4 +26,4 @@ Login
 3) Client removes the one‑time lock → KEK
 4) Client decrypts ciphertext → VRF keypair in memory
 
-The SDK refreshes stored blobs after success and proactively migrates to the current server key when possible. See also [Shamir3Pass Rotation](/concepts/shamir3pass-rotate-keys) and the [SDK flow notes](https://github.com/web3-authn/sdk/blob/main/sdk/docs/shamir3pass-login.md).
+The SDK refreshes stored blobs after success and proactively migrates to the current server key when possible. See also [Shamir3Pass Rotation](./shamir3pass-rotate-keys) and the [SDK flow notes](https://github.com/web3-authn/sdk/blob/main/sdk/docs/shamir3pass-login.md).

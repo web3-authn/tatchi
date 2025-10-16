@@ -214,6 +214,7 @@ export function HomePage() {
               : <PasskeyLoginMenu />
             }
           </div>
+          {/* sticky demo removed; restored real panel */}
         </div>
       </div>
     </div>

@@ -5,14 +5,12 @@
   "private": true,
   "scripts": {
     "predev": "node ./scripts/generate-home-snippets.mjs",
-    "dev": "concurrently --kill-others --names app,caddy \"vite\" \"sh run_caddy.sh\"",
-    "dev:with-docs": "concurrently --kill-others --names app,docs,caddy \"vite\" \"pnpm -w docs:dev\" \"sh run_caddy.sh\"",
-    "dev:iphone": "concurrently --kill-others \"vite --mode iphone\" \"sh run_caddy.sh\"",
-    "dev:ci": "vite --mode ci",
+    "dev": "concurrently --kill-others --names docs,caddy \"vitepress dev src --port 5222\" \"sh run_caddy.sh\"",
+    "dev:iphone": "concurrently --kill-others \"vitepress dev src --port 5222\" \"sh run_caddy.sh\"",
     "gen:home-snippets": "node ./scripts/generate-home-snippets.mjs",
     "prebuild": "node ./scripts/generate-home-snippets.mjs",
-    "build": "vite build",
-    "preview": "vite preview --host --port 5174"
+    "build": "vitepress build src --outDir dist/docs",
+    "preview": "vitepress preview dist/docs --port 5222"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.76.1",

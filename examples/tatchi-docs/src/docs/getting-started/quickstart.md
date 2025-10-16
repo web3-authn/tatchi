@@ -69,5 +69,5 @@ await manager.loginPasskey('alice.testnet')
 
 ## 4) Next steps
 
-- Explore [Passkeys](/guides/passkeys)
-- Try [Secure Tx Confirmation](/guides/tx-confirmation)
+- Explore [Passkeys](../guides/passkeys)
+- Try [Secure Tx Confirmation](../guides/tx-confirmation)

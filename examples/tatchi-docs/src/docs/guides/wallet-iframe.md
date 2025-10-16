@@ -58,6 +58,5 @@ await passkeyManager.signTransactionsWithActions({
 - The progress bus heuristics ensure the overlay is visible during user‑confirm step; avoid hiding that phase.
 
 See also:
-- [Architecture](/concepts/wallet-iframe-architecture)
-- [Asset URL Resolution](/guides/asset-url-resolution)
-
+- [Architecture](../concepts/wallet-iframe-architecture)
+- [Asset URL Resolution](./asset-url-resolution)

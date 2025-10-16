@@ -71,9 +71,8 @@ const result = await passkeyManager.executeAction('alice.testnet', {
 
 - PRF outputs are used to deterministically derive NEAR keys and encrypt private keys in IndexedDB.
 - All signing happens in a WASM worker; private keys never touch the main thread.
-- For cross‑origin embedding and consistent credential lists across subdomains, see [Wallet‑Scoped vs App‑Scoped](/concepts/wallet-scoped-credentials).
+- For cross‑origin embedding and consistent credential lists across subdomains, see [Wallet‑Scoped vs App‑Scoped](../concepts/wallet-scoped-credentials).
 
 Related reading:
-- [Transaction Confirmation](/guides/tx-confirmation)
-- [Wallet Iframe](/guides/wallet-iframe)
-
+- [Transaction Confirmation](./tx-confirmation)
+- [Wallet Iframe](./wallet-iframe)
