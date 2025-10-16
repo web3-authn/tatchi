@@ -9,16 +9,18 @@ node_modules
 
 # Frontend test certs
 examples/vite/certs
-examples/vite-secure/certs
+examples/tatchi-docs/certs
 examples/nextjs/certs
+
 
 # Build output
 examples/vite/public
 examples/vite/dist
 
-examples/vite-secure/public
-examples/vite-secure/dist
-examples/vite-secure/docs/dist
+examples/tatchi-docs/public
+examples/tatchi-docs/dist
+examples/tatchi-docs/docs/dist
+examples/tatchi-docs/src/.vitepress/cache
 
 examples/nextjs/public
 examples/nextjs/dist
