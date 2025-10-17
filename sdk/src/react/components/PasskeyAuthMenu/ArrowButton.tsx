@@ -25,6 +25,16 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   arrowAnchorRef,
   mountArrowAtRect,
 }) => {
+  const prevDisabledRef = React.useRef<boolean | null>(null);
+  const skipTransition = React.useMemo(() => {
+    const prev = prevDisabledRef.current;
+    prevDisabledRef.current = disabled;
+    if (prev === null) return true; // initial render
+    if (prev === disabled) return !disabled; // state unchanged
+    if (prev === true && disabled === false) return false; // enabling -> allow animation
+    return true; // all other cases
+  }, [disabled]);
+
   const toCssSize = (v?: number | string): string | undefined => {
     if (v == null) return undefined;
     if (typeof v === 'number' && Number.isFinite(v)) return `${v}px`;
@@ -33,6 +43,7 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   };
   const w = toCssSize(width);
   const h = toCssSize(height);
+  const className = `w3a-arrow-btn${!disabled ? ' is-enabled' : ''}${skipTransition ? ' no-transition' : ''}`;
   return (
     <div
       onPointerEnter={mountArrowAtRect}
@@ -44,7 +55,7 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
         aria-label="Continue"
         onPointerEnter={mountArrowAtRect}
         onClick={onClick}
-        className={`w3a-arrow-btn${!disabled ? ' is-enabled' : ''}`}
+        className={className}
         disabled={disabled}
         style={{ width: w, height: h }}
       >

@@ -318,6 +318,10 @@
               opacity 200ms ease,
               width 200ms cubic-bezier(0, 0, 0.2, 1);
 }
+.w3a-arrow-btn.no-transition,
+.w3a-arrow-btn.no-transition.is-enabled {
+  transition: none;
+}
 .w3a-arrow-btn .w3a-arrow-icon {
   color: #fff;
 }
