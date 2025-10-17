@@ -203,7 +203,8 @@ export function PasskeyLoginMenu() {
             const toastId = 'device-linking';
             console.error('Device linking error:', error);
             toast.error(error.message || 'Device linking failed', { id: toastId });
-          }
+          },
+          onCancelled: () => { try { toast.dismiss('device-linking'); } catch {} }
         }}
       />
     </div>

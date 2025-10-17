@@ -1,6 +1,5 @@
 import React from 'react';
 import { ArrowUpIcon } from './icons';
-import { usePasskeyContext } from '../../context';
 
 export interface ArrowButtonProps {
   disabled: boolean;
@@ -8,8 +7,6 @@ export interface ArrowButtonProps {
   /** Optional explicit dimensions */
   width?: number | string;
   height?: number | string;
-  /** If true, attempts registerPasskey when the Lit overlay isn't active */
-  fallbackRegister?: boolean;
   /** Optional: anchor ref for the Lit overlay (button element) */
   arrowAnchorRef?: React.Ref<HTMLButtonElement>;
   /** Optional: mount handler for Lit overlay on hover/focus */
@@ -21,7 +18,6 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
   disabled,
   width,
   height,
-  fallbackRegister,
   arrowAnchorRef,
   mountArrowAtRect,
 }) => {

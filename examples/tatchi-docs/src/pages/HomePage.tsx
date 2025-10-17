@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import GithubIcon  from "../components/GithubIcon";
-import { BookOpenText, PanelsTopLeft, Boxes, Cog, Code, SquareTerminal, Copy, Twitter } from 'lucide-react';
+import Github from "../components/icons/Github";
+import Twitter from "../components/icons/Twitter";
+import { BookOpenText, PanelsTopLeft, Boxes, Cog, Code } from 'lucide-react';
+import CopyButton from '../components/CopyButton';
 import { usePasskeyContext, useTheme } from '@tatchi/sdk/react';
 
 import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
@@ -33,7 +35,6 @@ export function HomePage() {
   const highlightedInstall = installBlockCmd
     .replace(/^(npm|pnpm|bun)/, '<span class="code-kw-pm">$1</span>')
     .replace(/(@tatchi\/sdk)/, '<span class="code-kw-pkg">$1</span>')
-  const copyText = (text: string) => { try { navigator.clipboard?.writeText(text); } catch {} };
   // Code snippets are imported as raw text from small .txt files
 
   const { loginState } = usePasskeyContext();
@@ -56,7 +57,7 @@ export function HomePage() {
       // style={{ height: '100vh'  }}
     >
 
-      <div className="layout-column-left" data-w3a-theme={theme}>
+      <div className="layout-column-left">
         <div className="constrained-column">
           <section className="hero" aria-labelledby="hero-title">
             <h1 id="hero-title" className="hero-title">Tatchi Passkey Wallet</h1>
@@ -77,7 +78,7 @@ export function HomePage() {
                 <span className="cta-chevron" aria-hidden>›</span>
               </a>
               <a className="cta-primary" href="https://github.com/web3-authn/tatchi" target="_blank" rel="noopener noreferrer" aria-label="Open the Tatchi GitHub repository">
-                <GithubIcon size={16} className="cta-icon" aria-hidden="true" />
+                <Github size={16} className="cta-icon" aria-hidden="true" />
                 <span>GitHub</span>
               </a>
             </div>
@@ -89,7 +90,6 @@ export function HomePage() {
             <div className="install-panel" style={{ marginTop: '0.5rem' }} role="group" aria-label="Install command (CLI)">
               <div className="install-header">
                 <div className="install-header-left">
-                  <SquareTerminal size={16} aria-hidden className="install-term" />
                   <div className="install-tabs" role="tablist" aria-label="Package managers (CLI)">
                     {(['npm','pnpm','bun'] as const).map((k) => (
                       <button
@@ -102,9 +102,7 @@ export function HomePage() {
                     ))}
                   </div>
                 </div>
-                <button className="install-copy" onClick={() => copyText(installBlockCmd)} aria-label="Copy install command">
-                  <Copy size={16} aria-hidden />
-                </button>
+                <CopyButton text={installBlockCmd} ariaLabel="Copy install command" size={14} />
               </div>
               <div className="install-body">
                 <pre className="code-block code-block--dark"><code dangerouslySetInnerHTML={{ __html: highlightedInstall }} /></pre>
@@ -148,12 +146,9 @@ export function HomePage() {
             <div className="install-panel" style={{ marginTop: '0.75rem' }} role="group" aria-label="React setup">
               <div className="install-header">
                 <div className="install-header-left">
-                  <SquareTerminal size={16} aria-hidden className="install-term" />
-                  <div className="install-tabs"><span className="install-tab active">react</span></div>
+                  <div className="install-tabs"><span className="install-tab active">React</span></div>
                 </div>
-                <button className="install-copy" onClick={() => copyText(reactSnippet)} aria-label="Copy React example">
-                  <Copy size={16} aria-hidden />
-                </button>
+                <CopyButton text={reactSnippet} ariaLabel="Copy React example" size={14} />
               </div>
               <div className="install-body">
                 <div
@@ -165,12 +160,9 @@ export function HomePage() {
             <div className="install-panel" style={{ marginTop: '0.5rem' }} role="group" aria-label="Core setup">
               <div className="install-header">
                 <div className="install-header-left">
-                  <SquareTerminal size={16} aria-hidden className="install-term" />
-                  <div className="install-tabs"><span className="install-tab active">core</span></div>
+                  <div className="install-tabs"><span className="install-tab active">Typescript</span></div>
                 </div>
-                <button className="install-copy" onClick={() => copyText(coreSnippet)} aria-label="Copy Core example">
-                  <Copy size={16} aria-hidden />
-                </button>
+                <CopyButton text={coreSnippet} ariaLabel="Copy Core example" size={14} />
               </div>
               <div className="install-body">
                 <div
@@ -188,7 +180,7 @@ export function HomePage() {
               rel="noopener noreferrer"
               aria-label="Open the Tatchi GitHub repository"
             >
-              <GithubIcon size={24} aria-hidden />
+              <Github size={24} aria-hidden />
             </a>
             <a
               className="site-footer-link"
@@ -203,13 +195,12 @@ export function HomePage() {
         </div>
       </div>
 
-      <div className="layout-column-right" data-w3a-theme={theme}
-      >
+      <div className="layout-column-right">
         <div className="constrained-column"
-          style={{ height: '200vh', overflow: 'unset', paddingTop: '4rem' }}
+          // style={{ height: '200vh', overflow: 'unset', paddingTop: '4rem' }}
         >
           <div className="passkey-sticky"
-            style={{ position: 'sticky', top: 0 }}
+            // style={{ position: 'sticky', top: 0 }}
           >
             {
               loginState.isLoggedIn

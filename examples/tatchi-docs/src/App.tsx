@@ -39,7 +39,6 @@ export const App: React.FC = () => {
           walletServicePath: env.VITE_WALLET_SERVICE_PATH,
           rpIdOverride: env.VITE_RP_ID_BASE,
           sdkBasePath: env.VITE_SDK_BASE_PATH,
-          enableSafariGetWebauthnRegistrationFallback: true,
         },
       }}
     >

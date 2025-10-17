@@ -1,7 +1,9 @@
 import { PasskeyManager } from '@tatchi/sdk/core'
 
-const passkeyManager = new PasskeyManager({ /* walletOrigin, relayer, ... */ })
+const passkeyManager = new PasskeyManager({
+    walletOrigin,
+    ...configs
+})
 
-// Register a passkey for the current user
 await passkeyManager.registerPasskey({ username: 'alice' })
 

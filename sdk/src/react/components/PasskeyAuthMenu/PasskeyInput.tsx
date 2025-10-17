@@ -2,13 +2,7 @@ import React from 'react';
 import { AuthMenuMode, AuthMenuModeMap } from './index';
 import { AccountExistsBadge } from './AccountExistsBadge';
 import ArrowButton from './ArrowButton';
-import { usePasskeyContext } from '../../context';
 import { usePostfixPosition } from './usePostfixPosition';
-
-// Arrow visuals handled by the Lit wrapper component
-// We mount the arrow inside the wallet iframe using the UI registry.
-// The local Lit wrapper is not used here.
-// import { useArrowButtonOverlay } from './ArrowButtonOverlayHooks';
 
 export interface PasskeyInputProps {
   value: string;

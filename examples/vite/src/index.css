@@ -88,7 +88,7 @@ html {
   - Theme boundary exposes design tokens as CSS variables with the `--w3a-` prefix
   - Map existing `--fe-*` variables to `--w3a-*` so the app styles respond to light/dark
 */
-.app-theme-scope {
+.w3a-theme-provider {
   /* Ensure default text/background derive from theme */
   color: var(--fe-text);
   min-height: 100dvh;
@@ -127,7 +127,7 @@ html {
   --cerulean-focus: var(--w3a-colors-focus);
 }
 
-.app-theme-scope[data-w3a-theme="light"] {
+.w3a-theme-provider[data-w3a-theme="light"] {
   /* Tinted status backgrounds (light) */
   --fe-success-bg: #e8f5e8;
   --fe-error-bg: #ffe8e8;
@@ -136,7 +136,7 @@ html {
   background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d1d5db' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
 
-.app-theme-scope[data-w3a-theme="dark"] {
+.w3a-theme-provider[data-w3a-theme="dark"] {
   /* Tinted status backgrounds (dark) */
   --fe-success-bg: #14321b;
   --fe-error-bg: #3a1414;
@@ -158,7 +158,7 @@ body {
   margin: 0;
 }
 
-html, body, #root, .app-theme-scope {
+html, body, #root, .w3a-theme-provider {
   min-height: 100dvh;
 }
 

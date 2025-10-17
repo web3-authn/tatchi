@@ -29,20 +29,6 @@ class WalletAppElement extends HTMLElement {
       return styleTag
     })
 
-    const hostStyle = document.createElement('style')
-    hostStyle.textContent = `
-      :host {
-        display: block;
-        font: inherit;
-        color: inherit;
-      }
-      :host *, :host *::before, :host *::after {
-        box-sizing: border-box;
-        font-family: inherit;
-      }
-    `
-    this.shadow.appendChild(hostStyle)
-
     const container = document.createElement('app')
     container.className = "app-shell"
     this.shadow.appendChild(container)

@@ -111,7 +111,7 @@ class WalletAppElement extends HTMLElement {
               enableSafariGetWebauthnRegistrationFallback: true,
             },
           }}
-        theme={{ as: 'div', className: 'app-theme-scope' }}
+        theme={{ as: 'div', className: 'w3a-theme-provider' }}
       >
         <Navbar />
         <main>
@@ -190,7 +190,7 @@ export const App: React.FC = () => {
   const env = import.meta.env
   const config = buildConfig(env)
   return (
-    <TatchiPasskeyProvider config={config} theme={{ as: 'div', className: 'app-theme-scope' }}>
+    <TatchiPasskeyProvider config={config} theme={{ as: 'div', className: 'w3a-theme-provider' }}>
       <NavbarStatic />
       <main>
         <HomePage />

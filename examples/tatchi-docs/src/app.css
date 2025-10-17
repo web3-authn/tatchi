@@ -6,58 +6,7 @@
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
 
-/* Host should fill its container (container is made full-bleed via VitePress CSS) */
-:host {
-  box-sizing: border-box;
-  inline-size: 100%;
-  display: block;
-  /* Viewport width variable: prefer dvw on capable browsers */
-  --w3a-vw: 100vw;
-}
-
 :root, :host {
-  /* Global defaults kept minimal; Theme boundary handles background & text */
-  --slate-grey-100: #f1f5f9;
-  --slate-grey-200: #e2e8f0;
-  --slate-grey-300: #cbd5e0;
-  --slate-grey-400: #94a3b8;
-  --slate-grey-500: #64748b;
-  --slate-grey-600: #475569;
-  --slate-grey-700: #334155;
-  --slate-grey-800: #1e293b;
-  --slate-grey-900: #0f172a;
-
-   /* Colors */
-  --fe-primary: #0353A4;
-  --fe-primary-hover: #0466C8;
-  --fe-bg: #ffffff;
-  --fe-surface: rgba(255, 255, 255, 0.8);
-  --fe-surface-solid: #ffffff;
-  --fe-text: #1f2937;
-  --fe-text-primary: #1f2937;
-  --fe-text-secondary: #4a5568;
-  --fe-text-dim: #4a5568;
-  --fe-border: #e2e8f0;
-  --fe-border-strong: #cbd5e0;
-  --fe-shadow: rgba(0, 0, 0, 0.05);
-  --fe-shadow-strong: rgba(0, 0, 0, 0.1);
-  --fe-bg-secondary: #f8fafc;
-  --fe-bg-tertiary: #f1f5f9;
-
-  /* Background Colors */
-  --fe-bg-dark-1: #001233;
-  --fe-bg-dark-2: #001845;
-  --fe-bg-dark-3: #002855;
-
-  /* Typography */
-  --fe-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --fe-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --fe-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --fe-font-normal: 400;
-  --fe-font-medium: 500;
-  --fe-font-semibold: 600;
-  --fe-font-bold: 700;
-
   /* Text Sizes */
   --fe-text-xs: 0.75rem;
   --fe-text-sm: 0.875rem;
@@ -83,16 +32,8 @@
   --fe-med: 400ms;
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
-.app-theme-scope {
-  /* Ensure default text/background derive from theme */
-  color: var(--fe-text);
-
-  /* Colors */
+/* Ensure app variables derive from SDK tokens at the theme boundary inside ShadowRoot */
+.w3a-theme-provider, [data-w3a-theme] {
   --fe-primary: var(--w3a-colors-primary);
   --fe-primary-hover: var(--w3a-colors-primaryHover);
   --fe-bg: var(--w3a-colors-colorBackground);
@@ -108,21 +49,17 @@ html {
   --fe-shadow-strong: var(--w3a-shadows-md);
   --fe-bg-secondary: var(--w3a-colors-surface2);
   --fe-bg-tertiary: var(--w3a-colors-surface3);
-
-  /* Inputs */
   --fe-input-bg: var(--w3a-colors-surface3);
   --fe-input-text: var(--w3a-colors-textPrimary);
   --fe-input-placeholder: var(--w3a-colors-textSecondary);
-
-  /* Status */
   --fe-error: var(--w3a-colors-error);
   --fe-success: var(--w3a-colors-success);
-
-  /* Focus ring (fallback to token focus) */
   --cerulean-focus: var(--w3a-colors-focus);
+}
 
-  /* Ensure embedded tooltip stacks above app content */
-  --w3a-embedded__tooltip-content__z-index: 2147483600;
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 a {

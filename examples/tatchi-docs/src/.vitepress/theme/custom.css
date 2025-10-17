@@ -13,7 +13,7 @@ body {
   min-height: unset !important;
 }
 
-.VPNavBarMenu.menu {
+/* .VPNavBarMenu.menu {
   position: absolute;
   top: 0;
   right: 8rem;
@@ -23,7 +23,7 @@ body {
   position: absolute;
   top: 0;
   right: 6rem;
-}
+} */
 
 .VPContent.is-home .VPHome .vp-doc.container {
   max-width: none;
@@ -71,10 +71,7 @@ body::-webkit-scrollbar {
 }
 
 .VPContent.is-home .VPHome .vp-doc.container {
-  /* Let the document, not this container, handle scrolling. Avoid clipping. */
-  height: auto;
   box-sizing: border-box;
-  margin-left: 4px;
-  padding: 0;
   overflow: visible;
+  padding: 0;
 }

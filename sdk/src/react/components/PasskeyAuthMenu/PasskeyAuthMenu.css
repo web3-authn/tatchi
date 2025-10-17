@@ -223,11 +223,11 @@
   border-radius: 2rem 2rem 2rem 2rem;
   box-shadow: none;
   overflow-x: hidden;
-  transition: border-radius 200ms ease-in-out;
+  transition: border-radius 150ms ease-in-out;
 }
 .w3a-input-pill.is-enabled {
   border-radius: 2rem 0.25rem 0.25rem 2rem;
-  transition: border-radius 200ms ease-in-out;
+  transition: border-radius 150ms ease-in-out;
 }
 
 .w3a-input-wrap {
@@ -297,11 +297,11 @@
   z-index: 1;
   border: 6px solid var(--w3a-colors-colorBackground, #fff);
   height: 64px;
-  transition: transform 200ms ease,
-              background-color 200ms ease,
-              border-radius 200ms ease,
-              opacity 200ms ease,
-              width 200ms ease-in-out;
+  transition: transform 150ms ease,
+              background-color 150ms ease,
+              border-radius 150ms ease,
+              opacity 150ms ease,
+              width 150ms ease-in-out;
 }
 .w3a-arrow-btn.is-enabled {
   width: 100px; /* expand when enabled */
@@ -312,11 +312,11 @@
   opacity: 1;
   visibility: visible;
   pointer-events: auto;
-  transition: transform 200ms ease,
-              background-color 200ms ease,
-              border-radius 200ms ease,
-              opacity 200ms ease,
-              width 200ms ease-in-out;
+  transition: transform 150ms ease,
+              background-color 150ms ease,
+              border-radius 150ms ease,
+              opacity 150ms ease,
+              width 150ms ease-in-out;
 }
 .w3a-arrow-btn.no-transition,
 .w3a-arrow-btn.no-transition.is-enabled {
@@ -338,10 +338,10 @@
   opacity: 0.5;
   background: var(--w3a-colors-borderSecondary);
   transform: scale(0.5);
-  transition: transform 200ms ease,
-              background-color 200ms ease,
-              border-radius 200ms ease,
-              opacity 200ms ease,
+  transition: transform 150ms ease,
+              background-color 150ms ease,
+              border-radius 150ms ease,
+              opacity 150ms ease,
               width 150ms ease-in-out;
 }
 .w3a-arrow-btn .w3a-arrow-label {
