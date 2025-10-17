@@ -15,16 +15,36 @@ export function HomePage() {
     <div className="layout-root"
       // style={{ height: '100vh'  }}
     >
-
-      <div className="layout-column-left">
+      {/* one */}
+      <div className="card one">
         <div className="constrained-column">
           <HomeHero />
+        </div>
+      </div>
 
+      {/* two */}
+      <div className="card two">
+        <PasskeyColumn lastTxDetails={lastTxDetails} setLastTxDetails={setLastTxDetails} />
+      </div>
+
+      {/* three */}
+      <div className="card three">
+        <div className="constrained-column">
           <BentoGrid />
+        </div>
+      </div>
 
-          <ReactCodeBlock />
+      {/* four */}
+      <div className="card four">
+        <div className="constrained-column">
           <CoreCodeBlock />
+        </div>
+      </div>
 
+      {/* five */}
+      <div className="card five">
+        <div className="constrained-column">
+          <ReactCodeBlock />
           <footer className="site-footer" aria-label="Social links">
             <a
               className="site-footer-link"
@@ -47,8 +67,6 @@ export function HomePage() {
           </footer>
         </div>
       </div>
-
-      <PasskeyColumn lastTxDetails={lastTxDetails} setLastTxDetails={setLastTxDetails} />
     </div>
   );
 }

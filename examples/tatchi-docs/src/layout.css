@@ -1,9 +1,8 @@
 /* Homepage Content Layout */
 .layout-root {
   display: grid;
-  /* Default to a single column that can shrink to viewport width */
-  grid-template-columns: 1fr;
-  gap: 0;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
   margin: 0;
   padding: 0;
   min-height: 100dvh;
@@ -11,39 +10,23 @@
   container-type: inline-size;
 }
 
-/* Switch to two columns only when the container can comfortably fit two 420px
-   tracks plus 1rem padding on each side of each card. */
-@container (min-width: calc(2 * (420px + 4rem))) {
-  .layout-root {
-    grid-template-columns: 1fr 1fr;
-  }
-}
+/* Card mapping for grid-areas */
+.card { min-width: 0; max-width: 100%; box-sizing: border-box; display: grid; }
+.card > .constrained-column { justify-self: center; width: 100%; }
+.two { justify-self: stretch; }
+.two .constrained-column { max-width: none; }
+.one   { grid-area: one; }
+.two   { grid-area: two; }
+.three { grid-area: three; }
+.four  { grid-area: four; }
+.five  { grid-area: five; }
 
-/* Fallback for browsers without container queries */
-@media (min-width: 968px) {
-  .layout-root { grid-template-columns: 1fr 1fr; }
-}
-
-.layout-root > * {
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-/* For the logged-in view: make the 3rd block span across both columns */
-.layout-root > :nth-child(3) {
-  grid-column: 1 / -1;
-}
-
-/* Stacking order: ensure button column (2nd child) sits above the
-   full-width TransactionDetails (3rd child), so tooltips are not masked. */
-.layout-root > :nth-child(2) { position: relative; z-index: 2; }
-.layout-root > :nth-child(3) { position: relative; z-index: 1; }
-
-@media (max-width: 768px) {
-  .layout-root > :nth-child(3) {
-    grid-column: auto;
-  }
+.layout-root {
+  grid-template-areas:
+    "one   two"
+    "three two"
+    "four  two"
+    "five  two";
 }
 
 .layout-column-left {
@@ -93,21 +76,16 @@
   border-radius: 4rem 0 0 4rem;
 }
 
-/* When the grid collapses to 1 column (container narrower than 2 tracks),
-   switch to a single-column flex stack and re-order sections for mobile. */
-@container (max-width: calc(2 * (420px + 4rem))) {
-  :self {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  .layout-column-left {
-    display: contents;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .layout-column-left > .constrained-column {
-    display: contents;
+/* Mobile/tablet breakpoint: stack areas and normalize right column visuals */
+@media (max-width: 1024px) {
+  .layout-root {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "one"
+      "two"
+      "three"
+      "four"
+      "five";
   }
   .layout-column-right {
     margin-top: 0;
@@ -118,101 +96,15 @@
     overflow: visible;
     min-height: auto;
     border-radius: 0rem;
-    order: 2;
-    width: 100%;
-    margin-inline: auto;
   }
   .layout-column-right > .constrained-column {
     position: static;
     top: auto;
     height: auto;
     overflow: visible;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 1rem;
-  }
-  :self > .hero,
-  :self > .hero-intro,
-  :self > .bento-grid,
-  :self > .site-footer {
-    max-width: 720px;
-    width: 100%;
-    margin: 0 auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-  :self > .hero { order: 0; }
-  :self > .hero-intro:first-of-type { order: 1; }
-  :self > .layout-column-right { order: 2; }
-  :self > .bento-grid { order: 3; }
-  :self > .hero-intro:last-of-type { order: 4; }
-  :self > .site-footer {
-    order: 5;
-    margin-bottom: 1.5rem;
-    margin-top: 0;
-    padding-bottom: 1rem;
   }
 }
 
-/* Fallback for browsers without container queries */
-@media (max-width: 968px) {
-  .layout-root {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-  }
-  .layout-column-left {
-    display: contents;
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .layout-column-left > .constrained-column {
-    display: contents;
-  }
-  .layout-column-right {
-    margin-top: 0;
-    padding-top: 0;
-    position: static;
-    top: auto;
-    height: auto;
-    overflow: visible;
-    min-height: auto;
-    border-radius: 0rem;
-    order: 2;
-    width: 100%;
-    margin-inline: auto;
-  }
-  .layout-column-right > .constrained-column {
-    position: static;
-    top: auto;
-    height: auto;
-    overflow: visible;
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 0 1rem;
-  }
-  .layout-root > .hero,
-  .layout-root > .hero-intro,
-  .layout-root > .bento-grid,
-  .layout-root > .site-footer {
-    max-width: 720px;
-    width: 100%;
-    margin: 0 auto;
-    padding-left: 1rem;
-    padding-right: 1rem;
-  }
-  .layout-root > .hero { order: 0; }
-  .layout-root > .hero-intro:first-of-type { order: 1; }
-  .layout-root > .layout-column-right { order: 2; }
-  .layout-root > .bento-grid { order: 3; }
-  .layout-root > .hero-intro:last-of-type { order: 4; }
-  .layout-root > .site-footer {
-    order: 5;
-    margin-bottom: 1.5rem;
-    margin-top: 0;
-    padding-bottom: 1rem;
-  }
-}
 [data-w3a-theme="light"] .layout-column-right {
   background: var(--w3a-colors-colorBackground);
   background-image: radial-gradient(var(--w3a-colors-borderPrimary) 1px, transparent 1px);
