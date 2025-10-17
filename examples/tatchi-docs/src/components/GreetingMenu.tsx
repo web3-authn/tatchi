@@ -223,7 +223,6 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
     <GlassBorder>
       <div className="greeting-header">
         <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
-        <p className="greeting-caption">Send NEAR transactions with Passkeys</p>
       </div>
 
       <div className="greeting-content">

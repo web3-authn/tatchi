@@ -94,8 +94,21 @@
 }
 
 /* When the grid collapses to 1 column (container narrower than 2 tracks),
-   remove the offset on the right column and constrain its height. */
+   switch to a single-column flex stack and re-order sections for mobile. */
 @container (max-width: calc(2 * (420px + 4rem))) {
+  :self {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .layout-column-left {
+    display: contents;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .layout-column-left > .constrained-column {
+    display: contents;
+  }
   .layout-column-right {
     margin-top: 0;
     padding-top: 0;
@@ -105,17 +118,57 @@
     overflow: visible;
     min-height: auto;
     border-radius: 0rem;
+    order: 2;
+    width: 100%;
+    margin-inline: auto;
   }
   .layout-column-right > .constrained-column {
     position: static;
     top: auto;
     height: auto;
     overflow: visible;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+  :self > .hero,
+  :self > .hero-intro,
+  :self > .bento-grid,
+  :self > .site-footer {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  :self > .hero { order: 0; }
+  :self > .hero-intro:first-of-type { order: 1; }
+  :self > .layout-column-right { order: 2; }
+  :self > .bento-grid { order: 3; }
+  :self > .hero-intro:last-of-type { order: 4; }
+  :self > .site-footer {
+    order: 5;
+    margin-bottom: 1.5rem;
+    margin-top: 0;
+    padding-bottom: 1rem;
   }
 }
 
 /* Fallback for browsers without container queries */
 @media (max-width: 968px) {
+  .layout-root {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .layout-column-left {
+    display: contents;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  .layout-column-left > .constrained-column {
+    display: contents;
+  }
   .layout-column-right {
     margin-top: 0;
     padding-top: 0;
@@ -125,12 +178,39 @@
     overflow: visible;
     min-height: auto;
     border-radius: 0rem;
+    order: 2;
+    width: 100%;
+    margin-inline: auto;
   }
   .layout-column-right > .constrained-column {
     position: static;
     top: auto;
     height: auto;
     overflow: visible;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 1rem;
+  }
+  .layout-root > .hero,
+  .layout-root > .hero-intro,
+  .layout-root > .bento-grid,
+  .layout-root > .site-footer {
+    max-width: 720px;
+    width: 100%;
+    margin: 0 auto;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .layout-root > .hero { order: 0; }
+  .layout-root > .hero-intro:first-of-type { order: 1; }
+  .layout-root > .layout-column-right { order: 2; }
+  .layout-root > .bento-grid { order: 3; }
+  .layout-root > .hero-intro:last-of-type { order: 4; }
+  .layout-root > .site-footer {
+    order: 5;
+    margin-bottom: 1.5rem;
+    margin-top: 0;
+    padding-bottom: 1rem;
   }
 }
 [data-w3a-theme="light"] .layout-column-right {
@@ -160,17 +240,16 @@
 
 /* On narrow viewports, remove inner padding/radius so content fits flush */
 @media (max-width: 600px) {
-  .layout-column-left {
-    padding-top: 0.25rem;
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
+  .layout-root > .hero,
+  .layout-root > .hero-intro,
+  .layout-root > .bento-grid,
+  .layout-root > .site-footer,
+  .layout-column-right > .constrained-column {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
   }
-  .layout-column-right {
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
-  }
-  .constrained-column {
-    padding: 0;
+  .layout-root > .hero {
+    padding-top: 0.5rem;
   }
 }
 
