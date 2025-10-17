@@ -199,6 +199,7 @@ export const DARK_THEME = {
   surface: GREY_COLORS.slate700,
   surface2: GREY_COLORS.slate750,
   surface3: GREY_COLORS.slate800,
+  surface4: GREY_COLORS.slate850,
 
   // Canonical palette aliases (align with React tokens)
   primary: CHROMA_COLORS.blue600,
@@ -287,6 +288,7 @@ export const LIGHT_THEME = {
   surface: GREY_COLORS.slate100,
   surface2: GREY_COLORS.slate150,
   surface3: GREY_COLORS.slate200,
+  surface4: GREY_COLORS.slate250,
 
   // Canonical palette aliases (align with React tokens)
   primary: CHROMA_COLORS.blue600,

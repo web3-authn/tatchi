@@ -50,7 +50,7 @@ Pass partial overrides for dark/light only for the keys you need to change:
 <Theme tokens={{
   dark: { colors: { colorBackground: 'oklch(0.25 0.012 240)' } },
   light: { colors: { borderHover: '#cbd5e1' } }
-}} as="div" className="app-theme-scope">
+}} as="div" className="w3a-theme-provider">
   ...
 ```
 

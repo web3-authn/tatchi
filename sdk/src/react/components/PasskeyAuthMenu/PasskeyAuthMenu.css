@@ -238,15 +238,6 @@
   align-items: center;
   min-width: 0; /* allow input to shrink inside flex container without clipping */
 }
-.w3a-measurer {
-  position: absolute;
-  visibility: hidden;
-  white-space: pre;
-  left: -9999px; top: 0;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-}
 .w3a-input {
   width: 100%;
   height: 32px;
@@ -308,9 +299,9 @@
   height: 64px;
   transition: transform 200ms ease,
               background-color 200ms ease,
-              border-radius 250ms ease,
+              border-radius 200ms ease,
               opacity 200ms ease,
-              width 250ms cubic-bezier(0, 0, 0.2, 1);
+              width 200ms cubic-bezier(0, 0, 0.2, 1);
 }
 .w3a-arrow-btn.is-enabled {
   width: 100px; /* expand when enabled */
@@ -323,9 +314,9 @@
   pointer-events: auto;
   transition: transform 200ms ease,
               background-color 200ms ease,
-              border-radius 250ms ease,
+              border-radius 200ms ease,
               opacity 200ms ease,
-              width 250ms cubic-bezier(0, 0, 0.2, 1);
+              width 200ms cubic-bezier(0, 0, 0.2, 1);
 }
 .w3a-arrow-btn .w3a-arrow-icon {
   color: #fff;
@@ -340,12 +331,13 @@
   );
 }
 .w3a-arrow-btn.is-enabled:active {
-  transform: scale(0.985);
+  transform: scale(0.98);
 }
 .w3a-arrow-btn:disabled {
   cursor: not-allowed;
-  opacity: 0.6;
+  opacity: 0.5;
   background: var(--w3a-colors-borderSecondary);
+  transform: scale(0.5);
 }
 .w3a-arrow-btn .w3a-arrow-label {
   margin-left: 8px;

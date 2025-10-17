@@ -61,7 +61,7 @@ export function useTheme(): UseThemeReturn {
 
 // Public: boundary element that applies CSS variables and data attribute
 interface ThemeScopeProps {
-  as?: keyof React.JSX.IntrinsicElements;
+  tag?: keyof React.JSX.IntrinsicElements;
   className?: string;
   style?: React.CSSProperties;
   dataAttr?: string; // attribute to mark theme on boundary
@@ -69,14 +69,14 @@ interface ThemeScopeProps {
 }
 
 const ThemeScope: React.FC<ThemeScopeProps> = ({
-  as = 'div',
+  tag = 'main',
   className,
   style,
   dataAttr = 'data-w3a-theme',
   children,
 }) => {
   const { theme, vars } = useThemeContext();
-  const Comp: any = as;
+  const Comp: any = tag;
   const attrs: any = { [dataAttr]: theme };
   return (
     <Comp className={className} style={{ ...vars, ...style }} {...attrs}>
@@ -274,8 +274,8 @@ export interface ThemeProps extends Omit<ThemeProviderProps, 'children'>, Omit<T
 export const Theme: React.FC<ThemeProps> = ({
   mode = 'provider+scope',
   children,
-  as,
-  className,
+  tag = 'main', // div, main, etc
+  className = 'w3a-theme-provider',
   style,
   dataAttr,
   // Provider props
@@ -287,7 +287,7 @@ export const Theme: React.FC<ThemeProps> = ({
 }) => {
   if (mode === 'scope-only') {
     return (
-      <ThemeScope as={as} className={className} style={style} dataAttr={dataAttr}>
+      <ThemeScope tag={tag} className={className} style={style} dataAttr={dataAttr}>
         {children}
       </ThemeScope>
     );
@@ -304,7 +304,7 @@ export const Theme: React.FC<ThemeProps> = ({
       {mode === 'provider-only' ? (
         <>{children}</>
       ) : (
-        <ThemeScope as={as} className={className} style={style} dataAttr={dataAttr}>
+        <ThemeScope tag={tag} className={className} style={style} dataAttr={dataAttr}>
           {children}
         </ThemeScope>
       )}

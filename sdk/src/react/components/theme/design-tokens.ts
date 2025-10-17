@@ -54,6 +54,7 @@ export interface DesignTokens {
     surface: string;
     surface2: string;
     surface3: string;
+    surface4: string;
 
     // Interactive states
     hover: string;
@@ -194,6 +195,7 @@ export const LIGHT_TOKENS: DesignTokens = {
     surface: LIGHT_THEME.surface,
     surface2: LIGHT_THEME.surface2,
     surface3: LIGHT_THEME.surface3,
+    surface4: LIGHT_THEME.surface4,
 
     // Interactive states
     hover: LIGHT_THEME.hover,
@@ -303,6 +305,7 @@ export const DARK_TOKENS: DesignTokens = {
     surface: DARK_THEME.surface,
     surface2: DARK_THEME.surface2,
     surface3: DARK_THEME.surface3,
+    surface4: DARK_THEME.surface4,
 
     // Interactive states
     hover: DARK_THEME.hover,

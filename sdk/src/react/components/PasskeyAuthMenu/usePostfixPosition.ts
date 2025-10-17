@@ -1,5 +1,41 @@
 import { useCallback, useLayoutEffect, useRef } from 'react';
 
+const DEFAULT_FONT = "16px sans-serif";
+const ROOT_FONT_SIZE_FALLBACK = 16;
+
+const applyTextTransform = (value: string, transform: string): string => {
+  switch (transform) {
+    case 'uppercase':
+      return value.toUpperCase();
+    case 'lowercase':
+      return value.toLowerCase();
+    case 'capitalize':
+      return value.replace(/\b(\p{L})/gu, (m) => m.toUpperCase());
+    default:
+      return value;
+  }
+};
+
+const parseLengthToPx = (raw: string, fontSizePx: number): number => {
+  if (!raw) return 0;
+  const value = raw.trim();
+  if (!value || value === 'normal') return 0;
+  const numeric = Number.parseFloat(value);
+  if (Number.isNaN(numeric) || numeric === 0) return 0;
+  if (value.endsWith('px')) return numeric;
+  if (value.endsWith('em')) return numeric * fontSizePx;
+  if (value.endsWith('rem')) {
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const rootFontSize = Number.parseFloat(
+        window.getComputedStyle(document.documentElement).fontSize
+      ) || ROOT_FONT_SIZE_FALLBACK;
+      return numeric * rootFontSize;
+    }
+    return numeric * fontSizePx;
+  }
+  return numeric;
+};
+
 export interface UsePostfixPositionOptions {
   /** The current input text value */
   inputValue: string;
@@ -19,16 +55,20 @@ export interface UsePostfixPositionReturn {
  * Aligns a postfix element immediately after the full input value
  *
  * Implementation notes:
- * - Uses a hidden on-DOM measurer span to compute text width with browser layout,
- *   matching fonts, letter-spacing, and text-transform.
+ * - Measures text width via an off-screen canvas to avoid synchronous layout work.
+ * - Mirrors font, letter-spacing, and text-transform so the postfix aligns with rendered text.
  * - Respects (prefers-reduced-motion) only indirectly via CSS; this hook only sets left/visibility.
  * - Avoids caret/scroll tracking; this is intentional for a stable end-of-value anchor.
  */
 export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOptions): UsePostfixPositionReturn {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const postfixRef = useRef<HTMLSpanElement | null>(null);
-  const measurerRef = useRef<HTMLSpanElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const padAndBorderLeftRef = useRef<number>(0);
+  const fontRef = useRef<string>(DEFAULT_FONT);
+  const letterSpacingPxRef = useRef<number>(0);
+  const textTransformRef = useRef<string>('none');
   const rafRef = useRef<number | null>(null);
   const rafRef2 = useRef<number | null>(null);
   const latestValueRef = useRef<string>(inputValue);
@@ -55,62 +95,51 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
       return;
     }
 
-    let measurer = measurerRef.current;
-    if (!measurer || !measurer.isConnected) {
-      if (typeof document === 'undefined') return;
-      measurer = document.createElement('span');
-      measurer.className = 'w3a-measurer';
-      measurer.style.position = 'absolute';
-      measurer.style.visibility = 'hidden';
-      measurer.style.whiteSpace = 'pre';
-      measurer.style.left = '-9999px';
-      measurer.style.top = '0';
-      measurerRef.current = measurer;
+    if (typeof document === 'undefined') return;
+    let ctx = ctxRef.current;
+    if (!ctx) {
+      const canvas = document.createElement('canvas');
+      canvasRef.current = canvas;
+      ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctxRef.current = ctx;
     }
 
-    // Ensure measurer is attached next to the input so inherited styles match
-    const parent = (input.parentElement ?? document.body);
-    if (measurer.parentElement !== parent) {
-      try { parent.appendChild(measurer); } catch {}
+    ctx.font = fontRef.current || DEFAULT_FONT;
+    const transformed = applyTextTransform(valueToMeasure, textTransformRef.current || 'none');
+    let width = ctx.measureText(transformed).width;
+    const letterSpacingPx = letterSpacingPxRef.current;
+    if (letterSpacingPx !== 0 && transformed.length > 1) {
+      width += letterSpacingPx * (transformed.length - 1);
     }
 
-    if (!measurer) return;
-
-    const cs = window.getComputedStyle(input);
-
-    // Read static padding/border (left side) each time in case styles change
-    const pl = parseFloat(cs.paddingLeft) || 0;
-    const bl = parseFloat(cs.borderLeftWidth) || 0;
-    padAndBorderLeftRef.current = pl + bl;
-
-    // Mirror input text styles on measurer for accuracy
-    const fontString = cs.font && cs.font !== ''
-      ? cs.font
-      : `${cs.fontStyle || ''} ${cs.fontVariant || ''} ${cs.fontWeight || ''} ${cs.fontSize || '16px'} / ${cs.lineHeight || 'normal'} ${cs.fontFamily || 'sans-serif'}`;
-    measurer.style.font = fontString;
-    measurer.style.letterSpacing = cs.letterSpacing || '';
-    measurer.style.textTransform = cs.textTransform || '';
-
-    // Apply textTransform to content for faithful width measurement
-    let text = valueToMeasure;
-    switch (cs.textTransform) {
-      case 'uppercase':
-        text = text.toUpperCase();
-        break;
-      case 'lowercase':
-        text = text.toLowerCase();
-        break;
-      case 'capitalize':
-        text = text.replace(/\b(\p{L})/gu, (m) => m.toUpperCase());
-        break;
-    }
-    measurer.textContent = text;
-
-    const w = measurer.offsetWidth || 0;
-    const left = padAndBorderLeftRef.current + w + 1 + gap; // +1 to avoid overlap
+    const left = padAndBorderLeftRef.current + width + 1 + gap; // +1 to avoid overlap
     postfix.style.left = `${left}px`;
     postfix.style.visibility = 'visible';
   }, [gap]);
+
+  const updateComputedStyles = useCallback(() => {
+    const input = inputRef.current;
+    if (!input || typeof window === 'undefined') return;
+    const cs = window.getComputedStyle(input);
+
+    const fontString = cs.font && cs.font !== ''
+      ? cs.font
+      : `${cs.fontStyle || ''} ${cs.fontVariant || ''} ${cs.fontWeight || ''} ${cs.fontSize || '16px'} / ${cs.lineHeight || 'normal'} ${cs.fontFamily || 'sans-serif'}`;
+    fontRef.current = fontString || DEFAULT_FONT;
+
+    textTransformRef.current = cs.textTransform || 'none';
+
+    const fontSizePx = Number.parseFloat(cs.fontSize) || 16;
+    letterSpacingPxRef.current = parseLengthToPx(cs.letterSpacing || '', fontSizePx);
+
+    const pl = Number.parseFloat(cs.paddingLeft) || 0;
+    const bl = Number.parseFloat(cs.borderLeftWidth) || 0;
+    padAndBorderLeftRef.current = pl + bl;
+  }, []);
+
+  const inputNode = inputRef.current;
+  const postfixNode = postfixRef.current;
 
   useLayoutEffect(() => {
     const input = inputRef.current;
@@ -118,10 +147,14 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
     if (!input || !postfix) return;
 
     // Initial measure
+    updateComputedStyles();
     measureAndPosition();
 
     // Observe input size changes (layout shifts)
-    const ro = new ResizeObserver(() => schedule(measureAndPosition));
+    const ro = new ResizeObserver(() => {
+      updateComputedStyles();
+      schedule(measureAndPosition);
+    });
     ro.observe(input);
     ro.observe(postfix);
 
@@ -130,27 +163,29 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
       // @ts-ignore optional fonts API
       const fonts = (document as any)?.fonts;
       if (fonts?.ready) {
-        fonts.ready.then(() => schedule(measureAndPosition)).catch(() => {});
+        fonts.ready.then(() => {
+          updateComputedStyles();
+          schedule(measureAndPosition);
+        }).catch(() => {});
       }
     } catch {}
 
     // Window resize
-    const onResize = () => schedule(measureAndPosition);
+    const onResize = () => {
+      updateComputedStyles();
+      schedule(measureAndPosition);
+    };
     window.addEventListener('resize', onResize);
 
     return () => {
       try { window.removeEventListener('resize', onResize); } catch {}
       try { ro.disconnect(); } catch {}
-      // Remove measurer from DOM
-      try {
-        const m = measurerRef.current;
-        if (m && m.parentElement) m.parentElement.removeChild(m);
-      } catch {}
-      measurerRef.current = null;
+      canvasRef.current = null;
+      ctxRef.current = null;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       if (rafRef2.current) cancelAnimationFrame(rafRef2.current);
     };
-  }, [measureAndPosition, schedule]);
+  }, [inputNode, postfixNode, measureAndPosition, schedule, updateComputedStyles]);
 
   useLayoutEffect(() => {
     latestValueRef.current = inputValue;
@@ -159,11 +194,19 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
 
   const bindInput = useCallback((el: HTMLInputElement | null) => {
     inputRef.current = el;
-  }, []);
+    if (el) {
+      updateComputedStyles();
+      measureAndPosition();
+    }
+  }, [measureAndPosition, updateComputedStyles]);
 
   const bindPostfix = useCallback((el: HTMLSpanElement | null) => {
     postfixRef.current = el;
-  }, []);
+    if (el) {
+      updateComputedStyles();
+      measureAndPosition();
+    }
+  }, [measureAndPosition, updateComputedStyles]);
 
   return { bindInput, bindPostfix };
 }
