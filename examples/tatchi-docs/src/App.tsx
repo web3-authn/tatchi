@@ -24,7 +24,6 @@ export const App: React.FC = () => {
   const env = import.meta.env
   return (
     <TatchiPasskeyProvider
-      theme={{ as: 'main', className: 'app-theme-scope' }}
       config={{
         relayer: {
           url: env.VITE_RELAYER_URL!,

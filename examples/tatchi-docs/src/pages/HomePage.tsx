@@ -53,7 +53,7 @@ export function HomePage() {
 
   return (
     <div className="layout-root"
-      // style={{ height: '80vh'  }}
+      // style={{ height: '100vh'  }}
     >
 
       <div className="layout-column-left" data-w3a-theme={theme}>
@@ -206,10 +206,10 @@ export function HomePage() {
       <div className="layout-column-right" data-w3a-theme={theme}
       >
         <div className="constrained-column"
-          // style={{ height: '200vh', overflow: 'unset', paddingTop: '4rem' }}
+          style={{ height: '200vh', overflow: 'unset', paddingTop: '4rem' }}
         >
           <div className="passkey-sticky"
-            // style={{ position: 'sticky', top: 0 }}
+            style={{ position: 'sticky', top: 0 }}
           >
             {
               loginState.isLoggedIn
