@@ -59,14 +59,15 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
         disabled={disabled}
         style={{ width: w, height: h }}
       >
-        {!disabled && (
-          <ArrowUpIcon
-            size={24}
-            strokeWidth={2.5}
-            color="#ffffff"
-            style={{ display: 'block', transition: 'transform 200ms, width 200ms, height 200ms' }}
-          />
-        )}
+        <ArrowUpIcon
+          size={24}
+          strokeWidth={2.5}
+          color="#ffffff"
+          style={{
+            transition: 'transform 200ms, width 200ms, height 200ms',
+            opacity: disabled ? 0 : 1,
+          }}
+        />
       </button>
     </div>
   );

@@ -84,18 +84,10 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
         </div>
       </div>
 
-      {isRegisterMode ? (
-        <ArrowButton
-          disabled={!canProceed || !!waiting}
-          onClick={onProceed}
-        />
-      ) : (
-        // For Login and Recover: always show the React ArrowButton (original variant)
-        <ArrowButton
-          disabled={!canProceed || !!waiting}
-          onClick={onProceed}
-        />
-      )}
+      <ArrowButton
+        disabled={!canProceed || !!waiting}
+        onClick={onProceed}
+      />
 
     </div>
   );

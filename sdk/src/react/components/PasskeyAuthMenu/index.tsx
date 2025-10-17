@@ -29,6 +29,8 @@ export interface PasskeyAuthMenuProps {
   linkDeviceOptions?: {
     onEvent?: (event: DeviceLinkingSSEEvent) => void;
     onError?: (error: Error) => void;
+    /** Called when the user manually cancels the link-device flow */
+    onCancelled?: () => void;
   };
   /** Optional custom header element rendered when not waiting */
   header?: React.ReactElement;
@@ -120,7 +122,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
         await onLogin?.();
         // If login resolves with an explicit failure, return to Login
         setWaiting(false);
-        setShowScanDevice(false);
+        closeLinkDeviceView('flow');
         setMode(AuthMenuMode.Login);
       } else {
         await onRegister?.();
@@ -129,24 +131,13 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
       // If login throws (e.g., Touch ID cancelled), send user back to Login
       if (mode === AuthMenuMode.Login) {
         setWaiting(false);
-        setShowScanDevice(false);
+        closeLinkDeviceView('flow');
         setMode(mode);
         return;
       }
       onResetToStart();
     }
   };
-
-  const onResetToStart = () => {
-    setWaiting(false);
-    setShowScanDevice(false);
-    // Reset mode to appropriate default based on account existence
-    resetToDefault();
-    setCurrentValue('');
-  };
-
-  // active pill background
-  const segActiveBg = isDark ? tokens.colors.slate600 : tokens.colors.slate50;
 
   const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {
     console.log('ShowQRCode event:', event);
@@ -158,8 +149,38 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
 
   const handleLinkDeviceEvent = linkDeviceOptions?.onEvent ?? fallbackOnEvent;
   const handleLinkDeviceError = linkDeviceOptions?.onError ?? fallbackOnError;
+  const handleLinkDeviceCancelled = linkDeviceOptions?.onCancelled;
 
-  // Overlay-based arrow removed; no waiting-bridge needed
+  const stopLinkDeviceFlow = React.useCallback(() => {
+    try {
+      const stopper = ctx?.stopDevice2LinkingFlow;
+      if (stopper) {
+        void stopper().catch(() => {});
+      }
+    } catch {}
+  }, [ctx]);
+  const closeLinkDeviceView = React.useCallback((reason: 'user' | 'flow') => {
+    stopLinkDeviceFlow();
+    setShowScanDevice(false);
+    if (reason === 'user') {
+      try { handleLinkDeviceCancelled?.(); } catch {}
+    }
+  }, [stopLinkDeviceFlow, handleLinkDeviceCancelled]);
+
+  const onResetToStart = React.useCallback(() => {
+    setWaiting(false);
+    if (showScanDevice) {
+      closeLinkDeviceView('user');
+    } else {
+      setShowScanDevice(false);
+    }
+    // Reset mode to appropriate default based on account existence
+    resetToDefault();
+    setCurrentValue('');
+  }, [showScanDevice, closeLinkDeviceView, resetToDefault, setCurrentValue]);
+
+  // active pill background
+  const segActiveBg = isDark ? tokens.colors.slate600 : tokens.colors.slate50;
 
   return (
     <div
@@ -189,7 +210,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
         showQRCodeElement={
           <ShowQRCode
             isOpen={showScanDevice}
-            onClose={() => setShowScanDevice(false)}
+            onClose={() => closeLinkDeviceView('flow')}
             onEvent={handleLinkDeviceEvent}
             onError={handleLinkDeviceError}
           />

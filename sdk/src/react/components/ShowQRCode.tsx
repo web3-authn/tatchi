@@ -21,7 +21,6 @@ export function ShowQRCode({
   const {
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
-    passkeyManager
   } = usePasskeyContext();
 
   const [deviceLinkingState, setDeviceLinkingState] = useState<{
@@ -34,7 +33,6 @@ export function ShowQRCode({
 
   // Prevent duplicate concurrent starts (e.g., React StrictMode double-effect)
   const sessionRef = useRef(0);
-  const initCompletedRef = useRef(false);
 
   // Auto-start QR generation when modal opens; cancel when closing or unmounting
   useEffect(() => {
@@ -49,7 +47,6 @@ export function ShowQRCode({
         const { qrCodeDataURL } = await startDevice2LinkingFlow({
           onEvent: (event: DeviceLinkingSSEEvent) => {
             if (cancelled) return;
-            // Update UI status line
             setDeviceLinkingState(prev => ({ ...prev, lastPhase: String(event.phase), lastMessage: event.message }));
             onEvent(event);
             if (event.phase === DeviceLinkingPhase.STEP_7_LINKING_COMPLETE && event.status === DeviceLinkingStatus.SUCCESS) {
@@ -64,7 +61,6 @@ export function ShowQRCode({
           }
         });
         if (!cancelled && sessionRef.current === mySession) {
-          initCompletedRef.current = true;
           setDeviceLinkingState(prev => ({ ...prev, qrCodeDataURL, isProcessing: false }));
         }
       } catch (err) {
@@ -76,14 +72,12 @@ export function ShowQRCode({
 
     return () => {
       cancelled = true;
-      // Invalidate this session so any late resolves are ignored
       sessionRef.current++;
-      // Avoid cancelling prematurely during React StrictMode double-invoke
-      if (initCompletedRef.current) {
+      try {
         stopDevice2LinkingFlow().catch(() => {});
-      }
+      } catch {}
     };
-  }, [isOpen]);
+  }, [isOpen, onClose, onEvent, onError, startDevice2LinkingFlow, stopDevice2LinkingFlow]);
 
   if (!isOpen) return null;
 
