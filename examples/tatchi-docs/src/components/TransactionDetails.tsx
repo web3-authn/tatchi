@@ -15,8 +15,8 @@ export const TransactionDetails: React.FC<TransactionDetailsProps> = ({ lastTxDe
 
   return (
     <GlassBorder style={{ marginTop: '1rem' }}>
-      <h4>Latest Transaction</h4>
       <div className="transaction-content">
+        <h4>Latest Transaction</h4>
         {lastTxDetails.message && (
           <div className="tx-message">
             {lastTxDetails.message}

@@ -12,3 +12,9 @@
   width: 100%;
   box-shadow: 2px 6px 10px var(--fe-shadow-strong);
 }
+
+.glass-border-inner {
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2rem;
+  background: var(--w3a-colors-surface);
+}

@@ -252,9 +252,9 @@
   padding: 0.25rem 0.35rem 0.25rem 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  background: var(--fe-surface-solid);
-  border-bottom: none;
-  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--w3a-colors-surface2);
+  border-bottom: 2px solid var(--w3a-colors-surface3);
+  border-radius: 1rem 1rem 0 0;
 }
 .install-header-left { display: flex; align-items: center; gap: 12px; }
 .install-term {
@@ -281,10 +281,9 @@
   display: grid;
   place-content: center;
   background: transparent;
-  border: 1px solid var(--fe-border);
+  border: none;
   color: var(--fe-text-dim);
   padding: 6px;
-  border-radius: 0.5rem;
   cursor: pointer;
 }
 .install-copy { transition: color var(--fe-fast) var(--fe-ease); }
@@ -346,8 +345,9 @@
 
 .code-block,
 .shiki {
-  background: var(--fe-surface);
-  color: var(--fe-text);
+  /* Override Shiki inline style background to match site surface */
+  background: var(--w3a-colors-surface2) !important;
+  color: var(--fe-text) !important;
   margin: 0; /* remove margin on .shiki */
   padding: 1rem; /* unified padding */
   border-radius: 0 0 1rem 1rem;
@@ -383,15 +383,6 @@
 .shiki .code-kw-pkg {
   color: #FF6B6B;
 }
-
-/* Match Shiki dark/light backgrounds for non-highlighted blocks */
-[data-w3a-theme="dark"] .layout-column-left .code-block,
-[data-w3a-theme="dark"] .layout-column-left .shiki { background-color: #0d1117; color: #e6edf3; }
-[data-w3a-theme="light"] .layout-column-left .code-block,
-[data-w3a-theme="light"] .layout-column-left .shiki { background-color: #ffffff; color: #1f2328; }
-
-/* Force dark background for explicit dark code blocks (e.g., CLI install) */
-.layout-column-left .code-block.code-block--dark { background-color: #0d1117; color: #e6edf3; }
 
 .bento-card {
   position: relative;
@@ -468,11 +459,12 @@
 .passkey-sticky {
   position: sticky;
   top: 0;
+  display: grid;
+  place-items: center;
 }
 
 /* Footer at bottom of left column */
 .site-footer {
-  margin-top: 2rem;
   width: 100%;
   display: flex;
   align-items: center;
@@ -480,7 +472,6 @@
   gap: 12px;
   padding: 2rem 0; /* 2rem above and below */
   color: var(--fe-text-dim);
-  border-top: 1px solid var(--fe-border); /* section break line */
 }
 .site-footer-link {
   display: inline-flex;

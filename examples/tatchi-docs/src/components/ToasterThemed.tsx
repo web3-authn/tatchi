@@ -10,7 +10,14 @@ export const ToasterThemed: React.FC = () => {
       position="bottom-right"
       theme={isDark ? 'dark' : 'light'}
       closeButton
-      toastOptions={{ duration: 3500 }}
+      toastOptions={{
+        duration: 3500,
+        style: {
+          // Keep toast surface in sync with site palette
+          background: 'var(--w3a-colors-colorBackground)',
+          borderRadius: '1rem',
+        },
+      }}
     />
   );
 };

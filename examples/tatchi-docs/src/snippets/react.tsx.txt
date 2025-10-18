@@ -1,11 +1,8 @@
 import { TatchiPasskeyProvider } from '@tatchi/sdk/react'
 
-// SDK config (wallet origin, optional relayer, etc.)
-const config = { walletOrigin, ...configs }
-
 export function App() {
   return (
-    <TatchiPasskeyProvider config={config}>
+    <TatchiPasskeyProvider config={{ walletOrigin, ...configs }}>
       {/* your app */}
     </TatchiPasskeyProvider>
   )

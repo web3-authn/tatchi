@@ -71,7 +71,11 @@ export function HomeHero() {
                 ))}
               </div>
             </div>
-            <CopyButton text={installBlockCmd} ariaLabel="Copy install command" size={14} />
+            <CopyButton
+              text={installBlockCmd}
+              size={16}
+              ariaLabel="Copy install command"
+            />
           </div>
           <div className="install-body">
             <pre className="code-block code-block--dark"><code dangerouslySetInnerHTML={{ __html: highlightedInstall }} /></pre>

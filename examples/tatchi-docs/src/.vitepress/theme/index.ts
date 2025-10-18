@@ -1,7 +1,6 @@
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
 import './custom.css'
-import './vendor/sonner.css'
 
 const theme: Theme = {
   ...DefaultTheme,

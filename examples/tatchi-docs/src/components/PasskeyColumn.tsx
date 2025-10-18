@@ -17,11 +17,13 @@ export function PasskeyColumn(props: {
       <div className="constrained-column">
         <div className="passkey-sticky">
           {loginState.isLoggedIn ? (
-            <>
+            <div style={{
+              maxWidth: 480
+            }}>
               <GreetingMenu onTransactionUpdate={setLastTxDetails} />
               <EmbeddedTxButton setLastTxDetails={setLastTxDetails} />
               <TransactionDetails lastTxDetails={lastTxDetails} />
-            </>
+            </div>
           ) : (
             <PasskeyLoginMenu />
           )}

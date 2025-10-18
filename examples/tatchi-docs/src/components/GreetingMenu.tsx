@@ -221,11 +221,10 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
 
   return (
     <GlassBorder>
-      <div className="greeting-header">
-        <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
-      </div>
-
       <div className="greeting-content">
+        <div className="greeting-header">
+          <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+        </div>
         <div className="greeting-controls-box">
           <div className="webauthn-contract-link">
             Onchain message on&nbsp;

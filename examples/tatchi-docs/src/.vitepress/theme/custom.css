@@ -13,18 +13,6 @@ body {
   min-height: unset !important;
 }
 
-/* .VPNavBarMenu.menu {
-  position: absolute;
-  top: 0;
-  right: 8rem;
-}
-
-.VPFlyout.VPNavBarExtra.extra {
-  position: absolute;
-  top: 0;
-  right: 6rem;
-} */
-
 .VPContent.is-home .VPHome .vp-doc.container {
   max-width: none;
   min-height: 0 !important;
@@ -74,4 +62,24 @@ body::-webkit-scrollbar {
   box-sizing: border-box;
   overflow: visible;
   padding: 0;
+}
+
+/* Override Sonner toast close button styles */
+/* Vendor sets padding with !important; match with !important and ensure this loads after vendor CSS. */
+:root [data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
+  border-radius: 4px !important;
+  padding: 2px !important;
+  border: none !important;
+}
+
+/* Sonner toast surface + radius */
+/* Some Sonner builds use :where([data-sonner-toast][data-styled="true"]) */
+:root [data-sonner-toaster][data-theme] :where([data-sonner-toast][data-styled="true"]) {
+  border-radius: 1rem !important;
+  background-color: var(--w3a-colors-colorBackground) !important;
+}
+/* Fallback for builds using [data-sonner-toast] without data-styled */
+:root [data-sonner-toaster][data-theme] [data-sonner-toast] {
+  border-radius: 1rem !important;
+  background-color: var(--w3a-colors-colorBackground) !important;
 }

@@ -4,8 +4,7 @@ import Twitter from "../components/icons/Twitter";
 import type { LastTxDetails } from '../types';
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
-import { ReactCodeBlock } from '../components/ReactCodeBlock';
-import { CoreCodeBlock } from '../components/CoreCodeBlock';
+import { CombinedCodeBlock } from '../components/CombinedCodeBlock';
 import { PasskeyColumn } from '../components/PasskeyColumn';
 
 export function HomePage() {
@@ -37,14 +36,13 @@ export function HomePage() {
       {/* four */}
       <div className="card four">
         <div className="constrained-column">
-          <CoreCodeBlock />
+          <CombinedCodeBlock />
         </div>
       </div>
 
       {/* five */}
       <div className="card five">
         <div className="constrained-column">
-          <ReactCodeBlock />
           <footer className="site-footer" aria-label="Social links">
             <a
               className="site-footer-link"
