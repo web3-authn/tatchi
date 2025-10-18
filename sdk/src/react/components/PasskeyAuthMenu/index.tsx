@@ -41,6 +41,10 @@ export interface PasskeyAuthMenuProps {
    * Optional social login hooks. Provide a function per provider that returns
    * the derived username (e.g., email/handle) after the external auth flow.
    * If omitted or all undefined, the social row is hidden.
+   *
+   * Note: Social login integration is not yet implemented. The UI will
+   * display provider buttons and a disclaimer for now, but no auth flow
+   * is wired. This is a placeholder for future work.
    */
   socialLogin?: {
     google?: () => string;
@@ -138,6 +142,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
       onResetToStart();
     }
   };
+
 
   const fallbackOnEvent = React.useCallback((event: DeviceLinkingSSEEvent) => {
     console.log('ShowQRCode event:', event);
@@ -279,14 +284,6 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
           <button
             onClick={() => setShowScanDevice(true)}
             className="w3a-link-device-btn"
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = tokens.colors.surface2;
-              e.currentTarget.style.boxShadow = tokens.shadows.md;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = tokens.colors.surface;
-              e.currentTarget.style.boxShadow = tokens.shadows.sm;
-            }}
           >
             <QRCodeIcon width={18} height={18} strokeWidth={2} />
             Scan and Link Device

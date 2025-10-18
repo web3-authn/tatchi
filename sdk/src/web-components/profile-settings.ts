@@ -3,7 +3,7 @@ import { createRoot, Root } from 'react-dom/client';
 
 import { ProfileSettingsButton } from '../react/components/ProfileSettingsButton';
 import type { ProfileSettingsButtonProps, DeviceLinkingScannerParams } from '../react/components/ProfileSettingsButton/types';
-import { TatchiPasskeyProvider } from '../react/components/shell/TatchiPasskeyProvider';
+import { TatchiPasskeyProvider } from '../react';
 import type { PasskeyManagerConfigs } from '../core/types/passkeyManager';
 
 import { attachOpenShadow, dispatchTypedEvent, ensureReactStyles, getPortalTarget, toBoolean, toStringAttr, type PortalStrategy } from './utils';

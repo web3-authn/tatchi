@@ -171,6 +171,7 @@ export const GREY_COLORS = {
   slate700: 'oklch(0.3 0.02 240)',    // Dark slate
   slate750: 'oklch(0.25 0.0175 240)', // Between 700 and 800
   slate800: 'oklch(0.2 0.015 240)',   // Darker slate
+  slate825: 'oklch(0.175 0.015 240)', // Darker slate
   slate850: 'oklch(0.15 0.0125 240)', // Between 800 and 900
   slate900: 'oklch(0.1 0.01 240)',    // Very dark slate
 } as const;
@@ -199,7 +200,7 @@ export const DARK_THEME = {
   surface: GREY_COLORS.slate700,
   surface2: GREY_COLORS.slate750,
   surface3: GREY_COLORS.slate800,
-  surface4: GREY_COLORS.slate850,
+  surface4: GREY_COLORS.slate825,
 
   // Canonical palette aliases (align with React tokens)
   primary: CHROMA_COLORS.blue600,

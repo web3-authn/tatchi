@@ -14,12 +14,12 @@
 
 .w3a-user-account--fingerprint-icon.open path {
   /* Draw the fingerprint when expanding/opening */
-  animation: w3a-fp-open 1.5s ease-out 0.1s both; /* 100ms delay + hold end */
+  animation: w3a-fp-open 2s ease-out 0.1s both; /* 100ms delay + hold end */
 }
 
 /* Animate when closing the menu */
 .w3a-user-account--fingerprint-icon.closed path {
-  animation: w3a-fp-close 1.5s ease-out 0.1s both; /* 100ms delay */
+  animation: w3a-fp-close 2s ease-out 0.1s both; /* 100ms delay */
 }
 
 @keyframes w3a-fp-open {

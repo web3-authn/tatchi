@@ -188,12 +188,6 @@ export function PasskeyLoginMenu() {
     <div className="passkey-login-container-root">
       <PasskeyAuthMenu
         defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
-        socialLogin={{}}
-        // socialLogin={{
-        //   google: () => 'username is: <gmail_email@gmail>',
-        //   x: () => 'username is <twitter_handle@x>',
-        //   apple: () => 'username is <email@apple>'
-        // }}
         onLogin={onLogin}
         onRegister={onRegister}
         onRecoverAccount={onRecover}

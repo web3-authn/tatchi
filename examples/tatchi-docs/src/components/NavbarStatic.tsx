@@ -78,16 +78,7 @@ export const NavbarStatic: React.FC = () => {
     return () => { if ('removeEventListener' in mq) mq.removeEventListener('change', onChange); };
   }, []);
 
-  // Mirror SDK theme to VitePress appearance (toggle html.dark + persist)
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-    try {
-      const root = document.documentElement;
-      if (theme === 'dark') root.classList.add('dark');
-      else root.classList.remove('dark');
-      try { localStorage.setItem('vitepress-theme-appearance', theme); } catch {}
-    } catch {}
-  }, [theme]);
+  // Theme sync now handled by useSyncVitepressTheme hook
 
   // Expose login state to VitePress DOM for conditional styling
   React.useEffect(() => {

@@ -1,8 +1,8 @@
 import React from 'react';
-import { PasskeyProvider } from '../../context';
-import { Theme } from '../theme';
-import type { ThemeProps } from '../theme';
-import type { PasskeyContextProviderProps } from '../../types';
+import { PasskeyProvider } from '.';
+import { Theme } from '../components/theme';
+import type { ThemeProps } from '../components/theme';
+import type { PasskeyContextProviderProps } from '../types';
 
 export interface TatchiPasskeyProviderProps {
   /** PasskeyProvider configuration (same as PasskeyProvider) */

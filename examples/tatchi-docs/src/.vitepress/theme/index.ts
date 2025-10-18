@@ -50,7 +50,6 @@ const theme: Theme = {
       const html = document.documentElement
       html.classList.toggle('dark', mode === 'dark')
       try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
-      try { document.body.setAttribute('data-w3a-theme', mode) } catch {}
     }
     const toggleAppearance = () => {
       const isDark = document.documentElement.classList.contains('dark')
@@ -61,7 +60,14 @@ const theme: Theme = {
         const el = a as HTMLAnchorElement
         el.addEventListener('click', (ev) => {
           ev.preventDefault();
-          toggleAppearance();
+          // If SDK is active and user logged in, SDK theme takes precedence
+          const isLoggedIn = document.body.getAttribute('data-w3a-logged-in') === 'true'
+          if (isLoggedIn) {
+            const sdkMode = (document.body.getAttribute('data-w3a-theme') === 'dark') ? 'dark' : 'light'
+            applyAppearance(sdkMode as 'light' | 'dark')
+          } else {
+            toggleAppearance();
+          }
         }, { capture: true })
       })
     }

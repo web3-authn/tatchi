@@ -85,7 +85,7 @@ export type { UseThemeReturn, ThemeProps, ThemeMode } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
 
 // App composition (Theme + PasskeyProvider)
-export { TatchiPasskeyProvider } from './components/shell/TatchiPasskeyProvider';
+export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
 
 // === TYPES ===
 export type {

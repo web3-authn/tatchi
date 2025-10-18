@@ -106,7 +106,7 @@
 }
 
 [data-w3a-theme="light"] .layout-column-right {
-  background: var(--w3a-colors-colorBackground);
+  background: var(--w3a-colors-surface);
   background-image: radial-gradient(var(--w3a-colors-borderPrimary) 1px, transparent 1px);
   background-size: 32px 32px;
   background-position: 0 0;
@@ -123,7 +123,7 @@
 
 .constrained-column {
   max-width: 720px;
-  padding: 1rem;
+  padding: 0.5rem 1rem 0.5rem 2rem;
   /* Allow content to shrink and avoid track stretching */
   width: 100%;
   min-width: 0;
@@ -137,8 +137,8 @@
   .layout-root > .bento-grid,
   .layout-root > .site-footer,
   .layout-column-right > .constrained-column {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
+    padding-left: 0rem;
+    padding-right: 0rem;
   }
   .layout-root > .hero {
     padding-top: 0.5rem;
@@ -159,6 +159,15 @@
   font-weight: 700;
   color: var(--fe-text-primary);
 }
+
+/* Hero fingerprint icon variant: thicker stroke and draw animation */
+.hero .w3a-user-account--fingerprint-icon.w3a-touch-icon--hero path {
+  stroke-width: 2.5;
+}
+/* Avoid hover spin on the hero heading icon */
+.hero .w3a-touch-icon--hero:hover { transform: none; }
+/* Slight offset below the icon for optical alignment */
+.hero .w3a-touch-icon--hero { margin-bottom: 5px; }
 
 .hero-tagline {
   margin: 0;
@@ -225,7 +234,6 @@
 
 /* Bento grid */
 .bento-grid {
-  margin-top: 1rem;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
   grid-auto-rows: 150px;
@@ -249,7 +257,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.25rem 0.35rem 0.25rem 0.25rem;
+  padding: 0.35rem 0.35rem 0.25rem 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
   background: var(--w3a-colors-surface2);
@@ -261,21 +269,30 @@
   margin-top: 2px;
   color: var(--fe-text-dim);
 }
-.install-tabs { display: flex; align-items: center; gap: 10px; }
+.install-tabs { display: flex; align-items: center; gap: 0.5rem; }
 .install-tab {
   appearance: none;
   background: transparent;
   border: 1px solid transparent;
+  border-radius: 1rem;
   color: var(--fe-text-dim);
   font: inherit;
-  padding: 2px 10px 4px 10px;
-  border-radius: 10px;
+  padding: 4px 1rem 4px 1rem;
   cursor: pointer;
+  /* Animate active pill changes */
+  transition:
+    background var(--fe-fast) var(--fe-ease),
+    border-color var(--fe-fast) var(--fe-ease),
+    color var(--fe-fast) var(--fe-ease),
+    box-shadow var(--fe-fast) var(--fe-ease),
+    transform var(--fe-fast) var(--fe-ease);
 }
 .install-tab.active {
   color: var(--fe-text);
-  border-color: var(--fe-border);
+  /* border-color: var(--fe-border); */
+  border-color: transparent;
   background: var(--fe-surface);
+  box-shadow: 0 2px 8px var(--fe-shadow);
 }
 .install-copy {
   display: grid;
@@ -377,7 +394,7 @@
 /* Simple keyword tint for CLI managers */
 .code-block .code-kw-pm,
 .shiki .code-kw-pm {
-  color: #79C0FF;
+  color: oklch(0.74 0.166 255);
 }
 .code-block .code-kw-pkg,
 .shiki .code-kw-pkg {
@@ -388,6 +405,7 @@
   position: relative;
   border-radius: 1rem;
   background: var(--w3a-colors-surface2);
+  /* border: 1px dashed var(--w3a-colors-borderPrimary); */
   box-shadow: 0 1px 3px var(--w3a-shadows-md);
 }
 
@@ -485,3 +503,14 @@
   transition: color var(--fe-fast) var(--fe-ease), background var(--fe-fast) var(--fe-ease);
 }
 .site-footer-link:hover { color: var(--fe-text); background: color-mix(in srgb, var(--fe-bg) 70%, transparent); }
+
+/* Light mode overrides (VitePress + SDK synced) */
+[data-w3a-theme="light"] .code-block,
+[data-w3a-theme="light"] .shiki {
+  background: var(--w3a-colors-surface) !important;
+}
+
+[data-w3a-theme="light"] .install-header {
+  background: var(--w3a-colors-surface2);
+  border-bottom: 2px solid var(--w3a-colors-colorBackground);
+}

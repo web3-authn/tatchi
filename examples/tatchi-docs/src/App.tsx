@@ -5,6 +5,7 @@ import '@tatchi/sdk/react/styles'
 import NavbarStatic from './components/NavbarStatic'
 import { HomePage } from './pages/HomePage'
 import { ToasterThemed } from './components/ToasterThemed'
+import { useSyncVitepressTheme } from './hooks/useSyncVitepressTheme'
 
 
 const BodyThemeSync: React.FC = () => {
@@ -19,6 +20,8 @@ const BodyThemeSync: React.FC = () => {
   }, [theme, tokens])
   return null
 }
+
+const ThemeSyncMount: React.FC = () => { useSyncVitepressTheme(); return null }
 
 export const App: React.FC = () => {
   const env = import.meta.env
@@ -43,6 +46,7 @@ export const App: React.FC = () => {
       }}
     >
       <BodyThemeSync />
+      <ThemeSyncMount />
       <NavbarStatic />
       <HomePage />
       <ToasterThemed />

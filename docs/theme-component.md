@@ -157,7 +157,7 @@ Question: Can we consolidate `ThemeProvider` and `ThemeScope` directly into `Pas
 
 ### Implementation Steps (Option B)
 
-1. Create `sdk/src/react/components/shell/TatchiPasskeyProvider.tsx` exporting a single component that composes `<Theme>` and `<PasskeyProvider>`.
+1. Create `sdk/src/react/context/TatchiPasskeyProvider.tsx` exporting a single component that composes `<Theme>` and `<PasskeyProvider>`.
 2. Export `TatchiPasskeyProvider` from `sdk/src/react/index.ts`.
 3. Update docs and examples to prefer `TatchiPasskeyProvider` where appropriate (replace three‑wrapper boilerplate).
 4. Keep `Theme` standalone and documented for advanced layouts (e.g., nested scopes, Shadow DOM, micro‑frontends).

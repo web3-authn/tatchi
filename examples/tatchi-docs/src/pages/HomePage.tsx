@@ -11,9 +11,7 @@ export function HomePage() {
   const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
 
   return (
-    <div className="layout-root"
-      // style={{ height: '100vh'  }}
-    >
+    <div className="layout-root">
       {/* one */}
       <div className="card one">
         <div className="constrained-column">
