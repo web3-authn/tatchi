@@ -11,30 +11,26 @@ const BodyThemeSync: React.FC = () => {
   const { theme, tokens, setTheme } = useTheme()
   const { loginState, passkeyManager } = usePasskeyContext()
   React.useEffect(() => {
-    try {
-      document.body.setAttribute('data-w3a-theme', theme)
-      // Let document-level CSS control background + pattern
-      try { document.body.style.removeProperty('background') } catch {}
-      try { document.body.style.removeProperty('color') } catch {}
-    } catch {}
+    document.body.setAttribute('data-w3a-theme', theme)
+    // Let document-level CSS control background + pattern
+    document.body.style.removeProperty('background')
+    document.body.style.removeProperty('color')
   }, [theme, tokens])
   React.useEffect(() => {
     const onSetTheme = (e: Event) => {
-      try {
-        const ce = e as CustomEvent<'light' | 'dark'>
-        const next = ce?.detail
-        if (next === 'light' || next === 'dark') {
-          // When logged in, persist to SDK (and wallet host). Logged out: local only.
-          if (loginState?.isLoggedIn && passkeyManager) {
-            try { passkeyManager.setUserTheme(next) } catch { setTheme(next) }
-          } else {
-            setTheme(next)
-          }
+      const ce = e as CustomEvent<'light' | 'dark'>
+      const next = ce?.detail
+      if (next === 'light' || next === 'dark') {
+        // When logged in, persist to SDK (and wallet host). Logged out: local only.
+        if (loginState?.isLoggedIn && passkeyManager?.setUserTheme) {
+          passkeyManager.setUserTheme(next)
+        } else {
+          setTheme(next)
         }
-      } catch {}
+      }
     }
-    try { window.addEventListener('w3a:set-theme', onSetTheme as any) } catch {}
-    return () => { try { window.removeEventListener('w3a:set-theme', onSetTheme as any) } catch {} }
+    window.addEventListener('w3a:set-theme', onSetTheme as any)
+    return () => { window.removeEventListener('w3a:set-theme', onSetTheme as any) }
   }, [setTheme, loginState?.isLoggedIn, passkeyManager])
   return null
 }

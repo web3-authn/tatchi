@@ -22,71 +22,63 @@ export function useSyncVitepressTheme() {
     if (typeof document === 'undefined') return
 
     const getVpMode = (): 'light' | 'dark' => {
-      try {
-        const isDark = document.documentElement.classList.contains('dark')
-        return isDark ? 'dark' : 'light'
-      } catch {
-        try {
-          const stored = localStorage.getItem('vitepress-theme-appearance')
-          return stored === 'dark' ? 'dark' : 'light'
-        } catch {}
-        return 'light'
-      }
+      const isDark = document.documentElement.classList.contains('dark')
+      return isDark ? 'dark' : 'light'
     }
 
     const setVpMode = (mode: 'light' | 'dark') => {
-      try {
-        syncingVpFromSdkRef.current = true
-        const root = document.documentElement
-        root.classList.toggle('dark', mode === 'dark')
-        try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
-        // Sync VitePress internal isDark ref (via bridge in custom theme Layout)
-        try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode })) } catch {}
-        // Defer clearing to batch MO notifications from this single update
-        try { setTimeout(() => { syncingVpFromSdkRef.current = false }, 0) } catch { syncingVpFromSdkRef.current = false }
-      } catch {}
+      syncingVpFromSdkRef.current = true
+      const root = document.documentElement
+      root.classList.toggle('dark', mode === 'dark')
+      try { localStorage.setItem('vitepress-theme-appearance', mode) } catch (err) {
+        console.debug('[useSyncVitepressTheme] setItem failed:', err)
+      }
+      // Sync VitePress internal isDark ref (via bridge in custom theme Layout)
+      window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode }))
+      // Defer clearing to batch MO notifications from this single update
+      setTimeout(() => { syncingVpFromSdkRef.current = false }, 0)
     }
 
     const isLoggedIn = !!loginState?.isLoggedIn
     const prevLoggedIn = prevLoggedInRef.current
 
     // On first mount or when logged out
-    try {
-      const vpMode = getVpMode()
-      if (!isLoggedIn) {
-        // If we JUST logged out, do a one-time SDK -> VitePress sync
-        if (prevLoggedIn === true) {
-          if (vpMode !== theme) setVpMode(theme)
-        } else {
-          // Otherwise, follow VitePress -> SDK as the default logged-out behavior
-          if (vpMode !== theme) setTheme(vpMode)
+    const vpMode = getVpMode()
+    if (!isLoggedIn) {
+      // If we JUST logged out, do a one-time SDK -> VitePress sync
+      if (prevLoggedIn === true) {
+        if (vpMode !== theme) setVpMode(theme)
+      } else {
+        // Otherwise, follow VitePress -> SDK as the default logged-out behavior
+        if (vpMode !== theme) setTheme(vpMode)
+      }
+    } else {
+      // Transitioned to logged-in: ONE-TIME sync SDK to current VitePress (persist to user prefs)
+      if (prevLoggedIn === false || prevLoggedIn === null) {
+        if (vpMode !== theme) {
+          if (passkeyManager?.setUserTheme) passkeyManager.setUserTheme(vpMode)
+          else setTheme(vpMode)
         }
       } else {
-        // Transitioned to logged-in: ONE-TIME sync SDK to current VitePress (persist to user prefs)
-        if (prevLoggedIn === false || prevLoggedIn === null) {
-          if (vpMode !== theme) {
-            try { passkeyManager?.setUserTheme?.(vpMode) } catch { try { setTheme(vpMode) } catch {} }
-          }
-        } else {
-          // Already logged in: keep VitePress aligned with SDK
-          if (vpMode !== theme) setVpMode(theme)
-        }
+        // Already logged in: keep VitePress aligned with SDK
+        if (vpMode !== theme) setVpMode(theme)
       }
-    } catch {}
+    }
 
     // React to html class changes (VitePress navbar toggle)
     const mo = new MutationObserver(() => {
-      try {
-        const vpMode = getVpMode()
-        const isLoggedInNow = !!loginState?.isLoggedIn
-        // Ignore mutations we just caused while syncing SDK → VitePress
-        if (syncingVpFromSdkRef.current) return
-        // Only propagate VitePress → SDK while logged OUT
-        if (!isLoggedInNow && vpMode !== theme) setTheme(vpMode)
-      } catch {}
+      const vpMode = getVpMode()
+      const isLoggedInNow = !!loginState?.isLoggedIn
+      // Ignore mutations we just caused while syncing SDK → VitePress
+      if (syncingVpFromSdkRef.current) return
+      // Propagate VitePress → SDK when user toggles
+      if (vpMode !== theme) {
+        if (isLoggedInNow && passkeyManager?.setUserTheme) passkeyManager.setUserTheme(vpMode)
+        else setTheme(vpMode)
+      }
     })
 
-    try { mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] }) } catch {}
+    mo.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     // Cross-tab/localStorage changes
     const onStorage = (e: StorageEvent) => {
@@ -96,11 +88,11 @@ export function useSyncVitepressTheme() {
       const isLoggedInNow = !!loginState?.isLoggedIn
       if (!isLoggedInNow && next !== theme) setTheme(next)
     }
-    try { window.addEventListener('storage', onStorage) } catch {}
+    window.addEventListener('storage', onStorage)
 
     return () => {
-      try { mo.disconnect() } catch {}
-      try { window.removeEventListener('storage', onStorage) } catch {}
+      mo.disconnect()
+      window.removeEventListener('storage', onStorage)
     }
   }, [theme, setTheme, loginState?.isLoggedIn])
 

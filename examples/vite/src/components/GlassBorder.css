@@ -16,12 +16,19 @@
 
 .glass-border-inner {
   box-sizing: border-box;
-  background: var(--w3a-colors-surface);
   border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: var(--fe-radius-lg);
   padding: 1rem;
   box-shadow: 0 2px 4px var(--fe-shadow);
   position: relative;
+  /* Base background driven by theme tokens */
+  background: var(--w3a-colors-surface);
+}
+
+/* Prefer explicit providers but support body attribute mirror */
+.w3a-theme-provider[data-w3a-theme="light"] .glass-border-inner,
+body[data-w3a-theme="light"] .glass-border-inner {
+  background: var(--w3a-colors-grey50);
 }
 
 .black-gradient-border {

@@ -47,7 +47,6 @@ function App() {
               enableSafariGetWebauthnRegistrationFallback: true,
             },
           }}
-        theme={{ as: 'div', className: 'w3a-theme-provider' }}
       >
         <BodyThemeSync />
         <Navbar />

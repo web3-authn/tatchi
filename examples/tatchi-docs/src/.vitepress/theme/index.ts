@@ -10,23 +10,107 @@ const W3aAppearanceBridge = defineComponent({
   setup() {
     const { isDark } = useData()
     const handler = (e: Event) => {
-      try {
-        const ce = e as CustomEvent<'light' | 'dark'>
-        const mode = ce?.detail
-        if (mode === 'light' || mode === 'dark') {
-          isDark.value = mode === 'dark'
-        }
-      } catch {}
+      const ce = e as CustomEvent<'light' | 'dark'>
+      const mode = ce?.detail
+      if (mode === 'light' || mode === 'dark') {
+        isDark.value = mode === 'dark'
+      }
     }
-    onMounted(() => {
-      try { window.addEventListener('w3a:appearance', handler) } catch {}
-    })
-    onUnmounted(() => {
-      try { window.removeEventListener('w3a:appearance', handler) } catch {}
-    })
+    onMounted(() => { window.addEventListener('w3a:appearance', handler) })
+    onUnmounted(() => { window.removeEventListener('w3a:appearance', handler) })
     return () => null
   }
 })
+
+function isServerRender(): boolean {
+  return !!(import.meta as any)?.env?.SSR
+}
+
+async function ensureSdkStylesLoaded(): Promise<void> {
+  // @ts-ignore - bundled CSS side-effect import
+  await import('@tatchi/sdk/react/styles')
+}
+
+async function registerWalletAppElement(): Promise<void> {
+  if (!customElements.get('wallet-app')) {
+    // @ts-ignore - app-relative alias
+    await import('@app/components/registerAppShellWC')
+  }
+}
+
+function createRouterBridge(ctx: unknown) {
+  const base = (import.meta as any)?.env?.BASE_URL || '/'
+  const join = (to: string) => {
+    if (/^https?:\/\//.test(to)) return to
+    const normalizedBase = base.endsWith('/') ? base.slice(0, -1) : base
+    const normalizedTarget = to.startsWith('/') ? to : `/${to}`
+    return `${normalizedBase}${normalizedTarget}`
+  }
+  const go = (to: string) => {
+    const url = join(to)
+    const vpGo = (ctx as any)?.router?.go
+    if (typeof vpGo === 'function') vpGo(url)
+    else window.location.href = url
+  }
+  return { go }
+}
+
+function attachNavigateBridge(go: (to: string) => void): void {
+  (window as any).__vp_go = go
+  window.addEventListener('vp:navigate', (e: Event) => {
+    const ce = e as CustomEvent<string>
+    if (ce?.detail) go(ce.detail)
+  })
+}
+
+function safeLocalStorageSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value) } catch (err) {
+    console.debug('[vitepress-theme] localStorage.setItem failed:', err)
+  }
+}
+
+function applyAppearance(mode: 'light' | 'dark'): void {
+  const html = document.documentElement
+  html.classList.toggle('dark', mode === 'dark')
+  safeLocalStorageSet('vitepress-theme-appearance', mode)
+  window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode }))
+}
+
+function toggleAppearance(): void {
+  const isDark = document.documentElement.classList.contains('dark')
+  applyAppearance(isDark ? 'light' : 'dark')
+}
+
+function isSdkLoggedIn(): boolean {
+  return document.body.getAttribute('data-w3a-logged-in') === 'true'
+}
+
+function dispatchSdkToggle(): void {
+  const currentSdkMode = document.body.getAttribute('data-w3a-theme') === 'dark' ? 'dark' : 'light'
+  const next = currentSdkMode === 'dark' ? 'light' : 'dark'
+  window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:set-theme', { detail: next }))
+}
+
+function handleThemeToggleClick(ev: Event): void {
+  ev.preventDefault()
+  if (isSdkLoggedIn()) dispatchSdkToggle()
+  else toggleAppearance()
+}
+
+function wireThemeToggleLinks(): void {
+  document.querySelectorAll('a[href="#toggle-theme"]').forEach((anchor) => {
+    const el = anchor as HTMLAnchorElement
+    el.removeEventListener('click', handleThemeToggleClick)
+    el.addEventListener('click', handleThemeToggleClick, { capture: true })
+  })
+}
+
+function setupThemeToggleBridge(): () => void {
+  wireThemeToggleLinks()
+  const mo = new MutationObserver(() => wireThemeToggleLinks())
+  mo.observe(document.body, { subtree: true, childList: true })
+  return () => { mo.disconnect() }
+}
 
 const theme: Theme = {
   ...DefaultTheme,
@@ -37,77 +121,15 @@ const theme: Theme = {
     // Run default enhanceApp first (if any)
     await (DefaultTheme as any).enhanceApp?.(ctx)
 
-    // @ts-ignore
-    if (import.meta.env.SSR) return
-    // Load styles used by embedded components (SDK only). Avoid importing app global CSS
-    // to prevent layout conflicts with VitePress.
-    // @ts-ignore
-    await import('@tatchi/sdk/react/styles')
+    if (isServerRender()) return
 
-    // Register the full app shell custom element
-    if (!customElements.get('wallet-app')) {
-      // @ts-ignore
-      await import('@app/components/registerAppShellWC')
-    }
+    await ensureSdkStylesLoaded()
+    await registerWalletAppElement()
 
-    // Router bridge for embedded components (Shadow DOM safe)
-    const base = (import.meta as any)?.env?.BASE_URL || '/'
-    const join = (to: string) => {
-      if (/^https?:\/\//.test(to)) return to
-      const b = base.endsWith('/') ? base.slice(0, -1) : base
-      const t = to.startsWith('/') ? to : `/${to}`
-      return `${b}${t}`
-    }
-    const go = (to: string) => {
-      const url = join(to)
-      // @ts-ignore - VitePress router object in ctx when available
-      // eslint-disable-next-line
-      const vpGo = (ctx as any)?.router?.go
-      if (typeof vpGo === 'function') vpGo(url)
-      else window.location.href = url
-    }
-    ;(window as any).__vp_go = go
-    window.addEventListener('vp:navigate', (e: Event) => {
-      try {
-        const ce = e as CustomEvent<string>
-        if (ce?.detail) go(ce.detail)
-      } catch {}
-    })
+    const { go } = createRouterBridge(ctx)
+    attachNavigateBridge(go)
 
-    // Attach dark mode toggle to custom nav link
-    const applyAppearance = (mode: 'light' | 'dark') => {
-      const html = document.documentElement
-      html.classList.toggle('dark', mode === 'dark')
-      try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
-      // Tell VitePress (Vue) to update its isDark ref as well
-      try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode })) } catch {}
-    }
-    const toggleAppearance = () => {
-      const isDark = document.documentElement.classList.contains('dark')
-      applyAppearance(isDark ? 'light' : 'dark')
-    }
-    const wireToggleLinks = () => {
-      document.querySelectorAll('a[href="#toggle-theme"]').forEach((a) => {
-        const el = a as HTMLAnchorElement
-        el.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          // If SDK is active and user logged in, SDK theme takes precedence
-          const isLoggedIn = document.body.getAttribute('data-w3a-logged-in') === 'true'
-          if (isLoggedIn) {
-            // Ask SDK to toggle its theme; it will persist to user prefs
-            const currentSdkMode = (document.body.getAttribute('data-w3a-theme') === 'dark') ? 'dark' : 'light'
-            const next = currentSdkMode === 'dark' ? 'light' : 'dark'
-            try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:set-theme', { detail: next })) } catch {}
-            // VitePress will be synced by the SDK->VitePress bridge (useSyncVitepressTheme)
-          } else {
-            toggleAppearance();
-          }
-        }, { capture: true })
-      })
-    }
-    wireToggleLinks()
-    const mo = new MutationObserver(() => wireToggleLinks())
-    mo.observe(document.body, { subtree: true, childList: true })
+    setupThemeToggleBridge()
   },
 }
 

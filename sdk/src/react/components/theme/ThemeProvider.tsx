@@ -123,6 +123,22 @@ function safeStoreTheme(t: ThemeName) {
   } catch {}
 }
 
+function safeGetVitepressAppearance(): ThemeName | null {
+  try {
+    const stored = window.localStorage?.getItem?.('vitepress-theme-appearance');
+    return stored === 'dark' || stored === 'light' ? stored : null;
+  } catch {
+    return null;
+  }
+}
+
+function getEnvAppearance(): ThemeName | null {
+  if (typeof document === 'undefined') return null;
+  const isDark = document.documentElement.classList.contains('dark');
+  if (typeof isDark === 'boolean') return isDark ? 'dark' : 'light';
+  return safeGetVitepressAppearance();
+}
+
 const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   theme: themeProp,
@@ -160,10 +176,8 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   const [themeState, setThemeState] = React.useState<ThemeName>(() => {
     if (isControlled) return themeProp as ThemeName;
-    try {
-      const t = passkeyManager?.userPreferences?.getUserTheme?.();
-      if (t === 'light' || t === 'dark') return t;
-    } catch {}
+    const t = passkeyManager?.userPreferences?.getUserTheme?.();
+    if (t === 'light' || t === 'dark') return t;
     const stored = safeLoadStoredTheme();
     if (stored) return stored;
     return defaultTheme || (getSystemPrefersDark() ? 'dark' : 'light');
@@ -182,9 +196,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     const up = passkeyManager.userPreferences;
     if (!up?.onThemeChange) return;
     const unsub = up.onThemeChange((t: ThemeName) => setThemeState(t));
-    return () => {
-      try { unsub?.(); } catch {}
-    };
+    return () => { unsub?.(); };
   }, [isControlled, passkeyManager]);
 
   // Hydrate from persisted user preference when available (post-login)
@@ -195,32 +207,14 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     if (!fn) return;
     let cancelled = false;
     (async () => {
-      try {
-        const persisted = await fn();
-        if (cancelled) return;
-        const getEnvAppearance = (): ThemeName | null => {
-          try {
-            const isDark = document.documentElement.classList.contains('dark');
-            return isDark ? 'dark' : 'light';
-          } catch {
-            try {
-              const stored = window.localStorage?.getItem?.('vitepress-theme-appearance');
-              if (stored === 'dark' || stored === 'light') return stored;
-            } catch {}
-            return null;
-          }
-        };
-        if (persisted === 'dark' || persisted === 'light') {
-          const env = getEnvAppearance();
-          // If environment appearance exists and conflicts with persisted, prefer env to avoid flicker.
-          if (env && env !== persisted) {
-            return; // leave themeState as-is; external sync will align user pref shortly
-          }
-          if (persisted !== themeState) {
-            setThemeState(persisted);
-          }
-        }
-      } catch {}
+      const persisted = await fn();
+      if (cancelled) return;
+      if (persisted === 'dark' || persisted === 'light') {
+        const env = getEnvAppearance();
+        // If environment appearance exists and conflicts with persisted, prefer env to avoid flicker.
+        if (env && env !== persisted) return;
+        if (persisted !== themeState) setThemeState(persisted);
+      }
     })();
     return () => { cancelled = true; };
   }, [isControlled, passkeyManager, themeState]);
@@ -230,14 +224,14 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     if (isControlled || !passkeyManager?.userPreferences) return;
     let cancelled = false;
     (async () => {
-      try {
+      (async () => {
         const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
         if (cancelled) return;
         // If stored preference differs from current theme, align stored pref to current theme
         if ((pref === 'light' || pref === 'dark') && pref !== themeState) {
-          try { passkeyManager.userPreferences.setUserTheme?.(themeState); } catch {}
+          passkeyManager.userPreferences.setUserTheme?.(themeState);
         }
-      } catch {}
+      })();
     })();
     return () => { cancelled = true; };
   }, [isControlled, passkeyManager, themeState]);
@@ -246,13 +240,9 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     // Avoid redundant writes and subscription loops
     if (t === themeState) return;
     if (!isControlled) setThemeState(t);
-    try {
-      const didPersistToProfile = !!passkeyManager?.userPreferences?.setUserTheme?.(t);
-      if (!didPersistToProfile) safeStoreTheme(t);
-    } catch {
-      // If persisting to profile fails (e.g., logged out), keep local storage updated
-      safeStoreTheme(t);
-    }
+    // Prefer full SDK propagation when available (ensures wallet-iframe host updates)
+    const didCallSdk = !!passkeyManager?.setUserTheme?.(t);
+    if (!didCallSdk) safeStoreTheme(t);
     onThemeChange?.(t);
   }, [isControlled, onThemeChange, passkeyManager, themeState]);
 

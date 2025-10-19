@@ -157,19 +157,17 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   const handleLinkDeviceCancelled = linkDeviceOptions?.onCancelled;
 
   const stopLinkDeviceFlow = React.useCallback(() => {
-    try {
-      const stopper = ctx?.stopDevice2LinkingFlow;
-      if (stopper) {
-        void stopper().catch(() => {});
-      }
-    } catch {}
+    const stopper = ctx?.stopDevice2LinkingFlow;
+    if (stopper) {
+      void stopper().catch(() => {});
+    }
   }, [ctx]);
 
   const closeLinkDeviceView = React.useCallback((reason: 'user' | 'flow') => {
     stopLinkDeviceFlow();
     setShowScanDevice(false);
     if (reason === 'user') {
-      try { handleLinkDeviceCancelled?.(); } catch {}
+      handleLinkDeviceCancelled?.();
     }
   }, [stopLinkDeviceFlow, handleLinkDeviceCancelled]);
 
