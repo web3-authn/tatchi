@@ -198,8 +198,27 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
       try {
         const persisted = await fn();
         if (cancelled) return;
-        if ((persisted === 'dark' || persisted === 'light') && persisted !== themeState) {
-          setThemeState(persisted);
+        const getEnvAppearance = (): ThemeName | null => {
+          try {
+            const isDark = document.documentElement.classList.contains('dark');
+            return isDark ? 'dark' : 'light';
+          } catch {
+            try {
+              const stored = window.localStorage?.getItem?.('vitepress-theme-appearance');
+              if (stored === 'dark' || stored === 'light') return stored;
+            } catch {}
+            return null;
+          }
+        };
+        if (persisted === 'dark' || persisted === 'light') {
+          const env = getEnvAppearance();
+          // If environment appearance exists and conflicts with persisted, prefer env to avoid flicker.
+          if (env && env !== persisted) {
+            return; // leave themeState as-is; external sync will align user pref shortly
+          }
+          if (persisted !== themeState) {
+            setThemeState(persisted);
+          }
         }
       } catch {}
     })();

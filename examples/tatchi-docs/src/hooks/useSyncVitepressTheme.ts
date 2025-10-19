@@ -13,7 +13,10 @@ import { useTheme, usePasskeyContext } from '@tatchi/sdk/react'
  */
 export function useSyncVitepressTheme() {
   const { theme, setTheme } = useTheme()
-  const { loginState } = usePasskeyContext()
+  const { loginState, passkeyManager } = usePasskeyContext()
+  const prevLoggedInRef = React.useRef<boolean | null>(null)
+  // Guard to prevent feedback when we intentionally push SDK → VitePress
+  const syncingVpFromSdkRef = React.useRef<boolean>(false)
 
   React.useEffect(() => {
     if (typeof document === 'undefined') return
@@ -33,19 +36,41 @@ export function useSyncVitepressTheme() {
 
     const setVpMode = (mode: 'light' | 'dark') => {
       try {
+        syncingVpFromSdkRef.current = true
         const root = document.documentElement
         root.classList.toggle('dark', mode === 'dark')
         try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
+        // Sync VitePress internal isDark ref (via bridge in custom theme Layout)
+        try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode })) } catch {}
+        // Defer clearing to batch MO notifications from this single update
+        try { setTimeout(() => { syncingVpFromSdkRef.current = false }, 0) } catch { syncingVpFromSdkRef.current = false }
       } catch {}
     }
 
-    // Align once on mount (depends on login state precedence)
+    const isLoggedIn = !!loginState?.isLoggedIn
+    const prevLoggedIn = prevLoggedInRef.current
+
+    // On first mount or when logged out
     try {
       const vpMode = getVpMode()
-      if (loginState?.isLoggedIn) {
-        if (vpMode !== theme) setVpMode(theme)
+      if (!isLoggedIn) {
+        // If we JUST logged out, do a one-time SDK -> VitePress sync
+        if (prevLoggedIn === true) {
+          if (vpMode !== theme) setVpMode(theme)
+        } else {
+          // Otherwise, follow VitePress -> SDK as the default logged-out behavior
+          if (vpMode !== theme) setTheme(vpMode)
+        }
       } else {
-        if (vpMode !== theme) setTheme(vpMode)
+        // Transitioned to logged-in: ONE-TIME sync SDK to current VitePress (persist to user prefs)
+        if (prevLoggedIn === false || prevLoggedIn === null) {
+          if (vpMode !== theme) {
+            try { passkeyManager?.setUserTheme?.(vpMode) } catch { try { setTheme(vpMode) } catch {} }
+          }
+        } else {
+          // Already logged in: keep VitePress aligned with SDK
+          if (vpMode !== theme) setVpMode(theme)
+        }
       }
     } catch {}
 
@@ -53,11 +78,11 @@ export function useSyncVitepressTheme() {
     const mo = new MutationObserver(() => {
       try {
         const vpMode = getVpMode()
-        if (loginState?.isLoggedIn) {
-          if (vpMode !== theme) setVpMode(theme)
-        } else {
-          if (vpMode !== theme) setTheme(vpMode)
-        }
+        const isLoggedInNow = !!loginState?.isLoggedIn
+        // Ignore mutations we just caused while syncing SDK → VitePress
+        if (syncingVpFromSdkRef.current) return
+        // Only propagate VitePress → SDK while logged OUT
+        if (!isLoggedInNow && vpMode !== theme) setTheme(vpMode)
       } catch {}
     })
 
@@ -67,11 +92,9 @@ export function useSyncVitepressTheme() {
     const onStorage = (e: StorageEvent) => {
       if (e.key !== 'vitepress-theme-appearance') return
       const next = e.newValue === 'dark' ? 'dark' : 'light'
-      if (loginState?.isLoggedIn) {
-        if (next !== theme) setVpMode(theme)
-      } else {
-        if (next !== theme) setTheme(next)
-      }
+      // Only propagate VitePress → SDK while logged OUT
+      const isLoggedInNow = !!loginState?.isLoggedIn
+      if (!isLoggedInNow && next !== theme) setTheme(next)
     }
     try { window.addEventListener('storage', onStorage) } catch {}
 
@@ -80,5 +103,9 @@ export function useSyncVitepressTheme() {
       try { window.removeEventListener('storage', onStorage) } catch {}
     }
   }, [theme, setTheme, loginState?.isLoggedIn])
-}
 
+  // Track logged-in state across runs for transition detection
+  React.useEffect(() => {
+    prevLoggedInRef.current = !!loginState?.isLoggedIn
+  }, [loginState?.isLoggedIn])
+}

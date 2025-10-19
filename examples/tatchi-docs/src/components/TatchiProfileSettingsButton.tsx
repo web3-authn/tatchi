@@ -1,6 +1,5 @@
 import React from 'react';
 import { toast } from 'sonner';
-
 import {
   usePasskeyContext,
   ProfileSettingsButton,
@@ -9,12 +8,19 @@ import {
   useTheme,
   DeviceLinkingSSEEvent,
 } from '@tatchi/sdk/react';
-import { DebugBanner } from './DebugBanner';
 
-export const NavbarStatic: React.FC = () => {
+export interface TatchiProfileSettingsButtonProps {
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonProps> = ({
+  className,
+  style
+}) => {
+
   const { loginState, passkeyManager } = usePasskeyContext();
   const { theme, setTheme } = useTheme();
-
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
 
   const handleDeviceLinkingEvents = (event: DeviceLinkingSSEEvent) => {
@@ -78,26 +84,30 @@ export const NavbarStatic: React.FC = () => {
     return () => { if ('removeEventListener' in mq) mq.removeEventListener('change', onChange); };
   }, []);
 
-  // Theme sync now handled by useSyncVitepressTheme hook
-
-  // Expose login state to VitePress DOM for conditional styling
+  // Expose login state to VitePress DOM for conditional styling + event bridge
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
     try {
-      document.body.setAttribute('data-w3a-logged-in', loginState.isLoggedIn ? 'true' : 'false');
+      const loggedIn = !!loginState.isLoggedIn;
+      const nearId = loginState.nearAccountId || '';
+      document.body.setAttribute('data-w3a-logged-in', loggedIn ? 'true' : 'false');
+      if (loggedIn && nearId) document.body.setAttribute('data-w3a-near-account-id', nearId);
+      else document.body.removeAttribute('data-w3a-near-account-id');
+      try { window.dispatchEvent(new CustomEvent('w3a:login-state', { detail: { loggedIn, nearAccountId: nearId } })) } catch {}
     } catch {}
-  }, [loginState.isLoggedIn]);
+  }, [loginState.isLoggedIn, loginState.nearAccountId]);
 
   if (!loginState.isLoggedIn) {
     return null;
   } else {
+    const baseStyle: React.CSSProperties = {
+      position: 'absolute',
+      zIndex: 100,
+      top: '0.5rem',
+      right: '0.5rem'
+    };
     return (
-      <div style={{
-        position: 'fixed',
-        zIndex: 100,
-        top: '0.5rem',
-        right: '0.5rem'
-      }}>
+      <div className={className} style={{ ...baseStyle, ...style }}>
         <ProfileSettingsButton
           nearAccountId={loginState.nearAccountId!}
           nearExplorerBaseUrl="https://testnet.nearblocks.io"
@@ -121,4 +131,4 @@ export const NavbarStatic: React.FC = () => {
   }
 };
 
-export default NavbarStatic;
+export default TatchiProfileSettingsButton;

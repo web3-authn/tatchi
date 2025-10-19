@@ -7,6 +7,8 @@ export class UserPreferencesManager {
   private themeChangeListeners: Set<(theme: 'dark' | 'light') => void> = new Set();
   private currentUserAccountId: AccountId | undefined;
   private confirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
+  // Prevent multiple one-time environment syncs per session
+  private envThemeSyncedForSession = false;
 
   constructor() {
     // Load user settings asynchronously - don't block constructor
@@ -132,6 +134,28 @@ export class UserPreferencesManager {
     this.currentUserAccountId = nearAccountId;
     // Load settings for the new user
     this.loadSettingsForUser(nearAccountId);
+
+    // One-time: align user theme to current host appearance (e.g., VitePress html.dark)
+    if (!this.envThemeSyncedForSession) {
+      try {
+        let envTheme: 'dark' | 'light' | null = null;
+        try {
+          const isDark = (globalThis as any)?.document?.documentElement?.classList?.contains?.('dark');
+          if (typeof isDark === 'boolean') envTheme = isDark ? 'dark' : 'light';
+        } catch {}
+        if (!envTheme) {
+          try {
+            const stored = (globalThis as any)?.localStorage?.getItem?.('vitepress-theme-appearance');
+            if (stored === 'dark' || stored === 'light') envTheme = stored;
+          } catch {}
+        }
+        if (envTheme && envTheme !== this.confirmationConfig.theme) {
+          // Fire-and-forget; listeners will propagate the change
+          void this.setUserTheme(envTheme);
+        }
+      } catch {}
+      this.envThemeSyncedForSession = true;
+    }
   }
 
   /**

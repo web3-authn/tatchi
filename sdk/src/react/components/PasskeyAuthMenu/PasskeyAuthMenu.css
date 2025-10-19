@@ -656,7 +656,6 @@
   font-size: 0.875rem;
   text-overflow: ellipsis;
   white-space: nowrap;
-  transition: all var(--w3a-transition-fast, 0.15s ease);
 }
 
 /* Hover/focus elevated state (theme-reactive via CSS vars) */

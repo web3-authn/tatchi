@@ -1,9 +1,38 @@
 import DefaultTheme from 'vitepress/theme'
 import type { Theme } from 'vitepress'
+import { h, defineComponent, onMounted, onUnmounted } from 'vue'
+import { useData } from 'vitepress'
 import './custom.css'
+
+// Bridge: keep VitePress internal isDark ref in sync when host forces appearance
+const W3aAppearanceBridge = defineComponent({
+  name: 'W3aAppearanceBridge',
+  setup() {
+    const { isDark } = useData()
+    const handler = (e: Event) => {
+      try {
+        const ce = e as CustomEvent<'light' | 'dark'>
+        const mode = ce?.detail
+        if (mode === 'light' || mode === 'dark') {
+          isDark.value = mode === 'dark'
+        }
+      } catch {}
+    }
+    onMounted(() => {
+      try { window.addEventListener('w3a:appearance', handler) } catch {}
+    })
+    onUnmounted(() => {
+      try { window.removeEventListener('w3a:appearance', handler) } catch {}
+    })
+    return () => null
+  }
+})
 
 const theme: Theme = {
   ...DefaultTheme,
+  Layout: () => h(DefaultTheme.Layout, null, {
+    'layout-bottom': () => h(W3aAppearanceBridge)
+  }),
   enhanceApp: async (ctx) => {
     // Run default enhanceApp first (if any)
     await (DefaultTheme as any).enhanceApp?.(ctx)
@@ -50,6 +79,8 @@ const theme: Theme = {
       const html = document.documentElement
       html.classList.toggle('dark', mode === 'dark')
       try { localStorage.setItem('vitepress-theme-appearance', mode) } catch {}
+      // Tell VitePress (Vue) to update its isDark ref as well
+      try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode })) } catch {}
     }
     const toggleAppearance = () => {
       const isDark = document.documentElement.classList.contains('dark')
@@ -63,8 +94,11 @@ const theme: Theme = {
           // If SDK is active and user logged in, SDK theme takes precedence
           const isLoggedIn = document.body.getAttribute('data-w3a-logged-in') === 'true'
           if (isLoggedIn) {
-            const sdkMode = (document.body.getAttribute('data-w3a-theme') === 'dark') ? 'dark' : 'light'
-            applyAppearance(sdkMode as 'light' | 'dark')
+            // Ask SDK to toggle its theme; it will persist to user prefs
+            const currentSdkMode = (document.body.getAttribute('data-w3a-theme') === 'dark') ? 'dark' : 'light'
+            const next = currentSdkMode === 'dark' ? 'light' : 'dark'
+            try { window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:set-theme', { detail: next })) } catch {}
+            // VitePress will be synced by the SDK->VitePress bridge (useSyncVitepressTheme)
           } else {
             toggleAppearance();
           }

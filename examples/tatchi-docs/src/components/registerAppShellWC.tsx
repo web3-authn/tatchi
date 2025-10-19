@@ -2,14 +2,11 @@ import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import '@tatchi/sdk/react/styles'
 import { App } from '../App'
-// eslint-disable-next-line
-// @ts-ignore - treat compiled CSS bundle as inline string
+// treat compiled CSS bundle as inline string
 import sdkCss from '@tatchi/sdk/react/styles?inline'
-// eslint-disable-next-line
-// @ts-ignore - import app stylesheet as inline text
+// import app stylesheet as inline text
 import appShellCss from '../app.css?inline'
-// eslint-disable-next-line
-// @ts-ignore - vendor sonner CSS into the ShadowRoot to ensure fixed positioning
+// vendor sonner CSS into the ShadowRoot to ensure fixed positioning
 import sonnerCss from '../.vitepress/theme/vendor/sonner-full.css?inline'
 
 class WalletAppElement extends HTMLElement {

@@ -11,7 +11,12 @@
 }
 
 /* Card mapping for grid-areas */
-.card { min-width: 0; max-width: 100%; box-sizing: border-box; display: grid; }
+.card {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+}
 .card > .constrained-column { justify-self: center; width: 100%; }
 .two { justify-self: stretch; }
 .two .constrained-column { max-width: none; }
@@ -511,6 +516,6 @@
 }
 
 [data-w3a-theme="light"] .install-header {
-  background: var(--w3a-colors-surface2);
+  background: var(--w3a-colors-surface);
   border-bottom: 2px solid var(--w3a-colors-colorBackground);
 }

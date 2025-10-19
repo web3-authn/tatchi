@@ -22,6 +22,16 @@ body {
   margin: 0 !important;
 }
 
+/* .VPNavBar .wrapper .container .content .content-body {
+  padding-right: 1.5rem;
+}
+
+@media (max-width: 1280px) {
+  .VPNavBar .wrapper .container .content .content-body {
+    padding-right: 4rem;
+  }
+} */
+
 
 /* Dotted background pattern for document body (overrides older patterns) */
 body:has(.VPContent.is-home)[data-w3a-theme="light"] {
@@ -83,3 +93,4 @@ body::-webkit-scrollbar {
   border-radius: 1rem !important;
   background-color: var(--w3a-colors-colorBackground) !important;
 }
+
