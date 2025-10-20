@@ -1,4 +1,4 @@
-import { PanelsTopLeft, Boxes, Cog, Code } from 'lucide-react';
+import { PanelsTopLeft, Boxes, ShieldCheck, QrCode } from 'lucide-react';
 
 export function BentoGrid() {
   return (
@@ -6,7 +6,7 @@ export function BentoGrid() {
       <div className="bento-card accent-pink" role="group" aria-labelledby="bento-dev-title">
         <div className="bento-content">
           <PanelsTopLeft className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-dev-title">Developer First</h3>
+          <h3 className="bento-title" id="bento-dev-title">UX and Developer First</h3>
           <p className="bento-desc">No selectors or popups. Embed and keep full UX control.</p>
         </div>
       </div>
@@ -17,21 +17,21 @@ export function BentoGrid() {
           <p className="bento-desc">VRF‑based challenges replace centralized verifiers.</p>
         </div>
       </div>
-      <div className="bento-card accent-teal" role="group" aria-labelledby="bento-simple-title">
+
+      <div className="bento-card accent-teal" role="group" aria-labelledby="bento-recovery-title">
         <div className="bento-content">
-          <Cog className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-simple-title">Simple & modular</h3>
-          <p className="bento-desc">Open source. Use just the parts you need.</p>
+          <ShieldCheck className="bento-icon" aria-hidden />
+          <h3 className="bento-title" id="bento-recovery-title">Serverless Account Recovery</h3>
+          <p className="bento-desc">Onchain account backups without intermediaries.</p>
         </div>
       </div>
-      <div className="bento-card accent-blue" role="group" aria-labelledby="bento-prog-title">
+      <div className="bento-card accent-blue" role="group" aria-labelledby="bento-linking-title">
         <div className="bento-content">
-          <Code className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-prog-title">Programmable</h3>
-          <p className="bento-desc">Integrate flows, tooltips, and confirmations in your app.</p>
+          <QrCode className="bento-icon" aria-hidden />
+          <h3 className="bento-title" id="bento-linking-title">Linking Devices</h3>
+          <p className="bento-desc">Backup accounts across multiple devices with QR scans. Never lose access to your account.</p>
         </div>
       </div>
     </section>
   );
 }
-

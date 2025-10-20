@@ -22,18 +22,6 @@ body {
   margin: 0 !important;
 }
 
-/* .VPNavBar .wrapper .container .content .content-body {
-  padding-right: 1.5rem;
-}
-
-@media (max-width: 1280px) {
-  .VPNavBar .wrapper .container .content .content-body {
-    padding-right: 4rem;
-  }
-} */
-
-
-/* Dotted background pattern for document body (overrides older patterns) */
 body:has(.VPContent.is-home)[data-w3a-theme="light"] {
   --w3a-colors-colorBackground: oklch(0.98 0 0);
   background-color: var(--w3a-colors-colorBackground);
@@ -92,5 +80,13 @@ body::-webkit-scrollbar {
 :root [data-sonner-toaster][data-theme] [data-sonner-toast] {
   border-radius: 1rem !important;
   background-color: var(--w3a-colors-colorBackground) !important;
+}
+
+.VPFlyout.VPNavBarExtra.extra > button {
+  box-shadow: none;
+}
+
+.VPFlyout.VPNavBarExtra.extra > div.menu > div.VPMenu > div.group > .item.appearance {
+  display: flex;
 }
 

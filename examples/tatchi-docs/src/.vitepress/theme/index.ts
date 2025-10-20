@@ -115,7 +115,7 @@ function setupThemeToggleBridge(): () => void {
 const theme: Theme = {
   ...DefaultTheme,
   Layout: () => h(DefaultTheme.Layout, null, {
-    'layout-bottom': () => h(W3aAppearanceBridge)
+    'layout-bottom': () => h(W3aAppearanceBridge),
   }),
   enhanceApp: async (ctx) => {
     // Run default enhanceApp first (if any)
@@ -130,6 +130,99 @@ const theme: Theme = {
     attachNavigateBridge(go)
 
     setupThemeToggleBridge()
+
+    // Hide VitePress navbar controls on the homepage only
+    function isHomePath(): boolean {
+      try {
+        const base: string = ((import.meta as any)?.env?.BASE_URL || '/') as string
+        const path = window.location.pathname
+        const norm = (s: string) => (s.endsWith('/') ? s : s + '/')
+        const baseNorm = norm(base)
+        const pathNorm = norm(path.replace(/\/index\.html$/, '/'))
+        return pathNorm === baseNorm
+      } catch {
+        return window.location.pathname === '/'
+      }
+    }
+
+    function findNavEls(): HTMLElement[] {
+      const sels = [
+        '.VPNavBar .content .nav',
+        '.VPNavBar .content .menu',
+        '.VPNavBarAppearance',
+        '.VPSwitchAppearance',
+        '.VPNavBarExtra',
+      ]
+      const set = new Set<HTMLElement>()
+      for (const sel of sels) {
+        document.querySelectorAll(sel).forEach((el) => {
+          if (el instanceof HTMLElement) set.add(el)
+        })
+      }
+      return Array.from(set)
+    }
+
+    function applyHomepageNavbarVisibility(): void {
+      const hide = isHomePath()
+      findNavEls().forEach((el) => {
+        el.style.setProperty('display', hide ? 'none' : '')
+      })
+    }
+
+    applyHomepageNavbarVisibility()
+    window.addEventListener('popstate', applyHomepageNavbarVisibility)
+    window.addEventListener('hashchange', applyHomepageNavbarVisibility)
+    window.addEventListener('vp:navigate', () => setTimeout(applyHomepageNavbarVisibility, 0))
+    const mo2 = new MutationObserver(() => applyHomepageNavbarVisibility())
+    mo2.observe(document.body, { subtree: true, childList: true })
+
+    // Hide/show the default VitePress appearance toggle based on login + viewport
+    function findAppearanceEls(): HTMLElement[] {
+      const sels = [
+        '.VPSwitchAppearance',
+        '.VPNavBarAppearance',
+        '.VPNavBar button[aria-label="Appearance"]',
+        '.VPNavBar button[title*="Appearance"]',
+        '.VPNavBar .appearance-switch',
+        'a[href="#toggle-theme"]',
+      ]
+      const set = new Set<HTMLElement>()
+      for (const sel of sels) {
+        document.querySelectorAll(sel).forEach((el) => {
+          if (el instanceof HTMLElement) set.add(el)
+        })
+      }
+      return Array.from(set)
+    }
+
+    function applyAppearanceToggleVisibility(): void {
+      try {
+        // Only hide Appearance toggle on the homepage; always show on other pages
+        const shouldHide = isHomePath()
+        findAppearanceEls().forEach((el) => {
+          el.style.setProperty('display', shouldHide ? 'none' : '')
+        })
+      } catch {}
+    }
+
+    // Initial and reactive updates (keep minimal)
+    applyAppearanceToggleVisibility()
+    window.addEventListener('resize', applyAppearanceToggleVisibility)
+    window.addEventListener('w3a:login-state', applyAppearanceToggleVisibility as any)
+    const mo = new MutationObserver(applyAppearanceToggleVisibility)
+    mo.observe(document.body, { attributes: true, attributeFilter: ['data-w3a-logged-in'] })
+    // Detach on HMR dispose if available
+    if ((import.meta as any).hot) {
+      // @ts-ignore
+      import.meta.hot.dispose(() => {
+        window.removeEventListener('resize', applyAppearanceToggleVisibility)
+        window.removeEventListener('w3a:login-state', applyAppearanceToggleVisibility as any)
+        window.removeEventListener('popstate', applyHomepageNavbarVisibility)
+        window.removeEventListener('hashchange', applyHomepageNavbarVisibility)
+        mo.disconnect()
+        mo2.disconnect()
+      })
+    }
   },
 }
 

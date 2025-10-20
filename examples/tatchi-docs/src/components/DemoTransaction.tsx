@@ -1,0 +1,283 @@
+import React, { useCallback, useState } from 'react';
+import { toast } from 'sonner';
+
+import {
+  ActionPhase,
+  ActionType,
+  SecureSendTxButton,
+  TouchIdWithText,
+  TxExecutionStatus,
+  usePasskeyContext,
+} from '@tatchi/sdk/react';
+import type { ActionArgs, FunctionCallAction } from '@tatchi/sdk/react';
+
+import { GlassBorder } from './GlassBorder';
+import { useSetGreeting } from '../hooks/useSetGreeting';
+import {
+  WEBAUTHN_CONTRACT_ID,
+  NEAR_EXPLORER_BASE_URL,
+  COBALT_BLUE,
+} from '../config';
+
+// Reuse existing styles from both components we are consolidating
+import './GreetingMenu.css';
+import './EmbeddedTxButton.css';
+import { MultiTxDemo } from './MultiTxDemo';
+
+export const DemoTransaction: React.FC = () => {
+  const {
+    loginState: { isLoggedIn, nearAccountId },
+    passkeyManager,
+  } = usePasskeyContext();
+
+  const {
+    onchainGreeting,
+    isLoading,
+    fetchGreeting,
+    error,
+  } = useSetGreeting();
+
+  // Inputs for the two demo flows
+  const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
+  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Component!');
+
+  const handleRefreshGreeting = async () => {
+    await fetchGreeting();
+  };
+
+  const handleSetGreeting = useCallback(async () => {
+    if (!greetingInput.trim() || !isLoggedIn || !nearAccountId) return;
+
+    const newGreetingMessage = `${greetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
+    const actionToExecute: FunctionCallAction = {
+      type: ActionType.FunctionCall,
+      methodName: 'set_greeting',
+      args: { greeting: newGreetingMessage },
+      gas: '30000000000000',
+      deposit: '0',
+    };
+
+    await passkeyManager.executeAction({
+      nearAccountId,
+      receiverId: WEBAUTHN_CONTRACT_ID,
+      actionArgs: actionToExecute,
+      options: {
+        onEvent: (event) => {
+          switch (event.phase) {
+            case ActionPhase.STEP_1_PREPARATION:
+            case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+            case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+            case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+            case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+              toast.loading(event.message, { id: 'greeting' });
+              break;
+            case ActionPhase.STEP_8_BROADCASTING:
+              toast.success(event.message, { id: 'greeting' });
+              break;
+            case ActionPhase.STEP_9_ACTION_COMPLETE:
+              toast.success(event.message, { id: 'greeting' });
+              break;
+            case ActionPhase.ACTION_ERROR:
+            case ActionPhase.WASM_ERROR:
+              toast.error(`Transaction failed: ${event.error}`, { id: 'greeting' });
+              break;
+          }
+        },
+        waitUntil: TxExecutionStatus.FINAL,
+        afterCall: (success: boolean, result?: any) => {
+          if (success && result?.transactionId) {
+            const txId = result.transactionId;
+            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+            toast.success('Greeting updated on-chain', {
+              id: 'greeting',
+              description: (
+                <a href={txLink} target="_blank" rel="noopener noreferrer">
+                  View transaction on NearBlocks
+                </a>
+              ),
+            });
+            setGreetingInput('');
+            // Refresh the greeting after success
+            setTimeout(() => { void fetchGreeting(); }, 1000);
+          } else if (success) {
+            toast.success('Greeting updated (no TxID)');
+            setGreetingInput('');
+            setTimeout(() => { void fetchGreeting(); }, 1000);
+          } else {
+            toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
+          }
+        },
+      },
+    });
+  }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting]);
+
+  const createEmbeddedGreetingAction = useCallback((): ActionArgs => {
+    const newGreetingMessage = `${embeddedGreetingInput.trim()} [updated: ${new Date().toLocaleTimeString()}]`;
+    return {
+      type: ActionType.FunctionCall,
+      methodName: 'set_greeting',
+      args: { greeting: newGreetingMessage },
+      gas: '30000000000000',
+      deposit: '0',
+    };
+  }, [embeddedGreetingInput]);
+
+  if (!isLoggedIn || !nearAccountId) {
+    return null;
+  }
+
+  return (
+    <div style={{ maxWidth: 480 }}>
+      {/* Greeting flow */}
+      <GlassBorder>
+        <div className="greeting-content">
+          <div className="greeting-header">
+            <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+          </div>
+          <div className="greeting-controls-box">
+
+            <div className="on-chain-greeting-box">
+              <button
+                onClick={handleRefreshGreeting}
+                disabled={isLoading}
+                title="Refresh Greeting"
+                className="refresh-icon-button"
+              >
+                {/* lucide icon color */}
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M21 12a9 9 0 1 1-3.51-7.07" stroke={COBALT_BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M21 3v7h-7" stroke={COBALT_BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+              <p><strong>{onchainGreeting || '...'}</strong></p>
+            </div>
+
+            <div className="greeting-input-group">
+              <input
+                type="text"
+                value={greetingInput}
+                onChange={(e) => setGreetingInput(e.target.value)}
+                placeholder="Enter new greeting"
+                className="greeting-focus-ring"
+              />
+              <button
+                onClick={handleSetGreeting}
+                className="greeting-btn greeting-btn-primary"
+                disabled={isLoading || !greetingInput.trim()}
+              >
+                {isLoading ? 'Processing...' : 'Set New Greeting'}
+              </button>
+            </div>
+
+            {error && (
+              <div className="error-message">Error: {error}</div>
+            )}
+          </div>
+        </div>
+
+        <div className="embedded-tx-page-root">
+          <h2 className="embedded-tx-title">Embedded Button</h2>
+          <p className="embedded-tx-caption">
+            "Paypal Button" UX:
+            Tx data in the tooltip is validated before signing.
+            What you see is what you sign.
+          </p>
+
+          <div className="embedded-tx-input-group">
+            <input
+              type="text"
+              value={embeddedGreetingInput}
+              onChange={(e) => setEmbeddedGreetingInput(e.target.value)}
+              placeholder="Enter your greeting message"
+              className="embedded-tx-input embedded-tx-focus-ring"
+            />
+          </div>
+
+          <div className="test-embedded-section">
+            <SecureSendTxButton
+              nearAccountId={nearAccountId}
+              txSigningRequests={[
+                {
+                  receiverId: WEBAUTHN_CONTRACT_ID,
+                  actions: [
+                    createEmbeddedGreetingAction(),
+                    { type: ActionType.Transfer, amount: '100000000000000000000' },
+                  ],
+                },
+                {
+                  receiverId: WEBAUTHN_CONTRACT_ID,
+                  actions: [ { type: ActionType.Transfer, amount: '200000000000000000000' } ],
+                },
+              ]}
+              options={{
+                beforeCall: () => {
+                  toast.loading('Preparing embedded transaction...', { id: 'embedded' });
+                },
+                waitUntil: TxExecutionStatus.FINAL,
+                afterCall: (success: boolean, result?: any) => {
+                  if (success) {
+                    let txId: string | undefined;
+                    if (Array.isArray(result)) {
+                      const last = result[result.length - 1] ?? result[0];
+                      txId = last?.transactionId;
+                    } else {
+                      txId = result?.transactionId;
+                    }
+                    if (txId) {
+                      const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+                      toast.success('Embedded flow complete', {
+                        id: 'embedded',
+                        description: (
+                          <a href={txLink} target="_blank" rel="noopener noreferrer">
+                            View transaction on NearBlocks
+                          </a>
+                        ),
+                      });
+                    } else {
+                      toast.success('Embedded flow complete');
+                    }
+                    setTimeout(() => { void fetchGreeting(); }, 1100);
+                  } else {
+                    toast.error(`Embedded flow failed: ${result?.error || 'Unknown error'}`, { id: 'embedded' });
+                  }
+                },
+                onError: (error) => {
+                  const message = error instanceof Error ? error.message : String(error);
+                  toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
+                },
+              }}
+              buttonStyle={{
+                background: 'var(--w3a-colors-primary)',
+                borderRadius: '24px',
+                border: 'none',
+                transition: 'all 0.3s ease',
+                boxShadow: '0px 1px 1px 2px rgba(0, 0, 0, 0.1)',
+                fontSize: '16px',
+                height: '44px',
+              }}
+              buttonHoverStyle={{
+                background: 'var(--w3a-colors-primaryHover)',
+                boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
+              }}
+              tooltipPosition={{
+                width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
+                height: 'auto',
+                position: 'bottom-left',
+              }}
+              txTreeTheme="light"
+              buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
+              onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
+              onSuccess={() => {/* handled in afterCall for consistency */}}
+            />
+          </div>
+        </div>
+
+        <div style={{ marginTop: '1rem' }}>
+          <MultiTxDemo />
+        </div>
+      </GlassBorder>
+    </div>
+  );
+};
+
+export default DemoTransaction;

@@ -3,9 +3,11 @@ import Github from "./icons/Github";
 import { BookOpenText } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { TouchIcon } from '@tatchi/sdk/react';
+import { useVitepressRouter } from '../hooks/useVitepressRouter';
 
 export function HomeHero() {
   const [pmBlock, setPmBlock] = useState<'npm' | 'pnpm' | 'bun'>('npm');
+  const { linkProps } = useVitepressRouter();
 
   const installBlockCmd = pmBlock === 'npm'
     ? 'npm install @tatchi/sdk'
@@ -16,17 +18,6 @@ export function HomeHero() {
   const highlightedInstall = installBlockCmd
     .replace(/^(npm|pnpm|bun)/, '<span class="code-kw-pm">$1</span>')
     .replace(/(@tatchi\/sdk)/, '<span class="code-kw-pkg">$1</span>');
-
-  const navigate = (to: string) => (e: React.MouseEvent<HTMLAnchorElement>) => {
-    try { e.preventDefault() } catch {}
-    try {
-      const vpGo = (window as any).__vp_go
-      if (typeof vpGo === 'function') return vpGo(to)
-      window.dispatchEvent(new CustomEvent('vp:navigate', { detail: to }))
-    } catch {
-      try { window.location.href = to } catch {}
-    }
-  };
 
   return (
     <>
@@ -50,7 +41,11 @@ export function HomeHero() {
           serverless WebAuthn, and VRF‑backed challenge flows designed for security and speed.
         </p>
         <div className="hero-ctas">
-          <a className="cta-secondary" href="https://example.localhost/docs/getting-started/install.html" aria-label="Read the documentation">
+          <a
+            className="cta-secondary"
+            {...linkProps('/docs/getting-started/install')}
+            aria-label="Read the documentation"
+          >
             <BookOpenText size={16} className="cta-icon" aria-hidden="true" />
             <span>Get Started</span>
             <span className="cta-chevron" aria-hidden>›</span>

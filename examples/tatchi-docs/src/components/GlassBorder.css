@@ -18,3 +18,8 @@
   border-radius: 2rem;
   background: var(--w3a-colors-surface);
 }
+
+/* Light theme override */
+[data-w3a-theme="light"] .glass-border-inner {
+  background: var(--w3a-colors-grey50) !important;
+}

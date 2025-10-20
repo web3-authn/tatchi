@@ -42,6 +42,7 @@ export interface ProfileSettingsButtonProps {
   // styles
   toggleColors?: ToggleColorProps;
   style?: React.CSSProperties;
+  className?: string;
   // Optional: where to portal overlays (modals)
   // Defaults to the component's ShadowRoot when present, otherwise document.body
   portalTarget?: HTMLElement | ShadowRoot | null;

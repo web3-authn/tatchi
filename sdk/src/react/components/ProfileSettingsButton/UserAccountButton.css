@@ -120,6 +120,8 @@
   transform: translateY(0);
   transition: transform 100ms linear;
   flex: 1;
+  /* Allow inner text nodes to shrink and ellipsize inside flex container */
+  min-width: 0;
 }
 
 .w3a-user-account--user-content {
@@ -146,6 +148,11 @@
   font-size: 14px;
   margin: 0;
   margin-top: 0;
+  /* Truncate usernames beyond 12 characters with ellipsis */
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .w3a-user-account--account-id {

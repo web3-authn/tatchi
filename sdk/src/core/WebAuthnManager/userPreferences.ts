@@ -253,11 +253,15 @@ export class UserPreferencesManager {
    * Get user theme preference from IndexedDB
    */
   async getCurrentUserAccountIdTheme(): Promise<'dark' | 'light' | null> {
-    const currentUserAccountId = this.getCurrentUserAccountId();
     try {
+      const currentUserAccountId = this.getCurrentUserAccountId();
       return await IndexedDBManager.clientDB.getTheme(currentUserAccountId);
     } catch (error) {
-      console.warn('[WebAuthnManager]: Failed to get user theme:', error);
+      // When no current user is set (logged out) or IndexedDB fails, return null silently
+      if (error instanceof Error && /No current user set/i.test(error.message)) {
+        return null;
+      }
+      console.debug('[WebAuthnManager]: getCurrentUserAccountIdTheme:', error);
       return null;
     }
   }
@@ -270,8 +274,8 @@ export class UserPreferencesManager {
    * Set user theme preference in IndexedDB
    */
   async setUserTheme(theme: 'dark' | 'light'): Promise<void> {
-    const currentUserAccountId = this.getCurrentUserAccountId();
     try {
+      const currentUserAccountId = this.getCurrentUserAccountId();
       await IndexedDBManager.clientDB.setTheme(currentUserAccountId, theme);
       // Also update the current context
       this.confirmationConfig = {
@@ -281,7 +285,11 @@ export class UserPreferencesManager {
       // Notify all listeners of theme change
       this.notifyThemeChange(theme);
     } catch (error) {
-      console.error('[UserPreferencesManager]: Failed to save user theme:', error);
+      // If no user is set, swallow to avoid noisy logs in logged-out state
+      if (error instanceof Error && /No current user set/i.test(error.message)) {
+        return;
+      }
+      console.warn('[UserPreferencesManager]: Failed to save user theme:', error);
     }
   }
 }

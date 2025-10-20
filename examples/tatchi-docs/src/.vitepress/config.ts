@@ -17,12 +17,15 @@ export default defineConfig({
 
   title: 'Tatchi SDK',
   description: 'Docs for the SDK and examples',
+  // Use VitePress built-in appearance + nav; hidden on homepage via theme logic
+  appearance: true,
 
   themeConfig: {
     // Show right-hand outline with H2/H3
     outline: [2, 3],
     search: { provider: 'local' },
 
+    // Keep default navbar links for non-home pages
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Docs', link: '/docs/getting-started/install' },

@@ -2,9 +2,9 @@
 @import './components/GreetingMenu.css';
 @import './components/PasskeyLoginMenu.css';
 @import './components/EmbeddedTxButton.css';
-@import './components/TransactionDetails.css';
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
+@import './pages/MultiTxConfirmPage.css';
 
 :root, :host {
   /* Text Sizes */

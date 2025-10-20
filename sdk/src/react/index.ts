@@ -64,6 +64,8 @@ export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu';
 export type { AuthMenuModeLabel } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples
 export { default as TouchIcon } from './components/ProfileSettingsButton/icons/TouchIcon';
+export { SunIcon } from './components/ProfileSettingsButton/icons/SunIcon';
+export { MoonIcon } from './components/ProfileSettingsButton/icons/MoonIcon';
 export { default as QRCodeIcon } from './components/QRCodeIcon';
 // Lit component wrappers
 export {

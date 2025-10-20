@@ -160,7 +160,8 @@
 
 .hero-title {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin-top: 2rem;
+  font-size: 2.5rem;
   font-weight: 700;
   color: var(--fe-text-primary);
 }
@@ -409,8 +410,8 @@
 .bento-card {
   position: relative;
   border-radius: 1rem;
-  background: var(--w3a-colors-surface2);
-  /* border: 1px dashed var(--w3a-colors-borderPrimary); */
+  background: var(--w3a-colors-surface);
+  /* border: 1px solid var(--w3a-colors-borderPrimary); */
   box-shadow: 0 1px 3px var(--w3a-shadows-md);
 }
 

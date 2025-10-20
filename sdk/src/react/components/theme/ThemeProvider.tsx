@@ -148,12 +148,14 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   prefix = '--w3a',
 }) => {
   // Make passkey context optional - ThemeProvider can work without it
-  let passkeyManager;
+  let passkeyManager: any;
+  let loginState: { isLoggedIn?: boolean } | null = null;
   try {
-    ({ passkeyManager } = usePasskeyContext());
+    ({ passkeyManager, loginState } = usePasskeyContext() as any);
   } catch {
     // ThemeProvider can work without PasskeyProvider
     passkeyManager = null;
+    loginState = null;
   }
   const isControlled = themeProp !== undefined && themeProp !== null;
 
@@ -201,7 +203,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
 
   // Hydrate from persisted user preference when available (post-login)
   React.useEffect(() => {
-    if (isControlled || !passkeyManager) return;
+    if (isControlled || !passkeyManager || !loginState?.isLoggedIn) return;
     const up = passkeyManager.userPreferences as any;
     const fn: undefined | (() => Promise<'dark' | 'light' | null>) = up?.getCurrentUserAccountIdTheme?.bind(up);
     if (!fn) return;
@@ -217,11 +219,11 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [isControlled, passkeyManager, themeState]);
+  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn]);
 
   // On login, sync stored user preference to the current theme to avoid "first-click does nothing"
   React.useEffect(() => {
-    if (isControlled || !passkeyManager?.userPreferences) return;
+    if (isControlled || !passkeyManager?.userPreferences || !loginState?.isLoggedIn) return;
     let cancelled = false;
     (async () => {
       (async () => {
@@ -234,17 +236,26 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
       })();
     })();
     return () => { cancelled = true; };
-  }, [isControlled, passkeyManager, themeState]);
+  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn]);
 
   const setTheme = React.useCallback((t: ThemeName) => {
     // Avoid redundant writes and subscription loops
     if (t === themeState) return;
     if (!isControlled) setThemeState(t);
     // Prefer full SDK propagation when available (ensures wallet-iframe host updates)
-    const didCallSdk = !!passkeyManager?.setUserTheme?.(t);
-    if (!didCallSdk) safeStoreTheme(t);
+    try {
+      if (loginState?.isLoggedIn && passkeyManager?.setUserTheme) {
+        // Only propagate to SDK when a user is set
+        void passkeyManager.setUserTheme(t);
+      } else {
+        safeStoreTheme(t);
+      }
+    } catch {
+      // Fallback to local storage if propagation fails
+      safeStoreTheme(t);
+    }
     onThemeChange?.(t);
-  }, [isControlled, onThemeChange, passkeyManager, themeState]);
+  }, [isControlled, onThemeChange, passkeyManager, themeState, loginState?.isLoggedIn]);
 
   const toggleTheme = React.useCallback(() => {
     setTheme(themeState === 'dark' ? 'light' : 'dark');

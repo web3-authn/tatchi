@@ -35,7 +35,6 @@
 /* Header Section */
 .greeting-header {
   padding: var(--fe-gap-6);
-  border-bottom: 1px solid var(--fe-border);
   text-align: center;
 }
 

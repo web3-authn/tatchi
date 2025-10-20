@@ -1,15 +1,11 @@
-import { useState } from 'react';
 import Github from "../components/icons/Github";
 import Twitter from "../components/icons/Twitter";
-import type { LastTxDetails } from '../types';
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
 import { CombinedCodeBlock } from '../components/CombinedCodeBlock';
 import { PasskeyColumn } from '../components/PasskeyColumn';
 
 export function HomePage() {
-  const [lastTxDetails, setLastTxDetails] = useState<LastTxDetails | null>(null);
-
   return (
     <div className="layout-root">
       {/* one */}
@@ -21,7 +17,7 @@ export function HomePage() {
 
       {/* two */}
       <div className="card two">
-        <PasskeyColumn lastTxDetails={lastTxDetails} setLastTxDetails={setLastTxDetails} />
+        <PasskeyColumn />
       </div>
 
       {/* three */}

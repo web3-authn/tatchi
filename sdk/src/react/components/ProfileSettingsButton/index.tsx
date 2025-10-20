@@ -54,6 +54,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   deviceLinkingScannerParams,
   toggleColors,
   style,
+  className,
   portalTarget,
 }) => {
   // Get values from context if not provided as props
@@ -239,7 +240,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   return (
     <div
       ref={refs.buttonRef}
-      className={`w3a-profile-button-morphable ${isOpen ? 'open' : 'closed'}`}
+      className={`w3a-profile-button-morphable ${isOpen ? 'open' : 'closed'}${className ? ` ${className}` : ''}`}
       style={style}
       data-state={isOpen ? 'open' : 'closed'}
     >

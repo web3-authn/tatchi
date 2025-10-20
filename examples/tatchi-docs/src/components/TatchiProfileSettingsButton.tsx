@@ -101,17 +101,22 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
     return null;
   } else {
     const baseStyle: React.CSSProperties = {
-      position: 'absolute',
-      zIndex: 100,
-      top: '0.5rem',
-      right: '0.5rem'
+      // position: 'absolute',
+      // zIndex: 100,
+      // top: '0.5rem',
+      // right: '0.5rem'
     };
     return (
-      <div className={className} style={{ ...baseStyle, ...style }}>
+      <div className="tatchi-profile-button-container" style={{ ...baseStyle, ...style }}>
         <ProfileSettingsButton
           nearAccountId={loginState.nearAccountId!}
           nearExplorerBaseUrl="https://testnet.nearblocks.io"
           hideUsername={isMobile}
+          className={className}
+          style={{
+            // border: 'none',
+            // background: 'none',
+          }}
           deviceLinkingScannerParams={{
             fundingAmount: '0.05',
             onDeviceLinked: (result: any) => {
