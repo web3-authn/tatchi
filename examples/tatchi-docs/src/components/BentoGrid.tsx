@@ -6,7 +6,7 @@ export function BentoGrid() {
       <div className="bento-card accent-pink" role="group" aria-labelledby="bento-dev-title">
         <div className="bento-content">
           <PanelsTopLeft className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-dev-title">UX and Developer First</h3>
+          <h3 className="bento-title" id="bento-dev-title">UX Focused</h3>
           <p className="bento-desc">No selectors or popups. Embed and keep full UX control.</p>
         </div>
       </div>
@@ -28,7 +28,7 @@ export function BentoGrid() {
       <div className="bento-card accent-blue" role="group" aria-labelledby="bento-linking-title">
         <div className="bento-content">
           <QrCode className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-linking-title">Linking Devices</h3>
+          <h3 className="bento-title" id="bento-linking-title">Device Linking</h3>
           <p className="bento-desc">Backup accounts across multiple devices with QR scans. Never lose access to your account.</p>
         </div>
       </div>
