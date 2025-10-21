@@ -57,7 +57,7 @@ export class TatchiProfileSettingsElement extends HTMLElement {
   }
 
   disconnectedCallback() {
-    try { this._root?.unmount(); } catch {}
+    this._root?.unmount();
     this._root = null;
   }
 
@@ -138,26 +138,26 @@ export class TatchiProfileSettingsElement extends HTMLElement {
   private _buildProps(): ProfileSettingsButtonProps {
     const portalTarget = getPortalTarget(this, this._portalStrategy, this._portalTarget);
     const onLogoutWrapped = () => {
-      try { this._onLogout?.(); } catch {}
+      this._onLogout?.();
       dispatchTypedEvent(this, 'logout');
     };
 
     const scanner: DeviceLinkingScannerParams | undefined = this._deviceLinkingScannerParams ? {
       ...this._deviceLinkingScannerParams,
       onDeviceLinked: (r) => {
-        try { this._deviceLinkingScannerParams?.onDeviceLinked?.(r); } catch {}
+        this._deviceLinkingScannerParams?.onDeviceLinked?.(r);
         dispatchTypedEvent(this, 'deviceLinked', r);
       },
       onError: (err) => {
-        try { this._deviceLinkingScannerParams?.onError?.(err as any); } catch {}
+        this._deviceLinkingScannerParams?.onError?.(err as any);
         dispatchTypedEvent(this, 'error', err);
       },
       onClose: () => {
-        try { this._deviceLinkingScannerParams?.onClose?.(); } catch {}
+        this._deviceLinkingScannerParams?.onClose?.();
         dispatchTypedEvent(this, 'close');
       },
       onEvent: (ev) => {
-        try { this._deviceLinkingScannerParams?.onEvent?.(ev as any); } catch {}
+        this._deviceLinkingScannerParams?.onEvent?.(ev as any);
         dispatchTypedEvent(this, 'deviceLinkingEvent', ev);
       },
     } : undefined;

@@ -567,19 +567,17 @@ function getPasskeyManager(): PasskeyManager | PasskeyManagerIframe {
 }
 
 function post(msg: ChildToParentEnvelope) {
-  try { port?.postMessage(msg); } catch {}
+  port?.postMessage(msg);
 }
 
 function postToParent(message: unknown): void {
-  try {
-    const parentWindow = window.parent;
-    if (!parentWindow) return;
-    // If the first CONNECT arrived while this document still had an opaque
-    // ('null') origin, MessageEvent.origin can be the literal string 'null'.
-    // Do not lock onto that value; target '*' until a concrete origin is known.
-    const target = (parentOrigin && parentOrigin !== 'null') ? parentOrigin : '*';
-    parentWindow.postMessage(message, target);
-  } catch {}
+  const parentWindow = window.parent;
+  if (!parentWindow) return;
+  // If the first CONNECT arrived while this document still had an opaque
+  // ('null') origin, MessageEvent.origin can be the literal string 'null'.
+  // Do not lock onto that value; target '*' until a concrete origin is known.
+  const target = (parentOrigin && parentOrigin !== 'null') ? parentOrigin : '*';
+  parentWindow.postMessage(message, target);
 }
 
 // Lightweight cross-origin control channel for small embedded UI surfaces (e.g., tx button).

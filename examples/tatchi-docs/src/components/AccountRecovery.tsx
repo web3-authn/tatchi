@@ -2,6 +2,7 @@ import React from 'react'
 import { usePasskeyContext } from '@tatchi/sdk/react'
 import { toast } from 'sonner'
 import { friendlyWebAuthnMessage } from '../utils/strings'
+import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
 
 export function AccountRecovery() {
@@ -49,13 +50,18 @@ export function AccountRecovery() {
           Recover access to <strong>{target || '...'}</strong> using your existing device credentials.
         </p>
         <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-          <button
+          <LoadingButton
             onClick={onRecover}
-            disabled={busy}
-            className="greeting-btn greeting-btn-primary"
+            loading={busy}
+            loadingText="Recovering..."
+            variant="primary"
+            size="medium"
+            className="greeting-btn"
+            // disabled={busy}
+            style={{ width: 200 }}
           >
-            {busy ? 'Recovering…' : 'Start Recovery'}
-          </button>
+            Start Recovery
+          </LoadingButton>
         </div>
         <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--fe-text-dim)' }}>
           Tip: the account ID is managed by the login box above; update it there before starting recovery.

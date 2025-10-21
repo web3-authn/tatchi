@@ -3,13 +3,23 @@ import { useTheme, usePasskeyContext } from '@tatchi/sdk/react'
 
 /**
  * useSyncVitepressTheme
- * - When logged OUT: VitePress appearance (html.dark/localStorage) drives SDK theme.
- * - When logged IN: SDK theme drives VitePress appearance/storage.
  *
- * Keeps the two in sync without feedback loops by:
- * - Reading current html.dark and localStorage('vitepress-theme-appearance')
- * - Observing html class mutations (navbar toggle) and storage events (cross-tab)
- * - Applying precedence based on login state
+ * Purpose
+ * - Bidirectionally synchronize the VitePress UI appearance (root `html.dark` class
+ *   and `localStorage('vitepress-theme-appearance')`) with the SDK theme.
+ * - Apply different precedence depending on authentication state to avoid loops.
+ *
+ * Why separate from useThemeBridge?
+ * - This hook is tightly coupled to the VitePress theme mechanism (html class,
+ *   localStorage key, and a custom `w3a:appearance` event used by the docs layout).
+ * - `useThemeBridge` focuses on generic document/body integration and a public
+ *   `w3a:set-theme` event and can be reused in non‑VitePress apps. Keeping these
+ *   concerns split reduces coupling and makes each hook easier to reason about.
+ *
+ * Behavior
+ * - Logged OUT: VitePress is the source of truth; VitePress → SDK.
+ * - Logged IN: SDK (and wallet host) is the source of truth; SDK → VitePress.
+ * - Guards against feedback by detecting our own mutations and using a ref flag.
  */
 export function useSyncVitepressTheme() {
   const { theme, setTheme } = useTheme()

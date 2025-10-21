@@ -66,20 +66,17 @@ export const ContentSwitcher: React.FC<ContentSwitcherProps> = ({
     ro.observe(sizer);
 
     // Re-sync after fonts load (text metrics can change)
-    try {
-      // @ts-ignore optional fonts API
-      const fonts = (document as any)?.fonts;
-      if (fonts?.ready) {
-        fonts.ready.then(() => syncHeight()).catch(() => {});
-      }
-    } catch {}
+    const fonts: any = (document as any)?.fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(() => syncHeight()).catch(() => {});
+    }
 
     // Also re-sync on window resize
     const onResize = () => syncHeight();
     window.addEventListener('resize', onResize);
 
     return () => {
-      try { ro.disconnect(); } catch {}
+      ro.disconnect();
       window.removeEventListener('resize', onResize);
     };
   }, [syncHeight, waiting, showScanDevice, children]);

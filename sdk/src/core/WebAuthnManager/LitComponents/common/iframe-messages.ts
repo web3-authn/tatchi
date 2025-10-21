@@ -141,7 +141,7 @@ export function postToParent<T extends IframeButtonMessageType>(
 ): void;
 
 export function postToParent(type: string, payload?: {}, target: string = '*') {
-  try { window.parent.postMessage({ type, payload }, target); } catch {}
+  window.parent.postMessage({ type, payload }, target);
 }
 
 export function postError(kind: 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION', message: string, target: string = '*') {

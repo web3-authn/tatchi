@@ -141,26 +141,24 @@ export function WalletIframeTxButtonHost({
     if (config.error || !config.iframeSrc) return;
     const w = iframeRef.current?.contentWindow;
     if (!w || !ready) return;
-    try { w.postMessage({ type: 'WALLET_SET_CONFIG', payload: pmConfigs }, '*'); } catch {}
-    try {
-      w.postMessage({
-        type: 'WALLET_UI_MOUNT',
-        payload: {
-          key: 'w3a-tx-button-host',
-          id: idRef.current,
-          props: {
-            nearAccountId,
-            transactions,
-            text,
-            theme,
-            className,
-            buttonStyle: style,
-          }
+    w.postMessage({ type: 'WALLET_SET_CONFIG', payload: pmConfigs }, '*');
+    w.postMessage({
+      type: 'WALLET_UI_MOUNT',
+      payload: {
+        key: 'w3a-tx-button-host',
+        id: idRef.current,
+        props: {
+          nearAccountId,
+          transactions,
+          text,
+          theme,
+          className,
+          buttonStyle: style,
         }
-      }, '*');
-    } catch {}
+      }
+    }, '*');
     return () => {
-      try { w?.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id: idRef.current } }, '*'); } catch {}
+      w?.postMessage({ type: 'WALLET_UI_UNMOUNT', payload: { id: idRef.current } }, '*');
     };
   }, [className, nearAccountId, pmConfigs, ready, style, text, theme, transactions]);
 
@@ -173,7 +171,7 @@ export function WalletIframeTxButtonHost({
   };
   useEffect(() => {
     if (config.warning) {
-      try { console.warn(config.warning); } catch {}
+      console.warn(config.warning);
     }
   }, [config.warning]);
 
@@ -181,7 +179,7 @@ export function WalletIframeTxButtonHost({
   const h = toCssSize(height);
 
   if (config.error) {
-    try { console.error(config.error); } catch {}
+    console.error(config.error);
     return null;
   }
 

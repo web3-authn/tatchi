@@ -227,12 +227,12 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     this.redispatchingEvent = true;
     try {
       event.stopImmediatePropagation();
-      try { console.debug('[TxConfirmerWrapper] CONFIRM received', { hasIntent: !!this.intentDigest, txCount: (this.txSigningRequests?.length ?? 0) }); } catch {}
+      console.debug('[TxConfirmerWrapper] CONFIRM received', { hasIntent: !!this.intentDigest, txCount: (this.txSigningRequests?.length ?? 0) });
 
       if (this.intentDigest && (this.txSigningRequests?.length ?? 0) > 0) {
         try {
           const digest = await this.computeIntentDigest();
-          try { console.debug('[TxConfirmerWrapper] computed digest', { digest, expected: this.intentDigest }); } catch {}
+          console.debug('[TxConfirmerWrapper] computed digest', { digest, expected: this.intentDigest });
           if (digest !== this.intentDigest) {
             confirmed = false;
             error = 'INTENT_DIGEST_MISMATCH';

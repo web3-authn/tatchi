@@ -178,7 +178,7 @@ export class IframeExportHost extends LitElementWithProps {
   private postToIframe<T extends MessageType>(type: T, payload?: MessagePayloads[T]) {
     const win = this.iframeRef.value?.contentWindow;
     if (!win) return;
-    try { win.postMessage({ type, payload }, '*'); } catch {}
+    win.postMessage({ type, payload }, '*');
   }
 
   private setupMessageHandling() {
@@ -212,16 +212,16 @@ export class IframeExportHost extends LitElementWithProps {
         case 'CONFIRM': {
           dispatchLitConfirm(this);
           // Close viewer and notify parent to contract overlay
-          try { this.remove(); } catch {}
-          try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+          this.remove();
+          window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
           return;
         }
         case 'CANCEL': {
           dispatchLitCancel(this);
           // Child waits for transitionend before posting CANCEL, so it's safe to remove immediately
-          try { this.remove(); } catch {}
+          this.remove();
           // Notify parent app (outside wallet iframe) to contract overlay
-          try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+          window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
           return;
         }
         case 'COPY': {

@@ -254,7 +254,7 @@ export class IframeButtonHost extends LitElementWithProps {
     // Apply button style CSS variables on initial connection
     this.applyButtonStyle();
     // Subscribe to wallet host base-set event (best-effort)
-    try { window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any, { passive: true }); } catch {}
+    window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any, { passive: true });
   }
 
   updated(changedProperties: PropertyValues) {
@@ -280,8 +280,8 @@ export class IframeButtonHost extends LitElementWithProps {
       window.removeEventListener('message', this.messageHandler);
       this.messageHandler = undefined;
     }
-    try { document.removeEventListener('pointerdown', this.onDocPointerDown, true); } catch {}
-    try { window.removeEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any); } catch {}
+    document.removeEventListener('pointerdown', this.onDocPointerDown, true);
+    window.removeEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any);
   }
 
   private applyButtonStyle() {
@@ -464,7 +464,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
     if (changedProperties.has('showLoading')) {
       this.postToIframe('SET_LOADING', this.showLoading);
-      try { this.onLoadTouchIdPrompt?.(!!this.showLoading); } catch {}
+      this.onLoadTouchIdPrompt?.(!!this.showLoading);
     }
 
     if (

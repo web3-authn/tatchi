@@ -91,6 +91,12 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
   const pmIframeRef = useRef<WalletIframeRouter | null>(null);
 
+  // Opportunistically warm critical resources (VRF workers, IndexedDB) and
+  // kick off iframe handshake/login state fetch as early as possible.
+  useEffect(() => {
+    try { void passkeyManager.warmCriticalResources(); } catch {}
+  }, [passkeyManager]);
+
   // Initialize wallet service via PasskeyManagerIframe when walletOrigin is provided
   useEffect(() => {
     let offReady: (() => void) | undefined;

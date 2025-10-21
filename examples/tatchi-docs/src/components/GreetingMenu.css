@@ -89,7 +89,6 @@
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-sm);
   margin-bottom: var(--fe-gap-2);
-  height: 44px;
 }
 
 .on-chain-greeting-box p {

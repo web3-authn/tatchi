@@ -43,7 +43,8 @@ export const DemoTransaction: React.FC = () => {
 
   // Inputs for the two demo flows
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
-  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Button!');
+  const [txLoading, setTxLoading] = useState(false);
+  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello Embedded Button!');
 
   const handleRefreshGreeting = async () => {
     await fetchGreeting();
@@ -61,7 +62,9 @@ export const DemoTransaction: React.FC = () => {
       deposit: '0',
     };
 
-    await passkeyManager.executeAction({
+    setTxLoading(true);
+    try {
+      await passkeyManager.executeAction({
       nearAccountId,
       receiverId: WEBAUTHN_CONTRACT_ID,
       actionArgs: actionToExecute,
@@ -110,9 +113,13 @@ export const DemoTransaction: React.FC = () => {
           } else {
             toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
           }
+          setTxLoading(false);
         },
       },
-    });
+      });
+    } catch (e) {
+      setTxLoading(false);
+    }
   }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting]);
 
   const createEmbeddedGreetingAction = useCallback((): ActionArgs => {
@@ -162,12 +169,12 @@ export const DemoTransaction: React.FC = () => {
               />
               <LoadingButton
                 onClick={handleSetGreeting}
-                loading={isLoading}
+                loading={txLoading}
                 loadingText="Processing..."
                 variant="primary"
                 size="medium"
                 className="greeting-btn"
-                disabled={!greetingInput.trim()}
+                disabled={!greetingInput.trim() || txLoading}
                 style={{ width: 200 }}
               >
                 Set New Greeting
@@ -265,7 +272,35 @@ export const DemoTransaction: React.FC = () => {
               }}
               buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
               onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-              onSuccess={() => toast('Tx Success', { id: 'embedded' })}
+              onSuccess={(result) => {
+                try {
+                  let txId: string | undefined;
+                  if (Array.isArray(result)) {
+                    const last = result[result.length - 1] ?? result[0];
+                    txId = last?.transactionId;
+                  } else {
+                    txId = (result as any)?.transactionId;
+                  }
+
+                  if (txId) {
+                    const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+                    toast.success('Tx Success', {
+                      id: 'embedded',
+                      description: (
+                        <a href={txLink} target="_blank" rel="noopener noreferrer">
+                          View transaction on NearBlocks ({txId})
+                        </a>
+                      ),
+                    });
+                  } else {
+                    toast.success('Tx Success', { id: 'embedded' });
+                  }
+                } catch {
+                  toast.success('Tx Success', { id: 'embedded' });
+                }
+                // Refresh the greeting after success
+                setTimeout(() => { void fetchGreeting(); }, 1000);
+              }}
             />
           </div>
         </div>

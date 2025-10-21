@@ -143,12 +143,10 @@ async function initializeWasm(): Promise<void> {
 }
 
 // Signal readiness so the main thread can health‑check worker pooling
-try {
-  // Delay one tick to allow listener registration on main thread
-  setTimeout(() => {
-    try { (self as any).postMessage({ type: 'WORKER_READY', ready: true }); } catch {}
-  }, 0);
-} catch (_) { /* ignore */ }
+// Delay one tick to allow listener registration on main thread
+setTimeout(() => {
+  (self as any).postMessage({ type: 'WORKER_READY', ready: true });
+}, 0);
 
 /**
  * Maps a WorkerRequestType to its corresponding failure response type

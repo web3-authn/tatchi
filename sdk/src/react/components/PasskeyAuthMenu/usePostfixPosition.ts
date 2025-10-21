@@ -158,17 +158,14 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
     ro.observe(input);
     ro.observe(postfix);
 
-    // Re-measure after fonts are ready
-    try {
-      // @ts-ignore optional fonts API
-      const fonts = (document as any)?.fonts;
-      if (fonts?.ready) {
-        fonts.ready.then(() => {
-          updateComputedStyles();
-          schedule(measureAndPosition);
-        }).catch(() => {});
-      }
-    } catch {}
+    // Re-measure after fonts are ready (optional fonts API)
+    const fonts: any = (document as any)?.fonts;
+    if (fonts?.ready) {
+      fonts.ready.then(() => {
+        updateComputedStyles();
+        schedule(measureAndPosition);
+      }).catch(() => {});
+    }
 
     // Window resize
     const onResize = () => {
@@ -178,8 +175,8 @@ export function usePostfixPosition({ inputValue, gap = 0 }: UsePostfixPositionOp
     window.addEventListener('resize', onResize);
 
     return () => {
-      try { window.removeEventListener('resize', onResize); } catch {}
-      try { ro.disconnect(); } catch {}
+      window.removeEventListener('resize', onResize);
+      ro.disconnect();
       canvasRef.current = null;
       ctxRef.current = null;
       if (rafRef.current) cancelAnimationFrame(rafRef.current);

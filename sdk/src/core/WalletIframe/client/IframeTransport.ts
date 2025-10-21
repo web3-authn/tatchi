@@ -131,6 +131,9 @@ export class IframeTransport {
     iframe.style.pointerEvents = 'none';
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
+    // Hint higher priority fetch for the iframe document on supporting browsers
+    try { iframe.setAttribute('loading', 'eager'); } catch {}
+    try { iframe.setAttribute('fetchpriority', 'high'); } catch {}
 
     iframe.dataset.w3aRouterId = this.testOptions?.routerId || '';
     if (this.testOptions?.ownerTag) iframe.dataset.w3aOwner = this.testOptions.ownerTag;
@@ -173,8 +176,10 @@ export class IframeTransport {
       // Ensure load fired at least once so the host script can attach listeners
       await this.waitForLoad(iframe);
 
-      // For cross-origin pages, give the host a brief moment to boot its script
-      const bootWaitMs = Math.min(this.opts.connectTimeoutMs / 4, 1500);
+      // For cross-origin pages, give the host only a very brief moment to boot its script
+      // Keep this low to avoid adding noticeable latency to the first CONNECT attempt.
+      // The handshake will continue retrying regardless, so a shorter wait improves TTFB.
+      const bootWaitMs = Math.min(this.opts.connectTimeoutMs / 12, 300);
       const startBoot = Date.now();
       while (!this.serviceBooted && (Date.now() - startBoot) < bootWaitMs) {
         await new Promise(r => setTimeout(r, 50));
@@ -329,7 +334,7 @@ export class IframeTransport {
     // Reply directly to the requesting window; wildcard target avoids transient
     // 'null' origin warnings during early navigation while remaining safe since
     // we already validated the sender's origin before bridging.
-    try { source?.postMessage({ type, requestId, ok, ...payload }, '*'); } catch {}
+    source?.postMessage({ type, requestId, ok, ...payload }, '*');
   }
 
   private performWebAuthnBridge(
@@ -358,7 +363,7 @@ export class IframeTransport {
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, true, { credential: serialized });
       console.debug('[IframeTransport][bridge] CREATE ok', { requestId });
     } catch (err) {
-      try { console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+      console.warn('[IframeTransport][bridge] CREATE failed', { requestId, err: String((err as Error)?.message || err) });
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.CreateResult, requestId, false, { error: String((err as Error)?.message || err) });
     }
   }
@@ -375,7 +380,7 @@ export class IframeTransport {
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, true, { credential: serialized });
       console.debug('[IframeTransport][bridge] GET ok', { requestId });
     } catch (err) {
-      try { console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) }); } catch {}
+      console.warn('[IframeTransport][bridge] GET failed', { requestId, err: String((err as Error)?.message || err) });
       this.postBridgeResult(e.source as WindowProxy | null, WebAuthnBridgeMessage.GetResult, requestId, false, { error: String((err as Error)?.message || err) });
     }
   }

@@ -41,7 +41,7 @@ export function PasskeyColumn() {
               padding: '0rem 1rem',
               display: 'grid',
               placeContent: 'center',
-              paddingBottom: '2rem', // make space for tooltip so it's not clipped
+              paddingBottom: '6rem', // make space for tooltip so it's not clipped
             }}
             breadcrumbsStyle={{
               padding: '2rem 1rem 0rem 1rem',

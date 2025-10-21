@@ -108,7 +108,7 @@ export class NonceManager {
    * Returns cached data if fresh, otherwise fetches synchronously
    */
   public async getNonceBlockHashAndHeight(nearClient: NearClient, opts?: { force?: boolean }): Promise<TransactionContext> {
-    try { console.debug('[NonceManager]: getNonceBlockHashAndHeight called', { force: !!opts?.force }); } catch {}
+    console.debug('[NonceManager]: getNonceBlockHashAndHeight called', { force: !!opts?.force });
     // Always prefer a fresh fetch for critical paths; coalesced by fetchFreshData.
     // This minimizes subtle cache bugs after key rotations/linking and across devices.
     if (!this.nearAccountId || !this.nearPublicKeyStr) {
@@ -179,13 +179,13 @@ export class NonceManager {
         const now = Date.now();
         const isNonceStale = force || !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
         const isBlockStale = force || !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
-        try { console.debug('[NonceManager]: freshness check', {
+        console.debug('[NonceManager]: freshness check', {
           force,
           isNonceStale,
           isBlockStale,
           lastNonceAgeMs: this.lastNonceUpdate ? (now - this.lastNonceUpdate) : null,
           lastBlockAgeMs: this.lastBlockHeightUpdate ? (now - this.lastBlockHeightUpdate) : null,
-        }); } catch {}
+        });
 
         let accessKeyInfo = this.transactionContext?.accessKeyInfo;
         let txBlockHeight = this.transactionContext?.txBlockHeight;
@@ -262,7 +262,7 @@ export class NonceManager {
           }
           txBlockHeight = String(maybeBlock.header.height);
           txBlockHash = maybeBlock.header.hash;
-          try { console.debug('[NonceManager]: fetched block', { txBlockHeight, txBlockHash }); } catch {}
+          console.debug('[NonceManager]: fetched block', { txBlockHeight, txBlockHash });
         }
 
         // Derive nextNonce from access key info + current context + reservations
@@ -293,13 +293,13 @@ export class NonceManager {
           const now = Date.now();
           if (fetchAccessKey) this.lastNonceUpdate = now;
           if (fetchBlock) this.lastBlockHeightUpdate = now;
-          try { console.debug('[NonceManager]: committed context', {
+          console.debug('[NonceManager]: committed context', {
             nextNonce: transactionContext.nextNonce,
             txBlockHeight: transactionContext.txBlockHeight,
             txBlockHash: transactionContext.txBlockHash,
             lastNonceUpdate: this.lastNonceUpdate,
             lastBlockHeightUpdate: this.lastBlockHeightUpdate,
-          }); } catch {}
+          });
         } else {
           // Discard results from outdated or identity-mismatched fetches; a newer fetch has already committed.
         }
