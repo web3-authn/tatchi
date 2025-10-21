@@ -132,8 +132,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       align-items: center;
       justify-content: center;
       gap: 0;
-      width: var(--w3a-embedded__btn__width, var(--btn-width, 200px));
-      height: var(--w3a-embedded__btn__height, var(--btn-height, 48px));
+      width:  var(--btn-width, 200px);
+      height: var(--btn-height, 48px);
       box-sizing: border-box;
       margin: 0;
       outline: none;
@@ -193,7 +193,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       background-color: transparent !important;
       height: var(--tooltip-height, auto);
       max-height: var(--tooltip-max-height, none);
-      overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, auto);
+      /* Default hidden avoids OS-level scrollbars when content fits. */
+      overflow-y: var(--w3a-embedded__tooltip-content__overflow-y, hidden);
+      overflow-x: hidden;
       transition: var(--w3a-embedded__tooltip-content__transition, all 0.0s ease);
       /* Allow external control via CSS vars; default to no cap so tooltipPosition.width fully applies */
       min-width: var(--w3a-embedded__tooltip-content__min-width, 0px);
@@ -306,6 +308,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       width: min(640px, calc(100vw - 16px));
       max-height: min(70vh, 560px);
       height: auto;
+      overflow-y: auto; /* allow scrolling when content exceeds cap */
+      -webkit-overflow-scrolling: touch;
       border-radius: 16px;
       box-shadow: none;
       /* Increase tap targets without breaking connector alignment */
@@ -635,17 +639,17 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     const geometry: TooltipGeometry = {
       button: {
-        x: buttonX,
-        y: buttonY,
-        width: buttonWidth,
-        height: buttonHeight,
+        x: Math.floor(buttonX),
+        y: Math.floor(buttonY),
+        width: Math.ceil(buttonWidth),
+        height: Math.ceil(buttonHeight),
         borderRadius: 8
       },
       tooltip: {
-        x: tooltipX,
-        y: tooltipY,
-        width: tooltipRect.width,
-        height: tooltipRect.height,
+        x: Math.floor(tooltipX),
+        y: Math.floor(tooltipY),
+        width: Math.ceil(tooltipRect.width),
+        height: Math.ceil(tooltipRect.height),
         borderRadius: 24
       },
       position: this.tooltip.position,

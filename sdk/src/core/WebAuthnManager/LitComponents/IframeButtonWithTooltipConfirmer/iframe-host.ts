@@ -749,7 +749,8 @@ export class IframeButtonHost extends LitElementWithProps {
       const iframe = this.iframeRef.value;
       if (iframe) {
         const fallback = this.calculateIframeSize();
-        const size = computeExpandedIframeSizeFromGeometryPure({ geometry, fallback, paddingPx: 0 });
+        // Add small padding to absorb sub-pixel rounding at zoom levels
+        const size = computeExpandedIframeSizeFromGeometryPure({ geometry, fallback, paddingPx: 2 });
         iframe.style.width = `${size.width}px`;
         iframe.style.height = `${size.height}px`;
       }

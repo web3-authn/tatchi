@@ -118,7 +118,7 @@ export type {
   AccountInputState,
   UseAccountInputReturn,
   // Embedded transaction confirmation
-  SendTxButtonWithTooltipProps as SecureTxConfirmButtonProps,
+  SendTxButtonWithTooltipProps,
 } from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===

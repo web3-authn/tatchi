@@ -38,8 +38,8 @@ export const DemoTransaction: React.FC = () => {
   } = useSetGreeting();
 
   // Inputs for the two demo flows
-  const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
-  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Component!');
+  const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
+  const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Button!');
 
   const handleRefreshGreeting = async () => {
     await fetchGreeting();
@@ -178,7 +178,6 @@ export const DemoTransaction: React.FC = () => {
         <div className="embedded-tx-page-root">
           <h2 className="embedded-tx-title">Embedded Button</h2>
           <p className="embedded-tx-caption">
-            "Paypal Button" UX:
             Tx data in the tooltip is validated before signing.
             What you see is what you sign.
           </p>
@@ -247,8 +246,9 @@ export const DemoTransaction: React.FC = () => {
                 },
               }}
               buttonStyle={{
+                color: 'white',
                 background: 'var(--w3a-colors-primary)',
-                borderRadius: '24px',
+                borderRadius: '2rem',
                 border: 'none',
                 transition: 'all 0.3s ease',
                 boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
