@@ -12,6 +12,7 @@ export const NavbarProfileOverlay: React.FC = () => {
     if (typeof window === 'undefined') return
     let ro: ResizeObserver | null = null
     let mo: MutationObserver | null = null
+    let lastClosedWidth = 0
 
     const el = btnRef.current?.querySelector('.navbar-profile-button') as HTMLElement | null
     const dispatch = (w: number) => {
@@ -22,12 +23,29 @@ export const NavbarProfileOverlay: React.FC = () => {
       if (!target) { dispatch(0); return }
       const rect = target.getBoundingClientRect()
       const width = Math.ceil(rect.width)
-      dispatch(width)
+      const state = (target.getAttribute('data-state') || '').toLowerCase()
+      if (state === 'open') {
+        // While open, keep using the last known closed width to avoid shifting nav links
+        dispatch(lastClosedWidth || width)
+      } else {
+        // Update baseline when closed
+        lastClosedWidth = width
+        dispatch(width)
+      }
     }
 
     // Initial measure after mount and on next frame (to capture fonts)
-    measureAndDispatch()
-    requestAnimationFrame(measureAndDispatch)
+    // Seed baseline closed width first to minimize layout shifts
+    const seed = () => {
+      const target = btnRef.current?.querySelector('.navbar-profile-button') as HTMLElement | null
+      if (target) {
+        const r = target.getBoundingClientRect()
+        lastClosedWidth = Math.ceil(r.width)
+      }
+      measureAndDispatch()
+    }
+    seed()
+    requestAnimationFrame(seed)
 
     try {
       const target = btnRef.current?.querySelector('.navbar-profile-button') as HTMLElement | null

@@ -374,7 +374,7 @@ export default defineConfig([
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
     input: {
-      // SecureSendTxButton component (Button with ToolTip)
+      // SendTxButtonWithTooltip component (Button with ToolTip)
       'w3a-tx-button': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host.ts',
       'iframe-tx-button-bootstrap': 'src/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts',
       // Tx Confirmer component

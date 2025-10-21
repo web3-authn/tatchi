@@ -258,7 +258,7 @@ export type {
 } from '../core/types/linkDevice';
 
 // === Secure Send Transaction Button type ===
-export interface SecureSendTxButtonProps {
+export interface SendTxButtonWithTooltipProps {
   /** NEAR account ID */
   nearAccountId: string;
   /** Transaction payloads to sign */
@@ -270,7 +270,7 @@ export interface SecureSendTxButtonProps {
   /** Callback for SSE-style action events */
   onEvent?: EventCallback<ActionSSEEvent>;
   /** Callback when transaction is successfully signed */
-  onSuccess?: (result: any) => void;
+  onSuccess?: (result: ActionResult[]) => void;
   /** Notifies when Touch ID prompt loads/unloads */
   onLoadTouchIdPrompt?: (loading: boolean) => void;
 }

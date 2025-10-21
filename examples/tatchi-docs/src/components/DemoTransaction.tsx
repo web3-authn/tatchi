@@ -4,7 +4,7 @@ import { toast } from 'sonner';
 import {
   ActionPhase,
   ActionType,
-  SecureSendTxButton,
+  SendTxButtonWithTooltip,
   TouchIdWithText,
   TxExecutionStatus,
   usePasskeyContext,
@@ -194,7 +194,7 @@ export const DemoTransaction: React.FC = () => {
           </div>
 
           <div className="test-embedded-section">
-            <SecureSendTxButton
+            <SendTxButtonWithTooltip
               nearAccountId={nearAccountId}
               txSigningRequests={[
                 {
@@ -210,10 +210,10 @@ export const DemoTransaction: React.FC = () => {
                 },
               ]}
               options={{
+                waitUntil: TxExecutionStatus.FINAL,
                 beforeCall: () => {
                   toast.loading('Preparing embedded transaction...', { id: 'embedded' });
                 },
-                waitUntil: TxExecutionStatus.FINAL,
                 afterCall: (success: boolean, result?: any) => {
                   if (success) {
                     let txId: string | undefined;
@@ -241,7 +241,7 @@ export const DemoTransaction: React.FC = () => {
                     toast.error(`Embedded flow failed: ${result?.error || 'Unknown error'}`, { id: 'embedded' });
                   }
                 },
-                onError: (error) => {
+                onError: (error: any) => {
                   const message = error instanceof Error ? error.message : String(error);
                   toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
                 },
@@ -251,23 +251,22 @@ export const DemoTransaction: React.FC = () => {
                 borderRadius: '24px',
                 border: 'none',
                 transition: 'all 0.3s ease',
-                boxShadow: '0px 1px 1px 2px rgba(0, 0, 0, 0.1)',
+                boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
                 fontSize: '16px',
                 height: '44px',
               }}
               buttonHoverStyle={{
                 background: 'var(--w3a-colors-primaryHover)',
-                boxShadow: '0px 2px 4px 3px rgba(0, 0, 0, 0.2)',
+                boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
               }}
               tooltipPosition={{
                 width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
                 height: 'auto',
                 position: 'bottom-left',
               }}
-              txTreeTheme="light"
               buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
               onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-              onSuccess={() => {/* handled in afterCall for consistency */}}
+              onSuccess={() => toast('Tx Success', { id: 'embedded' })}
             />
           </div>
         </div>

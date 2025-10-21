@@ -14,7 +14,7 @@ export function BentoGrid() {
         <div className="bento-content">
           <Boxes className="bento-icon" aria-hidden />
           <h3 className="bento-title" id="bento-flex-title">Serverless WebAuthn</h3>
-          <p className="bento-desc">VRF‑based challenges replace centralized verifiers.</p>
+          <p className="bento-desc">VRF‑based challenges with onchain webauthn verification. No centralized verifiers.</p>
         </div>
       </div>
 

@@ -13,7 +13,7 @@ import {
 import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
-import type { SecureSendTxButtonProps } from '../types';
+import type { SendTxButtonWithTooltipProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
@@ -57,7 +57,7 @@ export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean 
  * React wrapper around the Lit `w3a-tx-button` component.
  * Much cleaner implementation that delegates iframe management to Lit.
  */
-export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
+export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
@@ -72,8 +72,8 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
   options,
   // Behavioral props
   onCancel,
-  onSuccess,
   onEvent,
+  onSuccess,
   onLoadTouchIdPrompt,
   // Optional customizations
   color,
@@ -182,8 +182,8 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
         waitUntil: options?.waitUntil,
         executionWait: options?.executionWait
       }}
-      onSuccess={onSuccess}
       onCancel={onCancel}
+      onSuccess={onSuccess}
       onLoadTouchIdPrompt={handleLoadTouchIdPrompt}
       // styles to pass to Lit component: IframeButtonHost.ts
       color={color}
@@ -191,7 +191,7 @@ export const SecureSendTxButton: React.FC<SecureSendTxButtonProps & {
       buttonHoverStyle={toStyleRecord(buttonHoverStyle)}
       tooltipPosition={internalTooltipPosition}
       txTreeTheme={currentTheme}
-      externalConfirm={externalConfirm as any}
+      externalConfirm={externalConfirm}
     >
       {content}
     </RawIframeButton>
@@ -213,4 +213,4 @@ export const toStyleRecord = (style?: React.CSSProperties): Record<string, strin
   return out;
 };
 
-export default SecureSendTxButton;
+export default SendTxButtonWithTooltip;

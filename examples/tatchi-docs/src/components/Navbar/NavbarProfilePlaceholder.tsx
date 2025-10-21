@@ -27,6 +27,7 @@ export const NavbarProfilePlaceholder: React.FC = () => {
     }
     window.addEventListener('w3a:profile-width', onWidth as any)
     window.addEventListener('w3a:login-state', onLoginState as any)
+
     return () => {
       window.removeEventListener('w3a:profile-width', onWidth as any)
       window.removeEventListener('w3a:login-state', onLoginState as any)

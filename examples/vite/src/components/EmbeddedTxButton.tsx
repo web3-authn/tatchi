@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import {
   ActionType,
-  SecureSendTxButton,
+  SendTxButtonWithTooltip,
   TouchIdWithText,
   TxExecutionStatus,
   usePasskeyContext,
@@ -44,27 +44,6 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
     try { setLastTxDetails({ id: 'N/A', link: '#', message: 'Transaction cancelled by user' }); } catch {}
   }, []);
 
-  const handleEmbeddedSuccess = useCallback((result: any) => {
-    setEmbeddedResult(`Transaction result: ${JSON.stringify(result, null, 2)}`);
-    setEmbeddedError('');
-    try {
-      let txId: string | undefined;
-      if (Array.isArray(result)) {
-        const last = result[result.length - 1] ?? result[0];
-        txId = last?.transactionId;
-      } else {
-        txId = result?.transactionId;
-      }
-      if (txId) {
-        const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-        setLastTxDetails({ id: txId, link: txLink, message: `Greeting updated: ${embeddedGreetingInput.trim()}` });
-      } else {
-        setLastTxDetails({ id: 'N/A', link: '#', message: 'Success, no TxID in response' });
-      }
-    } catch {}
-    setTimeout(() => { void fetchGreeting(); }, 1100);
-  }, [fetchGreeting, embeddedGreetingInput, setLastTxDetails]);
-
   const handleEmbeddedError = useCallback((error: unknown) => {
     setIsEmbeddedLoading(false);
     const message = error instanceof Error ? error.message : String(error);
@@ -102,7 +81,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
 
         <div className="test-embedded-section">
           <label className="test-embedded-section-label">Embedded Component:</label>
-          <SecureSendTxButton
+          <SendTxButtonWithTooltip
               nearAccountId={nearAccountId}
               txSigningRequests={[
                 {
@@ -135,29 +114,25 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
                 waitUntil: TxExecutionStatus.FINAL,
                 afterCall: (success: boolean, result?: any) => {
                   setIsEmbeddedLoading(false);
-                  try {
-                    if (success) {
-                      let txId: string | undefined;
-                      if (Array.isArray(result)) {
-                        const last = result[result.length - 1] ?? result[0];
-                        txId = last?.transactionId;
-                      } else {
-                        txId = result?.transactionId;
-                      }
-                      if (txId) {
-                        const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-                        setLastTxDetails({ id: txId, link: txLink, message: `Embedded flow complete` });
-                      } else {
-                        setLastTxDetails({ id: 'N/A', link: '#', message: 'Embedded flow success (no TxID)' });
-                      }
+                  if (success) {
+                    let txId: string | undefined;
+                    if (Array.isArray(result)) {
+                      const last = result[result.length - 1] ?? result[0];
+                      txId = last?.transactionId;
                     } else {
-                      setLastTxDetails({ id: 'N/A', link: '#', message: `Embedded flow failed: ${result?.error || 'Unknown error'}` });
+                      txId = result?.transactionId;
                     }
-                  } catch {}
+                    if (txId) {
+                      const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+                      setLastTxDetails({ id: txId, link: txLink, message: `Embedded flow complete` });
+                    } else {
+                      setLastTxDetails({ id: 'N/A', link: '#', message: 'Embedded flow success (no TxID)' });
+                    }
+                  } else {
+                    setLastTxDetails({ id: 'N/A', link: '#', message: `Embedded flow failed: ${result?.error || 'Unknown error'}` });
+                  }
                 },
-                onError: (error) => {
-                  handleEmbeddedError(error);
-                },
+                onError: (error: any) => handleEmbeddedError(error),
               }}
               buttonStyle={{
                 background: 'var(--w3a-colors-primary)',
@@ -181,7 +156,6 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
               txTreeTheme="light"
               buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
               onCancel={handleEmbeddedCancel}
-              onSuccess={handleEmbeddedSuccess}
             />
         </div>
 

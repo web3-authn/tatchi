@@ -53,7 +53,7 @@ export { QRCodeScanner } from './components/QRCodeScanner';
 // Show QR Code for device linking
 export { ShowQRCode } from './components/ShowQRCode';
 // Embedded transaction confirmation component (React wrapper hosting Lit component)
-export { SecureSendTxButton, TouchIdWithText } from './components/SecureSendTxButton';
+export { SendTxButtonWithTooltip, TouchIdWithText } from './components/SendTxButtonWithTooltip';
 export {
   WalletIframeTxButtonHost,
   type WalletIframeTxButtonHostProps,
@@ -118,7 +118,7 @@ export type {
   AccountInputState,
   UseAccountInputReturn,
   // Embedded transaction confirmation
-  SecureSendTxButtonProps as SecureTxConfirmButtonProps,
+  SendTxButtonWithTooltipProps as SecureTxConfirmButtonProps,
 } from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===

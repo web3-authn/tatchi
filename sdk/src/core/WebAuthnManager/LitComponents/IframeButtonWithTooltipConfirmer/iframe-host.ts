@@ -115,6 +115,8 @@ export class IframeButtonHost extends LitElementWithProps {
       border: var(--btn-border, none);
       box-shadow: var(--btn-box-shadow, none);
       transition: var(--btn-transition, none);
+      /* Base transform (overridden on hover via --btn-hover-transform) */
+      transform: var(--btn-transform, none);
       width: var(--button-width, 200px);
       height: var(--button-height, 48px);
       overflow: visible;
@@ -173,10 +175,12 @@ export class IframeButtonHost extends LitElementWithProps {
   private iframeInitialized = false;
   private currentGeometry: TooltipGeometry | null = null;
   private clipPathSupported = false;
-  private initialClipPathApplied = false;
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private hostRef: Ref<HTMLDivElement> = createRef();
   private tooltipVisible: boolean = false;
+  // Track applied dynamic styles so we can update/remove cleanly
+  private lastAppliedHostStyleProps: string[] = [];
+  private hoverStyleEl?: HTMLStyleElement;
   // (optional) event hook; not used for gating init anymore
   private onAssetsBaseSet = (_ev: Event) => {
     // Reinitialize to pick up the new embedded base path set by the wallet host
@@ -223,7 +227,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
 
   // Event handlers (not reactive properties)
-  onSuccess?: (result: ActionResult[] ) => void;
+  onSuccess?: (result: ActionResult[]) => void;
   onCancel?: () => void;
   onLoadTouchIdPrompt?: (loading: boolean) => void;
 
@@ -293,32 +297,71 @@ export class IframeButtonHost extends LitElementWithProps {
   private applyButtonStyle() {
     if (!this.buttonStyle) return;
 
-    const style = this.style;
-    if (this.buttonStyle.background) {
-      style.setProperty('--btn-background', String(this.buttonStyle.background));
-    }
-    if (this.buttonStyle.borderRadius) {
-      style.setProperty('--btn-border-radius', String(this.buttonStyle.borderRadius));
-    }
-    if (this.buttonStyle.border) {
-      style.setProperty('--btn-border', String(this.buttonStyle.border));
-    }
+    // 1) Backward-compatible CSS variable mapping on the host element
+    const styleVars = this.style;
     const bs = (this.buttonStyle as Record<string, unknown>);
-    if (bs.boxShadow != null) style.setProperty('--btn-box-shadow', String(bs.boxShadow));
-    if (bs.transition != null) style.setProperty('--btn-transition', String(bs.transition));
-    if (bs.color != null) style.setProperty('--btn-color-text', String(bs.color));
-    if (bs.fontSize != null) style.setProperty('--btn-font-size', String(bs.fontSize));
-    if (bs.fontWeight != null) style.setProperty('--btn-font-weight', String(bs.fontWeight));
+    // Support either background or backgroundColor for base visuals
+    const baseBg = (bs.background ?? (bs as any).backgroundColor);
+    if (baseBg != null) styleVars.setProperty('--btn-background', String(baseBg));
+    if (bs.borderRadius != null) styleVars.setProperty('--btn-border-radius', String(bs.borderRadius));
+    if (bs.border != null) styleVars.setProperty('--btn-border', String(bs.border));
+    if (bs.boxShadow != null) styleVars.setProperty('--btn-box-shadow', String(bs.boxShadow));
+    if (bs.transition != null) styleVars.setProperty('--btn-transition', String(bs.transition));
+    if (bs.color != null) styleVars.setProperty('--btn-color-text', String(bs.color));
+    if (bs.fontSize != null) styleVars.setProperty('--btn-font-size', String(bs.fontSize));
+    if (bs.fontWeight != null) styleVars.setProperty('--btn-font-weight', String(bs.fontWeight));
+    if (bs.transform != null) styleVars.setProperty('--btn-transform', String(bs.transform));
 
-    // Map hover style to CSS vars; used by [data-hovered="true"] selectors
-    if (this.buttonHoverStyle) {
-      const h = this.buttonHoverStyle as Record<string, unknown>;
+    // 2) Apply ALL provided CSS properties directly to the button container (.iframe-button-host)
+    const hostEl = this.hostRef?.value;
+    if (hostEl) {
+      // Clear previously applied inline properties
+      for (const k of this.lastAppliedHostStyleProps) {
+        try { hostEl.style.removeProperty(k); } catch {}
+      }
+      this.lastAppliedHostStyleProps = [];
+
+      // Properties that should remain controlled by CSS variables/dynamic rules
+      // so that hover/focus styles can override them.
+      const skipInline = new Set([
+        'width', 'height', // handled elsewhere
+        'boxShadow', 'background', 'backgroundColor', 'border', 'borderRadius',
+        'color', 'transform', 'transition'
+      ]);
+
+      Object.entries(this.buttonStyle as Record<string, unknown>).forEach(([prop, val]) => {
+        if (val == null) return;
+        if (skipInline.has(prop)) return;
+        const kebab = this.camelToKebab(prop);
+        try {
+          hostEl.style.setProperty(kebab, String(val));
+          this.lastAppliedHostStyleProps.push(kebab);
+        } catch {}
+      });
+    }
+
+    // 3) Map common hover fields to CSS vars (back-compat with existing CSS)
+    const h = this.buttonHoverStyle as Record<string, unknown> | undefined;
+    if (h) {
       const bg = (h.background ?? h.backgroundColor);
-      if (bg != null) style.setProperty('--btn-hover-background', String(bg));
-      if (h.color != null) style.setProperty('--btn-hover-color', String(h.color));
-      if (h.border != null) style.setProperty('--btn-hover-border', String(h.border));
-      if (h.boxShadow != null) style.setProperty('--btn-hover-box-shadow', String(h.boxShadow));
-      if (h.transform != null) style.setProperty('--btn-hover-transform', String(h.transform));
+      if (bg != null) styleVars.setProperty('--btn-hover-background', String(bg));
+      if (h.color != null) styleVars.setProperty('--btn-hover-color', String(h.color));
+      if (h.border != null) styleVars.setProperty('--btn-hover-border', String(h.border));
+      if (h.boxShadow != null) styleVars.setProperty('--btn-hover-box-shadow', String(h.boxShadow));
+      if (h.transform != null) styleVars.setProperty('--btn-hover-transform', String(h.transform));
+    }
+
+    // 4) Apply hover styles for ANY CSS property via a dynamic <style> in the shadow root
+    if (h && this.renderRoot instanceof ShadowRoot) {
+      if (!this.hoverStyleEl) {
+        this.hoverStyleEl = document.createElement('style');
+        this.renderRoot.appendChild(this.hoverStyleEl);
+      }
+      const decls = Object.entries(h)
+        .filter(([, v]) => v != null)
+        .map(([k, v]) => `${this.camelToKebab(k)}: ${String(v)};`)
+        .join(' ');
+      this.hoverStyleEl.textContent = `.iframe-button-host[data-hovered="true"] { ${decls} }`;
     }
   }
 
@@ -690,7 +733,6 @@ export class IframeButtonHost extends LitElementWithProps {
   forceIframeReinitialize() {
     this.iframeInitialized = false;
     this.currentGeometry = null;
-    this.initialClipPathApplied = false;
 
     // Re-initialize the iframe with new tooltip style
     this.initializeIframe();

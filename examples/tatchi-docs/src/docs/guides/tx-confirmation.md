@@ -30,20 +30,36 @@ const result = await passkeyManager.executeAction('alice.testnet', {
 ## Embedded button (React)
 
 ```tsx
-import { SecureSendTxButton } from '@tatchi/sdk/react'
+import { SendTxButtonWithTooltip } from '@tatchi/sdk/react'
 
-<SecureSendTxButton
+<SendTxButtonWithTooltip
   nearAccountId="alice.testnet"
-  actionArgs={[{
-    type: 'FunctionCall',
-    receiverId: 'contract.testnet',
-    methodName: 'mint',
-    args: { id: '123' },
-    gas: '50000000000000',
-    deposit: '0'
-  }]}
-  onSuccess={(r) => console.log('ok', r)}
-  onError={(e) => console.error(e)}
+  txSigningRequests={[
+    {
+      receiverId: WEBAUTHN_CONTRACT_ID,
+      actions: [
+        createEmbeddedGreetingAction(),
+        {
+          type: ActionType.Transfer,
+          amount: '100000000000000000000',
+        },
+      ],
+    },
+    {
+      receiverId: WEBAUTHN_CONTRACT_ID,
+      actions: [
+        {
+          type: ActionType.Transfer,
+          amount: '200000000000000000000',
+        },
+      ],
+    },
+  ]}
+  options={{
+    beforeCall: () => {},
+    afterCall: (success, result) => {},
+    onError: (error: any) => {},
+  }}
 />
 ```
 
