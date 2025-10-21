@@ -20,7 +20,7 @@ import { friendlyWebAuthnMessage } from '../utils/strings'
 import './PasskeyLoginMenu.css'
 
 
-export function PasskeyLoginMenu() {
+export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) => void }) {
   const {
     accountInputState: {
       targetAccountId,
@@ -109,7 +109,7 @@ export function PasskeyLoginMenu() {
 
   const onLogin = async () => {
     // Return the promise so caller can await and catch
-    return loginPasskey(targetAccountId, {
+    const result = await loginPasskey(targetAccountId, {
       onEvent: (event) => {
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
@@ -122,6 +122,7 @@ export function PasskeyLoginMenu() {
             break;
           case LoginPhase.STEP_4_LOGIN_COMPLETE:
             toast.success(`Logged in as ${event.nearAccountId}!`, { id: 'login' });
+            try { props.onLoggedIn?.(event.nearAccountId) } catch {}
             break;
           case LoginPhase.LOGIN_ERROR:
             toast.error(event.error, { id: 'login' });
@@ -129,6 +130,12 @@ export function PasskeyLoginMenu() {
         }
       }
     });
+    try {
+      if ((result as any)?.success) {
+        props.onLoggedIn?.((result as any)?.nearAccountId)
+      }
+    } catch {}
+    return result
   };
 
   const onLinkDeviceEvents = async (event: DeviceLinkingSSEEvent) => {
@@ -184,7 +191,7 @@ export function PasskeyLoginMenu() {
             console.error('Device linking error:', error);
             toast.error(error.message || 'Device linking failed', { id: toastId });
           },
-          onCancelled: () => { try { toast.dismiss('device-linking'); } catch {} }
+          onCancelled: () => { toast.dismiss('device-linking') }
         }}
       />
     </div>

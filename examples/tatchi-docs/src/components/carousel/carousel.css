@@ -1,0 +1,106 @@
+/* Root + stage */
+.carousel-root {
+  position: relative;
+  overflow: hidden;
+  /* Default scale amounts; can be overridden per instance */
+  --carousel-scale-in-start: 0.96;
+  --carousel-scale-in-end: 1;
+  --carousel-scale-out-start: 1;
+  --carousel-scale-out-end: 0.97;
+  /* Default delay before fade-in begins */
+  --carousel-fade-in-delay: 100ms;
+  --carousel-slide-distance: 25%;
+}
+/* Use CSS grid overlay so the container height fits content (max of visible pages during transition). */
+.carousel-stage { position: relative; display: grid; align-items: start; min-height: 120px; will-change: height; }
+.carousel-page { position: relative; grid-area: 1 / 1; opacity: 0; transform: translateZ(0); pointer-events: none; }
+.carousel-page.page--active { opacity: 1; pointer-events: auto; }
+
+/* Direction variables for slide */
+.carousel-root[data-dir="forward"] {
+  --slide-distance: var(--carousel-slide-distance, 40%);
+  --enter-from: var(--slide-distance);
+  --exit-to: calc(-1 * var(--slide-distance));
+}
+.carousel-root[data-dir="backward"] {
+  --slide-distance: var(--carousel-slide-distance, 40%);
+  --enter-from: calc(-1 * var(--slide-distance));
+  --exit-to: var(--slide-distance);
+}
+/* Duration helpers used by JS-driven height transition as well */
+.carousel-root[data-transition="slide"] { --carousel-height-duration: var(--carousel-slide-duration, 300ms); }
+.carousel-root[data-transition="fade"] { --carousel-height-duration: var(--carousel-fade-in-duration, 240ms); }
+/* Per-transition default scale presets */
+.carousel-root[data-transition="slide"] {
+  --carousel-scale-in-start: 0.96;
+  --carousel-scale-out-end: 0.97;
+}
+.carousel-root[data-transition="fade"] {
+  --carousel-scale-in-start: 0.985;
+  --carousel-scale-out-end: 0.985;
+}
+
+/* Slide: use translateX only (avoid parent scaling that can skew child layouts) */
+[data-transition="slide"] .page--enter { transform: translateX(var(--enter-from, 0)); opacity: 0; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 100ms); will-change: transform, opacity; }
+[data-transition="slide"] .page--enter.page--active { transform: translateX(0); opacity: 1; }
+[data-transition="slide"] .page--exit { transform: translateX(0); opacity: 1; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease); will-change: transform, opacity; }
+[data-transition="slide"] .page--exit.page--leaving { transform: translateX(var(--exit-to, -100%)); opacity: 0; }
+
+/* Fade transition (shorter fadeOut) */
+[data-transition="fade"] .page--enter { opacity: 0; transform: scale(var(--carousel-scale-in-start, 0.985)); transition: transform var(--carousel-fade-in-duration, 240ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 100ms); }
+[data-transition="fade"] .page--enter.page--active { opacity: 1; transform: scale(var(--carousel-scale-in-end, 1)); }
+[data-transition="fade"] .page--exit { opacity: 1; transform: scale(var(--carousel-scale-out-start, 1)); transition: opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease), transform var(--carousel-fade-out-duration, 200ms) var(--fe-ease); }
+[data-transition="fade"] .page--exit.page--leaving { opacity: 0; transform: scale(var(--carousel-scale-out-end, 0.985)); }
+
+@media (prefers-reduced-motion: reduce) {
+  .carousel-page, .carousel-root, .carousel-stage { transition: none !important; animation: none !important; }
+}
+
+/* Breadcrumbs (shadcn-like minimal) */
+.carousel-breadcrumbs { margin: 0 0 0.75rem 0; }
+.carousel-breadcrumbs ol { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.carousel-breadcrumbs li { display: flex; justify-content: center; align-items: center; }
+.carousel-breadcrumbs .crumb { background: transparent; border: none; color: var(--fe-text-secondary); font: inherit; padding: 0; border-radius: 0; cursor: pointer; }
+.carousel-breadcrumbs .crumb:hover { color: color-mix(in srgb, var(--fe-text) 60%, white); background: transparent; }
+.carousel-breadcrumbs .crumb.is-active { color: color-mix(in srgb, var(--fe-text) 80%, white); background: transparent; }
+.carousel-breadcrumbs .crumb.is-disabled { opacity: 0.6; cursor: not-allowed; }
+.carousel-breadcrumbs .crumb:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--w3a-colors-focus); }
+.carousel-breadcrumbs .crumb-sep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  margin-left: 0.5rem;
+}
+.carousel-breadcrumbs .crumb-sep svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+/* Pagination dots */
+.carousel-dots { display: flex; justify-content: center; margin: 0.75rem 0 0; }
+.carousel-dots .dots { display: inline-flex; gap: 8px; }
+.carousel-dots .dot { width: 8px; height: 8px; border-radius: 999px; border: 1px solid var(--fe-border); background: transparent; padding: 0; cursor: pointer; }
+.carousel-dots .dot.is-active { background: var(--fe-text); border-color: var(--fe-text); }
+.carousel-dots .dot.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.carousel-dots .dot:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--w3a-colors-focus); }
+
+/* Demo wrapper */
+.carousel-demo-root {
+  max-width: 600px;
+  width: 100%;
+}
+
+/* Utility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+  white-space: nowrap;
+}

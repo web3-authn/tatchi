@@ -5,6 +5,7 @@
   gap: 1rem;
   margin: 0;
   padding: 0;
+  padding-left: 1rem;
   min-height: 100dvh;
   /* Enable container queries to detect 2→1 column collapse by container width */
   container-type: inline-size;
@@ -128,7 +129,7 @@
 
 .constrained-column {
   max-width: 720px;
-  padding: 0.5rem 1rem 0.5rem 2rem;
+  padding: 0.5rem 0rem;
   /* Allow content to shrink and avoid track stretching */
   width: 100%;
   min-width: 0;

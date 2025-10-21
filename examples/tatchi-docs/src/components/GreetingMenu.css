@@ -89,6 +89,7 @@
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-sm);
   margin-bottom: var(--fe-gap-2);
+  height: 44px;
 }
 
 .on-chain-greeting-box p {
@@ -125,7 +126,7 @@
   display: flex;
   gap: var(--fe-gap-2);
   flex-wrap: wrap; /* allow wrap under text zoom */
-  margin-bottom: var(--fe-gap-6);
+  height: 44px;
 }
 
 .greeting-input-group input {
@@ -154,7 +155,7 @@
 .greeting-btn {
   padding: var(--fe-gap-3) var(--fe-gap-4);
   border: none;
-  border-radius: var(--fe-radius-sm);
+  border-radius: 2rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -283,7 +284,7 @@
 }
 
 .greeting-container-root::-webkit-scrollbar-track {
-  background: var(--fe-bg-secondary);
+  background: var(--fe-bg);
   border-radius: 3px;
 }
 

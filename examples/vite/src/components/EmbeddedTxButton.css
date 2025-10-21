@@ -83,7 +83,7 @@
   border-radius: var(--fe-radius-sm);
   font-size: var(--fe-text-base);
   font-family: var(--fe-font-sans);
-  background: var(--fe-bg);
+  background: var(--fe-input-bg);
   color: var(--fe-text-primary);
   transition: all var(--fe-fast) var(--fe-ease);
   box-sizing: border-box;

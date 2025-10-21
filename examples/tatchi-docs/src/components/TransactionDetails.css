@@ -7,7 +7,7 @@
 
 .tx-message {
   padding: 8px 12px;
-  background-color: var(--fe-bg-secondary);
+  background-color: var(--fe-bg);
   border-radius: 6px;
   font-size: 14px;
   color: var(--fe-text);

@@ -15,11 +15,6 @@ interface SetGreetingHook {
   fetchGreeting: () => Promise<GreetingResult>;
 }
 
-// Module-level flag to prevent concurrent requests across all instances
-let globalFetchInProgress = false;
-let lastGlobalFetchTime = 0;
-const MIN_FETCH_INTERVAL = 1000; // 1 second minimum between fetches
-
 export const useSetGreeting = (): SetGreetingHook => {
   const nearClient = useNearClient();
   const [onchainGreeting, setOnchainGreeting] = useState<string | null>(null);
@@ -28,29 +23,16 @@ export const useSetGreeting = (): SetGreetingHook => {
 
   // Instance-level flag for this specific hook instance
   const isCurrentlyFetching = useRef<boolean>(false);
-  const hasFetchedOnMount = useRef<boolean>(false);
+  // StrictMode-safe guard to run initial fetch once
+  const didInit = useRef<boolean>(false);
 
   const fetchGreeting = async (): Promise<GreetingResult> => {
-    const now = Date.now();
-
-    // Global concurrent protection
-    if (globalFetchInProgress) {
-      return { success: false, error: 'Already fetching globally' };
-    }
-
-    // Rate limiting protection
-    if (now - lastGlobalFetchTime < MIN_FETCH_INTERVAL) {
-      return { success: false, error: 'Rate limited' };
-    }
-
     // Instance-level concurrent protection
     if (isCurrentlyFetching.current) {
       return { success: false, error: 'Already fetching' };
     }
 
-    globalFetchInProgress = true;
     isCurrentlyFetching.current = true;
-    lastGlobalFetchTime = now;
     setIsLoading(true);
     setError(null);
 
@@ -60,8 +42,8 @@ export const useSetGreeting = (): SetGreetingHook => {
         method: 'get_greeting',
         args: {}
       });
-
-      const greeting = result;
+      console.log("nearclient result:", result)
+      const greeting = result ?? null;
       setOnchainGreeting(greeting);
 
       return { success: true, greeting };
@@ -77,22 +59,14 @@ export const useSetGreeting = (): SetGreetingHook => {
     } finally {
       setIsLoading(false);
       isCurrentlyFetching.current = false;
-      globalFetchInProgress = false;
     }
   };
 
   // Auto-fetch greeting on mount with protection against React StrictMode double-mounting
   useEffect(() => {
-    if (hasFetchedOnMount.current) {
-      return;
-    }
-
-    hasFetchedOnMount.current = true;
-
-    const loadInitialGreeting = async () => {
-      await fetchGreeting();
-    };
-    loadInitialGreeting();
+    if (didInit.current) return;
+    didInit.current = true;
+    void fetchGreeting();
   }, []); // Empty dependency array - only run on mount
 
   return {

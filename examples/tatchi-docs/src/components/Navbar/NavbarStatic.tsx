@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTheme, SunIcon, MoonIcon } from '@tatchi/sdk/react'
+import { useTheme, SunIcon, MoonIcon, usePasskeyContext } from '@tatchi/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
 
@@ -13,12 +13,15 @@ function applyVitepressAppearance(mode: 'light' | 'dark') {
 
 export const NavbarStatic: React.FC = () => {
   const { isDark, toggleTheme, theme } = useTheme()
+  const { passkeyManager } = usePasskeyContext();
   const { linkProps } = useVitepressRouter()
 
   const onToggle = React.useCallback(() => {
     const next = isDark ? 'light' : 'dark'
-    // Toggle SDK theme
+    // Toggle React SDK theme
     toggleTheme()
+    // Toggle user preferences theme
+    passkeyManager.setUserTheme(next);
     // Also sync VitePress <html> and storage so logged-out state updates correctly
     applyVitepressAppearance(next)
   }, [isDark, toggleTheme])

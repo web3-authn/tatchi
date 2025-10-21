@@ -12,6 +12,7 @@ import {
 import type { ActionArgs, FunctionCallAction } from '@tatchi/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
+import { LoadingButton } from './LoadingButton';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
@@ -23,6 +24,7 @@ import {
 import './GreetingMenu.css';
 import './EmbeddedTxButton.css';
 import { MultiTxDemo } from './MultiTxDemo';
+import Refresh from './icons/Refresh';
 
 export const DemoTransaction: React.FC = () => {
   const {
@@ -36,6 +38,8 @@ export const DemoTransaction: React.FC = () => {
     fetchGreeting,
     error,
   } = useSetGreeting();
+
+  const networkPostfix = passkeyManager.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
 
   // Inputs for the two demo flows
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
@@ -143,13 +147,9 @@ export const DemoTransaction: React.FC = () => {
                 title="Refresh Greeting"
                 className="refresh-icon-button"
               >
-                {/* lucide icon color */}
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M21 12a9 9 0 1 1-3.51-7.07" stroke={COBALT_BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  <path d="M21 3v7h-7" stroke={COBALT_BLUE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <Refresh size={22} strokeWidth={2} style={{ color: COBALT_BLUE }} />
               </button>
-              <p><strong>{onchainGreeting || '...'}</strong></p>
+              <p><strong>{onchainGreeting ?? '...'}</strong></p>
             </div>
 
             <div className="greeting-input-group">
@@ -160,13 +160,18 @@ export const DemoTransaction: React.FC = () => {
                 placeholder="Enter new greeting"
                 className="greeting-focus-ring"
               />
-              <button
+              <LoadingButton
                 onClick={handleSetGreeting}
-                className="greeting-btn greeting-btn-primary"
-                disabled={isLoading || !greetingInput.trim()}
+                loading={isLoading}
+                loadingText="Processing..."
+                variant="primary"
+                size="medium"
+                className="greeting-btn"
+                disabled={!greetingInput.trim()}
+                style={{ width: 200 }}
               >
-                {isLoading ? 'Processing...' : 'Set New Greeting'}
-              </button>
+                Set New Greeting
+              </LoadingButton>
             </div>
 
             {error && (
@@ -176,20 +181,10 @@ export const DemoTransaction: React.FC = () => {
         </div>
 
         <div className="embedded-tx-page-root">
-          <h2 className="embedded-tx-title">Embedded Button</h2>
-          <p className="embedded-tx-caption">
+          <h2 className="embedded-tx-title">Batch Sign Transactions</h2>
+          <div className="embedded-tx-caption">
             Tx data in the tooltip is validated before signing.
             What you see is what you sign.
-          </p>
-
-          <div className="embedded-tx-input-group">
-            <input
-              type="text"
-              value={embeddedGreetingInput}
-              onChange={(e) => setEmbeddedGreetingInput(e.target.value)}
-              placeholder="Enter your greeting message"
-              className="embedded-tx-input embedded-tx-focus-ring"
-            />
           </div>
 
           <div className="test-embedded-section">
@@ -204,8 +199,12 @@ export const DemoTransaction: React.FC = () => {
                   ],
                 },
                 {
-                  receiverId: WEBAUTHN_CONTRACT_ID,
-                  actions: [ { type: ActionType.Transfer, amount: '200000000000000000000' } ],
+                  receiverId: `jeff.${networkPostfix}`,
+                  actions: [ { type: ActionType.Transfer, amount: '20000000000000000000' } ],
+                },
+                {
+                  receiverId: `jensen.${networkPostfix}`,
+                  actions: [ { type: ActionType.Transfer, amount: '30000000000000000000' } ],
                 },
               ]}
               options={{
@@ -235,7 +234,7 @@ export const DemoTransaction: React.FC = () => {
                     } else {
                       toast.success('Embedded flow complete');
                     }
-                    setTimeout(() => { void fetchGreeting(); }, 1100);
+                    setTimeout(() => { void fetchGreeting(); }, 1000);
                   } else {
                     toast.error(`Embedded flow failed: ${result?.error || 'Unknown error'}`, { id: 'embedded' });
                   }

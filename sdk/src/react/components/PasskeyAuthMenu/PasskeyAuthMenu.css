@@ -485,7 +485,7 @@
   min-height: 200px;
   /* Quick fade with slight delay for smoother handoff */
   animation: content-enter 200ms ease-out;
-  animation-delay: 50ms;
+  animation-delay: 60ms;
   animation-fill-mode: both;
 }
 .w3a-waiting-text { font-size: 18px; font-weight: 600; }

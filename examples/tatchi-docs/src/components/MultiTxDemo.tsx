@@ -12,8 +12,7 @@ import {
 import { LoadingButton } from './LoadingButton';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 
-// Reuse the existing page styles
-import '../pages/MultiTxConfirmPage.css';
+import './MultiTxConfirmPage.css';
 
 export const MultiTxDemo: React.FC = () => {
   const {
@@ -29,9 +28,6 @@ export const MultiTxDemo: React.FC = () => {
   const DEMO_PUBLIC_KEY = 'ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd';
   const DEMO_BENEFICIARY = 'w3a-v1.testnet';
   const [isExecuting, setIsExecuting] = useState(false);
-
-  const [batchTransferAmount, setBatchTransferAmount] = useState('0.001');
-  const [isBatchSigning, setIsBatchSigning] = useState(false);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -123,96 +119,31 @@ export const MultiTxDemo: React.FC = () => {
     }
   }, [isLoggedIn, nearAccountId, passkeyManager]);
 
-  const handleBatchSignTransactions = useCallback(async () => {
-    if (!isLoggedIn || !nearAccountId) return;
-
-    setIsBatchSigning(true);
-    try {
-      const yoctoAmount = nearToYocto(batchTransferAmount);
-      if (yoctoAmount === '0') {
-        toast.error('Invalid transfer amount');
-        return;
-      }
-
-      const txResults = await passkeyManager.signAndSendTransactions({
-        nearAccountId,
-        transactions: [
-          { receiverId: 'alice.testnet', actions: [{ type: ActionType.Transfer, amount: yoctoAmount }] },
-          { receiverId: 'bob.testnet', actions: [{ type: ActionType.Transfer, amount: yoctoAmount }] },
-          { receiverId: 'charlie.testnet', actions: [{ type: ActionType.Transfer, amount: yoctoAmount }] },
-        ],
-        options: {
-          executionWait: { mode: 'parallelStaggered', staggerMs: 500 },
-          onEvent: (event) => {
-            switch (event.phase) {
-              case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-                toast.success(event.message, { id: 'batchTx' });
-                break;
-              case ActionPhase.STEP_8_BROADCASTING:
-                if (event.status === ActionStatus.SUCCESS) toast.success(event.message, { id: 'batchTx' });
-                if (event.status === ActionStatus.ERROR) toast.error(event.message, { id: 'batchTx' });
-                break;
-              case ActionPhase.STEP_9_ACTION_COMPLETE:
-                toast.success(event.message, { id: 'batchTx' });
-                break;
-            }
-          },
-        },
-      });
-      console.log(`Sent ${txResults.length} transactions:`, txResults);
-    } catch (error) {
-      console.error('Batch signing error:', error);
-      toast.error('Failed to sign batch transactions');
-    } finally {
-      setIsBatchSigning(false);
-    }
-  }, [isLoggedIn, nearAccountId, passkeyManager, batchTransferAmount]);
-
   if (!isLoggedIn) return null;
 
   return (
     <div>
       <div className="multi-tx-confirm-page-content">
         <div className="action-section">
-          <p>Sign and send multiple actions in a single click.</p>
+          <h2 className="action-subheader">
+            Choose between Modal or Drawer
+          </h2>
+          <div className="action-text">
+            Choose between Modal or Drawer for the tx confirmer menus.
+            No confirmer is also possible on desktop (no mobile).
+          </div>
           <LoadingButton
             onClick={handleExecuteTransaction}
             loading={isExecuting}
-            loadingText="Executing Transaction..."
+            loadingText="Signing..."
             variant="primary"
             size="medium"
+            style={{ width: 200 }}
           >
-            Execute Combined Transaction
+            Sign Multiple Actions
           </LoadingButton>
         </div>
 
-        <div className="action-section">
-          <h2>Batch Sign Transactions</h2>
-          <p>Sign 3 transfer transactions to different accounts with a single TouchID prompt</p>
-
-          <div className="input-group">
-            <label>Transfer Amount (NEAR):</label>
-            <input
-              className="multi-tx-input"
-              type="number"
-              value={batchTransferAmount}
-              onChange={(e) => setBatchTransferAmount(e.target.value)}
-              placeholder="Amount in NEAR"
-              step="0.0001"
-              min="0"
-            />
-          </div>
-
-          <LoadingButton
-            onClick={handleBatchSignTransactions}
-            loading={isBatchSigning}
-            loadingText="Signing & Broadcasting..."
-            variant="primary"
-            size="medium"
-          >
-            Sign 3 Transactions
-          </LoadingButton>
-        </div>
       </div>
     </div>
   );

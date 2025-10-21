@@ -4,7 +4,8 @@
 @import './components/EmbeddedTxButton.css';
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
-@import './pages/MultiTxConfirmPage.css';
+@import './components/MultiTxConfirmPage.css';
+@import './components/carousel/carousel.css';
 
 :root, :host {
   /* Text Sizes */
@@ -49,7 +50,7 @@
   --fe-shadow-strong: var(--w3a-shadows-md);
   --fe-bg-secondary: var(--w3a-colors-surface2);
   --fe-bg-tertiary: var(--w3a-colors-surface3);
-  --fe-input-bg: var(--w3a-colors-surface3);
+  --fe-input-bg: var(--w3a-colors-surface);
   --fe-input-text: var(--w3a-colors-textPrimary);
   --fe-input-placeholder: var(--w3a-colors-textSecondary);
   --fe-error: var(--w3a-colors-error);

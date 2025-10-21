@@ -9,6 +9,7 @@ interface LoadingButtonProps {
   variant?: 'primary' | 'secondary' | 'danger';
   size?: 'small' | 'medium' | 'large';
   className?: string;
+  style?: React.CSSProperties;
   type?: 'button' | 'submit' | 'reset';
 }
 
@@ -21,32 +22,19 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
   variant = 'primary',
   size = 'medium',
   className = '',
+  style,
   type = 'button',
 }) => {
   const isDisabled = disabled || loading;
 
-  const baseClasses = 'button';
-  const variantClasses = {
-    primary: 'button--primary',
-    secondary: 'button--secondary',
-    danger: 'button--danger',
-  };
-  const sizeClasses = {
-    small: 'button--small',
-    medium: 'button--medium',
-    large: 'button--large',
-  };
-  const loadingClasses = loading ? 'button--loading' : '';
-
+  // Build classes directly without intermediate maps
   const buttonClasses = [
-    baseClasses,
-    variantClasses[variant],
-    sizeClasses[size],
-    loadingClasses,
+    'button',
+    `button--${variant}`,
+    `button--${size}`,
+    loading ? 'button--loading' : '',
     className,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  ].filter(Boolean).join(' ');
 
   const displayText = loading && loadingText ? loadingText : children;
 
@@ -56,6 +44,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
       onClick={onClick}
       disabled={isDisabled}
       className={buttonClasses}
+      style={style}
       aria-disabled={isDisabled}
       aria-busy={loading}
     >
@@ -76,23 +65,10 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
-            strokeDasharray="31.416"
-            strokeDashoffset="31.416"
-          >
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              values="0 12 12;360 12 12"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="stroke-dashoffset"
-              values="31.416;0"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-          </circle>
+            /* Draw a shorter arc for a bigger visual gap */
+            strokeDasharray="40 200"
+            strokeDashoffset="0"
+          />
         </svg>
       )}
       <span className="button__text">{displayText}</span>

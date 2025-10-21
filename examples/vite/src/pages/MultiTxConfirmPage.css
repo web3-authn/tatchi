@@ -305,6 +305,7 @@
 /* Button Elements */
 .button__spinner {
   animation: spin 1s linear infinite;
+  transform-origin: 50% 50%;
   flex-shrink: 0;
 }
 

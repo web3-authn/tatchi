@@ -76,23 +76,10 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
             stroke="currentColor"
             strokeWidth="2"
             strokeLinecap="round"
-            strokeDasharray="31.416"
-            strokeDashoffset="31.416"
-          >
-            <animateTransform
-              attributeName="transform"
-              type="rotate"
-              values="0 12 12;360 12 12"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-            <animate
-              attributeName="stroke-dashoffset"
-              values="31.416;0"
-              dur="1s"
-              repeatCount="indefinite"
-            />
-          </circle>
+            /* Draw a partial arc and rotate via CSS for smooth, seamless loop */
+            strokeDasharray="60 200"
+            strokeDashoffset="0"
+          />
         </svg>
       )}
       <span className="button__text">{displayText}</span>
