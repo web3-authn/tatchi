@@ -28,7 +28,8 @@ How to implement (Option A)
 2) Enable top‑level bridge (already implemented)
    - The wallet iframe attempts WebAuthn in‑iframe; if Safari throws the ancestor/focus errors, it bridges to the parent via `postMessage`. The parent runs WebAuthn at top‑level and returns a serialized credential.
 3) Enable ROR when app and wallet are on different registrable sites
-   - Host `/.well-known/webauthn` on the wallet origin (it can be a dynamic route) with JSON listing allowed top‑level app origins:
+   - Implement `GET /.well-known/webauthn` on the relay server (Express or Cloudflare Worker). The endpoint calls the NEAR contract view (e.g. `get_allowed_origins`) and returns `{ origins: [...] }`.
+   - Expose this relay route under your wallet domain so it is reachable at `https://<wallet-domain>/.well-known/webauthn` (e.g., bind a Worker route on the wallet domain). Example payload:
      {
        "origins": [
          "https://app.example.com",
@@ -138,13 +139,15 @@ Back the `/.well-known/webauthn` manifest with an on‑chain allowlist.
 
 ## Serving `/.well-known/webauthn`
 
-You can serve the manifest dynamically from either the relay server or the wallet host:
+The manifest endpoint is implemented on the relay server and should be exposed on the wallet domain:
 
 - Express relay server
-  - `GET /.well-known/webauthn` (and trailing slash) returns `{ origins: [...] }` by reading the contract view and sanitizing. Adds `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
+  - Implement `GET /.well-known/webauthn` (and trailing slash) to return `{ origins: [...] }` by reading the contract’s allowlist (e.g., `get_allowed_origins`) and sanitizing. Add `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
 - Cloudflare Worker relay
-  - Same endpoint with env overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`), `ROR_METHOD` (defaults to `get_allowed_origins`).
-  - Same JSON shape and cache headers; existing CORS behavior applies.
+  - Implement the same endpoint with optional env overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`) and `ROR_METHOD` (defaults to `get_allowed_origins`). Bind this Worker route under your wallet domain so it is reachable at `https://<wallet-domain>/.well-known/webauthn`. Use the same JSON and cache headers; existing CORS behavior applies.
+-
+- Dev convenience
+  - For local development, the Vite dev plugin can serve a static manifest when `VITE_ROR_ALLOWED_ORIGINS` is set.
 
 ## Deployment Plan: Wallet Host on web3authn.org
 
@@ -194,9 +197,76 @@ Use an on‑chain allowlist of top‑level app origins to drive `/.well-known/we
 
 ## Serving `/.well-known/webauthn`
 
-You can serve the manifest dynamically from either the relay server or the wallet host:
+The canonical production endpoint lives on the relay server and is exposed on the wallet domain:
 
 - Express relay server
-  - `GET /.well-known/webauthn` (and with trailing slash) now returns `{ origins: [...] }` by reading the contract’s `get_allowed_origins` and sanitizing. Headers include `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
+  - `GET /.well-known/webauthn` (and trailing slash) returns `{ origins: [...] }` after reading the contract’s `get_allowed_origins`. Include `Content-Type: application/json; charset=utf-8` and `Cache-Control: max-age=60, stale-while-revalidate=600`.
 - Cloudflare Worker relay
-  - Same endpoint implemented with optional overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`) and `ROR_METHOD` (defaults to `get_allowed_origins`). Returns the same JSON and cache headers. Existing CORS behavior applies.
+  - Same endpoint with env overrides (`ROR_CONTRACT_ID`, `ROR_METHOD`), bound as a route on the wallet domain so it is reachable at `https://<wallet-domain>/.well-known/webauthn`. Use identical JSON and cache headers; existing CORS behavior applies.
+-
+- Dev convenience
+  - In dev, the Vite plugin can serve a static manifest when `VITE_ROR_ALLOWED_ORIGINS` is provided.
+
+## Reference Deployment: web3authn.org + hosted.tatchi.xyz
+
+This topology demonstrates wallet‑scoped credentials across registrable domains without affecting existing `tatchi.xyz` properties.
+
+- Wallet host (iframe + SDK assets)
+  - Domain: `web3authn.org`
+  - rpId: `web3authn.org` (wallet‑scoped)
+  - Pages project serves `/wallet-service` and `/sdk` with strict `_headers` (COOP/COEP + WebAuthn `Permissions-Policy`).
+  - Relay Worker bound on the same domain for `/.well-known/webauthn` (ROR manifest).
+
+- App (integrator/demo)
+  - Domain: `hosted.tatchi.xyz` (alternative names: `managed.tatchi.xyz`, `integrate.tatchi.xyz`).
+  - Embeds the wallet iframe from `https://web3authn.org` and calls WebAuthn using rpId `web3authn.org`.
+  - Must send a `Permissions-Policy` header delegating WebAuthn to the wallet origin.
+
+Configuration
+- App environment
+  - `VITE_WALLET_ORIGIN=https://web3authn.org`
+  - `VITE_WALLET_SERVICE_PATH=/wallet-service`
+  - `VITE_SDK_BASE_PATH=/sdk`
+  - `VITE_RP_ID_BASE=web3authn.org` (wallet‑scoped rpId)
+  - Keep Safari fallback on: `enableSafariGetWebauthnRegistrationFallback: true` in `iframeWallet` config
+
+- Wallet host environment (Pages)
+  - Same as above for `WALLET_*` and `SDK_*` to ensure correct paths.
+  - `_headers` should include:
+    - `Cross-Origin-Opener-Policy: same-origin`
+    - `Cross-Origin-Embedder-Policy: require-corp`
+    - `Cross-Origin-Resource-Policy: cross-origin`
+    - `Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)`
+    - Override `COOP` to `unsafe-none` under `/wallet-service` to allow iframe operation (the build scripts already do this).
+
+- App response headers (Pages)
+  - Delegate WebAuthn to the wallet origin:
+    `Permissions-Policy: publickey-credentials-get=(self "https://web3authn.org"), publickey-credentials-create=(self "https://web3authn.org")`
+  - You can generate a `_headers` at build time via the SDK’s `tatchiBuildHeaders({ walletOrigin })` helper or write one manually in the dist.
+
+ROR manifest and NEAR allowlist
+- Bind your Cloudflare Worker (relay) to the wallet domain route: `web3authn.org/.well-known/webauthn*`.
+- Ensure the NEAR contract allowlist includes the app origin:
+  - Add `https://hosted.tatchi.xyz` to `get_allowed_origins` data.
+  - The Worker handler resolves and normalizes origins; ports and `localhost` rules apply as documented above.
+- With this in place, Chromium/WebKit allow the top‑level app to execute WebAuthn with `rp.id = 'web3authn.org'` while running on `hosted.tatchi.xyz`.
+
+GitHub Actions and Cloudflare Pages
+- Wallet host (Pages):
+  - Use the existing `deploy-cloudflare.yml` wallet job, or the dedicated `deploy-separate-wallet-host.yml` workflow, to publish `/wallet-service` + `/sdk` to the Pages project for `web3authn.org`.
+  - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_WALLET` (e.g., `web3authn`).
+
+- App (Pages):
+  - Add a job to build your app (e.g., `examples/vite`) with the env vars above and deploy to a second Pages project (custom domain `hosted.tatchi.xyz`).
+  - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_HOSTED` (e.g., `hosted-tatchi`).
+  - Ensure the app’s build emits `_headers` with the `Permissions-Policy` delegating to `https://web3authn.org`.
+
+- GitHub Environments (recommended)
+  - Define environments: `web3authn`, `hosted`, `production`. Put public `VITE_*` in each environment’s `vars`:
+    - `VITE_WALLET_ORIGIN`, `VITE_WALLET_SERVICE_PATH`, `VITE_SDK_BASE_PATH`, `VITE_RP_ID_BASE`, `VITE_RELAYER_URL`, `VITE_RELAYER_ACCOUNT_ID`, and optional `VITE_NEAR_*`.
+  - In workflows, set `environment: web3authn` for the wallet host job and `environment: hosted` for the hosted app job; read values via `${{ vars.VITE_* }}`.
+  - Keep credentials (API tokens, keys) in `secrets`.
+
+Browser compatibility
+- Chromium/WebKit: Wallet‑scoped with ROR works at top‑level.
+- Firefox: ROR not broadly shipped; provide app‑scoped fallback or developer guidance.

@@ -1,4 +1,4 @@
-name: deploy-separate-wallet-host
+name: deploy-hosted-and-wallet
 
 on:
   push:
@@ -10,7 +10,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  deploy-wallet-host:
+    environment: web3authn
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -55,15 +56,15 @@ jobs:
       - name: Build wallet host example (if present)
         if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
         env:
-          VITE_WALLET_ORIGIN: https://web3authn.org
-          VITE_WALLET_SERVICE_PATH: /wallet-service
-          VITE_SDK_BASE_PATH: /sdk
-          VITE_RP_ID_BASE: web3authn.org
-          VITE_RELAYER_URL: ${{ secrets.VITE_RELAYER_URL }}
-          VITE_RELAYER_ACCOUNT_ID: ${{ secrets.VITE_RELAYER_ACCOUNT_ID }}
-          VITE_NEAR_NETWORK: ${{ secrets.VITE_NEAR_NETWORK || 'testnet' }}
-          VITE_NEAR_RPC_URL: ${{ secrets.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com' }}
-          VITE_NEAR_EXPLORER: ${{ secrets.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK || 'testnet' }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com' }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
         run: pnpm -C examples/wallet-scoped-credentials build
 
       - name: Copy SDK assets into Pages output (example)
@@ -130,4 +131,54 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: wallet-dist
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+  deploy-hosted-app:
+    environment: hosted
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies (workspace)
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build SDK (@tatchi/sdk)
+        run: pnpm -C sdk build
+
+      - name: Build hosted app (examples/vite)
+        env:
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK || 'testnet' }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com' }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
+        run: pnpm -C examples/vite build
+
+      - name: Deploy hosted app to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_HOSTED }}
+          directory: examples/vite/dist
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
