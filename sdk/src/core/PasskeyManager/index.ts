@@ -104,18 +104,14 @@ export class PasskeyManager {
     if (!walletOrigin) {
       if (!warnedAboutMissingWalletOrigin) {
         warnedAboutMissingWalletOrigin = true;
-        try {
-          console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
-        } catch {}
+        console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
       }
     } else if (!warnedAboutSameOriginWallet) {
       try {
         const parsed = new URL(walletOrigin);
         if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
           warnedAboutSameOriginWallet = true;
-          try {
-            console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
-          } catch {}
+          console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
         }
       } catch {
         // ignore invalid URL here; constructor downstream will surface an error

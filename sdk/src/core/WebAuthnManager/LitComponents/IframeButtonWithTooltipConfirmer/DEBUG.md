@@ -24,13 +24,13 @@ Why it works
 - Avoids left/right hover shift on right-anchored positions and keeps WYSIWYS.
 
 Relevant code
-- Public vs internal types: 
+- Public vs internal types:
 - Container CSS + forwarding vars:  (position rules)
-- Tree host padding: 
+- Tree host padding:
 
 Notes
 - The React wrapper sets internal defaults and hides them from the external API: offset = , boxPadding = .
-  - 
+  -
 
 ## Hover Race Conditions (flicker / disappearing tooltip)
 
@@ -60,9 +60,9 @@ Fixes
 
 Relevant code
 - Pointer-events + hover flags + guarded hide:
-  - 
+  -
 - Clip-path transitions:
-  - 
+  -
 
 ## Theming Live Updates
 

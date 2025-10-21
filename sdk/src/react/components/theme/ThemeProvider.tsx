@@ -97,6 +97,12 @@ interface ThemeProviderProps {
   onThemeChange?: (t: ThemeName) => void;
   tokens?: ThemeOverrides | ((base: { light: DesignTokens; dark: DesignTokens }) => ThemeOverrides);
   prefix?: string;                   // CSS var prefix
+  /**
+   * When true, writes user theme to SDK user preferences (and wallet host when available)
+   * on setTheme/toggleTheme. Falls back to localStorage when not logged in.
+   * Defaults to true.
+   */
+  syncUserPreferences?: boolean;
 }
 
 function getSystemPrefersDark(): boolean {
@@ -146,6 +152,7 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   onThemeChange,
   tokens,
   prefix = '--w3a',
+  syncUserPreferences = true,
 }) => {
   // Make passkey context optional - ThemeProvider can work without it
   let passkeyManager: any;
@@ -221,41 +228,39 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
     return () => { cancelled = true; };
   }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn]);
 
-  // On login, sync stored user preference to the current theme to avoid "first-click does nothing"
+  // On login, propagate current theme to user prefs AND wallet host to avoid "first-click does nothing"
   React.useEffect(() => {
-    if (isControlled || !passkeyManager?.userPreferences || !loginState?.isLoggedIn) return;
+    if (isControlled || !passkeyManager?.userPreferences || !loginState?.isLoggedIn || !syncUserPreferences) return;
     let cancelled = false;
     (async () => {
       (async () => {
         const pref = await passkeyManager.userPreferences.getCurrentUserAccountIdTheme?.();
         if (cancelled) return;
-        // If stored preference differs from current theme, align stored pref to current theme
-        if ((pref === 'light' || pref === 'dark') && pref !== themeState) {
-          passkeyManager.userPreferences.setUserTheme?.(themeState);
+        // If no stored preference yet OR it differs, push current theme
+        if (pref !== themeState) {
+          try { passkeyManager.setUserTheme(themeState); }
+          catch { try { passkeyManager.userPreferences.setUserTheme?.(themeState); } catch {} }
         }
       })();
     })();
     return () => { cancelled = true; };
-  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn]);
+  }, [isControlled, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
 
   const setTheme = React.useCallback((t: ThemeName) => {
     // Avoid redundant writes and subscription loops
     if (t === themeState) return;
     if (!isControlled) setThemeState(t);
-    // Prefer full SDK propagation when available (ensures wallet-iframe host updates)
-    try {
-      if (loginState?.isLoggedIn && passkeyManager?.setUserTheme) {
-        // Only propagate to SDK when a user is set
-        void passkeyManager.setUserTheme(t);
-      } else {
-        safeStoreTheme(t);
-      }
-    } catch {
-      // Fallback to local storage if propagation fails
+    // Attempt to sync to user preferences (wallet host when available)
+    if (syncUserPreferences && passkeyManager?.setUserTheme) {
+      try { void passkeyManager.setUserTheme(t); } catch {}
+    }
+    // Persist locally when not logged in, or if no passkeyManager available
+    if (!loginState?.isLoggedIn || !passkeyManager || !syncUserPreferences) {
       safeStoreTheme(t);
     }
+    // If SDK sync failed for any reason, local storage remains as fallback via catchless best-effort above
     onThemeChange?.(t);
-  }, [isControlled, onThemeChange, passkeyManager, themeState, loginState?.isLoggedIn]);
+  }, [isControlled, onThemeChange, passkeyManager, themeState, loginState?.isLoggedIn, syncUserPreferences]);
 
   const toggleTheme = React.useCallback(() => {
     setTheme(themeState === 'dark' ? 'light' : 'dark');
@@ -304,6 +309,7 @@ export const Theme: React.FC<ThemeProps> = ({
   onThemeChange,
   tokens,
   prefix,
+  syncUserPreferences,
 }) => {
   if (mode === 'scope-only') {
     return (
@@ -320,6 +326,7 @@ export const Theme: React.FC<ThemeProps> = ({
       onThemeChange={onThemeChange}
       tokens={tokens}
       prefix={prefix}
+      syncUserPreferences={syncUserPreferences}
     >
       {mode === 'provider-only' ? (
         <>{children}</>

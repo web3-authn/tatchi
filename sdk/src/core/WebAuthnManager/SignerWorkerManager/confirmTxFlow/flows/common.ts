@@ -144,9 +144,7 @@ export async function maybeRefreshVrfChallenge(
 
   return await retryWithBackoff(async (attempt) => {
     const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
-    try {
-      console.debug('[SecureConfirm] Refreshed VRF block height', latestCtx?.txBlockHeight, 'hash', latestCtx?.txBlockHash);
-    } catch {}
+    console.debug('[SecureConfirm] Refreshed VRF block height', latestCtx?.txBlockHeight, 'hash', latestCtx?.txBlockHash);
 
     const vrfChallenge = (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
       ? (await vrfWorkerManager.generateVrfKeypairBootstrap({
@@ -216,40 +214,37 @@ export async function renderConfirmUI({
   vrfChallenge: VRFChallenge;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
-  try { console.debug('[RenderConfirmUI] start', {
+  console.debug('[RenderConfirmUI] start', {
     type: request?.type,
     uiMode: confirmationConfig?.uiMode,
     behavior: confirmationConfig?.behavior,
     theme: confirmationConfig?.theme,
     nearAccountIdForUi,
     intentDigest: transactionSummary?.intentDigest,
-  }); } catch {}
+  });
   // Show-only export viewer: mount with provided key and return immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
-    try { console.debug('[RenderConfirmUI] SHOW_SECURE_PRIVATE_KEY_UI'); } catch {}
-    try { await import('../../../LitComponents/ExportPrivateKey/iframe-host'); } catch {}
+    console.debug('[RenderConfirmUI] SHOW_SECURE_PRIVATE_KEY_UI');
     const host = document.createElement('w3a-export-viewer-iframe') as ExportViewerIframeElement;
-    try { host.theme = confirmationConfig.theme || 'dark'; } catch {}
-    try { host.variant = (confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal'; } catch {}
-    try {
+    host.theme = confirmationConfig.theme || 'dark';
+    host.variant = (confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal';
+    {
       const p = request.payload as { nearAccountId?: string; publicKey?: string; privateKey?: string };
       if (p?.nearAccountId) host.accountId = p.nearAccountId;
       if (p?.publicKey) host.publicKey = p.publicKey;
       if (p?.privateKey) host.privateKey = p.privateKey;
       host.loading = false;
-    } catch {}
-    try { window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*'); } catch {}
+    }
+    window.parent?.postMessage({ type: 'WALLET_UI_OPENED' }, '*');
     document.body.appendChild(host);
     let removeCancelListener: (() => void) | undefined;
-    try {
-      const onCancel = (_event: CustomEvent<{ reason?: string } | undefined>) => {
-        try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
-        try { removeCancelListener?.(); } catch {}
-        try { host.remove(); } catch {}
-      };
-      removeCancelListener = addLitCancelListener(host, onCancel, { once: true });
-    } catch {}
-    const close = (_c: boolean) => { try { removeCancelListener?.(); } catch {}; try { host.remove(); } catch {} };
+    const onCancel = (_event: CustomEvent<{ reason?: string } | undefined>) => {
+      window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
+      removeCancelListener?.();
+      host.remove();
+    };
+    removeCancelListener = addLitCancelListener(host, onCancel, { once: true });
+    const close = (_c: boolean) => { removeCancelListener?.(); host.remove(); };
     const update = (_props: any) => { /* no-op for export viewer */ };
     return Promise.resolve({ confirmed: true, confirmHandle: { close, update } });
   }
@@ -257,12 +252,12 @@ export async function renderConfirmUI({
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
   switch (uiMode) {
     case 'skip': {
-      try { console.debug('[RenderConfirmUI] uiMode=skip'); } catch {}
+      console.debug('[RenderConfirmUI] uiMode=skip');
       return { confirmed: true, confirmHandle: undefined };
     }
     case 'drawer': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        try { console.debug('[RenderConfirmUI] drawer + autoProceed'); } catch {}
+        console.debug('[RenderConfirmUI] drawer + autoProceed');
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -279,7 +274,7 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        try { console.debug('[RenderConfirmUI] drawer + requireClick'); } catch {}
+        console.debug('[RenderConfirmUI] drawer + requireClick');
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -291,13 +286,13 @@ export async function renderConfirmUI({
           uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        try { console.debug('[RenderConfirmUI] drawer decision', { confirmed }); } catch {}
+        console.debug('[RenderConfirmUI] drawer decision', { confirmed });
         return { confirmed, confirmHandle: handle, error };
       }
     }
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        try { console.debug('[RenderConfirmUI] modal + autoProceed'); } catch {}
+        console.debug('[RenderConfirmUI] modal + autoProceed');
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -314,7 +309,7 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        try { console.debug('[RenderConfirmUI] modal + requireClick'); } catch {}
+        console.debug('[RenderConfirmUI] modal + requireClick');
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -326,12 +321,12 @@ export async function renderConfirmUI({
           uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        try { console.debug('[RenderConfirmUI] modal decision', { confirmed }); } catch {}
+        console.debug('[RenderConfirmUI] modal decision', { confirmed });
         return { confirmed, confirmHandle: handle, error };
       }
     }
     default: {
-      try { console.debug('[RenderConfirmUI] default branch → mount modal loading'); } catch {}
+      console.debug('[RenderConfirmUI] default branch → mount modal loading');
       const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,

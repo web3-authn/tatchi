@@ -53,7 +53,7 @@ export async function handleTransactionSigningFlow(
     vrfChallenge: uiVrfChallenge,
   });
   if (!confirmed) {
-    try { nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n)); } catch {}
+    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     closeModalSafely(false, confirmHandle);
     return send(worker, {
       requestId: request.requestId,
@@ -68,7 +68,7 @@ export async function handleTransactionSigningFlow(
     const refreshed = await maybeRefreshVrfChallenge(ctx, request, nearAccountId);
     uiVrfChallenge = refreshed.vrfChallenge;
     transactionContext = refreshed.transactionContext;
-    try { confirmHandle?.update?.({ vrfChallenge: uiVrfChallenge }); } catch {}
+    confirmHandle?.update?.({ vrfChallenge: uiVrfChallenge });
   } catch (e) {
     console.debug('[SigningFlow] VRF JIT refresh skipped', e);
   }
@@ -104,5 +104,5 @@ function send(worker: Worker, response: any) {
 }
 
 function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  try { handle?.close?.(confirmed); } catch (e) { console.warn('[SecureConfirm][Signing] close error', e); }
+  handle?.close?.(confirmed);
 }

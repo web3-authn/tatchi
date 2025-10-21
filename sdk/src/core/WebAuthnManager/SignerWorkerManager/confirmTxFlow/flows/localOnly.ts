@@ -90,7 +90,7 @@ export async function handleLocalOnlyFlow(
         return e.name === 'NotAllowedError' || e.name === 'AbortError';
       })();
       if (cancelled) {
-        try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+        window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
       }
       return send(worker, {
         requestId: request.requestId,
@@ -111,5 +111,5 @@ function send(worker: Worker, response: any) {
 }
 
 function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  try { handle?.close?.(confirmed); } catch (e) { console.warn('[SecureConfirm][LocalOnly] close error', e); }
+  handle?.close?.(confirmed);
 }
