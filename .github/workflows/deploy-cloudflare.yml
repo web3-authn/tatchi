@@ -240,8 +240,6 @@ jobs:
         environment: [production, web3authn]
     environment:
       name: ${{ matrix.environment }}
-    # Only deploy the VitePress docs for the production environment
-    if: ${{ matrix.environment == 'production' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -274,6 +272,7 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       - name: Build SDK (sdk) for Vite builds
+        if: ${{ matrix.environment == 'production' }}
         run: pnpm -C sdk build
 
       - name: Debug - print VITE_* env seen by build
@@ -289,6 +288,7 @@ jobs:
           echo "VITE_SDK_BASE_PATH=${{ vars.VITE_SDK_BASE_PATH }}"
 
       - name: Build site with VitePress
+        if: ${{ matrix.environment == 'production' }}
         env:
           VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
           VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
@@ -304,6 +304,7 @@ jobs:
           pnpm docs:build
 
       - name: Debug – print built _headers (VitePress)
+        if: ${{ matrix.environment == 'production' }}
         run: |
           echo "--- examples/tatchi-docs/dist/docs/_headers (if present) ---"
           if [ -f examples/tatchi-docs/dist/docs/_headers ]; then
@@ -313,6 +314,7 @@ jobs:
           fi
 
       - name: Copy SDK runtime assets into VitePress dist
+        if: ${{ matrix.environment == 'production' }}
         run: |
           # Serve SDK bundles under /sdk for uniform layout
           mkdir -p examples/tatchi-docs/dist/docs/sdk examples/tatchi-docs/dist/docs/sdk/workers
@@ -320,9 +322,11 @@ jobs:
           cp -R sdk/dist/workers/* examples/tatchi-docs/dist/docs/sdk/workers/ || true
 
       - name: Install Wrangler
+        if: ${{ matrix.environment == 'production' }}
         run: pnpm add -g wrangler@4
 
       - name: Debug - grep built dist for wallet origin (VitePress)
+        if: ${{ matrix.environment == 'production' }}
         run: |
           echo "Occurrences of wallet origin in built files (if any):"
           rg -n "wallet\\.tatchi\\.xyz|wallet\\.example\\.localhost" examples/tatchi-docs/dist/docs || true
@@ -332,6 +336,7 @@ jobs:
           fi
 
       - name: Deploy VitePress site to Cloudflare Pages (primary site)
+        if: ${{ matrix.environment == 'production' }}
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

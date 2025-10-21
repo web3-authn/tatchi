@@ -62,9 +62,9 @@ jobs:
           VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
           VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
           VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
-          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK || 'testnet' }}
-          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com' }}
-          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
         run: pnpm -C examples/wallet-scoped-credentials build
 
       - name: Copy SDK assets into Pages output (example)
@@ -77,7 +77,7 @@ jobs:
             rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
           fi
 
-      - name: Fallback: generate minimal wallet-dist when example is missing
+      - name: "Fallback: generate minimal wallet-dist when example is missing"
         if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
         run: |
           set -euxo pipefail
@@ -169,9 +169,9 @@ jobs:
           VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
           VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
           VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
-          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK || 'testnet' }}
-          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com' }}
-          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER || 'https://testnet.nearblocks.io' }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
         run: pnpm -C examples/vite build
 
       - name: Deploy hosted app to Cloudflare Pages
