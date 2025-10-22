@@ -44,8 +44,12 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
         } catch {}
 
         // Preload the wallet host script module so the iframe boots faster
+        // Ensure the base URL ends with a trailing slash; otherwise new URL('file', base)
+        // would replace the last path segment ("/sdk") and yield "/wallet-iframe-host.js".
         try {
-          const base = new URL(sdkBasePath, walletOrigin);
+          const sdkPath = (sdkBasePath || '/sdk') as string;
+          const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
+          const base = new URL(withSlash, walletOrigin);
           const hostJs = new URL('wallet-iframe-host.js', base).toString();
           ensureLink('modulepreload', hostJs, { crossorigin: '' });
         } catch {}
@@ -60,4 +64,3 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
 }
 
 export default usePreconnectWalletAssets;
-

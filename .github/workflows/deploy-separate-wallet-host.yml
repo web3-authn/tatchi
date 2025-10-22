@@ -120,7 +120,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: examples/wallet-scoped-credentials/dist
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy fallback wallet-dist to Cloudflare Pages (wallet host)
         if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
@@ -130,7 +129,6 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: wallet-dist
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
   deploy-hosted-app:
     environment: hosted
@@ -194,4 +192,3 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_HOSTED }}
           directory: examples/vite/dist
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
