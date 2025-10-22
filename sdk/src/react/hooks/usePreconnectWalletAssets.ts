@@ -33,18 +33,27 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
   React.useEffect(() => {
     try {
       if (typeof document === 'undefined') return;
-      // Expose absolute embedded SDK base so srcdoc iframes load assets from
-      // the wallet origin rather than the host origin.
-      if (walletOrigin) {
-        const sdkPath = (sdkBasePath || '/sdk') as string;
-        const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
-        const abs = new URL(withSlash, walletOrigin).toString();
-        const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
-        if (w.__W3A_EMBEDDED_BASE__ !== abs) {
-          w.__W3A_EMBEDDED_BASE__ = abs;
-          try { window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: abs })); } catch {}
+      // Determine cross‑origin once per effect and expose absolute embedded base
+      // for srcdoc iframes ONLY when wallet is cross‑origin.
+      let isCrossOrigin = false;
+      let walletOriginOrigin: string | undefined = undefined;
+      try {
+        if (walletOrigin) {
+          walletOriginOrigin = new URL(walletOrigin, window.location.href).origin;
+          const parentOrigin = window.location.origin;
+          isCrossOrigin = walletOriginOrigin !== parentOrigin;
+          if (isCrossOrigin) {
+            const sdkPath = (sdkBasePath || '/sdk') as string;
+            const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
+            const abs = new URL(withSlash, walletOriginOrigin).toString();
+            const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
+            if (w.__W3A_EMBEDDED_BASE__ !== abs) {
+              w.__W3A_EMBEDDED_BASE__ = abs;
+              try { window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: abs })); } catch {}
+            }
+          }
         }
-      }
+      } catch {}
       const ensureLink = (rel: string, href?: string, attrs?: Record<string, string>) => {
         try {
           if (!href) return;
@@ -69,11 +78,14 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
         ensureLink('dns-prefetch', walletOrigin);
         ensureLink('preconnect', walletOrigin, { crossorigin: '' });
 
-        // Prefetch the service HTML document
-        try {
-          const serviceUrl = new URL(servicePath, walletOrigin).toString();
-          ensureLink('prefetch', serviceUrl, { as: 'document', crossorigin: '' });
-        } catch {}
+        // Prefetch the service HTML document only in same‑origin dev.
+        // Cross‑origin prefetch would require ACAO on the HTML, which we purposely avoid.
+        if (!isCrossOrigin) {
+          try {
+            const serviceUrl = new URL(servicePath, walletOrigin).toString();
+            ensureLink('prefetch', serviceUrl, { as: 'document' });
+          } catch {}
+        }
 
         // Preload the wallet host script module so the iframe boots faster
         // Ensure the base URL ends with a trailing slash; otherwise new URL('file', base)

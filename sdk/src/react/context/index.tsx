@@ -131,7 +131,13 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
               nearPublicKey: state.publicKey || null,
             }));
           } else if (status && status.active === false) {
-            setLoginState(prev => ({ ...prev, isLoggedIn: false }));
+            // Hard reset state on wallet-origin VRF deactivation
+            setLoginState(prev => ({
+              ...prev,
+              isLoggedIn: false,
+              nearAccountId: null,
+              nearPublicKey: null,
+            }));
           }
         });
 
@@ -323,13 +329,22 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
       // Fallback: reflect local VRF status
       const ls = await passkeyManager.getLoginState(nearAccountId);
-      if (ls.nearAccountId) {
+      // Only retain account id when VRF session is active; otherwise clear it to avoid
+      // stale "logged in" indicators in host UI that rely solely on account id.
+      if (ls.nearAccountId && ls.vrfActive) {
         try { passkeyManager.userPreferences.setCurrentUser(toAccountId(ls.nearAccountId)); } catch {}
         setLoginState(prevState => ({
           ...prevState,
           nearAccountId: ls.nearAccountId,
           nearPublicKey: ls.publicKey,
-          isLoggedIn: ls.vrfActive
+          isLoggedIn: true,
+        }));
+      } else {
+        setLoginState(prevState => ({
+          ...prevState,
+          nearAccountId: null,
+          nearPublicKey: null,
+          isLoggedIn: false,
         }));
       }
     } catch (error) {

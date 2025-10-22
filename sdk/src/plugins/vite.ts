@@ -156,6 +156,11 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           // SDK assets need COEP headers to work in wallet iframe with COEP enabled
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Allow cross-origin ESM/worker fetches during development
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.setHeader('Access-Control-Allow-Credentials', 'true')
           const stream = fs.createReadStream(candidate)
           stream.on('error', () => next())
           stream.pipe(res)
@@ -302,7 +307,17 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         }
 
         if (url.startsWith(`${sdkBasePath}/`)) {
+          // Allow cross‑origin ESM/worker fetches during development
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          res.setHeader('Access-Control-Allow-Origin', '*')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.setHeader('Access-Control-Allow-Credentials', 'true')
+          if (req.method && String(req.method).toUpperCase() === 'OPTIONS') {
+            res.statusCode = 204
+            res.end()
+            return
+          }
         }
         next()
       })
