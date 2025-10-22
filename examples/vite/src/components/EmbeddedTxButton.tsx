@@ -66,7 +66,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
         </p>
 
         <div className="embedded-tx-input-group">
-          <label className="embedded-tx-input-label">Greeting Input:</label>
+          <div className="embedded-tx-input-label">Greeting Input:</div>
           <input
             type="text"
             value={embeddedGreetingInput}
@@ -80,7 +80,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
         </div>
 
         <div className="test-embedded-section">
-          <label className="test-embedded-section-label">Embedded Component:</label>
+          <div className="test-embedded-section-label">Embedded Component:</div>
           <SendTxButtonWithTooltip
               nearAccountId={nearAccountId}
               txSigningRequests={[

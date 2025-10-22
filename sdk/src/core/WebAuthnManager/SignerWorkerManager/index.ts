@@ -4,6 +4,7 @@ import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedD
 import { IndexedDBManager } from '../../IndexedDBManager';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
+import { resolveWorkerScriptUrl } from '../../wasmLoader';
 import {
   WorkerRequestType,
   WorkerResponseForRequest,
@@ -80,6 +81,7 @@ export class SignerWorkerManager {
   private nearClient: NearClient;
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
+  private workerBaseOrigin: string | undefined;
 
   constructor(
     vrfWorkerManager: VrfWorkerManager,
@@ -97,6 +99,10 @@ export class SignerWorkerManager {
     this.nonceManager = nonceManager;
   }
 
+  setWorkerBaseOrigin(origin: string | undefined): void {
+    this.workerBaseOrigin = origin;
+  }
+
   private getContext(): SignerWorkerManagerContext {
     return {
       sendMessage: this.sendMessage.bind(this), // bind to access this.createSecureWorker
@@ -111,11 +117,13 @@ export class SignerWorkerManager {
   }
 
   createSecureWorker(): Worker {
-    // Simple path resolution - build:all copies worker files to /workers/
-    const workerUrl = new URL(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL, window.location.origin);
-    // console.debug('Creating secure worker from:', workerUrl.href);
+    // Prefer precomputed base origin when provided by WebAuthnManager
+    const workerUrlStr = this.workerBaseOrigin
+      ? new URL(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL, this.workerBaseOrigin).toString()
+      : resolveWorkerScriptUrl(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL);
+    console.debug('Creating secure worker from:', workerUrlStr);
     try {
-      const worker = new Worker(workerUrl, {
+      const worker = new Worker(workerUrlStr, {
         type: SIGNER_WORKER_MANAGER_CONFIG.WORKER.TYPE,
         name: SIGNER_WORKER_MANAGER_CONFIG.WORKER.NAME
       });

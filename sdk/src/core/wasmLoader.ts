@@ -222,3 +222,45 @@ For production deployment, ensure your server serves .wasm files with the correc
     throw timeoutError;
   }
 }
+
+/**
+ * Resolve the base origin for worker scripts.
+ * Priority:
+ * 1) window.__W3A_EMBEDDED_BASE__ (absolute `${walletOrigin}${sdkBasePath}/`) → take its origin
+ * 2) window.location.origin (host/app origin)
+ */
+export function resolveWorkerBaseOrigin(): string {
+  let origin = ''
+  try {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      origin = window.location.origin
+    }
+    const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string }
+    const embeddedBase = w?.__W3A_EMBEDDED_BASE__
+    if (embeddedBase) {
+      origin = new URL(embeddedBase, origin || 'https://invalid.local').origin
+    }
+  } catch {}
+  return origin
+}
+
+/**
+ * Build an absolute worker script URL from a path or absolute URL.
+ * If `input` is a path (e.g., `/sdk/workers/foo.js`), it will be resolved
+ * against the wallet origin (from `__W3A_EMBEDDED_BASE__`) when available,
+ * otherwise against the host origin.
+ */
+export function resolveWorkerScriptUrl(input: string): string {
+  try {
+    // Absolute URL string stays as-is (normalized by URL constructor)
+    if (/^https?:\/\//i.test(input)) {
+      return new URL(input).toString()
+    }
+    const baseOrigin = resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '') || 'https://invalid.local'
+    return new URL(input, baseOrigin).toString()
+  } catch {
+    // Best-effort fallback
+    try { return new URL(input, (typeof window !== 'undefined' ? window.location.origin : 'https://invalid.local')).toString() } catch {}
+    return input
+  }
+}

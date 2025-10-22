@@ -547,6 +547,12 @@ function ensurePasskeyManager(): void {
       },
     } as PasskeyManagerConfigs;
     passkeyManager = new PasskeyManager(cfg, nearClient);
+    // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
+    // Non-blocking and safe to call without account context.
+    try {
+      const pmAny = passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
+      if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
+    } catch {}
     // Bridge theme changes to the host document so embedded UIs can react via CSS
     try {
       const up = passkeyManager.userPreferences;
@@ -607,6 +613,12 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
   // Handle ping/pong for connection health checks
   if (req.type === 'PING') {
+    // Initialize PasskeyManager and prewarm workers on wallet origin (non-blocking)
+    try {
+      ensurePasskeyManager();
+      const pmAny = passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
+      if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
+    } catch {}
     post({ type: 'PONG', requestId });
     return;
   }

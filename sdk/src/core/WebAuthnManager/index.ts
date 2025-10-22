@@ -27,6 +27,7 @@ import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
+import { resolveWorkerBaseOrigin } from '../wasmLoader';
 
 
 /**
@@ -45,6 +46,7 @@ export class WebAuthnManager {
   private readonly userPreferencesManager: UserPreferencesManager;
   private readonly nearClient: NearClient;
   private readonly nonceManager: NonceManager;
+  private workerBaseOrigin: string = '';
 
   readonly passkeyManagerConfigs: PasskeyManagerConfigs;
 
@@ -85,6 +87,24 @@ export class WebAuthnManager {
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation
+
+    // Compute initial worker base origin once
+    this.workerBaseOrigin = resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '');
+    this.signerWorkerManager.setWorkerBaseOrigin(this.workerBaseOrigin);
+    this.vrfWorkerManager.setWorkerBaseOrigin?.(this.workerBaseOrigin as any);
+
+    // Keep base origin updated if the wallet sets a new embedded base
+    if (typeof window !== 'undefined') {
+      window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, (e: any) => {
+        const detail = e?.detail as string | undefined;
+        const origin = detail ? new URL(detail, window.location.origin).origin : resolveWorkerBaseOrigin();
+        if (origin && origin !== this.workerBaseOrigin) {
+          this.workerBaseOrigin = origin;
+          this.signerWorkerManager.setWorkerBaseOrigin(origin);
+          this.vrfWorkerManager.setWorkerBaseOrigin?.(origin as any);
+        }
+      }, { passive: true } as any);
+    }
   }
 
   /**
@@ -101,9 +121,10 @@ export class WebAuthnManager {
    */
   prewarmSignerWorkers(): void {
     try {
-      if (typeof window !== 'undefined' && typeof (window as any).Worker !== 'undefined') {
-        this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
-      }
+      if (typeof window === 'undefined' || typeof (window as any).Worker === 'undefined') return;
+      // Avoid noisy SecurityError in cross‑origin dev: only prewarm when same‑origin
+      if (this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return;
+      this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
     } catch {}
   }
 
@@ -432,6 +453,8 @@ export class WebAuthnManager {
   }
 
   async clearVrfSession(): Promise<void> {
+    // In cross-origin dev, skip local worker init; wallet iframe handles PM_LOGOUT
+    try { if (typeof window !== 'undefined' && this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return; } catch {}
     return await this.vrfWorkerManager.clearVrfSession();
   }
 

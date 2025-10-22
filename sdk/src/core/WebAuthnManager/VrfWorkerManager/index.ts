@@ -23,6 +23,7 @@ import type {
 import { WebAuthnRegistrationCredential } from '../../types';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
+import { resolveWorkerScriptUrl } from '../../wasmLoader';
 import { AccountId, toAccountId } from '../../types/accountIds';
 import { extractPrfFromCredential } from '../credentialsHelpers';
 
@@ -41,6 +42,7 @@ export class VrfWorkerManager {
   private messageId = 0;
   private config: VrfWorkerManagerConfig;
   private currentVrfAccountId: string | null = null;
+  private workerBaseOrigin: string | undefined;
 
   constructor(config: VrfWorkerManagerConfig = {}) {
     this.config = {
@@ -50,6 +52,10 @@ export class VrfWorkerManager {
       debug: false,
       ...config
     };
+  }
+
+  setWorkerBaseOrigin(origin: string | undefined): void {
+    this.workerBaseOrigin = origin;
   }
 
   /**
@@ -123,9 +129,12 @@ export class VrfWorkerManager {
    */
   private async createVrfWorker(): Promise<void> {
     try {
-      console.debug('VRF Manager: Worker URL:', this.config.vrfWorkerUrl);
-      // Create Web Worker from client-hosted file
-      this.vrfWorker = new Worker(this.config.vrfWorkerUrl!, {
+      const vrfUrlStr = this.workerBaseOrigin
+        ? new URL(this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER, this.workerBaseOrigin).toString()
+        : resolveWorkerScriptUrl(this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER);
+      console.debug('VRF Manager: Worker URL:', vrfUrlStr);
+      // Create Web Worker from resolved URL
+      this.vrfWorker = new Worker(vrfUrlStr, {
         type: 'module',
         name: 'Web3AuthnVRFWorker'
       });

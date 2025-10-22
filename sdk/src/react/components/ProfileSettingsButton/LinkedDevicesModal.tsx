@@ -145,7 +145,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         <div className="w3a-access-keys-modal-header">
           <h2 className="w3a-access-keys-modal-title">Linked Devices</h2>
         </div>
-        <button className="w3a-access-keys-modal-close" type="button"
+        <button className="w3a-access-keys-modal-close"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -158,7 +158,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
         {error && (
           <div className="w3a-access-keys-error">
             <p>{error}</p>
-            <button type="button" onClick={(e) => {
+            <button onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               loadAuthenticators();

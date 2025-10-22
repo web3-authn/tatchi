@@ -203,7 +203,6 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
         }
         backButton={
           <button
-            type="button"
             aria-label="Back"
             onClick={onResetToStart}
             className={`w3a-back-button${(waiting || showScanDevice) ? ' is-visible' : ''}`}
@@ -282,7 +281,6 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
             <span className="w3a-section-divider-text">Already have an account?</span>
           </div>
           <button
-            type="button"
             onClick={() => setShowScanDevice(true)}
             className="w3a-link-device-btn"
           >

@@ -160,14 +160,12 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
           <div className="qr-scanner-error-message">
             <p>{qrCamera.error}</p>
             <button
-              type="button"
               onClick={() => qrCamera.setError(null)}
               className="qr-scanner-error-button"
             >
               Try Again
             </button>
             <button
-              type="button"
               onClick={handleClose}
               className="qr-scanner-error-button"
             >
@@ -261,7 +259,6 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
 
         {/* Close Button */}
         <button
-          type="button"
           onClick={(event) => {
             event.stopPropagation();
             stopPropagationNative(event);

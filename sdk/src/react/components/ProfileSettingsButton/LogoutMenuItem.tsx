@@ -9,11 +9,9 @@ export const LogoutMenuItem: React.FC<LogoutMenuItemProps> = memo(({
 }) => {
   return (
     <button
-      type="button"
       className={`w3a-dropdown-menu-item ${className || ''}`}
       style={style}
       onClick={(e: React.MouseEvent) => {
-        e.preventDefault();
         e.stopPropagation();
         onLogout();
       }}
