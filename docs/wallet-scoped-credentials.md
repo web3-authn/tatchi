@@ -153,9 +153,11 @@ The manifest endpoint is implemented on the relay server and should be exposed o
 
 1) Example site
 - Create `examples/wallet-scoped-credentials` (uses Web3Authn Vite plugins):
-  - `web3authnDev(...)` for dev routing of `/wallet-service` and `/sdk`.
-  - `web3authnBuildHeaders({ walletOrigin })` to emit `_headers` (COOP/COEP + Permissions‑Policy).
-- Add `public/wallet-service/index.html` that loads `/sdk/wallet-iframe-host.js`.
+- `tatchiDev(...)` for dev routing of `/wallet-service` and `/sdk`.
+- `tatchiBuildHeaders({ walletOrigin })` to emit `_headers` (COOP/COEP + Permissions‑Policy) and write `wallet-service/index.html` if missing.
+- Wallet service page:
+  - The SDK Vite build plugin (`tatchiBuildHeaders`) emits `dist/wallet-service/index.html` automatically if your app does not provide one. It loads `${VITE_SDK_BASE_PATH||'/sdk'}/wallet-iframe-host.js`.
+  - To customize, add `public/wallet-service/index.html`; the plugin will not overwrite existing files.
 - For dev/prod env:
   - `VITE_WALLET_ORIGIN=https://web3authn.org`
   - `VITE_WALLET_SERVICE_PATH=/wallet-service`
@@ -232,12 +234,12 @@ Configuration
 
 - Wallet host environment (Pages)
   - Same as above for `WALLET_*` and `SDK_*` to ensure correct paths.
-  - `_headers` should include:
-    - `Cross-Origin-Opener-Policy: same-origin`
+  - `_headers` are emitted by the plugin with:
+    - `Cross-Origin-Opener-Policy: same-origin` (overridden to `unsafe-none` under `/wallet-service`)
     - `Cross-Origin-Embedder-Policy: require-corp`
     - `Cross-Origin-Resource-Policy: cross-origin`
-    - `Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)`
-    - Override `COOP` to `unsafe-none` under `/wallet-service` to allow iframe operation (the build scripts already do this).
+    - `Permissions-Policy` delegating WebAuthn to the wallet origin
+    - `Access-Control-Allow-Origin: *` for `/sdk/*` and `/sdk/workers/*`
 
 - App response headers (Pages)
   - Delegate WebAuthn to the wallet origin:
@@ -253,8 +255,9 @@ ROR manifest and NEAR allowlist
 
 GitHub Actions and Cloudflare Pages
 - Wallet host (Pages):
-  - Use the existing `deploy-cloudflare.yml` wallet job, or the dedicated `deploy-separate-wallet-host.yml` workflow, to publish `/wallet-service` + `/sdk` to the Pages project for `web3authn.org`.
+  - Use the existing `deploy-cloudflare.yml` wallet job, or the dedicated `deploy-separate-wallet-host.yml` workflow, to publish the wallet example `dist/` to the Pages project (e.g., `web3authn.org`).
   - Required secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_WALLET` (e.g., `web3authn`).
+  - No CI heredocs are needed: the Vite plugin emits `wallet-service/index.html` and `_headers` on build if missing.
 
 - App (Pages):
   - Add a job to build your app (e.g., `examples/vite`) with the env vars above and deploy to a second Pages project (custom domain `hosted.tatchi.xyz`).

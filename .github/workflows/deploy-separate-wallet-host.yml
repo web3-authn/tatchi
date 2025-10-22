@@ -76,45 +76,12 @@ jobs:
             rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
           fi
 
-      - name: "Fallback: generate minimal wallet-dist when example is missing"
+      - name: Fail if example missing
         if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
         run: |
-          set -euxo pipefail
-          mkdir -p wallet-dist/wallet-service wallet-dist/sdk wallet-dist/sdk/workers
-          cat > wallet-dist/wallet-service/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>Web3Authn Wallet Service</title>
-              <script>window.global ||= window; window.process ||= { env: {} };</script>
-            </head>
-            <body>
-              <script type="module" src="/sdk/wallet-iframe-host.js"></script>
-            </body>
-          </html>
-          HTML
-          cat > wallet-dist/_headers <<'HEADERS'
-          /*
-            Cross-Origin-Opener-Policy: same-origin
-            Cross-Origin-Embedder-Policy: require-corp
-            Cross-Origin-Resource-Policy: cross-origin
-            Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
-
-          /wallet-service
-            Cross-Origin-Opener-Policy: unsafe-none
-          /wallet-service/
-            Cross-Origin-Opener-Policy: unsafe-none
-          /sdk/*
-            Access-Control-Allow-Origin: *
-          /sdk/workers/*
-            Access-Control-Allow-Origin: *
-          HEADERS
-          rsync -av --delete sdk/dist/esm/sdk/ wallet-dist/sdk/
-          if [ -d sdk/dist/workers ]; then
-            rsync -av --delete sdk/dist/workers/ wallet-dist/sdk/workers/
-          fi
+          echo "::error::Missing wallet host example at examples/wallet-scoped-credentials" >&2
+          echo "Create it (docs cover how) or add a CI fallback again." >&2
+          exit 1
 
       - name: Deploy example to Cloudflare Pages (wallet host)
         if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
@@ -125,14 +92,7 @@ jobs:
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
           directory: examples/wallet-scoped-credentials/dist
 
-      - name: Deploy fallback wallet-dist to Cloudflare Pages (wallet host)
-        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
-        uses: cloudflare/pages-action@v1
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
-          directory: wallet-dist
+      # No fallback: example is required for this workflow
 
   deploy-hosted-app:
     environment: hosted

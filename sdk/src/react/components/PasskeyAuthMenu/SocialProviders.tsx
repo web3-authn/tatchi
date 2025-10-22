@@ -29,6 +29,7 @@ export const SocialProviders: React.FC<SocialProvidersProps> = ({ socialLogin })
           const { Icon, label } = iconByKey[key];
           return (
             <button
+              type="button"
               key={key}
               className="w3a-social-btn"
               title={label}

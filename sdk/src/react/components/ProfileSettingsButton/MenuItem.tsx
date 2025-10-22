@@ -4,6 +4,7 @@ import type { MenuItemProps } from './types';
 export const MenuItem = memo(forwardRef<HTMLButtonElement, MenuItemProps>(
   ({ item, index, onClose, className, style }, ref) => {
     const handleClick = (e: React.MouseEvent) => {
+      e.preventDefault();
       e.stopPropagation();
       if (!item.disabled) {
         if (item.onClick) {
@@ -20,6 +21,7 @@ export const MenuItem = memo(forwardRef<HTMLButtonElement, MenuItemProps>(
 
     return (
       <button
+        type="button"
         ref={ref}
         disabled={item.disabled}
         className={`w3a-dropdown-menu-item${disabledClass}${classNameProps}`}

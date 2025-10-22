@@ -370,60 +370,42 @@ jobs:
       - name: Build SDK (sdk)
         run: pnpm -C sdk build
 
-      - name: Generate wallet-only static site (wallet-dist)
+      - name: Build wallet host example (if present)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
+        env:
+          VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
+          VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
+          VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+          VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
+          VITE_RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
+          VITE_RELAYER_ACCOUNT_ID: ${{ vars.VITE_RELAYER_ACCOUNT_ID }}
+          VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
+          VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
+          VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+        run: pnpm -C examples/wallet-scoped-credentials build
+
+      - name: Copy SDK assets into Pages output (example)
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
         run: |
-          set -euxo pipefail
-          # Create minimal wallet service page
-          mkdir -p wallet-dist/wallet-service wallet-dist/sdk
-          cat > wallet-dist/wallet-service/index.html <<'HTML'
-          <!doctype html>
-          <html lang="en">
-            <head>
-              <meta charset="utf-8" />
-              <meta name="viewport" content="width=device-width, initial-scale=1" />
-              <title>Web3Authn Wallet Service</title>
-              <script>window.global ||= window; window.process ||= { env: {} };</script>
-            </head>
-            <body>
-              <script type="module" src="/sdk/wallet-iframe-host.js"></script>
-            </body>
-          </html>
-          HTML
+          mkdir -p examples/wallet-scoped-credentials/dist/sdk examples/wallet-scoped-credentials/dist/sdk/workers
+          rsync -av --delete sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
+          if [ -d sdk/dist/workers ]; then
+            rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
+          fi
 
-          # Add strict headers required for cross-origin embedding + WebAuthn
-          cat > wallet-dist/_headers <<'HEADERS'
-          /*
-            Cross-Origin-Opener-Policy: same-origin
-            Cross-Origin-Embedder-Policy: require-corp
-            Cross-Origin-Resource-Policy: cross-origin
-            Permissions-Policy: publickey-credentials-get=(self), publickey-credentials-create=(self)
-
-          /wallet-service
-            Cross-Origin-Opener-Policy: unsafe-none
-          /wallet-service/
-            Cross-Origin-Opener-Policy: unsafe-none
-          /sdk/*
-            Access-Control-Allow-Origin: *
-          /sdk/workers/*
-            Access-Control-Allow-Origin: *
-          HEADERS
-
-          # Copy SDK assets (ESM bundles + workers) under /sdk
-          mkdir -p wallet-dist/sdk wallet-dist/sdk/workers
-          cp -R sdk/dist/esm/sdk/* wallet-dist/sdk/
-          cp -R sdk/dist/workers wallet-dist/sdk/
-
-      - name: Debug – print built _headers (wallet)
+      - name: Fail if example missing
+        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
         run: |
-          echo "--- wallet-dist/_headers ---"
-          cat wallet-dist/_headers
+          echo "::error::Missing wallet host example at examples/wallet-scoped-credentials" >&2
+          echo "Create it (docs cover how) or re-enable the CI fallback." >&2
+          exit 1
 
       - name: Install Wrangler
         run: pnpm add -g wrangler@4
 
       - name: Deploy wallet static site to Cloudflare Pages
         run: |
-          wrangler pages deploy wallet-dist --project-name "$CF_PAGES_PROJECT_WALLET"
+          wrangler pages deploy examples/wallet-scoped-credentials/dist --project-name "$CF_PAGES_PROJECT_WALLET"
 
   # publish-npm:
   #   name: Publish SDK to npm

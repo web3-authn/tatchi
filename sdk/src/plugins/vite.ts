@@ -369,6 +369,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
+  const sdkBasePath = normalizeBase(process.env.VITE_SDK_BASE_PATH, '/sdk')
 
   // Build Permissions-Policy mirroring the dev plugin format
   const ppParts: string[] = []
@@ -395,12 +396,25 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
         if (fs.existsSync(hdrPath)) {
           // Do not override existing headers; leave a note in build logs
           console.warn('[tatchi] _headers already exists in outDir; skipping auto-emission')
+        } else {
+          const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Cross-Origin-Resource-Policy: cross-origin\n  Permissions-Policy: ${permissionsPolicy}\n\n${walletServicePath}\n  Cross-Origin-Opener-Policy: unsafe-none\n${walletServicePath}/\n  Cross-Origin-Opener-Policy: unsafe-none\n${sdkBasePath}/*\n  Access-Control-Allow-Origin: *\n${sdkBasePath}/workers/*\n  Access-Control-Allow-Origin: *\n`
+          fs.mkdirSync(outDir, { recursive: true })
+          fs.writeFileSync(hdrPath, content, 'utf-8')
+          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy + SDK CORS rules')
+        }
+
+        // Emit minimal wallet-service/index.html if the app hasn't provided one
+        const walletRel = walletServicePath.replace(/^\//, '')
+        const wsDir = path.join(outDir, walletRel)
+        const wsHtml = path.join(wsDir, 'index.html')
+        if (fs.existsSync(wsHtml)) {
+          // Respect app-provided page
           return
         }
-        const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Cross-Origin-Resource-Policy: cross-origin\n  Permissions-Policy: ${permissionsPolicy}\n\n${walletServicePath}\n  Cross-Origin-Opener-Policy: unsafe-none\n${walletServicePath}/\n  Cross-Origin-Opener-Policy: unsafe-none\n`
-        fs.mkdirSync(outDir, { recursive: true })
-        fs.writeFileSync(hdrPath, content, 'utf-8')
-        console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy')
+        fs.mkdirSync(wsDir, { recursive: true })
+        const html = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>Web3Authn Wallet Service</title>\n    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>\n    <script>window.global ||= window; window.process ||= { env: {} };</script>\n    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>\n  </head>\n  <body>\n    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>\n  </body>\n</html>\n`
+        fs.writeFileSync(wsHtml, html, 'utf-8')
+        console.log(`[tatchi] emitted ${path.posix.join('/', walletRel, 'index.html')} (minimal wallet service)`)        
       } catch (e) {
         console.warn('[tatchi] failed to emit _headers:', e)
       }

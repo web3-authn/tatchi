@@ -54,6 +54,9 @@ export default defineConfig(({ mode }) => {
 })
 ```
 
+Notes
+- On build, the plugin also emits `dist/wallet-service/index.html` if missing and adds CORS for `${VITE_SDK_BASE_PATH||'/sdk'}` (including `/workers/*`) in `_headers`.
+
 ## 3) Set env vars
 
 ```bash

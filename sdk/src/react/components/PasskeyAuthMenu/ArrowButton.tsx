@@ -47,6 +47,7 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
       style={{ position: 'relative', display: 'inline-block', width: w, height: h }}
     >
       <button
+        type="button"
         ref={arrowAnchorRef}
         aria-label="Continue"
         onPointerEnter={mountArrowAtRect}

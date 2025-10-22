@@ -9,7 +9,7 @@ The `deploy-cloudflare` workflow:
 - Publishes bundles to Cloudflare R2 storage
 - Deploys the relay server as a Cloudflare Worker
 - Deploys the `examples/vite-secure` site to Cloudflare Pages
-- Deploys a minimal wallet-only static site (wallet service + SDK) to Cloudflare Pages
+- Deploys the wallet host example to Cloudflare Pages (wallet origin). The SDK's Vite build plugin now emits `dist/wallet-service/index.html` and `_headers` automatically when missing.
 
 ## What Gets Deployed
 
@@ -20,7 +20,7 @@ The `deploy-cloudflare` workflow:
 
 ### Cloudflare Pages
 - **examples/tatchi-docs** → CF Pages (primary site)
-- **wallet-only static** (generated in CI as `wallet-dist`) → CF Pages (wallet origin)
+- **wallet host example** (`examples/wallet-scoped-credentials/dist`) → CF Pages (wallet origin)
 
 Note: `examples/vite` is for local testing only and is not deployed.
 
@@ -138,26 +138,28 @@ wrangler pages project create <CF_PAGES_PROJECT_WALLET>
 
 **Reference**: [Wrangler CLI Documentation](https://developers.cloudflare.com/workers/wrangler/install-and-update/)
 
-### 2. Headers: Zero‑Config via Vite plugin
+### 2. Wallet service + headers: zero‑config via Vite plugin
 
-For Cloudflare Pages (and Netlify), the SDK can emit a `_headers` file at build time so you don’t have to hand‑craft COOP/COEP and Permissions‑Policy headers.
+For Cloudflare Pages (and Netlify), the SDK’s build plugin handles both the wallet service page and headers at build time:
 
-- Ensure your app includes the build plugin:
-
-  - File: examples/tatchi-docs/vite.config.ts:1
+- Add the build plugin in your Vite config:
   - Import: `tatchiBuildHeaders` from `@tatchi/sdk/plugins/vite`
-  - In `plugins`, add `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
+  - In `plugins`, add: `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
+- Provide env vars (Pages project → Environment Variables):
+  - `VITE_WALLET_ORIGIN` (e.g., `https://wallet.tatchi.xyz`)
+  - Optional: `VITE_WALLET_SERVICE_PATH` (default `/wallet-service`)
+  - Optional: `VITE_SDK_BASE_PATH` (default `/sdk`)
 
-- Provide `VITE_WALLET_ORIGIN` (e.g., `https://wallet.tatchi.xyz`) in your Pages project Environment Variables.
+Build outputs:
+- `dist/_headers` containing:
+  - `Cross-Origin-Opener-Policy: same-origin`
+  - `Cross-Origin-Embedder-Policy: require-corp`
+  - `Cross-Origin-Resource-Policy: cross-origin`
+  - `Permissions-Policy: publickey-credentials-get/create` delegating to your wallet origin
+  - `Access-Control-Allow-Origin: *` for `${VITE_SDK_BASE_PATH}/*` and `${VITE_SDK_BASE_PATH}/workers/*`
+- `dist${VITE_WALLET_SERVICE_PATH}/index.html` (minimal) if not already provided by your app under `public/`. The plugin never overwrites existing files.
 
-What it writes to `dist/_headers`:
-- `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Embedder-Policy: require-corp`
-- `Permissions-Policy: publickey-credentials-get/create` delegating to your wallet origin
-
-The plugin is a no‑op if a `_headers` file already exists (it won’t override your app’s headers).
-
-Note: The deploy-cloudflare workflow may also contain a step that writes `_headers` for the site. If you keep that step, it will overwrite the file written by the plugin with equivalent content. You can remove the CI step if you prefer to rely solely on the plugin.
+With this, CI does not need to inject HTML or headers; it only needs to build the example and deploy the `dist` folder.
 
 ### 2. Update GitHub Secrets
 Use the project names you created in the GitHub secrets:
