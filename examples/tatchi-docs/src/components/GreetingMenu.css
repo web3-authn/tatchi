@@ -125,7 +125,6 @@
   display: flex;
   gap: var(--fe-gap-2);
   flex-wrap: wrap; /* allow wrap under text zoom */
-  height: 44px;
 }
 
 .greeting-input-group input {

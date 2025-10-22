@@ -9,13 +9,17 @@ import { useThemeBridge } from './hooks/useThemeBridge'
 import { useBodyLoginStateBridge } from './hooks/useBodyLoginStateBridge'
 
 
-const AppBridges: React.FC = () => { useSyncVitepressTheme(); useThemeBridge(); useBodyLoginStateBridge(); return null }
+const VitepressStateSync: React.FC = () => {
+  useSyncVitepressTheme();
+  useThemeBridge();
+  useBodyLoginStateBridge();
+  return null
+}
 
 export const App: React.FC = () => {
   const env = import.meta.env
   return (
-    <>
-      <TatchiPasskeyProvider
+    <TatchiPasskeyProvider
       config={{
         relayer: {
           url: env.VITE_RELAYER_URL!,
@@ -33,12 +37,11 @@ export const App: React.FC = () => {
           sdkBasePath: env.VITE_SDK_BASE_PATH,
         },
       }}
-      >
-        <AppBridges />
-        <HomePage />
-        <ToasterThemed />
-      </TatchiPasskeyProvider>
-    </>
+    >
+      <HomePage />
+      <VitepressStateSync />
+      <ToasterThemed />
+    </TatchiPasskeyProvider>
   )
 }
 

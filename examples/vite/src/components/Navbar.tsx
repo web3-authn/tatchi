@@ -48,8 +48,7 @@ export const Navbar: React.FC = () => {
   }, [passkeyManager, setTheme]);
 
   return (
-    <Theme mode="scope-only">
-      <nav className="navbar-container">
+    <nav className="navbar-container">
       <div className="navbar-title">
         <Link to="/">
           Tatchi.xyz
@@ -144,8 +143,6 @@ export const Navbar: React.FC = () => {
           />
         </div>
       }
-
       </nav>
-    </Theme>
   );
 };

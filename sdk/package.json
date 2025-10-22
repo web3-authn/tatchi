@@ -85,6 +85,16 @@
     "dist/",
     "README.md"
   ],
+  "typesVersions": {
+    "*": {
+      "react": [
+        "dist/types/src/react/index.d.ts"
+      ],
+      "react/*": [
+        "dist/types/src/react/*"
+      ]
+    }
+  },
   "sideEffects": [
     "**/*.css",
     "**/*.scss"

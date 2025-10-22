@@ -95,7 +95,6 @@ html {
   width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: calc(65px + 0.5rem); /* 65px + 8px (nav bar height + margin-top) */
 
   /* Colors */
   --fe-primary: var(--w3a-colors-primary);
