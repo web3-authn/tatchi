@@ -20,7 +20,7 @@ The `deploy-cloudflare` workflow:
 
 ### Cloudflare Pages
 - **examples/tatchi-docs** → CF Pages (primary site)
-- **wallet host example** (`examples/wallet-scoped-credentials/dist`) → CF Pages (wallet origin)
+- **wallet host example** (`examples/vite-secure/dist`) → CF Pages (wallet origin)
 
 Note: `examples/vite` is for local testing only and is not deployed.
 

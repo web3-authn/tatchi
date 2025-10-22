@@ -53,7 +53,7 @@ jobs:
         run: pnpm -C sdk build
 
       - name: Build wallet host example (if present)
-        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
+        if: ${{ hashFiles('examples/vite/package.json') != '' }}
         env:
           VITE_WALLET_ORIGIN: ${{ vars.VITE_WALLET_ORIGIN }}
           VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
@@ -64,33 +64,33 @@ jobs:
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
-        run: pnpm -C examples/wallet-scoped-credentials build
+        run: pnpm -C examples/vite build
 
       - name: Copy SDK assets into Pages output (example)
-        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
+        if: ${{ hashFiles('examples/vite/package.json') != '' }}
         run: |
-          mkdir -p examples/wallet-scoped-credentials/dist/sdk examples/wallet-scoped-credentials/dist/sdk/workers
-          rsync -av --delete sdk/dist/esm/sdk/ examples/wallet-scoped-credentials/dist/sdk/
+          mkdir -p examples/vite/dist/sdk examples/vite/dist/sdk/workers
+          rsync -av --delete sdk/dist/esm/sdk/ examples/vite/dist/sdk/
           # Include web workers + colocated WASM binaries expected at /sdk/workers
           if [ -d sdk/dist/workers ]; then
-            rsync -av --delete sdk/dist/workers/ examples/wallet-scoped-credentials/dist/sdk/workers/
+            rsync -av --delete sdk/dist/workers/ examples/vite/dist/sdk/workers/
           fi
 
       - name: Fail if example missing
-        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') == '' }}
+        if: ${{ hashFiles('examples/vite/package.json') == '' }}
         run: |
-          echo "::error::Missing wallet host example at examples/wallet-scoped-credentials" >&2
+          echo "::error::Missing wallet host example at examples/vite" >&2
           echo "Create it (docs cover how) or add a CI fallback again." >&2
           exit 1
 
       - name: Deploy example to Cloudflare Pages (wallet host)
-        if: ${{ hashFiles('examples/wallet-scoped-credentials/package.json') != '' }}
+        if: ${{ hashFiles('examples/vite/package.json') != '' }}
         uses: cloudflare/pages-action@v1
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CF_PAGES_PROJECT_WALLET }}
-          directory: examples/wallet-scoped-credentials/dist
+          directory: examples/vite/dist
 
       # No fallback: example is required for this workflow
 
