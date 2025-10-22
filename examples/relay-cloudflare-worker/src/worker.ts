@@ -16,6 +16,7 @@ export interface Env {
   SHAMIR_P_B64U: string;
   SHAMIR_E_S_B64U: string;
   SHAMIR_D_S_B64U: string;
+  // Comma-separated lists are supported (e.g. "https://hosted.tatchi.xyz, https://tatchi.xyz")
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
@@ -48,12 +49,22 @@ function getService(env: Env) {
   return service;
 }
 
+// Helper: parse comma-separated env var into a trimmed non-empty list
+function parseCsvList(input?: string): string[] {
+  return (input || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter((x) => x.length > 0);
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: CfExecutionContext): Promise<Response> {
     const s = getService(env);
-    const corsOrigins = env.EXPECTED_ORIGIN && env.EXPECTED_WALLET_ORIGIN
-      ? [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN]
-      : '*';
+    // Build an allowlist of origins. Support comma-separated lists in each var.
+    const listA = parseCsvList(env.EXPECTED_ORIGIN);
+    const listB = parseCsvList(env.EXPECTED_WALLET_ORIGIN);
+    const merged = [...listA, ...listB];
+    const corsOrigins: string[] | '*' = merged.length > 0 ? merged : '*';
     const router = createCloudflareRouter(s, { healthz: true, corsOrigins });
     return router(request, env as unknown as CfEnv, ctx);
   },

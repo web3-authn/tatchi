@@ -8,7 +8,12 @@
     "jsx": "react-jsx",
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": ["vite/client"],
+    "baseUrl": ".",
+    "paths": {
+      "@tatchi/sdk/react": ["../../sdk/dist/types/src/react/index.d.ts"],
+      "@tatchi/sdk/react/*": ["../../sdk/dist/types/src/react/*"]
+    }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts", "vite-env.d.ts"]
 }
