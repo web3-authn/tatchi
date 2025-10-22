@@ -1,8 +1,28 @@
 import React from 'react';
 import type { PasskeyContextProviderProps } from '../types';
 
-// Internal: Add preconnect/prefetch hints for wallet service + relayer.
-// Not exported from the public react index; used by TatchiPasskeyProvider only.
+// Internal: Add preconnect/prefetch hints for wallet service + relayer and
+// expose an absolute embedded asset base for srcdoc iframes.
+//
+// What this hook does
+// - Adds resource hints for the configured wallet origin (dns‑prefetch, preconnect, prefetch)
+//   and modulepreload for the wallet host script.
+// - Sets `window.__W3A_EMBEDDED_BASE__` to an absolute `${walletOrigin}${sdkBasePath}/` so
+//   any embedded srcdoc iframes created by the SDK load ESM bundles from the wallet origin,
+//   not from the host app origin.
+//
+// Requirements
+// - `config.iframeWallet.walletOrigin` points to the wallet site (e.g. https://web3authn.org)
+// - `config.iframeWallet.sdkBasePath` (default '/sdk') is served on that wallet site
+// - `config.iframeWallet.walletServicePath` (default '/service' or '/wallet-service') is reachable
+//
+// Gotchas
+// - Always resolve `${sdkBasePath}/...` with a trailing slash; otherwise `new URL('file', '/sdk')`
+//   becomes `/file` instead of `/sdk/file`.
+// - For cross‑origin module/worker imports, ensure the wallet site sends CORS headers for
+//   `/sdk/*` and `/sdk/workers/*` (e.g. `Access-Control-Allow-Origin: *`) and `.wasm` has
+//   `Content-Type: application/wasm`.
+// - `/wallet-service` may 308 → `/wallet-service/` on Pages; both are fine.
 export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['config']): void {
   // Derive stable primitives to avoid re-running the effect on object identity changes.
   const walletOrigin = config?.iframeWallet?.walletOrigin as string | undefined;
@@ -13,6 +33,18 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
   React.useEffect(() => {
     try {
       if (typeof document === 'undefined') return;
+      // Expose absolute embedded SDK base so srcdoc iframes load assets from
+      // the wallet origin rather than the host origin.
+      if (walletOrigin) {
+        const sdkPath = (sdkBasePath || '/sdk') as string;
+        const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
+        const abs = new URL(withSlash, walletOrigin).toString();
+        const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
+        if (w.__W3A_EMBEDDED_BASE__ !== abs) {
+          w.__W3A_EMBEDDED_BASE__ = abs;
+          try { window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: abs })); } catch {}
+        }
+      }
       const ensureLink = (rel: string, href?: string, attrs?: Record<string, string>) => {
         try {
           if (!href) return;

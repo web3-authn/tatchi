@@ -2,9 +2,6 @@
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
   line-height: 1.6;
   font-weight: 400;
-
-  /* Global defaults kept minimal; Theme boundary handles background & text */
-
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -77,24 +74,13 @@
   --fe-med: 400ms;
 }
 
-/* Respect user text-size preferences; do not disable scaling */
 html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+  background: oklch(0.95 0.01 240);
 }
 
-/*
-  Theme-driven variable mapping
-  - Theme boundary exposes design tokens as CSS variables with the `--w3a-` prefix
-  - Map existing `--fe-*` variables to `--w3a-*` so the app styles respond to light/dark
-*/
 .w3a-theme-provider {
   /* Ensure default text/background derive from theme */
   color: var(--fe-text);
-  min-height: 100dvh;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
 
   /* Colors */
   --fe-primary: var(--w3a-colors-primary);
@@ -126,18 +112,6 @@ html {
   --cerulean-focus: var(--w3a-colors-focus);
 }
 
-.w3a-theme-provider[data-w3a-theme="light"] {
-  --fe-success-bg: #e8f5e8;
-  --fe-error-bg: #ffe8e8;
-  background-color: var(--fe-surface);
-}
-
-.w3a-theme-provider[data-w3a-theme="dark"] {
-  --fe-success-bg: #14321b;
-  --fe-error-bg: #3a1414;
-  background-color: var(--fe-surface);
-}
-
 a {
   font-weight: 500;
   color: var(--fe-primary);
@@ -149,21 +123,6 @@ a:hover {
 
 body {
   margin: 0;
-}
-
-html, body, #root, .w3a-theme-provider {
-  min-height: 100dvh;
-}
-
-/* Mirror themed background to <body> to handle overscroll bounce */
-body[data-w3a-theme="light"] {
-  background-color: #fafafa;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23d1d5db' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-}
-
-body[data-w3a-theme="dark"] {
-  background-color: #21212a;
-  background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23a3a3a3' fill-opacity='0.12'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
 }
 
 * {
@@ -196,58 +155,17 @@ h4 {
   margin-top: 0.5rem;
 }
 
-main {
-  display: flex;
-  flex-direction: column; /* avoid row overflow under zoom */
-  justify-content: center;
-  align-items: center;
-  inline-size: 100%;
-  max-inline-size: 100%;
-  min-inline-size: 0;
-  /* Clip excess content while not affecting fixed navbar */
-  overflow-x: clip;
-}
-
 /* Homepage Content Layout */
 .layout-root {
   display: grid;
   place-content: center;
-  /* Keep a small gutter and cap width responsively; 30rem ~= 480px */
-  width: 100%;
-  max-inline-size: clamp(20rem, 100% - 1rem, 30rem);
-  max-width: clamp(20rem, 100% - 1rem, 30rem);
-  margin-inline: 0.5rem;
-  min-width: 0;
   justify-content: center;
   align-items: flex-start;
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  padding: 2rem;
 }
-
-/* nav {
-  background-color: var(--w3a-colors-surface2);
-  padding: 1rem;
-}
-
-nav ul {
-  list-style-type: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  justify-content: center;
-}
-
-nav ul li {
-  margin: 0 1rem;
-}
-
-nav ul li a {
-  text-decoration: none;
-  color: var(--fe-text-primary);
-  font-weight: bold;
-}
-
-nav ul li a:hover {
-  color: var(--fe-primary-hover);
-} */
 
 .input-field {
     width: 100%;
@@ -284,6 +202,7 @@ nav ul li a:hover {
 
 /* Navbar Styles */
 .navbar-container {
+  position: relative;
   display: flex;
   justify-content: flex-start;
   align-items: center;

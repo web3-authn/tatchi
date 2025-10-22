@@ -15,15 +15,6 @@ import './index.css';
 const env = import.meta.env;
 
 function App() {
-  // Mirror theme onto <body> so overscroll shows correct background
-  const BodyThemeSync: React.FC = () => {
-    const { theme } = useTheme();
-    React.useEffect(() => {
-      try { document.body.setAttribute('data-w3a-theme', theme); } catch {}
-    }, [theme]);
-    return null;
-  };
-
   return (
     <BrowserRouter>
       <TatchiPasskeyProvider
@@ -48,7 +39,6 @@ function App() {
             },
           }}
       >
-        <BodyThemeSync />
         <Navbar />
         <Routes>
           <Route path="/" element={<HomePage />} />

@@ -106,6 +106,10 @@ jobs:
             Cross-Origin-Opener-Policy: unsafe-none
           /wallet-service/
             Cross-Origin-Opener-Policy: unsafe-none
+          /sdk/*
+            Access-Control-Allow-Origin: *
+          /sdk/workers/*
+            Access-Control-Allow-Origin: *
           HEADERS
           rsync -av --delete sdk/dist/esm/sdk/ wallet-dist/sdk/
           if [ -d sdk/dist/workers ]; then

@@ -420,6 +420,10 @@ jobs:
             Cross-Origin-Opener-Policy: unsafe-none
           /wallet-service/
             Cross-Origin-Opener-Policy: unsafe-none
+          /sdk/*
+            Access-Control-Allow-Origin: *
+          /sdk/workers/*
+            Access-Control-Allow-Origin: *
           HEADERS
 
           # Copy SDK assets (ESM bundles + workers) under /sdk

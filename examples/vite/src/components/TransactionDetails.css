@@ -10,7 +10,6 @@
   border-radius: 6px;
   font-size: 14px;
   color: var(--fe-text);
-  border-left: 3px solid var(--w3a-colors-primary);
 }
 
 .tx-details {
