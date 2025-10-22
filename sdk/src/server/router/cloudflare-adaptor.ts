@@ -229,13 +229,17 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (opts.healthz && method === 'GET' && pathname === '/healthz') {
+        // Surface simple CORS info for diagnostics
+        const corsAllowed = opts.corsOrigins === '*'
+          ? '*'
+          : (Array.isArray(opts.corsOrigins) ? opts.corsOrigins : []);
         try {
           const { currentKeyId } = JSON.parse((await service.handleGetShamirKeyInfo()).body) as { currentKeyId?: string };
-          const res = json({ ok: true, currentKeyId: currentKeyId || null }, { status: 200 });
+          const res = json({ ok: true, currentKeyId: currentKeyId || null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
           withCors(res.headers, opts, request);
           return res;
         } catch {
-          const res = json({ ok: true }, { status: 200 });
+          const res = json({ ok: true, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
           withCors(res.headers, opts, request);
           return res;
         }

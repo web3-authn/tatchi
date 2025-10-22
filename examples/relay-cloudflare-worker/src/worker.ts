@@ -51,10 +51,24 @@ function getService(env: Env) {
 
 // Helper: parse comma-separated env var into a trimmed non-empty list
 function parseCsvList(input?: string): string[] {
-  return (input || '')
-    .split(',')
-    .map((x) => x.trim())
-    .filter((x) => x.length > 0);
+  const out = new Set<string>();
+  for (const raw of (input || '').split(',')) {
+    const s = raw.trim();
+    if (!s) continue;
+    try {
+      const u = new URL(s);
+      // Canonicalize: lowercase host, drop path/query/hash, normalize trailing slash
+      const host = u.hostname.toLowerCase();
+      const port = u.port ? `:${u.port}` : '';
+      const proto = u.protocol === 'http:' || u.protocol === 'https:' ? u.protocol : 'https:';
+      out.add(`${proto}//${host}${port}`);
+    } catch {
+      // Fallback: strip trailing slash and spaces
+      const stripped = s.replace(/\/$/, '');
+      if (stripped) out.add(stripped);
+    }
+  }
+  return Array.from(out);
 }
 
 export default {

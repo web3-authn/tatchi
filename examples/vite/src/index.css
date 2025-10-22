@@ -129,13 +129,13 @@ html {
 .w3a-theme-provider[data-w3a-theme="light"] {
   --fe-success-bg: #e8f5e8;
   --fe-error-bg: #ffe8e8;
-  background-color: #fafafa;
+  background-color: var(--fe-surface);
 }
 
 .w3a-theme-provider[data-w3a-theme="dark"] {
   --fe-success-bg: #14321b;
   --fe-error-bg: #3a1414;
-  background-color: #21212a; /* slate grey 900 */
+  background-color: var(--fe-surface);
 }
 
 a {
