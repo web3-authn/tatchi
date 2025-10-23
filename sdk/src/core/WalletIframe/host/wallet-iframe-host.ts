@@ -162,6 +162,23 @@ function postToParent(message: unknown): void {
   parentWindow.postMessage(message, target);
 }
 
+/**
+ * Gate whether we should adopt a transferred MessagePort for CONNECT.
+ *
+ * - Improves security by preventing a non-parent window from hijacking the MessagePort.
+ * - Keeps the handshake robust: it tolerates early ‘null’ origins, supports retries,
+ *   and binds adoption to the real parent.
+ */
+function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boolean {
+  // Only accept CONNECT from our direct parent window and only once.
+  if (hasAdoptedPort) return false;
+  try {
+    const src = (e as MessageEvent).source as Window | null;
+    if (src !== window.parent) return false;
+  } catch {}
+  return true;
+}
+
 // Lightweight cross-origin control channel for small embedded UI surfaces (e.g., tx button).
 // This channel uses window.postMessage directly (not MessagePort) so that a standalone
 // iframe can instruct this host to render a clickable control that performs WebAuthn
@@ -302,6 +319,7 @@ function onWindowMessage(e: MessageEvent) {
   const { data, ports } = e;
   if (!data || !isObject(data)) return;
   if ((data as { type?: unknown }).type === 'CONNECT' && ports && ports[0]) {
+    if (!shouldAcceptConnectEvent(e, !!port)) return;
     if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
       parentOrigin = e.origin;
     }

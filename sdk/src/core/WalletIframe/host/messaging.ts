@@ -28,6 +28,22 @@ export function adoptPort(
   post(ctx, { type: 'READY', payload: { protocolVersion } });
 }
 
+/**
+ * Gate whether we should adopt a transferred MessagePort for CONNECT.
+ *
+ * - Improves security by preventing a non-parent window from hijacking the MessagePort.
+ * - Keeps the handshake robust: it tolerates early ‘null’ origins, supports retries,
+ *   and binds adoption to the real parent.
+ */
+function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boolean {
+  if (hasAdoptedPort) return false;
+  try {
+    const src = (e as MessageEvent).source as Window | null;
+    if (src !== window.parent) return false;
+  } catch {}
+  return true;
+}
+
 export function onWindowMessage(
   ctx: HostContext,
   e: MessageEvent,
@@ -37,6 +53,7 @@ export function onWindowMessage(
   const { data, ports } = e as MessageEvent & { ports?: MessagePort[] };
   if (!data || typeof data !== 'object') return;
   if ((data as { type?: unknown }).type === 'CONNECT' && ports && ports[0]) {
+    if (!shouldAcceptConnectEvent(e, !!ctx.port)) return;
     if (typeof e.origin === 'string' && e.origin.length && e.origin !== 'null') {
       ctx.parentOrigin = e.origin;
     }
@@ -60,4 +77,3 @@ export function removeHostListeners(ctx: HostContext): void {
     ctx.onWindowMessage = undefined;
   }
 }
-

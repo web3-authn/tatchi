@@ -364,6 +364,15 @@ pub async fn request_user_confirmation_with_config(
 
             let result = parse_confirmation_result(confirm_result)?;
 
+            // Enforce digest parity: the UI/bridge must return the same intentDigest
+            if let Some(returned_digest) = &result.intent_digest {
+                if returned_digest != &intent_digest {
+                    return Err("Intent digest mismatch between UI and WASM".to_string());
+                }
+            } else {
+                return Err("Missing intent digest from confirmation result".to_string());
+            }
+
             // For skip override, we assume the user implicitly confirms
             // but we still need the credentials and PRF output
             if result.credential.is_some() && result.prf_output.is_some() {
@@ -449,6 +458,15 @@ pub async fn request_user_confirmation_with_config(
 
     // Parse confirmation result
     let result = parse_confirmation_result(confirm_result)?;
+
+    // Enforce digest parity: the UI/bridge must return the same intentDigest
+    if let Some(returned_digest) = &result.intent_digest {
+        if returned_digest != &intent_digest {
+            return Err("Intent digest mismatch between UI and WASM".to_string());
+        }
+    } else {
+        return Err("Missing intent digest from confirmation result".to_string());
+    }
 
     Ok(result)
 }
