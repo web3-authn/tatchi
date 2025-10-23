@@ -221,8 +221,8 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           // Allow SDK assets to load across origins when needed
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Delegate WebAuthn to this wallet origin explicitly (defense-in-depth for Safari)
-          res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self)`)
+          // Explicitly allow features used by the wallet service itself
+          res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)`)
         } catch {}
         res.end(html)
       })

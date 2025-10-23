@@ -188,7 +188,7 @@ export function WalletIframeTxButtonHost({
   }
 
   const allowAttr = config.allowOrigin
-    ? `publickey-credentials-create ${config.allowOrigin}; publickey-credentials-get ${config.allowOrigin}; clipboard-read; clipboard-write`
+    ? `publickey-credentials-create 'self' ${config.allowOrigin}; publickey-credentials-get 'self' ${config.allowOrigin}; clipboard-read; clipboard-write`
     : "publickey-credentials-create 'self'; publickey-credentials-get 'self'; clipboard-read; clipboard-write";
 
   return (

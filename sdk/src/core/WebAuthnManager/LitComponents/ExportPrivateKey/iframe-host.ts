@@ -62,7 +62,7 @@ export class IframeExportHost extends LitElementWithProps {
   declare errorMessage?: string;
 
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
-  private messageHandler?: (event: MessageEvent) => void;
+  private messageHandler?: (event: MessageEvent) => void | Promise<void>;
   private iframeInitialized = false;
 
   constructor() {
@@ -182,7 +182,7 @@ export class IframeExportHost extends LitElementWithProps {
   }
 
   private setupMessageHandling() {
-    const onMessage = (event: MessageEvent) => {
+    const onMessage = async (event: MessageEvent) => {
       const data = event?.data;
       if (!isObject(data) || !isString((data as { type?: unknown }).type)) return;
       const type = (data as { type?: string }).type as MessageType;
