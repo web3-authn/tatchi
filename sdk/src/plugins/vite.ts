@@ -42,7 +42,7 @@ export type DevHeadersOptions = {
   sdkBasePath?: string
   /**
    * Optional dev-time CSP for the wallet service route.
-   *  - 'strict': no inline scripts; keeps inline style for minimal style tag
+   *  - 'strict': no inline scripts/styles (mirrors production defaults)
    *  - 'compatible': allows inline scripts/styles (useful for debugging)
    */
   devCSP?: 'strict' | 'compatible'
@@ -111,6 +111,14 @@ function tryFile(...candidates: string[]): string | undefined {
   return undefined
 }
 
+// Shared assets emitted/served for the wallet service bootstrap.
+const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n"
+const WALLET_SURFACE_CSS = [
+  'html, body { background: transparent !important; margin:0; padding:0; }',
+  'html, body { color-scheme: normal; }',
+  '',
+].join('\n')
+
 export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
@@ -133,7 +141,13 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           if (url === configuredBase + '/wallet-shims.js') {
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-            res.end("window.global ||= window; window.process ||= { env: {} };\n")
+            res.end(WALLET_SHIM_SOURCE)
+            return
+          }
+          if (url === configuredBase + '/wallet-service.css') {
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'text/css; charset=utf-8')
+            res.end(WALLET_SURFACE_CSS)
             return
           }
         } catch {}
@@ -201,12 +215,8 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
-    <style>
-      /* Ensure the initial paint is fully transparent before any JS executes */
-      html, body { background: transparent !important; margin:0; padding:0; }
-      /* Avoid UA dark/light scrollbars forcing opaque backgrounds */
-      html, body { color-scheme: normal; }
-    </style>
+    <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
+    <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css" />
     <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
@@ -304,8 +314,7 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
           const strictCsp = [
             "default-src 'self'",
             "script-src 'self'",
-            // Keep inline styles for the minimal style block
-            "style-src 'self' 'unsafe-inline'",
+            "style-src 'self'",
             "img-src 'self' data:",
             "font-src 'self'",
             "connect-src 'self' https:",
@@ -486,23 +495,30 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
           console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy + SDK CORS rules')
         }
 
+        const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))
+        try { fs.mkdirSync(sdkDir, { recursive: true }) } catch {}
+        const shimPath = path.join(sdkDir, 'wallet-shims.js')
+        if (!fs.existsSync(shimPath)) {
+          fs.writeFileSync(shimPath, WALLET_SHIM_SOURCE, 'utf-8')
+        }
+        const cssPath = path.join(sdkDir, 'wallet-service.css')
+        if (!fs.existsSync(cssPath)) {
+          fs.writeFileSync(cssPath, WALLET_SURFACE_CSS, 'utf-8')
+        }
+
         // Emit minimal wallet-service/index.html if the app hasn't provided one
         const walletRel = walletServicePath.replace(/^\//, '')
         const wsDir = path.join(outDir, walletRel)
         const wsHtml = path.join(wsDir, 'index.html')
         if (!fs.existsSync(wsHtml)) {
           fs.mkdirSync(wsDir, { recursive: true })
-          // Emit external shim under /sdk to enable strict CSP (no inline)
-          const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))
-          try { fs.mkdirSync(sdkDir, { recursive: true }) } catch {}
-          try { fs.writeFileSync(path.join(sdkDir, 'wallet-shims.js'), "window.global ||= window; window.process ||= { env: {} };\n", 'utf-8') } catch {}
           const html = `<!doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
-    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>
+    <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
   </head>
