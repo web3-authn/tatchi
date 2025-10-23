@@ -7,7 +7,8 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import TxTree from '../TxTree';
 import TxConfirmContentElement from './tx-confirm-content';
 import { formatDeposit, formatGas } from '../common/formatters';
-import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme } from './modal-confirmer-themes';
+import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES } from './modal-confirmer-themes';
+import type { ThemeName } from '../confirm-ui-types';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
 import PasskeyHaloLoadingElement from '../PasskeyHaloLoading';
@@ -69,7 +70,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   loading = false;
   errorMessage: string | undefined = undefined;
   styles?: ModalTxConfirmerStyles;
-  theme: ModalConfirmerTheme = 'dark';
+  theme: ThemeName = 'dark';
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.

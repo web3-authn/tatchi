@@ -6,6 +6,7 @@ import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
+import type { ThemeName } from '../confirm-ui-types';
 import type { ConfirmUIElement } from '../confirm-ui-types';
 import { MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme, type ModalTxConfirmerStyles } from './modal-confirmer-themes';
 // Fallback color set explicitly to palette's blue500 without unsafeCSS
@@ -36,7 +37,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
-  declare theme: 'dark' | 'light';
+  declare theme: ThemeName;
   styles?: ModalTxConfirmerStyles;
   declare loading: boolean;
   declare errorMessage?: string;

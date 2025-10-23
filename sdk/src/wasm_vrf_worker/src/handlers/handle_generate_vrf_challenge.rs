@@ -1,7 +1,7 @@
 use crate::manager::VRFKeyManager;
 use crate::types::VRFInputData;
 use crate::types::VrfWorkerResponse;
-use log::{error, info};
+use log::{error, debug};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -25,7 +25,7 @@ pub fn handle_generate_vrf_challenge(
 
     return match manager_ref.generate_vrf_challenge(payload.vrf_input_data) {
         Ok(challenge_data) => {
-            info!("VRF challenge generated successfully");
+            debug!("VRF challenge generated successfully");
             VrfWorkerResponse::success(
                 message_id,
                 Some(serde_json::to_value(&challenge_data).unwrap()),

@@ -1,4 +1,4 @@
-# Web3Authn WalletIframe Architecture Plan
+# Wallet Iframe Architecture (Current Implementation)
 
 This document outlines how to run all sensitive Web3Authn logic inside a cross‑origin, headless service iframe while keeping an API‑first SDK for developers. The existing visible iframes (Modal and Embedded Button) remain the way to capture user gestures without popups.
 
@@ -13,15 +13,15 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 ## High‑Level Design
 
 - Parent SDK (`PasskeyManager`):
-  - Public APIs unchanged: `register`, `signTransactions`, `signAndSendTransactions`, etc.
-  - On `init(options)`, mounts an invisible iframe to `walletOrigin` and performs a READY handshake over a `MessageChannel`.
-  - Each API call sends a typed RPC request to the iframe and awaits a typed response with `requestId` correlation, timeouts, and cancellation.
+  - Public APIs unchanged: `register`, `login`, `signTransactionsWithActions`, `signAndSendTransactions`, `sendTransaction`, etc.
+  - On init (via router/provider), mounts an invisible iframe to `walletOrigin` (or same‑origin in dev via Vite plugin) and performs a CONNECT→READY handshake using a `MessageChannel`.
+  - Each API call sends a typed RPC request to the iframe and awaits a typed response with `requestId` correlation, progress events, timeouts, and cancellation.
 
 - WalletIframe (wallet origin):
-  - Loads a minimal wallet bundle under strict CSP; no third‑party runtime CDNs.
-  - Spawns signer + VRF workers; owns IndexedDB for encrypted keys.
-  - Implements RPC handlers: on `REQUEST_signTransactionsWithActions` or `REQUEST_registerPasskey` performs WebAuthn and calls local workers; returns only signature/signed txs.
-  - For WebAuthn user activation, coordinates a visible wallet‑origin custom element (`<w3a-tx-confirmer>`) or the embedded button flow; no new popups.
+  - Loads the host module (`/sdk/wallet-iframe-host.js`) from the wallet origin (dev: served by `tatchiDev`; prod: deployed with your wallet site) under COOP/COEP + Permissions‑Policy.
+  - Spawns signer + VRF WASM workers; owns IndexedDB for encrypted key material and user prefs on the wallet origin.
+  - Implements RPC handlers for PM_* messages; performs WebAuthn and calls local workers; returns only sanitized results (signed txs, signatures, status).
+  - For WebAuthn user activation, coordinates visible wallet‑origin surfaces (modal/drawer or embedded button) and never opens popups.
 
 ## Components & Ownership
 
@@ -42,34 +42,28 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 
 ## Boot Sequence
 
-1. Parent app constructs `PasskeyManager` and (optionally) sets `walletOrigin` in configs. React’s provider auto‑inits; bare JS calls `initWalletIframe()`.
-2. Parent mounts hidden service iframe:
-   - Preferred (no external hosting): uses `srcdoc` with an imported module asset URL resolved by the consumer bundler (e.g., `wallet-iframe-host.ts?url`). This keeps the service same‑origin and sandboxed, without copying HTML.
-   - Optional (custom wallet site): if `walletOrigin` is set, loads `new URL(servicePath, walletOrigin)` instead.
-   - Opens a `MessageChannel` and performs READY/PING handshake with protocol version check.
-3. WalletIframe loads wallet bundle, applies strict CSP, spawns signer/VRF workers, opens IndexedDB, and posts `READY`.
+1. Parent constructs `PasskeyManager` with `iframeWallet.walletOrigin` (recommended) and optional `walletServicePath` (defaults: SDK transport uses `/service`; dev plugin + examples use `/wallet-service`).
+2. Parent mounts a hidden service iframe pointed at `${walletOrigin}${walletServicePath}` and opens a `MessageChannel`.
+3. Parent posts `CONNECT` (window.postMessage with transferable port). Wallet host adopts the port and replies with `READY { protocolVersion }`.
+4. Parent sends `PING` for liveness or `PM_SET_CONFIG` to configure RPC URL, contractId, theme, assets base; wallet replies with `PONG`.
+5. Wallet host prewarms workers/IDB and bridges theme to `documentElement`.
 
-## RPC Protocol (MessageChannel)
+## Protocol (Window + MessagePort)
 
-- Transport: `MessageChannel` to avoid global `message` noise. Post with pinned `targetOrigin` and verify `event.origin`.
-- Envelope: `{ type: string; requestId?: string; payload?: any; }` (typed in TS).
-- Parent → Child:
-  - `PING`
-  - `SET_CONFIG` (theme, language)
-  - `SET_ACCOUNT` (active account id)
-  - `REQUEST_registerPasskey` (nearAccountId, registration options)
-  - `REQUEST_signTransactionsWithActions` (nearAccountId, txSigningRequests, options)
-- Child → Parent:
-  - `READY` (protocolVersion)
-  - `PROGRESS` (step/status/message)
-  - `REGISTER_RESULT` (public data only)
-  - `SIGN_RESULT` (signed tx(s) only)
-  - `ERROR` (code/message)
+- Bootstrap: window.postMessage CONNECT (with a MessagePort) → READY on port. Prior to READY, the client prefers `'*'` target until the wallet origin is non‑opaque.
+- Transport: MessagePort (typed envelopes). Envelope: `{ type: ParentToChildType|ChildToParentType; requestId?: string; payload?: any; }`.
+- Parent → Child (selected): `PING`, `PM_SET_CONFIG`, `PM_REGISTER`, `PM_LOGIN`, `PM_SIGN_TXS_WITH_ACTIONS`, `PM_SIGN_AND_SEND_TXS`, `PM_SEND_TRANSACTION`, `PM_SET_CONFIRMATION_CONFIG`, `PM_SET_THEME`, `PM_CANCEL`.
+- Child → Parent: `READY`, `PONG`, `PROGRESS`, `PM_RESULT { ok, result? }`, `ERROR { code, message }`.
 
-Implementation notes:
-- Use `requestId` correlation for every request/response pair.
-- Add per‑call timeouts and cancellation tokens.
-- Define TS types under `src/core/WalletIframe/messages.ts`.
+Notes:
+- Every request uses a `requestId` for correlation and emits `PROGRESS` events for long operations.
+- `PM_CANCEL` triggers in‑iframe UI cancel events and terminates the original request with a terminal cancellation error.
+
+## WebAuthn & User Activation
+
+- Use wallet‑origin visible surfaces to satisfy user activation; the service iframe stays hidden.
+- Iframe `allow` includes `publickey-credentials-get/create` (plus clipboard). The front sets `Permissions‑Policy` delegations; dev/build helpers are provided (`tatchiDevHeaders`, `tatchiBuildHeaders`).
+- Safari cross‑origin bridge: when in‑iframe WebAuthn is blocked, the wallet host requests the parent to run WebAuthn at top‑level; the parent only honors bridge requests from the wallet origin and returns serialized credentials with PRF outputs.
 
 ## WebAuthn Flow (No Popups)
 
@@ -127,13 +121,10 @@ Notes:
 - Iframe: `allow="publickey-credentials-get; publickey-credentials-create"`.
 - Do not expose PRF/credential outside the wallet origin.
 
-## Origin & Contract Policy
+## Origin & RP/Contract Policy
 
-- Register/auth in the wallet origin; set `rpId` to the registrable domain (e.g., `example.com` for `wallet.example.com`).
-- Contract policy:
-  - `single` for the wallet host (tightest), or registrable domain if you want reuse.
-  - `allSubdomains` if using tenant subdomains for the wallet.
-  - Avoid letting app hosts call WebAuthn natively.
+- Wallet‑scoped credentials (recommended): rpId is the wallet domain (or registrable base) and is announced by the wallet host. For cross‑site embeddings, Related Origin Requests (ROR) must allow top‑level apps via `/.well-known/webauthn`.
+- Contract policy should reflect chosen scope; ensure on‑chain checks accept the intended `rpId`/origins.
 
 ## Phased Rollout
 

@@ -235,7 +235,8 @@ export class SignerWorkerManager {
             // Timeout after 5 seconds
             setTimeout(() => {
               worker.removeEventListener('message', onReady);
-              console.warn(`WebAuthnManager: Worker ${i + 1} pre-warm timeout`);
+              // Pre-warm timeouts are benign; workers will be created on-demand later.
+              console.debug(`WebAuthnManager: Worker ${i + 1} pre-warm timeout`);
               reject(new Error('Pre-warm timeout'));
             }, 5000);
 

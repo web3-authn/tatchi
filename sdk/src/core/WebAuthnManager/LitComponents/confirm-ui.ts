@@ -5,11 +5,25 @@ import { WalletIframeDomEvents } from '../../WalletIframe/events';
 import { TransactionInputWasm, VRFChallenge } from '../../types';
 
 import { W3A_TX_CONFIRMER_ID, CONFIRM_UI_ELEMENT_SELECTORS, W3A_CONFIRM_PORTAL_ID } from './tags';
-import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
+import type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode, ThemeName } from './confirm-ui-types';
 export type { ConfirmUIHandle, ConfirmUIUpdate, ConfirmationUIMode } from './confirm-ui-types';
+import { validateTheme } from './confirm-ui-types';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-digest';
 // Ensure the wrapper element is registered when this module loads.
 import './IframeTxConfirmer/tx-confirmer-wrapper';
+
+// Resolve theme preference from explicit param, user preferences, or DOM attribute
+function resolveTheme(ctx: SignerWorkerManagerContext, requested?: ThemeName): ThemeName {
+  let resolved = validateTheme(requested);
+  if (!resolved) {
+    try { resolved = validateTheme((ctx as any)?.userPreferencesManager?.getUserTheme?.()); } catch {}
+  }
+  if (!resolved) {
+    const domAttr = (document?.documentElement?.getAttribute('data-w3a-theme') || '').toLowerCase();
+    resolved = validateTheme(domAttr);
+  }
+  return resolved || 'dark';
+}
 
 // Minimal host element interface for the inline confirmer wrapper.
 interface HostTxConfirmerElement extends HTMLElement {
@@ -18,7 +32,7 @@ interface HostTxConfirmerElement extends HTMLElement {
   txSigningRequests: TransactionInputWasm[];
   intentDigest?: string;
   vrfChallenge?: VRFChallenge;
-  theme?: 'dark' | 'light';
+  theme?: ThemeName;
   loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
@@ -44,7 +58,7 @@ export async function mountConfirmUI({
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
-  theme?: 'dark' | 'light',
+  theme?: ThemeName,
   uiMode: ConfirmationUIMode,
   nearAccountIdOverride?: string,
 }): Promise<ConfirmUIHandle> {
@@ -76,7 +90,7 @@ export async function awaitConfirmUIDecision({
   summary: TransactionSummary,
   txSigningRequests: TransactionInputWasm[],
   vrfChallenge: VRFChallenge,
-  theme: 'dark' | 'light',
+  theme: ThemeName,
   uiMode: ConfirmationUIMode,
   nearAccountIdOverride: string,
 }): Promise<{ confirmed: boolean; handle: ConfirmUIHandle; error?: string }> {
@@ -231,6 +245,10 @@ function ensureConfirmPortal(): HTMLElement {
     // Keep the portal inert except for stacking; children handle their own overlay
     portal.style.position = 'relative';
     portal.style.zIndex = '2147483647';
+    // Simple, robust FOUC guard: fade in after next frame
+    portal.style.opacity = '0';
+    portal.style.pointerEvents = 'none';
+    portal.style.transition = portal.style.transition || 'opacity 100ms ease';
     const root = document.body ?? document.documentElement;
     if (root) {
       root.appendChild(portal);
@@ -264,7 +282,7 @@ function mountHostElement({
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
   loading?: boolean,
-  theme?: 'dark' | 'light',
+  theme?: ThemeName,
   variant?: 'modal' | 'drawer',
   nearAccountIdOverride?: string,
 }): { el: HostTxConfirmerElement; handle: ConfirmUIHandle } {
@@ -281,13 +299,22 @@ function mountHostElement({
     el.intentDigest = summary?.intentDigest;
   }
   if (vrfChallenge) el.vrfChallenge = vrfChallenge;
-  if (theme) el.theme = theme;
+  // Resolve theme with short-circuiting helper
+  el.theme = resolveTheme(ctx, theme);
   if (loading != null) el.loading = !!loading;
   el.removeAttribute('data-error-message');
   // Two-phase close: let caller control removal
   el.deferClose = true;
   const portal = ensureConfirmPortal();
+  // Ensure hidden state (idempotent) and mount
+  portal.style.opacity = '0';
+  portal.style.pointerEvents = 'none';
   portal.replaceChildren(el);
+  // Reveal in the next frame — no deep introspection or toggles
+  requestAnimationFrame(() => {
+    portal.style.opacity = '1';
+    portal.style.pointerEvents = 'auto';
+  });
   const handle = createHostConfirmHandle(el);
   return { el, handle };
 }

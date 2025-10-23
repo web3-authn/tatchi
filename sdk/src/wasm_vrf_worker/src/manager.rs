@@ -100,7 +100,7 @@ impl VRFKeyManager {
         info!("Generating VRF keypair for bootstrapping");
         debug!("VRF keypair will be stored in memory unencrypted until PRF encryption");
 
-        // Clear any existing keypair (automatic zeroization via ZeroizeOnDrop)
+        // Clear any existing keypair (zeroization via ZeroizeOnDrop)
         self.vrf_keypair.take();
 
         // Generate VRF keypair with cryptographically secure randomness
@@ -187,7 +187,7 @@ impl VRFKeyManager {
         prf_key: Vec<u8>,
     ) -> VrfResult<()> {
         debug!("Unlocking VRF keypair for {}", near_account_id);
-        // Clear any existing keypair (automatic zeroization via ZeroizeOnDrop)
+        // Clear any existing keypair (zeroization via ZeroizeOnDrop)
         self.vrf_keypair.take();
 
         // Decrypt VRF keypair using PRF-derived AES key
@@ -224,7 +224,7 @@ impl VRFKeyManager {
             return Err(VrfWorkerError::VrfNotUnlocked);
         }
 
-        info!("Generating VRF challenge");
+        debug!("Generating VRF challenge");
         let vrf_keypair = self.vrf_keypair.as_ref().unwrap().inner();
 
         self.generate_vrf_challenge_with_keypair(vrf_keypair, input_data)
@@ -304,7 +304,7 @@ impl VRFKeyManager {
     pub fn logout(&mut self) -> VrfResult<()> {
         // Clear VRF keypair (automatic zeroization via ZeroizeOnDrop)
         if self.vrf_keypair.take().is_some() {
-            debug!("VRF keypair cleared with automatic zeroization");
+            debug!("VRF keypair cleared with zeroization");
         }
         // Clear session data
         self.session_active = false;

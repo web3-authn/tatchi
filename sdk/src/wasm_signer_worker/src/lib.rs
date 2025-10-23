@@ -13,6 +13,7 @@ mod types;
 
 use serde_json;
 use wasm_bindgen::prelude::*;
+use log::debug;
 
 use crate::types::worker_messages::{
     SignerWorkerMessage, SignerWorkerResponse, WorkerRequestType, WorkerResponseType,
@@ -95,8 +96,8 @@ pub fn error(s: &str) {
 #[wasm_bindgen]
 pub fn init_worker() {
     console_error_panic_hook::set_once();
-    // Initialize WASM logger for better debugging
-    wasm_logger::init(wasm_logger::Config::default());
+    // Initialize WASM logger respecting configured level
+    wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
 }
 
 // === PROGRESS MESSAGING ===
@@ -175,16 +176,12 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
     // Convert numeric enum to WorkerRequestType using From trait
     let request_type = WorkerRequestType::from(msg.msg_type);
 
-    // Debug logging to understand what's happening
-    log(&format!(
+    debug!(
         "WASM Worker: Received message type: {} ({})",
         worker_request_type_name(request_type),
         msg.msg_type
-    ));
-    log(&format!(
-        "WASM Worker: Parsed request type: {:?}",
-        request_type
-    ));
+    );
+    debug!("WASM Worker: Parsed request type: {:?}", request_type);
 
     // Route message to appropriate handler
     let response_payload = match request_type {
@@ -321,12 +318,12 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
     };
 
     // Debug logging for response type
-    log(&format!(
+    debug!(
         "WASM Worker: Determined response type: {} ({}) - {:?}",
         worker_response_type_name(response_type),
         u32::from(response_type),
         response_type
-    ));
+    );
 
     // Create the final response
     let response = SignerWorkerResponse {

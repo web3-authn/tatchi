@@ -65,13 +65,10 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 
 ## 8) RPC Bridge (Parent ↔ Wallet)
 
-- Transport: `MessageChannel` with requestId correlation, timeouts, and origin checks.
-- Parent → Child:
-  - `PING`, `SET_CONFIG`, `SET_ACCOUNT`
-  - `REQUEST_registerPasskey`, `REQUEST_signTransactionsWithActions`
-  - DB ops: `getUser`, `getLastUser`, `setLastUser`, `getPreferences`, `updatePreferences`, `getConfirmationConfig`, `getTheme`, `setTheme`, `toggleTheme`, `getAuthenticatorsByUser`, `storeAuthenticator`
-- Child → Parent:
-  - `READY (protocolVersion)`, `PROGRESS`, `REGISTER_RESULT`, `SIGN_RESULT`, `ERROR`
+- Bootstrap: window.postMessage CONNECT (with transferable port) → host `READY` on the port. Client prefers `'*'` target until the wallet origin is non‑opaque.
+- Transport: `MessageChannel` (`MessagePort`). Correlated requests with `requestId`, timeouts, and origin awareness.
+- Parent → Child (selected): `PING`, `PM_SET_CONFIG`, `PM_REGISTER`, `PM_LOGIN`, `PM_SIGN_TXS_WITH_ACTIONS`, `PM_SIGN_AND_SEND_TXS`, `PM_SEND_TRANSACTION`, `PM_SET_CONFIRMATION_CONFIG`, `PM_SET_THEME`, `PM_CANCEL`.
+- Child → Parent: `READY`, `PONG`, `PROGRESS`, `PM_RESULT`, `ERROR`.
 
 ## 9) Domain, rpId, and Contract Origin Policy
 
@@ -129,9 +126,9 @@ Thanks — changes landed to simplify the default same‑origin flow and clarify
   - Added `packages/passkey/src/types/url-modules.d.ts` to declare `*?url` modules as `string` for TypeScript.
   - Client logic supports loading the service host via a module asset URL with `srcdoc` by default, or via a wallet origin URL when configured — no `ts-ignore` needed.
 
-- Programmatic wallet page helper (no copying files):
-  - Added `packages/passkey/src/core/WalletIframe/html.ts` with `getWalletServiceHtml(sdkBasePath = '/sdk')` which returns minimal HTML referencing the `wallet-iframe-host` bundle.
-  - Lets integrators serve a `/service` route directly from code (e.g., Express) without moving assets.
+- Dev/build integration:
+  - Vite plugin `tatchiDev` serves SDK assets under `/sdk` and the wallet service page at `/wallet-service` (configurable), sets WASM MIME, and applies COOP/COEP + `Permissions-Policy` in dev.
+  - Build helper `tatchiBuildHeaders` emits a `_headers` file in the production build (`COOP/COEP/CORP` and `Permissions-Policy`, plus CORS rules for `/sdk`), and creates a minimal wallet service HTML when the app didn’t provide one.
 
 - Documentation for integrators updated:
   - `packages/passkey/README.md` now documents:
@@ -142,15 +139,13 @@ Thanks — changes landed to simplify the default same‑origin flow and clarify
       - Configures `PasskeyManager` with `walletOrigin` and `walletServicePath`.
 
 - Summary of options
-  - Zero‑config default (recommended):
-    - Do not set `walletOrigin`. The SDK mounts the service iframe same‑origin via `srcdoc` and loads the embedded `wallet-iframe-host` module bundle resolved under `/sdk`.
-    - No HTML copying; no external servers.
-  - Separate wallet origin (for dedicated‑domain security properties):
-    - Host SDK assets on the wallet origin:
-  - `/sdk/wallet-iframe-host.js` and the rest of embedded bundles.
-      - `/sdk/workers/web3authn-signer.worker.js`, `/sdk/workers/web3authn-vrf.worker.js`, and their WASM files.
-    - Expose a `/service` route that returns `getWalletServiceHtml('/sdk')`.
-    - Set `walletOrigin` (e.g., `https://wallet.myco.com`) and `walletServicePath` (e.g., `/service`) in `PasskeyManager` configs. The SDK loads that page; no app‑side file copying.
+  - Self‑contained dev (recommended):
+    - Use `tatchiDev({ mode: 'self-contained' })`. One Vite serves the app and wallet routes; Caddy can provide two TLS hosts that both proxy to the same dev server.
+    - Serves `/sdk/*` and `/wallet-service` automatically; no copying.
+  - Separate wallet origin (for isolation in prod):
+    - Deploy the SDK’s `/sdk/*` bundle and a wallet service page at `/wallet-service` on your wallet domain.
+    - Use `tatchiBuildHeaders` to emit `_headers`, or configure equivalent headers at your edge.
+    - Set `iframeWallet.walletOrigin` (e.g., `https://wallet.myco.com`) and, if needed, `walletServicePath` (default recommended: `/wallet-service`).
 
 If helpful, we can add small Vite/Next.js dev examples showing how to proxy `/sdk` and `/service` using their dev server plugins/rewrites.
 
@@ -164,16 +159,13 @@ If helpful, we can add small Vite/Next.js dev examples showing how to proxy `/sd
 
 ### Configuration Examples
 
-- Same‑origin (default, zero‑config):
-  - `sdkBasePath: '/sdk'`
-  - Do not set `walletOrigin` — the SDK mounts a same‑origin `srcdoc` iframe and loads `wallet-iframe-host.js` from `/sdk`.
+- Dev (self‑contained):
+  - `tatchiDev({ mode: 'self-contained', walletServicePath: '/wallet-service', sdkBasePath: '/sdk' })`
 
 - Separate wallet origin (recommended for isolation):
-  - `walletOrigin: 'https://wallet.example.com'`
-  - `walletServicePath: '/service'`
-  - Optionally serve assets under `'/sdk'` on that origin (used by the service page via `getWalletServiceHtml('/sdk')`).
-  - Note: Setting `walletOrigin` is what makes the iframe cross‑origin; using an absolute `sdkBasePath` alone does not change the document’s origin.
+  - `iframeWallet.walletOrigin = 'https://wallet.example.com'`
+  - `iframeWallet.walletServicePath = '/wallet-service'`
+  - Serve assets under `'/sdk'` on that origin; use `tatchiBuildHeaders` or equivalent headers.
 
-- Local development variants:
-  - Same‑origin dev: `sdkBasePath: '/sdk'` and proxy `/sdk` to your dev asset server.
-  - Cross‑origin dev: `walletOrigin: 'http://localhost:8080'`, `walletServicePath: '/service'` with assets served at `http://localhost:8080/sdk`.
+- Notes:
+  - Setting `walletOrigin` makes the iframe cross‑origin; only serving assets from a different absolute URL does not change the iframe document’s origin.

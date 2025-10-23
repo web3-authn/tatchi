@@ -549,7 +549,6 @@ export interface LoginState {
   vrfSessionDuration?: number;
 }
 
-
 // Result Types
 export interface RegistrationResult {
   success: boolean;

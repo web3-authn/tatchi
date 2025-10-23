@@ -1,8 +1,6 @@
 # Tatchi SDK
 
-> **⚠️ Development Note**: worker files are copied to `frontend/public/workers/` for development. The code is environment-aware and will automatically use the correct paths in production. This ensures robust operation across different deployment scenarios.
-
-Web3Authn Passkey SDK for NEAR Protocol integration with React components and TypeScript support.
+Web3Authn Passkey SDK for NEAR with WebAuthn PRF, embedded wallet iframe, React components, and WASM workers for signing/VRF.
 
 
 ## Installation
@@ -10,11 +8,11 @@ Web3Authn Passkey SDK for NEAR Protocol integration with React components and Ty
 Core (framework-agnostic):
 
 ```bash
-pnpm add @tatchi
+pnpm add @tatchi/sdk
 # or
-npm install @tatchi
+npm install @tatchi/sdk
 # or
-yarn add @tatchi
+yarn add @tatchi/sdk
 ```
 
 React components (optional):
@@ -30,7 +28,7 @@ pnpm add @tatchi/sdk
 
 #### Prerequisites
 
-This SDK includes Rust-based WASM modules and uses Bun for worker compilation. You'll need:
+This SDK includes Rust-based WASM modules. You'll need:
 
 ```bash
 # Install Rust
@@ -42,72 +40,49 @@ curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 # Add WASM target
 rustup target add wasm32-unknown-unknown
 
-# Install Bun (for TypeScript worker compilation)
-curl -fsSL https://bun.sh/install | bash
-
 # Install pnpm (recommended package manager)
 npm install -g pnpm
 ```
 
 #### Building
 
+From the repo root:
+
 ```bash
-git clone https://github.com/near/passkey.git
-cd passkey/packages/passkey
 pnpm install
-
-# Build complete SDK (includes WASM compilation and TypeScript worker bundling)
-pnpm run build
-
-# For development with file watching
-pnpm run dev
+pnpm -C sdk build     # builds WASM + bundles via rolldown
+pnpm -C sdk dev       # watch mode for SDK development
 ```
 
 #### Build System
 
-The SDK uses a hybrid build system:
-- **Rolldown** for main library bundling (ESM/CJS)
-- **Bun** for TypeScript worker compilation (better TypeScript support)
-- **wasm-pack** for Rust WASM modules
+The SDK uses:
+- **Rolldown** for library bundling (ESM/CJS)
+- **wasm-pack** for Rust WASM modules (signer/VRF)
 
 ```bash
-# Full build (WASM + TypeScript + bundling)
-pnpm run build
-
-# Check if build is up to date
-pnpm run build:check:fresh
-
-# Development with file watching
-pnpm run dev
+pnpm -C sdk run build
+pnpm -C sdk run build:check:fresh
+pnpm -C sdk run dev
 ```
 
 ### Testing
 
 ```bash
-pnpm test           # Run E2E tests with Playwright
-pnpm run lint       # Lint code
-pnpm run type-check # TypeScript type checking
+pnpm -C sdk test           # Run Playwright tests
+pnpm -C sdk run type-check # TypeScript type checking
 ```
 
 ### Project Structure
 
 ```
 src/
-├── core/              # Framework-agnostic core
-│   ├── PasskeyManager.ts
-│   ├── WebAuthnManager.ts
-│   ├── types.ts
-│   ├── web3authn-signer.worker.ts    # NEAR transaction signing worker
-│   ├── web3authn-vrf.worker.ts       # VRF challenge generation worker
-│   └── utils/
-├── react/             # React-specific exports
-│   ├── components/
-│   ├── hooks/
-│   ├── context/
-│   └── index.ts
-├── wasm_signer_worker/    # Rust WASM module for signing
-├── wasm_vrf_worker/       # Rust WASM module for VRF
-└── index.ts               # Main entry point
+├── core/                         # Framework-agnostic core (PasskeyManager, WebAuthnManager)
+│   └── WalletIframe/             # Iframe host/client, messaging, handlers
+├── react/                        # React components and provider
+├── wasm_signer_worker/           # Rust WASM (signer)
+├── wasm_vrf_worker/              # Rust WASM (VRF)
+└── plugins/vite.ts               # Dev/build helpers (serve /sdk, /wallet-service, headers)
 ```
 
 #### Build Configuration
@@ -117,20 +92,21 @@ The build system uses centralized configuration files:
 ```
 build-paths.ts        # SDK filepath configs (source of truth)
 build-paths.sh        # Build scripts filepaths
-rolldown.config.mjs   # Rolldown bundler configuration
+rolldown.config.ts   # Rolldown bundler configuration
 ```
 
 **Filepath Configuraiton Files:**
 - **`build-paths.ts`** - Source of truth for all configuration
 - **`build-paths.sh`** - Shell version for bash scripts
 
-## WalletIframe (cross-origin recommended)
+## WalletIframe (cross‑origin recommended)
 
+The SDK runs sensitive logic in a hidden wallet iframe on a dedicated origin. Parent ↔ wallet communicate via a typed MessagePort.
 This SDK mounts a hidden, sandboxed “service iframe” that orchestrates WebAuthn, PRF storage, and signing flows. Running the wallet on a dedicated origin gives you strong isolation, but the SDK continues to support same-origin hosting with console warnings for legacy setups.
 
 - **Dedicated wallet origin (recommended)**: Configure `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `PasskeyManager` configs. When the wallet origin differs from the host, the parent cannot script the wallet iframe.
 - **Same-origin fallback**: If you omit `iframeWallet.walletOrigin`, or set it to the host origin, the wallet runs inline with the parent app. This is convenient for quick starts but the parent can observe all secrets. The SDK emits `console.warn` messages in this mode.
-- **Static asset delegation**: The wallet origin is responsible for serving `/service` and the `/sdk` asset bundle. You can proxy these from `node_modules` during development or deploy them with your wallet site.
+- **Static asset delegation**: The wallet origin serves `/wallet-service` and `/sdk/*` (including `/sdk/workers/*`). Dev: use `tatchiDev` Vite plugin. Prod: deploy with your wallet site or use the provided `_headers` emitter.
 - **Gesture routing**: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn flows; the service iframe stays headless.
 
 ### React usage
@@ -145,7 +121,7 @@ function App() {
         ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
         iframeWallet: {
           walletOrigin: 'https://wallet.example.com',
-          walletServicePath: '/service',
+          walletServicePath: '/wallet-service',
           // Optional: set RP base so passkeys span subdomains
           // rpIdOverride: 'example.localhost'
         }
@@ -160,7 +136,7 @@ function App() {
 ### Vanilla TypeScript usage
 
 ```ts
-import { PasskeyManager } from '@tatchi';
+import { PasskeyManager } from '@tatchi/sdk';
 
 const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -168,7 +144,7 @@ const pm = new PasskeyManager({
   contractId: 'w3a-v1.testnet',
   iframeWallet: {
     walletOrigin: 'https://wallet.example.com',
-    walletServicePath: '/service',
+    walletServicePath: '/wallet-service',
     // Optional: rpIdOverride for subdomain credentials
     // rpIdOverride: 'example.localhost'
   }
@@ -191,36 +167,9 @@ When you do host the wallet on a dedicated origin, expose two things:
   - `/sdk/workers/web3authn-signer.worker.js`
   - `/sdk/workers/web3authn-vrf.worker.js`
   - `/sdk/wallet-iframe-host.js` (and other embedded bundles)
-- A service page at `/service` that loads the service host module.
+- A service page at `/wallet-service` that loads the service host module.
 
-You do not need to copy files into your app bundle; you can serve them directly from `node_modules` at runtime, or deploy them as part of your wallet site. Below is a minimal Node/Express example that serves assets from the installed package and exposes `/service`:
-
-```ts
-import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { getWalletServiceHtml } from '@tatchi/WalletIframe/client/html';
-
-const app = express();
-
-// Resolve the dist directory inside the installed package
-const pkgEntry = require.resolve('@tatchi/dist/esm/index.js');
-const distEsmDir = path.dirname(pkgEntry);           // .../node_modules/@tatchi/dist/esm
-const distRoot = path.resolve(distEsmDir, '..');     // .../node_modules/@tatchi/dist
-
-// Serve SDK assets at /sdk (serve the sdk subfolder)
-app.use('/sdk', express.static(path.join(distRoot, 'esm', 'sdk')));
-app.use('/sdk/workers', express.static(path.join(distRoot, 'workers')));
-
-// Service page at /service
-app.get('/service', (_req, res) => {
-  res.setHeader('Content-Type', 'text/html; charset=utf-8');
-  // sdkBasePath must match where you serve the SDK assets (here, '/sdk')
-  res.end(getWalletServiceHtml('/sdk'));
-});
-
-app.listen(8080, () => console.log('Wallet host running on http://localhost:8080'));
-```
+Use the Vite plugin `tatchiDev` in dev and deploy the wallet site (including `/sdk` and `/wallet-service`) in prod. The build helper `tatchiBuildHeaders` emits a `_headers` file with COOP/COEP/CORP and `Permissions-Policy` for Pages/Netlify‑style deployments.
 
 ## Shamir 3‑Pass Rotation (Strict keyId)
 

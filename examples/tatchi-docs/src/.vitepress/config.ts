@@ -88,6 +88,16 @@ export default defineConfig({
     ],
   },
 
+  // Tell Vue compiler to treat hyphenated tags as native custom elements.
+  // This prevents warnings like "Failed to resolve component: wallet-app".
+  vue: {
+    template: {
+      compilerOptions: {
+        isCustomElement: (tag) => tag.includes('-'),
+      },
+    },
+  },
+
   vite: {
     envDir: projectRoot,
     server: {

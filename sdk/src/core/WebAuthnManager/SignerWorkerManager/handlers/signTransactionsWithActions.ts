@@ -37,8 +37,6 @@ export async function signTransactionsWithActions({
   logs?: string[]
 }>> {
   try {
-    console.info(`WebAuthnManager: Starting batch transaction signing for ${transactions.length} transactions`);
-
     if (transactions.length === 0) {
       throw new Error('No transactions provided for batch signing');
     }

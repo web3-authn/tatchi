@@ -338,7 +338,7 @@ export class IframeButtonHost extends LitElementWithProps {
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
           style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts"
           allow="publickey-credentials-get; publickey-credentials-create; clipboard-read; clipboard-write"
         ></iframe>
       </div>
@@ -409,8 +409,8 @@ export class IframeButtonHost extends LitElementWithProps {
             /* Transparent first paint and neutral UA color-scheme */
             html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
           </style>
-          <script type="module" src="${base}${embeddedTxButtonTag}.js"></script>
-          <script type="module" src="${base}${iframeBootstrapTag}"></script>
+          <script type="module" crossorigin="anonymous" src="${base}${embeddedTxButtonTag}.js"></script>
+          <script type="module" crossorigin="anonymous" src="${base}${iframeBootstrapTag}"></script>
         </head>
         <body>
           <${embeddedTxButtonTag} id="etx"></${embeddedTxButtonTag}>
@@ -495,9 +495,8 @@ export class IframeButtonHost extends LitElementWithProps {
   private postToIframe<T extends keyof IframeButtonMessagePayloads>(type: T, payload?: IframeButtonMessagePayloads[T]) {
     const w = this.getIframeWindow();
     if (!w) return;
-    // Post to iframe; for srcdoc + allow-same-origin, this matches parent origin
-    const targetOrigin = window.location.origin;
-    w.postMessage({ type, payload }, targetOrigin);
+    // Srcdoc without allow-same-origin has a 'null' origin; use wildcard target.
+    w.postMessage({ type, payload }, '*');
   }
 
   private postInitialStateToIframe() {

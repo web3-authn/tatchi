@@ -1,7 +1,7 @@
 import { css, html, type PropertyValues } from 'lit';
 import { createRef, Ref, ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
-import type { ConfirmUIElement } from '../confirm-ui-types';
+import type { ConfirmUIElement, ThemeName } from '../confirm-ui-types';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
@@ -71,7 +71,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
-  declare theme: 'dark' | 'light';
+  declare theme: ThemeName;
   declare loading: boolean;
   declare errorMessage?: string;
   declare intentDigest?: string;

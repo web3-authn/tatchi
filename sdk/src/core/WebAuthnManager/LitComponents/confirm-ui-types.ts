@@ -8,13 +8,25 @@ export interface ConfirmUIElement {
 }
 
 export type ConfirmationUIMode = 'skip' | 'modal' | 'drawer';
+
+// Theme name used across confirm UI
+export type ThemeName = 'dark' | 'light';
+// Optional enum-style helper to avoid magic strings at callsites
+export enum Theme {
+  Dark = 'dark',
+  Light = 'light',
+}
+
+export function validateTheme(s?: string): ThemeName | undefined {
+  return s === 'dark' || s === 'light' ? (s as ThemeName) : undefined;
+}
 // Public handle returned by mount/await helpers
 
 export type ConfirmUIUpdate = {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
   vrfChallenge?: VRFChallenge;
-  theme?: 'dark' | 'light';
+  theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
 };

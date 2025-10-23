@@ -2,7 +2,7 @@ import type { ConfirmationConfig } from '../../../types/signer-worker';
 import type { SignerWorkerManagerContext } from '../index';
 import type { SecureConfirmRequest } from './types';
 import { SecureConfirmationType } from './types';
-import { needsExplicitActivation } from '@/utils';
+import { isIOS, isMobileDevice, needsExplicitActivation } from '@/utils';
 
 /**
  * determineConfirmationConfig
@@ -62,6 +62,7 @@ export function determineConfirmationConfig(
   // - If caller/user set uiMode: 'skip', promote to 'modal' + requireClick
   // - If behavior is 'autoProceed', upgrade to 'requireClick'
   try {
+    // Use shared heuristic to decide if explicit activation is necessary
     if (needsExplicitActivation()) {
       const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'skip') ? 'drawer' : cfg.uiMode;
       cfg = {
@@ -79,18 +80,8 @@ export function determineConfirmationConfig(
     request?.type &&
     (request.type === SecureConfirmationType.REGISTER_ACCOUNT || request.type === SecureConfirmationType.LINK_DEVICE)
   ) {
-    // On Safari/iOS/mobile or when activation is likely missing, force a Drawer + requireClick
-    // so the click lands inside the wallet iframe and satisfies activation for create().
-    if (needsExplicitActivation()) {
-      return {
-        uiMode: 'drawer',
-        behavior: 'requireClick',
-        autoProceedDelay: cfg.autoProceedDelay,
-        theme: cfg.theme || 'dark',
-      } as ConfirmationConfig;
-    }
-    // Otherwise, honor explicit override if provided; else default to safe Modal + requireClick
-    if (hasOverride) return cfg;
+    // Cross‑origin registration/link flows: always require a visible, clickable confirmation
+    // so the click lands inside the wallet iframe and satisfies WebAuthn activation.
     return {
       uiMode: 'modal',
       behavior: 'requireClick',

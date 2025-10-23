@@ -101,8 +101,11 @@ export class PasskeyManager {
     // VRF worker initializes automatically in the constructor
 
     const walletOrigin = configs.iframeWallet?.walletOrigin;
+    const isWalletIframeHost = !!configs.iframeWallet?.isWalletIframeHost;
     if (!walletOrigin) {
-      if (!warnedAboutMissingWalletOrigin) {
+      // In the wallet-iframe host itself, walletOrigin is intentionally unset to prevent nesting.
+      // Suppress this warning in that context.
+      if (!isWalletIframeHost && !warnedAboutMissingWalletOrigin) {
         warnedAboutMissingWalletOrigin = true;
         console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
       }
@@ -110,8 +113,10 @@ export class PasskeyManager {
       try {
         const parsed = new URL(walletOrigin);
         if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
-          warnedAboutSameOriginWallet = true;
-          console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+          if (!isWalletIframeHost) {
+            warnedAboutSameOriginWallet = true;
+            console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+          }
         }
       } catch {
         // ignore invalid URL here; constructor downstream will surface an error

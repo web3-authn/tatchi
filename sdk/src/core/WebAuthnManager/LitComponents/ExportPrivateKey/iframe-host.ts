@@ -155,8 +155,8 @@ export class IframeExportHost extends LitElementWithProps {
             html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
           </style>
           <script>try{ parent && parent.postMessage({ type: 'READY' }, '*'); } catch(e) {}</script>
-          <script type="module" src="${base}${viewerBundle}"></script>
-          <script type="module" src="${base}${bootstrap}"></script>
+          <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
+          <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
         </head>
         <body>
           <w3a-drawer id="exp" theme="dark"></w3a-drawer>
@@ -249,7 +249,7 @@ export class IframeExportHost extends LitElementWithProps {
     return html`
       <div class="iframe-host">
         <iframe ${ref(this.iframeRef)}
-          sandbox="allow-scripts allow-same-origin"
+          sandbox="allow-scripts"
           allow="clipboard-read; clipboard-write"
           ></iframe>
       </div>

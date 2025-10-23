@@ -181,8 +181,7 @@ async function handleLoginUnlockVRF(
             await webAuthnManager.maybeProactiveShamirRefresh(nearAccountId);
           }
         } else {
-          console.error('Shamir3Pass unlock failed:', unlockResult.error);
-          throw new Error(`Shamir3Pass unlock failed: ${unlockResult.error}`);
+          throw new Error(`Shamir3Pass auto-unlock failed: ${unlockResult.error}`);
         }
       } catch (error: any) {
         console.warn('Shamir3Pass unlock error, falling back to TouchID:', error.message);

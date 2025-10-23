@@ -83,7 +83,7 @@ export function PasskeyLoginMenu() {
 
     if (result.success && result.nearAccountId) {
       const tx = result.transactionId ? ` tx: ${result.transactionId}` : '';
-      toast.success(`Registration completed successfully ${tx}`, { id: 'registration' });
+      toast.success(`Registration completed: ${tx}`, { id: 'registration' });
       return;
     } else {
       throw new Error(result.error || 'Registration failed');

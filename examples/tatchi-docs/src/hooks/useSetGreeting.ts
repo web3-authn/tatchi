@@ -42,7 +42,6 @@ export const useSetGreeting = (): SetGreetingHook => {
         method: 'get_greeting',
         args: {}
       });
-      console.log("nearclient result:", result)
       const greeting = result ?? null;
       setOnchainGreeting(greeting);
 

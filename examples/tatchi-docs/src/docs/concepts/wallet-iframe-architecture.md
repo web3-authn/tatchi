@@ -14,7 +14,7 @@ The SDK mounts a hidden “service iframe” on a dedicated wallet origin. Sensi
 
 ## Flow (high‑level)
 
-1) Parent mounts service iframe (hidden) and handshakes
+1) Parent mounts service iframe (hidden) and performs a CONNECT→READY handshake using a MessageChannel
 2) Calls are forwarded via MessageChannel to the wallet
 3) When a confirm click is needed, the wallet shows its own modal to capture the gesture
 4) Signers (WASM workers) run in the wallet; signed results are returned to the parent
@@ -26,4 +26,3 @@ The SDK mounts a hidden “service iframe” on a dedicated wallet origin. Sensi
 - Optionally serve `/.well-known/webauthn` with allowed top‑level origins for Related Origin Requests
 
 See full discussion in [Wallet iframe architecture plan (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/wallet-iframe-architecture.md)
-

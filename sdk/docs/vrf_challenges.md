@@ -2,7 +2,7 @@
 
 ## Summary
 
-This document describes the **WebAuthn VRF Protocol for NEAR** - a serverless authentication system with encrypted keypair management and streamlined authentication flows:
+This document describes the **WebAuthn VRF Protocol for NEAR** — a client‑side authentication design with encrypted keypair management and streamlined flows, matching the current SDK implementation (VRF in WASM, ChaCha20‑Poly1305 encryption, HKDF domain separation):
 
 1. **VRF Registration** (First-time users): One-time setup that generates and stores encrypted VRF + WebAuthn credentials
 2. **VRF Login** (Session initialization): Decrypt VRF keypair into memory to generate WebAuthn challenges
@@ -27,8 +27,8 @@ This design eliminates contract dependencies while maintaining security guarante
 - ️ **Session-only**: VRF session ends when browser/tab closes (simpler than Service Worker persistence)
 
 ### 2. **Encrypted VRF Keypair Management**
-- **Registration Flow**: Generate VRF keypair → Encrypt with WebAuthn PRF → Store in IndexedDB
-- **Login Flow**: Decrypt VRF keypair into Worker memory using WebAuthn PRF (Single TouchID)
+- **Registration Flow**: Generate VRF keypair → Encrypt with key derived via HKDF from WebAuthn PRF output → Store in IndexedDB
+- **Login Flow**: Decrypt VRF keypair into Worker memory using the same PRF‑derived key (single user gesture)
 - **Authentication Flow**: Worker generates challenges automatically without TouchID
 
 
@@ -42,7 +42,7 @@ Uses NEAR block data for freshness guarantees and replay protection.
 
 ### **Secure Input Construction**
 ```rust
-let domain = b"web_authn_challenge_v1";
+let domain = b"web3_authn_vrf_challenge_v1"; // matches sdk/src/wasm_vrf_worker/src/config.rs
 let input_data = [
     domain,
     user_id.as_bytes(),
@@ -179,7 +179,7 @@ sequenceDiagram
 - **No challenges can be generated without initial user consent** (login required)
 - **Each authentication is gated by a TouchID prompt** (WebAuthn ceremony)
 - **Challenge is verifiably random and client-bound** (VRF proof)
-- **VRF keypair encrypted at rest** (AES-GCM with PRF-derived key)
+- **VRF keypair encrypted at rest** (ChaCha20‑Poly1305 with PRF‑derived key)
 - **WASM memory isolation** (VRF private keys secured in WASM linear memory)
 
 ## **Implementation Architecture**
@@ -204,41 +204,13 @@ packages/passkey/src/
 
 ```
 
-### **Build System**
+### **Build System (current)**
 
 The VRF implementation uses a multi-stage build process:
 
-1. **Rollup Build** (`packages/passkey/rollup.config.js`):
-   ```javascript
-   // VRF Service Worker build
-   {
-     input: 'src/core/web3authn-vrf.worker.ts',
-     output: {
-       file: 'dist/web3authn-vrf.worker.js',
-       format: 'esm',
-       sourcemap: true
-     },
-     plugins: [resolve(), commonjs(), typescript()]
-   }
-   ```
-
-2. **Dev Asset Serving** (no-copy):
-   - Serve SDK assets at `/sdk/*` using the Vite plugin `@tatchi/sdk/plugins/vite`.
-   - This maps `dist/` output (including workers and WASM) to `/sdk` during dev.
-
-3. **Development Workflow**:
-   ```bash
-   # Build VRF WASM module
-   cd packages/passkey/src/wasm_vrf_-_worker
-   wasm-pack build --target web --out-dir .
-
-   # Build TypeScript Service Worker
-   cd packages/passkey
-   npm run build
-
-   # Start the example app (Vite serves /sdk from dist/)
-   pnpm -C examples/vite dev
-   ```
+1. Rust WASM modules under `sdk/src/wasm_vrf_worker` (built via `wasm-pack`), pulled into JS via module workers.
+2. Dev serving via `tatchiDev` Vite plugin: maps SDK assets to `/sdk/*` and serves `/wallet-service` without copying files.
+3. CI builds both workers and JS bundles; the wallet origin serves `/sdk/workers/*` and `/sdk/wallet-iframe-host.js`.
 
 
 ## **Security Model**

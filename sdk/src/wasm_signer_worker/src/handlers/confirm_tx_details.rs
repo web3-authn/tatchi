@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_wasm_bindgen;
 use sha2::{Sha256, Digest};
+use log::debug;
 use super::handle_sign_transactions_with_actions::{TransactionPayload, SignTransactionsWithActionsRequest};
 use crate::types::handlers::{
     ConfirmationConfig,
@@ -355,7 +356,8 @@ pub async fn request_user_confirmation_with_config(
             // wasm-bindgen object shape issues in the TS validator.
             let request_json_str = serde_json::to_string(&request_obj)
                 .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
-            web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx:skip) JSON length: {}", request_json_str.len()).into());
+
+            debug!("[Rust] V2 confirm request (tx:skip) JSON length: {}", request_json_str.len());
             let request_js = JsValue::from_str(&request_json_str);
 
             let confirm_result = await_secure_confirmation_v2(request_js).await;
@@ -391,9 +393,7 @@ pub async fn request_user_confirmation_with_config(
     let request_id = generate_request_id();
 
     // Log confirmation request
-    web_sys::console::log_1(
-        &format!("[Rust] Prompting user confirmation in JS main thread with ID: {}", request_id).into()
-    );
+    debug!("[Rust] Prompting user confirmation in JS main thread with ID: {}", request_id);
     logs.push(format!("Prompting user confirmation in JS main thread for {} transactions", tx_batch_request.tx_signing_requests.len()));
 
     // Extract account information for credential collection
@@ -441,7 +441,7 @@ pub async fn request_user_confirmation_with_config(
     // Serialize to JSON string for robust cross-boundary cloning into TS
     let request_json_str = serde_json::to_string(&request_obj)
         .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
-    web_sys::console::log_1(&format!("[Rust] V2 confirm request (tx) JSON length: {}", request_json_str.len()).into());
+    debug!("[Rust] V2 confirm request (tx) JSON length: {}", request_json_str.len());
     let request_js = JsValue::from_str(&request_json_str);
 
     // Call JS bridge for user confirmation with enhanced data
@@ -529,7 +529,7 @@ pub async fn request_registration_credential_confirmation(
     // Serialize to JSON string for robust cross-boundary cloning into TS
     let request_json_str = serde_json::to_string(&request_obj)
         .map_err(|e| format!("Failed to serialize V2 confirm request to string: {}", e))?;
-    web_sys::console::log_1(&format!("[Rust] V2 confirm registration request JSON length: {}", request_json_str.len()).into());
+    debug!("[Rust] V2 confirm registration request JSON length: {}", request_json_str.len());
     let request_js = JsValue::from_str(&request_json_str);
 
     let confirm_result = await_secure_confirmation_v2(request_js).await;

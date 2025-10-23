@@ -142,10 +142,9 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
 
   // Handlers for transaction settings
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
-    if (!currentConfirmConfig) return;
-    const patch = { ...currentConfirmConfig, uiMode: mode };
-    passkeyManager.setConfirmationConfig(patch);
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : prev);
+    // Only patch the field we intend to change to avoid overwriting theme or other values
+    passkeyManager.setConfirmationConfig({ uiMode: mode } as any);
+    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : { uiMode: mode });
   };
 
   const handleToggleSkipClick = () => {
@@ -156,9 +155,9 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   };
 
   const handleSetDelay = (delay: number) => {
-    if (!currentConfirmConfig) return;
-    passkeyManager.setConfirmationConfig({ ...currentConfirmConfig, autoProceedDelay: delay });
-    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, autoProceedDelay: delay } : prev);
+    // Only patch delay; avoid passing a stale theme from local state
+    passkeyManager.setConfirmationConfig({ autoProceedDelay: delay } as any);
+    setCurrentConfirmConfig((prev: any) => prev ? { ...prev, autoProceedDelay: delay } : { autoProceedDelay: delay });
   };
 
   const handleToggleTheme = () => {

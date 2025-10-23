@@ -130,6 +130,9 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
         setMode(AuthMenuMode.Login);
       } else {
         await onRegister?.();
+        // Registration completed (success or handled by caller); clear waiting and return to Login view
+        setWaiting(false);
+        setMode(AuthMenuMode.Login);
       }
     } catch (error) {
       // If login throws (e.g., Touch ID cancelled), send user back to Login

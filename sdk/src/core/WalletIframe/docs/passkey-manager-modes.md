@@ -41,7 +41,7 @@ import react from '@vitejs/plugin-react'
 import { tatchiDev } from '@tatchi/sdk/plugins/vite'
 
 export default defineConfig({
-  plugins: [react(), web3authnDev()],
+  plugins: [react(), tatchiDev({ mode: 'self-contained', walletServicePath: '/wallet-service', sdkBasePath: '/sdk' })],
 })
 ```
 
@@ -53,7 +53,7 @@ Modes
 Options
 - `sdkBasePath` (default `/sdk`)
 - `walletServicePath` (default `/wallet-service`)
-- `walletOrigin` (default `process.env.VITE_WALLET_ORIGIN` or `https://wallet.example.localhost`)
+- `walletOrigin` (default `process.env.VITE_WALLET_ORIGIN`)
 - `setDevHeaders` (default `true`) – add COOP/COEP/Permissions‑Policy in dev
 - `enableDebugRoutes` (default `false`) – adds `GET /__sdk-root`
 
@@ -62,9 +62,10 @@ Examples
 - `examples/vite` (same-origin only): no plugin required; keep config minimal
 
 Production
-- Serve `/sdk` from CDN/object storage
-- Serve a minimal wallet service HTML at the wallet origin that loads `${sdkBasePath}/wallet-iframe-host.js`
-- Set headers at the edge (front: COOP/COEP + Permissions‑Policy; wallet: COOP/COEP + `Cross-Origin-Resource-Policy: cross-origin`)
+- Serve `/sdk` (including `/sdk/workers/*`) from your wallet origin (Pages/Netlify/etc.)
+- Expose a wallet service page at `/wallet-service` that loads `${sdkBasePath}/wallet-iframe-host.js`
+- Use `tatchiBuildHeaders` to emit `_headers` with COOP/COEP/CORP and Permissions‑Policy, or configure equivalent headers yourself
+- If using wallet‑scoped credentials across sites, serve `/.well-known/webauthn` for ROR
 
 ## Goals
 

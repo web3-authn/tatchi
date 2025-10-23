@@ -19,6 +19,7 @@ import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials, assertCredentialHasDualPrf } from '../WebAuthnManager/touchIdPrompt';
+// Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
  * Core registration function that handles passkey registration
@@ -80,10 +81,11 @@ export async function registerPasskeyInternal(
     // Step 1 + 2: Use secureConfirm to collect a passkey with PRF
     // Allow per-call override for confirmation behavior; otherwise default to modal + requireClick
     const theme: 'dark' | 'light' = (context.configs?.walletTheme === 'light') ? 'light' : 'dark';
+    // Cross‑origin requirement: always require a click for registration on all devices.
     const confirmationConfig: ConfirmationConfig = confirmationConfigOverride ?? {
       uiMode: 'modal',
       behavior: 'requireClick',
-      theme
+      theme,
     };
 
     const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
@@ -273,7 +275,7 @@ export async function registerPasskeyInternal(
       step: 7,
       phase: RegistrationPhase.STEP_7_REGISTRATION_COMPLETE,
       status: RegistrationStatus.SUCCESS,
-      message: 'Registration completed successfully'
+      message: 'Registration completed!'
     });
 
     const successResult = {

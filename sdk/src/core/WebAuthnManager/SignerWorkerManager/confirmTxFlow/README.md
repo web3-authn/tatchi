@@ -46,6 +46,59 @@ High‑level phases: Classify → Prepare → Confirm UI → JIT Refresh → Col
 - `renderConfirmUI` supports `uiMode: 'skip' | 'modal' | 'drawer'` and `behavior: 'autoProceed' | 'requireClick'`
 - Wallet iframe overlay considerations remain: requireClick flows must be visible for clicks to register
 
+## ConfirmationConfig Pipeline
+
+This section documents how a ConfirmationConfig is chosen for each confirmation, where overrides are injected, and the exact order of precedence.
+
+### Order of Precedence
+
+- Request override (strongest): a per-call `confirmationConfig` attached to the request envelope wins over user prefs. See `determineConfirmationConfig` in `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:31`.
+- User preferences: fetched from `UserPreferencesManager.getConfirmationConfig()` and stored in IndexedDB per user. See `sdk/src/core/WebAuthnManager/userPreferences.ts:94` and `sdk/src/core/WebAuthnManager/userPreferences.ts:180`.
+- Defaults: when no user prefs exist, fall back to `DEFAULT_CONFIRMATION_CONFIG`. See `sdk/src/core/types/signer-worker.ts:164`.
+- Runtime clamps (applied after merge): environment-specific safety rules adjust the merged config (e.g., mobile/iOS requiring a click). See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64` and `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
+
+### Where Overrides Are Added
+
+- Registration (no prior user):
+  - The core registration path forces a per-call override so there is a consistent UX with no prior user prefs:
+    - Desktop: `uiMode: 'modal', behavior: 'requireClick'`
+    - Mobile/iOS: `uiMode: 'modal', behavior: 'requireClick'`
+  - This override is set in `registerPasskeyInternal` before requesting credentials: `sdk/src/core/PasskeyManager/registration.ts:86` and passed to `requestRegistrationCredentialConfirmation`.
+  - The override flows through to the worker request in `sdk/src/core/WebAuthnManager/SignerWorkerManager/handlers/requestRegistrationCredentialConfirmation.ts:25` as `confirmationConfig` on the payload.
+
+- Transactions / NEP‑413 signing (with a user):
+  - Callers can supply an optional `confirmationConfigOverride` when signing. The handler merges
+    `confirmationConfigOverride || userPreferences` and sends it as `confirmationConfig` with the worker request. See `sdk/src/core/WebAuthnManager/SignerWorkerManager/handlers/signTransactionsWithActions.ts:78`.
+  - The final config still goes through `determineConfirmationConfig` on the host to apply runtime rules.
+
+- Wallet iframe host path (cross‑origin):
+  - For registration requests posted to the wallet host, the host forwards the one‑time `confirmationConfig` when provided. See `sdk/src/core/WalletIframe/host/wallet-iframe-host.ts:120`.
+
+### Runtime Clamps (Post‑Merge)
+
+Applied in `determineConfirmationConfig` after merging override + prefs:
+
+- Decrypt Private Key flow: forces `uiMode: 'skip'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
+- Mobile/iOS heuristic: if `isIOS()` or `isMobileDevice()` is true, promote any configuration to a visible, clickable confirmation to reliably satisfy WebAuthn user activation:
+  - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'skip'` to a visible mode. See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
+- Wallet‑iframe host, Registration/Link flows:
+  - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
+
+### Effective Behavior by Flow (Current Policy)
+
+- Registration (no user yet):
+  - Desktop: modal + requireClick (via per‑call override)
+  - Mobile/iOS: modal + requireClick (via per‑call override)
+
+- Transaction signing / NEP‑413:
+  - Desktop: honors user prefs or per‑call override; autoproceed allowed
+  - Mobile/iOS: requireClick is enforced via clamp regardless of prefs to meet activation reliably
+
+### Preference Storage and Theme
+
+- Preferences are per‑user and persisted in IndexedDB. `UserPreferencesManager` loads last user settings on startup and updates when the current user changes. See `sdk/src/core/WebAuthnManager/userPreferences.ts:126` and `sdk/src/core/WebAuthnManager/userPreferences.ts:209`.
+- Theme comes from the confirmation config and defaults to `dark` if unset. During registration, the theme is set from `walletTheme` for a consistent look. See `sdk/src/core/PasskeyManager/registration.ts:82`.
+
 ## VRF + NEAR Context
 
 - Registration: bootstrap a temporary VRF keypair and challenge before WebAuthn create()
