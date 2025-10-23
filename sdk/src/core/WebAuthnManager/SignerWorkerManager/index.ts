@@ -4,7 +4,7 @@ import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedD
 import { IndexedDBManager } from '../../IndexedDBManager';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
-import { resolveWorkerScriptUrl } from '../../wasmLoader';
+import { resolveWorkerScriptUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
   WorkerResponseForRequest,

@@ -20,13 +20,10 @@
  * - Maintains PasskeyManager instance with iframe-specific configuration
  * - Integrates with LitElemMounter for UI component management
  * - Handles request cancellation and cleanup
- * - Provides fallback behavior for missing configurations
  *
  * Security Model:
  * - Runs in isolated iframe origin with proper WebAuthn permissions
- * - Validates all incoming messages and payloads
  * - Prevents nested iframe mode to avoid security issues
- * - Uses proper rpId configuration for WebAuthn operations
  *
  * Message Protocol:
  * - Handles PM_* message types for PasskeyManager operations
@@ -37,32 +34,27 @@
  */
 try { (globalThis as unknown as { global?: unknown }).global = (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown); } catch {}
 try { (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} }; } catch {}
-try {
-  if (window.location.origin === 'null') {
-    console.warn('[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.');
-  }
-} catch {}
-try { applyTransparentIframeSurface(); } catch {}
-try { postToParent({ type: 'SERVICE_HOST_BOOTED' }); } catch {}
-try { postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href }); } catch {}
+let parentOrigin: string | null = null;
+if (window.location.origin === 'null') {
+  console.warn('[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.');
+}
+applyTransparentIframeSurface();
+postToParent({ type: 'SERVICE_HOST_BOOTED' });
+postToParent({ type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href });
 // Establish a default embedded assets base as soon as this module loads.
 // This points to the directory containing this file (e.g., '/sdk/').
+import { getEmbeddedBase, setEmbeddedBase } from '../../sdkPaths';
 try {
   const here = new URL('.', import.meta.url).toString();
   const norm = here.endsWith('/') ? here : (here + '/');
-  const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
-  if (!w.__W3A_EMBEDDED_BASE__) w.__W3A_EMBEDDED_BASE__ = norm;
+  if (!getEmbeddedBase()) setEmbeddedBase(norm);
 } catch {}
-try {
-  window.addEventListener('click', (e) => {
-    try {
-      const t = e.target as HTMLElement;
-      const name = t?.tagName?.toLowerCase() || 'unknown';
-      const cls = t?.className || '';
-      postToParent({ type: 'SERVICE_HOST_CLICK', name, cls });
-    } catch {}
-  }, true);
-} catch {}
+window.addEventListener('click', (e) => {
+  const t = e.target as HTMLElement;
+  const name = t?.tagName?.toLowerCase() || 'unknown';
+  const cls = (t as any)?.className || '';
+  postToParent({ type: 'SERVICE_HOST_CLICK', name, cls });
+}, true);
 
 import type {
   ParentToChildEnvelope,
@@ -119,7 +111,6 @@ let walletConfigs: PasskeyManagerConfigs | null = null;
 let nearClient: MinimalNearClient | null = null;
 let passkeyManager: PasskeyManagerIframe | PasskeyManager | null = null;
 let themeUnsubscribe: (() => void) | null = null;
-let parentOrigin: string | null = null;
 // Track request-level cancellations
 const cancelledRequests = new Set<string>();
 function markCancelled(rid?: string) { if (rid) cancelledRequests.add(rid); }
@@ -554,16 +545,14 @@ function ensurePasskeyManager(): void {
       if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
     } catch {}
     // Bridge theme changes to the host document so embedded UIs can react via CSS
-    try {
-      const up = passkeyManager.userPreferences;
-      // Set initial theme attribute
-      try { document.documentElement.setAttribute('data-w3a-theme', up.getUserTheme()); } catch {}
-      // Deduplicate subscription on reconfigurations
-      try { themeUnsubscribe?.(); } catch {}
-      themeUnsubscribe = up.onThemeChange((t) => {
-        try { document.documentElement.setAttribute('data-w3a-theme', t); } catch {}
-      });
-    } catch {}
+    const up = passkeyManager.userPreferences;
+    // Set initial theme attribute
+    document.documentElement.setAttribute('data-w3a-theme', up.getUserTheme());
+    // Deduplicate subscription on reconfigurations
+    themeUnsubscribe?.();
+    themeUnsubscribe = up.onThemeChange((t) => {
+      document.documentElement.setAttribute('data-w3a-theme', t);
+    });
   }
 }
 
@@ -668,10 +657,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
           }
         } catch {}
       }
-      (window as any).__W3A_EMBEDDED_BASE__ = resolvedBase;
-      try {
-        window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: resolvedBase }));
-      } catch {}
+      setEmbeddedBase(resolvedBase);
     } catch {}
     nearClient = null; passkeyManager = null;
     // Forward UI registry to iframe-lit-elem-mounter if provided
@@ -737,7 +723,7 @@ function onWindowMessage(e: MessageEvent) {
   }
 }
 
-try { window.addEventListener('message', onWindowMessage); } catch {}
+window.addEventListener('message', onWindowMessage);
 
 export {};
 
@@ -773,25 +759,19 @@ function normalizeConfirmationConfig(base: ConfirmationConfig, patch: Record<str
 }
 function applyTransparentIframeSurface() {
   const apply = () => {
-    try {
-      const doc = document;
-      doc.documentElement.style.background = 'transparent';
-      doc.documentElement.style.margin = '0';
-      doc.documentElement.style.padding = '0';
-      try {
-        doc.documentElement.style.colorScheme = 'normal';
-        doc.documentElement.classList.remove('dark');
-      } catch {}
-      if (doc.body) {
-        doc.body.style.background = 'transparent';
-        doc.body.style.margin = '0';
-        doc.body.style.padding = '0';
-        try {
-          doc.body.style.colorScheme = 'normal';
-          doc.body.classList.remove('dark');
-        } catch {}
-      }
-    } catch {}
+    const doc = document;
+    doc.documentElement.style.background = 'transparent';
+    doc.documentElement.style.margin = '0';
+    doc.documentElement.style.padding = '0';
+    doc.documentElement.style.colorScheme = 'normal';
+    doc.documentElement.classList.remove('dark');
+    if (doc.body) {
+      doc.body.style.background = 'transparent';
+      doc.body.style.margin = '0';
+      doc.body.style.padding = '0';
+      doc.body.style.colorScheme = 'normal';
+      doc.body.classList.remove('dark');
+    }
   };
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => apply(), { once: true });

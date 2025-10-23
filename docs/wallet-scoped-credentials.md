@@ -7,6 +7,13 @@ Terms
 - Wallet origin: The domain that hosts the wallet iframe/service, e.g. `wallet.example.com` or `web3authn.org`.
 - App origin: The domain of the embedding application, e.g. `app.example.com` or `example.com`.
 
+Embedded SDK base + workers
+- The wallet iframe host announces the absolute SDK base via a global and event:
+  - Global: `window.__W3A_WALLET_SDK_BASE__` → absolute `${walletOrigin}${sdkBasePath}/` (for example, `https://web3authn.org/sdk/`).
+  - Event: `W3A_WALLET_SDK_BASE_CHANGED` (CustomEvent with `detail` = absolute base URL).
+- The SDK resolves embedded assets (Lit bundles, host script) and module workers (signer/VRF) from this base. Workers always load from the wallet origin in production for a clear security boundary.
+- In development, the app provider sets this base when `iframeWallet.walletOrigin` is configured, so the app doesn’t need to host `/sdk/*`.
+
 Option A — Wallet‑Scoped Credentials
 - `rpId = <wallet domain>` (e.g., `web3authn.org` or `wallet.example.com`).
 - Behaves like an auth server: a single passkey is reusable across many apps that integrate the wallet.
@@ -56,6 +63,11 @@ const passkey = new PasskeyManager({
   },
 });
 ```
+
+Dev prewarm and logout behavior
+- Workers prewarm on the wallet origin (inside the wallet iframe) to avoid cross‑origin Worker construction errors in development.
+- App‑side prewarm is only attempted when same‑origin; otherwise it’s skipped (non‑fatal).
+- On logout, the app asks the wallet iframe to clear the VRF session. In cross‑origin dev, the app skips local worker initialization to avoid benign SecurityError logs; the wallet iframe clears its own session.
 
 Option B — App‑Scoped Credentials
 - `rpId = <app base domain>` (e.g., `example.com` or `example.localhost`).
@@ -152,7 +164,7 @@ The manifest endpoint is implemented on the relay server and should be exposed o
 ## Deployment Plan: Wallet Host on web3authn.org
 
 1) Example site
-- Create `examples/wallet-scoped-credentials` (uses Web3Authn Vite plugins):
+- Use `examples/vite` (with Tatchi Vite plugins):
 - `tatchiDev(...)` for dev routing of `/wallet-service` and `/sdk`.
 - `tatchiBuildHeaders({ walletOrigin })` to emit `_headers` (COOP/COEP + Permissions‑Policy) and write `wallet-service/index.html` if missing.
 - Wallet service page:
@@ -170,7 +182,7 @@ The manifest endpoint is implemented on the relay server and should be exposed o
 
 3) CI workflows
 - `deploy-cloudflare.yml` and/or `deploy-separate-wallet-host.yml` publish the wallet host:
-  - Build SDK, then build `examples/wallet-scoped-credentials`.
+  - Build SDK, then build `examples/vite`.
   - Copy SDK bundles into `dist/sdk`.
   - Optionally emit a static ROR manifest from `ROR_ALLOWED_ORIGINS`, or serve dynamically from the relay.
   - Deploy `dist/` to the wallet Pages project.
@@ -245,6 +257,36 @@ Configuration
   - Delegate WebAuthn to the wallet origin:
     `Permissions-Policy: publickey-credentials-get=(self "https://web3authn.org"), publickey-credentials-create=(self "https://web3authn.org")`
   - You can generate a `_headers` at build time via the SDK’s `tatchiBuildHeaders({ walletOrigin })` helper or write one manually in the dist.
+
+Troubleshooting
+- Module script “text/html” (strict MIME)
+  - Symptom: `Failed to load module script: The server responded with a non-JavaScript MIME type of "text/html"` when loading `/sdk/*` or `/sdk/workers/*`.
+  - Fix:
+    - Ensure the wallet host deploys `/sdk/*` and `/sdk/workers/*` (copy SDK dist assets to the wallet site in CI).
+    - Ensure wallet `_headers` allow CORS for `/sdk/*` and `/sdk/workers/*` and `.wasm` is served with `Content-Type: application/wasm`.
+    - Confirm `window.__W3A_WALLET_SDK_BASE__` points to the wallet origin (e.g., `https://web3authn.org/sdk/`).
+- Cross‑origin dev SecurityError on Worker
+  - Symptom: `Failed to construct 'Worker': … cannot be accessed from origin …` during prewarm or logout.
+  - Explanation: Browsers restrict constructing cross‑origin workers in many dev setups even with CORS.
+  - Fix:
+    - Workers prewarm inside the wallet iframe (wallet origin). App‑side prewarm is skipped in cross‑origin dev.
+    - Logout asks the wallet iframe to clear the VRF session; the app skips local worker init.
+- Relay preflight CORS
+  - Ensure Cloudflare Worker (relay) sets:
+    - `EXPECTED_ORIGIN = https://hosted.tatchi.xyz, https://tatchi.xyz`
+    - `EXPECTED_WALLET_ORIGIN = https://web3authn.org, https://wallet.tatchi.xyz`
+  - Preflight should include `Access-Control-Allow-Origin` matching the requesting Origin.
+
+Verification checklist
+- Wallet host
+  - `curl -I https://<wallet-origin>/sdk/wallet-iframe-host.js` → 200 application/javascript
+  - `curl -I https://<wallet-origin>/sdk/workers/web3authn-signer.worker.js` → 200 application/javascript
+  - `curl -I https://<wallet-origin>/sdk/workers/wasm_signer_worker_bg.wasm` → 200 application/wasm
+- App
+  - Console: `window.__W3A_WALLET_SDK_BASE__` returns absolute base URL.
+  - Network: worker requests point to the wallet origin.
+- Relay
+  - OPTIONS preflight returns `Access-Control-Allow-Origin` for app and wallet origins.
 
 ROR manifest and NEAR allowlist
 - Bind your Cloudflare Worker (relay) to the wallet domain route: `web3authn.org/.well-known/webauthn*`.

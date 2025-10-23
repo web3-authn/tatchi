@@ -4,6 +4,7 @@ import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInput } from '../../../types/actions';
 import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../types/passkeyManager';
+import { onEmbeddedBaseChange } from '../../../sdkPaths';
 // Local imports
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import type { TxTreeStyles } from '../TxTree';
@@ -172,7 +173,7 @@ export class IframeButtonHost extends LitElementWithProps {
   private scopedSheet: CSSStyleSheet | null = null;
   private scopedStyleEl?: HTMLStyleElement;
   // (optional) event hook; not used for gating init anymore
-  private onAssetsBaseSet = (_ev: Event) => {
+  private onAssetsBaseSet = () => {
     // Reinitialize to pick up the new embedded base path set by the wallet host
     try {
       this.iframeInitialized = false;
@@ -225,6 +226,7 @@ export class IframeButtonHost extends LitElementWithProps {
   private messageHandler?: (event: MessageEvent) => void;
   private pendingUiDigestResolve?: (v: string) => void;
   private pendingUiDigestReject?: (e: Error) => void;
+  private offEmbeddedBaseChange?: () => void;
 
   constructor() {
     super();
@@ -253,8 +255,8 @@ export class IframeButtonHost extends LitElementWithProps {
     this.setupClipPathSupport();
     // Apply button style CSS variables on initial connection
     this.applyButtonStyle();
-    // Subscribe to wallet host base-set event (best-effort)
-    window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any, { passive: true });
+    // Subscribe to wallet host base-change event (best-effort)
+    try { this.offEmbeddedBaseChange = onEmbeddedBaseChange(() => this.onAssetsBaseSet()); } catch {}
   }
 
   updated(changedProperties: PropertyValues) {
@@ -281,7 +283,7 @@ export class IframeButtonHost extends LitElementWithProps {
       this.messageHandler = undefined;
     }
     document.removeEventListener('pointerdown', this.onDocPointerDown, true);
-    window.removeEventListener('W3A_EMBEDDED_BASE_SET' as any, this.onAssetsBaseSet as any);
+    try { this.offEmbeddedBaseChange?.(); this.offEmbeddedBaseChange = undefined; } catch {}
   }
 
   private applyButtonStyle() {

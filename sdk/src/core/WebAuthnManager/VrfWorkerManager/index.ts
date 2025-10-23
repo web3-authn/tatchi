@@ -23,7 +23,7 @@ import type {
 import { WebAuthnRegistrationCredential } from '../../types';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
-import { resolveWorkerScriptUrl } from '../../wasmLoader';
+import { resolveWorkerScriptUrl } from '../../sdkPaths';
 import { AccountId, toAccountId } from '../../types/accountIds';
 import { extractPrfFromCredential } from '../credentialsHelpers';
 

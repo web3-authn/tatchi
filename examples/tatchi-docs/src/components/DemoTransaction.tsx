@@ -90,7 +90,7 @@ export const DemoTransaction: React.FC = () => {
               break;
           }
         },
-        waitUntil: TxExecutionStatus.FINAL,
+        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
         afterCall: (success: boolean, result?: any) => {
           if (success && result?.transactionId) {
             const txId = result.transactionId;
@@ -215,7 +215,7 @@ export const DemoTransaction: React.FC = () => {
                 },
               ]}
               options={{
-                waitUntil: TxExecutionStatus.FINAL,
+                waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
                 beforeCall: () => {
                   toast.loading('Preparing embedded transaction...', { id: 'embedded' });
                 },

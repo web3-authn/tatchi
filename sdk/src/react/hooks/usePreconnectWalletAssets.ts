@@ -1,5 +1,6 @@
 import React from 'react';
 import type { PasskeyContextProviderProps } from '../types';
+import { setEmbeddedBase } from '../../core/sdkPaths';
 
 // Internal: Add preconnect/prefetch hints for wallet service + relayer and
 // expose an absolute embedded asset base for srcdoc iframes.
@@ -46,11 +47,7 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
             const sdkPath = (sdkBasePath || '/sdk') as string;
             const withSlash = sdkPath.endsWith('/') ? sdkPath : sdkPath + '/';
             const abs = new URL(withSlash, walletOriginOrigin).toString();
-            const w = window as unknown as { __W3A_EMBEDDED_BASE__?: string };
-            if (w.__W3A_EMBEDDED_BASE__ !== abs) {
-              w.__W3A_EMBEDDED_BASE__ = abs;
-              try { window.dispatchEvent(new CustomEvent('W3A_EMBEDDED_BASE_SET', { detail: abs })); } catch {}
-            }
+            setEmbeddedBase(abs);
           }
         }
       } catch {}

@@ -41,7 +41,7 @@ import {
 } from './types/signer-worker';
 // Import WASM binary directly
 import init, * as wasmModule from '../wasm_signer_worker/pkg/wasm_signer_worker.js';
-import { resolveWasmUrl } from './wasmLoader';
+import { resolveWasmUrl } from './sdkPaths/wasm-loader';
 import { errorMessage } from '../utils/errors';
 
 /**

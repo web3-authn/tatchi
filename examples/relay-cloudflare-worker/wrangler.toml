@@ -38,8 +38,8 @@ CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
 # Required at runtime by src/worker.ts
 
 # Optional CORS
-EXPECTED_ORIGIN = "https://tatchi.xyz"
-EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz"
+EXPECTED_ORIGIN = "https://tatchi.xyz, https://hosted.tatchi.xyz"
+EXPECTED_WALLET_ORIGIN = "https://wallet.tatchi.xyz, https://web3authn.org"
 
 # Optional: explicitly enable cron and rotation (defaults to disabled)
 # ENABLE_ROTATION = "0"

@@ -27,7 +27,7 @@ import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
-import { resolveWorkerBaseOrigin } from '../wasmLoader';
+import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
 
 
 /**
@@ -95,15 +95,14 @@ export class WebAuthnManager {
 
     // Keep base origin updated if the wallet sets a new embedded base
     if (typeof window !== 'undefined') {
-      window.addEventListener('W3A_EMBEDDED_BASE_SET' as any, (e: any) => {
-        const detail = e?.detail as string | undefined;
-        const origin = detail ? new URL(detail, window.location.origin).origin : resolveWorkerBaseOrigin();
+      onEmbeddedBaseChange((url) => {
+        const origin = new URL(url, window.location.origin).origin;
         if (origin && origin !== this.workerBaseOrigin) {
           this.workerBaseOrigin = origin;
           this.signerWorkerManager.setWorkerBaseOrigin(origin);
           this.vrfWorkerManager.setWorkerBaseOrigin?.(origin as any);
         }
-      }, { passive: true } as any);
+      });
     }
   }
 
@@ -454,21 +453,31 @@ export class WebAuthnManager {
 
   async clearVrfSession(): Promise<void> {
     // In cross-origin dev, skip local worker init; wallet iframe handles PM_LOGOUT
-    try { if (typeof window !== 'undefined' && this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return; } catch {}
+    if (typeof window !== 'undefined' && this.workerBaseOrigin !== window.location.origin) {
+      return;
+    }
     return await this.vrfWorkerManager.clearVrfSession();
   }
 
   /**
    * Check VRF worker status
    */
-  async checkVrfStatus(): Promise<{ active: boolean; nearAccountId: AccountId | null; sessionDuration?: number }> {
+  async checkVrfStatus(): Promise<{
+    active: boolean;
+    nearAccountId: AccountId | null;
+    sessionDuration?: number
+  }> {
     return this.vrfWorkerManager.checkVrfStatus();
   }
 
   /**
    * Fetch Shamir server key info to support proactive refresh.
    */
-  async getShamirKeyInfo(): Promise<{ currentKeyId: string | null; p_b64u: string | null; graceKeyIds?: string[] } | null> {
+  async getShamirKeyInfo(): Promise<{
+    currentKeyId: string | null;
+    p_b64u: string | null;
+    graceKeyIds?: string[]
+  } | null> {
     try {
       const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
       if (!relayUrl) return null;

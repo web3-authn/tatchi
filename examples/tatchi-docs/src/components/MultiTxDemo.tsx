@@ -102,7 +102,7 @@ export const MultiTxDemo: React.FC = () => {
                 break;
             }
           },
-          waitUntil: TxExecutionStatus.FINAL,
+          waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
           afterCall: (success: boolean, result?: any) => {
             if (success && result?.transactionId) {
               console.log('Combined transaction success:', result.transactionId);

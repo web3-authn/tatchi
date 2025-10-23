@@ -111,7 +111,7 @@ export const EmbeddedTxButton: React.FC<Props> = ({ setLastTxDetails }) => {
                   setEmbeddedResult('');
                   try { setLastTxDetails(null); } catch {}
                 },
-                waitUntil: TxExecutionStatus.FINAL,
+                waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
                 afterCall: (success: boolean, result?: any) => {
                   setIsEmbeddedLoading(false);
                   if (success) {

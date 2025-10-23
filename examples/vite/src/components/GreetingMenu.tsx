@@ -92,7 +92,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
               break;
           }
         },
-        waitUntil: TxExecutionStatus.FINAL,
+        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
         afterCall: (success: boolean, result?: any) => {
           if (success && result?.transactionId) {
             const txId = result.transactionId;
@@ -210,7 +210,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = ({ disabled = false, on
             });
           }
         },
-        waitUntil: TxExecutionStatus.FINAL,
+        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
       }
     });
   }, [transferRecipient, transferAmount, isLoggedIn, nearAccountId, passkeyManager, onTransactionUpdate]);

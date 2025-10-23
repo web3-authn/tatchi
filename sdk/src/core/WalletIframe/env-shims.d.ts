@@ -15,7 +15,7 @@ declare global {
   }
   interface Window {
     // Absolute base URL for embedded SDK assets inside wallet host
-    __W3A_EMBEDDED_BASE__?: string;
+    __W3A_WALLET_SDK_BASE__?: string;
   }
 }
 
