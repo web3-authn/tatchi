@@ -496,7 +496,21 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
           const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))
           try { fs.mkdirSync(sdkDir, { recursive: true }) } catch {}
           try { fs.writeFileSync(path.join(sdkDir, 'wallet-shims.js'), "window.global ||= window; window.process ||= { env: {} };\n", 'utf-8') } catch {}
-          const html = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>Web3Authn Wallet Service</title>\n    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>\n    <script src=\"${sdkBasePath}/wallet-shims.js\"></script>\n    <link rel=\"modulepreload\" href=\"${sdkBasePath}/wallet-iframe-host.js\" crossorigin>\n  </head>\n  <body>\n    <script type=\"module\" src=\"${sdkBasePath}/wallet-iframe-host.js\"></script>\n  </body>\n</html>\n`
+          const html = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Web3Authn Wallet Service</title>
+    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>
+    <script src="${sdkBasePath}/wallet-shims.js"></script>
+    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
+  </head>
+  <body>
+    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>
+  </body>
+</html>
+`
           fs.writeFileSync(wsHtml, html, 'utf-8')
           console.log(`[tatchi] emitted ${path.posix.join('/', walletRel, 'index.html')} (minimal wallet service)`)
         }
