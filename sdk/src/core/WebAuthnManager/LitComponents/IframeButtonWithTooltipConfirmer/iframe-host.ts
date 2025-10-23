@@ -339,7 +339,6 @@ export class IframeButtonHost extends LitElementWithProps {
           class="${iframeSize.flushClass}"
           style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
           sandbox="allow-scripts"
-          allow="clipboard-read; clipboard-write"
         ></iframe>
       </div>
     `;
