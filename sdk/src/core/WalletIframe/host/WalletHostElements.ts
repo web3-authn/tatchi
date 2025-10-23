@@ -4,6 +4,7 @@ import { LitElementWithProps } from '../../WebAuthnManager/LitComponents/LitElem
 
 // Ensure underlying lit elements are defined and not tree‑shaken
 import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
+import { IframeExportHost as __KeepExportViewerIframe } from '../../WebAuthnManager/LitComponents/ExportPrivateKey/iframe-host';
 
 // Types mirrored from React hosts to smooth interop
 import type { WalletIframeTxButtonHostProps } from '../../../react/components/WalletIframeTxButtonHost';
@@ -12,7 +13,7 @@ import { getTag, defineTag } from '../../WebAuthnManager/LitComponents/tags';
 
 // Keep references alive
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const __ensure = [__KeepTxButton];
+const __ensure = [__KeepTxButton, __KeepExportViewerIframe];
 
 // Register-button host removed; only transaction host remains.
 // Register host removed

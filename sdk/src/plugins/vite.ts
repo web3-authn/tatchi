@@ -40,6 +40,12 @@ export type DevHeadersOptions = {
   walletOrigin?: string
   walletServicePath?: string
   sdkBasePath?: string
+  /**
+   * Optional dev-time CSP for the wallet service route.
+   *  - 'strict': no inline scripts; keeps inline style for minimal style tag
+   *  - 'compatible': allows inline scripts/styles (useful for debugging)
+   */
+  devCSP?: 'strict' | 'compatible'
 }
 
 const requireCjs = createRequire(import.meta.url)
@@ -120,6 +126,19 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
+      server.middlewares.use((req: any, res: any, next: any) => {
+        try {
+          const url = (req.url || '').split('?')[0]
+          if (url === configuredBase + '/wallet-shims.js') {
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+            res.end("window.global ||= window; window.process ||= { env: {} };\n")
+            return
+          }
+        } catch {}
+        next()
+      })
       // Optional debug route to confirm resolution
       if (enableDebugRoutes) {
         server.middlewares.use('/__sdk-root', (req: any, res: any) => {
@@ -188,11 +207,8 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
       /* Avoid UA dark/light scrollbars forcing opaque backgrounds */
       html, body { color-scheme: normal; }
     </style>
-    <script>
-      // Minimal shims some ESM bundles expect
-      window.global ||= window;
-      window.process ||= { env: {} };
-    </script>
+    <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
+    <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
     <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
   </head>
@@ -253,6 +269,7 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(opts.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = normalizeBase(opts.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
+  const devCSPMode = (opts.devCSP ?? (process.env.VITE_WALLET_DEV_CSP as 'strict' | 'compatible' | undefined))
 
   // Build a Permissions-Policy that only lists self unless a wallet origin is provided.
   const ppParts: string[] = []
@@ -282,6 +299,37 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
         res.setHeader('Permissions-Policy', permissionsPolicy)
+        // Optional dev-time CSP for the wallet service page only
+        if (isWalletRoute && devCSPMode) {
+          const strictCsp = [
+            "default-src 'self'",
+            "script-src 'self'",
+            // Keep inline styles for the minimal style block
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "connect-src 'self' https:",
+            "worker-src 'self' blob:",
+            "frame-src 'self'",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "form-action 'none'",
+          ].join('; ')
+          const compatibleCsp = [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "connect-src 'self' https:",
+            "worker-src 'self' blob:",
+            "frame-src 'self'",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "form-action 'none'",
+          ].join('; ')
+          res.setHeader('Content-Security-Policy', devCSPMode === 'strict' ? strictCsp : compatibleCsp)
+        }
         // Resource hints: help parent pages preconnect to the wallet origin early in dev
         try {
           if (walletOrigin) {
@@ -397,7 +445,42 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
           // Do not override existing headers; leave a note in build logs
           console.warn('[tatchi] _headers already exists in outDir; skipping auto-emission')
         } else {
-          const content = `/*\n  Cross-Origin-Opener-Policy: same-origin\n  Cross-Origin-Embedder-Policy: require-corp\n  Cross-Origin-Resource-Policy: cross-origin\n  Permissions-Policy: ${permissionsPolicy}\n\n${walletServicePath}\n  Cross-Origin-Opener-Policy: unsafe-none\n${walletServicePath}/\n  Cross-Origin-Opener-Policy: unsafe-none\n${sdkBasePath}/*\n  Access-Control-Allow-Origin: *\n${sdkBasePath}/workers/*\n  Access-Control-Allow-Origin: *\n`
+          const walletCsp = [
+            "default-src 'self'",
+            "script-src 'self'",
+            "style-src 'self'",
+            "img-src 'self' data:",
+            "font-src 'self'",
+            "connect-src 'self' https:",
+            "worker-src 'self' blob:",
+            "frame-src 'self'",
+            "object-src 'none'",
+            "base-uri 'none'",
+            "form-action 'none'",
+            "upgrade-insecure-requests",
+          ].join('; ')
+          const content = [
+            '/*',
+            '  Cross-Origin-Opener-Policy: same-origin',
+            '  Cross-Origin-Embedder-Policy: require-corp',
+            '  Cross-Origin-Resource-Policy: cross-origin',
+            `  Permissions-Policy: ${permissionsPolicy}`,
+            '',
+            `${walletServicePath}`,
+            '  Cross-Origin-Opener-Policy: unsafe-none',
+            `  Content-Security-Policy: ${walletCsp}`,
+            `${walletServicePath}/`,
+            '  Cross-Origin-Opener-Policy: unsafe-none',
+            `  Content-Security-Policy: ${walletCsp}`,
+            '/export-viewer',
+            '  Cross-Origin-Opener-Policy: unsafe-none',
+            '/export-viewer/',
+            '  Cross-Origin-Opener-Policy: unsafe-none',
+            `${sdkBasePath}/*`,
+            '  Access-Control-Allow-Origin: *',
+            `${sdkBasePath}/workers/*`,
+            '  Access-Control-Allow-Origin: *',
+          ].join('\n') + '\n'
           fs.mkdirSync(outDir, { recursive: true })
           fs.writeFileSync(hdrPath, content, 'utf-8')
           console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy + SDK CORS rules')
@@ -407,14 +490,42 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
         const walletRel = walletServicePath.replace(/^\//, '')
         const wsDir = path.join(outDir, walletRel)
         const wsHtml = path.join(wsDir, 'index.html')
-        if (fs.existsSync(wsHtml)) {
-          // Respect app-provided page
-          return
+        if (!fs.existsSync(wsHtml)) {
+          fs.mkdirSync(wsDir, { recursive: true })
+          // Emit external shim under /sdk to enable strict CSP (no inline)
+          const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))
+          try { fs.mkdirSync(sdkDir, { recursive: true }) } catch {}
+          try { fs.writeFileSync(path.join(sdkDir, 'wallet-shims.js'), "window.global ||= window; window.process ||= { env: {} };\n", 'utf-8') } catch {}
+          const html = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset=\"utf-8\" />\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n    <title>Web3Authn Wallet Service</title>\n    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>\n    <script src=\"${sdkBasePath}/wallet-shims.js\"></script>\n    <link rel=\"modulepreload\" href=\"${sdkBasePath}/wallet-iframe-host.js\" crossorigin>\n  </head>\n  <body>\n    <script type=\"module\" src=\"${sdkBasePath}/wallet-iframe-host.js\"></script>\n  </body>\n</html>\n`
+          fs.writeFileSync(wsHtml, html, 'utf-8')
+          console.log(`[tatchi] emitted ${path.posix.join('/', walletRel, 'index.html')} (minimal wallet service)`)
         }
-        fs.mkdirSync(wsDir, { recursive: true })
-        const html = `<!doctype html>\n<html lang="en">\n  <head>\n    <meta charset="utf-8" />\n    <meta name="viewport" content="width=device-width, initial-scale=1" />\n    <title>Web3Authn Wallet Service</title>\n    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>\n    <script>window.global ||= window; window.process ||= { env: {} };</script>\n    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>\n  </head>\n  <body>\n    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>\n  </body>\n</html>\n`
-        fs.writeFileSync(wsHtml, html, 'utf-8')
-        console.log(`[tatchi] emitted ${path.posix.join('/', walletRel, 'index.html')} (minimal wallet service)`)        
+
+        // Emit minimal export viewer HTML for production
+        const evDir = path.join(outDir, 'export-viewer')
+        const evHtml = path.join(evDir, 'index.html')
+        if (!fs.existsSync(evHtml)) {
+          fs.mkdirSync(evDir, { recursive: true })
+          const ev = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>
+    <script>window.global ||= window; window.process ||= { env: {} };</script>
+    <link rel="modulepreload" href="${sdkBasePath}/export-private-key-viewer.js" crossorigin>
+    <link rel="modulepreload" href="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin>
+  </head>
+  <body>
+    <w3a-drawer id="exp" theme="dark"></w3a-drawer>
+    <script type="module" src="${sdkBasePath}/export-private-key-viewer.js" crossorigin></script>
+    <script type="module" src="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin></script>
+  </body>
+</html>
+`
+          fs.writeFileSync(evHtml, ev, 'utf-8')
+          console.log('[tatchi] emitted /export-viewer/index.html (minimal export viewer)')
+        }
       } catch (e) {
         console.warn('[tatchi] failed to emit _headers:', e)
       }

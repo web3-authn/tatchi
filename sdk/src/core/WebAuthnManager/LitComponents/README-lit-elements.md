@@ -225,6 +225,56 @@ Implementation reference:
   - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts`
   - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts`
 
+## Never Break Again: Definition + Tree‑Shaking Rules
+
+These are hard guardrails to eliminate “empty custom element” regressions when refactoring Lit + wallet‑iframe code.
+
+1) Hard rules
+- Always ensure definition at use‑site: before `document.createElement('w3a-*')`, dynamically import the module that calls `customElements.define()` for that tag.
+- Never rely only on side‑effect imports for elements rendered inside the wallet iframe.
+- Centralize tag names in `tags.ts` and prefer a small helper to ensure definition.
+
+2) Use‑site helper pattern
+
+Create a tiny helper to guarantee the module runs before creating the element:
+
+```ts
+// sdk/src/core/WebAuthnManager/LitComponents/ensure-defined.ts
+export async function ensureDefined(tag: string, loader: () => Promise<unknown>) {
+  if (!customElements.get(tag)) await loader();
+}
+
+// Usage (export viewer)
+import { W3A_EXPORT_VIEWER_IFRAME_ID } from './ExportPrivateKey/../tags';
+import { ensureDefined } from '../ensure-defined';
+await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('./ExportPrivateKey/iframe-host'));
+const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID);
+document.body.appendChild(host);
+```
+
+Reference in codebase:
+- `SignerWorkerManager/confirmTxFlow/flows/common.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
+
+3) Keep‑imports in wallet host (secondary defense)
+
+Keep critical element definitions alive in the wallet host runtime:
+
+```ts
+// sdk/src/core/WalletIframe/host/WalletHostElements.ts
+import { IframeButtonHost as __KeepTxButton } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
+import { IframeExportHost as __KeepExportViewerIframe } from '../../WebAuthnManager/LitComponents/ExportPrivateKey/iframe-host';
+const __ensure = [__KeepTxButton, __KeepExportViewerIframe];
+```
+
+4) Dev/Test guardrails
+- Unit: keep the SHOW_SECURE_PRIVATE_KEY_UI test that verifies the viewer remains mounted (already present under `src/__tests__/unit/confirmTxFlow.defensivePaths.test.ts`).
+- E2E: add a production‑bundle run that triggers export viewer to catch treeshaking differences from dev.
+- Lint/check: optional script that fails CI if a `document.createElement('w3a-…')` call is not preceded by an `ensureDefined(...)` in the same module.
+- Dev observer: optional `MutationObserver` in wallet host that warns if a `w3a-*` element is un‑upgraded for >250ms after insertion.
+
+5) Build config notes
+- `package.json#sideEffects` cannot protect intra‑bundle treeshaking across all tools. The reliable fix is dynamic import at use‑site, plus keep‑imports in the wallet host.
+
 ## Importing and Composing Lit Components
 
 ### Quick checklist (copy/paste for new components)

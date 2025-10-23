@@ -14,8 +14,9 @@ import { addLitCancelListener } from '../../../LitComponents/lit-events';
 import { isObject, isFunction, isString } from '../../../../WalletIframe/validation';
 import { errorMessage, toError } from '../../../../../utils/errors';
 // Ensure the export viewer custom element is defined when used
-import '../../../LitComponents/ExportPrivateKey/iframe-host';
-import { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
+import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
+import { ensureDefined } from '../../../LitComponents/ensure-defined';
+import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../../../LitComponents/tags';
 
 // Flow classification type (kept close to helpers for reuse)
 export type FlowKind = 'LocalOnly' | 'Registration' | 'Signing' | 'Unsupported';
@@ -225,7 +226,9 @@ export async function renderConfirmUI({
   // Show-only export viewer: mount with provided key and return immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
     console.debug('[RenderConfirmUI] SHOW_SECURE_PRIVATE_KEY_UI');
-    const host = document.createElement('w3a-export-viewer-iframe') as ExportViewerIframeElement;
+    // Ensure the defining module runs in this runtime before creating the element.
+    await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../../../LitComponents/ExportPrivateKey/iframe-host'));
+    const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID) as ExportViewerIframeElement;
     host.theme = confirmationConfig.theme || 'dark';
     host.variant = (confirmationConfig.uiMode === 'drawer') ? 'drawer' : 'modal';
     {

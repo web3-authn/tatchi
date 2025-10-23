@@ -132,7 +132,7 @@
   padding: var(--fe-gap-3) var(--fe-gap-4);
   border: 1px solid var(--fe-border);
   border-radius: var(--fe-radius-sm);
-  background-color: var(--fe-input-bg);
+  background-color: var(--w3a-colors-surface2);
   color: var(--fe-input-text);
   font-size: 0.9rem;
   font-family: var(--fe-font-sans);

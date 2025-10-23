@@ -1,3 +1,25 @@
+/**
+ * Lit Component Property Upgrade Pattern
+ *
+ * Problem: The custom element upgrade race can silently drop properties set
+ * on elements before the browser upgrades them from HTMLElement to the custom
+ * class. Timeline: createElement → set props → append → upgrade → Lit init →
+ * defaults overwrite early props.
+ *
+ * Solution: upgradeProperty pattern. On connectedCallback, for each declared
+ * property, if a plain own-property value exists (set before upgrade), delete
+ * the data property and reassign via the class setter to trigger Lit reactivity.
+ *
+ * This class implements that pattern and adds a few developer affordances:
+ * - keepDefinitions: prevent treeshaking of nested custom elements used only
+ *   through side-effects in templates by touching their constructors.
+ * - requiredChildTags (+strictChildDefinitions): dev-time checks to surface
+ *   missing nested element definitions early with a loud console.error or Error.
+ * - applyStyles(): map style objects to CSS variables, including section-scoped
+ *   tokens and viewport unit normalization (vh→dvh, vw→dvw when supported).
+ *
+ */
+
 import { LitElement } from 'lit';
 import { isObject } from '../../../core/WalletIframe/validation';
 

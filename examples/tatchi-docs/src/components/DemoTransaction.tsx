@@ -28,7 +28,10 @@ import Refresh from './icons/Refresh';
 
 export const DemoTransaction: React.FC = () => {
   const {
-    loginState: { isLoggedIn, nearAccountId },
+    loginState: {
+      isLoggedIn,
+      nearAccountId,
+    },
     passkeyManager,
   } = usePasskeyContext();
 
@@ -137,14 +140,17 @@ export const DemoTransaction: React.FC = () => {
     return null;
   }
 
+  const accountName = nearAccountId?.split('.')?.[0];
+
   return (
     <div style={{ maxWidth: 480 }}>
       {/* Greeting flow */}
       <GlassBorder>
         <div className="greeting-content">
           <div className="greeting-header">
-            <h2 className="greeting-title">Welcome, {nearAccountId}</h2>
+            <h2 className="greeting-title">Welcome, {accountName}</h2>
           </div>
+          <h2 className="embedded-tx-title">Sign Transactions with TouchId</h2>
           <div className="greeting-controls-box">
 
             <div className="on-chain-greeting-box">

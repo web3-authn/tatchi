@@ -1,4 +1,5 @@
 import { getEmbeddedBase, setEmbeddedBase } from '../../sdkPaths';
+import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensure-defined';
 
 /**
  * Bootstrap tasks for the wallet iframe host.
@@ -67,6 +68,9 @@ export function bootstrapTransparentHost(): void {
       true
     );
   } catch {}
+
+  // Dev-only: warn when w3a-* custom elements remain un-upgraded
+  try { setupDevUnupgradedObserver(); } catch {}
 }
 
 /**
@@ -99,5 +103,70 @@ export function ensureTransparentSurface(): void {
     apply();
   }
   window.addEventListener('load', () => apply(), { once: true });
+}
+
+/**
+ * Development-only observer that warns if any <w3a-*> element remains
+ * un-upgraded for >250ms after insertion. Also attempts to auto-ensure
+ * definitions for known elements via ensureKnownW3aElement().
+ */
+function setupDevUnupgradedObserver(): void {
+  const isDev = (() => {
+    try {
+      const env = (globalThis as any)?.process?.env?.NODE_ENV;
+      if (env && env !== 'production') return true;
+    } catch {}
+    try {
+      const h = window.location.hostname || '';
+      if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
+    } catch {}
+    return false;
+  })();
+  if (!isDev) return;
+
+  const pending = new WeakMap<Element, number>();
+  const schedule = (el: Element) => {
+    try {
+      const tag = (el.tagName || '').toLowerCase();
+      if (!tag.startsWith('w3a-')) return;
+      if (customElements.get(tag)) return; // already defined
+      if (pending.has(el)) return;
+      const id = window.setTimeout(async () => {
+        pending.delete(el);
+        if (customElements.get(tag)) return; // defined in the meantime
+        try { await ensureKnownW3aElement(tag); } catch {}
+        if (!customElements.get(tag)) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[W3A][Dev] <${tag}> not upgraded after 250ms. Ensure a dynamic import runs before createElement. See LitComponents/README-lit-elements.md (Never Break Again).`
+          );
+        }
+      }, 250);
+      pending.set(el, id);
+    } catch {}
+  };
+
+  const observer = new MutationObserver((mutations) => {
+    for (const m of mutations) {
+      try {
+        for (const node of Array.from(m.addedNodes)) {
+          if (!(node instanceof Element)) continue;
+          schedule(node);
+          try {
+            const nodes = (node as Element).querySelectorAll('*');
+            for (const n of Array.from(nodes)) schedule(n as Element);
+          } catch {}
+        }
+      } catch {}
+    }
+  });
+
+  try { observer.observe(document.documentElement || document.body, { childList: true, subtree: true }); } catch {}
+
+  // Seed: schedule existing nodes
+  try {
+    const nodes = document.querySelectorAll('*');
+    for (const n of Array.from(nodes)) schedule(n as Element);
+  } catch {}
 }
 
