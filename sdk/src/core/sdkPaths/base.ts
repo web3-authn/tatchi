@@ -17,6 +17,12 @@
 export const W3A_WALLET_SDK_BASE_KEY = '__W3A_WALLET_SDK_BASE__'
 export const W3A_WALLET_SDK_BASE_EVENT = 'W3A_WALLET_SDK_BASE_CHANGED'
 
+/**
+ * Typed CustomEvent emitted when the wallet SDK base changes.
+ * Detail contains the absolute base URL string (e.g., `${walletOrigin}/sdk/`).
+ */
+export type WalletSdkBaseChangedEvent = CustomEvent<string>
+
 export interface WalletSDKBase {
  [W3A_WALLET_SDK_BASE_KEY]?: string
 }
@@ -48,10 +54,10 @@ export function setEmbeddedBase(url: string): void {
  */
 export function onEmbeddedBaseChange(cb: (url: string) => void): () => void {
   if (typeof window === 'undefined') return () => {}
-  const handler = (e: any) => {
-    const d = e?.detail as string | undefined
+  const handler = (e: WalletSdkBaseChangedEvent) => {
+    const d = e.detail
     if (typeof d === 'string' && d.length > 0) cb(d)
   }
-  window.addEventListener(W3A_WALLET_SDK_BASE_EVENT, handler, { passive: true })
-  return () => window.removeEventListener(W3A_WALLET_SDK_BASE_EVENT, handler)
+  window.addEventListener(W3A_WALLET_SDK_BASE_EVENT, handler as EventListener, { passive: true })
+  return () => window.removeEventListener(W3A_WALLET_SDK_BASE_EVENT, handler as EventListener)
 }
