@@ -62,6 +62,16 @@ const aliasConfig = {
   '@/*': path.resolve(process.cwd(), 'src/*')
 };
 
+// Static assets expected to be served under `/sdk/*` by hosts.
+// Emitting them into dist/esm/sdk ensures deploy steps that rsync the SDK
+// directory (often with --delete) keep these files available in production.
+const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n";
+const WALLET_SURFACE_CSS = [
+  'html, body { background: transparent !important; margin:0; padding:0; }',
+  'html, body { color-scheme: normal; }',
+  '',
+].join('\n');
+
 const copyWasmAsset = (source: string, destination: string, label: string): void => {
   if (!fs.existsSync(source)) {
     throw new Error(`Missing WASM source at ${source}`);
@@ -393,6 +403,24 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
+    plugins: [
+      {
+        name: 'emit-wallet-service-static',
+        generateBundle() {
+          try {
+            const sdkDir = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/sdk`);
+            fs.mkdirSync(sdkDir, { recursive: true });
+            const shimPath = path.join(sdkDir, 'wallet-shims.js');
+            if (!fs.existsSync(shimPath)) fs.writeFileSync(shimPath, WALLET_SHIM_SOURCE, 'utf-8');
+            const cssPath = path.join(sdkDir, 'wallet-service.css');
+            if (!fs.existsSync(cssPath)) fs.writeFileSync(cssPath, WALLET_SURFACE_CSS, 'utf-8');
+            console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
+          } catch (err) {
+            console.warn('⚠️  Unable to emit wallet static assets:', err);
+          }
+        }
+      }
+    ]
   },
   // Export Private Key viewer bundle (Lit element rendered inside iframe)
   {
