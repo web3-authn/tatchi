@@ -30,7 +30,7 @@ export function PasskeyColumn() {
       <div className="constrained-column">
         <NavbarStatic />
         <NavbarProfileOverlay />
-        <div className="passkey-sticky">
+        <div className="passkey-demo">
           <CarouselProvider
             pages={pages}
             initialKey="login"

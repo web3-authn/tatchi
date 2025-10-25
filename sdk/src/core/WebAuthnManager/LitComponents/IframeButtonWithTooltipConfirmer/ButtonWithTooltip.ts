@@ -5,8 +5,8 @@ import { TransactionInput, TransactionInputWasm, isActionArgsWasm, toActionArgsW
 // Local imports
 import { LitElementWithProps } from '../LitElementWithProps';
 import TxTree, { type TxTreeStyles } from '../TxTree';
-import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
-import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme, type EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
+import type { TxTreeTheme } from '../TxTree/tx-tree-themes';
+import type { EmbeddedTxButtonTheme, EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { TooltipGeometry, TooltipPositionInternal, utilParsePx } from './iframe-geometry';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, ElementSelectors } from '../tags';
@@ -451,36 +451,28 @@ export class EmbeddedTxButton extends LitElementWithProps {
     // Only propagate width/height/tooltip vars; visual styling is rendered by host
     const buttonWidth = this.buttonSizing?.width || '200px';
     const buttonHeight = this.buttonSizing?.height || '48px';
-    this.style.setProperty('--btn-width', typeof buttonWidth === 'number' ? `${buttonWidth}px` : String(buttonWidth));
-    this.style.setProperty('--btn-height', typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight));
-
-    this.style.setProperty('--tooltip-width', this.tooltip.width);
-    this.style.setProperty('--tooltip-height', this.tooltip.height);
-    this.style.setProperty('--tooltip-offset', this.tooltip.offset);
+    this.setCssVars({
+      '--btn-width': typeof buttonWidth === 'number' ? `${buttonWidth}px` : String(buttonWidth),
+      '--btn-height': typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight),
+      '--tooltip-width': String(this.tooltip.width),
+      '--tooltip-height': String(this.tooltip.height),
+      '--tooltip-offset': String(this.tooltip.offset),
+    });
     // Set box padding for tooltip content and pass to tree via CSS cascade
     const boxPadding = this.tooltip.boxPadding || '0px';
-    this.style.setProperty('--tooltip-box-padding', String(boxPadding));
+    this.setCssVars({ '--tooltip-box-padding': String(boxPadding) });
   }
 
   // ==============================
   // Theme & CSS Variables
   // ==============================
   private updateTxTreeTheme() {
-    // Update tooltip tree styles based on the current theme
-    const selectedTheme = TX_TREE_THEMES[this.TxTreeTheme] || TX_TREE_THEMES.dark;
-    this.styles = { ...selectedTheme };
-
-    // Update embedded button styles based on the current theme
-    const selectedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.TxTreeTheme] || EMBEDDED_TX_BUTTON_THEMES.dark;
-    this.embeddedButtonStyles = { ...selectedButtonTheme };
+    // External CSS handles tree and embedded button themes; no-op here.
   }
 
   private applyEmbeddedButtonStyles() {
-    if (!this.embeddedButtonStyles) {
-      return;
-    }
-    // Use parent class applyStyles method for consistent naming and behavior
-    this.applyStyles(this.embeddedButtonStyles);
+    // External CSS handles embedded button visuals; nothing to apply.
+    return;
   }
 
   // ==============================
@@ -682,11 +674,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
     this.tooltipVisible = true;
     // Allow content to expand naturally when visible
-    try {
-      tooltipElement.style.setProperty('--tooltip-height', 'auto');
-    } catch {
-    }
-    tooltipElement.style.height = 'auto';
+    this.setCssVars({ '--tooltip-height': 'auto' });
     tooltipElement.classList.add('show');
     tooltipElement.classList.remove('hiding');
     tooltipElement.setAttribute('aria-hidden', 'false');
@@ -749,13 +737,8 @@ export class EmbeddedTxButton extends LitElementWithProps {
       tooltipElement.classList.remove('show', 'hiding');
       tooltipElement.setAttribute('aria-hidden', 'true');
       // Restore configured height when hidden
-      try {
-        tooltipElement.style.setProperty('--tooltip-height', this.tooltip.height);
-      } catch {
-
-      }
-      // Critically collapse the element so hidden tooltips do not impact layout/geometry
-      tooltipElement.style.height = '0px';
+      // Collapse hidden tooltips to avoid geometry impact
+      this.setCssVars({ '--tooltip-height': '0px' });
       this.hideTimeout = null;
 
       // Send updated tooltip state with visible: false (no extra measure scheduling)

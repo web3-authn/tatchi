@@ -2,10 +2,10 @@
 
 .glass-border-root {
   box-sizing: border-box;
-  background: var(--w3a-colors-surface2);
+  background: var(--w3a-colors-colorBackground);
   backdrop-filter: blur(3px);
   -webkit-backdrop-filter: blur(2px);
-  border: 1px solid var(--fe-border);
+  border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: var(--fe-radius-xl);
   padding: var(--fe-gap-2);
   max-width: 860px;
@@ -14,12 +14,11 @@
 }
 
 .glass-border-inner {
-  border: 1px solid var(--w3a-colors-borderPrimary);
+  /* border: 1px solid var(--w3a-colors-surface3); */
   border-radius: 2rem;
-  background: var(--w3a-colors-surface);
+  background: var(--w3a-colors-colorBackground);
 }
 
-/* Light theme override */
 [data-w3a-theme="light"] .glass-border-inner {
-  background: var(--w3a-colors-grey50) !important;
+  background: var(--w3a-colors-grey50);
 }

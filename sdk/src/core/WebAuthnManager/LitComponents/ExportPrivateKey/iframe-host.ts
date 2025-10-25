@@ -150,10 +150,7 @@ export class IframeExportHost extends LitElementWithProps {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-          <style>
-            /* Transparent first paint and neutral UA color-scheme */
-            html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
-          </style>
+          <link rel="stylesheet" href="${base}wallet-service.css" />
           <script>try{ parent && parent.postMessage({ type: 'READY' }, '*'); } catch(e) {}</script>
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>

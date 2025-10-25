@@ -410,10 +410,96 @@ export default defineConfig([
           try {
             const sdkDir = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/sdk`);
             fs.mkdirSync(sdkDir, { recursive: true });
+            const copyIf = (src: string, dest: string) => {
+              if (fs.existsSync(src) && !fs.existsSync(dest)) fs.copyFileSync(src, dest);
+            };
             const shimPath = path.join(sdkDir, 'wallet-shims.js');
             if (!fs.existsSync(shimPath)) fs.writeFileSync(shimPath, WALLET_SHIM_SOURCE, 'utf-8');
             const cssPath = path.join(sdkDir, 'wallet-service.css');
             if (!fs.existsSync(cssPath)) fs.writeFileSync(cssPath, WALLET_SURFACE_CSS, 'utf-8');
+            // Generate w3a-components.css from single-source palette
+            try {
+              const palettePath = path.join(process.cwd(), 'src/theme/palette.json');
+              const paletteRaw = fs.readFileSync(palettePath, 'utf-8');
+              const p = JSON.parse(paletteRaw) as any;
+              const sel = [
+                'w3a-tx-tree',
+                'w3a-drawer',
+                'w3a-modal-tx-confirmer',
+                'w3a-drawer-tx-confirmer',
+                'w3a-button-with-tooltip',
+                'w3a-halo-border',
+                'w3a-passkey-halo-loading',
+              ].join(',\n');
+              const lines: string[] = [];
+              lines.push('/* Generated from src/theme/palette.json. Do not edit by hand. */');
+              lines.push(`${sel} {`);
+              // Base tokens (dark defaults) referencing palette vars
+              lines.push(`  --w3a-colors-textPrimary: var(--w3a-grey75);`);
+              lines.push(`  --w3a-colors-textSecondary: var(--w3a-grey500);`);
+              lines.push(`  --w3a-colors-surface: var(--w3a-slate700);`);
+              lines.push(`  --w3a-colors-surface2: var(--w3a-slate750);`);
+              lines.push(`  --w3a-colors-surface3: var(--w3a-slate800);`);
+              lines.push(`  --w3a-colors-borderPrimary: var(--w3a-grey650);`);
+              lines.push(`  --w3a-colors-borderSecondary: var(--w3a-slate650);`);
+              lines.push(`  --w3a-colors-colorBackground: var(--w3a-grey800);`);
+              // Component defaults
+              lines.push(`  --w3a-modal__btn__focus-outline-color: #3b82f6;`);
+              lines.push(`  --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);`);
+              lines.push(`  --w3a-tree__file-content__scrollbar-thumb__background: rgba(255,255,255,0.22);`);
+              // GREY
+              Object.keys(p.grey || {}).forEach((k) => {
+                lines.push(`  --w3a-grey${k}: ${p.grey[k]};`);
+              });
+              // SLATE
+              Object.keys(p.slate || {}).forEach((k) => {
+                lines.push(`  --w3a-slate${k}: ${p.slate[k]};`);
+              });
+              // CHROMA
+              const chroma = p.chroma || {};
+              Object.keys(chroma).forEach((family) => {
+                const scale = chroma[family] || {};
+                Object.keys(scale).forEach((k) => {
+                  lines.push(`  --w3a-${family}${k}: ${scale[k]};`);
+                });
+              });
+              // Gradients
+              Object.keys(p.gradients || {}).forEach((name) => {
+                lines.push(`  --w3a-gradient-${name}: ${p.gradients[name]};`);
+              });
+              lines.push('}');
+              // Light theme overrides for core tokens on supported hosts
+              const selLight = [
+                'w3a-tx-tree[theme="light"]',
+                'w3a-drawer[theme="light"]',
+                'w3a-modal-tx-confirmer[theme="light"]',
+                'w3a-drawer-tx-confirmer[theme="light"]',
+                'w3a-button-with-tooltip[theme="light"]',
+                'w3a-halo-border[theme="light"]',
+                'w3a-passkey-halo-loading[theme="light"]',
+              ].join(',\n');
+              lines.push(`${selLight} {`);
+              lines.push(`  --w3a-colors-textPrimary: var(--w3a-grey975);`);
+              lines.push(`  --w3a-colors-textSecondary: var(--w3a-grey500);`);
+              lines.push(`  --w3a-colors-surface: var(--w3a-slate100);`);
+              lines.push(`  --w3a-colors-surface2: var(--w3a-slate150);`);
+              lines.push(`  --w3a-colors-surface3: var(--w3a-slate200);`);
+              lines.push(`  --w3a-colors-borderPrimary: var(--w3a-slate300);`);
+              lines.push(`  --w3a-colors-borderSecondary: var(--w3a-grey300);`);
+              lines.push(`  --w3a-colors-colorBackground: var(--w3a-grey50);`);
+              lines.push('}');
+              fs.writeFileSync(path.join(sdkDir, 'w3a-components.css'), lines.join('\n') + '\n', 'utf-8');
+            } catch (e) {
+              console.warn('⚠️  Failed to generate w3a-components.css from palette:', e);
+              // Fallback: copy static if present
+              const src = path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/w3a-components.css');
+              const dest = path.join(sdkDir, 'w3a-components.css');
+              if (fs.existsSync(src)) fs.copyFileSync(src, dest);
+            }
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/button-with-tooltip.css'), path.join(sdkDir, 'button-with-tooltip.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
           } catch (err) {
             console.warn('⚠️  Unable to emit wallet static assets:', err);

@@ -110,9 +110,8 @@ export class DrawerElement extends LitElementWithProps {
     }
 
     /* full-open removed; drawer opens to content height (capped) */
-    .drawer.dragging, .drawer.vv-sync {
-      transition: none;
-    }
+    .drawer.dragging, .drawer.vv-sync { transition: none; }
+    .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
 
     .handle {
       width: 36px;
@@ -183,6 +182,9 @@ export class DrawerElement extends LitElementWithProps {
       margin-top: 0.5rem;
     }
 
+    /* Utility to replace inline position:relative */
+    .relative { position: relative; }
+
     /* Light theme adjustments */
     :host([theme="light"]) .close-btn {
       color: var(--w3a-colors-textMuted, #667085);
@@ -230,18 +232,8 @@ export class DrawerElement extends LitElementWithProps {
   attributeChangedCallback(name: string, oldVal: string | null, newVal: string | null) {
     super.attributeChangedCallback?.(name, oldVal, newVal);
     if (name === 'open' && newVal !== oldVal) {
-      // When opening, clear inline styles so CSS can apply open transform/opacity
-      if (newVal !== null) {
-        if (this.drawerElement) {
-          this.drawerElement.style.transition = '';
-          this.drawerElement.style.removeProperty('transform');
-        }
-        if (this.overlayElement) {
-          this.overlayElement.style.removeProperty('opacity');
-          this.overlayElement.style.pointerEvents = '';
-        }
-        this.isClosing = false;
-      }
+      // When opening, rely on CSS; avoid inline style writes for CSP
+      if (newVal !== null) { this.isClosing = false; }
     }
   }
 
@@ -275,17 +267,7 @@ export class DrawerElement extends LitElementWithProps {
     if (changedProperties.has('open')) {
       // Uncontrolled: no suppression; trust imperative calls
       // When externally toggled open, clear any inline overrides so CSS can control
-      if (this.drawerElement && this.open) {
-        this.drawerElement.style.transition = '';
-        this.drawerElement.style.removeProperty('transform');
-      }
-      if (this.overlayElement && this.open) {
-        this.overlayElement.style.pointerEvents = '';
-        this.overlayElement.style.removeProperty('opacity');
-      }
-      if (this.open) {
-        this.isClosing = false;
-      }
+      if (this.open) { this.isClosing = false; }
     }
 
     // Re-setup drag listeners if dragToClose property changed
@@ -328,17 +310,16 @@ export class DrawerElement extends LitElementWithProps {
       const visibleVh = clamp(parseFloat(m[1]), 0, 100);
       const pct = clamp(100 - visibleVh, 0, 100);
       // Sheet uses same viewport unit as provided height for better alignment
-      this.style.setProperty('--w3a-drawer__sheet-height', `100${unit}`);
-      this.style.setProperty('--w3a-drawer__open-translate', pct + '%');
+      this.setCssVars({ '--w3a-drawer__sheet-height': `100${unit}`, '--w3a-drawer__open-translate': pct + '%' });
       return;
     }
 
     // Default: auto-fit to content height (.above-fold)
     try {
       const unit = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '1dvh')) ? 'dvh' : 'vh';
-      this.style.setProperty('--w3a-drawer__sheet-height', `${SHEET_HEIGHT_VH}${unit}`);
+      this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}${unit}` });
     } catch {
-      this.style.setProperty('--w3a-drawer__sheet-height', `${SHEET_HEIGHT_VH}vh`);
+      this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}vh` });
     }
 
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
@@ -349,7 +330,7 @@ export class DrawerElement extends LitElementWithProps {
     const contentBottomPx = Math.max(0, Math.round(aboveRect.bottom - drawerRect.top));
     const sheetPx = drawer.offsetHeight || (typeof window !== 'undefined' ? window.innerHeight : contentBottomPx);
     const ratio = clamp(1 - contentBottomPx / Math.max(1, sheetPx), 0, 1);
-    this.style.setProperty('--w3a-drawer__open-translate', (ratio * 100).toFixed(4) + '%');
+    this.setCssVars({ '--w3a-drawer__open-translate': (ratio * 100).toFixed(4) + '%' });
   }
 
   private setupDragListeners() {
@@ -567,8 +548,8 @@ export class DrawerElement extends LitElementWithProps {
       const elasticUp = maxOverdragUpPx * (1 - 1 / (overdragUp / maxOverdragUpPx + 1));
       targetTranslateY = this.openRestTranslateYPx - elasticUp;
     }
-    this.drawerElement.style.transition = '';
-    this.drawerElement.style.transform = `translateY(${targetTranslateY}px)`;
+    // Disable transitions via class; drive transform via CSS variable for CSP compliance
+    this.setCssVars({ '--w3a-drawer__drag-translate': `${targetTranslateY}px` });
 
     this.lastDragTime = now;
   }
@@ -618,10 +599,7 @@ export class DrawerElement extends LitElementWithProps {
       return;
     }
 
-    // No snapping: let the drawer rest under parent control.
-    // Clear inline transform so CSS (via `[open]`) governs final position.
-    this.drawerElement.style.transition = '';
-    this.drawerElement.style.removeProperty('transform');
+    // No snapping: let CSS govern final position via [open]; just drop dragging class
     this.resetDragState();
   }
 
@@ -652,12 +630,8 @@ export class DrawerElement extends LitElementWithProps {
   private closeDrawer() {
     if (this.isClosing) return;
     this.isClosing = true;
-    // Remove inline transforms so CSS can drive the close state
-    if (this.drawerElement) {
-      this.drawerElement.classList.remove('dragging');
-      this.drawerElement.style.removeProperty('transition');
-      this.drawerElement.style.removeProperty('transform');
-    }
+    // Let CSS drive close; avoid inline style writes
+    if (this.drawerElement) { this.drawerElement.classList.remove('dragging'); }
     // Flip the `open` property so CSS applies the closed transform and overlay state
     this.open = false;
     // Notify host after state change
@@ -670,12 +644,7 @@ export class DrawerElement extends LitElementWithProps {
     if (this.loading) return;
     if (this.isClosing) return;
 
-    // Remove inline transforms so CSS can drive the close state
-    if (this.drawerElement) {
-      this.drawerElement.classList.remove('dragging');
-      this.drawerElement.style.removeProperty('transition');
-      this.drawerElement.style.removeProperty('transform');
-    }
+    if (this.drawerElement) { this.drawerElement.classList.remove('dragging'); }
     // Flip open then notify host (use lit-cancel for host listeners)
     this.open = false;
     dispatchLitCancel(this);
@@ -694,20 +663,12 @@ export class DrawerElement extends LitElementWithProps {
 
   // Imperative API (uncontrolled usage)
   public show() {
-    if (this.drawerElement) {
-      this.drawerElement.classList.remove('dragging');
-      this.drawerElement.style.removeProperty('transition');
-      this.drawerElement.style.removeProperty('transform');
-    }
+    if (this.drawerElement) { this.drawerElement.classList.remove('dragging'); }
     this.open = true;
   }
 
   public hide(reason: string = 'programmatic') {
-    if (this.drawerElement) {
-      this.drawerElement.classList.remove('dragging');
-      this.drawerElement.style.removeProperty('transition');
-      this.drawerElement.style.removeProperty('transform');
-    }
+    if (this.drawerElement) { this.drawerElement.classList.remove('dragging'); }
     this.open = false;
     // Dispatch lit-cancel so host listeners can react
     dispatchLitCancel(this, { reason });
@@ -726,7 +687,7 @@ export class DrawerElement extends LitElementWithProps {
     return html`
       <div class="overlay" @click=${this.onClose}></div>
       <section class="drawer" role="dialog" aria-modal="true">
-        <div style="position: relative;">
+        <div class="relative">
           <div class="handle" @click=${this.onHandleClick}></div>
           ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${this.onClose} @touchend=${this.onClose}>×</button>` : null}
         </div>

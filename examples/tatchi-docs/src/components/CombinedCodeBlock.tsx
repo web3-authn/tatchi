@@ -19,7 +19,7 @@ export function CombinedCodeBlock() {
 
   return (
     <section className="hero-intro" aria-label="SDK overview code examples">
-      <div className="install-panel" style={{ marginTop: '0.75rem' }} role="group" aria-label="SDK setup code examples">
+      <div className="install-panel" role="group" aria-label="SDK setup code examples">
         <div className="install-header">
           <div className="install-header-left">
             <div className="install-tabs" role="tablist" aria-label="Framework examples">

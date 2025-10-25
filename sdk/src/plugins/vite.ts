@@ -117,6 +117,20 @@ const WALLET_SURFACE_CSS = [
   'html, body { background: transparent !important; margin:0; padding:0; }',
   'html, body { color-scheme: normal; }',
   '',
+  // Class-based surface for strict CSP setups toggled by JS
+  'html.w3a-transparent, body.w3a-transparent { background: transparent !important; margin:0; padding:0; color-scheme: normal; }',
+  '',
+  ':root {',
+  '  --w3a-colors-textPrimary: #f6f7f8;',
+  '  --w3a-colors-textSecondary: rgba(255,255,255,0.7);',
+  '  --w3a-colors-surface: rgba(255,255,255,0.08);',
+  '  --w3a-colors-surface2: rgba(255,255,255,0.06);',
+  '  --w3a-colors-surface3: rgba(255,255,255,0.04);',
+  '  --w3a-colors-borderPrimary: rgba(255,255,255,0.14);',
+  '  --w3a-colors-borderSecondary: rgba(255,255,255,0.1);',
+  '  --w3a-colors-colorBackground: #0b0c10;',
+  '}',
+  '',
 ].join('\n')
 
 export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
@@ -217,6 +231,12 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <title>Web3Authn Wallet Service</title>
     <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css" />
+    <!-- Component theme CSS: shared tokens + component-scoped tokens -->
+    <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css" />
+    <link rel="stylesheet" href="${sdkBasePath}/drawer.css" />
+    <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css" />
+    <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css" />
+    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css" />
     <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
@@ -457,7 +477,9 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
           const walletCsp = [
             "default-src 'self'",
             "script-src 'self'",
-            "style-src 'self'",
+            // Tight style policy: forbid style attributes, allow style elements (Lit) inline
+            "style-src-elem 'self' 'unsafe-inline'",
+            "style-src-attr 'none'",
             "img-src 'self' data:",
             "font-src 'self'",
             "connect-src 'self' https:",
@@ -519,6 +541,11 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
+    <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
+    <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
+    <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
+    <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css">
+    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css">
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
   </head>
@@ -541,8 +568,13 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <style>html, body { background: transparent !important; margin:0; padding:0; } html, body { color-scheme: normal; }</style>
-    <script>window.global ||= window; window.process ||= { env: {} };</script>
+    <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
+    <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
+    <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
+    <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
+    <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css">
+    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css">
+    <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/export-private-key-viewer.js" crossorigin>
     <link rel="modulepreload" href="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin>
   </head>

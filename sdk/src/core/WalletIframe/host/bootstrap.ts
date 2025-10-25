@@ -79,22 +79,10 @@ export function bootstrapTransparentHost(): void {
 export function ensureTransparentSurface(): void {
   const apply = () => {
     const doc = document;
-    try {
-      doc.documentElement.style.background = 'transparent';
-      doc.documentElement.style.margin = '0';
-      doc.documentElement.style.padding = '0';
-      doc.documentElement.style.colorScheme = 'normal';
-      doc.documentElement.classList.remove('dark');
-    } catch {}
-    try {
-      if (doc.body) {
-        doc.body.style.background = 'transparent';
-        doc.body.style.margin = '0';
-        doc.body.style.padding = '0';
-        doc.body.style.colorScheme = 'normal';
-        doc.body.classList.remove('dark');
-      }
-    } catch {}
+    try { doc.documentElement.classList.add('w3a-transparent'); } catch {}
+    try { doc.body?.classList.add('w3a-transparent'); } catch {}
+    try { doc.documentElement.classList.remove('dark'); } catch {}
+    try { doc.body?.classList.remove('dark'); } catch {}
   };
 
   if (document.readyState === 'loading') {
@@ -169,4 +157,3 @@ function setupDevUnupgradedObserver(): void {
     for (const n of Array.from(nodes)) schedule(n as Element);
   } catch {}
 }
-

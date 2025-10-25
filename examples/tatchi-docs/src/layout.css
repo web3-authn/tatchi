@@ -2,13 +2,15 @@
 .layout-root {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 1rem;
+  gap: 0;
   margin: 0;
   padding: 0;
-  padding-left: 1rem;
   min-height: 100dvh;
-  /* Enable container queries to detect 2→1 column collapse by container width */
-  container-type: inline-size;
+  grid-template-areas:
+    "one   two"
+    "three two"
+    "four  two"
+    "five  two";
 }
 
 /* Card mapping for grid-areas */
@@ -18,22 +20,23 @@
   box-sizing: border-box;
   display: grid;
 }
-.card > .constrained-column { justify-self: center; width: 100%; }
-.two { justify-self: stretch; }
-.two .constrained-column { max-width: none; }
+.card > .constrained-column {
+  justify-self: center;
+  width: 100%;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+.two {
+  justify-self: stretch;
+}
+.two .constrained-column {
+  max-width: none;
+}
 .one   { grid-area: one; }
 .two   { grid-area: two; }
 .three { grid-area: three; }
 .four  { grid-area: four; }
 .five  { grid-area: five; }
-
-.layout-root {
-  grid-template-areas:
-    "one   two"
-    "three two"
-    "four  two"
-    "five  two";
-}
 
 .layout-column-left {
   display: grid;
@@ -44,7 +47,10 @@
   padding-right: 1rem;
 }
 /* Stack content vertically and push footer to the bottom of the left column */
-.layout-column-left > .constrained-column { display: flex; flex-direction: column; }
+.layout-column-left > .constrained-column {
+  display: flex;
+  flex-direction: column;
+}
 .site-footer {
   margin-top: 2rem;
   display: flex;
@@ -92,6 +98,9 @@
       "three"
       "four"
       "five";
+  }
+  .one {
+    margin-bottom: 1rem;
   }
   .layout-column-right {
     margin-top: 0;
@@ -322,9 +331,7 @@
   text-align: center;
 }
 
-.passkey-sticky {
-  position: sticky;
-  top: 0;
+.passkey-demo {
   display: grid;
   place-items: center;
 }

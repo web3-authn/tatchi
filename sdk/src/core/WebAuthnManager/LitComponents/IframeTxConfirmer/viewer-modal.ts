@@ -7,7 +7,9 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import TxTree from '../TxTree';
 import TxConfirmContentElement from './tx-confirm-content';
 import { formatDeposit, formatGas } from '../common/formatters';
-import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES } from './modal-confirmer-themes';
+// Theme tokens now come from external CSS (modal-confirmer.css)
+// The previous TS theme injection has been removed to satisfy strict CSP.
+// import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES } from './modal-confirmer-themes';
 import type { ThemeName } from '../confirm-ui-types';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
@@ -55,8 +57,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     vrfChallenge: { type: Object },
     loading: { type: Boolean },
     errorMessage: { type: String },
-    styles: { type: Object },
-    theme: { type: String, attribute: 'theme' },
+    // styles: { type: Object }, // removed: theme is CSS-driven now
+    theme: { type: String, attribute: 'theme', reflect: true },
   };
 
   totalAmount = '';
@@ -69,7 +71,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   vrfChallenge?: VRFChallenge;
   loading = false;
   errorMessage: string | undefined = undefined;
-  styles?: ModalTxConfirmerStyles;
+  // styles?: ModalTxConfirmerStyles; // removed: external CSS drives tokens
   theme: ThemeName = 'dark';
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
@@ -182,13 +184,13 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     .modal-container-root {
       display: grid;
       gap: 0.5rem;
-      position: var(--w3a-modal__modal-container-root__position, relative);
+      position: relative;
       border: var(--w3a-modal__modal-container-root__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)));
       border-radius: var(--w3a-modal__modal-container-root__border-radius, 2rem);
       margin: var(--w3a-modal__modal-container-root__margin, 0px);
       padding: var(--w3a-modal__modal-container-root__padding, 0.75rem);
-      height: var(--w3a-modal__modal-container-root__height, auto);
-      overflow: var(--w3a-modal__modal-container-root__overflow, hidden);
+      height: auto;
+      overflow: hidden;
       box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 20px 60px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.4));
       background: var(--w3a-modal__modal-container-root__background, var(--w3a-colors-colorBackground, #111));
       backdrop-filter: blur(4px);
@@ -224,7 +226,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
 
     .rpid-wrapper {
-      border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
     }
     .rpid {
       display: flex;
@@ -674,37 +675,18 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
 
-    // Update styles when theme changes
-    if (changedProperties.has('theme')) {
-      this.updateTheme();
-    }
+    // Theme changes are handled by CSS via [theme] attribute
   }
 
   private updateTheme() {
-    // Update styles based on the current theme
-    const selectedTheme = MODAL_CONFIRMER_THEMES[this.theme] || MODAL_CONFIRMER_THEMES.dark;
-    const host = selectedTheme.host || {};
-    // Promote essential host values to base variables so global tokens are populated
-    this.styles = {
-      ...selectedTheme,
-      // Base-level tokens expected by CSS: --w3a-font-family, --w3a-font-size-base,
-      // and optional color/background fallbacks
-      fontFamily: host.fontFamily,
-      fontSizeBase: host.fontSize,
-      color: host.color,
-      backgroundColor: host.backgroundColor,
-    };
-    // Apply the styles immediately
-    this.applyStyles(this.styles);
+    // No-op: external CSS (modal-confirmer.css) provides tokens per [theme]
   }
 
   protected getComponentPrefix(): string {
     return 'modal';
   }
 
-  protected applyStyles(styles: ModalTxConfirmerStyles): void {
-    super.applyStyles(styles, 'modal');
-  }
+  // Dynamic style application removed; CSS variables come from modal-confirmer.css
 
   disconnectedCallback() {
     try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
@@ -748,11 +730,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               <w3a-passkey-halo-loading
                 .theme=${this.theme}
                 .animated=${!this.errorMessage ? true : false}
-                .ringGap=${3}
-                .ringWidth=${3}
+                .ringGap=${0}
+                .ringWidth=${4}
                 .ringBorderRadius=${'1.25rem'}
                 .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
-                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 5px)'}
+                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 4px)'}
                 .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
                 .height=${36}
                 .width=${36}

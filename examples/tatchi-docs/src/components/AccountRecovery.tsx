@@ -38,7 +38,7 @@ export function AccountRecovery() {
   }
 
   return (
-    <GlassBorder style={{ maxWidth: 480 }}>
+    <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
       <div style={{
         display: 'flex',
         flexDirection: 'column',

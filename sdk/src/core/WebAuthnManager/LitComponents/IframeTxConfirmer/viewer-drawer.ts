@@ -8,7 +8,7 @@ import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
 import type { ConfirmUIElement } from '../confirm-ui-types';
-import { MODAL_CONFIRMER_THEMES, type ModalConfirmerTheme, type ModalTxConfirmerStyles } from './modal-confirmer-themes';
+// Theme tokens now come from external CSS (modal-confirmer.css)
 // Fallback color set explicitly to palette's blue500 without unsafeCSS
 
 /**
@@ -24,7 +24,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     nearAccountId: { type: String, attribute: 'near-account-id' },
     txSigningRequests: { type: Array },
     vrfChallenge: { type: Object },
-    theme: { type: String },
+    theme: { type: String, reflect: true },
     loading: { type: Boolean },
     errorMessage: { type: String },
     title: { type: String },
@@ -38,7 +38,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
   declare theme: ThemeName;
-  styles?: ModalTxConfirmerStyles;
+  // styles?: Record<string, unknown>; // removed: external CSS drives tokens
   declare loading: boolean;
   declare errorMessage?: string;
   declare title: string;
@@ -157,7 +157,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     }
 
     .rpid-wrapper {
-      border-bottom: var(--w3a-modal__rpid-wrapper__border-bottom);
       margin-bottom: 1rem;
     }
     .rpid {
@@ -219,10 +218,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   protected getComponentPrefix(): string { return 'drawer-tx'; }
 
-  // Align variable prefixing with modal variables used in CSS
-  protected applyStyles(styles: ModalTxConfirmerStyles): void {
-    super.applyStyles(styles, 'modal');
-  }
+  // Dynamic style application removed; tokens are provided by modal-confirmer.css
 
   connectedCallback(): void {
     super.connectedCallback();
@@ -259,18 +255,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 
   private updateTheme() {
-    const t = (this.theme as ModalConfirmerTheme) || 'dark';
-    const selectedTheme = MODAL_CONFIRMER_THEMES[t] || MODAL_CONFIRMER_THEMES.dark;
-    const host = selectedTheme.host || {};
-    // Promote essential host values to base variables so global tokens are populated
-    this.styles = {
-      ...selectedTheme,
-      fontFamily: host.fontFamily,
-      fontSizeBase: host.fontSize,
-      color: host.color,
-      backgroundColor: host.backgroundColor,
-    };
-    this.applyStyles(this.styles);
+    // External CSS (modal-confirmer.css) handles theme tokens; nothing to apply here.
   }
 
   private onDrawerCancel = () => {

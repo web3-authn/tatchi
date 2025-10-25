@@ -261,8 +261,12 @@ export class IframeButtonHost extends LitElementWithProps {
 
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-    // Apply button style CSS variables when buttonStyle changes
-    if (changedProperties.has('buttonStyle') || changedProperties.has('buttonHoverStyle')) {
+    // Apply button/hover and size styles when inputs change
+    if (
+      changedProperties.has('buttonStyle') ||
+      changedProperties.has('buttonHoverStyle') ||
+      changedProperties.has('tooltipPosition')
+    ) {
       this.applyButtonStyle();
     }
 
@@ -302,8 +306,13 @@ export class IframeButtonHost extends LitElementWithProps {
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
 
-    const cssText = `.${this.styleScopeClass} { ${baseDecls} }
-.${this.styleScopeClass}[data-hovered="true"] { ${hoverDecls} }`;
+    const btnW = toPx(this.buttonStyle?.width || '200px');
+    const btnH = toPx(this.buttonStyle?.height || '48px');
+    const iframeSize = this.calculateIframeSize();
+
+    const cssText = `.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }
+.${this.styleScopeClass}[data-hovered="true"] { ${hoverDecls} }
+.${this.styleScopeClass} iframe { width: ${iframeSize.width}px; height: ${iframeSize.height}px; }`;
 
     if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
       if (!this.scopedSheet) this.scopedSheet = new CSSStyleSheet();
@@ -330,14 +339,11 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeSize = this.calculateIframeSize();
 
     return html`
-      <div class="iframe-button-host ${this.styleScopeClass}" ${ref(this.hostRef)}
-        style="width: ${toPx(buttonSize.width)}; height: ${toPx(buttonSize.height)};"
-      >
+      <div class="iframe-button-host ${this.styleScopeClass}" ${ref(this.hostRef)}>
         <div class="host-button-visual"><slot>${this.buttonTextElement}</slot></div>
         <iframe
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
-          style="width: ${iframeSize.width}px; height: ${iframeSize.height}px;"
           sandbox="allow-scripts"
         ></iframe>
       </div>
@@ -404,10 +410,7 @@ export class IframeButtonHost extends LitElementWithProps {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <style>
-            /* Transparent first paint and neutral UA color-scheme */
-            html,body{margin:0;padding:0;background:transparent !important;color-scheme:normal}
-          </style>
+          <link rel="stylesheet" href="${base}wallet-service.css" />
           <script type="module" crossorigin="anonymous" src="${base}${embeddedTxButtonTag}.js"></script>
           <script type="module" crossorigin="anonymous" src="${base}${iframeBootstrapTag}"></script>
         </head>
@@ -446,8 +449,10 @@ export class IframeButtonHost extends LitElementWithProps {
     const buttonHeight = this.buttonStyle?.height || '48px';
 
     // Set CSS custom properties that the .iframe-button-host CSS will use
-    this.style.setProperty('--button-width', typeof buttonWidth === 'number' ? `${buttonWidth}px` : String(buttonWidth));
-    this.style.setProperty('--button-height', typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight));
+    this.setCssVars({
+      '--button-width': typeof buttonWidth === 'number' ? `${buttonWidth}px` : String(buttonWidth),
+      '--button-height': typeof buttonHeight === 'number' ? `${buttonHeight}px` : String(buttonHeight),
+    });
   }
 
   // ==============================

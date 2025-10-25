@@ -1,6 +1,4 @@
-import { html, css } from 'lit';
-import { styleMap } from 'lit/directives/style-map.js';
-import { ref, createRef, Ref } from 'lit/directives/ref.js';
+import { html, css, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 
 export type HaloTheme = 'dark' | 'light';
@@ -32,10 +30,6 @@ export class HaloBorderElement extends LitElementWithProps {
   declare innerPadding?: string;
   declare innerBackground?: string;
 
-  private ringRef: Ref<HTMLDivElement> = createRef();
-  private rafId: number | null = null;
-  private startTs = 0;
-
   static styles = css`
     :host {
       display: inline-block;
@@ -46,113 +40,126 @@ export class HaloBorderElement extends LitElementWithProps {
       box-sizing: border-box;
       width: fit-content;
       height: fit-content;
+      box-shadow: var(--halo-box-shadow, none);
+    }
+
+    /* Expose configurable tokens with sensible defaults */
+    :host {
+      --ring-gap: 4px;
+      --ring-width: 2px;
+      --ring-border-radius: 2rem;
+      --inner-padding: 2rem;
+      --inner-background: var(--w3a-grey650, transparent);
+      --ring-stops: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
+      --halo-duration: 1.15s;
+    }
+
+    .halo-root { position: relative; }
+    .halo-outer { position: relative; border-radius: 2rem; overflow: visible; }
+    .halo-inner {
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 2rem;
+      padding: calc(var(--ring-gap) + var(--ring-width));
+      position: relative;
+    }
+
+    .halo-ring {
+      position: absolute;
+      top: calc(-1 * (var(--ring-gap) + var(--ring-width)));
+      right: calc(-1 * (var(--ring-gap) + var(--ring-width)));
+      bottom: calc(-1 * (var(--ring-gap) + var(--ring-width)));
+      left: calc(-1 * (var(--ring-gap) + var(--ring-width)));
+      border-radius: calc(var(--ring-border-radius) + var(--ring-gap) + var(--ring-width));
+      pointer-events: none;
+      z-index: 3;
+      background: conic-gradient(from var(--halo-angle, 0deg), var(--ring-stops));
+      padding: var(--ring-width);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+    }
+    /* Rotation is driven via JS updating --halo-angle; keep no CSS keyframes to avoid square-rotate artifacts */
+
+    .halo-content {
+      background: var(--inner-background);
+      border-radius: var(--ring-border-radius);
+      padding: var(--inner-padding);
+      position: relative;
+      z-index: 2;
     }
   `;
+  private _rafId: number | null = null;
+  private _startTs: number = 0;
+  private _running: boolean = false;
+
+  protected updated(changed?: PropertyValues): void {
+    // Bridge prop values into CSS variables (no inline style attributes)
+    const vars: Record<string, string> = {};
+    if (typeof this.ringGap === 'number') vars['--ring-gap'] = `${this.ringGap}px`;
+    if (typeof this.ringWidth === 'number') vars['--ring-width'] = `${this.ringWidth}px`;
+    if (this.ringBorderRadius) vars['--ring-border-radius'] = this.ringBorderRadius;
+    if (this.innerPadding) vars['--inner-padding'] = this.innerPadding;
+    if (this.innerBackground) vars['--inner-background'] = this.innerBackground;
+    if (this.ringBackground) vars['--ring-stops'] = this.ringBackground;
+    if (this.ringBorderShadow) vars['--halo-box-shadow'] = this.ringBorderShadow;
+    // Ensure an initial angle is present
+    vars['--halo-angle'] = vars['--halo-angle'] || '0deg';
+    this.setCssVars(vars);
+
+    // Start/stop animation based on "animated" or duration changes
+    if (!changed) return;
+    if (changed.has('animated') || changed.has('durationMs')) {
+      if (this.animated) this.start(); else this.stop();
+    }
+  }
+
+  connectedCallback(): void {
+    super.connectedCallback();
+    if (this.animated) this.start();
+  }
 
   disconnectedCallback(): void {
+    this.stop();
     super.disconnectedCallback();
-    if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
   }
 
-  private startAnimationIfNeeded(): void {
-    if (!this.animated || !this.ringRef.value) return;
-    if (this.rafId !== null) return; // already animating
+  private tick = (ts: number) => {
+    if (!this._running) return;
+    if (!this._startTs) this._startTs = ts;
+    const dur = (typeof this.durationMs === 'number' && this.durationMs > 0) ? this.durationMs : 1150;
+    const delta = (ts - this._startTs) % dur;
+    const angle = (delta / dur) * 360;
+    // Update only the angle var via adoptedStyleSheet (no style attribute writes)
+    try { this.setCssVars({ '--halo-angle': `${angle}deg` }); } catch {}
+    this._rafId = requestAnimationFrame(this.tick);
+  };
 
-    const durationMs = this.durationMs ?? 1150;
-    const step = (now: number) => {
-      if (this.startTs === 0) this.startTs = now;
-      const elapsed = now - this.startTs;
-      const progress = (elapsed % durationMs) / durationMs; // 0..1
-      const angle = progress * 360;
-      const ring = this.ringRef.value!;
-      const stops = this.ringBackground ?? 'transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%';
-      ring.style.background = `conic-gradient(from ${angle}deg, ${stops})`;
-      this.rafId = requestAnimationFrame(step);
-    };
-    this.rafId = requestAnimationFrame(step);
+  private start() {
+    if (this._running) return;
+    this._running = true;
+    this._startTs = 0;
+    try { this._rafId = requestAnimationFrame(this.tick); } catch {}
   }
 
-  protected updated(): void {
-    // Apply optional host shadow from prop
-    if (this.ringBorderShadow) {
-      this.style.boxShadow = this.ringBorderShadow;
-    } else {
-      this.style.removeProperty('box-shadow');
+  private stop() {
+    this._running = false;
+    if (this._rafId) {
+      try { cancelAnimationFrame(this._rafId); } catch {}
+      this._rafId = null;
     }
-    // Trigger/maintain animation
-    if (this.animated) {
-      this.startAnimationIfNeeded();
-    } else if (this.rafId !== null) {
-      cancelAnimationFrame(this.rafId);
-      this.rafId = null;
-    }
+    // Reset angle
+    try { this.setCssVars({ '--halo-angle': `0deg` }); } catch {}
   }
 
   render() {
-    const ringGap = this.ringGap ?? 4;
-    const ringWidth = this.ringWidth ?? 2;
-    const ringBorderRadius = this.ringBorderRadius ?? '2rem';
-    const innerPadding = this.innerPadding ?? '2rem';
-    const innerBackground = this.innerBackground ?? 'var(--w3a-grey650)';
-    const theme = this.theme ?? 'light';
-
-    // matches React padding override behavior
-    const paddingOverride = this.padding ?? `${ringGap + ringWidth}px`;
-    const ringInsetPx = `-${ringGap + ringWidth}px`;
-
-    const haloInnerStyle = {
-      background: 'transparent',
-      border: '1px solid transparent',
-      borderRadius: '2rem',
-      padding: paddingOverride,
-      position: 'relative',
-    } as Record<string, string>;
-
-    const contentStyle = {
-      background: innerBackground,
-      borderRadius: ringBorderRadius,
-      padding: innerPadding,
-      position: 'relative',
-      zIndex: '2',
-    } as Record<string, string>;
-
-    const ringStops = this.ringBackground ?? 'transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%';
-    const ringStyle = {
-      position: 'absolute',
-      top: ringInsetPx,
-      right: ringInsetPx,
-      bottom: ringInsetPx,
-      left: ringInsetPx,
-      borderRadius: `calc(${ringBorderRadius} + ${ringGap}px + ${ringWidth}px)`,
-      pointerEvents: 'none',
-      zIndex: '3',
-      background: `conic-gradient(from 0deg, ${ringStops})`,
-      padding: `${ringWidth}px`,
-      WebkitMask: 'linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0)',
-      WebkitMaskComposite: 'xor',
-      maskComposite: 'exclude',
-    } as Record<string, string>;
-
     return html`
-      <div class="w3a-halo-border-root ${theme}">
-        <div class="w3a-halo-border-inner" style=${styleMap(haloInnerStyle)}>
-          ${this.animated
-            ? html`
-                <div style=${styleMap({ position: 'relative', borderRadius: '2rem', overflow: 'visible' })}>
-                  <div ${ref(this.ringRef)} style=${styleMap(ringStyle)}></div>
-                  <div class="w3a-halo-border-content" style=${styleMap(contentStyle)}>
-                    <slot></slot>
-                  </div>
-                </div>
-              `
-            : html`
-                <div class="w3a-halo-border-content" style=${styleMap(contentStyle)}>
-                  <slot></slot>
-                </div>
-              `}
+      <div class="halo-root ${this.theme ?? 'light'} ${this.animated ? 'animated' : ''}">
+        <div class="halo-inner">
+          <div class="halo-outer">
+            ${this.animated ? html`<div class="halo-ring"></div>` : ''}
+            <div class="halo-content"><slot></slot></div>
+          </div>
         </div>
       </div>
     `;

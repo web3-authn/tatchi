@@ -59,7 +59,7 @@ export function HomeHero() {
 
       {/* Install command as a full code block with tab switcher */}
       <section className="hero-intro" aria-label="Install the SDK">
-        <div className="install-panel" style={{ marginTop: '0.5rem' }} role="group" aria-label="Install command (CLI)">
+        <div className="install-panel" role="group" aria-label="Install command (CLI)">
           <div className="install-header">
             <div className="install-header-left">
               <div className="install-tabs" role="tablist" aria-label="Package managers (CLI)">

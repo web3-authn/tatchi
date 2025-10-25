@@ -1,0 +1,31 @@
+/* Tokens and defaults for <w3a-drawer> */
+
+w3a-drawer {
+  /* Size defaults */
+  --w3a-drawer__max-width: 420px;
+  --w3a-drawer__sheet-height: 100dvh; /* prefer dynamic viewport */
+  --w3a-drawer__open-offset: 0px;     /* mobile chrome compensation */
+
+  /* Colors (inherit from w3a-components by default) */
+  --w3a-colors-textPrimary: var(--w3a-grey75);
+  --w3a-colors-textSecondary: var(--w3a-grey500);
+  --w3a-colors-surface: var(--w3a-slate700);
+  --w3a-colors-surface2: var(--w3a-slate750);
+  --w3a-colors-surface3: var(--w3a-slate800);
+  --w3a-colors-borderPrimary: var(--w3a-grey650);
+  --w3a-colors-borderSecondary: var(--w3a-slate650);
+  --w3a-colors-colorBackground: var(--w3a-grey800);
+}
+
+/* Light theme overrides */
+w3a-drawer[theme="light"] {
+  --w3a-colors-textPrimary: var(--w3a-grey975);
+  --w3a-colors-textSecondary: var(--w3a-grey500);
+  --w3a-colors-surface: var(--w3a-slate100);
+  --w3a-colors-surface2: var(--w3a-slate150);
+  --w3a-colors-surface3: var(--w3a-slate200);
+  --w3a-colors-borderPrimary: var(--w3a-slate300);
+  --w3a-colors-borderSecondary: var(--w3a-grey300);
+  --w3a-colors-colorBackground: var(--w3a-grey50);
+}
+

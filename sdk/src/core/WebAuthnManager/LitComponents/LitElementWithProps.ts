@@ -31,6 +31,28 @@ export type CSSProperties = Record<string, string | Record<string, string> | und
  * All properties defined in static properties will be automatically upgraded on mount.
  */
 export class LitElementWithProps extends LitElement {
+  // Per-instance CSS custom properties sheet to avoid inline style mutations.
+  private _varsSheet: CSSStyleSheet | null = null;
+  private _varsMap: Record<string, string> = {};
+  // Detect whether inline style application is allowed under current CSP.
+  // If style-src forbids inline styles, setting element.style will be ignored
+  // and trigger console violations in production. We degrade gracefully by
+  // skipping dynamic inline styling in that case and relying on CSS fallbacks.
+  private static readonly inlineStyleAllowed: boolean = (() => {
+    try {
+      if (typeof document === 'undefined') return true;
+      const probe = document.createElement('div');
+      probe.style.color = 'rgb(1, 2, 3)';
+      // Append to DOM to ensure computed styles reflect policy
+      (document.body || document.documentElement).appendChild(probe);
+      const applied = getComputedStyle(probe).color.includes('1, 2, 3');
+      probe.remove();
+      return applied;
+    } catch {
+      // Default to allowed in non-browser contexts
+      return true;
+    }
+  })();
 
   /**
    * Optional: Subclasses can provide a list of imported custom element classes they rely on
@@ -168,7 +190,8 @@ export class LitElementWithProps extends LitElement {
     if (!styles) return;
 
     const prefix = componentPrefix || this.getComponentPrefix();
-    const setVar = (name: string, val: string) => this.style.setProperty(name, val);
+    const vars: Record<string, string> = {};
+    const setVar = (name: string, val: string) => { vars[name] = val; };
     const toKebab = (s: string) => this.camelToKebab(s);
 
     // Prefer dynamic viewport units on capable browsers to avoid Safari 100vh/100vw issues
@@ -240,10 +263,12 @@ export class LitElementWithProps extends LitElement {
           const kebabProp = toKebab(prop);
           const cssVarNew = `--w3a-${prefix}__${kebabSection}__${kebabProp}`;
           const v = typeof value === 'string' ? transformViewportUnits(value) : String(value);
-          this.style.setProperty(cssVarNew, v);
+          vars[cssVarNew] = v;
         });
       }
     });
+
+    this.setCssVars(vars);
   }
 
   /**
@@ -251,6 +276,39 @@ export class LitElementWithProps extends LitElement {
    */
   camelToKebab(str: string): string {
     return str.replace(/([A-Z])/g, '-$1').toLowerCase();
+  }
+
+  /** Merge and apply CSS variables via an adopted stylesheet (no inline style attr). */
+  protected setCssVars(vars: Record<string, string>): void {
+    try {
+      // Merge new vars
+      for (const [k, v] of Object.entries(vars)) {
+        if (v == null) continue;
+        this._varsMap[k] = String(v);
+      }
+      const decls = Object.entries(this._varsMap)
+        .map(([k, v]) => `${k}: ${v};`)
+        .join(' ');
+
+      const cssText = `:host{ ${decls} }`;
+
+      // Prefer adoptedStyleSheets if supported
+      if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
+        if (!this._varsSheet) this._varsSheet = new CSSStyleSheet();
+        try { this._varsSheet.replaceSync(cssText); } catch {}
+        const sheets = (this.renderRoot.adoptedStyleSheets || []) as any[];
+        if (!sheets.includes(this._varsSheet)) {
+          this.renderRoot.adoptedStyleSheets = [...sheets, this._varsSheet];
+        }
+      } else {
+        // Fallback: if inline styles are allowed, write props on host style; else, no-op
+        if ((this.constructor as typeof LitElementWithProps).inlineStyleAllowed) {
+          for (const [k, v] of Object.entries(vars)) {
+            try { (this as unknown as HTMLElement).style.setProperty(k, v); } catch {}
+          }
+        }
+      }
+    } catch {}
   }
 }
 

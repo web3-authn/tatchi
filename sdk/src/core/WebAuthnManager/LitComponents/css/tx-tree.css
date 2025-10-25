@@ -1,0 +1,44 @@
+/* Theme tokens for <w3a-tx-tree> mapped to the component's CSS variable contract */
+
+w3a-tx-tree { --indent-step: 1rem; }
+
+/* Dark theme */
+w3a-tx-tree[theme="dark"] {
+  /* Surface + text */
+  --w3a-tree__tooltip-tree-root__background: var(--w3a-slate750);
+  --w3a-tree__tooltip-border-outer__background: var(--w3a-slate700);
+  --w3a-tree__tooltip-tree-root__border: none;
+  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey75);
+
+  /* Rows + hover */
+  --w3a-tree__row__background: transparent;
+  --w3a-tree__row__color: var(--w3a-grey75);
+  --w3a-tree__summary-row__background: transparent;
+  --w3a-tree__summary-row-hover__background: var(--w3a-slate700);
+
+  /* File content */
+  --w3a-tree__file-content__background: var(--w3a-slate750);
+  --w3a-tree__file-content__color: var(--w3a-grey500);
+
+  /* Connectors */
+  --w3a-tree__connector__color: oklch(0.8 0.02 240 / 0.25);
+}
+
+/* Light theme */
+w3a-tx-tree[theme="light"] {
+  --w3a-tree__tooltip-tree-root__background: var(--w3a-grey50);
+  --w3a-tree__tooltip-border-outer__background: var(--w3a-grey50);
+  --w3a-tree__tooltip-tree-root__border: none;
+  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey975);
+
+  --w3a-tree__row__background: transparent;
+  --w3a-tree__row__color: var(--w3a-grey975);
+  --w3a-tree__summary-row__background: transparent;
+  --w3a-tree__summary-row-hover__background: var(--w3a-slate150);
+
+  --w3a-tree__file-content__background: var(--w3a-slate150);
+  --w3a-tree__file-content__color: var(--w3a-grey500);
+
+  --w3a-tree__connector__color: oklch(0.3 0.02 240 / 0.18);
+}
+

@@ -104,6 +104,9 @@ export class TxConfirmContentElement extends LitElementWithProps {
     }
     .actions > * { min-width: 0; }
 
+    /* Was inline width on wrapper; now via class to satisfy strict CSP */
+    .tooltip-width { width: var(--tooltip-width, 100%); }
+
     button {
       font: inherit;
       border-radius: 2rem;
@@ -232,7 +235,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
       const w = this._normalizeWidth(this.tooltipWidth);
       // Only set when a caller explicitly provides a width; otherwise
       // keep the responsive CSS default defined on :host.
-      if (w) this.style.setProperty('--tooltip-width', w);
+    if (w) this.setCssVars({ '--tooltip-width': w });
     } catch {}
   }
 
@@ -276,11 +279,10 @@ export class TxConfirmContentElement extends LitElementWithProps {
       ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
       ${
         this._treeNode
-        ? html`<div style="width:${this._txTreeWidth}">
+        ? html`<div class="tooltip-width">
                 <w3a-tx-tree
                   .node=${this._treeNode}
                   .theme=${this.theme}
-                  .styles=${TX_TREE_THEMES[this.theme]}
                   .width=${this._txTreeWidth}
                 ></w3a-tx-tree>
               </div>`

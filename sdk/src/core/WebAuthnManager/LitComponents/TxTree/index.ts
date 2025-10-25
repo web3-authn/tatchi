@@ -92,6 +92,9 @@ export class TxTree extends LitElementWithProps {
       padding-right: var(--w3a-tree__host__padding-right, 0px);
     }
 
+    /* Honor the HTML hidden attribute regardless of author display rules */
+    [hidden] { display: none !important; }
+
     .tooltip-border-outer {
       max-width: var(--w3a-tree__tooltip-tree-root__max-width, 600px);
       position: var(--w3a-tree__tooltip-border-outer__position, relative);
@@ -117,6 +120,11 @@ export class TxTree extends LitElementWithProps {
       padding: var(--w3a-tree__tooltip-tree-root__padding, 0);
       -webkit-text-size-adjust: 100%;
     }
+    .tooltip-tree-root.scrollable-root {
+      overflow: auto;
+      max-height: 40vh;
+      max-height: 40dvh;
+    }
     @media (prefers-reduced-motion: reduce) {
       .tooltip-tree-root { transition: none; }
     }
@@ -125,6 +133,22 @@ export class TxTree extends LitElementWithProps {
       display: var(--w3a-tree__tooltip-tree-children__display, block);
       padding: var(--w3a-tree__tooltip-tree-children__padding, 0px);
     }
+
+    /* Discrete depth classes to avoid inline --indent assignments */
+    :host { --indent-step: 1rem; }
+    .depth-0 { --indent: 0; }
+    .depth-1 { --indent: calc(var(--indent-step) * 1); }
+    .depth-2 { --indent: calc(var(--indent-step) * 2); }
+    .depth-3 { --indent: calc(var(--indent-step) * 3); }
+    .depth-4 { --indent: calc(var(--indent-step) * 4); }
+    .depth-5 { --indent: calc(var(--indent-step) * 5); }
+    .depth-6 { --indent: calc(var(--indent-step) * 6); }
+    .depth-7 { --indent: calc(var(--indent-step) * 7); }
+    .depth-8 { --indent: calc(var(--indent-step) * 8); }
+    .depth-9 { --indent: calc(var(--indent-step) * 9); }
+    .depth-10 { --indent: calc(var(--indent-step) * 10); }
+    .depth-11 { --indent: calc(var(--indent-step) * 11); }
+    .depth-12 { --indent: calc(var(--indent-step) * 12); }
 
     details {
       margin: var(--w3a-tree__details__margin, 0);
@@ -361,7 +385,8 @@ export class TxTree extends LitElementWithProps {
       min-height: var(--w3a-tree__file-content__min-height, 60px);
       /* Ensure file content obeys the provided TxTree width */
       /* This variable is derived from this.width */
-      width: var(--w3a-tree__file-content__width, auto);
+      // width: var(--w3a-tree__file-content__width, calc(100% - var(--w3a-tree__file-content__offset, 3.45rem)));
+      width: var(--w3a-tree__file-content__width, 100%);
       overflow: var(--w3a-tree__file-content__overflow, auto);
       color: var(--w3a-tree__file-content__color, #e2e8f0);
       font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
@@ -732,19 +757,18 @@ export class TxTree extends LitElementWithProps {
 
   private renderLeaf(depth: number, node: TreeNode): TemplateResult | undefined {
 
-    const indent = `${Math.max(0, depth - 1)}rem`;
+    const depthIndex = Math.max(0, depth - 1);
 
     // If content exists, render a collapsible details with the content
     if (isString(node.content) && node.content.length > 0) {
       return html`
         <details class="tree-node file" ?open=${!!node.open}>
-          <summary class="row summary-row"
-            style="--indent: ${indent}"
+          <summary class="row summary-row depth-${depthIndex}"
             data-no-elbow="${!!node.hideLabel}"
             @click=${this.onSummaryClick}
           >
             <span class="indent"></span>
-            <span class="label label-action-node" style="${node.hideLabel ? 'display: none;' : ''}">
+            <span class="label label-action-node" ?hidden=${!!node.hideLabel}>
               ${
                 !node.hideChevron
                 ? html`
@@ -772,27 +796,18 @@ export class TxTree extends LitElementWithProps {
             <!-- Move file-content into .summary-row so we can collapse it by default -->
             <div class="file-content">${node.content}</div>
           </summary>
-          <!-- <div class="row file-row"
-            style="--indent: ${indent}"
-            data-no-elbow="${!!node.hideLabel}"
-          >
-            <span class="indent"></span>
-            <div class="file-content">${node.content}</div>
-          </div> -->
+          <!-- Alternative rendering for file content kept for reference; no inline styles allowed -->
         </details>
       `;
     }
     // Plain file row without content
     return html`
-      <div class="row file-row"
-        style="--indent: ${indent}"
+      <div class="row file-row depth-${depthIndex}"
         data-no-elbow="${!!node.hideLabel}"
         ?open=${!!node.open}
       >
         <span class="indent"></span>
-        <span class="label label-action-node"
-          style="${node.hideLabel ? 'display: none;' : ''}"
-        >
+        <span class="label label-action-node" ?hidden=${!!node.hideLabel}>
           <span class="label-text" title=${this.computePlainLabel(node)}>
             ${this.renderLabelWithSelectiveHighlight(node)}
           </span>
@@ -811,17 +826,16 @@ export class TxTree extends LitElementWithProps {
   private renderFolder(depth: number, node: TreeNode): TemplateResult | undefined {
 
     const { children: nodeChildren } = node;
-    const indent = `${Math.max(0, depth - 1)}rem`;
+    const depthIndex = Math.max(0, depth - 1);
 
     return html`
       <details class="tree-node folder" ?open=${!!node.open}>
-        <summary class="row summary-row"
-          style="--indent: ${indent}"
+        <summary class="row summary-row depth-${depthIndex}"
           data-no-elbow="${!!node.hideLabel}"
           @click=${this.onSummaryClick}
         >
           <span class="indent"></span>
-          <span class="label" style="${node.hideLabel ? 'display: none;' : ''}">
+          <span class="label" ?hidden=${!!node.hideLabel}>
             ${!node.hideChevron ? html`
               <svg class="chevron" viewBox="0 0 16 16" aria-hidden="true">
                 <path fill="currentColor" d="M6 3l5 5-5 5z" />
@@ -863,17 +877,11 @@ export class TxTree extends LitElementWithProps {
     let content: TemplateResult | undefined;
     if (depth === 0) {
       const extraClass = this.class ? ` ${this.class}` : '';
-      const widthNorm = this._normalizeWidth(this.width);
-      const fileContentOffset = '3.45rem';
-      const fileContentWidth = `calc(${widthNorm} - ${fileContentOffset})`
-      const rootStyle = [
-        this.class ? 'overflow:auto; max-height:40vh; max-height:40dvh;' : '',
-        widthNorm ? `--w3a-tree__file-content__width: ${fileContentWidth};` : ''
-      ].join('');
+      const scrollClass = this.class ? ' scrollable-root' : '';
       // Render only the children as top-level entries
       content = html`
         <div class="tooltip-border-outer">
-          <div class="tooltip-tree-root${extraClass}" style="${rootStyle}">
+          <div class="tooltip-tree-root${extraClass}${scrollClass}">
             <div class="tooltip-tree-children">
               ${repeat(
                 Array.isArray(this.node.children) ? this.node.children : [],

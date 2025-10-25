@@ -143,7 +143,7 @@ export const DemoTransaction: React.FC = () => {
   const accountName = nearAccountId?.split('.')?.[0];
 
   return (
-    <div style={{ maxWidth: 480 }}>
+    <div style={{ maxWidth: 480, marginTop: '1rem' }}>
       {/* Greeting flow */}
       <GlassBorder>
         <div className="greeting-content">

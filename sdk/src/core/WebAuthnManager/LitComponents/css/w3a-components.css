@@ -1,0 +1,203 @@
+/* Base CSS variables for W3A custom elements (applied on hosts) */
+w3a-tx-tree,
+w3a-drawer,
+w3a-modal-tx-confirmer,
+w3a-drawer-tx-confirmer,
+w3a-button-with-tooltip,
+w3a-halo-border,
+w3a-passkey-halo-loading {
+  /* Text + surfaces (dark defaults) */
+  --w3a-colors-textPrimary: var(--w3a-grey75);
+  --w3a-colors-textSecondary: var(--w3a-grey500);
+  --w3a-colors-surface: var(--w3a-slate700);
+  --w3a-colors-surface2: var(--w3a-slate750);
+  --w3a-colors-surface3: var(--w3a-slate800);
+  --w3a-colors-borderPrimary: var(--w3a-grey650);
+  --w3a-colors-borderSecondary: var(--w3a-slate650);
+  --w3a-colors-colorBackground: var(--w3a-grey800);
+
+  /* Component defaults */
+  --w3a-modal__btn__focus-outline-color: #3b82f6;
+  --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);
+  --w3a-tree__file-content__scrollbar-thumb__background: rgba(255,255,255,0.22);
+
+  /* === Base palette from base-styles.ts (GREY_COLORS) === */
+  --w3a-grey25: oklch(0.99 0.001 240);
+  --w3a-grey50: oklch(0.98 0 0);
+  --w3a-grey75: oklch(0.97 0.002 240);
+  --w3a-grey100: oklch(0.95 0.005 240);
+  --w3a-grey150: oklch(0.92 0.007 240);
+  --w3a-grey200: oklch(0.88 0.01 240);
+  --w3a-grey250: oklch(0.85 0.012 240);
+  --w3a-grey300: oklch(0.82 0.014 240);
+  --w3a-grey350: oklch(0.75 0.016 240);
+  --w3a-grey400: oklch(0.65 0.02 240);
+  --w3a-grey450: oklch(0.6 0.021 240);
+  --w3a-grey500: oklch(0.53 0.02 240);
+  --w3a-grey550: oklch(0.48 0.02 240);
+  --w3a-grey600: oklch(0.4 0.02 240);
+  --w3a-grey650: oklch(0.35 0.018 240);
+  --w3a-grey700: oklch(0.3 0.015 240);
+  --w3a-grey750: oklch(0.25 0.012 240);
+  --w3a-grey800: oklch(0.2 0.01 240);
+  --w3a-grey850: oklch(0.15 0.008 240);
+  --w3a-grey900: oklch(0.1 0.005 240);
+  --w3a-grey950: oklch(0.05 0.002 240);
+  --w3a-grey975: oklch(0.025 0.001 240);
+
+  /* Slate variations */
+  --w3a-slate25: oklch(0.99 0.003 240);
+  --w3a-slate50: oklch(0.98 0.005 240);
+  --w3a-slate75: oklch(0.965 0.007 240);
+  --w3a-slate100: oklch(0.95 0.01 240);
+  --w3a-slate150: oklch(0.915 0.0125 240);
+  --w3a-slate200: oklch(0.88 0.015 240);
+  --w3a-slate250: oklch(0.84 0.0175 240);
+  --w3a-slate300: oklch(0.8 0.02 240);
+  --w3a-slate350: oklch(0.725 0.0225 240);
+  --w3a-slate400: oklch(0.65 0.025 240);
+  --w3a-slate450: oklch(0.59 0.0275 240);
+  --w3a-slate500: oklch(0.53 0.03 240);
+  --w3a-slate550: oklch(0.465 0.0275 240);
+  --w3a-slate600: oklch(0.4 0.025 240);
+  --w3a-slate650: oklch(0.35 0.0225 240);
+  --w3a-slate700: oklch(0.3 0.02 240);
+  --w3a-slate750: oklch(0.25 0.0175 240);
+  --w3a-slate800: oklch(0.2 0.015 240);
+  --w3a-slate825: oklch(0.175 0.015 240);
+  --w3a-slate850: oklch(0.15 0.0125 240);
+  --w3a-slate900: oklch(0.1 0.01 240);
+
+  /* === Base palette from base-styles.ts (CHROMA_COLORS) === */
+  /* Yellow */
+  --w3a-yellow50: oklch(0.97 0.050 95);
+  --w3a-yellow100: oklch(0.95 0.070 95);
+  --w3a-yellow150: oklch(0.93 0.082 95);
+  --w3a-yellow200: oklch(0.90 0.094 95);
+  --w3a-yellow250: oklch(0.87 0.108 95);
+  --w3a-yellow300: oklch(0.82 0.140 95);
+  --w3a-yellow350: oklch(0.78 0.160 95);
+  --w3a-yellow400: oklch(0.74 0.176 95);
+  --w3a-yellow450: oklch(0.70 0.184 95);
+  --w3a-yellow500: oklch(0.66 0.188 95);
+  --w3a-yellow550: oklch(0.62 0.182 95);
+  --w3a-yellow600: oklch(0.56 0.160 95);
+  --w3a-yellow650: oklch(0.52 0.138 95);
+  --w3a-yellow700: oklch(0.46 0.106 95);
+  --w3a-yellow750: oklch(0.42 0.086 95);
+  --w3a-yellow800: oklch(0.36 0.062 95);
+  --w3a-yellow850: oklch(0.32 0.052 95);
+  --w3a-yellow900: oklch(0.26 0.044 95);
+  --w3a-yellow950: oklch(0.22 0.036 95);
+
+  /* Blue */
+  --w3a-blue50: oklch(0.97 0.040 255);
+  --w3a-blue100: oklch(0.95 0.062 255);
+  --w3a-blue150: oklch(0.93 0.074 255);
+  --w3a-blue200: oklch(0.90 0.086 255);
+  --w3a-blue250: oklch(0.87 0.100 255);
+  --w3a-blue300: oklch(0.82 0.130 255);
+  --w3a-blue350: oklch(0.78 0.150 255);
+  --w3a-blue400: oklch(0.74 0.166 255);
+  --w3a-blue450: oklch(0.70 0.174 255);
+  --w3a-blue500: oklch(0.66 0.180 255);
+  --w3a-blue550: oklch(0.62 0.176 255);
+  --w3a-blue600: oklch(0.56 0.158 255);
+  --w3a-blue650: oklch(0.52 0.138 255);
+  --w3a-blue700: oklch(0.46 0.108 255);
+  --w3a-blue750: oklch(0.42 0.088 255);
+  --w3a-blue800: oklch(0.36 0.065 255);
+  --w3a-blue850: oklch(0.32 0.056 255);
+  --w3a-blue900: oklch(0.26 0.050 255);
+  --w3a-blue950: oklch(0.22 0.040 255);
+
+  /* Red */
+  --w3a-red50: oklch(0.97 0.040 19);
+  --w3a-red100: oklch(0.95 0.060 19);
+  --w3a-red150: oklch(0.93 0.072 19);
+  --w3a-red200: oklch(0.90 0.086 19);
+  --w3a-red250: oklch(0.87 0.100 19);
+  --w3a-red300: oklch(0.82 0.130 19);
+  --w3a-red350: oklch(0.78 0.150 19);
+  --w3a-red400: oklch(0.74 0.166 19);
+  --w3a-red450: oklch(0.70 0.174 19);
+  --w3a-red500: oklch(0.66 0.180 19);
+  --w3a-red550: oklch(0.62 0.176 19);
+  --w3a-red600: oklch(0.56 0.158 19);
+  --w3a-red650: oklch(0.52 0.138 19);
+  --w3a-red700: oklch(0.46 0.108 19);
+  --w3a-red750: oklch(0.42 0.088 19);
+  --w3a-red800: oklch(0.36 0.065 19);
+  --w3a-red850: oklch(0.32 0.056 19);
+  --w3a-red900: oklch(0.26 0.050 19);
+  --w3a-red950: oklch(0.22 0.040 19);
+
+  /* Violet */
+  --w3a-violet50: oklch(0.97 0.042 305);
+  --w3a-violet100: oklch(0.95 0.060 305);
+  --w3a-violet150: oklch(0.93 0.072 305);
+  --w3a-violet200: oklch(0.90 0.086 305);
+  --w3a-violet250: oklch(0.87 0.102 305);
+  --w3a-violet300: oklch(0.82 0.136 305);
+  --w3a-violet350: oklch(0.78 0.156 305);
+  --w3a-violet400: oklch(0.74 0.170 305);
+  --w3a-violet450: oklch(0.70 0.178 305);
+  --w3a-violet500: oklch(0.66 0.184 305);
+  --w3a-violet550: oklch(0.62 0.178 305);
+  --w3a-violet600: oklch(0.56 0.156 305);
+  --w3a-violet650: oklch(0.52 0.132 305);
+  --w3a-violet700: oklch(0.46 0.104 305);
+  --w3a-violet750: oklch(0.42 0.084 305);
+  --w3a-violet800: oklch(0.36 0.062 305);
+  --w3a-violet850: oklch(0.32 0.054 305);
+  --w3a-violet900: oklch(0.26 0.046 305);
+  --w3a-violet950: oklch(0.22 0.038 305);
+
+  /* Green */
+  --w3a-green50: oklch(0.97 0.040 170);
+  --w3a-green100: oklch(0.95 0.062 170);
+  --w3a-green150: oklch(0.93 0.074 170);
+  --w3a-green200: oklch(0.90 0.086 170);
+  --w3a-green250: oklch(0.87 0.100 170);
+  --w3a-green300: oklch(0.82 0.130 170);
+  --w3a-green350: oklch(0.78 0.150 170);
+  --w3a-green400: oklch(0.74 0.166 170);
+  --w3a-green450: oklch(0.70 0.174 170);
+  --w3a-green500: oklch(0.66 0.180 170);
+  --w3a-green550: oklch(0.62 0.176 170);
+  --w3a-green600: oklch(0.56 0.158 170);
+  --w3a-green650: oklch(0.52 0.138 170);
+  --w3a-green700: oklch(0.46 0.108 170);
+  --w3a-green750: oklch(0.42 0.088 170);
+  --w3a-green800: oklch(0.36 0.065 170);
+  --w3a-green850: oklch(0.32 0.056 170);
+  --w3a-green900: oklch(0.26 0.050 170);
+  --w3a-green950: oklch(0.22 0.040 170);
+
+  /* Gradients */
+  --w3a-gradient-blue: linear-gradient(45deg, oklch(0.82 0.130 255) 0%, oklch(0.66 0.180 255) 50%);
+  --w3a-gradient-red: linear-gradient(45deg, oklch(0.82 0.130 19) 0%, oklch(0.66 0.180 19) 50%);
+  --w3a-gradient-green: linear-gradient(45deg, oklch(0.82 0.130 170) 0%, oklch(0.66 0.180 170) 50%);
+  --w3a-gradient-yellow: linear-gradient(45deg, oklch(0.82 0.140 95) 0%, oklch(0.66 0.188 95) 50%);
+  --w3a-gradient-peach: linear-gradient(90deg, hsla(24, 100%, 83%, 1) 0%, hsla(341, 91%, 68%, 1) 100%);
+  --w3a-gradient-aqua: linear-gradient(90deg, hsla(145, 83%, 74%, 1) 0%, hsla(204, 77%, 76%, 1) 100%);
+  --w3a-gradient-blueWhite: linear-gradient(90deg, hsla(213, 62%, 45%, 1) 0%, hsla(203, 89%, 71%, 1) 50%, hsla(0, 0%, 96%, 1) 100%);
+}
+
+/* Light theme overrides for hosts that set [theme="light"] */
+w3a-tx-tree[theme="light"],
+w3a-drawer[theme="light"],
+w3a-modal-tx-confirmer[theme="light"],
+w3a-drawer-tx-confirmer[theme="light"],
+w3a-button-with-tooltip[theme="light"],
+w3a-halo-border[theme="light"],
+w3a-passkey-halo-loading[theme="light"] {
+  --w3a-colors-textPrimary: var(--w3a-grey975);
+  --w3a-colors-textSecondary: var(--w3a-grey500);
+  --w3a-colors-surface: var(--w3a-slate100);
+  --w3a-colors-surface2: var(--w3a-slate150);
+  --w3a-colors-surface3: var(--w3a-slate200);
+  --w3a-colors-borderPrimary: var(--w3a-slate300);
+  --w3a-colors-borderSecondary: var(--w3a-grey300);
+  --w3a-colors-colorBackground: var(--w3a-grey50);
+}

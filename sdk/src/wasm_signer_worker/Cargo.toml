@@ -7,7 +7,7 @@ repository = "https://github.com/web3-authn/sdk"
 license = "Apache-2.0"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = true
+wasm-opt = false
 
 # Empty workspace to make this package independent
 [workspace]

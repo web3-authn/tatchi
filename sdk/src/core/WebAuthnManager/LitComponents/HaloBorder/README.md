@@ -14,7 +14,7 @@ Goal: draw a thin, animated arc that orbits around a rounded rectangle, with a v
   - `-webkit-mask-composite: xor; mask-composite: exclude;`
   This effectively shows “border-box minus content-box” → a controllable thin band.
 - Outside the box: The ring is sized larger than the content via negative insets `top/right/bottom/left: -(ringGap + ringWidth)`, producing a real gap between halo and content.
-- Animation: We animate by updating the gradient’s start angle via `requestAnimationFrame`, changing `background: conic-gradient(from ${angle}deg, …)` on each frame. This mirrors the previous CSS `@property --angle` solution without any global CSS.
+- Animation: We animate by updating the gradient’s start angle via `requestAnimationFrame`. To satisfy strict CSP (no style attributes), we write the angle to a CSS custom property on the component’s adopted stylesheet (not the `style` attribute), and the ring reads it with `background: conic-gradient(from var(--halo-angle) deg, …)`.
 
 ## Lit Implementation Sketch
 
@@ -39,7 +39,8 @@ const ringStyle = {
 // rAF to rotate the arc by shifting the gradient start angle
 const step = (now: number) => {
   const angle = ((now - start) % 1150) / 1150 * 360;
-  ring.style.background = `conic-gradient(from ${angle}deg, ${ringStops})`;
+  // Update a CSS variable via adoptedStyleSheets; ring uses var(--halo-angle)
+  setCssVars({ '--halo-angle': `${angle}deg` });
   requestAnimationFrame(step);
 };
 ```
