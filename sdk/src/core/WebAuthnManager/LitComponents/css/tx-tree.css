@@ -13,7 +13,7 @@
   padding-left: var(--w3a-tree__host__padding-left, 0px);
   padding-right: var(--w3a-tree__host__padding-right, 0px);
   --indent-step: var(--w3a-tree__indent-step, 1rem);
-  --w3a-tree__connector__color: rgba(230, 233, 245, 0.25);
+  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, var(--w3a-grey650));
   --w3a-tree__connector__thickness: 1px;
   --w3a-tree__connector__elbow-length: 10px;
 }
@@ -104,6 +104,19 @@
   border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
   transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
   background: var(--w3a-tree__summary-row__background, transparent);
+}
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-2,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-3,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-4,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-5,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-6,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-7,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-8,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-9,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-10,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-11,
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-12 {
+  --indent: calc(var(--indent-step, 1rem) * 1);
 }
 
 :is(w3a-tx-tree, tx-tree) .indent {
@@ -223,12 +236,12 @@
   position: absolute;
   top: var(--w3a-tree__connector__elbow-top, 50%);
   height: var(--w3a-tree__connector__thickness);
-  width: calc((var(--indent, 0) - var(--connector-indent, var(--indent, 0))) + var(--w3a-tree__connector__elbow-length));
+  width: calc((var(--indent, 0) - var(--connector-indent, var(--indent, 0))) + var(--w3a-tree__connector__elbow-length) + 0.25rem);
   left: var(--connector-indent, var(--indent, 0));
   background: var(--w3a-tree__connector__color);
 }
 
-:is(w3a-tx-tree, tx-tree) .folder-children .folder-children .row { --connector-indent: calc(var(--indent-step, 1rem) + 0.25rem); }
+:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0) + 0.25rem); }
 :is(w3a-tx-tree, tx-tree) .folder-children .row.file-row .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children .row[data-no-elbow="true"] .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + var(--w3a-tree__row__gap, 0px)); }
@@ -376,7 +389,7 @@
   --w3a-tree__highlight-method-name__font-weight: 600;
   --w3a-tree__highlight-amount__color: var(--w3a-blue400);
   --w3a-tree__highlight-amount__font-weight: 600;
-  --w3a-tree__connector__color: oklch(0.8 0.02 240 / 0.25);
+  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.8 0.02 240));
   --w3a-tree__connector__thickness: 2px;
   --w3a-tree__connector__elbow-length: 10px;
 }
@@ -440,7 +453,7 @@
   --w3a-tree__highlight-method-name__font-weight: 600;
   --w3a-tree__highlight-amount__color: var(--w3a-blue500);
   --w3a-tree__highlight-amount__font-weight: 600;
-  --w3a-tree__connector__color: oklch(0.3 0.02 240 / 0.18);
+  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.3 0.02 240));
   --w3a-tree__connector__thickness: 2px;
   --w3a-tree__connector__elbow-length: 10px;
 }
