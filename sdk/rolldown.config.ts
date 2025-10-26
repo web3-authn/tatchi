@@ -498,7 +498,6 @@ export default defineConfig([
             }
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/button-with-tooltip.css'), path.join(sdkDir, 'button-with-tooltip.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
           } catch (err) {

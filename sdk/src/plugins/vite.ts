@@ -236,7 +236,6 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css" />
     <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css" />
     <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css" />
-    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css" />
     <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
@@ -545,7 +544,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
     <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
     <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css">
-    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css">
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
   </head>
@@ -573,7 +571,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
     <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
     <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css">
-    <link rel="stylesheet" href="${sdkBasePath}/button-with-tooltip.css">
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/export-private-key-viewer.js" crossorigin>
     <link rel="modulepreload" href="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin>
