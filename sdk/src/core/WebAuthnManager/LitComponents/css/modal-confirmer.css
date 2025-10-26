@@ -826,7 +826,7 @@ w3a-drawer {
 }
 .rpid {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   margin-top: 2px;
   font-size: 0.7rem;

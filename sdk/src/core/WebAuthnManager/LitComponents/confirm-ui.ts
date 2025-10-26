@@ -243,12 +243,8 @@ function ensureConfirmPortal(): HTMLElement {
     portal = document.createElement('div');
     portal.id = W3A_CONFIRM_PORTAL_ID;
     // Keep the portal inert except for stacking; children handle their own overlay
-    portal.style.position = 'relative';
-    portal.style.zIndex = '2147483647';
-    // Simple, robust FOUC guard: fade in after next frame
-    portal.style.opacity = '0';
-    portal.style.pointerEvents = 'none';
-    portal.style.transition = portal.style.transition || 'opacity 100ms ease';
+    // Class-based only to comply with strict CSP
+    portal.classList.add('w3a-portal');
     const root = document.body ?? document.documentElement;
     if (root) {
       root.appendChild(portal);
@@ -307,13 +303,11 @@ function mountHostElement({
   el.deferClose = true;
   const portal = ensureConfirmPortal();
   // Ensure hidden state (idempotent) and mount
-  portal.style.opacity = '0';
-  portal.style.pointerEvents = 'none';
+  portal.classList.remove('w3a-portal--visible');
   portal.replaceChildren(el);
-  // Reveal in the next frame — no deep introspection or toggles
+  // Reveal in the next frame via class toggle
   requestAnimationFrame(() => {
-    portal.style.opacity = '1';
-    portal.style.pointerEvents = 'auto';
+    portal.classList.add('w3a-portal--visible');
   });
   const handle = createHostConfirmHandle(el);
   return { el, handle };

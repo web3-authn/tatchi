@@ -1,4 +1,4 @@
-import { css, html, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { createRef, Ref, ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { ConfirmUIElement, ThemeName } from '../confirm-ui-types';
@@ -59,11 +59,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     deferClose: { type: Boolean, attribute: 'defer-close' },
   } as const;
 
-  static styles = css`
-    :host {
-      display: contents;
-    }
-  `;
+  // No inline static styles; wrapper renders to light DOM
 
   static keepDefinitions = [ModalTxConfirmElement, DrawerTxConfirmerElement];
 

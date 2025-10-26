@@ -290,6 +290,10 @@ export class TxTree extends LitElementWithProps {
       background: var(--w3a-tree__file-row__background, transparent);
     }
 
+    /* Height animation helpers (class-based, driven by host CSS vars) */
+    .anim-h { overflow: hidden; transition: height 100ms cubic-bezier(0.2, 0.6, 0.2, 1); height: 0px; }
+    .anim-h-active { height: var(--w3a-tree__anim-target, auto); }
+
     /*
      * Tree connector lines (├ and └) drawn using the indent column.
      * These render a vertical line along the right edge of the indent area,
@@ -558,21 +562,22 @@ export class TxTree extends LitElementWithProps {
 
   private animateOpen(details: HTMLDetailsElement, body: HTMLElement) {
     this._animating.add(details);
-    body.style.overflow = 'hidden';
-    body.style.height = '0px';
+    // Prepare closed state and open the details element
+    body.classList.add('anim-h');
     details.open = true;
 
     requestAnimationFrame(() => {
       const target = `${body.scrollHeight}px`;
-      body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
-      body.style.height = target;
+      // Drive animation via host CSS variable; avoid inline styles
+      this.setCssVars({ '--w3a-tree__anim-target': target });
+      // Activate transition to target height
+      body.classList.add('anim-h-active');
 
       const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName != 'height') return;
+        if (ev.propertyName !== 'height') return;
         body.removeEventListener('transitionend', onEnd);
-        body.style.transition = '';
-        body.style.height = 'auto';
-        body.style.overflow = '';
+        body.classList.remove('anim-h');
+        body.classList.remove('anim-h-active');
         this._animating.delete(details);
         this.handleToggle();
       };
@@ -583,19 +588,19 @@ export class TxTree extends LitElementWithProps {
   private animateClose(details: HTMLDetailsElement, body: HTMLElement) {
     this._animating.add(details);
     const start = `${body.scrollHeight}px`;
-    body.style.overflow = 'hidden';
-    body.style.height = start;
-    body.offsetHeight;
+    // Pin current height, then transition to 0 using classes
+    this.setCssVars({ '--w3a-tree__anim-target': start });
+    body.classList.add('anim-h');
+    body.classList.add('anim-h-active');
+    // Force reflow to ensure start height is applied
+    void body.offsetHeight;
     requestAnimationFrame(() => {
-      body.style.transition = 'height 100ms cubic-bezier(0.2, 0.6, 0.2, 1)';
-      body.style.height = '0px';
+      body.classList.remove('anim-h-active');
       const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName != 'height') return;
+        if (ev.propertyName !== 'height') return;
         body.removeEventListener('transitionend', onEnd);
         details.open = false;
-        body.style.transition = '';
-        body.style.height = '';
-        body.style.overflow = '';
+        body.classList.remove('anim-h');
         this._animating.delete(details);
         this.handleToggle();
       };

@@ -70,6 +70,13 @@ const WALLET_SURFACE_CSS = [
   'html, body { background: transparent !important; margin:0; padding:0; }',
   'html, body { color-scheme: normal; }',
   '',
+  // Class-based surface for strict CSP setups (toggled by wallet host bootstrap)
+  'html.w3a-transparent, body.w3a-transparent { background: transparent !important; margin:0; padding:0; color-scheme: normal; }',
+  '',
+  // Minimal portal styles used by confirm-ui (class toggles only)
+  '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; transition: opacity 100ms ease; }',
+  '.w3a-portal.w3a-portal--visible { opacity: 1; pointer-events: auto; }',
+  '',
 ].join('\n');
 
 const copyWasmAsset = (source: string, destination: string, label: string): void => {
