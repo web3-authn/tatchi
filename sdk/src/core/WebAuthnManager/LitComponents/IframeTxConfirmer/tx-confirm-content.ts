@@ -7,7 +7,7 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import { fromTransactionInputsWasm } from '../../../types/actions';
 import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
+import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
 import { W3A_TX_TREE_ID } from '../tags';
 
 /**
@@ -83,7 +83,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
       grid-template-columns: minmax(8.5em, max-content) 1fr;
       gap: 0.5rem;
       align-items: center;
-      margin: 0.375rem 0;
+      margin: 0rem;
     }
     .summary-row > * { min-width: 0; }
     .label { font-size: 0.75rem; color: var(--w3a-colors-textMuted, rgba(255,255,255,0.7)); }
@@ -191,6 +191,13 @@ export class TxConfirmContentElement extends LitElementWithProps {
 
   protected getComponentPrefix(): string { return 'tx-confirm-content'; }
 
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    // Adopt tx-tree.css into this shadow root so light‑DOM TxTree is styled
+    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    return root;
+  }
+
   connectedCallback(): void {
     super.connectedCallback();
     // Reflect tooltip width var for nested components
@@ -281,6 +288,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
         this._treeNode
         ? html`<div class="tooltip-width">
                 <w3a-tx-tree
+                  light-dom
+                  .styles=${{}}
                   .node=${this._treeNode}
                   .theme=${this.theme}
                   .width=${this._txTreeWidth}

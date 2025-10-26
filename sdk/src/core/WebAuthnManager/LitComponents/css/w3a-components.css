@@ -182,6 +182,15 @@ w3a-passkey-halo-loading {
   --w3a-gradient-peach: linear-gradient(90deg, hsla(24, 100%, 83%, 1) 0%, hsla(341, 91%, 68%, 1) 100%);
   --w3a-gradient-aqua: linear-gradient(90deg, hsla(145, 83%, 74%, 1) 0%, hsla(204, 77%, 76%, 1) 100%);
   --w3a-gradient-blueWhite: linear-gradient(90deg, hsla(213, 62%, 45%, 1) 0%, hsla(203, 89%, 71%, 1) 50%, hsla(0, 0%, 96%, 1) 100%);
+
+  /* Neutral defaults for PasskeyHaloLoading (baseline outside confirmer context) */
+  --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, var(--w3a-blue500) 10%, var(--w3a-blue500) 25%, transparent 35%;
+  --w3a-modal__passkey-halo-loading__inner-background: transparent;
+  --w3a-modal__passkey-halo-loading__inner-padding: 3px;
+  --w3a-modal__passkey-halo-loading-icon-container__background-color: var(--w3a-colors-surface);
+  --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textPrimary);
+  --w3a-modal__passkey-halo-loading-touch-icon__margin: 0.75rem;
+  --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
 }
 
 /* Light theme overrides for hosts that set [theme="light"] */

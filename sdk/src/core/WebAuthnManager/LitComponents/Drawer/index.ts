@@ -111,7 +111,7 @@ export class DrawerElement extends LitElementWithProps {
 
     /* full-open removed; drawer opens to content height (capped) */
     .drawer.dragging, .drawer.vv-sync { transition: none; }
-    .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
+    :host([open]) .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
 
     .handle {
       width: 36px;

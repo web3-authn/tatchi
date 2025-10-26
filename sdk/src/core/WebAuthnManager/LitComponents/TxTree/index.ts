@@ -7,6 +7,7 @@ import type { TxTreeStyles } from './tx-tree-themes';
 import { TX_TREE_THEMES } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
 import { isNumber, isString } from '../../../WalletIframe/validation';
+import { ensureTxTreeStyles } from './tx-tree-stylesheet';
 // Re-export for backward compatibility
 export type { TxTreeStyles } from './tx-tree-themes';
 
@@ -58,7 +59,7 @@ export class TxTree extends LitElementWithProps {
     depth: { type: Number, attribute: false },
     // styles accepts full CSS customization - reactive to trigger re-renders
     styles: { attribute: false, state: true },
-    theme: { type: String, attribute: false },
+    theme: { type: String, reflect: true },
     // Optional width for the tree at depth=0. Accepts number (px) or any CSS length string.
     // Exposed as attribute for convenience, but property binding works too.
     width: { type: String }
@@ -177,6 +178,7 @@ export class TxTree extends LitElementWithProps {
     .summary-row {
       cursor: var(--w3a-tree__summary-row__cursor, pointer);
       padding: var(--w3a-tree__summary-row__padding, 0px 0px);
+      margin-top: 0rem;
       margin-bottom: var(--w3a-tree__summary-row__margin-bottom, 0px);
       border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
       transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
@@ -607,6 +609,18 @@ export class TxTree extends LitElementWithProps {
 
   protected applyStyles(styles: TxTreeStyles): void {
     super.applyStyles(styles, 'tree');
+  }
+
+  // Allow opting into light DOM to consume external CSS (tx-tree.css)
+  // Usage: <w3a-tx-tree light-dom ...>
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    if (this.hasAttribute('light-dom')) {
+      ensureTxTreeStyles(this).catch(() => {});
+      return this as unknown as HTMLElement;
+    }
+    const root = super.createRenderRoot();
+    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    return root;
   }
 
   /**

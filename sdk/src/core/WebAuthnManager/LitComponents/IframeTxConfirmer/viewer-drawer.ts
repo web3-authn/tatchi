@@ -4,6 +4,7 @@ import DrawerElement from '../Drawer';
 import { W3A_DRAWER_ID } from '../tags';
 import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
+import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
@@ -217,6 +218,12 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 
   protected getComponentPrefix(): string { return 'drawer-tx'; }
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    return root;
+  }
 
   // Dynamic style application removed; tokens are provided by modal-confirmer.css
 

@@ -7,8 +7,7 @@ import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../
 import { onEmbeddedBaseChange } from '../../../sdkPaths';
 // Local imports
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
-import type { TxTreeStyles } from '../TxTree';
-import { TX_TREE_THEMES, type TxTreeTheme } from '../TxTree/tx-tree-themes';
+// TxTree theme styles are now provided via external CSS (tx-tree.css)
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, IFRAME_TX_BUTTON_BOOTSTRAP_MODULE, defineTag } from '../tags';
 import { resolveEmbeddedBase } from '../asset-base';
@@ -518,29 +517,26 @@ export class IframeButtonHost extends LitElementWithProps {
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree
-    const themeStyles = this.getThemeStyles(this.txTreeTheme || 'dark');
-
     // Get embedded button theme styles
     const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.txTreeTheme || 'dark'];
 
-    this.postToIframe('SET_STYLE', {
+    const stylePayload: any = {
       buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
-      tooltipTreeStyles: themeStyles,
       embeddedButtonTheme: embeddedButtonTheme,
       theme: this.txTreeTheme,
       // Force consistent mobile behavior across browsers: tap confirms, long‑press shows tooltip
       activationMode: 'press',
-    });
+    };
+    // No longer send tooltipTreeStyles; external CSS handles themes.
+    this.postToIframe('SET_STYLE', stylePayload);
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the
     // button's size or tooltip position changes, keeping embedded aligned.
     this.postToIframe('HS1_INIT', this.buildInitData());
   }
 
-  private getThemeStyles(theme: TxTreeTheme): TxTreeStyles {
-    return TX_TREE_THEMES[theme] || TX_TREE_THEMES.dark;
-  }
+  // Theme styles are resolved via external CSS; no runtime mapping required.
 
   // ==============================
   // Clip-path Helpers

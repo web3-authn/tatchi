@@ -5,6 +5,7 @@ import { TransactionInputWasm } from '../../../types';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
+import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
 import TxConfirmContentElement from './tx-confirm-content';
 import { formatDeposit, formatGas } from '../common/formatters';
 // Theme tokens now come from external CSS (modal-confirmer.css)
@@ -684,6 +685,12 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
   protected getComponentPrefix(): string {
     return 'modal';
+  }
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    return root;
   }
 
   // Dynamic style application removed; CSS variables come from modal-confirmer.css
