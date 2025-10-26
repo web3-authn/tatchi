@@ -251,8 +251,8 @@
 
 :is(w3a-tx-tree, tx-tree) .file-content {
   box-sizing: var(--w3a-tree__file-content__box-sizing, border-box);
-  margin: var(--w3a-tree__file-content__margin, 2px);
-  padding: var(--w3a-tree__file-content__padding, 2px);
+  margin: var(--w3a-tree__file-content__margin, 0rem 0.25rem 0rem 0.25rem);
+  padding: var(--w3a-tree__file-content__padding, 0rem 0.25rem 0rem 0.25rem);
   border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
   background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
   max-height: var(--w3a-tree__file-content__max-height, 120px);
@@ -366,12 +366,12 @@
   --w3a-tree__chevron__height: 14px;
   --w3a-tree__file-row__font-size: 0.875rem;
   --w3a-tree__file-row__padding: 0.5rem 0.75rem;
-  --w3a-tree__file-content__background: var(--w3a-slate750);
+  --w3a-tree__file-content__background: var(--w3a-colors-surface2);
   --w3a-tree__file-content__color: var(--w3a-grey500);
   --w3a-tree__file-content__border: 1px solid none;
   --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --w3a-tree__file-content__border-radius: 0.5rem;
-  --w3a-tree__file-content__padding: 0.25rem;
+  --w3a-tree__file-content__padding: 0.5rem;
   --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate700);
   --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-grey500);
   --w3a-tree__folder-children__padding: 0.5rem 0;
@@ -430,12 +430,12 @@
   --w3a-tree__chevron__height: 14px;
   --w3a-tree__file-row__font-size: 0.875rem;
   --w3a-tree__file-row__padding: 0.5rem 0.75rem;
-  --w3a-tree__file-content__background: var(--w3a-slate150);
+  --w3a-tree__file-content__background: var(--w3a-colors-surface);
   --w3a-tree__file-content__color: var(--w3a-grey500);
   --w3a-tree__file-content__border: 1px solid var(--w3a-slate300);
   --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --w3a-tree__file-content__border-radius: 0.5rem;
-  --w3a-tree__file-content__padding: 0.25rem;
+  --w3a-tree__file-content__padding: 0.5rem;
   --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate100);
   --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-slate300);
   --w3a-tree__folder-children__padding: 0.5rem 0;
