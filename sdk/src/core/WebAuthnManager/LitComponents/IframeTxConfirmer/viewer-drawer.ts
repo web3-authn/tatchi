@@ -1,10 +1,11 @@
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
 import { W3A_DRAWER_ID } from '../tags';
 import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
 import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
+import { ensureModalStyles } from './modal-confirmer-stylesheet';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
@@ -90,120 +91,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     }
   };
 
-  static styles = css`
-    :host { display: contents; }
-    /* Narrower sheet for tx confirmer drawer */
-    w3a-drawer {
-      /* Scale with viewport and base font size for better zoom behavior */
-      --w3a-drawer__max-width: min(100vw, 28rem);
-    }
-    .drawer-tx-confirmer-root {
-      display: grid;
-      place-content: center;
-    }
-    .drawer-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      row-gap: 0.5em;
-      margin-top: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-    .drawer-title {
-      margin: 0;
-      font-size: var(--w3a-font-size-lg, 1.125rem);
-      line-height: 1.3;
-      font-weight: 700;
-    }
-    .drawer-actions { display: flex; gap: 8px; }
-    .drawer-btn {
-      border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12));
-      background: var(--w3a-colors-surface, rgba(255,255,255,0.06));
-      color: var(--w3a-colors-textPrimary, #f6f7f8);
-      border-radius: 10px;
-      padding: 0.6em 0.9em;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    .drawer-btn.primary {
-      background: var(--w3a-btn-primary, #4DAFFE);
-      color: var(--w3a-btn-text, #0b1220);
-      border-color: transparent;
-    }
-    .footer-actions {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .section {
-      margin: 8px 0;
-      max-width: clamp(20rem, 90vw, 26rem);
-      min-width: 0;
-    }
-    .responsive-card {
-      position: relative;
-      /* Scales with viewport and root font size under text zoom */
-      max-width: clamp(20rem, 90vw, 26rem);
-      min-width: 0;
-      overflow: visible;
-      border-radius: 1rem;
-      z-index: 1;
-      padding: var(--w3a-modal__responsive-card__padding, 0rem);
-      margin: var(--w3a-modal__responsive-card__margin, 0px);
-    }
-    .margin-left1 {
-      margin-left: 1rem;
-    }
-
-    .rpid-wrapper {
-      margin-bottom: 1rem;
-    }
-    .rpid {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      margin-top: 2px;
-      font-size: 0.7rem;
-      overflow-wrap: anywhere;
-      hyphens: auto;
-      color: var(--w3a-modal__label__color);
-      font-weight: 400;
-    }
-    .secure-indicator {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .padlock-icon {
-      width: 1em;
-      height: 1em;
-      margin-inline-end: 0.5em;
-      flex: none;
-      color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255));
-    }
-
-    .security-details {
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .block-height-icon {
-      width: 1em;
-      height: 1em;
-      margin-inline-end: 0.5em;
-      flex: none;
-      color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
-    }
-    .divider {
-      width: 1px; height: 12px;
-      background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18));
-      margin: 0 4px;
-    }
-  `;
+  // No inline static styles; see modal-confirmer.css
 
   constructor() {
     super();
@@ -222,6 +110,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    ensureModalStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
     return root;
   }
 
