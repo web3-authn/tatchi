@@ -1,7 +1,8 @@
-import { html, css } from 'lit';
+import { html } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { HaloTheme } from '../HaloBorder';
 import '../HaloBorder';
+import { ensureExternalStyles } from '../css/css-loader';
 
 export class PasskeyHaloLoadingElement extends LitElementWithProps {
   static properties = {
@@ -39,27 +40,13 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
   declare iconContainerBorderRadius?: string;
   declare iconContainerBackgroundColor?: string;
 
-  static styles = css`
-    :host {
-      display: inline-block;
-    }
+  // Static styles removed; external stylesheet is adopted for CSP compatibility
 
-    .w3a-passkey-loading-root { display: inline-grid; }
-
-    .w3a-passkey-loading-touch-icon-container {
-      display: grid;
-      place-items: center;
-      background-color: var(--w3a-modal__passkey-halo-loading-icon-container__background-color);
-      border-radius: var(--w3a-modal__passkey-halo-loading-icon-container__border-radius, 1.125rem);
-      width: fit-content;
-      height: fit-content;
-    }
-
-    .w3a-passkey-loading-touch-icon {
-      color: var(--w3a-modal__passkey-halo-loading-touch-icon__color);
-      margin: var(--w3a-modal__passkey-halo-loading-touch-icon__margin, 0.75rem);
-    }
-  `;
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css').catch(() => {});
+    return root;
+  }
 
   protected updated(): void {
     // Bridge prop overrides into CSS variables to avoid inline styles
@@ -80,7 +67,7 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     const animated = this.animated ?? true;
     const ringGap = this.ringGap ?? 4;
     const ringWidth = this.ringWidth ?? 4;
-    const ringBorderRadius = this.ringBorderRadius ?? '1.5rem';
+    const ringBorderRadius = this.ringBorderRadius ?? '1.125rem';
     const ringBorderShadow = this.ringBorderShadow;
     const ringBackground = this.ringBackground;
     const padding = this.padding;

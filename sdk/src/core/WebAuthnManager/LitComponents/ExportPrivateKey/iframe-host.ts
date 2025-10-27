@@ -132,7 +132,6 @@ export class IframeExportHost extends LitElementWithProps {
           <link rel="stylesheet" href="${base}wallet-service.css" />
           <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
           <link rel="stylesheet" href="${base}w3a-components.css" />
-          <script>try{ parent && parent.postMessage({ type: 'READY' }, '*'); } catch(e) {}</script>
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
         </head>

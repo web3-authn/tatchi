@@ -264,25 +264,6 @@ export class TxTree extends LitElementWithProps {
 
   connectedCallback(): void {
     super.connectedCallback();
-
-    // Browser doesn't know --border-angle is an animatable angle type,
-    // so we need to register it globally.
-    // Otherwise --border-angle only cyclesbetween 0deg and 360deg,
-    // not smoothly animating through the values in between.
-    const w = window as Window & { borderAngleRegistered?: boolean };
-    if (!w.borderAngleRegistered && CSS.registerProperty) {
-      try {
-        CSS.registerProperty({
-          name: '--border-angle',
-          syntax: '<angle>',
-          initialValue: '0deg',
-          inherits: false
-        });
-        w.borderAngleRegistered = true;
-      } catch (e) {
-        console.warn('[TxTree] Failed to register --border-angle:', e);
-      }
-    }
   }
 
   private renderLabelWithSelectiveHighlight(treeNode: TreeNode): TemplateResult | string {

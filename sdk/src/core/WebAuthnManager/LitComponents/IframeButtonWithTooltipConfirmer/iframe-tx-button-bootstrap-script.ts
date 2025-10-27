@@ -1,4 +1,5 @@
 import type { TooltipPositionInternal } from './iframe-geometry';
+import { resolveEmbeddedBase } from '../asset-base';
 import type {
   IframeButtonMessage,
   IframeButtonMessagePayloads,
@@ -26,10 +27,50 @@ declare global {
 }
 
 // Notify parent that we're ready to receive HS1_INIT
-function notifyReady(): void {
+function isSurfaceStylesApplied(): boolean {
+  try {
+    const de = document.documentElement;
+    const b = document.body;
+    if (!de || !b) return false;
+    const csHtml = getComputedStyle(de);
+    const csBody = getComputedStyle(b);
+    return csHtml.marginTop === '0px' && csHtml.marginLeft === '0px' && csBody.marginTop === '0px' && csBody.marginLeft === '0px';
+  } catch { return false; }
+}
+
+function whenSurfaceStylesReady(timeoutMs = 1200): Promise<void> {
+  return new Promise((resolve) => {
+    const start = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+    const tick = () => {
+      if (isSurfaceStylesApplied()) return resolve();
+      const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+      if (now - start > timeoutMs) return resolve();
+      try { requestAnimationFrame(tick); } catch { setTimeout(tick, 16); }
+    };
+    tick();
+  });
+}
+
+async function notifyReady(): Promise<void> {
+  // Wait briefly for wallet-service.css to apply (margin:0 on html/body) to avoid ~8px offset in early geometry
+  await whenSurfaceStylesReady();
   try {
     const message: IframeButtonMessage = { type: 'READY' };
     window.parent.postMessage(message, '*');
+  } catch {}
+}
+
+function ensureDocStylesheet(assetName: string, markerAttr: string): void {
+  try {
+    const doc = document;
+    if (!doc?.head) return;
+    if (doc.head.querySelector(`link[${markerAttr}]`)) return;
+    const link = doc.createElement('link');
+    link.rel = 'stylesheet';
+    const base = resolveEmbeddedBase();
+    link.href = `${base}${assetName}`;
+    link.setAttribute(markerAttr, '');
+    doc.head.appendChild(link);
   } catch {}
 }
 
@@ -101,23 +142,17 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
     const tryApply = (retriesLeft: number): void => {
       const el2 = document.getElementById('etx') as EmbeddedTxButtonElType | null;
       if (el2 && typeof el2.applyContainerPosition === 'function') {
-
         el2.applyContainerPosition(payload.buttonPosition.x, payload.buttonPosition.y);
-        // Allow one frame for styles to apply, then notify parent
-
-        try {
-          requestAnimationFrame(() => {
-            const positionedMessage: IframeButtonMessage = {
-              type: 'HS2_POSITIONED',
-              payload: payload.buttonPosition
-            };
+        // Ensure surface CSS is applied before telling parent we're positioned
+        whenSurfaceStylesReady().then(() => {
+          try { requestAnimationFrame(() => {
+            const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
             try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
-          });
-        } catch {
-          // Fallback: immediate notify
-          const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
-          try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
-        }
+          }); } catch {
+            const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
+            try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
+          }
+        });
         return;
       }
       if (retriesLeft <= 0) {
@@ -324,4 +359,7 @@ window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
 });
 
 // STEP 0: announce readiness to the parent
+// Ensure fallback stylesheet is linked into the iframe document so UA margins
+// are reset even on engines that use constructable stylesheets for shadow DOM.
+ensureDocStylesheet('button-with-tooltip.css', 'data-w3a-button-tooltip-css');
 notifyReady();

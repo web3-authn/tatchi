@@ -1,5 +1,6 @@
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
+import { ensureExternalStyles } from '../css/css-loader';
 
 export type HaloTheme = 'dark' | 'light';
 
@@ -30,65 +31,13 @@ export class HaloBorderElement extends LitElementWithProps {
   declare innerPadding?: string;
   declare innerBackground?: string;
 
-  static styles = css`
-    :host {
-      display: inline-block;
-      background: transparent;
-      border-radius: 2rem;
-      padding: 0;
-      max-width: 860px;
-      box-sizing: border-box;
-      width: fit-content;
-      height: fit-content;
-      box-shadow: var(--halo-box-shadow, none);
-    }
+  // Static styles removed; external stylesheet is adopted for CSP compatibility
 
-    /* Expose configurable tokens with sensible defaults */
-    :host {
-      --ring-gap: 4px;
-      --ring-width: 2px;
-      --ring-border-radius: 2rem;
-      --inner-padding: 2rem;
-      --inner-background: var(--w3a-grey650, transparent);
-      --ring-stops: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
-      --halo-duration: 1.15s;
-    }
-
-    .halo-root { position: relative; }
-    .halo-outer { position: relative; border-radius: 2rem; overflow: visible; }
-    .halo-inner {
-      background: transparent;
-      border: 1px solid transparent;
-      border-radius: 2rem;
-      padding: calc(var(--ring-gap) + var(--ring-width));
-      position: relative;
-    }
-
-    .halo-ring {
-      position: absolute;
-      top: calc(-1 * (var(--ring-gap) + var(--ring-width)));
-      right: calc(-1 * (var(--ring-gap) + var(--ring-width)));
-      bottom: calc(-1 * (var(--ring-gap) + var(--ring-width)));
-      left: calc(-1 * (var(--ring-gap) + var(--ring-width)));
-      border-radius: calc(var(--ring-border-radius) + var(--ring-gap) + var(--ring-width));
-      pointer-events: none;
-      z-index: 3;
-      background: conic-gradient(from var(--halo-angle, 0deg), var(--ring-stops));
-      padding: var(--ring-width);
-      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-      -webkit-mask-composite: xor;
-      mask-composite: exclude;
-    }
-    /* Rotation is driven via JS updating --halo-angle; keep no CSS keyframes to avoid square-rotate artifacts */
-
-    .halo-content {
-      background: var(--inner-background);
-      border-radius: var(--ring-border-radius);
-      padding: var(--inner-padding);
-      position: relative;
-      z-index: 2;
-    }
-  `;
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'halo-border.css', 'data-w3a-halo-border-css').catch(() => {});
+    return root;
+  }
   private _rafId: number | null = null;
   private _startTs: number = 0;
   private _running: boolean = false;

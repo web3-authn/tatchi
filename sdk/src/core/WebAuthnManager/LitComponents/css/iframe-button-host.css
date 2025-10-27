@@ -1,0 +1,77 @@
+/* Externalized styles for <w3a-iframe-button-host> container */
+
+:host {
+  display: inline-block;
+  position: relative;
+  overflow: visible;
+  /* Let host size naturally to fit content */
+  width: fit-content;
+  height: fit-content;
+  /* Reset spacing that could interfere */
+  line-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-sizing: border-box;
+}
+
+.iframe-button-host {
+  position: relative;
+  padding: 0;
+  margin: 0;
+  display: inline-block;
+  cursor: pointer;
+  z-index: 1001;
+  /* Transparent by default to avoid any overlay tint */
+  background: transparent;
+  border-radius: 1rem;
+  border: none;
+  box-shadow: none;
+  transition: none;
+  transform: none;
+  width: var(--button-width, 200px);
+  height: var(--button-height, 48px);
+  overflow: visible;
+}
+
+.iframe-button-host[data-focused="true"] {
+  /* Default minimal focus outline; can be overridden by scoped styles */
+  outline: none;
+}
+
+/* Visual label rendered by host beneath the iframe */
+.host-button-visual {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  pointer-events: none; /* allow iframe to capture events */
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  user-select: none;
+}
+
+iframe {
+  border: none;
+  background: transparent;
+  color-scheme: normal;
+  position: absolute;
+  z-index: 1000;
+  /* Clip-path is driven via a CSS variable to satisfy strict CSP */
+  clip-path: var(--w3a-iframe-clip-path, none);
+}
+
+/* Flush positioning classes for different tooltip positions */
+iframe.flush-top-left { top: 0; left: 0; }
+iframe.flush-top-center { top: 0; left: 50%; transform: translateX(-50%); }
+iframe.flush-top-right { top: 0; right: 0; }
+iframe.flush-left { top: 50%; left: 0; transform: translateY(-50%); }
+iframe.flush-right { top: 50%; right: 0; transform: translateY(-50%); }
+iframe.flush-bottom-left { bottom: 0; left: 0; }
+iframe.flush-bottom-center { bottom: 0; left: 50%; transform: translateX(-50%); }
+iframe.flush-bottom-right { bottom: 0; right: 0; }
+

@@ -1,4 +1,5 @@
-import { html, css, LitElement } from 'lit';
+import { html, LitElement } from 'lit';
+import { ensureExternalStyles } from '../css/css-loader';
 
 export class PadlockIconElement extends LitElement {
   static properties = {
@@ -9,10 +10,13 @@ export class PadlockIconElement extends LitElement {
   declare size?: string;
   declare strokeWidth?: number;
 
-  static styles = css`
-    :host { display: inline-flex; }
-    svg { width: 100%; height: 100%; display: block; }
-  `;
+  // Static styles removed; external stylesheet is adopted for CSP compatibility
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'padlock-icon.css', 'data-w3a-padlock-icon-css').catch(() => {});
+    return root;
+  }
 
   constructor() {
     super();
@@ -51,4 +55,3 @@ try {
 } catch {}
 
 export default PadlockIconElement;
-

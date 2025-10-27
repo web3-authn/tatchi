@@ -1,4 +1,4 @@
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { dispatchLitCancel, dispatchLitConfirm } from '../lit-events';
 
@@ -57,7 +57,6 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private _txTreeWidth: string | number = 'var(--tooltip-width, 100%)';
 
   // No static styles: structural styles are provided by modal-confirmer.css
-  static styles = css``;
 
   // Styles gating to avoid first-paint before tx-tree.css is ready
   private _stylesReady = false;

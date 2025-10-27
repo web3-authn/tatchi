@@ -92,7 +92,7 @@ w3a-drawer-tx-confirmer {
   --w3a-modal__btn-danger__border: 1px solid var(--w3a-red450);
   --w3a-modal__btn-danger-hover__background-color: var(--w3a-red400);
 
-  --w3a-modal__loading-indicator__border-color: var(--w3a-grey650);
+  --w3a-modal__loading-indicator__border-color: rgba(255,255,255,0.2);
 
   /* Passkey halo loading defaults (dark) */
   --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
@@ -163,7 +163,7 @@ w3a-drawer-tx-confirmer[theme="light"] {
   --w3a-modal__btn-danger__border: 1px solid var(--w3a-red450);
   --w3a-modal__btn-danger-hover__background-color: var(--w3a-red400);
 
-  --w3a-modal__loading-indicator__border-color: var(--w3a-slate300);
+  --w3a-modal__loading-indicator__border-color: rgba(255,255,255,0.2);
 
   /* Passkey halo loading defaults (light) */
   --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
@@ -399,6 +399,7 @@ w3a-modal-tx-confirmer {
   display: grid;
   align-items: flex-start;
   margin-right: 1rem;
+  margin-top: 0.5rem;
 }
 .hero-heading {
   margin: 0;
@@ -761,9 +762,9 @@ w3a-modal-tx-confirmer {
 /* Loading indicator styles */
 .loading-indicator {
   display: inline-block;
-  width: var(--w3a-modal__loading-indicator__width, 12px);
-  height: var(--w3a-modal__loading-indicator__height, 12px);
-  border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.55));
+  width: var(--w3a-modal__loading-indicator__width, 20px);
+  height: var(--w3a-modal__loading-indicator__height, 20px);
+  border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.2));
   border-radius: 50%;
   border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.95));
   animation: spin 1s ease-in-out infinite;

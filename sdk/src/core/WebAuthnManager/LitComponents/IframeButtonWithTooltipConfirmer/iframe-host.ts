@@ -1,5 +1,5 @@
 // External imports
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 // SDK imports
 import type { TransactionInput } from '../../../types/actions';
@@ -7,6 +7,7 @@ import type { SignAndSendTransactionHooksOptions, ActionResult } from '../../../
 import { onEmbeddedBaseChange } from '../../../sdkPaths';
 // Local imports
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
+import { ensureExternalStyles } from '../css/css-loader';
 // TxTree theme styles are now provided via external CSS (tx-tree.css)
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, IFRAME_TX_BUTTON_BOOTSTRAP_MODULE, defineTag } from '../tags';
@@ -85,85 +86,12 @@ export class IframeButtonHost extends LitElementWithProps {
     externalConfirm: { type: Object },
   } as const;
 
-  static styles = css`
-    :host {
-      display: inline-block;
-      position: relative;
-      overflow: visible;
-      /* Let host size naturally to fit content */
-      width: fit-content;
-      height: fit-content;
-      /* Reset all spacing that could interfere */
-      line-height: 0; /* ensure no extra spacing around the button */
-      margin: 0;
-      padding: 0;
-      border: none;
-      box-sizing: border-box;
-    }
-
-    .iframe-button-host {
-      position: relative;
-      padding: 0;
-      margin: 0;
-      display: inline-block;
-      cursor: pointer;
-      z-index: 1001;
-      /* This container should size to button dimensions and provide layout footprint */
-      /* Background defaults to transparent to avoid any dark overlay on mobile */
-      background: transparent;
-      border-radius: 1rem;
-      border: none;
-      box-shadow: none;
-      transition: none;
-      transform: none;
-      width: var(--button-width, 200px);
-      height: var(--button-height, 48px);
-      overflow: visible;
-    }
-
-    /* Host-driven hover/focus visuals are injected per-instance via a scoped stylesheet. */
-    .iframe-button-host[data-focused="true"] {
-      /* default minimal focus outline; can be overridden by scoped styles */
-      outline: none;
-    }
-
-    /* Visual label rendered by host beneath the iframe */
-    .host-button-visual {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      display: grid;
-      place-items: center;
-      pointer-events: none; /* allow iframe to capture events */
-      color: inherit;
-      font-size: inherit;
-      font-weight: inherit;
-      user-select: none;
-    }
-
-    iframe {
-      border: none;
-      background: transparent;
-      /* Ensure UA doesn't paint opaque canvas on initial paint */
-      color-scheme: normal;
-      position: absolute;
-      z-index: 1000;
-      /* Clip-path is driven via a CSS variable to satisfy strict CSP */
-      clip-path: var(--w3a-iframe-clip-path, none);
-    }
-
-    /* Flush positioning classes for different tooltip positions */
-    iframe.flush-top-left { top: 0; left: 0; }
-    iframe.flush-top-center { top: 0; left: 50%; transform: translateX(-50%); }
-    iframe.flush-top-right { top: 0; right: 0; }
-    iframe.flush-left { top: 50%; left: 0; transform: translateY(-50%); }
-    iframe.flush-right { top: 50%; right: 0; transform: translateY(-50%); }
-    iframe.flush-bottom-left { bottom: 0; left: 0; }
-    iframe.flush-bottom-center { bottom: 0; left: 50%; transform: translateX(-50%); }
-    iframe.flush-bottom-right { bottom: 0; right: 0; }
-  `;
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    // Adopt external styles for strict CSP
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'iframe-button-host.css', 'data-w3a-iframe-button-host-css').catch(() => {});
+    return root;
+  }
 
   private iframeInitialized = false;
   private currentGeometry: TooltipGeometry | null = null;
@@ -313,9 +241,20 @@ export class IframeButtonHost extends LitElementWithProps {
     const btnH = toPx(this.buttonStyle?.height || '48px');
     const iframeSize = this.calculateIframeSize();
 
-    const cssText = `.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }
-.${this.styleScopeClass}[data-hovered="true"] { ${hoverDecls} }
-.${this.styleScopeClass} iframe { width: ${iframeSize.width}px; height: ${iframeSize.height}px; }`;
+    // Minimal structural rules to work even if external CSS fails to load in dev
+    const baseRules = `.iframe-button-host.${this.styleScopeClass} { display:inline-block; position:relative; width: var(--button-width, ${btnW}); height: var(--button-height, ${btnH}); box-sizing:border-box; }
+.iframe-button-host.${this.styleScopeClass} .host-button-visual { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }
+.iframe-button-host.${this.styleScopeClass} iframe { position:absolute; border:0; background:transparent; color-scheme:normal; width:${iframeSize.width}px; height:${iframeSize.height}px; clip-path: var(--w3a-iframe-clip-path, none); }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-top-left { top:0; left:0; }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-top-center { top:0; left:50%; transform: translateX(-50%); }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-top-right { top:0; right:0; }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-left { top:50%; left:0; transform: translateY(-50%); }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-right { top:50%; right:0; transform: translateY(-50%); }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-left { bottom:0; left:0; }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-center { bottom:0; left:50%; transform: translateX(-50%); }
+.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-right { bottom:0; right:0; }`;
+
+    const cssText = `${baseRules}\n.iframe-button-host.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }\n.iframe-button-host.${this.styleScopeClass}[data-hovered=\"true\"] { ${hoverDecls} }`;
 
     if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
       if (!this.scopedSheet) this.scopedSheet = new CSSStyleSheet();
@@ -334,11 +273,6 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   render() {
-    const buttonSize = {
-      width: this.buttonStyle?.width || '200px',
-      height: this.buttonStyle?.height || '48px'
-    };
-
     const iframeSize = this.calculateIframeSize();
 
     return html`
@@ -390,7 +324,8 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private updateIframeSizeCss(iframeW: number, iframeH: number) {
     const { baseDecls, hoverDecls, btnW, btnH } = this.buildStyleDecls();
-    const cssText = `.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }\n.${this.styleScopeClass}[data-hovered=\"true\"] { ${hoverDecls} }\n.${this.styleScopeClass} iframe { width: ${iframeW}px; height: ${iframeH}px; }`;
+    const baseRules = `.iframe-button-host.${this.styleScopeClass} { display:inline-block; position:relative; width: var(--button-width, ${btnW}); height: var(--button-height, ${btnH}); box-sizing:border-box; }\n.iframe-button-host.${this.styleScopeClass} .host-button-visual { position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; }\n.iframe-button-host.${this.styleScopeClass} iframe { position:absolute; border:0; background:transparent; color-scheme:normal; clip-path: var(--w3a-iframe-clip-path, none); width:${iframeW}px; height:${iframeH}px; }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-top-left { top:0; left:0; }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-top-center { top:0; left:50%; transform: translateX(-50%); }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-top-right { top:0; right:0; }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-left { top:50%; left:0; transform: translateY(-50%); }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-right { top:50%; right:0; transform: translateY(-50%); }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-left { bottom:0; left:0; }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-center { bottom:0; left:50%; transform: translateX(-50%); }\n.iframe-button-host.${this.styleScopeClass} iframe.flush-bottom-right { bottom:0; right:0; }`;
+    const cssText = `${baseRules}\n.iframe-button-host.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }\n.iframe-button-host.${this.styleScopeClass}[data-hovered=\"true\"] { ${hoverDecls} }`;
 
     if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
       if (!this.scopedSheet) this.scopedSheet = new CSSStyleSheet();
@@ -445,7 +380,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
     const base = resolveEmbeddedBase();
     return `<!DOCTYPE html>
-      <html class="w3a-transparent">
+      <html>
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />

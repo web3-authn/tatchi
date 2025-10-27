@@ -297,9 +297,9 @@ export class LitElementWithProps extends LitElement {
         if (!this._varsSheet) this._varsSheet = new CSSStyleSheet();
         try { this._varsSheet.replaceSync(cssText); } catch {}
         const sheets = (this.renderRoot.adoptedStyleSheets || []) as any[];
-        if (!sheets.includes(this._varsSheet)) {
-          this.renderRoot.adoptedStyleSheets = [...sheets, this._varsSheet];
-        }
+        // Always ensure the vars sheet is last so its :host var declarations override defaults
+        const without = sheets.filter((s: any) => s !== this._varsSheet);
+        this.renderRoot.adoptedStyleSheets = [...without, this._varsSheet];
       } else {
         // Fallback: if inline styles are allowed, write props on host style; else, no-op
         if ((this.constructor as typeof LitElementWithProps).inlineStyleAllowed) {

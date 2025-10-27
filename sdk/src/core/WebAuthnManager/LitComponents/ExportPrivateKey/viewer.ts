@@ -199,7 +199,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
         : null
       }
       <div class="content">
-        <h2 class="title">Export Private Keys</h2>
+        <h2 class="title">Near Account Keys</h2>
         <div class="fields">
           <div class="field">
             <div class="field-label">Account ID</div>

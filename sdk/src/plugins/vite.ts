@@ -238,8 +238,9 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <title>Web3Authn Wallet Service</title>
     <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css" />
-    <!-- Preload drawer.css to minimize first paint delay -->
+    <!-- Preload critical styles to minimize first paint delay -->
     <link rel="preload" as="style" href="${sdkBasePath}/drawer.css" />
+    <link rel="preload" as="style" href="${sdkBasePath}/tx-tree.css" />
     <!-- Component theme CSS: shared tokens + component-scoped tokens -->
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css" />
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css" />
@@ -485,8 +486,8 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
           const walletCsp = [
             "default-src 'self'",
             "script-src 'self'",
-            // Tight style policy: forbid style attributes, allow style elements (Lit) inline
-            "style-src-elem 'self' 'unsafe-inline'",
+            // Strict style policy: external styles only, no style attributes
+            "style-src 'self'",
             "style-src-attr 'none'",
             "img-src 'self' data:",
             "font-src 'self'",
@@ -548,6 +549,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
+    <link rel=\"preload\" as=\"style\" href=\"${sdkBasePath}/tx-tree.css\"> 
     <link rel="preload" as="style" href="${sdkBasePath}/drawer.css">
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">

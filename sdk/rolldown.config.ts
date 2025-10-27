@@ -506,8 +506,13 @@ export default defineConfig([
               if (fs.existsSync(src)) fs.copyFileSync(src, dest);
             }
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/button-with-tooltip.css'), path.join(sdkDir, 'button-with-tooltip.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/halo-border.css'), path.join(sdkDir, 'halo-border.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css'), path.join(sdkDir, 'passkey-halo-loading.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/padlock-icon.css'), path.join(sdkDir, 'padlock-icon.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/iframe-button-host.css'), path.join(sdkDir, 'iframe-button-host.css'));
             // Export viewer stylesheet used by ExportPrivateKey viewer (loaded via ensureExternalStyles)
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-viewer.css'), path.join(sdkDir, 'export-viewer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'), path.join(sdkDir, 'export-iframe.css'));
