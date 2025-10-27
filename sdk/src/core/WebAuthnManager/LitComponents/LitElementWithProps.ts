@@ -34,6 +34,9 @@ export class LitElementWithProps extends LitElement {
   // Per-instance CSS custom properties sheet to avoid inline style mutations.
   private _varsSheet: CSSStyleSheet | null = null;
   private _varsMap: Record<string, string> = {};
+  // Fallback sheet attached to the Document (constructable stylesheet) + a per-instance class
+  private _varsDocSheet: CSSStyleSheet | null = null;
+  private _varsClassName: string | null = null;
   // Detect whether inline style application is allowed under current CSP.
   // If style-src forbids inline styles, setting element.style will be ignored
   // and trigger console violations in production. We degrade gracefully by
@@ -278,7 +281,7 @@ export class LitElementWithProps extends LitElement {
     return str.replace(/([A-Z])/g, '-$1').toLowerCase();
   }
 
-  /** Merge and apply CSS variables via an adopted stylesheet (no inline style attr). */
+  /** Merge and apply CSS variables via adopted stylesheets only (no inline style attr). */
   protected setCssVars(vars: Record<string, string>): void {
     try {
       // Merge new vars
@@ -290,24 +293,52 @@ export class LitElementWithProps extends LitElement {
         .map(([k, v]) => `${k}: ${v};`)
         .join(' ');
 
-      const cssText = `:host{ ${decls} }`;
+      const cssTextShadow = `:host{ ${decls} }`;
 
-      // Prefer adoptedStyleSheets if supported
+      // 1) Preferred: ShadowRoot adopted stylesheets
       if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
         if (!this._varsSheet) this._varsSheet = new CSSStyleSheet();
-        try { this._varsSheet.replaceSync(cssText); } catch {}
+        try { this._varsSheet.replaceSync(cssTextShadow); } catch {}
         const sheets = (this.renderRoot.adoptedStyleSheets || []) as any[];
-        // Always ensure the vars sheet is last so its :host var declarations override defaults
+        // Ensure the vars sheet is last so its :host var declarations override defaults
         const without = sheets.filter((s: any) => s !== this._varsSheet);
         this.renderRoot.adoptedStyleSheets = [...without, this._varsSheet];
-      } else {
-        // Fallback: if inline styles are allowed, write props on host style; else, no-op
-        if ((this.constructor as typeof LitElementWithProps).inlineStyleAllowed) {
-          for (const [k, v] of Object.entries(vars)) {
-            try { (this as unknown as HTMLElement).style.setProperty(k, v); } catch {}
-          }
-        }
+        return;
       }
+
+      // 2) Fallback (still CSP-safe): Document-level constructable stylesheet with per-instance class
+      const rootNode = (this.getRootNode && this.getRootNode()) as Document | ShadowRoot | undefined;
+      const doc = (rootNode instanceof Document ? rootNode : document) as Document;
+      const cssTextScoped = () => {
+        if (!this._varsClassName) {
+          this._varsClassName = `w3a-vars-${Math.random().toString(36).slice(2)}`;
+          try { (this as unknown as HTMLElement).classList.add(this._varsClassName); } catch {}
+        }
+        return `.${this._varsClassName}{ ${decls} }`;
+      };
+      // Try attaching a constructable sheet to the nearest ShadowRoot when present
+      if (rootNode && (rootNode as any).adoptedStyleSheets && 'replaceSync' in CSSStyleSheet.prototype) {
+        if (!this._varsDocSheet) this._varsDocSheet = new CSSStyleSheet();
+        try { this._varsDocSheet.replaceSync(cssTextScoped()); } catch {}
+        const srSheets = ((rootNode as any).adoptedStyleSheets || []) as any[];
+        if (!srSheets.includes(this._varsDocSheet)) {
+          (rootNode as any).adoptedStyleSheets = [...srSheets, this._varsDocSheet];
+        }
+        return;
+      }
+      // Otherwise, attach to Document (styles won’t pierce closed shadow DOMs, but helps for light DOM cases)
+      const docSupportsConstructable = !!doc && 'adoptedStyleSheets' in doc && 'replaceSync' in CSSStyleSheet.prototype;
+      if (docSupportsConstructable && doc) {
+        if (!this._varsDocSheet) this._varsDocSheet = new CSSStyleSheet();
+        try { this._varsDocSheet.replaceSync(cssTextScoped()); } catch {}
+        const current = (doc.adoptedStyleSheets || []) as any[];
+        if (!current.includes(this._varsDocSheet)) {
+          doc.adoptedStyleSheets = [...current, this._varsDocSheet];
+        }
+        return;
+      }
+
+      // 3) Final fallback: no inline writes under strict CSP; rely on defaults
     } catch {}
   }
 }

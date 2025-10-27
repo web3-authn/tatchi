@@ -127,6 +127,10 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
   el.color = payload.backgroundColor;
   el.size = payload.size;
   el.tooltip = payload.tooltip;
+  // Ensure shared token sheet and base styles are present for visual parity
+  // These links are CSP-safe and idempotent via marker attributes.
+  ensureDocStylesheet('w3a-components.css', 'data-w3a-components-css');
+  ensureDocStylesheet('button-with-tooltip.css', 'data-w3a-button-tooltip-css');
 
   // Capture target origin from host (optional hardening)
   if (typeof payload.targetOrigin === 'string') {

@@ -65,6 +65,10 @@ export class IframeExportHost extends LitElementWithProps {
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private messageHandler?: (event: MessageEvent) => void | Promise<void>;
   private iframeInitialized = false;
+  // Styles gating to avoid FOUC: wait for export-iframe.css before first render
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
 
   constructor() {
     super();
@@ -80,11 +84,24 @@ export class IframeExportHost extends LitElementWithProps {
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-iframe.css', 'data-w3a-export-iframe-css').catch(() => {});
+    const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-iframe.css', 'data-w3a-export-iframe-css');
+    this._stylePromises.push(p);
+    p.catch(() => {});
     return root;
   }
 
   protected getComponentPrefix(): string { return 'export-iframe'; }
+
+  // Defer initial render until external styles are adopted to prevent FOUC
+  protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const settle = Promise.all(this._stylePromises)
+        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+      this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
+  }
 
   updated(changed: PropertyValues) {
     super.updated(changed);
@@ -132,6 +149,9 @@ export class IframeExportHost extends LitElementWithProps {
           <link rel="stylesheet" href="${base}wallet-service.css" />
           <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
           <link rel="stylesheet" href="${base}w3a-components.css" />
+          <!-- Preload component styles to avoid first-open FOUC -->
+          <link rel="preload" as="style" href="${base}drawer.css" />
+          <link rel="preload" as="style" href="${base}export-viewer.css" />
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
         </head>

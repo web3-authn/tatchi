@@ -181,16 +181,25 @@ export class TxTree extends LitElementWithProps {
       this.setCssVars({ '--w3a-tree__anim-target': target });
       // Activate transition to target height
       body.classList.add('anim-h-active');
-
-      const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName !== 'height') return;
-        body.removeEventListener('transitionend', onEnd);
+      let done = false;
+      const cleanup = () => {
+        if (done) return; done = true;
         body.classList.remove('anim-h');
         body.classList.remove('anim-h-active');
         this._animating.delete(details);
         this.handleToggle();
       };
+      const onEnd = (ev: TransitionEvent) => {
+        if (ev.propertyName !== 'height') return;
+        body.removeEventListener('transitionend', onEnd);
+        cleanup();
+      };
       body.addEventListener('transitionend', onEnd);
+      // Safety fallback in case transitionend doesn't fire (e.g., no CSS vars path)
+      window.setTimeout(() => {
+        body.removeEventListener('transitionend', onEnd);
+        cleanup();
+      }, 250);
     });
   }
 
@@ -205,15 +214,22 @@ export class TxTree extends LitElementWithProps {
     void body.offsetHeight;
     requestAnimationFrame(() => {
       body.classList.remove('anim-h-active');
-      const onEnd = (ev: TransitionEvent) => {
-        if (ev.propertyName !== 'height') return;
+      let done = false;
+      const cleanup = () => {
+        if (done) return; done = true;
         body.removeEventListener('transitionend', onEnd);
         details.open = false;
         body.classList.remove('anim-h');
         this._animating.delete(details);
         this.handleToggle();
       };
+      const onEnd = (ev: TransitionEvent) => {
+        if (ev.propertyName !== 'height') return;
+        cleanup();
+      };
       body.addEventListener('transitionend', onEnd);
+      // Safety fallback in case transitionend doesn't fire
+      window.setTimeout(() => cleanup(), 250);
     });
   }
 

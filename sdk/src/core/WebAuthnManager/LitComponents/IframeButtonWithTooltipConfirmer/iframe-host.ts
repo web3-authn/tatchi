@@ -10,6 +10,7 @@ import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import { ensureExternalStyles } from '../css/css-loader';
 // TxTree theme styles are now provided via external CSS (tx-tree.css)
 import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
+import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, IFRAME_TX_BUTTON_BOOTSTRAP_MODULE, defineTag } from '../tags';
 import { resolveEmbeddedBase } from '../asset-base';
 import {
@@ -102,7 +103,6 @@ export class IframeButtonHost extends LitElementWithProps {
   // Track applied dynamic styles so we can update/remove cleanly
   private styleScopeClass = `w3a-host-${Math.random().toString(36).slice(2)}`;
   private scopedSheet: CSSStyleSheet | null = null;
-  private scopedStyleEl?: HTMLStyleElement;
   // (optional) event hook; not used for gating init anymore
   private onAssetsBaseSet = () => {
     // Reinitialize to pick up the new embedded base path set by the wallet host
@@ -263,13 +263,10 @@ export class IframeButtonHost extends LitElementWithProps {
       if (!sheets.includes(this.scopedSheet)) {
         this.renderRoot.adoptedStyleSheets = [...sheets, this.scopedSheet];
       }
-    } else if (this.renderRoot instanceof ShadowRoot) {
-      if (!this.scopedStyleEl) {
-        this.scopedStyleEl = document.createElement('style');
-        this.renderRoot.appendChild(this.scopedStyleEl);
-      }
-      this.scopedStyleEl.textContent = cssText;
     }
+
+    // Always expose computed sizing as CSS variables for external CSS path
+    try { this.setCssVars({ '--button-width': btnW, '--button-height': btnH }); } catch {}
   }
 
   render() {
@@ -281,6 +278,8 @@ export class IframeButtonHost extends LitElementWithProps {
         <iframe
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"
+          width="${iframeSize.width}"
+          height="${iframeSize.height}"
           sandbox="allow-scripts"
         ></iframe>
       </div>
@@ -334,13 +333,16 @@ export class IframeButtonHost extends LitElementWithProps {
       if (!sheets.includes(this.scopedSheet)) {
         this.renderRoot.adoptedStyleSheets = [...sheets, this.scopedSheet];
       }
-    } else if (this.renderRoot instanceof ShadowRoot) {
-      if (!this.scopedStyleEl) {
-        this.scopedStyleEl = document.createElement('style');
-        this.renderRoot.appendChild(this.scopedStyleEl);
-      }
-      this.scopedStyleEl.textContent = cssText;
     }
+
+    // Also set iframe attributes as a CSP-safe sizing fallback
+    try {
+      const iframe = this.iframeRef.value;
+      if (iframe) {
+        iframe.setAttribute('width', String(iframeW));
+        iframe.setAttribute('height', String(iframeH));
+      }
+    } catch {}
   }
 
   private buildInitData(): IframeInitData {
@@ -485,19 +487,19 @@ export class IframeButtonHost extends LitElementWithProps {
       width: this.buttonStyle?.width || '200px',
       height: this.buttonStyle?.height || '48px'
     };
-    // Get theme styles for tooltip tree
-    // Get embedded button theme styles
+    // Get theme styles for tooltip tree and embedded button
     const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.txTreeTheme || 'dark'];
+    const tooltipTreeStyles = TX_TREE_THEMES[this.txTreeTheme || 'dark'];
 
     const stylePayload: any = {
       buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
       embeddedButtonTheme: embeddedButtonTheme,
+      tooltipTreeStyles,
       theme: this.txTreeTheme,
       // Force consistent mobile behavior across browsers: tap confirms, long‑press shows tooltip
       activationMode: 'press',
     };
-    // No longer send tooltipTreeStyles; external CSS handles themes.
     this.postToIframe('SET_STYLE', stylePayload);
 
     // Also re-send HS1_INIT to reapply precise positioning whenever the

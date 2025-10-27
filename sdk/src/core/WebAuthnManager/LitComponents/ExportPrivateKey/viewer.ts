@@ -33,6 +33,10 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   private copiedPublic = false;
   private copiedPrivate = false;
   private copyTimers: { public?: number; private?: number } = {};
+  // Styles gating to avoid FOUC under strict CSP (no inline styles)
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
 
   // Static styles moved to external CSS (export-viewer.css) for strict CSP
 
@@ -49,10 +53,25 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     // Adopt export-viewer.css for structural + visual styles
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-viewer.css', 'data-w3a-export-viewer-css').catch(() => {});
+    const p1 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-viewer.css', 'data-w3a-export-viewer-css');
+    this._stylePromises.push(p1);
+    p1.catch(() => {});
     // Also adopt token sheet so color/background vars are available even without host styles
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
+    const p2 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css');
+    this._stylePromises.push(p2);
+    p2.catch(() => {});
     return root;
+  }
+
+  // Defer initial render until external styles are adopted to prevent FOUC
+  protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const settle = Promise.all(this._stylePromises)
+        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+      this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
   }
 
   protected updated(changed: PropertyValues) {
