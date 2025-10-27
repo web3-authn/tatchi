@@ -100,16 +100,17 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
 
       const drawer = getDrawer();
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;
-      // Show just the top portion above the fold; prefer dynamic viewport units when supported
-      try {
-        drawer.height = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '55dvh')) ? '55dvh' : '55vh';
-      } catch {
-        drawer.height = '55vh';
-      }
+      // Auto-fit to content: let Drawer compute visible height from content above the fold.
+      try { drawer.height = undefined as any; } catch {}
       drawer.showCloseButton = true;
       drawer.dragToClose = true;
       drawer.overpullPx = 160;
-      drawer.open = true;
+      // Defer open by two frames so slot content renders before initial measurement
+      try {
+        requestAnimationFrame(() => requestAnimationFrame(() => { try { drawer.open = true; } catch {} }));
+      } catch {
+        setTimeout(() => { try { drawer.open = true; } catch {} }, 0);
+      }
       break;
     }
     case 'SET_LOADING': {

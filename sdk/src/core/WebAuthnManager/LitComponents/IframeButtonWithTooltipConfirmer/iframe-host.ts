@@ -445,7 +445,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
     const base = resolveEmbeddedBase();
     return `<!DOCTYPE html>
-      <html>
+      <html class="w3a-transparent">
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -453,7 +453,7 @@ export class IframeButtonHost extends LitElementWithProps {
           <script type="module" crossorigin="anonymous" src="${base}${embeddedTxButtonTag}.js"></script>
           <script type="module" crossorigin="anonymous" src="${base}${iframeBootstrapTag}"></script>
         </head>
-        <body>
+        <body class="w3a-transparent">
           <${embeddedTxButtonTag} id="etx"></${embeddedTxButtonTag}>
           <!-- bootstrap handled by external ${iframeBootstrapTag} module -->
         </body>

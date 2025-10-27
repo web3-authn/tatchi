@@ -50,6 +50,8 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     const root = super.createRenderRoot();
     // Adopt export-viewer.css for structural + visual styles
     ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-viewer.css', 'data-w3a-export-viewer-css').catch(() => {});
+    // Also adopt token sheet so color/background vars are available even without host styles
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
     return root;
   }
 

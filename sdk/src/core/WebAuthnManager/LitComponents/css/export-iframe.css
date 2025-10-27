@@ -1,0 +1,29 @@
+/* Export Private Key iframe host styles */
+
+:host {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  display: block;
+}
+
+.iframe-host {
+  position: fixed;
+  inset: 0;
+}
+
+iframe {
+  border: none;
+  background: transparent;
+  color-scheme: normal;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 2147483647;
+}
+
+@supports (width: 100dvw) and (height: 100dvh) {
+  iframe { width: 100dvw; height: 100dvh; }
+}
+

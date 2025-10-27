@@ -116,9 +116,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
       pointer-events: var(--w3a-embedded__confirm-container__pointer-events, auto);
       /* Absolute positioning applied via CSS variables for CSP safety */
       position: var(--w3a-embedded__confirm-container__position-absolute, absolute);
-      /* Allow fine-grained alignment tweaks via offset variables; default to -8px on both axes. */
-      top: calc(var(--w3a-embedded__confirm-container__top, 50%) + var(--w3a-embedded__confirm-container__offset-y, -8px));
-      left: calc(var(--w3a-embedded__confirm-container__left, 50%) + var(--w3a-embedded__confirm-container__offset-x, -8px));
+      /* Allow fine-grained alignment tweaks via offset variables; default to 0 on both axes. */
+      top: calc(var(--w3a-embedded__confirm-container__top, 50%) + var(--w3a-embedded__confirm-container__offset-y, 0px));
+      left: calc(var(--w3a-embedded__confirm-container__left, 50%) + var(--w3a-embedded__confirm-container__offset-x, 0px));
       transform: var(--w3a-embedded__confirm-container__transform, translate(-50%, -50%));
     }
 

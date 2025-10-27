@@ -508,6 +508,9 @@ export default defineConfig([
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
+            // Export viewer stylesheet used by ExportPrivateKey viewer (loaded via ensureExternalStyles)
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-viewer.css'), path.join(sdkDir, 'export-viewer.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'), path.join(sdkDir, 'export-iframe.css'));
             copyIf(path.join(process.cwd(), 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
           } catch (err) {

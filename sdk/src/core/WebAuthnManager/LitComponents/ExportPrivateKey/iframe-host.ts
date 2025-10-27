@@ -1,5 +1,5 @@
 // Iframe host for the Export Private Key viewer (drawer or modal variant)
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
@@ -7,6 +7,7 @@ import { resolveEmbeddedBase } from '../asset-base';
 import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
+import { ensureExternalStyles } from '../css/css-loader';
 
 type MessageType =
   | 'READY'
@@ -75,36 +76,13 @@ export class IframeExportHost extends LitElementWithProps {
     this.loading = false;
   }
 
-  static styles = css`
-    :host {
-      position: fixed;
-      inset: 0;
-      z-index: 2147483647;
-      display: block;
-    }
-    .iframe-host {
-      position: fixed;
-      inset: 0;
-      /* Host container occupies viewport; child iframe sizes explicitly */
-      }
-    iframe {
-      border: none;
-      background: transparent;
-      color-scheme: normal;
-      position: fixed;
-      inset: 0;
-      /* Ensure iframe fills viewport across browsers */
-      width: 100vw;
-      height: 100vh;
-      z-index: 2147483647;
-    }
-    @supports (width: 100dvw) and (height: 100dvh) {
-      iframe {
-        width: 100dvw;
-        height: 100dvh;
-      }
-    }
-  `;
+  // Static styles are externalized for CSP: see css/export-iframe.css
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-iframe.css', 'data-w3a-export-iframe-css').catch(() => {});
+    return root;
+  }
 
   protected getComponentPrefix(): string { return 'export-iframe'; }
 
@@ -152,6 +130,8 @@ export class IframeExportHost extends LitElementWithProps {
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
           <link rel="stylesheet" href="${base}wallet-service.css" />
+          <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
+          <link rel="stylesheet" href="${base}w3a-components.css" />
           <script>try{ parent && parent.postMessage({ type: 'READY' }, '*'); } catch(e) {}</script>
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
