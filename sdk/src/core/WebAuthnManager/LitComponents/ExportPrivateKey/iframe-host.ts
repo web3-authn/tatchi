@@ -164,10 +164,6 @@ export class IframeExportHost extends LitElementWithProps {
   private initializeIframe() {
     const iframeEl = this.iframeRef.value;
     if (!iframeEl) return;
-    try {
-      iframeEl.style.background = 'transparent';
-      (iframeEl.style as any).colorScheme = 'normal';
-    } catch {}
     this.setupMessageHandling();
     iframeEl.srcdoc = this.generateIframeHtml();
   }

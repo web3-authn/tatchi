@@ -220,6 +220,16 @@
   background: var(--w3a-tree__file-row__background, transparent);
 }
 
+/* Height animation helpers (used by TxTree animateOpen/animateClose) */
+:is(w3a-tx-tree, tx-tree) .anim-h {
+  overflow: hidden;
+  transition: height 100ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  height: 0px;
+}
+:is(w3a-tx-tree, tx-tree) .anim-h-active {
+  height: var(--w3a-tree__anim-target, auto);
+}
+
 :is(w3a-tx-tree, tx-tree) .folder-children .row .indent::before {
   content: '';
   position: absolute;
