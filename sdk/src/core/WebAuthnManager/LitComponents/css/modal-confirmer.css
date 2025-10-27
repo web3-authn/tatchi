@@ -906,3 +906,9 @@ w3a-drawer {
   background: var(--w3a-colors-borderPrimary, rgba(255,255,255,0.18));
   margin: 0 4px;
 }
+
+/* TxTree connector elbow tweak within confirmers: shorten by 0.1rem via token */
+:host w3a-tx-tree,
+:host tx-tree {
+  --w3a-tree__connector__elbow-delta: -0.1rem;
+}

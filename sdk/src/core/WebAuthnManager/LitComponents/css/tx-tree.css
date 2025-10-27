@@ -16,6 +16,8 @@
   --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, var(--w3a-grey650));
   --w3a-tree__connector__thickness: 1px;
   --w3a-tree__connector__elbow-length: 10px;
+  /* Optional per-surface tweak to adjust elbow length without overriding calc */
+  --w3a-tree__connector__elbow-delta: 0rem;
 }
 
 :is(w3a-tx-tree, tx-tree) [hidden] { display: none !important; }
@@ -246,12 +248,16 @@
   position: absolute;
   top: var(--w3a-tree__connector__elbow-top, 50%);
   height: var(--w3a-tree__connector__thickness);
-  width: calc((var(--indent, 0) - var(--connector-indent, var(--indent, 0))) + var(--w3a-tree__connector__elbow-length) + 0.3rem);
+  width: calc(
+    (var(--indent, 0) - var(--connector-indent, var(--indent, 0)))
+    + var(--w3a-tree__connector__elbow-length)
+    + var(--w3a-tree__connector__elbow-delta)
+  );
   left: var(--connector-indent, var(--indent, 0));
   background: var(--w3a-tree__connector__color);
 }
 
-:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0) + 0.3rem); }
+:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0)); }
 :is(w3a-tx-tree, tx-tree) .folder-children .row.file-row .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children .row[data-no-elbow="true"] .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + var(--w3a-tree__row__gap, 0px)); }
@@ -361,7 +367,7 @@
   --w3a-tree__summary-row__background: transparent;
   --w3a-tree__summary-row-hover__background: var(--w3a-slate700);
   --w3a-tree__summary-row-hover__border-color: var(--w3a-grey500);
-  --w3a-tree__summary-row__padding: 0rem;
+  --w3a-tree__summary-row__padding: 0rem 0.5rem;
   --w3a-tree__label__color: var(--w3a-grey75);
   --w3a-tree__label__font-size: 0.875rem;
   --w3a-tree__label__gap: 4px;
@@ -425,7 +431,7 @@
   --w3a-tree__summary-row__background: transparent;
   --w3a-tree__summary-row-hover__background: var(--w3a-slate150);
   --w3a-tree__summary-row-hover__border-color: var(--w3a-slate300);
-  --w3a-tree__summary-row__padding: 0rem;
+  --w3a-tree__summary-row__padding: 0rem 0.5rem;
   --w3a-tree__label__color: var(--w3a-grey975);
   --w3a-tree__label__font-size: 0.875rem;
   --w3a-tree__label__gap: 4px;

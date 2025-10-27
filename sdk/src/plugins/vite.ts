@@ -133,6 +133,9 @@ const WALLET_SURFACE_CSS = [
   '  --w3a-colors-borderPrimary: rgba(255,255,255,0.14);',
   '  --w3a-colors-borderSecondary: rgba(255,255,255,0.1);',
   '  --w3a-colors-colorBackground: #0b0c10;',
+  '  /* Default viewport custom properties for width/height calculations */',
+  '  --w3a-vw: 100vw;',
+  '  --w3a-vh: 100vh;',
   '}',
   '',
 ].join('\n')

@@ -58,9 +58,12 @@ export class DrawerElement extends LitElementWithProps {
   private isClosing = false;
   private aboveFoldResizeObserver?: ResizeObserver;
   private drawerResizeObserver?: ResizeObserver;
-  private vvSyncTimeout: number | null = null;
   private detachViewportSync?: () => void;
   private _syncRAF: number | null = null;
+  private _lastOpenTranslatePct?: string;
+  private _contentAnimRAF: number | null = null;
+  private _activeHeightTransitions = 0;
+  private detachContentAnimSync?: () => void;
   // Disable transitions during first layout to avoid wrong-direction animation
   private _initialMount = true;
   // Suppress transition for the very first programmatic open
@@ -120,7 +123,7 @@ export class DrawerElement extends LitElementWithProps {
     try { this.aboveFoldResizeObserver?.disconnect(); } catch {}
     try { this.drawerResizeObserver?.disconnect(); } catch {}
     if (this.detachViewportSync) { try { this.detachViewportSync(); } catch {} this.detachViewportSync = undefined; }
-    if (this.vvSyncTimeout != null) { try { clearTimeout(this.vvSyncTimeout); } catch {} this.vvSyncTimeout = null; }
+    if (this.detachContentAnimSync) { try { this.detachContentAnimSync(); } catch {} this.detachContentAnimSync = undefined; }
   }
 
   // Ensure visual state resets immediately when `open` attribute flips
@@ -143,6 +146,8 @@ export class DrawerElement extends LitElementWithProps {
       this.requestUpdate();
     });
     try { this.drawerElement?.addEventListener('transitionend', this.handleTransitionEnd as EventListener); } catch {}
+    // Encapsulated: follow inner height transitions so the drawer animates with content
+    this.setupAnimateWithContentSync();
     // Recalculate when slot content changes or viewport resizes
     const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
     slotEl?.addEventListener('slotchange', () => this.syncCssVarsForOpenTranslate());
@@ -233,9 +238,6 @@ export class DrawerElement extends LitElementWithProps {
       this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}vh` });
     }
 
-    // Freeze open-translate while open; only recompute when closed
-    if (this.open) return;
-
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
     const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
     if (!above) return;
@@ -244,7 +246,19 @@ export class DrawerElement extends LitElementWithProps {
     const contentBottomPx = Math.max(0, Math.round(aboveRect.bottom - drawerRect.top));
     const sheetPx = drawer.offsetHeight || (typeof window !== 'undefined' ? window.innerHeight : contentBottomPx);
     const ratio = clamp(1 - contentBottomPx / Math.max(1, sheetPx), 0, 1);
-    this.setCssVars({ '--w3a-drawer__open-translate': (ratio * 100).toFixed(4) + '%' });
+    const pct = (ratio * 100).toFixed(4) + '%';
+
+    // Avoid thrashing if value hasn't meaningfully changed
+    if (pct === this._lastOpenTranslatePct) return;
+
+    // If we're open, allow transform transitions to run so the drawer
+    // follows content growth in real time.
+    if (this.open) {
+      try { this.drawerElement?.classList.remove('vv-sync'); } catch {}
+    }
+
+    this.setCssVars({ '--w3a-drawer__open-translate': pct });
+    this._lastOpenTranslatePct = pct;
   }
 
   // Coalesce multiple triggers into a single measurement per frame
@@ -267,6 +281,82 @@ export class DrawerElement extends LitElementWithProps {
     const type = this.open ? 'w3a:drawer-open-end' : 'w3a:drawer-close-end';
     try { this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true })); } catch {}
   };
+
+  // Single entry to wire content-height animation sync (child height transitions → drawer transform)
+  private setupAnimateWithContentSync() {
+    const host = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    if (!host) return;
+
+    const ensureLoop = () => {
+      if (this._contentAnimRAF != null) return;
+      const step = () => {
+        this._contentAnimRAF = null;
+        this._performSyncCssVarsForOpenTranslate();
+        try { this._contentAnimRAF = requestAnimationFrame(step); } catch {}
+      };
+      try { this._contentAnimRAF = requestAnimationFrame(step); } catch {}
+    };
+
+    const stopLoop = () => {
+      if (this._contentAnimRAF != null) { try { cancelAnimationFrame(this._contentAnimRAF); } catch {} this._contentAnimRAF = null; }
+      this.syncCssVarsForOpenTranslate();
+    };
+
+    const syncTimingFromElement = (el: Element) => {
+      try {
+        const cs = getComputedStyle(el);
+        const props = (cs.transitionProperty || '').split(',').map(s => s.trim());
+        const durations = (cs.transitionDuration || '').split(',').map(s => s.trim());
+        const easings = (cs.transitionTimingFunction || '').split(',').map(s => s.trim());
+        let idx = props.findIndex(p => p === 'height');
+        if (idx < 0) idx = props.findIndex(p => p === 'all');
+        if (idx < 0) idx = 0;
+        const dur = durations[Math.min(idx, durations.length - 1)] || '100ms';
+        const ease = easings[Math.min(idx, easings.length - 1)] || 'cubic-bezier(0.2, 0.6, 0.2, 1)';
+        this.setCssVars({ '--w3a-drawer__transition-duration': dur, '--w3a-drawer__transition-easing': ease });
+      } catch {}
+    };
+
+    const onRun = (ev: Event) => {
+      const e = ev as TransitionEvent;
+      if (!this.open) return;
+      if (e.propertyName !== 'height') return;
+      this._activeHeightTransitions++;
+      ensureLoop();
+    };
+
+    const onStart = (ev: Event) => {
+      const e = ev as TransitionEvent;
+      if (!this.open) return;
+      if (e.propertyName !== 'height') return;
+      try { if (e.target && e.target instanceof Element) syncTimingFromElement(e.target); } catch {}
+      this._activeHeightTransitions++;
+      ensureLoop();
+    };
+
+    const onEnd = (ev: Event) => {
+      const e = ev as TransitionEvent;
+      if (e.propertyName !== 'height') return;
+      this._activeHeightTransitions = Math.max(0, this._activeHeightTransitions - 1);
+      if (this._activeHeightTransitions === 0) stopLoop();
+    };
+
+    try {
+      host.addEventListener('transitionrun', onRun, true);
+      host.addEventListener('transitionstart', onStart, true);
+      host.addEventListener('transitionend', onEnd, true);
+    } catch {}
+
+    this.detachContentAnimSync = () => {
+      try { host.removeEventListener('transitionrun', onRun, true); } catch {}
+      try { host.removeEventListener('transitionstart', onStart, true); } catch {}
+      try { host.removeEventListener('transitionend', onEnd, true); } catch {}
+      if (this._contentAnimRAF != null) { try { cancelAnimationFrame(this._contentAnimRAF); } catch {} this._contentAnimRAF = null; }
+      this._activeHeightTransitions = 0;
+    };
+  }
+
+
 
   private setupDragListeners() {
     if (!this.dragToClose) return;
@@ -327,11 +417,6 @@ export class DrawerElement extends LitElementWithProps {
     if (!drawerElement) return;
     // Avoid fighting with active drag state; dragging already disables transitions
     if (!this.isDragging) drawerElement.classList.add('vv-sync');
-    if (this.vvSyncTimeout != null) { try { clearTimeout(this.vvSyncTimeout); } catch {} }
-    this.vvSyncTimeout = setTimeout(() => {
-      this.vvSyncTimeout = null as any;
-      try { drawerElement.classList.remove('vv-sync'); } catch {}
-    }, 120) as unknown as number;
   }
 
   private removeDragListeners() {

@@ -616,18 +616,23 @@ export class TxTree extends LitElementWithProps {
     super.applyStyles(styles, 'tree');
   }
 
-  // Allow opting into light DOM to consume external CSS (tx-tree.css)
-  // Usage: <w3a-tx-tree light-dom ...>
+  // Prefer light DOM rendering so styles are fully externalized for strict CSP.
+  // External tx-tree.css is ensured for both light/shadow contexts, but we render
+  // in light DOM by default to avoid Lit injecting a <style> tag.
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    if (this.hasAttribute('light-dom')) {
-      // Ensure tx-tree.css is applied when rendering in light DOM
-      ensureExternalStyles(this as unknown as HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-      return this as unknown as HTMLElement;
-    }
-    const root = super.createRenderRoot();
-    // Ensure tx-tree.css is applied to the shadow root
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-    return root;
+    // Always adopt external stylesheet for light DOM usage
+    ensureExternalStyles(this as unknown as HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    // If this component is rendered inside another component's ShadowRoot
+    // (e.g., inside the embedded button tooltip), ensure the stylesheet is
+    // also adopted into that ShadowRoot so styles apply across the boundary.
+    try {
+      const root = (this.getRootNode && this.getRootNode()) as any;
+      if (root && typeof root === 'object' && 'host' in root) {
+        // Heuristic: ShadowRoot has a 'host' property
+        ensureExternalStyles(root as ShadowRoot, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+      }
+    } catch {}
+    return this as unknown as HTMLElement;
   }
 
   /**

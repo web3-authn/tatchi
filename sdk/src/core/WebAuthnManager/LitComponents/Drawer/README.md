@@ -17,7 +17,7 @@ Props
 
 Key behaviors
 - First open is gated via the viewer by awaiting external styles and a double rAF to avoid first‑paint jank.
-- Resting position is computed from content height when the drawer is closed; while open, the rest calculation is frozen to avoid mid‑animation jumps.
+- Dynamic height: when `height` is not provided (or set to `auto`), the drawer continuously fits the visible area to its slotted content. Content changes detected via `slotchange` and `ResizeObserver` trigger a recalculation even while open. Transitions are temporarily suppressed during these reflows to avoid mid‑animation jumps, ensuring children (e.g., TxTree) remain fully visible up to viewport limits.
 - Measurements (slotchange, ResizeObserver, window resize) are coalesced to one per frame to reduce layout thrash.
 
 CSS tokens

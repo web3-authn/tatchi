@@ -78,6 +78,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
   deferClose = false;
+  // Styles gating to avoid first-paint FOUC
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
 
   // Internal state
   // Keep essential custom elements from being tree-shaken
@@ -113,6 +117,20 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
 
   // No inline static styles; see modal-confirmer.css
+  constructor() {
+    super();
+    // Pre-ensure document-level styles so link loads can complete before first render
+    try {
+      const root = (document?.documentElement || null) as unknown as HTMLElement | null;
+      if (root) {
+        this._stylePromises.push(
+          ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
+          ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+          ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        );
+      }
+    } catch {}
+  }
 
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
@@ -131,9 +149,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     // tx-tree.css for nested TxTree visuals inside the modal
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css'));
     // modal-confirmer.css for modal layout + tokens
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css').catch(() => {});
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
+    // Base component tokens (host-level CSS variables)
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css'));
     return root;
   }
 
@@ -168,6 +188,17 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     } catch {}
   }
 
+  protected shouldUpdate(_changed: PropertyValues): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const p = Promise.all(this._stylePromises).then(
+        () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      );
+      this._stylesAwaiting = p.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
+  }
+
   render() {
     return html`
       <!-- Separate backdrop layer for independent animation -->
@@ -177,71 +208,71 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
         <div class="modal-container-root">
 
           <div class="responsive-card">
-            <div class="hero">
-              <w3a-passkey-halo-loading
-                .theme=${this.theme}
-                .animated=${!this.errorMessage ? true : false}
-                .ringGap=${0}
-                .ringWidth=${4}
-                .ringBorderRadius=${'1.25rem'}
-                .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
-                .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 4px)'}
-                .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
-                .height=${36}
-                .width=${36}
-              ></w3a-passkey-halo-loading>
-              <div class="hero-container">
-                <!-- Hero heading -->
-                ${(() => {
-                  const isRegistration = (this.txSigningRequests?.length || 0) === 0;
-                  const heading = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
-                  return html`<h2 class="hero-heading">${heading}</h2>`;
-                })()}
-                ${this.errorMessage
-                  ? html`<div class="error-banner">${this.errorMessage}</div>`
-                  : ''}
-                <!-- RpID Section -->
-                <div class="rpid-wrapper">
-                  <div class="rpid">
-                    <div class="secure-indicator">
-                      <svg xmlns="http://www.w3.org/2000/svg"
-                        class="padlock-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                      </svg>
-                      ${this.vrfChallenge?.rpId
-                        ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
-                        : ''}
+              <div class="hero">
+                <w3a-passkey-halo-loading
+                  .theme=${this.theme}
+                  .animated=${!this.errorMessage ? true : false}
+                  .ringGap=${0}
+                  .ringWidth=${4}
+                  .ringBorderRadius=${'1.25rem'}
+                  .ringBackground=${'var(--w3a-modal__passkey-halo-loading__ring-background)'}
+                  .innerPadding=${'var(--w3a-modal__passkey-halo-loading__inner-padding, 4px)'}
+                  .innerBackground=${'var(--w3a-modal__passkey-halo-loading__inner-background)'}
+                  .height=${36}
+                  .width=${36}
+                ></w3a-passkey-halo-loading>
+                <div class="hero-container">
+                  <!-- Hero heading -->
+                  ${(() => {
+                    const isRegistration = (this.txSigningRequests?.length || 0) === 0;
+                    const heading = isRegistration ? 'Register with Passkey' : 'Confirm with Passkey';
+                    return html`<h2 class="hero-heading">${heading}</h2>`;
+                  })()}
+                  ${this.errorMessage
+                    ? html`<div class="error-banner">${this.errorMessage}</div>`
+                    : ''}
+                  <!-- RpID Section -->
+                  <div class="rpid-wrapper">
+                    <div class="rpid">
+                      <div class="secure-indicator">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                          class="padlock-icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                        ${this.vrfChallenge?.rpId
+                          ? html`<span class="domain-text">${this.vrfChallenge.rpId}</span>`
+                          : ''}
+                      </div>
+                      <span class="security-details">
+                        <svg xmlns="http://www.w3.org/2000/svg"
+                          class="block-height-icon"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A 2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+                          <path d="m3.3 7 8.7 5 8.7-5"/>
+                          <path d="M12 22V12"/>
+                        </svg>
+                        ${this.vrfChallenge?.rpId
+                          ? html`block ${this.vrfChallenge.blockHeight}`
+                          : ''}
+                      </span>
                     </div>
-                    <span class="security-details">
-                      <svg xmlns="http://www.w3.org/2000/svg"
-                        class="block-height-icon"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      >
-                        <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
-                        <path d="m3.3 7 8.7 5 8.7-5"/>
-                        <path d="M12 22V12"/>
-                      </svg>
-                      ${this.vrfChallenge?.rpId
-                        ? html`block ${this.vrfChallenge.blockHeight}`
-                        : ''}
-                    </span>
                   </div>
                 </div>
               </div>
-            </div>
           </div>
 
           <div class="responsive-card">

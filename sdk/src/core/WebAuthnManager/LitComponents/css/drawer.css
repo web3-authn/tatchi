@@ -5,6 +5,9 @@ w3a-drawer {
   --w3a-drawer__max-width: 420px;
   --w3a-drawer__sheet-height: 100dvh; /* prefer dynamic viewport */
   --w3a-drawer__open-offset: 0px;     /* mobile chrome compensation */
+  /* Match TxTree row expand/collapse timing */
+  --w3a-drawer__transition-duration: 100ms;
+  --w3a-drawer__transition-easing: cubic-bezier(0.2, 0.6, 0.2, 1);
 
   /* Colors (inherit from w3a-components by default) */
   --w3a-colors-textPrimary: var(--w3a-grey75);
@@ -64,7 +67,7 @@ w3a-drawer[theme="light"] {
   border-radius: 2rem;
   border: none;
   transform: translateY(100%);
-  transition: transform var(--w3a-drawer__transition-duration, 0.15s) var(--w3a-drawer__transition-easing, cubic-bezier(0.32, 0.72, 0, 1));
+  transition: transform var(--w3a-drawer__transition-duration, 100ms) var(--w3a-drawer__transition-easing, cubic-bezier(0.2, 0.6, 0.2, 1));
   will-change: transform;
   box-shadow: 0 0px 8px rgba(0,0,0,0.2);
   padding: 0.5rem;

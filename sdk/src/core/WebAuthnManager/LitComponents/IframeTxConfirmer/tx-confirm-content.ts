@@ -59,8 +59,24 @@ export class TxConfirmContentElement extends LitElementWithProps {
   // No static styles: structural styles are provided by modal-confirmer.css
   static styles = css``;
 
+  // Styles gating to avoid first-paint before tx-tree.css is ready
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
+
   constructor() {
     super();
+    // Pre-ensure document-level styles to warm the cache and await link loads
+    try {
+      const root = (document?.documentElement || null) as unknown as HTMLElement | null;
+      if (root) {
+        this._stylePromises.push(
+          ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+          ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+          ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
+        );
+      }
+    } catch {}
     this.nearAccountId = '';
     this.txSigningRequests = [];
     this.theme = 'dark';
@@ -76,9 +92,9 @@ export class TxConfirmContentElement extends LitElementWithProps {
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     // Adopt tx-tree.css into this shadow root so light‑DOM TxTree is styled
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css'));
     // Also adopt modal-confirmer.css for shared confirmer styles
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css').catch(() => {});
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
     return root;
   }
 
@@ -86,6 +102,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
     super.connectedCallback();
     // Reflect tooltip width var for nested components
     this._applyTooltipWidthVar();
+    // Build initial tree from any pre-set props (upgrade-safe)
+    this._rebuildTree();
     // Prevent drawer drag initiation from content area
     try {
       this.addEventListener('pointerdown', this._stopDragStart as EventListener);
@@ -104,11 +122,15 @@ export class TxConfirmContentElement extends LitElementWithProps {
     super.disconnectedCallback();
   }
 
-  firstUpdated(): void {
-    // Build initial tree even if the first assignment happened before upgrade
-    this._rebuildTree();
-    // Width is CSS-driven; no resize handling needed
-    this._applyTooltipWidthVar();
+  protected shouldUpdate(_changed: PropertyValues): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const p = Promise.all(this._stylePromises).then(
+        () => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())))
+      );
+      this._stylesAwaiting = p.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
   }
 
   updated(changed: PropertyValues) {

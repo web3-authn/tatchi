@@ -63,7 +63,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
 
     // Component-specific tree variables
     tooltipTreeRoot: {
-      padding: '0.5rem',
+      padding: '0rem',
       background: DARK_THEME.surface2,
       border: 'none',
       color: DARK_THEME.textPrimary,
@@ -186,7 +186,7 @@ export const TX_TREE_THEMES: Record<TxTreeTheme, TxTreeStyles> = {
 
     // Component-specific tree variables
     tooltipTreeRoot: {
-      padding: '0.5rem',
+      padding: '0rem',
       background: LIGHT_THEME.surface,
       border: 'none',
       color: LIGHT_THEME.textPrimary,
