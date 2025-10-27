@@ -74,6 +74,7 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   loadingTouchIdPrompt?: boolean;
   buttonSizing?: { width?: string | number; height?: string | number };
   requestUpdate?: () => void;
+  applyContainerPosition?: (x: number, y: number) => void;
 }
 
 type EmbeddedTxButtonElType = HTMLElement & EmbeddedTxButtonEl;
@@ -92,37 +93,40 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
     window.__ETX_PARENT_ORIGIN = PARENT_ORIGIN;
   }
 
-  // STEP 2: Apply button positioning (critical for geometry handshake)
+  // STEP 2: Apply button positioning (CSP-safe via element API + CSS variables)
   if (payload.buttonPosition) {
     const MAX_RETRIES = 60; // ~1.2s at 20ms each
     const DELAY_MS = 20;
 
     const tryApply = (retriesLeft: number): void => {
-      const c = el.shadowRoot?.querySelector(SELECTORS.EMBEDDED_CONFIRM_CONTAINER) as HTMLElement | null;
-      if (c) {
-        // Position the button container absolutely at the specified coordinates
-        c.style.position = 'absolute';
-        c.style.top = String(payload.buttonPosition.y) + 'px';
-        c.style.left = String(payload.buttonPosition.x) + 'px';
-        c.style.transform = 'none';
-        // Force a reflow to ensure positioning is applied before any measurements
-        c.offsetHeight;
-        // Notify parent that positioning is complete
-        const positionedMessage: IframeButtonMessage = {
-          type: 'HS2_POSITIONED',
-          payload: payload.buttonPosition
-        };
-        try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
+      const el2 = document.getElementById('etx') as EmbeddedTxButtonElType | null;
+      if (el2 && typeof el2.applyContainerPosition === 'function') {
+
+        el2.applyContainerPosition(payload.buttonPosition.x, payload.buttonPosition.y);
+        // Allow one frame for styles to apply, then notify parent
+
+        try {
+          requestAnimationFrame(() => {
+            const positionedMessage: IframeButtonMessage = {
+              type: 'HS2_POSITIONED',
+              payload: payload.buttonPosition
+            };
+            try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
+          });
+        } catch {
+          // Fallback: immediate notify
+          const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
+          try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
+        }
         return;
       }
       if (retriesLeft <= 0) {
-        console.warn('[IframeButtonBootstrap] positioning timeout: container not ready');
+        console.warn('[IframeButtonBootstrap] positioning timeout: element API not ready');
         return;
       }
       setTimeout(() => tryApply(retriesLeft - 1), DELAY_MS);
     };
 
-    // Start attempts; handles both immediate and delayed shadow DOM readiness
     tryApply(MAX_RETRIES);
   }
 

@@ -1068,6 +1068,23 @@ export class EmbeddedTxButton extends LitElementWithProps {
   protected applyStyles(styles: EmbeddedTxButtonStyles): void {
     super.applyStyles(styles, this.getComponentPrefix());
   }
+
+  // ==============================
+  // Container Position API (CSP-safe)
+  // ==============================
+  /**
+   * Applies absolute positioning to the confirm container via CSS variables,
+   * avoiding any inline style attribute writes (CSP friendly).
+   */
+  public applyContainerPosition(x: number, y: number): void {
+    // These CSS variables are consumed by the [data-embedded-tx-button-root] rule
+    this.setCssVars({
+      '--w3a-embedded__confirm-container__position-absolute': 'absolute',
+      '--w3a-embedded__confirm-container__top': `${Math.floor(y)}px`,
+      '--w3a-embedded__confirm-container__left': `${Math.floor(x)}px`,
+      '--w3a-embedded__confirm-container__transform': 'none',
+    });
+  }
 }
 
 // Define the custom element and legacy alias for backwards compatibility

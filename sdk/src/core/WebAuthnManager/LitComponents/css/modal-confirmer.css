@@ -1,5 +1,5 @@
 /* Theme tokens for modal and drawer confirmers
- * These map the TS theme object (previously injected at runtime) into
+ * These map the TS theme object into
  * static CSS variables that components read in their styles.
  */
 
@@ -175,7 +175,7 @@ w3a-drawer-tx-confirmer[theme="light"] {
   --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textSecondary);
 }
 
-/* Structural styles for modal confirmer (extracted from viewer-modal.ts) */
+/* Structural styles for modal confirmer */
 :host {
 
   /* Default style-guide variables (can be overridden by applyStyles) */
@@ -188,8 +188,6 @@ w3a-drawer-tx-confirmer[theme="light"] {
   --w3a-radius-md: 0.5rem;
   --w3a-radius-lg: 0.75rem;
   --w3a-radius-xl: 1rem;
-
-  /* Spacing tokens only; no legacy gap vars */
 
   /* Component display */
   display: block;
@@ -301,15 +299,6 @@ w3a-modal-tx-confirmer {
   }
 }
 
-.responsive-card {
-  position: relative;
-  max-width: 600px;
-  overflow: visible;
-  border-radius: 2rem;
-  z-index: 1;
-  padding: var(--w3a-modal__responsive-card__padding, 0rem);
-  margin: var(--w3a-modal__responsive-card__margin, 0px);
-}
 .card-background-border {
   border-radius: var(--w3a-modal__card-background-border-radius, 2rem);
   background: var(--w3a-modal__card-background-border__background, oklch(0.25 0.012 240));
@@ -317,9 +306,7 @@ w3a-modal-tx-confirmer {
   margin: var(--w3a-modal__card-background-border__margin, 0px);
 }
 
-.rpid-wrapper {
-}
-.rpid {
+.modal-container-root .rpid {
   display: flex;
   /* Allow host to control direction via CSS var */
   flex-direction: var(--w3a-modal__rpid__flex-direction, column);
@@ -330,35 +317,8 @@ w3a-modal-tx-confirmer {
   color: var(--w3a-modal__label__color);
   font-weight: 400;
 }
-.secure-indicator {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.padlock-icon {
-  width: 1em;
-  height: 1em;
-  margin-inline-end: 0.5em;
-  flex: none;
-  color: var(--w3a-modal__padlock-icon__color, rgba(255, 255, 255, 0.6));
-}
-.block-height-icon {
-  width: 1em;
-  height: 1em;
-  margin-inline-end: 0.5em;
-  flex: none;
-  color: var(--w3a-modal__block-height-icon__color, rgba(255, 255, 255, 0.6));
-}
 .domain-text {
   color: var(--w3a-modal__domain-text__color, rgba(255, 255, 255, 0.6));
-}
-.security-details {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--w3a-modal__security-details__color, rgba(255, 255, 255, 0.6));
 }
 
 /* Hero section with halo and headings */
@@ -836,8 +796,9 @@ w3a-drawer {
 .rpid-wrapper {
   margin-bottom: 1rem;
 }
-.rpid {
+.drawer-tx-confirmer-root .rpid {
   display: flex;
+  flex-direction: row;
   align-items: flex-start;
   gap: 6px;
   margin-top: 2px;

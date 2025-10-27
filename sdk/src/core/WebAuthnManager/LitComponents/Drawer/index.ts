@@ -514,6 +514,8 @@ export class DrawerElement extends LitElementWithProps {
       if (Number.isFinite(ty)) this.openRestTranslateYPx = ty as number;
 
       // Seed drag translate to current position before enabling .dragging to prevent jumps
+      // Prevent initial flash to top when adding the dragging class by
+      // publishing the current translateY as the drag variable first.
       this.setCssVars({ '--w3a-drawer__drag-translate': `${this.startTranslateYPx}px` });
       this.drawerElement.classList.add('dragging');
     }
