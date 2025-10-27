@@ -65,6 +65,5 @@ jobs:
 
       - name: Run lit-components unit tests
         env:
-          USE_RELAY_SERVER: '1'
           NO_CADDY: '1'
         run: pnpm -C sdk test:lit-components

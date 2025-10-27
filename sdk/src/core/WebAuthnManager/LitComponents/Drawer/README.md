@@ -2,7 +2,18 @@
 
 Overview
 - Slide-up drawer used by the Tx confirmer (viewer-drawer) and other flows.
-- Structural styles and tokens live in `css/drawer.css` and are adopted in the component's ShadowRoot.
+- Structural styles and tokens live in `css/drawer.css` and are adopted in the component’s ShadowRoot.
+
+Props
+- `open: boolean` — controls visibility; reflected to attribute.
+- `theme: 'dark' | 'light'` — token set used by `w3a-components.css` and `drawer.css`.
+- `loading: boolean` — disables certain interactions (e.g., close, drag) while true.
+- `errorMessage?: string` — optional error banner shown inside the body.
+- `dragToClose: boolean` (default `true`) — enables drag gestures to close.
+- `showCloseButton: boolean` (default `true`) — toggles the × button in the corner.
+- `height?: string` — preferred visible height; accepts `vh/dvh/svh/lvh` (e.g., `60vh`).
+  - When not set, the drawer fits the “above-fold” content.
+- `overpullPx: number` (default `120`) — minimum upward overpull allowance (px) used by the elastic curve.
 
 Key behaviors
 - First open is gated via the viewer by awaiting external styles and a double rAF to avoid first‑paint jank.
