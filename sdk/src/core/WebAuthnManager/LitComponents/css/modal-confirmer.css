@@ -105,6 +105,17 @@ w3a-drawer-tx-confirmer {
   --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
 }
 
+/* Tx confimer variants set layout tokens */
+w3a-modal-tx-confirmer {
+  /* Modal uses column layout for rpid */
+  --w3a-modal__rpid__flex-direction: column;
+}
+
+w3a-drawer-tx-confirmer {
+  /* Drawer uses row layout for rpid */
+  --w3a-modal__rpid__flex-direction: row;
+}
+
 /* Light theme overrides */
 w3a-modal-tx-confirmer[theme="light"],
 w3a-drawer-tx-confirmer[theme="light"] {
@@ -310,7 +321,8 @@ w3a-modal-tx-confirmer {
 }
 .rpid {
   display: flex;
-  flex-direction: column;
+  /* Allow host to control direction via CSS var */
+  flex-direction: var(--w3a-modal__rpid__flex-direction, column);
   align-items: flex-start;
   gap: 2px;
   margin-top: 2px;

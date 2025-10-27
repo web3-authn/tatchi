@@ -506,6 +506,7 @@ export default defineConfig([
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
           } catch (err) {
             console.warn('⚠️  Unable to emit wallet static assets:', err);

@@ -51,6 +51,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
   private _drawerEl: any | null = null;
+  private _open: boolean = false;
+
   private _onWindowMessage = (ev: MessageEvent) => {
     try {
       const data = (ev && ev.data) || {};
@@ -59,20 +61,19 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
         const msg = typeof (data as any).payload === 'string' && (data as any).payload
           ? (data as any).payload
           : 'Operation timed out';
-        try { this.loading = false; } catch {}
-        try { this.errorMessage = msg; } catch {}
+        this.loading = false;
+        this.errorMessage = msg;
         // Best-effort close and emit cancel so host resolves and cleans up
-        try { this._drawerEl?.handleClose?.(); } catch {}
-        try {
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-            bubbles: true,
-            composed: true,
-            detail: { confirmed: false }
-          }));
-        } catch {}
+        this._drawerEl?.handleClose?.();
+        this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+          bubbles: true,
+          composed: true,
+          detail: { confirmed: false }
+        }));
       }
     } catch {}
   };
+
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       if (this.loading) return;
@@ -135,6 +136,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   firstUpdated(): void {
     this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
+    // Open after mount to play entry animation from bottom
+    requestAnimationFrame(() => { this._open = true; this.requestUpdate(); });
   }
 
   disconnectedCallback(): void {
@@ -157,6 +160,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   private onDrawerCancel = () => {
     if (this.loading) return;
     try {
+      // Close drawer locally to ensure animation
+      this._open = false;
+      this.requestUpdate();
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
         bubbles: true,
         composed: true,
@@ -182,6 +188,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   private onContentCancel = () => {
     if (this.loading) return;
     try { this._drawerEl?.handleClose(); } catch {}
+    try { this._open = false; this.requestUpdate(); } catch {}
     try {
       this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
         bubbles: true,
@@ -199,7 +206,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   render() {
     return html`
       <w3a-drawer
-        .open=${true}
+        .open=${this._open}
         theme=${this.theme}
         .loading=${this.loading}
         .errorMessage=${this.errorMessage || ''}

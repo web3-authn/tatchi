@@ -1,0 +1,50 @@
+.w3a-ovf {
+  position: fixed;
+  border: none;
+  box-sizing: border-box;
+  background: transparent;
+  color-scheme: normal;
+}
+
+.w3a-ovf.hidden {
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+  z-index: auto;
+  transform: none;
+  inset: auto;
+  top: auto;
+  left: auto;
+}
+
+.w3a-ovf.fullscreen {
+  inset: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 2147483646;
+}
+@supports (width: 100dvw) and (height: 100dvh) {
+  .w3a-ovf.fullscreen {
+    width: 100dvw;
+    height: 100dvh;
+  }
+}
+
+.w3a-ovf.anchored {
+  position: fixed;
+  top: var(--w3a-ovf-top, 0px);
+  left: var(--w3a-ovf-left, 0px);
+  width: var(--w3a-ovf-width, 1px);
+  height: var(--w3a-ovf-height, 1px);
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 2147483646;
+}
+

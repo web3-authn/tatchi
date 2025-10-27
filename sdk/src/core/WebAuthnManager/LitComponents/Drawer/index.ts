@@ -513,6 +513,8 @@ export class DrawerElement extends LitElementWithProps {
       // Align logical "rest" with actual CSS transform (which may include offsets)
       if (Number.isFinite(ty)) this.openRestTranslateYPx = ty as number;
 
+      // Seed drag translate to current position before enabling .dragging to prevent jumps
+      this.setCssVars({ '--w3a-drawer__drag-translate': `${this.startTranslateYPx}px` });
       this.drawerElement.classList.add('dragging');
     }
   }
