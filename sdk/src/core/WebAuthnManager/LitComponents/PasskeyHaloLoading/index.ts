@@ -1,5 +1,4 @@
 import { html, css } from 'lit';
-import { styleMap } from 'lit/directives/style-map.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import type { HaloTheme } from '../HaloBorder';
 import '../HaloBorder';
@@ -44,7 +43,35 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     :host {
       display: inline-block;
     }
+
+    .w3a-passkey-loading-root { display: inline-grid; }
+
+    .w3a-passkey-loading-touch-icon-container {
+      display: grid;
+      place-items: center;
+      background-color: var(--w3a-modal__passkey-halo-loading-icon-container__background-color);
+      border-radius: var(--w3a-modal__passkey-halo-loading-icon-container__border-radius, 1.125rem);
+      width: fit-content;
+      height: fit-content;
+    }
+
+    .w3a-passkey-loading-touch-icon {
+      color: var(--w3a-modal__passkey-halo-loading-touch-icon__color);
+      margin: var(--w3a-modal__passkey-halo-loading-touch-icon__margin, 0.75rem);
+    }
   `;
+
+  protected updated(): void {
+    // Bridge prop overrides into CSS variables to avoid inline styles
+    const vars: Record<string, string> = {};
+    if (this.iconContainerBackgroundColor) {
+      vars['--w3a-modal__passkey-halo-loading-icon-container__background-color'] = this.iconContainerBackgroundColor;
+    }
+    if (this.iconContainerBorderRadius) {
+      vars['--w3a-modal__passkey-halo-loading-icon-container__border-radius'] = this.iconContainerBorderRadius;
+    }
+    if (Object.keys(vars).length) this.setCssVars(vars);
+  }
 
   render() {
     const theme = this.theme ?? 'light';
@@ -59,17 +86,6 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
     const padding = this.padding;
     const innerPadding = this.innerPadding ?? '4px';
     const innerBackground = this.innerBackground;
-    const iconContainerBorderRadius = this.iconContainerBorderRadius ?? '1.125rem';
-    const iconContainerBackgroundColor = this.iconContainerBackgroundColor ?? 'var(--w3a-modal__passkey-halo-loading-icon-container__background-color)';
-
-    const iconContainerStyle = {
-      display: 'grid',
-      placeItems: 'center',
-      backgroundColor: iconContainerBackgroundColor,
-      borderRadius: iconContainerBorderRadius,
-      width: 'fit-content',
-      height: 'fit-content',
-    } as Record<string, string>;
 
     return html`
       <div class="w3a-passkey-loading-root ${theme}">
@@ -85,7 +101,7 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
           .innerPadding=${innerPadding}
           .innerBackground=${innerBackground}
         >
-          <div class="w3a-passkey-loading-touch-icon-container" style=${styleMap(iconContainerStyle)}>
+          <div class="w3a-passkey-loading-touch-icon-container">
             ${this.renderTouchIcon({ height, width })}
           </div>
         </w3a-halo-border>
@@ -94,16 +110,11 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
   }
 
   private renderTouchIcon({ height, width }: { height: number; width: number; }) {
-    const iconStyle = {
-      color: 'var(--w3a-modal__passkey-halo-loading-touch-icon__color)',
-      margin: 'var(--w3a-modal__passkey-halo-loading-touch-icon__margin, 0.75rem)',
-    } as Record<string, string>;
-
     const strokeWidth = 'var(--w3a-modal__passkey-halo-loading-touch-icon__stroke-width, 3)';
 
     return html`
       <svg
-        style=${styleMap(iconStyle)}
+        class="w3a-passkey-loading-touch-icon"
         width=${width}
         height=${height}
         viewBox="0 0 24 24"

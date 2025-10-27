@@ -39,12 +39,13 @@ test.describe('Wallet iframe handshake', () => {
     const iframeAttributes = await page.evaluate(() => {
       const iframeEl = document.querySelector('iframe');
       if (!iframeEl) return null;
+      const cs = window.getComputedStyle(iframeEl as HTMLIFrameElement);
       return {
         src: iframeEl.getAttribute('src'),
         allow: iframeEl.getAttribute('allow'),
         sandbox: iframeEl.getAttribute('sandbox'),
-        pointerEvents: (iframeEl as HTMLIFrameElement).style.pointerEvents,
-        opacity: (iframeEl as HTMLIFrameElement).style.opacity,
+        pointerEvents: cs.pointerEvents,
+        opacity: cs.opacity,
       };
     });
 

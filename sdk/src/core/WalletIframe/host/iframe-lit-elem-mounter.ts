@@ -58,6 +58,7 @@ const __ensureTreeDefinition = [__IframeButtonKeep];
 
 // Wallet host lit wrappers (no nested wallet iframe)
 import './WalletHostElements';
+import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mounter-styles';
 
 try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
 
@@ -79,16 +80,8 @@ export function setupLitElemMounter(opts: {
   const mountedById = new Map<string, HTMLElement>();
   let uidCounter = 0;
 
-  try {
-    document.documentElement.style.background = 'transparent';
-    document.documentElement.style.margin = '0';
-    document.documentElement.style.padding = '0';
-  } catch {}
-  try {
-    document.body.style.background = 'transparent';
-    document.body.style.margin = '0';
-    document.body.style.padding = '0';
-  } catch {}
+  // Ensure global host styles via stylesheet (no inline style attributes)
+  try { ensureHostBaseStyles(); } catch {}
 
   const pickRoot = (selector?: string | null): HTMLElement => {
     try {
@@ -209,24 +202,9 @@ export function setupLitElemMounter(opts: {
       const height = Number((vr as any).height);
       if ([top, left, width, height].every((n) => Number.isFinite(n))) {
         const container = document.createElement('div');
-        container.style.position = 'fixed';
-        if (anchorMode === 'iframe') {
-          // When the parent has already anchored the iframe to the desired rect,
-          // place the container at (0,0) inside the iframe viewport.
-          container.style.top = '0px';
-          container.style.left = '0px';
-        } else {
-          container.style.top = `${Math.max(0, Math.round(top))}px`;
-          container.style.left = `${Math.max(0, Math.round(left))}px`;
-        }
-        container.style.width = `${Math.max(1, Math.round(width))}px`;
-        container.style.height = `${Math.max(1, Math.round(height))}px`;
-        container.style.pointerEvents = 'auto';
-        container.style.background = 'transparent';
-        container.style.border = '0';
-        container.style.margin = '0';
-        container.style.padding = '0';
-        container.style.zIndex = '2147483647';
+        // Mark container and apply anchored geometry via stylesheet
+        try { markContainer(container); } catch {}
+        try { setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport'); } catch {}
         container.appendChild(el);
         // Bridge pointer enter/leave to parent so it can manage lifecycle without flicker
         try {
@@ -254,7 +232,7 @@ export function setupLitElemMounter(opts: {
     const props = (payload?.props || {}) as Record<string, unknown>;
 
     // If node is a fixed-position container (viewportRect anchoring), update its rect
-    const isContainer = (node as HTMLElement).style?.position === 'fixed' && (node as HTMLElement).firstElementChild;
+    const isContainer = ((node as HTMLElement).dataset?.w3aContainer === '1') && (node as HTMLElement).firstElementChild;
     if (isContainer) {
       const container = node as HTMLElement;
       const vr = props.viewportRect as { top?: unknown; left?: unknown; width?: unknown; height?: unknown } | undefined;
@@ -265,15 +243,7 @@ export function setupLitElemMounter(opts: {
         const width = Number((vr as any).width);
         const height = Number((vr as any).height);
         if ([top, left, width, height].every((n) => Number.isFinite(n))) {
-          if (anchorMode === 'iframe') {
-            container.style.top = '0px';
-            container.style.left = '0px';
-          } else {
-            container.style.top = `${Math.max(0, Math.round(top))}px`;
-            container.style.left = `${Math.max(0, Math.round(left))}px`;
-          }
-          container.style.width = `${Math.max(1, Math.round(width))}px`;
-          container.style.height = `${Math.max(1, Math.round(height))}px`;
+          try { setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport'); } catch {}
         }
       }
       // Update child element props (mode, label, disabled, etc.)

@@ -40,6 +40,7 @@
  */
 
 export type DOMRectLike = { top: number; left: number; width: number; height: number };
+import { setAnchored, setFullscreen, setHidden } from './overlay-styles';
 
 type Mode = 'hidden' | 'fullscreen' | 'anchored';
 
@@ -71,33 +72,8 @@ export class OverlayController {
     this.mode = 'fullscreen';
     this.rect = null;
 
-    // Step 1: Set up fullscreen positioning
-    iframe.style.position = 'fixed';
-    iframe.style.border = 'none';
-    iframe.style.boxSizing = 'border-box';
-    iframe.style.transform = '';
-    iframe.style.right = '';
-    iframe.style.bottom = '';
-    iframe.style.inset = '0';
-    iframe.style.top = '0';
-    iframe.style.left = '0';
-    // Use dynamic viewport units when supported; fall back to classic vw/vh.
-    try {
-      const useDvw = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('width', '100dvw');
-      const useDvh = typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '100dvh');
-      iframe.style.width = useDvw ? '100dvw' : '100vw';
-      iframe.style.height = useDvh ? '100dvh' : '100vh';
-    } catch {
-      iframe.style.width = '100vw';
-      iframe.style.height = '100vh';
-    }
-
-    // Step 2: Make overlay visible and interactive
-    iframe.style.background = 'transparent';
-    (iframe.style as any).colorScheme = 'normal';
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'auto';
-    iframe.style.zIndex = '2147483646'; // High z-index to be above all content
+    // Apply fullscreen via CSS classes (CSP-safe)
+    setFullscreen(iframe);
 
     // Step 3: Set accessibility attributes
     iframe.setAttribute('aria-hidden', 'false');
@@ -116,27 +92,8 @@ export class OverlayController {
     this.mode = 'anchored';
     this.rect = { ...rect };
 
-    // Step 1: Clear conflicting CSS properties first
-    iframe.style.position = 'fixed';
-    iframe.style.border = 'none';
-    iframe.style.boxSizing = 'border-box';
-    iframe.style.right = '';
-    iframe.style.bottom = '';
-    iframe.style.inset = '';
-    iframe.style.transform = '';
-
-    // Step 2: Set explicit positioning with basic clamping
-    iframe.style.top = `${Math.max(0, Math.round(rect.top))}px`;
-    iframe.style.left = `${Math.max(0, Math.round(rect.left))}px`;
-    iframe.style.width = `${Math.max(1, Math.round(rect.width))}px`;
-    iframe.style.height = `${Math.max(1, Math.round(rect.height))}px`;
-
-    // Step 3: Make overlay visible and interactive
-    iframe.style.background = 'transparent';
-    (iframe.style as any).colorScheme = 'normal';
-    iframe.style.opacity = '1';
-    iframe.style.pointerEvents = 'auto';
-    iframe.style.zIndex = '2147483646';
+    // Apply anchored geometry via dynamic rule + classes (CSP-safe)
+    setAnchored(iframe, rect);
 
     // Step 4: Set accessibility attributes
     iframe.setAttribute('aria-hidden', 'false');
@@ -183,13 +140,8 @@ export class OverlayController {
     this.visible = false;
     this.mode = 'hidden';
 
-    // Step 2: Make iframe invisible and non-interactive
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
-    iframe.style.zIndex = '';
-    iframe.style.transform = '';
+    // Apply hidden state via classes (CSP-safe)
+    setHidden(iframe);
 
     // Step 3: Set accessibility attributes for hidden state
     iframe.setAttribute('aria-hidden', 'true');

@@ -121,19 +121,16 @@ export class IframeTransport {
     }
 
     const iframe = document.createElement('iframe');
-    // Hidden by default; higher layers can temporarily show for activation.
-    iframe.style.position = 'fixed';
-    iframe.style.border = 'none';
-    iframe.style.boxSizing = 'border-box';
-    iframe.style.width = '0px';
-    iframe.style.height = '0px';
-    iframe.style.opacity = '0';
-    iframe.style.pointerEvents = 'none';
+    // Hidden by default via CSS classes; higher layers toggle state using overlay-styles.
+    iframe.classList.add('w3a-wallet-overlay', 'is-hidden');
+    // Ensure no initial footprint even before stylesheet attaches
+    iframe.setAttribute('width', '0');
+    iframe.setAttribute('height', '0');
     iframe.setAttribute('aria-hidden', 'true');
     iframe.setAttribute('tabindex', '-1');
     // Hint higher priority fetch for the iframe document on supporting browsers
-    try { iframe.setAttribute('loading', 'eager'); } catch {}
-    try { iframe.setAttribute('fetchpriority', 'high'); } catch {}
+    iframe.setAttribute('loading', 'eager');
+    iframe.setAttribute('fetchpriority', 'high');
 
     iframe.dataset.w3aRouterId = this.testOptions?.routerId || '';
     if (this.testOptions?.ownerTag) iframe.dataset.w3aOwner = this.testOptions.ownerTag;
@@ -147,10 +144,8 @@ export class IframeTransport {
     }
 
     // Track load state to guard against races where we post before content is listening
-    try {
-      iframe._svc_loaded = false;
-      iframe.addEventListener('load', () => { iframe._svc_loaded = true; }, { once: true });
-    } catch {}
+    iframe._svc_loaded = false;
+    iframe.addEventListener('load', () => { iframe._svc_loaded = true; }, { once: true });
 
     const src = this.walletServiceUrl.toString();
     console.debug('[IframeTransport] mount: external origin', src);

@@ -513,6 +513,9 @@ export class DrawerElement extends LitElementWithProps {
       // Align logical "rest" with actual CSS transform (which may include offsets)
       if (Number.isFinite(ty)) this.openRestTranslateYPx = ty as number;
 
+      // Prevent initial flash to top when adding the dragging class by
+      // publishing the current translateY as the drag variable first.
+      this.setCssVars({ '--w3a-drawer__drag-translate': `${this.startTranslateYPx}px` });
       this.drawerElement.classList.add('dragging');
     }
   }
