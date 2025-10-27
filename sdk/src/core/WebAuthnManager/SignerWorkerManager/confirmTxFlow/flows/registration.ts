@@ -11,7 +11,7 @@ import { VRFChallenge, TransactionContext } from '../../../../types';
 import { renderConfirmUI, fetchNearContext, maybeRefreshVrfChallenge, getNearAccountId, getIntentDigest, sanitizeForPostMessage } from './common';
 import { serializeRegistrationCredentialWithPRF, extractPrfFromCredential, isSerializedRegistrationCredential } from '../../../credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
-import { toError } from '../../../../../utils/errors';
+import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 
 export async function handleRegistrationFlow(
@@ -108,44 +108,63 @@ export async function handleRegistrationFlow(
     });
   };
   try {
-    credential = await tryCreate(deviceNumber);
-    console.debug('[RegistrationFlow] credentials.create ok');
-  } catch (e: unknown) {
-    const err = toError(e);
-    const name = String(err?.name || '');
-    const msg = String(err?.message || '');
-    const isDuplicate = name === 'InvalidStateError' || /excluded|already\s*registered/i.test(msg);
-    if (isDuplicate) {
-      const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber)) ? (deviceNumber + 1) : 2;
-      console.debug('[RegistrationFlow] duplicate credential, retry with next deviceNumber', { nextDeviceNumber });
-      credential = await tryCreate(nextDeviceNumber);
-      (request.payload as RegisterAccountPayload).deviceNumber = nextDeviceNumber;
-    } else {
-      console.error('[RegistrationFlow] credentials.create failed (non-duplicate)', { name, msg });
-      throw err;
+    try {
+      credential = await tryCreate(deviceNumber);
+      console.debug('[RegistrationFlow] credentials.create ok');
+    } catch (e: unknown) {
+      const err = toError(e);
+      const name = String(err?.name || '');
+      const msg = String(err?.message || '');
+      const isDuplicate = name === 'InvalidStateError' || /excluded|already\s*registered/i.test(msg);
+      if (isDuplicate) {
+        const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber)) ? (deviceNumber + 1) : 2;
+        console.debug('[RegistrationFlow] duplicate credential, retry with next deviceNumber', { nextDeviceNumber });
+        credential = await tryCreate(nextDeviceNumber);
+        (request.payload as RegisterAccountPayload).deviceNumber = nextDeviceNumber;
+      } else {
+        console.error('[RegistrationFlow] credentials.create failed (non-duplicate)', { name, msg });
+        throw err;
+      }
     }
-  }
 
-  const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: true });
-  if (!dualPrfOutputs.chacha20PrfOutput) {
-    throw new Error('Failed to extract PRF output from credential');
-  }
-  // Support parent-performed fallback that may already return serialized credential
-  const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
-    ? (credential as unknown as WebAuthnRegistrationCredential)
-    : serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true });
+    const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: true });
+    if (!dualPrfOutputs.chacha20PrfOutput) {
+      throw new Error('Failed to extract PRF output from credential');
+    }
+    // Support parent-performed fallback that may already return serialized credential
+    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+      ? (credential as unknown as WebAuthnRegistrationCredential)
+      : serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true });
 
-  // 6) Respond + close
-  send(worker, {
-    requestId: request.requestId,
-    intentDigest: getIntentDigest(request),
-    confirmed: true,
-    credential: serialized,
-    prfOutput: dualPrfOutputs.chacha20PrfOutput,
-    vrfChallenge: uiVrfChallenge,
-    transactionContext,
-  });
-  closeModalSafely(true, confirmHandle);
+    // 6) Respond + close
+    send(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: true,
+      credential: serialized,
+      prfOutput: dualPrfOutputs.chacha20PrfOutput,
+      vrfChallenge: uiVrfChallenge,
+      transactionContext,
+    });
+    closeModalSafely(true, confirmHandle);
+  } catch (err: unknown) {
+    const cancelled = isTouchIdCancellationError(err) || (() => {
+      const e = toError(err);
+      return e.name === 'NotAllowedError' || e.name === 'AbortError';
+    })();
+    if (cancelled) {
+      try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+    }
+    // Release any reserved nonces on failure (best-effort)
+    try { nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n)); } catch {}
+    closeModalSafely(false, confirmHandle);
+    return send(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: false,
+      error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+    });
+  }
 }
 
 function send(worker: Worker, response: any) {

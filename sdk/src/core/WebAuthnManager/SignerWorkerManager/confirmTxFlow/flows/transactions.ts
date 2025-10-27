@@ -12,6 +12,7 @@ import { serializeAuthenticationCredentialWithPRF, extractPrfFromCredential } fr
 import { toAccountId } from '../../../../types/accountIds';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
+import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
 
 export async function handleTransactionSigningFlow(
   ctx: SignerWorkerManagerContext,
@@ -74,28 +75,49 @@ export async function handleTransactionSigningFlow(
   }
 
   // 5) Collect authentication credential
-  const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
-  const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
-    nearAccountId,
-    challenge: uiVrfChallenge,
-    allowCredentials: authenticatorsToAllowCredentials(authenticators),
-  });
+  try {
+    const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+    const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
+      nearAccountId,
+      challenge: uiVrfChallenge,
+      allowCredentials: authenticatorsToAllowCredentials(authenticators),
+    });
 
-  const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: false });
-  if (!dualPrfOutputs.chacha20PrfOutput) throw new Error('Failed to extract PRF output from credential');
-  const serialized = serializeAuthenticationCredentialWithPRF({ credential });
+    const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: false });
+    if (!dualPrfOutputs.chacha20PrfOutput) throw new Error('Failed to extract PRF output from credential');
+    const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
-  // 6) Respond; keep nonces reserved for worker to use
-  send(worker, {
-    requestId: request.requestId,
-    intentDigest: getIntentDigest(request),
-    confirmed: true,
-    credential: serialized,
-    prfOutput: dualPrfOutputs.chacha20PrfOutput,
-    vrfChallenge: uiVrfChallenge,
-    transactionContext,
-  });
-  closeModalSafely(true, confirmHandle);
+    // 6) Respond; keep nonces reserved for worker to use
+    send(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: true,
+      credential: serialized,
+      prfOutput: dualPrfOutputs.chacha20PrfOutput,
+      vrfChallenge: uiVrfChallenge,
+      transactionContext,
+    });
+    closeModalSafely(true, confirmHandle);
+  } catch (err: unknown) {
+    // Treat TouchID/FaceID cancellation and related errors as a negative decision
+    const cancelled = isTouchIdCancellationError(err) || (() => {
+      const e = toError(err);
+      return e.name === 'NotAllowedError' || e.name === 'AbortError';
+    })();
+    if (cancelled) {
+      try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+    }
+    // Release any reserved nonces on failure
+    try { nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n)); } catch {}
+    // Close the UI to avoid stale element flashing on next open
+    closeModalSafely(false, confirmHandle);
+    return send(worker, {
+      requestId: request.requestId,
+      intentDigest: getIntentDigest(request),
+      confirmed: false,
+      error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+    });
+  }
 }
 
 function send(worker: Worker, response: any) {
