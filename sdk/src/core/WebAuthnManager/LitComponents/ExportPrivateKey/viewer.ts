@@ -1,8 +1,9 @@
-import { html, css, type PropertyValues } from 'lit';
+import { html, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
 import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
 import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
+import { ensureExternalStyles } from '../css/css-loader';
 
 export type ExportViewerTheme = 'dark' | 'light';
 export type ExportViewerVariant = 'drawer' | 'modal';
@@ -33,119 +34,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   private copiedPrivate = false;
   private copyTimers: { public?: number; private?: number } = {};
 
-  static styles = css`
-    :host { display: block; position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
-    .content { display: flex; flex-direction: column; gap: 1rem; }
-    /* Add comfortable padding on desktop widths */
-    @media (min-width: 769px) {
-      .content { padding: 1rem; }
-    }
-    .title {
-      margin: 0rem;
-      padding-left: 0.5rem;
-      font-size: 1.25rem;
-      font-weight: 700;
-      text-align: left;
-    }
-    .close-btn {
-      position: absolute;
-      right: 8px;
-      top: 8px;
-      background: transparent;
-      border: none;
-      color: inherit;
-      font-size: 28px;
-      line-height: 1;
-      cursor: pointer;
-      width: 48px;
-      height: 48px;
-      border-radius: 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-    .close-btn:hover {
-      color: var(--w3a-colors-textPrimary, #f6f7f8);
-      background: var(--w3a-colors-surface, rgba(255,255,255,0.08));
-    }
-    .warning {
-      color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
-      padding: 12px;
-      border-radius: 1rem;
-      font-size: 0.9rem;
-      margin-bottom: 1.25rem;
-    }
-    .fields { display: flex; flex-direction: column; gap: 0.5rem; }
-    .field {
-      display: flex;
-      flex-direction:
-      column;
-      gap: 0.25rem;
-      border: 1px solid var(--w3a-colors-borderPrimary);
-      background: var(--w3a-colors-surface2);
-      padding: 0.75rem;
-      border-radius: 1rem;
-    }
-    .field-label { color: var(--w3a-colors-textPrimary, #f6f7f8); font-size: 0.95rem; font-weight: 600; }
-    .field-value {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      font-size: 0.9rem;
-    }
-    .value {
-      color: var(--w3a-colors-textSecondary, rgba(255,255,255,0.7));
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-      word-break: break-all; /* allow breaks within long keys */
-      /* Clamp to 2 lines with ellipsis for overflow */
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: normal;
-      user-select: text;
-      -webkit-user-select: text;
-      -moz-user-select: text;
-      -ms-user-select: text;
-      flex: 1;
-      min-width: 0;
-    }
-
-    /* Masked middle portion (no blur) */
-    .private-key .mask-chunk {
-      opacity: 0.9;
-    }
-
-    .btn {
-      border: 0;
-      border-radius: 2rem;
-      padding: 8px 16px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      font-size: 0.9rem;
-      min-width: 90px;
-      margin-left: auto;
-      margin-right: 4px;
-      flex-shrink: 0;
-    }
-    .btn-primary { background: var(--w3a-colors-primary, #4DAFFE); color: var(--w3a-colors-colorBackground, #0b1220); }
-    .btn-surface { background: var(--w3a-colors-surface, #2b2b2b); color: var(--w3a-colors-textPrimary, #ddd); border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); }
-    .btn:hover { filter: brightness(1.05); }
-    .btn:active { transform: scale(0.96); }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn.copied { color: var(--w3a-colors-success, #34d399); border-color: var(--w3a-colors-success, #34d399); animation: copiedPulse .3s ease; }
-
-    .muted { opacity: 0.8; }
-
-    @keyframes copiedPulse {
-      0% { transform: scale(1); }
-      50% { transform: scale(1.03); }
-      100% { transform: scale(1); }
-    }
-  `;
+  // Static styles moved to external CSS (export-viewer.css) for strict CSP
 
   constructor() {
     super();
@@ -156,6 +45,13 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   }
 
   protected getComponentPrefix(): string { return 'export'; }
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    // Adopt export-viewer.css for structural + visual styles
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-viewer.css', 'data-w3a-export-viewer-css').catch(() => {});
+    return root;
+  }
 
   protected updated(changed: PropertyValues) {
     super.updated(changed);
@@ -242,9 +138,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
       const ta = document.createElement('textarea');
       ta.value = text;
       ta.setAttribute('readonly', '');
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      ta.style.top = '0';
+      ta.className = 'w3a-offscreen';
       document.body.appendChild(ta);
       ta.focus();
       ta.select();

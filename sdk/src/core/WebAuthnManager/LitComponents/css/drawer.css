@@ -87,6 +87,7 @@ w3a-drawer[theme="light"] {
 }
 
 .drawer.dragging, .drawer.vv-sync { transition: none; }
+:host .drawer.init { transition: none !important; }
 :host([open]) .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
 
 .handle {

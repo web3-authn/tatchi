@@ -60,6 +60,10 @@ export class DrawerElement extends LitElementWithProps {
   private drawerResizeObserver?: ResizeObserver;
   private vvSyncTimeout: number | null = null;
   private detachViewportSync?: () => void;
+  // Disable transitions during first layout to avoid wrong-direction animation
+  private _initialMount = true;
+  // Suppress transition for the very first programmatic open
+  private _firstOpen = true;
 
   // Minimal inline CSS to ensure correct initial placement before external CSS loads
   // Full visuals and transitions are provided by css/drawer.css (adopted via ensureExternalStyles)
@@ -131,6 +135,11 @@ export class DrawerElement extends LitElementWithProps {
     this.overlayElement = this.shadowRoot?.querySelector('.overlay') as HTMLElement;
     this.bodyElement = this.shadowRoot?.querySelector('.body') as HTMLElement;
     this.syncCssVarsForOpenTranslate();
+    // Ensure no transition on first measurement; enable after a frame
+    requestAnimationFrame(() => {
+      this._initialMount = false;
+      this.requestUpdate();
+    });
     // Recalculate when slot content changes or viewport resizes
     const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
     slotEl?.addEventListener('slotchange', () => this.syncCssVarsForOpenTranslate());
@@ -154,9 +163,12 @@ export class DrawerElement extends LitElementWithProps {
     super.updated(changedProperties);
 
     if (changedProperties.has('open')) {
-      // Uncontrolled: no suppression; trust imperative calls
-      // When externally toggled open, clear any inline overrides so CSS can control
-      if (this.open) { this.isClosing = false; }
+      // When externally toggled open, allow CSS transitions to play naturally.
+      if (this.open) {
+        this.isClosing = false;
+        // No first-open transition suppression; double rAF in the viewer handles settle.
+        this._firstOpen = false;
+      }
     }
 
     // Re-setup drag listeners if dragToClose property changed
@@ -579,7 +591,7 @@ export class DrawerElement extends LitElementWithProps {
   render() {
     return html`
       <div class="overlay" @click=${this.onClose}></div>
-      <section class="drawer" role="dialog" aria-modal="true">
+      <section class="drawer ${this._initialMount ? 'init' : ''}" role="dialog" aria-modal="true">
         <div class="relative">
           <div class="handle" @click=${this.onHandleClick}></div>
           ${this.showCloseButton ? html`<button aria-label="Close" title="Close" class="close-btn" @click=${this.onClose} @touchend=${this.onClose}>×</button>` : null}

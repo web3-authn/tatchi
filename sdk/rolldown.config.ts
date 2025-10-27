@@ -68,14 +68,16 @@ const aliasConfig = {
 const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n";
 const WALLET_SURFACE_CSS = [
   'html, body { background: transparent !important; margin:0; padding:0; }',
-  'html, body { color-scheme: normal; }',
   '',
   // Class-based surface for strict CSP setups (toggled by wallet host bootstrap)
-  'html.w3a-transparent, body.w3a-transparent { background: transparent !important; margin:0; padding:0; color-scheme: normal; }',
+  'html.w3a-transparent, body.w3a-transparent { background: transparent !important; margin:0; padding:0; }',
   '',
-  // Minimal portal styles used by confirm-ui (class toggles only)
-  '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; transition: opacity 100ms ease; }',
+  // Minimal portal styles used by confirm-ui (no animation; child components handle transitions)
+  '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; }',
   '.w3a-portal.w3a-portal--visible { opacity: 1; pointer-events: auto; }',
+  '',
+  // Offscreen utility for legacy clipboard fallback (avoids inline styles under strict CSP)
+  '.w3a-offscreen { position: fixed; left: -9999px; top: 0; opacity: 0; pointer-events: none; }',
   '',
 ].join('\n');
 

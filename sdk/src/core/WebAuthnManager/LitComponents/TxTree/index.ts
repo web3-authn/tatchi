@@ -488,8 +488,8 @@ export class TxTree extends LitElementWithProps {
       } else {
         const ta = document.createElement('textarea');
         ta.value = value;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
+        ta.setAttribute('readonly', '');
+        ta.className = 'w3a-offscreen';
         document.body.appendChild(ta);
         ta.select();
         try { document.execCommand('copy'); } catch {}

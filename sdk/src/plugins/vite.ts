@@ -120,8 +120,8 @@ const WALLET_SURFACE_CSS = [
   // Class-based surface for strict CSP setups toggled by JS
   'html.w3a-transparent, body.w3a-transparent { background: transparent !important; margin:0; padding:0; color-scheme: normal; }',
   '',
-  // Minimal portal styles used by confirm-ui (class toggles only)
-  '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; transition: opacity 100ms ease; }',
+  // Minimal portal styles used by confirm-ui (no animation; child components handle transitions)
+  '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; }',
   '.w3a-portal.w3a-portal--visible { opacity: 1; pointer-events: auto; }',
   '',
   ':root {',

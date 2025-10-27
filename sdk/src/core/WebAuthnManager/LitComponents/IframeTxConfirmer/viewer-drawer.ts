@@ -137,8 +137,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   firstUpdated(): void {
     this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
-    // Open after mount to play entry animation from bottom
-    requestAnimationFrame(() => { this._open = true; this.requestUpdate(); });
+    // Open after mount with double-rAF to let layout/styles settle
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this._open = true;
+        this.requestUpdate();
+      });
+    });
   }
 
   disconnectedCallback(): void {
