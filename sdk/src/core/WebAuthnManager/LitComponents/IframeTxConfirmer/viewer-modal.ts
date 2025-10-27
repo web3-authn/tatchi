@@ -5,8 +5,7 @@ import { TransactionInputWasm } from '../../../types';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 
 import TxTree from '../TxTree';
-import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
-import { ensureModalStyles } from './modal-confirmer-stylesheet';
+import { ensureExternalStyles } from '../css/css-loader';
 import TxConfirmContentElement from './tx-confirm-content';
 import { formatDeposit, formatGas } from '../common/formatters';
 // Theme tokens now come from external CSS (modal-confirmer.css)
@@ -131,8 +130,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
-    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
-    ensureModalStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    // tx-tree.css for nested TxTree visuals inside the modal
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    // modal-confirmer.css for modal layout + tokens
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css').catch(() => {});
     return root;
   }
 

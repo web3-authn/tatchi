@@ -29,6 +29,7 @@
 import type { ChildToParentEnvelope } from '../shared/messages';
 import { isObject } from '../validation';
 import { serializeRegistrationCredentialWithPRF, serializeAuthenticationCredentialWithPRF } from '../../WebAuthnManager/credentialsHelpers';
+import { ensureOverlayBase } from './overlay-styles';
 import { WebAuthnBridgeMessage } from '../../WebAuthnManager/WebAuthnFallbacks';
 
 // Message constants (typed string literals, tree‑shake friendly)
@@ -123,6 +124,9 @@ export class IframeTransport {
     const iframe = document.createElement('iframe');
     // Hidden by default via CSS classes; higher layers toggle state using overlay-styles.
     iframe.classList.add('w3a-wallet-overlay', 'is-hidden');
+    // Ensure the base overlay stylesheet is installed early so computed styles
+    // (opacity/pointer-events) reflect the hidden state immediately after mount.
+    try { ensureOverlayBase(iframe); } catch {}
     // Ensure no initial footprint even before stylesheet attaches
     iframe.setAttribute('width', '0');
     iframe.setAttribute('height', '0');

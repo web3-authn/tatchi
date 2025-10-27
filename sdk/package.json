@@ -107,7 +107,7 @@
     "test:inline": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",
     "test:e2e": "playwright test src/__tests__/e2e --reporter=line",
     "test:unit": "playwright test src/__tests__/unit --reporter=line",
-    "test:wallet-iframe": "playwright test src/__tests__/wallet-iframe --reporter=line",
+    "test:wallet-iframe": "USE_RELAY_SERVER=0 playwright test src/__tests__/wallet-iframe --reporter=line",
     "test:lit-components": "playwright test src/__tests__/lit-components --reporter=line",
     "build:check:fresh": "./scripts/check-build-freshness.sh",
     "type-check": "tsc --noEmit"

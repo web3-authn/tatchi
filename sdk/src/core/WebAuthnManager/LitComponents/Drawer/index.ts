@@ -1,6 +1,7 @@
 import { html, css } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { dispatchLitCancel } from '../lit-events';
+import { ensureExternalStyles } from '../css/css-loader';
 
 export type DrawerTheme = 'dark' | 'light';
 
@@ -60,146 +61,34 @@ export class DrawerElement extends LitElementWithProps {
   private vvSyncTimeout: number | null = null;
   private detachViewportSync?: () => void;
 
+  // Minimal inline CSS to ensure correct initial placement before external CSS loads
+  // Full visuals and transitions are provided by css/drawer.css (adopted via ensureExternalStyles)
   static styles = css`
     :host { display: contents; }
-    .overlay {
-      position: fixed;
-      inset: 0;
-      /* Match modal backdrop look */
-      background: oklch(0.2 0.01 240 / 0.6);
-      z-index: 2147483646;
-      opacity: 0; /* No dim overlay */
-      pointer-events: none;
-      transition: opacity .15s ease;
-    }
-    :host([open]) .overlay { /* opacity: 1; */ pointer-events: auto; }
-
+    /* Keep overlay invisible until external CSS is adopted to avoid flashes */
+    .overlay { position: fixed; inset: 0; pointer-events: none; background: transparent; }
     .drawer {
       position: fixed;
       left: 0; right: 0; bottom: 0;
-      z-index: 2147483647;
-      /* Use AccessKeysModal token set; fall back to Lit host vars */
-      background: var(--w3a-colors-colorBackground, var(--w3a-color-background, #111));
-      color: var(--w3a-colors-textPrimary, var(--w3a-text-primary, #f6f7f8));
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
-      font-size: 1rem;
-      border-radius: 2rem;
-      /* border: 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)); */
+      /* Neutral initial paint to avoid flash before tokens load */
+      background: var(--w3a-colors-colorBackground, transparent);
+      color: var(--w3a-colors-textPrimary, inherit);
       border: none;
-      transform: translateY(100%);
-      transition: transform 0.15s cubic-bezier(0.32, 0.72, 0, 1);
-      will-change: transform;
-      box-shadow: 0 0px 8px rgba(0,0,0,0.2);
-      padding: 0.5rem;
-      /* Constrain width and center horizontally */
-      max-width: var(--w3a-drawer__max-width, 420px);
-      margin-left: auto;
-      margin-right: auto;
-      /* Use a tall sheet so we can overpull without clipping */
-      height: var(--w3a-drawer__sheet-height, 100vh);
-      /* Prefer dynamic viewport height where supported */
-      height: var(--w3a-drawer__sheet-height, 100dvh);
-      display: grid;
-      grid-template-rows: auto 1fr;
+      transform: translateY(100%); /* start off-screen below */
     }
-
-    /* Default to closed (100%) until JS computes the open translate. */
     :host([open]) .drawer {
-      /* Allow a small upward offset (in px) to compensate for mobile UI chrome */
       transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
     }
-
-    /* full-open removed; drawer opens to content height (capped) */
-    .drawer.dragging, .drawer.vv-sync { transition: none; }
-    :host([open]) .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
-
-    .handle {
-      width: 36px;
-      height: 4px;
-      border-radius: 2px;
-      background: var(--w3a-colors-borderPrimary,rgba(255,255,255,0.25));
-      margin: 1rem auto;
-      /* Ensure vertical drag gestures on the handle don't trigger page scroll */
-      touch-action: none;
-    }
-
-    /* Ensure the body can actually shrink so overflow works inside grid */
-    .body {
-      overflow: auto;
-      padding: 0; min-height: 0;
-    }
-    /* Prevent scroll chaining to the page while interacting with the drawer */
-    .body {
-      overscroll-behavior: contain;
-      -webkit-overflow-scrolling: touch;
-    }
-
-    /* Child container to keep content visible above the fold when fully open */
-    .above-fold {
-      position: sticky;
-      top: 0;
-      background: inherit;
-      z-index: 1;
-      padding-bottom: max(16px, env(safe-area-inset-bottom));
-    }
-
-    /* full-open removed */
-    .close-btn {
-      position: absolute;
-      right: 0.5rem;
-      top: 0.5rem;
-      width: 40px;
-      height: 40px;
-      font-size: 24px;
-      background: none;
-      border: none;
-      color: var(--w3a-colors-textMuted, #99a0aa);
-      font-size: 28px;
-      line-height: 1;
-      cursor: pointer;
-      border-radius: 2rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all .2s ease;
-      z-index: 3;
-      /* Ensure taps map to click reliably on mobile */
-      touch-action: manipulation;
-    }
-    .close-btn:hover {
-      color: var(--w3a-colors-textPrimary, #f6f7f8);
-      background: var(--w3a-colors-surface, rgba(255,255,255,0.08));
-    }
-    .close-btn:active { transform: scale(0.96); }
-    .close-btn:focus-visible {
-      outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, var(--w3a-color-primary, #3b82f6)));
-      outline-offset: 3px;
-    }
-
-    .error {
-      color: var(--w3a-colors-error, var(--w3a-red400, #ff7a7a));
-      font-size: 0.9rem;
-      margin-top: 0.5rem;
-    }
-
-    /* Utility to replace inline position:relative */
-    .relative { position: relative; }
-
-    /* Light theme adjustments */
-    :host([theme="light"]) .close-btn {
-      color: var(--w3a-colors-textMuted, #667085);
-    }
-    :host([theme="light"]) .close-btn:hover {
-      color: var(--w3a-colors-textPrimary, #181a1f);
-      background: var(--w3a-colors-surface,  rgba(0,0,0,0.06));
-    }
-    :host([theme="light"]) .drawer {
-      background: var(--w3a-colors-colorBackground, #fff);
-      color: var(--w3a-colors-textPrimary, #181a1f);
-      border-color: var(--w3a-colors-borderPrimary, rgba(0,0,0,0.08));
-    }
-
+    /* Avoid close button color flash before token CSS is applied */
+    .close-btn { color: var(--w3a-colors-textMuted, currentColor); background: none; }
   `;
+
+  protected createRenderRoot(): HTMLElement | DocumentFragment {
+    const root = super.createRenderRoot();
+    // Adopt drawer.css (structural + tokens) for <w3a-drawer>
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css').catch(() => {});
+    return root;
+  }
 
   constructor() {
     super();

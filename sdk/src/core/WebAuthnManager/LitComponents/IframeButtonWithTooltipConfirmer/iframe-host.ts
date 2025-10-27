@@ -368,6 +368,42 @@ export class IframeButtonHost extends LitElementWithProps {
     });
   }
 
+  private buildStyleDecls() {
+    const toDecls = (obj?: Record<string, unknown>) => {
+      if (!obj) return '';
+      const skip = new Set(['width','height']);
+      return Object.entries(obj)
+        .filter(([k, v]) => v != null && !skip.has(k))
+        .map(([k, v]) => `${this.camelToKebab(k)}: ${String(v)};`)
+        .join(' ');
+    };
+    const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
+    const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
+    const btnW = toPx(this.buttonStyle?.width || '200px');
+    const btnH = toPx(this.buttonStyle?.height || '48px');
+    return { baseDecls, hoverDecls, btnW, btnH };
+  }
+
+  private updateIframeSizeCss(iframeW: number, iframeH: number) {
+    const { baseDecls, hoverDecls, btnW, btnH } = this.buildStyleDecls();
+    const cssText = `.${this.styleScopeClass} { ${baseDecls} --button-width: ${btnW}; --button-height: ${btnH}; }\n.${this.styleScopeClass}[data-hovered=\"true\"] { ${hoverDecls} }\n.${this.styleScopeClass} iframe { width: ${iframeW}px; height: ${iframeH}px; }`;
+
+    if (this.renderRoot instanceof ShadowRoot && 'adoptedStyleSheets' in this.renderRoot && 'replaceSync' in CSSStyleSheet.prototype) {
+      if (!this.scopedSheet) this.scopedSheet = new CSSStyleSheet();
+      try { this.scopedSheet.replaceSync(cssText); } catch {}
+      const sheets = (this.renderRoot.adoptedStyleSheets || []) as any[];
+      if (!sheets.includes(this.scopedSheet)) {
+        this.renderRoot.adoptedStyleSheets = [...sheets, this.scopedSheet];
+      }
+    } else if (this.renderRoot instanceof ShadowRoot) {
+      if (!this.scopedStyleEl) {
+        this.scopedStyleEl = document.createElement('style');
+        this.renderRoot.appendChild(this.scopedStyleEl);
+      }
+      this.scopedStyleEl.textContent = cssText;
+    }
+  }
+
   private buildInitData(): IframeInitData {
     const buttonSize = {
       width: this.buttonStyle?.width || '200px',
@@ -742,8 +778,7 @@ export class IframeButtonHost extends LitElementWithProps {
       const iframe = this.iframeRef.value;
       if (iframe) {
         const size = this.calculateIframeSize();
-        iframe.style.width = `${size.width}px`;
-        iframe.style.height = `${size.height}px`;
+        this.updateIframeSizeCss(size.width, size.height);
       }
     } else {
       // When tooltip is visible, expand iframe to fit measured geometry
@@ -752,8 +787,7 @@ export class IframeButtonHost extends LitElementWithProps {
         const fallback = this.calculateIframeSize();
         // Add small padding to absorb sub-pixel rounding at zoom levels
         const size = computeExpandedIframeSizeFromGeometryPure({ geometry, fallback, paddingPx: 2 });
-        iframe.style.width = `${size.width}px`;
-        iframe.style.height = `${size.height}px`;
+        this.updateIframeSizeCss(size.width, size.height);
       }
 
       // CRITICAL: Update clip-path when tooltip dimensions change

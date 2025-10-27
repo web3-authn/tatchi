@@ -7,7 +7,7 @@ import type { TxTreeStyles } from './tx-tree-themes';
 import { TX_TREE_THEMES } from './tx-tree-themes';
 import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
 import { isNumber, isString } from '../../../WalletIframe/validation';
-import { ensureTxTreeStyles } from './tx-tree-stylesheet';
+import { ensureExternalStyles } from '../css/css-loader';
 // Re-export for backward compatibility
 export type { TxTreeStyles } from './tx-tree-themes';
 
@@ -620,11 +620,13 @@ export class TxTree extends LitElementWithProps {
   // Usage: <w3a-tx-tree light-dom ...>
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     if (this.hasAttribute('light-dom')) {
-      ensureTxTreeStyles(this).catch(() => {});
+      // Ensure tx-tree.css is applied when rendering in light DOM
+      ensureExternalStyles(this as unknown as HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
       return this as unknown as HTMLElement;
     }
     const root = super.createRenderRoot();
-    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    // Ensure tx-tree.css is applied to the shadow root
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
     return root;
   }
 

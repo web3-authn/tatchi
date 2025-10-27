@@ -1,33 +1,34 @@
 import { resolveEmbeddedBase } from '../asset-base';
 
-const MODAL_CONFIRMER_CSS = 'modal-confirmer.css';
 const supportsConstructable = typeof ShadowRoot !== 'undefined' && 'adoptedStyleSheets' in ShadowRoot.prototype;
 
-let modalSheetPromise: Promise<CSSStyleSheet | null> | null = null;
+const sheetCache: Map<string, Promise<CSSStyleSheet | null>> = new Map();
 
-function resolveStylesheetUrl(): string {
+function resolveStylesheetUrl(assetName: string): string {
   const base = resolveEmbeddedBase();
   const join = (input: string) => (input.endsWith('/') ? input : `${input}/`);
   if (/^https?:/i.test(base)) {
-    return `${join(base)}${MODAL_CONFIRMER_CSS}`;
+    return `${join(base)}${assetName}`;
   }
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
   if (origin) {
     const prefix = base.startsWith('/') ? base : `/${base}`;
-    return `${join(origin + prefix)}${MODAL_CONFIRMER_CSS}`;
+    return `${join(origin + prefix)}${assetName}`;
   }
   const normalized = base.startsWith('/') ? base : `/${base}`;
-  return `${join(normalized)}${MODAL_CONFIRMER_CSS}`;
+  return `${join(normalized)}${assetName}`;
 }
 
-async function loadConstructableSheet(): Promise<CSSStyleSheet | null> {
+async function loadConstructableSheet(assetName: string): Promise<CSSStyleSheet | null> {
   if (!supportsConstructable) return null;
-  if (modalSheetPromise) return modalSheetPromise;
+  const key = assetName;
+  const existing = sheetCache.get(key);
+  if (existing) return existing;
 
-  modalSheetPromise = (async () => {
+  const promise = (async () => {
     if (typeof fetch !== 'function') return null;
     try {
-      const url = resolveStylesheetUrl();
+      const url = resolveStylesheetUrl(assetName);
       const response = await fetch(url, { mode: 'cors' });
       if (!response.ok) return null;
       const cssText = await response.text();
@@ -35,20 +36,29 @@ async function loadConstructableSheet(): Promise<CSSStyleSheet | null> {
       sheet.replaceSync(cssText);
       return sheet;
     } catch (err) {
-      console.warn('[ModalConfirmer] Unable to load constructable stylesheet:', err);
+      console.warn('[W3A][css-loader] Unable to load constructable stylesheet:', assetName, err);
       return null;
     }
   })();
-
-  return modalSheetPromise;
+  sheetCache.set(key, promise);
+  return promise;
 }
 
-export async function ensureModalStyles(root: ShadowRoot | DocumentFragment | HTMLElement | null | undefined): Promise<void> {
+/**
+ * Ensure an external CSS asset is applied to a shadow root or document context.
+ * - Uses adoptedStyleSheets when supported (constructable stylesheets)
+ * - Falls back to injecting a <link rel="stylesheet"> with a marker attribute
+ */
+export async function ensureExternalStyles(
+  root: ShadowRoot | DocumentFragment | HTMLElement | null | undefined,
+  assetName: string,
+  markerAttr: string
+): Promise<void> {
   if (!root) return;
 
   try {
     if (supportsConstructable && 'adoptedStyleSheets' in root) {
-      const sheet = await loadConstructableSheet();
+      const sheet = await loadConstructableSheet(assetName);
       if (!sheet) return;
       const current = (root as any).adoptedStyleSheets as CSSStyleSheet[] | undefined;
       if (!current || !current.includes(sheet)) {
@@ -59,16 +69,15 @@ export async function ensureModalStyles(root: ShadowRoot | DocumentFragment | HT
 
     const doc = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
     if (!doc) return;
-    const markerAttr = 'data-w3a-modal-confirmer-css';
     if (!doc.head.querySelector(`link[${markerAttr}]`)) {
       const link = doc.createElement('link');
       link.rel = 'stylesheet';
-      link.href = resolveStylesheetUrl();
+      link.href = resolveStylesheetUrl(assetName);
       link.setAttribute(markerAttr, '');
       doc.head.appendChild(link);
     }
   } catch (err) {
-    console.warn('[ModalConfirmer] Failed to ensure stylesheet:', err);
+    console.warn('[W3A][css-loader] Failed to ensure stylesheet:', assetName, err);
   }
 }
 

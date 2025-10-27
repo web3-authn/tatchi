@@ -4,8 +4,7 @@ import DrawerElement from '../Drawer';
 import { W3A_DRAWER_ID } from '../tags';
 import TxConfirmContentElement from './tx-confirm-content';
 import PadlockIconElement from '../common/PadlockIcon';
-import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
-import { ensureModalStyles } from './modal-confirmer-stylesheet';
+import { ensureExternalStyles } from '../css/css-loader';
 import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
@@ -110,8 +109,10 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
-    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
-    ensureModalStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    // tx-tree.css for nested TxTree visuals inside the drawer variant
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    // modal-confirmer.css provides shared tokens/layout for the drawer content
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css').catch(() => {});
     return root;
   }
 

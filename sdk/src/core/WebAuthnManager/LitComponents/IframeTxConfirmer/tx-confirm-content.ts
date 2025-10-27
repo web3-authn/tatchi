@@ -7,7 +7,7 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import { fromTransactionInputsWasm } from '../../../types/actions';
 import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
-import { ensureTxTreeStyles } from '../TxTree/tx-tree-stylesheet';
+import { ensureExternalStyles } from '../css/css-loader';
 import { W3A_TX_TREE_ID } from '../tags';
 
 /**
@@ -194,7 +194,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     // Adopt tx-tree.css into this shadow root so light‑DOM TxTree is styled
-    ensureTxTreeStyles(root as ShadowRoot | DocumentFragment | HTMLElement).catch(() => {});
+    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
     return root;
   }
 
