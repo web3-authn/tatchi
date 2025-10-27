@@ -90,6 +90,7 @@ export class IframeExportHost extends LitElementWithProps {
     iframe {
       border: none;
       background: transparent;
+      color-scheme: normal;
       position: fixed;
       inset: 0;
       /* Ensure iframe fills viewport across browsers */

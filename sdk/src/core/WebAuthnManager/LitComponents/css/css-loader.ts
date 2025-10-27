@@ -11,7 +11,8 @@ function resolveStylesheetUrl(assetName: string): string {
     return `${join(base)}${assetName}`;
   }
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
-  if (origin) {
+  // Avoid treating opaque origins (about:srcdoc) as a valid prefix
+  if (origin && origin !== 'null' && /^https?:/i.test(origin)) {
     const prefix = base.startsWith('/') ? base : `/${base}`;
     return `${join(origin + prefix)}${assetName}`;
   }
@@ -69,15 +70,31 @@ export async function ensureExternalStyles(
 
     const doc = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
     if (!doc) return;
-    if (!doc.head.querySelector(`link[${markerAttr}]`)) {
-      const link = doc.createElement('link');
-      link.rel = 'stylesheet';
-      link.href = resolveStylesheetUrl(assetName);
-      link.setAttribute(markerAttr, '');
-      doc.head.appendChild(link);
+    const existing = doc.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
+    if (existing) {
+      // If the link already exists, await load if needed
+      if ((existing as any)._w3aLoaded) return;
+      await new Promise<void>((resolve) => {
+        const done = () => { (existing as any)._w3aLoaded = true; resolve(); };
+        if (existing.sheet) return done();
+        existing.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+        existing.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+      });
+      return;
     }
+    const link = doc.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = resolveStylesheetUrl(assetName);
+    link.setAttribute(markerAttr, '');
+    await new Promise<void>((resolve) => {
+      const done = () => { (link as any)._w3aLoaded = true; resolve(); };
+      link.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+      link.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+      doc.head.appendChild(link);
+      // If the browser resolves synchronously (from cache), sheet may be present
+      if (link.sheet) done();
+    });
   } catch (err) {
     console.warn('[W3A][css-loader] Failed to ensure stylesheet:', assetName, err);
   }
 }
-

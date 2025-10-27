@@ -146,8 +146,12 @@ export class IframeButtonHost extends LitElementWithProps {
     iframe {
       border: none;
       background: transparent;
+      /* Ensure UA doesn't paint opaque canvas on initial paint */
+      color-scheme: normal;
       position: absolute;
       z-index: 1000;
+      /* Clip-path is driven via a CSS variable to satisfy strict CSP */
+      clip-path: var(--w3a-iframe-clip-path, none);
     }
 
     /* Flush positioning classes for different tooltip positions */
@@ -464,12 +468,6 @@ export class IframeButtonHost extends LitElementWithProps {
 
     const html = this.generateIframeHtml();
     const iframeEl = this.iframeRef.value;
-    try {
-      // Ensure the element itself never contributes an opaque layer
-      iframeEl.style.background = 'transparent';
-      // Prevent UA color-scheme from forcing opaque canvas during initial paint
-      (iframeEl.style as any).colorScheme = 'normal';
-    } catch {}
     iframeEl.srcdoc = html;
 
     // Set up message handling
@@ -679,7 +677,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const pad = 4;
     const optimisticClipPath = `polygon(${buttonX - pad}px ${buttonY - pad}px, ${buttonX + buttonWidth + pad}px ${buttonY - pad}px, ${buttonX + buttonWidth + pad}px ${buttonY + buttonHeight + pad}px, ${buttonX - pad}px ${buttonY + buttonHeight + pad}px)`;
 
-    this.iframeRef.value.style.clipPath = optimisticClipPath;
+    this.setIframeClipPath(optimisticClipPath);
     this.iframeRef.value.classList.remove('interactive');
   }
 
@@ -693,7 +691,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const { button } = this.currentGeometry;
     // Use simple rectangle to avoid clipping button corners
     const buttonClipPath = IframeClipPathGenerator.buildButtonClipPathPure(button, 4);
-    this.iframeRef.value.style.clipPath = buttonClipPath;
+    this.setIframeClipPath(buttonClipPath);
     // Remove pointer events to allow click-through outside button area
     this.iframeRef.value.classList.remove('interactive');
   }
@@ -707,7 +705,7 @@ export class IframeButtonHost extends LitElementWithProps {
     try {
       const unionClipPath = IframeClipPathGenerator.generateUnion(this.currentGeometry, 8);
       if (unionClipPath) {
-        this.iframeRef.value.style.clipPath = unionClipPath;
+        this.setIframeClipPath(unionClipPath);
         this.iframeRef.value.classList.add('interactive');
       }
     } catch (error) {
@@ -715,6 +713,14 @@ export class IframeButtonHost extends LitElementWithProps {
       // Fallback to button-only clip-path
       this.applyButtonOnlyClipPath();
     }
+  }
+
+  /**
+   * Set iframe clip-path via CSS variable (CSP-safe).
+   */
+  private setIframeClipPath(path: string | null | undefined) {
+    const v = (path && typeof path === 'string' && path.trim().length) ? path : 'none';
+    try { this.setCssVars({ '--w3a-iframe-clip-path': v }); } catch {}
   }
 
   /**

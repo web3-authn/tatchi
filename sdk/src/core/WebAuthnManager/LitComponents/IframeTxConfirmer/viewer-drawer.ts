@@ -135,15 +135,22 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.updateTheme();
   }
 
-  firstUpdated(): void {
+  async firstUpdated(): Promise<void> {
     this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
+    // Ensure external styles are ready before opening (await Promise-based loader)
+    try {
+      const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
+      await Promise.all([
+        ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        // Preload drawer.css so fallback <link> is loaded before opening
+        ensureExternalStyles(root, 'drawer.css', 'data-w3a-drawer-css'),
+      ]);
+    } catch {}
     // Open after mount with double-rAF to let layout/styles settle
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        this._open = true;
-        this.requestUpdate();
-      });
-    });
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+    this._open = true;
+    this.requestUpdate();
   }
 
   disconnectedCallback(): void {

@@ -60,6 +60,7 @@ export class DrawerElement extends LitElementWithProps {
   private drawerResizeObserver?: ResizeObserver;
   private vvSyncTimeout: number | null = null;
   private detachViewportSync?: () => void;
+  private _syncRAF: number | null = null;
   // Disable transitions during first layout to avoid wrong-direction animation
   private _initialMount = true;
   // Suppress transition for the very first programmatic open
@@ -115,6 +116,7 @@ export class DrawerElement extends LitElementWithProps {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeDragListeners();
+    try { this.drawerElement?.removeEventListener('transitionend', this.handleTransitionEnd as EventListener); } catch {}
     try { this.aboveFoldResizeObserver?.disconnect(); } catch {}
     try { this.drawerResizeObserver?.disconnect(); } catch {}
     if (this.detachViewportSync) { try { this.detachViewportSync(); } catch {} this.detachViewportSync = undefined; }
@@ -140,6 +142,7 @@ export class DrawerElement extends LitElementWithProps {
       this._initialMount = false;
       this.requestUpdate();
     });
+    try { this.drawerElement?.addEventListener('transitionend', this.handleTransitionEnd as EventListener); } catch {}
     // Recalculate when slot content changes or viewport resizes
     const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
     slotEl?.addEventListener('slotchange', () => this.syncCssVarsForOpenTranslate());
@@ -168,6 +171,9 @@ export class DrawerElement extends LitElementWithProps {
         this.isClosing = false;
         // No first-open transition suppression; double rAF in the viewer handles settle.
         this._firstOpen = false;
+        try { this.dispatchEvent(new CustomEvent('w3a:drawer-open-start', { bubbles: true, composed: true })); } catch {}
+      } else {
+        try { this.dispatchEvent(new CustomEvent('w3a:drawer-close-start', { bubbles: true, composed: true })); } catch {}
       }
     }
 
@@ -199,7 +205,7 @@ export class DrawerElement extends LitElementWithProps {
     return clamp((SHEET_HEIGHT_VH - visible) / SHEET_HEIGHT_VH, 0, 1);
   }
 
-  private syncCssVarsForOpenTranslate(): void {
+  private _performSyncCssVarsForOpenTranslate(): void {
     const drawer = this.drawerElement;
     if (!drawer) return;
 
@@ -211,7 +217,11 @@ export class DrawerElement extends LitElementWithProps {
       const visibleVh = clamp(parseFloat(m[1]), 0, 100);
       const pct = clamp(100 - visibleVh, 0, 100);
       // Sheet uses same viewport unit as provided height for better alignment
-      this.setCssVars({ '--w3a-drawer__sheet-height': `100${unit}`, '--w3a-drawer__open-translate': pct + '%' });
+      this.setCssVars({ '--w3a-drawer__sheet-height': `100${unit}` });
+      // Freeze rest position while open to avoid mid-open jumps
+      if (!this.open) {
+        this.setCssVars({ '--w3a-drawer__open-translate': pct + '%' });
+      }
       return;
     }
 
@@ -222,6 +232,9 @@ export class DrawerElement extends LitElementWithProps {
     } catch {
       this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}vh` });
     }
+
+    // Freeze open-translate while open; only recompute when closed
+    if (this.open) return;
 
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
     const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
@@ -234,13 +247,33 @@ export class DrawerElement extends LitElementWithProps {
     this.setCssVars({ '--w3a-drawer__open-translate': (ratio * 100).toFixed(4) + '%' });
   }
 
+  // Coalesce multiple triggers into a single measurement per frame
+  private syncCssVarsForOpenTranslate(): void {
+    if (this._syncRAF != null) return;
+    try {
+      this._syncRAF = requestAnimationFrame(() => {
+        this._syncRAF = null;
+        this._performSyncCssVarsForOpenTranslate();
+      });
+    } catch {
+      this._performSyncCssVarsForOpenTranslate();
+    }
+  }
+
+  private handleTransitionEnd = (e: TransitionEvent) => {
+    if (!this.drawerElement) return;
+    if (e.target !== this.drawerElement) return;
+    if (e.propertyName !== 'transform') return;
+    const type = this.open ? 'w3a:drawer-open-end' : 'w3a:drawer-close-end';
+    try { this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true })); } catch {}
+  };
+
   private setupDragListeners() {
     if (!this.dragToClose) return;
 
     // Use a small delay to ensure the element is rendered
     setTimeout(() => {
       const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
-      const handleElement = this.shadowRoot?.querySelector('.handle') as HTMLElement;
 
       if (!drawerElement) {
         console.warn('Drawer element not found for drag listeners');
@@ -250,16 +283,23 @@ export class DrawerElement extends LitElementWithProps {
       // Remove any existing listeners first
       this.removeDragListeners();
 
-      // Generic drawer: start drag from anywhere inside the drawer (mouse)
-      drawerElement.addEventListener('mousedown', this.handleMouseDown, { capture: true } as AddEventListenerOptions);
-      document.addEventListener('mousemove', this.handleMouseMove);
-      document.addEventListener('mouseup', this.handleMouseUp);
+      const supportsPointer = typeof window !== 'undefined' && 'PointerEvent' in window;
+      if (supportsPointer) {
+        // Prefer Pointer Events for unified handling
+        drawerElement.addEventListener('pointerdown', this.handlePointerDown as any, { capture: true } as AddEventListenerOptions);
+        document.addEventListener('pointermove', this.handlePointerMove as any);
+        document.addEventListener('pointerup', this.handlePointerUp as any);
+        document.addEventListener('pointercancel', this.handlePointerCancel as any);
+      } else {
+        // Fallback: mouse + touch
+        drawerElement.addEventListener('mousedown', this.handleMouseDown, { capture: true } as AddEventListenerOptions);
+        document.addEventListener('mousemove', this.handleMouseMove);
+        document.addEventListener('mouseup', this.handleMouseUp);
 
-      // Touch start on the drawer; use capture to run before child handlers that stopPropagation
-      // Defer drag decision to first move to allow content scrolling when appropriate
-      drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false, capture: true });
-      document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
-      document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+        drawerElement.addEventListener('touchstart', this.handleTouchStart, { passive: false, capture: true });
+        document.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+        document.addEventListener('touchend', this.handleTouchEnd, { passive: false });
+      }
     }, 0);
   }
 
@@ -301,13 +341,68 @@ export class DrawerElement extends LitElementWithProps {
     // Remove listeners from drawer element
     drawerElement.removeEventListener('touchstart', this.handleTouchStart as EventListener);
     drawerElement.removeEventListener('mousedown', this.handleMouseDown as EventListener);
+    drawerElement.removeEventListener('pointerdown', this.handlePointerDown as EventListener);
 
     // Remove listeners from document
-    document.removeEventListener('touchmove', this.handleTouchMove);
-    document.removeEventListener('touchend', this.handleTouchEnd);
-    document.removeEventListener('mousemove', this.handleMouseMove);
-    document.removeEventListener('mouseup', this.handleMouseUp);
+    document.removeEventListener('touchmove', this.handleTouchMove as EventListener);
+    document.removeEventListener('touchend', this.handleTouchEnd as EventListener);
+    document.removeEventListener('mousemove', this.handleMouseMove as EventListener);
+    document.removeEventListener('mouseup', this.handleMouseUp as EventListener);
+    document.removeEventListener('pointermove', this.handlePointerMove as EventListener);
+    document.removeEventListener('pointerup', this.handlePointerUp as EventListener);
+    document.removeEventListener('pointercancel', this.handlePointerCancel as EventListener);
   }
+
+  // ===== Pointer Events (preferred) =====
+  private handlePointerDown = (e: PointerEvent) => {
+    if (this.loading || !this.open) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    // Defer decision until move for all pointer types to preserve inner clicks/taps
+    this.pendingDrag = true;
+    this.startY = e.clientY;
+    this.currentY = e.clientY;
+    this.dragStartTime = Date.now();
+    // Do not preventDefault here; keep click/tap semantics intact unless we transition into drag
+  };
+
+  private handlePointerMove = (e: PointerEvent) => {
+    if (!this.pendingDrag && !this.isDragging) return;
+    const y = e.clientY;
+    if (this.pendingDrag) {
+      const dy = y - this.startY;
+      const absDy = Math.abs(dy);
+      const ACTIVATE_PX = 8;
+      // For touch/pen, only start dragging when inner body is at top so we don't steal scroll
+      const body = this.bodyElement;
+      const atTop = !body || body.scrollTop <= 0;
+      if (absDy >= ACTIVATE_PX && atTop) {
+        this.pendingDrag = false;
+        this.startDrag(this.startY);
+        try { (e.target as Element)?.setPointerCapture?.(e.pointerId); } catch {}
+      } else {
+        return;
+      }
+    }
+    if (this.isDragging) {
+      this.updateDrag(y);
+      e.preventDefault();
+    }
+  };
+
+  private handlePointerUp = (e: PointerEvent) => {
+    if (this.pendingDrag) { this.pendingDrag = false; }
+    if (this.isDragging) {
+      this.endDrag();
+      e.preventDefault();
+    }
+    try { (e.target as Element)?.releasePointerCapture?.(e.pointerId); } catch {}
+  };
+
+  private handlePointerCancel = (e: PointerEvent) => {
+    if (this.pendingDrag) this.pendingDrag = false;
+    if (this.isDragging) this.endDrag();
+    try { (e.target as Element)?.releasePointerCapture?.(e.pointerId); } catch {}
+  };
 
   private handleTouchStart = (e: TouchEvent) => {
     if (this.loading || !this.open) return;

@@ -54,6 +54,9 @@ jobs:
       - name: Build SDK
         run: pnpm -C sdk build
 
+      - name: Assert generated palette CSS
+        run: node sdk/scripts/assert-palette-css.mjs
+
       - name: Run wallet-iframe unit tests
         env:
           USE_RELAY_SERVER: '1'
