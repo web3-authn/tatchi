@@ -61,9 +61,11 @@ jobs:
         env:
           USE_RELAY_SERVER: '1'
           NO_CADDY: '1'
+          VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:wallet-iframe
 
       - name: Run lit-components unit tests
         env:
           NO_CADDY: '1'
+          VITE_WALLET_DEV_CSP: 'strict'
         run: pnpm -C sdk test:lit-components

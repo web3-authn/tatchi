@@ -199,7 +199,7 @@ export class TxTree extends LitElementWithProps {
       window.setTimeout(() => {
         body.removeEventListener('transitionend', onEnd);
         cleanup();
-      }, 250);
+      }, 200);
     });
   }
 
