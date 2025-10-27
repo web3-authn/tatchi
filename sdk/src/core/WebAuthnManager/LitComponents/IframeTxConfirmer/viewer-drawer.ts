@@ -138,15 +138,13 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   async firstUpdated(): Promise<void> {
     this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
     // Ensure external styles are ready before opening (await Promise-based loader)
-    try {
-      const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
-      await Promise.all([
-        ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
-        // Preload drawer.css so fallback <link> is loaded before opening
-        ensureExternalStyles(root, 'drawer.css', 'data-w3a-drawer-css'),
-      ]);
-    } catch {}
+    const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
+    await Promise.all([
+      ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+      ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+      // Preload drawer.css so fallback <link> is loaded before opening
+      ensureExternalStyles(root, 'drawer.css', 'data-w3a-drawer-css'),
+    ]);
     // Open after mount with double-rAF to let layout/styles settle
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     this._open = true;
@@ -154,8 +152,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 
   disconnectedCallback(): void {
-    try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
-    try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('message', this._onWindowMessage as EventListener);
     super.disconnectedCallback();
   }
 
@@ -172,16 +170,14 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   private onDrawerCancel = () => {
     if (this.loading) return;
-    try {
-      // Close drawer locally to ensure animation
-      this._open = false;
-      this.requestUpdate();
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
-    } catch {}
+    // Close drawer locally to ensure animation
+    this._open = false;
+    this.requestUpdate();
+    this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+      bubbles: true,
+      composed: true,
+      detail: { confirmed: false }
+    }));
   };
 
   private onContentConfirm = () => {
@@ -189,26 +185,22 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.loading = true;
     this.requestUpdate();
     // Bridge semantic event to canonical event
-    try {
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: true }
-      }));
-    } catch {}
+    this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
+      bubbles: true,
+      composed: true,
+      detail: { confirmed: true }
+    }));
   };
 
   private onContentCancel = () => {
     if (this.loading) return;
-    try { this._drawerEl?.handleClose(); } catch {}
-    try { this._open = false; this.requestUpdate(); } catch {}
-    try {
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
-    } catch {}
+    this._drawerEl?.handleClose();
+    this._open = false; this.requestUpdate();
+    this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+      bubbles: true,
+      composed: true,
+      detail: { confirmed: false }
+    }));
   };
 
   // Public method for two‑phase close from host/bootstrap

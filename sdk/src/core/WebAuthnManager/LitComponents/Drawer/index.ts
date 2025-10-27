@@ -68,33 +68,17 @@ export class DrawerElement extends LitElementWithProps {
   private _initialMount = true;
   // Suppress transition for the very first programmatic open
   private _firstOpen = true;
-
-  // Minimal inline CSS to ensure correct initial placement before external CSS loads
-  // Full visuals and transitions are provided by css/drawer.css (adopted via ensureExternalStyles)
-  static styles = css`
-    :host { display: contents; }
-    /* Keep overlay invisible until external CSS is adopted to avoid flashes */
-    .overlay { position: fixed; inset: 0; pointer-events: none; background: transparent; }
-    .drawer {
-      position: fixed;
-      left: 0; right: 0; bottom: 0;
-      /* Neutral initial paint to avoid flash before tokens load */
-      background: var(--w3a-colors-colorBackground, transparent);
-      color: var(--w3a-colors-textPrimary, inherit);
-      border: none;
-      transform: translateY(100%); /* start off-screen below */
-    }
-    :host([open]) .drawer {
-      transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
-    }
-    /* Avoid close button color flash before token CSS is applied */
-    .close-btn { color: var(--w3a-colors-textMuted, currentColor); background: none; }
-  `;
+  // Styles gating to avoid FOUC under strict CSP (no inline styles)
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     // Adopt drawer.css (structural + tokens) for <w3a-drawer>
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css').catch(() => {});
+    const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css');
+    this._stylePromises.push(p);
+    p.catch(() => {});
     return root;
   }
 
@@ -114,6 +98,17 @@ export class DrawerElement extends LitElementWithProps {
   connectedCallback() {
     super.connectedCallback();
     this.attachViewportSync();
+  }
+
+  // Defer initial render until external styles are adopted to prevent FOUC
+  protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const settle = Promise.all(this._stylePromises)
+        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+      this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
   }
 
   disconnectedCallback() {

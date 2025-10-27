@@ -93,6 +93,16 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
           const base = new URL(withSlash, walletOrigin);
           const hostJs = new URL('wallet-iframe-host.js', base).toString();
           ensureLink('modulepreload', hostJs, { crossorigin: '' });
+
+          // // Preload core CSS used by confirmer to reduce first-paint FOUC
+          // const tokensCss = new URL('w3a-components.css', base).toString();
+          // const txTreeCss = new URL('tx-tree.css', base).toString();
+          // const modalCss = new URL('modal-confirmer.css', base).toString();
+          // const drawerCss = new URL('drawer.css', base).toString();
+          // ensureLink('preload', tokensCss, { as: 'style', crossorigin: '' });
+          // ensureLink('preload', txTreeCss, { as: 'style', crossorigin: '' });
+          // ensureLink('preload', modalCss, { as: 'style', crossorigin: '' });
+          // ensureLink('preload', drawerCss, { as: 'style', crossorigin: '' });
         } catch {}
       }
 
