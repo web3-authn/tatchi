@@ -30,6 +30,12 @@ test.describe('Lit component – button-with-tooltip', () => {
 
   // ensures the custom element upgrades and renders the embedded lit component shell
   test('upgrades custom element and renders interactive shim', async ({ page }) => {
+    // Wait until the embedded button is rendered (CSS-gated first paint)
+    await page.waitForFunction(() => {
+      const host = document.querySelector('w3a-button-with-tooltip');
+      const btn = host?.shadowRoot?.querySelector('[data-embedded-btn]') as HTMLElement | null;
+      return !!btn && ((btn.getAttribute('role') || btn.tagName)?.toLowerCase() === 'button');
+    });
     const upgradeState = await page.evaluate(() => {
       const host = document.querySelector('w3a-button-with-tooltip');
       if (!host) {
@@ -58,6 +64,14 @@ test.describe('Lit component – button-with-tooltip', () => {
 
   // checks tooltip hover interactions wire through the shim and toggle visibility cues
   test('shows and hides tooltip on hover transitions', async ({ page }) => {
+    // Ensure shadow content is present before querying handles
+    await page.waitForFunction(() => {
+      const host = document.querySelector('w3a-button-with-tooltip');
+      const sr = host?.shadowRoot;
+      const btn = sr?.querySelector('[data-embedded-btn]');
+      const tip = sr?.querySelector('[data-tooltip-content]');
+      return !!btn && !!tip;
+    });
     const hostHandle = await page.evaluateHandle(() =>
       document.querySelector('w3a-button-with-tooltip')
     );
