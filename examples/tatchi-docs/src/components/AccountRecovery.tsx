@@ -6,7 +6,7 @@ import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
 
 export function AccountRecovery() {
-  const { accountInputState, passkeyManager, refreshLoginState } = usePasskeyContext()
+  const { accountInputState, passkeyManager, refreshLoginState, loginState, logout } = usePasskeyContext()
   const [busy, setBusy] = React.useState(false)
   const target = accountInputState?.targetAccountId || ''
 
@@ -16,12 +16,23 @@ export function AccountRecovery() {
       return
     }
     setBusy(true)
+    // Track whether the user was logged in when starting recovery.
+    // If the flow is cancelled or errors, logout to reflect cleared VRF session.
+    const startedLoggedIn = !!loginState?.isLoggedIn
     try {
       const result = await passkeyManager.recoverAccountFlow({
         accountId: target,
         options: {
-          onEvent: async () => {},
-          onError: (err: any) => { toast.error(friendlyWebAuthnMessage(err)) },
+          onEvent: async (event: any) => {
+            // No-op here; success handling is below
+          },
+          onError: async (err: any) => {
+            // Recovery flows clear VRF session on error; if we started logged in, logout for consistency
+            toast.error(friendlyWebAuthnMessage(err))
+            if (startedLoggedIn) {
+              try { await logout(); } catch {}
+            }
+          },
         }
       })
       if (result?.success) {
@@ -29,9 +40,15 @@ export function AccountRecovery() {
         await refreshLoginState()
       } else {
         toast.error(result?.error || 'Recovery failed')
+        if (startedLoggedIn) {
+          try { await logout(); } catch {}
+        }
       }
     } catch (err) {
       toast.error(friendlyWebAuthnMessage(err))
+      if (startedLoggedIn) {
+        try { await logout(); } catch {}
+      }
     } finally {
       setBusy(false)
     }
@@ -72,4 +89,3 @@ export function AccountRecovery() {
 }
 
 export default AccountRecovery
-

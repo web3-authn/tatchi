@@ -30,6 +30,8 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     registerPasskey,
     refreshLoginState,
     passkeyManager,
+    loginState,
+    logout,
   } = usePasskeyContext();
 
   const onRegister = async () => {
@@ -78,6 +80,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
 
   const onRecover = async () => {
     try {
+      const startedLoggedIn = !!loginState?.isLoggedIn;
       const result = await passkeyManager.recoverAccountFlow({
         accountId: targetAccountId,
         options: {
@@ -103,6 +106,12 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     } catch (err: any) {
       console.error('Recovery error:', err);
       toast.error(friendlyWebAuthnMessage(err), { id: 'recovery' });
+      // Ensure logout if we're currently logged in after a cancelled/error flow
+      try {
+        if (loginState?.isLoggedIn) {
+          await logout();
+        }
+      } catch {}
       throw err;
     }
   };

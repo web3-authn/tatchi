@@ -59,4 +59,3 @@ await passkeyManager.signTransactionsWithActions({
 
 See also:
 - [Architecture](../concepts/wallet-iframe-architecture)
-- [Asset URL Resolution](./asset-url-resolution)
