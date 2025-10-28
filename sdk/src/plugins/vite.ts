@@ -475,7 +475,7 @@ export default tatchiDev
 // This plugin writes a _headers file into Vite's outDir with COOP/COEP and a
 // Permissions-Policy delegating WebAuthn to the configured wallet origin.
 // It is a no-op if a _headers file already exists (to avoid overriding app settings).
-export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePlugin {
+export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { accessControlAllowOrigin?: string } } = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -545,11 +545,21 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
             '  Cross-Origin-Opener-Policy: unsafe-none',
             `  Permissions-Policy: ${permissionsPolicy}`,
           ]
-          // Do not emit CORS headers; platforms should provide them for `${sdkBasePath}/*`.
+          // Optional: emit CORS headers when explicitly configured via plugin option.
+          // Prefer a single source of truth (platform or plugin), not both.
+          const configuredAcaOrigin = (opts.cors && typeof opts.cors.accessControlAllowOrigin === 'string'
+            ? opts.cors.accessControlAllowOrigin.trim()
+            : undefined) as string | undefined;
+          if (configuredAcaOrigin) {
+            contentLines.push(
+              `${sdkBasePath}/*`,
+              `  Access-Control-Allow-Origin: ${configuredAcaOrigin}`,
+            )
+          }
           const content = contentLines.join('\n') + '\n'
           fs.mkdirSync(outDir, { recursive: true })
           fs.writeFileSync(hdrPath, content, 'utf-8')
-          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy')
+          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy' + (configuredAcaOrigin ? ' + CORS' : ''))
         }
 
         const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))

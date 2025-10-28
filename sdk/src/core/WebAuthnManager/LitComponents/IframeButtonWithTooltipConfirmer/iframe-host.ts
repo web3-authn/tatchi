@@ -401,6 +401,7 @@ export class IframeButtonHost extends LitElementWithProps {
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <link rel="stylesheet" href="${base}wallet-service.css" />
+          ${isAbsoluteBase ? `<script src="${base}wallet-shims.js"></script>` : ''}
           <!-- Pre-ensure critical stylesheets using absolute wallet base when available.
                When the base isn't absolute yet (e.g., early dev), skip these here and let
                in-iframe bootstrap ensure them to avoid host-origin ORB. -->

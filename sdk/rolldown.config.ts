@@ -84,7 +84,19 @@ const aliasConfig = {
 // Static assets expected to be served under `/sdk/*` by hosts.
 // Emitting them into dist/esm/sdk ensures deploy steps that rsync the SDK
 // directory (often with --delete) keep these files available in production.
-const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n";
+const WALLET_SHIM_SOURCE = [
+  // Minimal globals used by some deps in browser context
+  "window.global ||= window; window.process ||= { env: {} };",
+  // Infer absolute SDK base from this script's src and set it for embedded iframes (about:srcdoc)
+  "(function(){try{",
+  "  var cur = (document && document.currentScript && (document.currentScript as HTMLScriptElement).src) || '';",
+  "  if(!cur) return;",
+  "  var u = new URL(cur, (typeof location !== 'undefined' ? location.href : ''));",
+  "  var base = u.href.slice(0, u.href.lastIndexOf('/') + 1);",
+  "  var w = window as any;",
+  "  if (!w.__W3A_WALLET_SDK_BASE__) { w.__W3A_WALLET_SDK_BASE__ = base; }",
+  "}catch(e){}})();\n",
+].join('\n');
 const WALLET_SURFACE_CSS = [
   'html, body { background: transparent !important; margin:0; padding:0; }',
   '',

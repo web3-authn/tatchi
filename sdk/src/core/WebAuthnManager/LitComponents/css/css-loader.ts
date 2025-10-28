@@ -1,11 +1,13 @@
 import { resolveEmbeddedBase } from '../asset-base';
 
-// --- Feature detection & caches -------------------------------------------------
+// Feature detection & caches
 
 const supportsConstructable = typeof ShadowRoot !== 'undefined' && 'adoptedStyleSheets' in ShadowRoot.prototype;
 const sheetCache: Map<string, Promise<CSSStyleSheet | null>> = new Map();
 
-// --- URL resolution ------------------------------------------------------------
+// URL resolution
+
+let warnedRelativeBaseOnce = false;
 
 function resolveStylesheetUrl(assetName: string): string {
   const base = resolveEmbeddedBase();
@@ -13,6 +15,17 @@ function resolveStylesheetUrl(assetName: string): string {
 
   // Absolute base already includes origin
   if (/^https?:/i.test(base)) return `${join(base)}${assetName}`;
+
+  // Warn early when running inside srcdoc with a relative base.
+  // In this case, relative URLs will resolve against the host app origin,
+  // which likely does not serve SDK assets under `/sdk/*`.
+  try {
+    if (!warnedRelativeBaseOnce && typeof document !== 'undefined' && document.URL === 'about:srcdoc') {
+      warnedRelativeBaseOnce = true;
+      console.warn('[W3A][css-loader] Relative SDK base', base, 'in about:srcdoc; assets will resolve to the host origin. '
+        + 'Set window.__W3A_WALLET_SDK_BASE__ to an absolute https://wallet-origin/sdk/ or use the React provider hook.');
+    }
+  } catch {}
 
   // Relative base: prefix with current document origin if available
   const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
@@ -25,7 +38,7 @@ function resolveStylesheetUrl(assetName: string): string {
   return `${join(normalized)}${assetName}`;
 }
 
-// --- Low-level helpers ---------------------------------------------------------
+// Low-level helpers
 
 function getDoc(root: ShadowRoot | DocumentFragment | HTMLElement): Document | null {
   return ((root as any).ownerDocument as Document | null) ?? (typeof document !== 'undefined' ? document : null);
@@ -94,7 +107,7 @@ async function adoptConstructable(root: ShadowRoot, assetName: string): Promise<
   return true;
 }
 
-// --- Public API ----------------------------------------------------------------
+// Public API
 
 /**
  * Ensure an external CSS asset is applied to the given target.
