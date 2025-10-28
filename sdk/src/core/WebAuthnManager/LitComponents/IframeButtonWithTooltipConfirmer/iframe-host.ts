@@ -275,6 +275,17 @@ export class IframeButtonHost extends LitElementWithProps {
     return html`
       <div class="iframe-button-host ${this.styleScopeClass}" ${ref(this.hostRef)}>
         <div class="host-button-visual"><slot>${this.buttonTextElement}</slot></div>
+        <!--
+          Embedded iframe hosting the secure button UI.
+          - ref(this.iframeRef): gives us a handle to contentWindow for postMessage.
+          - class="${iframeSize.flushClass}": positions the iframe relative to the host (top/left/center, etc.).
+          - width/height attributes: CSP‑safe sizing fallback computed in calculateIframeSize(); also updated later
+            via updateIframeSizeCss(). We avoid inline styles; external CSS + constructable sheets do the rest.
+          - sandbox="allow-scripts": runs srcdoc on an opaque origin (no allow‑same‑origin) for tighter isolation;
+            all coordination happens via postMessage; module/CSS assets load from our /sdk base with CORS enabled.
+          - Interaction window is further constrained at runtime via clip‑path set on the iframe through the
+            --w3a-iframe-clip-path CSS variable (button‑only vs button+tooltip), and an 'interactive' class toggle.
+        -->
         <iframe
           ${ref(this.iframeRef)}
           class="${iframeSize.flushClass}"

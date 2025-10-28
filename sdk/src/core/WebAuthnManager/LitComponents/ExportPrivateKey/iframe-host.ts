@@ -241,8 +241,25 @@ export class IframeExportHost extends LitElementWithProps {
   render() {
     return html`
       <div class="iframe-host">
+        <!--
+          About this ExportPrivateKey iframe:
+          - sandbox="allow-scripts allow-same-origin":
+            Allows module scripts to run while preserving the wallet origin inside
+            the iframe (no opaque origin). Keeping same-origin is required so the
+            document matches the parent Permissions-Policy allowlist (e.g.,
+            clipboard-read/write and WebAuthn) rather than being blocked as a
+            null/opaque origin.
+          - allow="clipboard-read; clipboard-write":
+            Opts in to the clipboard features at the frame level. This must be
+            used in combination with a Permissions-Policy header on the parent
+            page that allows clipboard for the wallet origin.
+          - srcdoc (set in initializeIframe):
+            Loads wallet-service.css, component tokens (w3a-components.css),
+            preloads drawer + export-viewer CSS, and imports the viewer +
+            bootstrap modules; no inline scripts/styles to satisfy strict CSP.
+        -->
         <iframe ${ref(this.iframeRef)}
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-same-origin"
           allow="clipboard-read; clipboard-write"
           ></iframe>
       </div>
