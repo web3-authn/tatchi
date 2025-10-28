@@ -406,8 +406,6 @@ const configs = [
     resolve: {
       alias: aliasConfig
     },
-    // Minify only in production
-    minify: (isProd as any),
     plugins: prodPlugins,
   },
   // Confirm UI helpers and elements bundle for iframe usage
@@ -423,7 +421,7 @@ const configs = [
     resolve: {
       alias: aliasConfig
     },
-    minify: (isProd as any),
+    // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
   },
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
@@ -448,7 +446,7 @@ const configs = [
     resolve: {
       alias: aliasConfig
     },
-    minify: (isProd as any),
+    // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: [
       ...prodPlugins,
       {
@@ -575,7 +573,7 @@ const configs = [
     resolve: {
       alias: aliasConfig,
     },
-    minify: (isProd as any),
+    // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
   },
   // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
@@ -593,7 +591,7 @@ const configs = [
     resolve: {
       alias: aliasConfig,
     },
-    minify: (isProd as any),
+    // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
   }
   ,
@@ -613,7 +611,7 @@ const configs = [
     resolve: {
       alias: aliasConfig,
     },
-    minify: (isProd as any),
+    // Minification is controlled via CLI flags; no config option in current Rolldown types
     plugins: prodPlugins,
   }
   ,

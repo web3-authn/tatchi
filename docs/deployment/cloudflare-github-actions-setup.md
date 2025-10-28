@@ -156,7 +156,9 @@ Build outputs:
   - `Cross-Origin-Embedder-Policy: require-corp`
   - `Cross-Origin-Resource-Policy: cross-origin`
   - `Permissions-Policy: publickey-credentials-get/create` delegating to your wallet origin
-  - `Access-Control-Allow-Origin: *` for `${VITE_SDK_BASE_PATH}/*` and `${VITE_SDK_BASE_PATH}/workers/*`
+  - By default, the plugin does NOT emit `Access-Control-Allow-Origin` to avoid duplication with platform headers.
+- If your platform does not add CORS for `/sdk/*`, you may opt in via Vite config:
+    - `tatchiBuildHeaders({ walletOrigin, cors: { accessControlAllowOrigin: '*' } })`
 - `dist${VITE_WALLET_SERVICE_PATH}/index.html` (minimal) if not already provided by your app under `public/`. The plugin never overwrites existing files.
 
 With this, CI does not need to inject HTML or headers; it only needs to build the example and deploy the `dist` folder.
