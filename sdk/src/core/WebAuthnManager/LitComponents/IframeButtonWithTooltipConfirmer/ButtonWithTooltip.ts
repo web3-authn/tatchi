@@ -82,6 +82,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private mqlCoarse?: MediaQueryList;
   // Type-safe element selectors bound to shadow root
   private selectors: ElementSelectors;
+  // Gate rendering until external CSS is applied to avoid FOUC
+  private _cssReady: boolean = false;
+  private _cssReadyPromise: Promise<void> | null = null;
 
   constructor() {
     super();
@@ -90,11 +93,19 @@ export class EmbeddedTxButton extends LitElementWithProps {
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
-    // Adopt external stylesheet for CSP compatibility
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'button-with-tooltip.css', 'data-w3a-button-tooltip-css').catch(() => {});
-    // Also adopt tx-tree.css for nested tree visuals inside tooltip
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    // Adopt external stylesheets for CSP compatibility and wait for them before first render
+    const p1 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'button-with-tooltip.css', 'data-w3a-button-tooltip-css');
+    const p2 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css');
+    const p3 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css');
+    this._cssReadyPromise = Promise.all([p1, p2, p3])
+      .then(() => { this._cssReady = true; this.requestUpdate(); })
+      .catch(() => { this._cssReady = true; this.requestUpdate(); });
     return root;
+  }
+
+  // Avoid first paint until CSS is ready to prevent FOUC in the iframe
+  protected shouldUpdate(): boolean {
+    return this._cssReady;
   }
 
   // ==============================
