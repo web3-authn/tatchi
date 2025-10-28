@@ -94,15 +94,15 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
           const hostJs = new URL('wallet-iframe-host.js', base).toString();
           ensureLink('modulepreload', hostJs, { crossorigin: '' });
 
-          // Optionally preload WASM binaries to accelerate first-use
+          // Optionally prefetch WASM binaries to accelerate first-use while avoiding preload warnings
           // Requires CORS + correct MIME (application/wasm) on the wallet origin
           try {
             const signerWasm = new URL('workers/wasm_signer_worker_bg.wasm', base).toString();
-            ensureLink('preload', signerWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
+            ensureLink('prefetch', signerWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
           } catch {}
           try {
             const vrfWasm = new URL('workers/wasm_vrf_worker_bg.wasm', base).toString();
-            ensureLink('preload', vrfWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
+            ensureLink('prefetch', vrfWasm, { as: 'fetch', crossorigin: '', type: 'application/wasm' } as any);
           } catch {}
 
           // // Preload core CSS used by confirmer to reduce first-paint FOUC

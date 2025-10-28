@@ -254,11 +254,11 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
     <title>Web3Authn Wallet Service</title>
     <!-- Surface styles are external so strict CSP can keep style-src 'self' -->
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css" />
-    <!-- Preload critical styles to minimize first paint delay -->
-    <link rel="preload" as="style" href="${sdkBasePath}/drawer.css" />
-    <link rel="preload" as="style" href="${sdkBasePath}/tx-tree.css" />
-    <link rel="preload" as="style" href="${sdkBasePath}/halo-border.css" />
-    <link rel="preload" as="style" href="${sdkBasePath}/passkey-halo-loading.css" />
+    <!-- Prefetch component styles so they are warmed without triggering preload warnings -->
+    <link rel="prefetch" as="style" href="${sdkBasePath}/drawer.css" />
+    <link rel="prefetch" as="style" href="${sdkBasePath}/tx-tree.css" />
+    <link rel="prefetch" as="style" href="${sdkBasePath}/halo-border.css" />
+    <link rel="prefetch" as="style" href="${sdkBasePath}/passkey-halo-loading.css" />
     <!-- Component theme CSS: shared tokens + component-scoped tokens -->
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css" />
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css" />
