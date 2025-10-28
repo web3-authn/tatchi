@@ -137,6 +137,12 @@ export class IframeExportHost extends LitElementWithProps {
 
   private generateIframeHtml(): string {
     const base = resolveEmbeddedBase();
+    const isAbsoluteBase = /^https?:/i.test(base);
+    if (!isAbsoluteBase) {
+      try {
+        console.warn('[W3A][IframeExportHost] Embedded SDK base is not absolute. Skipping pre-insert/preload of some CSS. Set window.__W3A_WALLET_SDK_BASE__ to an absolute https://wallet-origin/sdk/');
+      } catch {}
+    }
     const viewerBundle = EXPORT_VIEWER_BUNDLE;
     const bootstrap = IFRAME_EXPORT_BOOTSTRAP_MODULE;
     return `<!DOCTYPE html>
@@ -146,10 +152,10 @@ export class IframeExportHost extends LitElementWithProps {
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
           <link rel="stylesheet" href="${base}wallet-service.css" />
           <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
-          <link rel="stylesheet" href="${base}w3a-components.css" />
-          <!-- Preload component styles to avoid first-open FOUC -->
-          <link rel="preload" as="style" href="${base}drawer.css" />
-          <link rel="preload" as="style" href="${base}export-viewer.css" />
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}w3a-components.css" />` : ''}
+          <!-- Preload component styles to avoid first-open FOUC when base is absolute -->
+          ${isAbsoluteBase ? `<link rel="preload" as="style" href="${base}drawer.css" />` : ''}
+          ${isAbsoluteBase ? `<link rel="preload" as="style" href="${base}export-viewer.css" />` : ''}
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
         </head>

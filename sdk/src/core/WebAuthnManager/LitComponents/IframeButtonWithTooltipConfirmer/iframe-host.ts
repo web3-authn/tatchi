@@ -389,18 +389,24 @@ export class IframeButtonHost extends LitElementWithProps {
     const embeddedTxButtonTag = W3A_BUTTON_WITH_TOOLTIP_ID;
     const iframeBootstrapTag = IFRAME_TX_BUTTON_BOOTSTRAP_MODULE;
     const base = resolveEmbeddedBase();
+    const isAbsoluteBase = /^https?:/i.test(base);
+    if (!isAbsoluteBase) {
+      try {
+        console.warn('[W3A][IframeButtonHost] Embedded SDK base is not absolute. Skipping pre-insert of critical CSS. Set window.__W3A_WALLET_SDK_BASE__ to an absolute https://wallet-origin/sdk/');
+      } catch {}
+    }
     return `<!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
           <link rel="stylesheet" href="${base}wallet-service.css" />
-          <!-- Pre-ensure critical stylesheets using absolute wallet base.
-               This avoids srcdoc-origin '/sdk/*' resolving against the parent origin,
-               which can trigger ORB when the host serves HTML fallbacks at that path. -->
-          <link rel="stylesheet" href="${base}w3a-components.css" data-w3a-components-css />
-          <link rel="stylesheet" href="${base}button-with-tooltip.css" data-w3a-button-tooltip-css />
-          <link rel="stylesheet" href="${base}tx-tree.css" data-w3a-tx-tree-css />
+          <!-- Pre-ensure critical stylesheets using absolute wallet base when available.
+               When the base isn't absolute yet (e.g., early dev), skip these here and let
+               in-iframe bootstrap ensure them to avoid host-origin ORB. -->
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}w3a-components.css" data-w3a-components-css />` : ''}
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}button-with-tooltip.css" data-w3a-button-tooltip-css />` : ''}
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}tx-tree.css" data-w3a-tx-tree-css />` : ''}
           <script type="module" crossorigin="anonymous" src="${base}${embeddedTxButtonTag}.js"></script>
           <script type="module" crossorigin="anonymous" src="${base}${iframeBootstrapTag}"></script>
         </head>
