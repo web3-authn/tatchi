@@ -7,7 +7,7 @@ import {
   ActionType,
   TxExecutionStatus,
   usePasskeyContext,
-} from '@tatchi/sdk/react';
+} from '@tatchi-xyz/sdk/react';
 
 import { LoadingButton } from './LoadingButton';
 import { WEBAUTHN_CONTRACT_ID } from '../config';

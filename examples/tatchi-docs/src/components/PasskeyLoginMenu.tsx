@@ -7,13 +7,13 @@ import {
   AuthMenuMode,
   DeviceLinkingPhase,
   DeviceLinkingStatus
-} from '@tatchi/sdk/react'
+} from '@tatchi-xyz/sdk/react'
 import {
   type RegistrationSSEEvent,
   AccountRecoveryPhase,
   AccountRecoveryStatus,
   type DeviceLinkingSSEEvent
-} from '@tatchi/sdk/react'
+} from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 
 import { friendlyWebAuthnMessage } from '../utils/strings'

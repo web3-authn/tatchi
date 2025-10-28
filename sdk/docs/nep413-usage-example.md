@@ -6,7 +6,7 @@ This document demonstrates how to use the NEP-413 message signing functionality 
 
 
 ```typescript
-import { PasskeyManager } from '@tatchi';
+import { PasskeyManager } from '@tatchi-xyz/sdk';
 
 const passkeyManager = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',

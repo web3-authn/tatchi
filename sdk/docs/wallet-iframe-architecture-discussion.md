@@ -152,7 +152,7 @@ If helpful, we can add small Vite/Next.js dev examples showing how to proxy `/sd
 
 ### SDK Principles (Reiterated)
 
-- No manual file copying: This is a library/SDK. We cannot expect integrators to place HTML into app‑specific `public/` paths or mirror our folder structure. All required assets must be bundled and resolved automatically so that after `npm install` and `import { PasskeyManager } from '@tatchi'`, the service iframe can load without any manual copying. The default same‑origin `srcdoc` + `wallet-iframe-host.ts?url` approach satisfies this.
+- No manual file copying: This is a library/SDK. We cannot expect integrators to place HTML into app‑specific `public/` paths or mirror our folder structure. All required assets must be bundled and resolved automatically so that after `npm install` and `import { PasskeyManager } from '@tatchi-xyz/sdk'`, the service iframe can load without any manual copying. The default same‑origin `srcdoc` + `wallet-iframe-host.ts?url` approach satisfies this.
 
 - No external vendor servers: A core objective is avoiding reliance on external servers controlled by the SDK vendor. Hosting the service page at a vendor domain (e.g., ~https://wallet.web3authn.xyz/service~) violates this principle. The default remains zero external hosting requirements. The optional separate‑origin mode is for integrators to host on their own wallet origin under their control, not ours.
 

@@ -56,7 +56,7 @@ You can rotate the active server keypair while the process stays online. The SDK
 
 ```ts
 // server/key-rotation.ts
-import { AuthService } from '@tatchi/sdk/server';
+import { AuthService } from '@tatchi-xyz/sdk/server';
 
 export async function rotateDaily(authService: AuthService) {
   const result = await authService.rotateShamirServerKeypair({

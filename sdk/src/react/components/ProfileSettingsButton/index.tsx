@@ -23,8 +23,8 @@ import { IndexedDBManager } from '../../../core/IndexedDBManager';
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@tatchi/sdk/react';
- * import { ProfileSettingsButton } from '@tatchi/sdk/react';
+ * import { PasskeyProvider } from '@tatchi-xyz/sdk/react';
+ * import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react';
  *
  * function App() {
  *   return (

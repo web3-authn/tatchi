@@ -1,6 +1,6 @@
 import React from 'react'
-import { TatchiPasskeyProvider } from '@tatchi/sdk/react'
-import '@tatchi/sdk/react/styles'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import '@tatchi-xyz/sdk/react/styles'
 
 import { HomePage } from './pages/HomePage'
 import { ToasterThemed } from './components/ToasterThemed'

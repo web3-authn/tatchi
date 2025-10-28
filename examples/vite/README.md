@@ -1,6 +1,6 @@
 # Wallet Secure Dev Server (examples/vite-secure)
 
-This app runs a dedicated wallet/service origin for local development. It serves a cross-origin WalletIframe page that hosts the Tatchi SDK, wasm signers, and related workers. The Vite dev plugin `@tatchi/sdk/plugins/vite` wires up the service route and SDK assets.
+This app runs a dedicated wallet/service origin for local development. It serves a cross-origin WalletIframe page that hosts the Tatchi SDK, wasm signers, and related workers. The Vite dev plugin `@tatchi-xyz/sdk/plugins/vite` wires up the service route and SDK assets.
 
 - Dev server: `http://localhost:5174`
 - Wallet origin (via Caddy): `https://wallet.example.localhost`

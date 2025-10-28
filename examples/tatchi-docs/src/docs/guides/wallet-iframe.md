@@ -9,7 +9,7 @@ Run sensitive flows in a sandboxed wallet origin via an embedded iframe. The SDK
 ## Configure
 
 ```tsx
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi/sdk/react'
+import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
 
 <PasskeyProvider
   config={{
@@ -29,7 +29,7 @@ import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi/sdk/re
 Vite plugin (dev/build):
 
 ```ts
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 plugins: [
   tatchiDev({ sdkBasePath: '/sdk', walletServicePath: '/wallet-service', walletOrigin: process.env.VITE_WALLET_ORIGIN }),

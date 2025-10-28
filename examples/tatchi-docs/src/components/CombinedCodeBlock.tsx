@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import CopyButton from './CopyButton';
-import { useTheme } from '@tatchi/sdk/react';
+import { useTheme } from '@tatchi-xyz/sdk/react';
 
 import reactSnippet from '../snippets/react.tsx.txt?raw'
 import coreSnippet from '../snippets/core.ts.txt?raw'

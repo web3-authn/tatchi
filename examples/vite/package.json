@@ -12,7 +12,7 @@
     "preview": "vite preview --host --port 5174"
   },
   "dependencies": {
-    "@tatchi/sdk": "workspace:*",
+    "@tatchi-xyz/sdk": "workspace:*",
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",

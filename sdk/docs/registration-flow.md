@@ -172,7 +172,7 @@ Start Registration
 ## Implementation Example
 
 ```typescript
-import type { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '@tatchi';
+import type { RegistrationSSEEvent, RegistrationPhase, RegistrationStatus } from '@tatchi-xyz/sdk';
 
 function handleRegistrationEvent(event: RegistrationSSEEvent) {
   switch (event.step) {

@@ -8,17 +8,17 @@ Web3Authn Passkey SDK for NEAR with WebAuthn PRF, embedded wallet iframe, React 
 Core (framework-agnostic):
 
 ```bash
-pnpm add @tatchi/sdk
+pnpm add @tatchi-xyz/sdk
 # or
-npm install @tatchi/sdk
+npm install @tatchi-xyz/sdk
 # or
-yarn add @tatchi/sdk
+yarn add @tatchi-xyz/sdk
 ```
 
 React components (optional):
 
 ```bash
-pnpm add @tatchi/sdk
+pnpm add @tatchi-xyz/sdk
 ```
 
 
@@ -112,7 +112,7 @@ This SDK mounts a hidden, sandboxed “service iframe” that orchestrates WebAu
 ### React usage
 
 ```tsx
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi/sdk/react';
+import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react';
 
 function App() {
   return (
@@ -136,7 +136,7 @@ function App() {
 ### Vanilla TypeScript usage
 
 ```ts
-import { PasskeyManager } from '@tatchi/sdk';
+import { PasskeyManager } from '@tatchi-xyz/sdk';
 
 const pm = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -237,7 +237,7 @@ Minimal usage:
 // vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { tatchiDev } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [react(), web3authnDev()],
@@ -261,7 +261,7 @@ import {
   web3authnWalletService,
   web3authnWasmMime,
   web3authnDevHeaders,
-} from '@tatchi/sdk/plugins/vite'
+} from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [

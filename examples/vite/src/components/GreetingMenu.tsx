@@ -1,9 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-import { ActionPhase, usePasskeyContext } from '@tatchi/sdk/react';
-import type { FunctionCallAction, TransferAction } from '@tatchi/sdk/react';
-import { ActionType, TxExecutionStatus } from '@tatchi/sdk/react';
+import { ActionPhase, usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import type { FunctionCallAction, TransferAction } from '@tatchi-xyz/sdk/react';
+import { ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
 import type { LastTxDetails } from '../types';

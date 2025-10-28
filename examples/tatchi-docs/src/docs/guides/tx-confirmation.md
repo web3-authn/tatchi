@@ -30,7 +30,7 @@ const result = await passkeyManager.executeAction('alice.testnet', {
 ## Embedded button (React)
 
 ```tsx
-import { SendTxButtonWithTooltip } from '@tatchi/sdk/react'
+import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react'
 
 <SendTxButtonWithTooltip
   nearAccountId="alice.testnet"
@@ -70,4 +70,3 @@ Props include `nearAccountId`, `actionArgs`, styling (`buttonStyle`, `tooltipSty
 During `STEP_2_USER_CONFIRMATION`, the wallet overlay expands to ensure the modal is visible and can capture the click. If you customize progress visibility, keep this step shown.
 
 See also: [Transaction confirmation guide (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/transaction_confirmation_guide.md)
-

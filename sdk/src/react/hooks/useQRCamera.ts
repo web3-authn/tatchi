@@ -13,8 +13,8 @@ import { ScanQRCodeFlow, enumerateVideoDevices, detectFrontCamera } from '../../
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@tatchi/sdk/react';
- * import { useQRCamera } from '@tatchi/sdk/react';
+ * import { PasskeyProvider } from '@tatchi-xyz/sdk/react';
+ * import { useQRCamera } from '@tatchi-xyz/sdk/react';
  *
  * function QRScanner() {
  *   const qrCamera = useQRCamera({

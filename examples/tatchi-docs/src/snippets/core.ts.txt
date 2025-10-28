@@ -1,4 +1,4 @@
-import { PasskeyManager } from '@tatchi/sdk/core'
+import { PasskeyManager } from '@tatchi-xyz/sdk/core'
 
 const passkeyManager = new PasskeyManager({
     walletOrigin,
@@ -6,4 +6,3 @@ const passkeyManager = new PasskeyManager({
 })
 
 await passkeyManager.registerPasskey({ username: 'alice' })
-

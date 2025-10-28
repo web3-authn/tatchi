@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTheme, SunIcon, MoonIcon, usePasskeyContext } from '@tatchi/sdk/react'
+import { useTheme, SunIcon, MoonIcon, usePasskeyContext } from '@tatchi-xyz/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
 

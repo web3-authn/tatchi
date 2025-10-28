@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.76.1",
-    "@tatchi/sdk": "workspace:*",
+    "@tatchi-xyz/sdk": "workspace:*",
     "borsh": "^2.0.0",
     "bs58": "^6.0.0",
     "clsx": "^2.1.1",

@@ -40,7 +40,7 @@ No wrappers
 - Default (replaces Provider + Scope pair)
 
   ```tsx
-  import { Theme } from '@tatchi/sdk/react';
+  import { Theme } from '@tatchi-xyz/sdk/react';
 
   <Theme as="div" className="app-theme-scope">
     {/* app */}

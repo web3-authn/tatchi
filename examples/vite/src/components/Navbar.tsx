@@ -9,7 +9,7 @@ import {
   DeviceLinkingStatus,
   Theme,
   useTheme,
-} from '@tatchi/sdk/react';
+} from '@tatchi-xyz/sdk/react';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {

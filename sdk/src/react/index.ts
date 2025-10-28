@@ -9,7 +9,7 @@
  *
  * @example
  * ```tsx
- * import { PasskeyProvider, QRCodeScanner, ProfileSettingsButton } from '@tatchi/sdk/react';
+ * import { PasskeyProvider, QRCodeScanner, ProfileSettingsButton } from '@tatchi-xyz/sdk/react';
  *
  * function App() {
  *   return (

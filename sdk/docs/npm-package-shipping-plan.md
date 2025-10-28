@@ -28,7 +28,7 @@ This document outlines the strategy for shipping the Web3Authn Passkey SDK as a 
 #### Update package.json
 ```json
 {
-  "name": "@tatchi",
+  "name": "@tatchi-xyz/sdk-xyz/sdk-xyz/sdk-xyz/sdk",
   "version": "1.0.0",
   "publishConfig": {
     "access": "public"
@@ -242,7 +242,7 @@ jobs:
           mkdir -p /tmp/pkg-consumer && cd /tmp/pkg-consumer
           npm init -y >/dev/null
           npm i "${{ github.workspace }}/packages/passkey/${TARBALL}"
-          node -e "require('@tatchi'); console.log('ok')"
+          node -e "require('@tatchi-xyz/sdk-xyz/sdk-xyz/sdk-xyz/sdk'); console.log('ok')"
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:

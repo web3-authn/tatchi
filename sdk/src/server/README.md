@@ -6,7 +6,7 @@ users with the Web3Authn contract.
 ## Usage
 
 ```typescript
-import { NearAccountService, getServerConfig } from '@tatchi/sdk/server';
+import { NearAccountService, getServerConfig } from '@tatchi-xyz/sdk/server';
 
 // Get configuration from environment variables
 const config = getServerConfig();
@@ -35,7 +35,7 @@ const atomicResult = await accountService.createAccountAndRegisterUser({
 
 ```typescript
 import express from 'express';
-import { NearAccountService, getServerConfig } from '@tatchi/sdk/server';
+import { NearAccountService, getServerConfig } from '@tatchi-xyz/sdk/server';
 
 const app = express();
 const accountService = new NearAccountService(getServerConfig());
@@ -49,7 +49,7 @@ app.post('/create_account_and_register_user', async (req, res) => {
 ### Vercel Edge Functions
 
 ```typescript
-import { NearAccountService, getServerConfig } from '@tatchi/sdk/server';
+import { NearAccountService, getServerConfig } from '@tatchi-xyz/sdk/server';
 
 const accountService = new NearAccountService(getServerConfig());
 
@@ -65,7 +65,7 @@ export const runtime = 'edge';
 ### Cloudflare Workers
 
 ```typescript
-import { NearAccountService, getServerConfig } from '@tatchi/sdk/server';
+import { NearAccountService, getServerConfig } from '@tatchi-xyz/sdk/server';
 
 export default {
   async fetch(request: Request, env: any) {

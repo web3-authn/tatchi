@@ -28,7 +28,7 @@ function isServerRender(): boolean {
 
 async function ensureSdkStylesLoaded(): Promise<void> {
   // @ts-ignore - bundled CSS side-effect import
-  await import('@tatchi/sdk/react/styles')
+  await import('@tatchi-xyz/sdk/react/styles')
 }
 
 async function registerWalletAppElement(): Promise<void> {

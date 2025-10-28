@@ -2,8 +2,8 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { TatchiPasskeyProvider, useTheme } from '@tatchi/sdk/react';
-import '@tatchi/sdk/react/styles';
+import { TatchiPasskeyProvider, useTheme } from '@tatchi-xyz/sdk/react';
+import '@tatchi-xyz/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';
 import { MultiTxConfirmPage } from './pages/MultiTxConfirmPage';

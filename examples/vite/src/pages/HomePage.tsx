@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { usePasskeyContext } from '@tatchi/sdk/react';
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 
 import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
 import { GreetingMenu } from '../components/GreetingMenu';

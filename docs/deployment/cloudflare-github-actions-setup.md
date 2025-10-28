@@ -143,7 +143,7 @@ wrangler pages project create <CF_PAGES_PROJECT_WALLET>
 For Cloudflare Pages (and Netlify), the SDK’s build plugin handles both the wallet service page and headers at build time:
 
 - Add the build plugin in your Vite config:
-  - Import: `tatchiBuildHeaders` from `@tatchi/sdk/plugins/vite`
+  - Import: `tatchiBuildHeaders` from `@tatchi-xyz/sdk/plugins/vite`
   - In `plugins`, add: `tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })`
 - Provide env vars (Pages project → Environment Variables):
   - `VITE_WALLET_ORIGIN` (e.g., `https://wallet.tatchi.xyz`)
@@ -179,7 +179,7 @@ When enabled (by adding `NPM_TOKEN`), the workflow will also publish the SDK to 
 - Job name: `Publish SDK to npm`
 - Location: `.github/workflows/deploy-cloudflare.yml`
 - Gate: runs only on tag pushes (refs/tags/*) and only after `deploy-worker`, `deploy-pages`, and `deploy-wallet` all succeed
-- Package: `@tatchi/sdk` (subpaths `react`, `server`)
+- Package: `@tatchi-xyz/sdk` (subpaths `react`, `server`)
 
 How to cut a release:
 1) Bump the version in `passkey-sdk/package.json` (e.g., 0.1.1)

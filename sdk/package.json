@@ -1,5 +1,5 @@
 {
-  "name": "@tatchi/sdk",
+  "name": "@tatchi-xyz/sdk",
   "version": "0.1.0",
   "type": "module",
   "description": "An embedded passkey wallet SDK built on NEAR protocol",
@@ -85,6 +85,9 @@
     "dist/",
     "README.md"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "typesVersions": {
     "*": {
       "react": [

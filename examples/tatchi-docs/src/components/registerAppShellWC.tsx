@@ -1,9 +1,9 @@
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import '@tatchi/sdk/react/styles'
+import '@tatchi-xyz/sdk/react/styles'
 import { App } from '../App'
 // treat compiled CSS bundle as inline string
-import sdkCss from '@tatchi/sdk/react/styles?inline'
+import sdkCss from '@tatchi-xyz/sdk/react/styles?inline'
 // import app stylesheet as inline text
 import appShellCss from '../app.css?inline'
 // vendor sonner CSS into the ShadowRoot to ensure fixed positioning

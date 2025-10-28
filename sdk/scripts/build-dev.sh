@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Development build script for @tatchi/sdk
+# Development build script for @tatchi-xyz/sdk
 # - Faster build (no wasm-pack --release, no bun --minify)
 # - Rolldown runs without forcing NODE_ENV=production
 
@@ -8,7 +8,7 @@ set -e
 
 source ./build-paths.sh
 
-echo "Starting development build for @tatchi/sdk..."
+echo "Starting development build for @tatchi-xyz/sdk..."
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -61,4 +61,3 @@ if cp "$SOURCE_WASM_VRF/pkg/wasm_vrf_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/nu
 if cp "$SOURCE_WASM_SIGNER/pkg/wasm_signer_worker_bg.wasm" "$BUILD_WORKERS/" 2>/dev/null; then print_success "Signer WASM copied"; else print_warning "Signer WASM not found"; fi
 
 print_success "Development build completed successfully!"
-

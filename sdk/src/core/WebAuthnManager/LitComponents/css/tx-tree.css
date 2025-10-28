@@ -113,6 +113,11 @@
   --indent: calc(var(--indent-step, 1rem) * 1);
 }
 
+/* Align depth-2 file rows under folder-children to use depth-1 indent + 0.5rem */
+:is(w3a-tx-tree, tx-tree) .folder-children > .row.file-row.depth-2 {
+  --indent: calc(var(--indent-step, 1rem) * 1 + 0.5rem);
+}
+
 :is(w3a-tx-tree, tx-tree) .indent {
   width: var(--w3a-tree__indent__width, var(--indent, 0));
   height: var(--w3a-tree__indent__height, 100%);
@@ -153,6 +158,7 @@
 :is(w3a-tx-tree, tx-tree) .label.label-action-node {
   font-size: var(--w3a-tree__label-action-node__font-size, 0.8rem);
   color: var(--w3a-color-text-secondary, #94a3b8);
+  margin: 0rem 0.5rem 0rem 1rem;
 }
 
 :is(w3a-tx-tree, tx-tree) .label.gradient-text {
@@ -259,7 +265,7 @@
 
 :is(w3a-tx-tree, tx-tree) .file-content {
   box-sizing: var(--w3a-tree__file-content__box-sizing, border-box);
-  margin: var(--w3a-tree__file-content__margin, 0rem 0.25rem 0rem 0.25rem);
+  margin: var(--w3a-tree__file-content__margin, 0rem 0.25rem 0rem 0.5rem);
   padding: var(--w3a-tree__file-content__padding, 0rem 0.25rem 0rem 0.25rem);
   border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
   background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));

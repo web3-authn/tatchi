@@ -11,6 +11,6 @@
     "wrangler": "^4.40.2"
   },
   "dependencies": {
-    "@tatchi/sdk": "workspace:*"
+    "@tatchi-xyz/sdk": "workspace:*"
   }
 }

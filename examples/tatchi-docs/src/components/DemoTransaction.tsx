@@ -8,8 +8,8 @@ import {
   TxExecutionStatus,
   usePasskeyContext,
   SendTxButtonWithTooltip,
-} from '@tatchi/sdk/react';
-import type { ActionArgs, FunctionCallAction } from '@tatchi/sdk/react';
+} from '@tatchi-xyz/sdk/react';
+import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
 import { LoadingButton } from './LoadingButton';

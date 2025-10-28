@@ -49,7 +49,7 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Build SDK (@tatchi/sdk, production)
+      - name: Build SDK (@tatchi-xyz/sdk, production)
         run: pnpm build:sdk-prod
 
       - name: Build wallet host example (if present)
@@ -133,7 +133,7 @@ jobs:
       - name: Install dependencies (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (@tatchi/sdk, production)
+      - name: Build SDK (@tatchi-xyz/sdk, production)
         run: pnpm build:sdk-prod
 
       - name: Build hosted app (examples/vite)

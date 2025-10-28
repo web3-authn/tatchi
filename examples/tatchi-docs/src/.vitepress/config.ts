@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -49,14 +49,11 @@ export default defineConfig({
           { text: 'Wallet Iframe', link: '/docs/guides/wallet-iframe' },
           { text: 'Passkeys', link: '/docs/guides/passkeys' },
           { text: 'Secure Tx Confirmation', link: '/docs/guides/tx-confirmation' },
-          { text: 'Asset URL Resolution', link: '/docs/guides/asset-url-resolution' },
           { text: 'Relay Server', link: '/docs/guides/relay-server' },
           { text: 'Device Linking', link: '/docs/guides/device-linking' },
           { text: 'Cloudflare Worker', link: '/docs/guides/cloudflare-worker' },
           { text: 'Cloudflare WASM Imports', link: '/docs/guides/cloudflare-wasm-imports' },
           { text: 'Cloudflare + GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
-          { text: 'iPhone (Safari) Dev', link: '/docs/guides/iphone-dev/' },
-          { text: 'Safari address bar fix', link: '/docs/guides/iphone-dev/safari-address-bar-fix' },
         ],
       },
       {
@@ -114,9 +111,9 @@ export default defineConfig({
     optimizeDeps: {
       force: true,
       exclude: [
-        '@tatchi/sdk',
-        '@tatchi/sdk/react',
-        '@tatchi/sdk/plugins/vite',
+        '@tatchi-xyz/sdk',
+        '@tatchi-xyz/sdk/react',
+        '@tatchi-xyz/sdk/plugins/vite',
       ],
       include: ['react', 'react-dom']
     },

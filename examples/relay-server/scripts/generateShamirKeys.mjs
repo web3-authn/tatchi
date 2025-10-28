@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { Shamir3PassUtils } from '@tatchi/sdk/server';
+import { Shamir3PassUtils } from '@tatchi-xyz/sdk/server';
 
 async function main() {
   const utils = new Shamir3PassUtils({});

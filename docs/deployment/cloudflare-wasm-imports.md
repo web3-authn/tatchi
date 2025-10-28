@@ -113,8 +113,8 @@ if (!this.shamir3pass && this.config.shamir) {
 ### Cloudflare Worker Configuration
 
 ```typescript
-import signerWasmModule from '@tatchi/sdk/server/wasm/signer';
-import shamirWasmModule from '@tatchi/sdk/server/wasm/vrf';
+import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
+import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 
 service = new AuthService({
     // ... other config

@@ -23,7 +23,7 @@ importers:
 
   examples/relay-cloudflare-worker:
     dependencies:
-      '@tatchi/sdk':
+      '@tatchi-xyz/sdk':
         specifier: workspace:*
         version: link:../../sdk
     devDependencies:
@@ -33,7 +33,7 @@ importers:
 
   examples/relay-server:
     dependencies:
-      '@tatchi/sdk':
+      '@tatchi-xyz/sdk':
         specifier: workspace:*
         version: link:../../sdk
       cors:
@@ -64,7 +64,7 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.76.1
         version: 5.87.1(react@18.3.1)
-      '@tatchi/sdk':
+      '@tatchi-xyz/sdk':
         specifier: workspace:*
         version: link:../../sdk
       borsh:
@@ -85,12 +85,6 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
-      react-router-dom:
-        specifier: ^7.6.1
-        version: 7.8.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      shiki:
-        specifier: ^2.5.0
-        version: 2.5.0
       sonner:
         specifier: ^1.5.0
         version: 1.7.4(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -113,6 +107,9 @@ importers:
       globals:
         specifier: ^16.0.0
         version: 16.3.0
+      shiki:
+        specifier: ^2.5.0
+        version: 2.5.0
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
@@ -131,7 +128,7 @@ importers:
 
   examples/vite:
     dependencies:
-      '@tatchi/sdk':
+      '@tatchi-xyz/sdk':
         specifier: workspace:*
         version: link:../../sdk
       borsh:

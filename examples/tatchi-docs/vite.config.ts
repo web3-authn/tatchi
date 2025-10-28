@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 /**
  * Do NOT use optional chaining or dynamic access such as `import.meta?.env`

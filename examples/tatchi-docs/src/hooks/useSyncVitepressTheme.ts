@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useTheme, usePasskeyContext } from '@tatchi/sdk/react'
+import { useTheme, usePasskeyContext } from '@tatchi-xyz/sdk/react'
 
 /**
  * useSyncVitepressTheme

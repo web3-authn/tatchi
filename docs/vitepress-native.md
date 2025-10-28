@@ -59,8 +59,8 @@ We’ll expose the current React UI as custom elements and mount providers withi
 // examples/vite-secure/src/components/registerAppShellWC.tsx
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { TatchiPasskeyProvider } from '@tatchi/sdk/react';
-import '@tatchi/sdk/react/styles';
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react';
+import '@tatchi-xyz/sdk/react/styles';
 
 import { Navbar } from './Navbar';
 import { HomePage } from '../pages/HomePage';
@@ -149,7 +149,7 @@ const theme: Theme = {
     await (DefaultTheme as any).enhanceApp?.(ctx);
     if (import.meta.env.SSR) return;
 
-    await import('@tatchi/sdk/react/styles');
+    await import('@tatchi-xyz/sdk/react/styles');
 
     if (!customElements.get('wallet-app')) {
       await import('@app/components/registerAppShellWC');
@@ -166,8 +166,8 @@ If you prefer VitePress to import a single, side‑effect‑free module instead 
 ```tsx
 // examples/tatchi-docs/src/App.tsx
 import React from 'react'
-import { TatchiPasskeyProvider } from '@tatchi/sdk/react'
-import '@tatchi/sdk/react/styles'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import '@tatchi-xyz/sdk/react/styles'
 import NavbarStatic from './components/NavbarStatic'
 import { HomePage } from './pages/HomePage'
 import { ToasterThemed } from './components/ToasterThemed'
@@ -313,7 +313,7 @@ We’ll align the in-app UI to VitePress routing, avoiding `react-router-dom`.
 // examples/vite-secure/src/components/Navbar.tsx
 import React from 'react';
 import toast from 'react-hot-toast';
-import { usePasskeyContext, ProfileSettingsButton, DeviceLinkingPhase, DeviceLinkingStatus, Theme, useTheme } from '@tatchi/sdk/react';
+import { usePasskeyContext, ProfileSettingsButton, DeviceLinkingPhase, DeviceLinkingStatus, Theme, useTheme } from '@tatchi-xyz/sdk/react';
 
 export const Navbar: React.FC = () => {
   const { loginState } = usePasskeyContext();
@@ -388,7 +388,7 @@ example.localhost {
     })
   }
   ```
-- Tokens/styles: `@tatchi/sdk/react/styles` is imported within the wrapper; confirm components read tokens via the `Theme` boundary correctly in Shadow DOM.
+- Tokens/styles: `@tatchi-xyz/sdk/react/styles` is imported within the wrapper; confirm components read tokens via the `Theme` boundary correctly in Shadow DOM.
 - Env vars: set `vite.envDir` so `VITE_*` variables resolve during VitePress build.
 - SSR/Client-only: register custom elements only on the client (`import.meta.env.SSR` guards). Use `<ClientOnly>` for the homepage mount.
 - Toaster mounting: `react-hot-toast` renders into `document.body` by default; this is acceptable, but if you want it fully contained within the element, pass a custom `container` or `containerStyle`.

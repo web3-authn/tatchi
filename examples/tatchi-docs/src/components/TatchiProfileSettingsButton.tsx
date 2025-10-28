@@ -7,7 +7,7 @@ import {
   DeviceLinkingStatus,
   useTheme,
   DeviceLinkingSSEEvent,
-} from '@tatchi/sdk/react';
+} from '@tatchi-xyz/sdk/react';
 
 export interface TatchiProfileSettingsButtonProps {
   className?: string;

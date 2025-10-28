@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import dotenv from 'dotenv';
 dotenv.config();
-import { Shamir3PassUtils } from '@tatchi/sdk/server';
+import { Shamir3PassUtils } from '@tatchi-xyz/sdk/server';
 
 async function main() {
 

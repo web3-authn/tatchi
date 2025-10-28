@@ -1,7 +1,7 @@
 import React from 'react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
-import { usePasskeyContext } from '@tatchi/sdk/react'
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 
 import { CarouselProvider } from './carousel/CarouselProvider'
 import { Carousel } from './carousel/Carousel'

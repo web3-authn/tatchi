@@ -1,6 +1,6 @@
 import React from 'react';
 import { Toaster } from 'sonner';
-import { useTheme } from '@tatchi/sdk/react';
+import { useTheme } from '@tatchi-xyz/sdk/react';
 
 export const ToasterThemed: React.FC = () => {
   const { tokens, isDark } = useTheme();

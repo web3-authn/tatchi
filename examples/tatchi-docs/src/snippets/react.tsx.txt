@@ -1,4 +1,4 @@
-import { TatchiPasskeyProvider } from '@tatchi/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
 
 export function App() {
   return (
@@ -7,4 +7,3 @@ export function App() {
     </TatchiPasskeyProvider>
   )
 }
-

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import Github from "./icons/Github";
 import { BookOpenText } from 'lucide-react';
 import CopyButton from './CopyButton';
-import { TouchIcon } from '@tatchi/sdk/react';
+import { TouchIcon } from '@tatchi-xyz/sdk/react';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
 
 export function HomeHero() {
@@ -10,10 +10,10 @@ export function HomeHero() {
   const { linkProps } = useVitepressRouter();
 
   const installBlockCmd = pmBlock === 'npm'
-    ? 'npm install @tatchi/sdk'
+    ? 'npm install @tatchi-xyz/sdk'
     : pmBlock === 'pnpm'
-    ? 'pnpm add @tatchi/sdk'
-    : 'bun add @tatchi/sdk';
+    ? 'pnpm add @tatchi-xyz/sdk'
+    : 'bun add @tatchi-xyz/sdk';
 
   const highlightedInstall = installBlockCmd
     .replace(/^(npm|pnpm|bun)/, '<span class="code-kw-pm">$1</span>')

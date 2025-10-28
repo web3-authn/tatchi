@@ -6,8 +6,8 @@ import {
   ActionType,
   TxExecutionStatus,
   usePasskeyContext,
-} from '@tatchi/sdk/react';
-import type { ActionArgs } from '@tatchi/sdk/react';
+} from '@tatchi-xyz/sdk/react';
+import type { ActionArgs } from '@tatchi-xyz/sdk/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 import toast from 'react-hot-toast';
 import './MultiTxConfirmPage.css';

@@ -1,6 +1,6 @@
 import express, { Express } from 'express';
-import { AuthService } from '@tatchi/sdk/server';
-import { createRelayRouter } from '@tatchi/sdk/server/router/express';
+import { AuthService } from '@tatchi-xyz/sdk/server';
+import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 dotenv.config();

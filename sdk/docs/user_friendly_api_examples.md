@@ -5,7 +5,7 @@ This document demonstrates the user-friendly API for creating NEAR actions, whic
 ### API
 
 ```typescript
-import { ActionType, type FunctionCallAction } from '@tatchi';
+import { ActionType, type FunctionCallAction } from '@tatchi-xyz/sdk';
 
 // Clear, type-safe interface with only relevant fields
 const newAction: FunctionCallAction = {
@@ -28,7 +28,7 @@ await passkeyManager.executeAction('alice.near', newAction);
 Call smart contract methods with automatic JSON serialization:
 
 ```typescript
-import { functionCall, ActionType, type FunctionCallAction } from '@tatchi';
+import { functionCall, ActionType, type FunctionCallAction } from '@tatchi-xyz/sdk';
 
 // Using helper function (recommended)
 const action = functionCall({
@@ -60,7 +60,7 @@ await passkeyManager.executeAction('alice.near', action);
 Send NEAR tokens directly:
 
 ```typescript
-import { transfer, ActionType, type TransferAction } from '@tatchi';
+import { transfer, ActionType, type TransferAction } from '@tatchi-xyz/sdk';
 
 // Using helper function
 const action = transfer({
@@ -83,7 +83,7 @@ await passkeyManager.executeAction('alice.near', action);
 Create a new NEAR account:
 
 ```typescript
-import { createAccount } from '@tatchi';
+import { createAccount } from '@tatchi-xyz/sdk';
 
 const action = createAccount({
   receiverId: 'newuser.alice.near'
@@ -97,7 +97,7 @@ await passkeyManager.executeAction('alice.near', action);
 Add access keys with proper type safety:
 
 ```typescript
-import { addFullAccessKey, addFunctionCallKey } from '@tatchi';
+import { addFullAccessKey, addFunctionCallKey } from '@tatchi-xyz/sdk';
 
 // Full access key
 const fullAccessAction = addFullAccessKey({
@@ -122,7 +122,7 @@ await passkeyManager.executeAction('alice.near', fullAccessAction);
 Execute multiple actions in a single transaction:
 
 ```typescript
-import { functionCall, transfer } from '@tatchi';
+import { functionCall, transfer } from '@tatchi-xyz/sdk';
 
 // Create multiple actions
 const actions: ActionArgs[] = [
@@ -148,7 +148,7 @@ for (const action of actions) {
 ### Contract Interaction with Error Handling
 
 ```typescript
-import { functionCall, type ActionResult } from '@tatchi';
+import { functionCall, type ActionResult } from '@tatchi-xyz/sdk';
 
 try {
   const action = functionCall({
@@ -188,7 +188,7 @@ try {
 ### Account Management
 
 ```typescript
-import { addFunctionCallKey, deleteKey, deleteAccount } from '@tatchi';
+import { addFunctionCallKey, deleteKey, deleteAccount } from '@tatchi-xyz/sdk';
 
 // Add a restricted key for a dApp
 const addKeyAction = addFunctionCallKey({

@@ -13,7 +13,7 @@ The Web3Authn passkey system provides secure, passwordless authentication and tr
 
 ### Registration
 ```typescript
-import { usePasskeyContext } from '@tatchi/sdk/react';
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 
 function MyComponent() {
   const { registerPasskey } = usePasskeyContext();
@@ -31,7 +31,7 @@ function MyComponent() {
 
 ### Transaction Signing
 ```typescript
-import { usePasskeyContext } from '@tatchi/sdk/react';
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 
 function TransactionComponent() {
   const { passkeyManager } = usePasskeyContext();

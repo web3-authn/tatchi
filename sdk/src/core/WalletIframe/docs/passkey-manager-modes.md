@@ -38,7 +38,7 @@ Quick start
 // vite.config.ts
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import { tatchiDev } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [react(), tatchiDev({ mode: 'self-contained', walletServicePath: '/wallet-service', sdkBasePath: '/sdk' })],

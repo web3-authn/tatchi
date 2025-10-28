@@ -1,5 +1,5 @@
 import React from 'react'
-import { usePasskeyContext } from '@tatchi/sdk/react'
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 import { friendlyWebAuthnMessage } from '../utils/strings'
 import { LoadingButton } from './LoadingButton';

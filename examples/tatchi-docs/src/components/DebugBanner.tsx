@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { usePasskeyContext } from '@tatchi/sdk/react';
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 
 export const DebugBanner: React.FC = () => {
   // Hide on mobile devices (coarse pointers / typical UA tokens)

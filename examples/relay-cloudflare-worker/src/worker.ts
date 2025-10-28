@@ -1,8 +1,8 @@
-import { AuthService } from '@tatchi/sdk/server';
-import { createCloudflareRouter, createCloudflareCron } from '@tatchi/sdk/server/router/cloudflare';
-import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi/sdk/server/router/cloudflare';
-import signerWasmModule from '@tatchi/sdk/server/wasm/signer';
-import shamirWasmModule from '@tatchi/sdk/server/wasm/vrf';
+import { AuthService } from '@tatchi-xyz/sdk/server';
+import { createCloudflareRouter, createCloudflareCron } from '@tatchi-xyz/sdk/server/router/cloudflare';
+import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi-xyz/sdk/server/router/cloudflare';
+import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
+import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;

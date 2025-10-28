@@ -19,8 +19,8 @@ import { Theme } from './theme';
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@tatchi/sdk/react';
- * import { QRCodeScanner } from '@tatchi/sdk/react';
+ * import { PasskeyProvider } from '@tatchi-xyz/sdk/react';
+ * import { QRCodeScanner } from '@tatchi-xyz/sdk/react';
  *
  * function App() {
  *   return (

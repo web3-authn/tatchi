@@ -4,21 +4,21 @@ title: Install
 
 # Install
 
-Install and configure the SDK. Import from subpaths like `@tatchi/sdk`, `@tatchi/sdk/react`, and `@tatchi/sdk/server`.
+Install and configure the SDK. Import from subpaths like `@tatchi-xyz/sdk`, `@tatchi-xyz/sdk/react`, and `@tatchi-xyz/sdk/server`.
 
 ## 1) Install the SDK
 
 ::: code-group
 ```bash [pnpm]
-pnpm add @tatchi/sdk
+pnpm add @tatchi-xyz/sdk
 ```
 
 ```bash [npm]
-npm i @tatchi/sdk
+npm i @tatchi-xyz/sdk
 ```
 
 ```bash [yarn]
-yarn add @tatchi/sdk
+yarn add @tatchi-xyz/sdk
 ```
 :::
 
@@ -36,7 +36,7 @@ Add the plugin to serve wallet assets and headers during dev/build:
 // vite.config.ts
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi/sdk/plugins/vite'
+import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')

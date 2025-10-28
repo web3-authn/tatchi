@@ -61,7 +61,7 @@ function normalizeBase(p?: string, fallback = '/sdk'): string {
 function resolveSdkDistRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit)
   // Resolve the installed package (works with workspace + node_modules)
-  const pkgPath = requireCjs.resolve('@tatchi/sdk/package.json')
+  const pkgPath = requireCjs.resolve('@tatchi-xyz/sdk/package.json')
   const pkgDir = path.dirname(pkgPath)
   try {
     const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { module?: string }
@@ -585,10 +585,10 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Web3Authn Wallet Service</title>
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/tx-tree.css\"> 
+    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/tx-tree.css\">
     <link rel="prefetch" as="style" href="${sdkBasePath}/drawer.css">
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/halo-border.css\"> 
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/passkey-halo-loading.css\"> 
+    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/halo-border.css\">
+    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/passkey-halo-loading.css\">
     <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css">

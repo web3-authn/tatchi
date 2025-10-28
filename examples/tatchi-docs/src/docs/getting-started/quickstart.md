@@ -12,7 +12,7 @@ Follow these steps to get a working login in minutes.
 // main.tsx
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi/sdk/react'
+import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
 
 function App() {
   return <YourApp />
@@ -38,7 +38,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ## 2) Use it in a component
 
 ```tsx
-import { usePasskeyContext } from '@tatchi/sdk/react'
+import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 
 export function LoginButton() {
   const { loginPasskey } = usePasskeyContext()
@@ -51,7 +51,7 @@ export function LoginButton() {
 ## 3) Vanilla TypeScript
 
 ```ts
-import { PasskeyManager } from '@tatchi/sdk'
+import { PasskeyManager } from '@tatchi-xyz/sdk'
 
 const manager = new PasskeyManager({
   nearRpcUrl: 'https://rpc.testnet.near.org',

@@ -1,4 +1,4 @@
-# Web Components Plan: `@tatchi/sdk/web-components`
+# Web Components Plan: `@tatchi-xyz/sdk/web-components`
 
 Goal: ship first‑class, framework‑agnostic custom elements for key SDK UI so apps can drop them into any environment (React, Vue, VitePress, static HTML, Shadow DOM) with predictable styling, events, and behavior.
 
@@ -43,7 +43,7 @@ Usage examples
 <tatchi-profile-settings near-account-id="alice.testnet" hide-username></tatchi-profile-settings>
 
 <script type="module">
-  import '@tatchi/sdk/web-components/profile-settings';
+  import '@tatchi-xyz/sdk/web-components/profile-settings';
 
   const el = document.querySelector('tatchi-profile-settings');
   el.onLogout = () => console.log('logout');
@@ -68,7 +68,7 @@ Styling and theming
 Build and packaging
 - Location: `sdk/src/web-components/`
 - Build: Vite library mode or tsup to emit ESM bundles per component and a `defineAll()` helper.
-- CSS bundling: import `@tatchi/sdk/react/styles?inline` and transform to `CSSStyleSheet` (when supported). Include a fallback string.
+- CSS bundling: import `@tatchi-xyz/sdk/react/styles?inline` and transform to `CSSStyleSheet` (when supported). Include a fallback string.
 - Types: ship `.d.ts` for element classes with properties and event typings.
 - Package exports (sdk/package.json)
   - `"./web-components"`: `"dist/web-components/index.js"`
@@ -92,8 +92,8 @@ Testing strategy
   - Visual sanity for light/dark themes.
 
 Migration in docs/examples
-- Replace `registerAppShellWC.tsx` with imports from `@tatchi/sdk/web-components` and direct `<tatchi-profile-settings />` usage where appropriate.
-- Keep example React usage for `@tatchi/sdk/react` as‑is (no breaking change).
+- Replace `registerAppShellWC.tsx` with imports from `@tatchi-xyz/sdk/web-components` and direct `<tatchi-profile-settings />` usage where appropriate.
+- Keep example React usage for `@tatchi-xyz/sdk/react` as‑is (no breaking change).
 
 Phased implementation plan
 1) Skeleton package under `sdk/src/web-components/` with a base `define()` helper and style injector.
@@ -112,5 +112,5 @@ Phased implementation plan
 Future enhancements
 - `portalStrategy: 'document'` option for full‑viewport overlays across nested shadows.
 - Theme bus to sync theme across multiple instances (opt‑in).
-- Smaller CSS bundles per component (code‑split styles from `@tatchi/sdk/react/styles`).
+- Smaller CSS bundles per component (code‑split styles from `@tatchi-xyz/sdk/react/styles`).
 - SSR stubs if needed for static HTML export.
