@@ -162,10 +162,10 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           if (url === configuredBase + '/wallet-shims.js') {
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-            // Align with SDK asset headers so COEP/CORP environments can import cross‑origin
+            // Align with SDK asset headers so COEP/CORP environments can import
             res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            res.setHeader('Access-Control-Allow-Origin', '*')
+            // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
             res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
             res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -178,7 +178,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
             // Important: provide CORP for cross‑origin CSS so COEP documents can load it
             res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            res.setHeader('Access-Control-Allow-Origin', '*')
+            // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
             res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
             res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -224,8 +224,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           // SDK assets need COEP headers to work in wallet iframe with COEP enabled
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Allow cross-origin ESM/worker fetches during development
-          res.setHeader('Access-Control-Allow-Origin', '*')
+          // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
           res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -411,9 +410,8 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         }
 
         if (url.startsWith(`${sdkBasePath}/`)) {
-          // Allow cross‑origin ESM/worker fetches during development
+          // Allow resource policy for dev; do not set Access-Control-Allow-Origin
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
           res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -478,8 +476,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = normalizeBase(process.env.VITE_SDK_BASE_PATH, '/sdk')
-  // Allow hosts that already inject CORS for /sdk to disable emitting ACAO to avoid duplicates
-  const emitCorsForSdk = String(process.env.VITE_SDK_ADD_ACAO ?? 'true').toLowerCase() !== 'false'
 
   // Build Permissions-Policy mirroring the dev plugin format
   const ppParts: string[] = []
@@ -545,16 +541,11 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
             '  Cross-Origin-Opener-Policy: unsafe-none',
             `  Permissions-Policy: ${permissionsPolicy}`,
           ]
-          if (emitCorsForSdk) {
-            contentLines.push(
-              `${sdkBasePath}/*`,
-              '  Access-Control-Allow-Origin: *',
-            )
-          }
+          // Do not emit CORS headers; platforms should provide them for `${sdkBasePath}/*`.
           const content = contentLines.join('\n') + '\n'
           fs.mkdirSync(outDir, { recursive: true })
           fs.writeFileSync(hdrPath, content, 'utf-8')
-          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy + SDK CORS rules')
+          console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy')
         }
 
         const sdkDir = path.join(outDir, sdkBasePath.replace(/^\//, ''))

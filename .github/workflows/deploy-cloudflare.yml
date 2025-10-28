@@ -289,6 +289,8 @@ jobs:
           VITE_WALLET_SERVICE_PATH: ${{ vars.VITE_WALLET_SERVICE_PATH }}
           VITE_RP_ID_BASE: ${{ vars.VITE_RP_ID_BASE }}
           VITE_SDK_BASE_PATH: ${{ vars.VITE_SDK_BASE_PATH }}
+          # Avoid duplicate ACAO in emitted _headers; platform handles CORS
+          VITE_SDK_ADD_ACAO: 'false'
         run: |
           pnpm docs:build
 
@@ -382,7 +384,19 @@ jobs:
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          # Avoid duplicate ACAO in emitted _headers; platform handles CORS
+          VITE_SDK_ADD_ACAO: 'false'
         run: pnpm -C examples/vite build
+
+      - name: Debug – print built _headers (wallet)
+        if: ${{ hashFiles('examples/vite/package.json') != '' }}
+        run: |
+          echo "--- examples/vite/dist/_headers (if present) ---"
+          if [ -f examples/vite/dist/_headers ]; then
+            cat examples/vite/dist/_headers
+          else
+            echo "(no _headers emitted)"
+          fi
 
       - name: Copy SDK assets into Pages output (example)
         if: ${{ hashFiles('examples/vite/package.json') != '' }}
