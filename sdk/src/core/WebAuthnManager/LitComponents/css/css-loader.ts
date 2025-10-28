@@ -45,10 +45,41 @@ async function loadConstructableSheet(assetName: string): Promise<CSSStyleSheet 
   return promise;
 }
 
+function appendStyleImport(
+  root: ShadowRoot | DocumentFragment | HTMLElement,
+  assetName: string,
+  markerAttr: string
+): void {
+  try {
+    const url = resolveStylesheetUrl(assetName);
+    const hasQuery = typeof (root as any).querySelector === 'function';
+    if (hasQuery) {
+      const existing = (root as any).querySelector?.(`style[${markerAttr}]`) as HTMLStyleElement | null;
+      if (existing) return;
+    }
+    const doc = ((root as any).ownerDocument as Document | null) ?? (typeof document !== 'undefined' ? document : null);
+    if (!doc) return;
+    const style = doc.createElement('style');
+    style.setAttribute(markerAttr, '');
+    // Use @import to allow cross-origin stylesheet loading without Fetch/CORS
+    style.textContent = `@import url("${url}");`;
+    // Prefer appending directly to the shadow root/element to scope styles correctly
+    if (typeof (root as any).appendChild === 'function') {
+      (root as any).appendChild(style);
+    } else if (doc?.head) {
+      // Fallback: append to document if root does not support appendChild
+      doc.head.appendChild(style);
+    }
+  } catch (e) {
+    try { console.warn('[W3A][css-loader] Failed to append @import style for', assetName, e); } catch {}
+  }
+}
+
 /**
  * Ensure an external CSS asset is applied to a shadow root or document context.
  * - Uses adoptedStyleSheets when supported (constructable stylesheets)
- * - Falls back to injecting a <link rel="stylesheet"> with a marker attribute
+ * - Falls back to injecting a scoped <style>@import url(...)</style> into the target root
+ *   (works cross-origin without CORS), otherwise injects a document-level <link>
  */
 export async function ensureExternalStyles(
   root: ShadowRoot | DocumentFragment | HTMLElement | null | undefined,
@@ -67,8 +98,7 @@ export async function ensureExternalStyles(
     if (docEarly) {
       const preexisting = docEarly.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
       const isShadow = typeof ShadowRoot !== 'undefined' && (root instanceof ShadowRoot);
-      const canConstruct = supportsConstructable && 'adoptedStyleSheets' in root;
-      if (preexisting && (!isShadow || !canConstruct)) {
+      if (preexisting && !isShadow) {
         if ((preexisting as any)._w3aLoaded) return;
         await new Promise<void>((resolve) => {
           const done = () => { (preexisting as any)._w3aLoaded = true; resolve(); };
@@ -82,39 +112,82 @@ export async function ensureExternalStyles(
 
     if (supportsConstructable && 'adoptedStyleSheets' in root) {
       const sheet = await loadConstructableSheet(assetName);
-      if (!sheet) return;
-      const current = (root as any).adoptedStyleSheets as CSSStyleSheet[] | undefined;
-      if (!current || !current.includes(sheet)) {
-        (root as any).adoptedStyleSheets = current ? [...current, sheet] : [sheet];
+      if (sheet) {
+        const current = (root as any).adoptedStyleSheets as CSSStyleSheet[] | undefined;
+        if (!current || !current.includes(sheet)) {
+          (root as any).adoptedStyleSheets = current ? [...current, sheet] : [sheet];
+        }
+        return;
       }
+      // Constructable failed (likely CORS in about:srcdoc). Prefer scoped @import only in srcdoc.
+      try {
+        const doc = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
+        const isSrcdoc = !!doc && (doc.URL === 'about:srcdoc');
+        if (isSrcdoc) {
+          appendStyleImport(root, assetName, markerAttr);
+          return;
+        }
+      } catch {}
+      // Non-srcdoc fallback: rely on document-level <link> (complies with strict CSP)
+      const doc = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
+      if (!doc) return;
+      const existing = doc.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
+      if (existing) {
+        if ((existing as any)._w3aLoaded) return;
+        await new Promise<void>((resolve) => {
+          const done = () => { (existing as any)._w3aLoaded = true; resolve(); };
+          if (existing.sheet) return done();
+          existing.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+          existing.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+        });
+        return;
+      }
+      const link = doc.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = resolveStylesheetUrl(assetName);
+      link.setAttribute(markerAttr, '');
+      await new Promise<void>((resolve) => {
+        const done = () => { (link as any)._w3aLoaded = true; resolve(); };
+        link.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+        link.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+        doc.head.appendChild(link);
+        if (link.sheet) done();
+      });
       return;
     }
 
     const doc = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
     if (!doc) return;
-    const existing = doc.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
-    if (existing) {
-      if ((existing as any)._w3aLoaded) return;
+    const isSrcdoc = doc.URL === 'about:srcdoc';
+    if (isSrcdoc) {
+      // In srcdoc, use scoped @import (no CSP header present)
+      appendStyleImport(root, assetName, markerAttr);
+      return;
+    }
+    // Non-srcdoc: fall back to document-level <link> (strict CSP compatible)
+    const existing2 = doc.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
+    if (existing2) {
+      if ((existing2 as any)._w3aLoaded) return;
       await new Promise<void>((resolve) => {
-        const done = () => { (existing as any)._w3aLoaded = true; resolve(); };
-        if (existing.sheet) return done();
-        existing.addEventListener('load', done, { once: true } as AddEventListenerOptions);
-        existing.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+        const done = () => { (existing2 as any)._w3aLoaded = true; resolve(); };
+        if (existing2.sheet) return done();
+        existing2.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+        existing2.addEventListener('error', done, { once: true } as AddEventListenerOptions);
       });
       return;
     }
-    const link = doc.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = resolveStylesheetUrl(assetName);
-    link.setAttribute(markerAttr, '');
+    const link2 = doc.createElement('link');
+    link2.rel = 'stylesheet';
+    link2.href = resolveStylesheetUrl(assetName);
+    link2.setAttribute(markerAttr, '');
     await new Promise<void>((resolve) => {
-      const done = () => { (link as any)._w3aLoaded = true; resolve(); };
-      link.addEventListener('load', done, { once: true } as AddEventListenerOptions);
-      link.addEventListener('error', done, { once: true } as AddEventListenerOptions);
-      doc.head.appendChild(link);
-      // If the browser resolves synchronously (from cache), sheet may be present
-      if (link.sheet) done();
+      const done = () => { (link2 as any)._w3aLoaded = true; resolve(); };
+      link2.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+      link2.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+      doc.head.appendChild(link2);
+      if (link2.sheet) done();
     });
+    return;
   } catch (err) {
     console.warn('[W3A][css-loader] Failed to ensure stylesheet:', assetName, err);
   }
