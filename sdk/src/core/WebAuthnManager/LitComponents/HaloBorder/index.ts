@@ -31,7 +31,6 @@ export class HaloBorderElement extends LitElementWithProps {
   declare innerPadding?: string;
   declare innerBackground?: string;
 
-  // Static styles removed; external stylesheet is adopted for CSP compatibility
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
   private _stylesAwaiting: Promise<void> | null = null;
@@ -96,7 +95,7 @@ export class HaloBorderElement extends LitElementWithProps {
     const delta = (ts - this._startTs) % dur;
     const angle = (delta / dur) * 360;
     // Update only the angle var via adoptedStyleSheet (no style attribute writes)
-    try { this.setCssVars({ '--halo-angle': `${angle}deg` }); } catch {}
+    this.setCssVars({ '--halo-angle': `${angle}deg` });
     this._rafId = requestAnimationFrame(this.tick);
   };
 
@@ -104,17 +103,17 @@ export class HaloBorderElement extends LitElementWithProps {
     if (this._running) return;
     this._running = true;
     this._startTs = 0;
-    try { this._rafId = requestAnimationFrame(this.tick); } catch {}
+    this._rafId = requestAnimationFrame(this.tick);
   }
 
   private stop() {
     this._running = false;
     if (this._rafId) {
-      try { cancelAnimationFrame(this._rafId); } catch {}
+      cancelAnimationFrame(this._rafId);
       this._rafId = null;
     }
     // Reset angle
-    try { this.setCssVars({ '--halo-angle': `0deg` }); } catch {}
+    this.setCssVars({ '--halo-angle': `0deg` });
   }
 
   render() {

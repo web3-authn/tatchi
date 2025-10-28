@@ -7,7 +7,7 @@ import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../common/tx-digest';
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
 import { isObject, isString } from '../../../WalletIframe/validation';
-import { W3A_DRAWER_TX_CONFIRMER_ID, W3A_MODAL_TX_CONFIRMER_ID, W3A_TX_CONFIRMER_ID } from '../tags';
+import { W3A_TX_CONFIRMER_ID } from '../tags';
 import { DrawerTxConfirmerElement } from './viewer-drawer';
 import { ModalTxConfirmElement } from './viewer-modal';
 
@@ -58,8 +58,6 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     cancelText: { type: String, attribute: 'cancel-text' },
     deferClose: { type: Boolean, attribute: 'defer-close' },
   } as const;
-
-  // No inline static styles; wrapper renders to light DOM
 
   static keepDefinitions = [ModalTxConfirmElement, DrawerTxConfirmerElement];
 

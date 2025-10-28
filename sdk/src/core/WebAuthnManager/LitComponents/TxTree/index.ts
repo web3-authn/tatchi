@@ -106,7 +106,7 @@ export class TxTree extends LitElementWithProps {
         document.body.appendChild(ta);
         ta.select();
         try { document.execCommand('copy'); } catch {}
-        try { document.body.removeChild(ta); } catch {}
+        document.body.removeChild(ta);
       }
       // Mark as copied for 2 seconds
       this._copied.add(node.id);
@@ -157,7 +157,9 @@ export class TxTree extends LitElementWithProps {
 
     // Respect reduced motion
     const reduceMotion = (() => {
-      try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { return false; }
+      return typeof window !== 'undefined' && 'matchMedia' in window
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false;
     })();
 
     if (reduceMotion) {
@@ -257,12 +259,10 @@ export class TxTree extends LitElementWithProps {
     }
     // Default: light DOM render for CSP simplicity; ensure styles at host and (if present) nearest ShadowRoot
     ensureExternalStyles(this as unknown as HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-    try {
-      const root = (this.getRootNode && this.getRootNode()) as any;
-      if (root && typeof root === 'object' && 'host' in root) {
-        ensureExternalStyles(root as ShadowRoot, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-      }
-    } catch {}
+    const root = (this.getRootNode && this.getRootNode()) as any;
+    if (root && typeof root === 'object' && 'host' in root) {
+      ensureExternalStyles(root as ShadowRoot, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    }
     return this as unknown as HTMLElement;
   }
 
@@ -497,13 +497,6 @@ export class TxTree extends LitElementWithProps {
     return node.type === 'file'
       ? this.renderLeaf(depth, node)
       : this.renderFolder(depth, node);
-  }
-
-  private _normalizeWidth(val?: string | number): string | undefined {
-    if (val === undefined || val === null) return undefined;
-    if (typeof val === 'number' && Number.isFinite(val)) return `${val}px`;
-    const s = String(val).trim();
-    return s.length ? s : undefined;
   }
 
   render() {

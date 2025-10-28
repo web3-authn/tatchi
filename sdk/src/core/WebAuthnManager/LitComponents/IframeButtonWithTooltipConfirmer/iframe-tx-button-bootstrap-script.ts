@@ -27,14 +27,12 @@ declare global {
 
 // Notify parent that we're ready to receive HS1_INIT
 function isSurfaceStylesApplied(): boolean {
-  try {
-    const de = document.documentElement;
-    const b = document.body;
-    if (!de || !b) return false;
-    const csHtml = getComputedStyle(de);
-    const csBody = getComputedStyle(b);
-    return csHtml.marginTop === '0px' && csHtml.marginLeft === '0px' && csBody.marginTop === '0px' && csBody.marginLeft === '0px';
-  } catch { return false; }
+  const de = document.documentElement;
+  const b = document.body;
+  if (!de || !b) return false;
+  const csHtml = getComputedStyle(de);
+  const csBody = getComputedStyle(b);
+  return csHtml.marginTop === '0px' && csHtml.marginLeft === '0px' && csBody.marginTop === '0px' && csBody.marginLeft === '0px';
 }
 
 function whenSurfaceStylesReady(timeoutMs = 1200): Promise<void> {
@@ -44,7 +42,7 @@ function whenSurfaceStylesReady(timeoutMs = 1200): Promise<void> {
       if (isSurfaceStylesApplied()) return resolve();
       const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
       if (now - start > timeoutMs) return resolve();
-      try { requestAnimationFrame(tick); } catch { setTimeout(tick, 16); }
+      requestAnimationFrame(tick);
     };
     tick();
   });
@@ -53,33 +51,27 @@ function whenSurfaceStylesReady(timeoutMs = 1200): Promise<void> {
 async function notifyReady(): Promise<void> {
   // Wait briefly for wallet-service.css to apply (margin:0 on html/body) to avoid ~8px offset in early geometry
   await whenSurfaceStylesReady();
-  try {
-    const message: IframeButtonMessage = { type: 'READY' };
-    window.parent.postMessage(message, '*');
-  } catch {}
+  const message: IframeButtonMessage = { type: 'READY' };
+  window.parent.postMessage(message, '*');
 }
 
 function ensureDocStylesheet(assetName: string, markerAttr: string): void {
-  try {
-    const doc = document;
-    if (!doc?.head) return;
-    if (doc.head.querySelector(`link[${markerAttr}]`)) return;
-    const link = doc.createElement('link');
-    link.rel = 'stylesheet';
-    const base = resolveEmbeddedBase();
-    link.href = `${base}${assetName}`;
-    link.setAttribute(markerAttr, '');
-    doc.head.appendChild(link);
-  } catch {}
+  const doc = document;
+  if (!doc?.head) return;
+  if (doc.head.querySelector(`link[${markerAttr}]`)) return;
+  const link = doc.createElement('link');
+  link.rel = 'stylesheet';
+  const base = resolveEmbeddedBase();
+  link.href = `${base}${assetName}`;
+  link.setAttribute(markerAttr, '');
+  doc.head.appendChild(link);
 }
 
 // Forward iframe errors to parent for visibility
 function postError(kind: 'IFRAME_ERROR' | 'IFRAME_UNHANDLED_REJECTION', message: string): void {
-  try {
-    console.error('[IframeButtonBootstrap] error', kind, message);
-    const errorMessage: IframeButtonMessage = { type: kind, payload: message };
-    window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
-  } catch {}
+  console.error('[IframeButtonBootstrap] error', kind, message);
+  const errorMessage: IframeButtonMessage = { type: kind, payload: message };
+  window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
 }
 
 /** Apply HS1_INIT: element config + absolute positioning (before measure). */
@@ -147,13 +139,10 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
         el2.applyContainerPosition(payload.buttonPosition.x, payload.buttonPosition.y);
         // Ensure surface CSS is applied before telling parent we're positioned
         whenSurfaceStylesReady().then(() => {
-          try { requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
             const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
-            try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
-          }); } catch {
-            const positionedMessage: IframeButtonMessage = { type: 'HS2_POSITIONED', payload: payload.buttonPosition };
-            try { window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*'); } catch {}
-          }
+            window.parent.postMessage(positionedMessage, PARENT_ORIGIN || '*');
+          });
         });
         return;
       }
@@ -174,7 +163,7 @@ function applyInit(el: EmbeddedTxButtonElType, payload: InitPayload): void {
       if (ETX_DEFINED_POSTED) return;
       ETX_DEFINED_POSTED = true;
       const definedMessage: IframeButtonMessage = { type: 'ETX_DEFINED' };
-      try { window.parent.postMessage(definedMessage, PARENT_ORIGIN || '*'); } catch {}
+      window.parent.postMessage(definedMessage, PARENT_ORIGIN || '*');
     });
   }
 }
@@ -297,7 +286,7 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
         // Newer builds expose updateButtonStyles() which already handled theme above.
         // For safety and for older builds, also set the canonical property that the element reacts to.
         if (payload.theme) {
-          try { (el as any).TxTreeTheme = payload.theme; } catch {}
+          (el as any).TxTreeTheme = payload.theme;
           if ((el as any).requestUpdate) (el as any).requestUpdate();
         }
 
@@ -328,7 +317,7 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
               type: 'UI_INTENT_DIGEST',
               payload: { ok: true, digest }
             };
-            try { window.parent.postMessage(successMessage, PARENT_ORIGIN || '*'); } catch {}
+            window.parent.postMessage(successMessage, PARENT_ORIGIN || '*');
           })
           .catch((err: unknown) => {
             const errorMessage: IframeButtonMessage = {
@@ -336,7 +325,7 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
               payload: { ok: false, error: String(err) }
             };
             console.warn('[IframeButtonBootstrap] UI_INTENT_DIGEST error', err);
-            try { window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*'); } catch {}
+            window.parent.postMessage(errorMessage, PARENT_ORIGIN || '*');
           });
       } else {
         throw new Error('UI intent digest computation not available in secure iframe');

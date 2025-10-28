@@ -9,12 +9,9 @@ import { WalletIframeDomEvents } from '../../../WalletIframe/events';
 import type { TransactionInputWasm, VRFChallenge } from '../../../types';
 import type { ThemeName } from '../confirm-ui-types';
 import type { ConfirmUIElement } from '../confirm-ui-types';
-// Theme tokens now come from external CSS (modal-confirmer.css)
-// Fallback color set explicitly to palette's blue500 without unsafeCSS
 
 /**
  * DrawerTxConfirmer: Drawer variant of the transaction confirmer
- * Emits WalletIframeDomEvents.MODAL_CONFIRM and WalletIframeDomEvents.MODAL_CANCEL for compatibility with iframe host bootstrap.
  */
 export class DrawerTxConfirmerElement extends LitElementWithProps implements ConfirmUIElement {
   static requiredChildTags = ['w3a-tx-confirm-content', 'w3a-drawer'];
@@ -38,8 +35,9 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
+  // Theme tokens now come from external CSS (modal-confirmer.css)
+  // style injection has been removed to satisfy strict CSP.
   declare theme: ThemeName;
-  // styles?: Record<string, unknown>; // removed: external CSS drives tokens
   declare loading: boolean;
   declare errorMessage?: string;
   declare title: string;
@@ -53,45 +51,39 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   private _open: boolean = false;
 
   private _onWindowMessage = (ev: MessageEvent) => {
-    try {
-      const data = (ev && ev.data) || {};
-      if (!data || typeof (data as any).type !== 'string') return;
-      if ((data as any).type === 'MODAL_TIMEOUT') {
-        const msg = typeof (data as any).payload === 'string' && (data as any).payload
-          ? (data as any).payload
-          : 'Operation timed out';
-        this.loading = false;
-        this.errorMessage = msg;
-        // Best-effort close and emit cancel so host resolves and cleans up
-        this._drawerEl?.handleClose?.();
-        this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-          bubbles: true,
-          composed: true,
-          detail: { confirmed: false }
-        }));
-      }
-    } catch {}
+    const data = (ev && ev.data) || {};
+    if (!data || typeof (data as any).type !== 'string') return;
+    if ((data as any).type === 'MODAL_TIMEOUT') {
+      const msg = typeof (data as any).payload === 'string' && (data as any).payload
+        ? (data as any).payload
+        : 'Operation timed out';
+      this.loading = false;
+      this.errorMessage = msg;
+      // Best-effort close and emit cancel so host resolves and cleans up
+      this._drawerEl?.handleClose?.();
+      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+        bubbles: true,
+        composed: true,
+        detail: { confirmed: false }
+      }));
+    }
   };
 
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
       if (this.loading) return;
       e.preventDefault();
-      try { this._drawerEl?.handleClose(); } catch {}
+      this._drawerEl?.handleClose();
       if (!this._drawerEl) {
-        try {
-          this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-            bubbles: true,
-            composed: true,
-            detail: { confirmed: false }
-          }));
-        } catch {}
+        this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+          bubbles: true,
+          composed: true,
+          detail: { confirmed: false }
+        }));
       }
       // Rely on drawer's `cancel` event -> onDrawerCancel to emit w3a:modal-cancel
     }
   };
-
-  // No inline static styles; see modal-confirmer.css
 
   constructor() {
     super();
@@ -116,23 +108,17 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     return root;
   }
 
-  // Dynamic style application removed; tokens are provided by modal-confirmer.css
-
   connectedCallback(): void {
     super.connectedCallback();
-    try { window.addEventListener('keydown', this._onKeyDown); } catch {}
-    try { window.addEventListener('message', this._onWindowMessage as EventListener); } catch {}
+    window.addEventListener('keydown', this._onKeyDown);
+    window.addEventListener('message', this._onWindowMessage as EventListener);
     // Ensure immediate keyboard handling (e.g., ESC) by focusing host/iframe
-    try {
-      const hostEl = this as unknown as HTMLElement;
-      if (hostEl.tabIndex === undefined || hostEl.tabIndex === null) {
-        (hostEl as any).tabIndex = -1;
-      }
-      hostEl.focus({ preventScroll: true } as FocusOptions);
-      if (typeof window.focus === 'function') { window.focus(); }
-    } catch {}
-    // Initialize theme styles
-    this.updateTheme();
+    const hostEl = this as unknown as HTMLElement;
+    if (hostEl.tabIndex === undefined || hostEl.tabIndex === null) {
+      (hostEl as any).tabIndex = -1;
+    }
+    hostEl.focus({ preventScroll: true } as FocusOptions);
+    if (typeof window.focus === 'function') { window.focus(); }
   }
 
   async firstUpdated(): Promise<void> {
@@ -159,13 +145,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   updated(changed: PropertyValues) {
     super.updated(changed);
-    if (changed.has('theme')) {
-      this.updateTheme();
-    }
-  }
-
-  private updateTheme() {
-    // External CSS (modal-confirmer.css) handles theme tokens; nothing to apply here.
   }
 
   private onDrawerCancel = () => {
@@ -205,7 +184,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   // Public method for two‑phase close from host/bootstrap
   close(_confirmed: boolean) {
-    try { this.remove(); } catch {}
+    this.remove();
   }
 
   render() {

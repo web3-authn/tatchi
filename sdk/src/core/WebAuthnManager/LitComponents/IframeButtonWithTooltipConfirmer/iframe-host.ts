@@ -106,11 +106,9 @@ export class IframeButtonHost extends LitElementWithProps {
   // (optional) event hook; not used for gating init anymore
   private onAssetsBaseSet = () => {
     // Reinitialize to pick up the new embedded base path set by the wallet host
-    try {
-      this.iframeInitialized = false;
-      this.initializeIframe();
-      this.iframeInitialized = true;
-    } catch {}
+    this.iframeInitialized = false;
+    this.initializeIframe();
+    this.iframeInitialized = true;
   };
   private onDocPointerDown = (ev: PointerEvent) => {
     // Click-away to close tooltip when visible
@@ -187,7 +185,7 @@ export class IframeButtonHost extends LitElementWithProps {
     // Apply button style CSS variables on initial connection
     this.applyButtonStyle();
     // Subscribe to wallet host base-change event (best-effort)
-    try { this.offEmbeddedBaseChange = onEmbeddedBaseChange(() => this.onAssetsBaseSet()); } catch {}
+    this.offEmbeddedBaseChange = onEmbeddedBaseChange(() => this.onAssetsBaseSet());
   }
 
   updated(changedProperties: PropertyValues) {
@@ -218,7 +216,8 @@ export class IframeButtonHost extends LitElementWithProps {
       this.messageHandler = undefined;
     }
     document.removeEventListener('pointerdown', this.onDocPointerDown, true);
-    try { this.offEmbeddedBaseChange?.(); this.offEmbeddedBaseChange = undefined; } catch {}
+    this.offEmbeddedBaseChange?.();
+    this.offEmbeddedBaseChange = undefined;
   }
 
   private applyButtonStyle() {
@@ -266,7 +265,7 @@ export class IframeButtonHost extends LitElementWithProps {
     }
 
     // Always expose computed sizing as CSS variables for external CSS path
-    try { this.setCssVars({ '--button-width': btnW, '--button-height': btnH }); } catch {}
+    this.setCssVars({ '--button-width': btnW, '--button-height': btnH });
   }
 
   render() {
@@ -347,13 +346,11 @@ export class IframeButtonHost extends LitElementWithProps {
     }
 
     // Also set iframe attributes as a CSP-safe sizing fallback
-    try {
-      const iframe = this.iframeRef.value;
-      if (iframe) {
-        iframe.setAttribute('width', String(iframeW));
-        iframe.setAttribute('height', String(iframeH));
-      }
-    } catch {}
+    const iframe = this.iframeRef.value;
+    if (iframe) {
+      iframe.setAttribute('width', String(iframeW));
+      iframe.setAttribute('height', String(iframeH));
+    }
   }
 
   private buildInitData(): IframeInitData {
@@ -516,8 +513,6 @@ export class IframeButtonHost extends LitElementWithProps {
     this.postToIframe('HS1_INIT', this.buildInitData());
   }
 
-  // Theme styles are resolved via external CSS; no runtime mapping required.
-
   // ==============================
   // Clip-path Helpers
   // ==============================
@@ -552,12 +547,18 @@ export class IframeButtonHost extends LitElementWithProps {
         case 'BUTTON_HOVER': {
           const p = payload as IframeButtonMessagePayloads['BUTTON_HOVER'];
           this.handleButtonHover(p);
-          try { const el = this.hostRef.value; if (el) el.dataset.hovered = p?.hovering ? 'true' : 'false'; } catch {}
+          {
+            const el = this.hostRef.value;
+            if (el) el.dataset.hovered = p?.hovering ? 'true' : 'false';
+          }
           return;
         }
         case 'BUTTON_FOCUS': {
           const p = payload as IframeButtonMessagePayloads['BUTTON_FOCUS'];
-          try { const el = this.hostRef.value; if (el) el.dataset.focused = p?.focused ? 'true' : 'false'; } catch {}
+          {
+            const el = this.hostRef.value;
+            if (el) el.dataset.focused = p?.focused ? 'true' : 'false';
+          }
           return;
         }
         case 'UI_INTENT_DIGEST': {
@@ -666,7 +667,7 @@ export class IframeButtonHost extends LitElementWithProps {
    */
   private setIframeClipPath(path: string | null | undefined) {
     const v = (path && typeof path === 'string' && path.trim().length) ? path : 'none';
-    try { this.setCssVars({ '--w3a-iframe-clip-path': v }); } catch {}
+    this.setCssVars({ '--w3a-iframe-clip-path': v });
   }
 
   /**
@@ -832,14 +833,12 @@ export class IframeButtonHost extends LitElementWithProps {
 
     } finally {
       this.postToIframe('SET_LOADING', false);
-      try { this.onLoadTouchIdPrompt?.(false); } catch {}
+      this.onLoadTouchIdPrompt?.(false);
     }
   }
 }
 
 // Define the custom element
-try {
-try { defineTag('txButton', IframeButtonHost as unknown as CustomElementConstructor); } catch {}
-} catch {}
+defineTag('txButton', IframeButtonHost as unknown as CustomElementConstructor);
 
 export default IframeButtonHost;

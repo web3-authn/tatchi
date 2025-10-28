@@ -42,7 +42,7 @@ function whenDefined(tag: string): Promise<void> {
 }
 
 function postToParent<T extends MessageType>(type: T, payload?: MessagePayloads[T]) {
-  try { window.parent.postMessage({ type, payload }, PARENT_ORIGIN || '*'); } catch {}
+  window.parent.postMessage({ type, payload }, PARENT_ORIGIN || '*');
 }
 
 function isSetExportDataPayload(payload: unknown): payload is MessagePayloads['SET_EXPORT_DATA'] {
@@ -101,16 +101,12 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
       const drawer = getDrawer();
       if (payload.theme && isString(payload.theme)) drawer.theme = payload.theme;
       // Auto-fit to content: let Drawer compute visible height from content above the fold.
-      try { drawer.height = undefined as any; } catch {}
+      drawer.height = undefined as any;
       drawer.showCloseButton = true;
       drawer.dragToClose = true;
       drawer.overpullPx = 160;
       // Defer open by two frames so slot content renders before initial measurement
-      try {
-        requestAnimationFrame(() => requestAnimationFrame(() => { try { drawer.open = true; } catch {} }));
-      } catch {
-        setTimeout(() => { try { drawer.open = true; } catch {} }, 0);
-      }
+      requestAnimationFrame(() => requestAnimationFrame(() => { drawer.open = true; }));
       break;
     }
     case 'SET_LOADING': {
@@ -139,24 +135,22 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
 document.addEventListener(LitComponentEvents.CONFIRM, () => postToParent('CONFIRM'));
 // On cancel, wait for the drawer's transform transition to finish, then notify parent.
 document.addEventListener(LitComponentEvents.CANCEL, () => {
-  try {
-    const drawer = getDrawer() as any;
-    const el = drawer?.shadowRoot?.querySelector?.('.drawer') as HTMLElement | null;
-    if (el) {
-      const onEnd = (ev: TransitionEvent) => {
-        if (ev?.propertyName !== 'transform') return;
-        try { el.removeEventListener('transitionend', onEnd); } catch {}
-        postToParent('CANCEL');
-      };
-      // Fallback in case transitionend doesn't fire
-      setTimeout(() => {
-        try { el.removeEventListener('transitionend', onEnd); } catch {}
-        postToParent('CANCEL');
-      }, 750);
-      el.addEventListener('transitionend', onEnd);
-      return;
-    }
-  } catch {}
+  const drawer = getDrawer() as any;
+  const el = drawer?.shadowRoot?.querySelector?.('.drawer') as HTMLElement | null;
+  if (el) {
+    const onEnd = (ev: TransitionEvent) => {
+      if (ev?.propertyName !== 'transform') return;
+      el.removeEventListener('transitionend', onEnd);
+      postToParent('CANCEL');
+    };
+    // Fallback in case transitionend doesn't fire
+    setTimeout(() => {
+      el.removeEventListener('transitionend', onEnd);
+      postToParent('CANCEL');
+    }, 750);
+    el.addEventListener('transitionend', onEnd);
+    return;
+  }
   postToParent('CANCEL');
 });
 document.addEventListener(LitComponentEvents.COPY, (e: Event) => {
@@ -166,4 +160,4 @@ document.addEventListener(LitComponentEvents.COPY, (e: Event) => {
 
 window.addEventListener('message', onMessage);
 // signal ready to parent immediately
-try { postToParent('READY'); } catch {}
+postToParent('READY');

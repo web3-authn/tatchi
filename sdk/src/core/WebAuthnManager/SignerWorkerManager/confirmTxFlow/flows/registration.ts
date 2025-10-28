@@ -153,10 +153,10 @@ export async function handleRegistrationFlow(
       return e.name === 'NotAllowedError' || e.name === 'AbortError';
     })();
     if (cancelled) {
-      try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+      window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
     // Release any reserved nonces on failure (best-effort)
-    try { nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n)); } catch {}
+    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     closeModalSafely(false, confirmHandle);
     return send(worker, {
       requestId: request.requestId,

@@ -77,11 +77,9 @@ export class EmbeddedTxButton extends LitElementWithProps {
   private pressStartX: number = 0;
   private pressStartY: number = 0;
   private suppressClickUntil: number = 0;
-
   // Mobile/coarse-pointer UX helpers
   private isCoarsePointer: boolean = false;
   private mqlCoarse?: MediaQueryList;
-
   // Type-safe element selectors bound to shadow root
   private selectors: ElementSelectors;
 
@@ -114,20 +112,29 @@ export class EmbeddedTxButton extends LitElementWithProps {
     this.applyEmbeddedButtonStyles();
 
     // Detect coarse pointer environments (mobile/tablets) to adapt interactions
+    this.setupCoarsePointerDetection();
+
+    // Close with Escape for accessibility
+    window.addEventListener('keydown', this.handleKeyDown, { passive: true });
+  }
+
+  /**
+   * Detects coarse-pointer environments and adapts interactions.
+   * - Primary: (pointer: coarse)
+   * - Secondary: touch capability (maxTouchPoints / ontouchstart)
+   * - Tertiary: UA mobile hint for iframe edge cases (e.g., Chrome on iOS)
+   * Sets activationMode to 'press' on coarse pointers and listens for changes.
+   */
+  private setupCoarsePointerDetection(): void {
     try {
-      // 1) Primary signal: (pointer: coarse)
       const mql = window.matchMedia('(pointer: coarse)');
-      // 2) Touch capability
       const hasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
         ? (navigator as any).maxTouchPoints > 0
         : ('ontouchstart' in window);
-      // 3) UA/mobile hint (covers Chrome on iOS where (pointer: coarse) can be unreliable in iframes)
       const ua = (typeof navigator !== 'undefined' && (navigator as any).userAgent) ? String((navigator as any).userAgent) : '';
       const isMobileUA = /Android|iPhone|iPad|iPod/i.test(ua);
-
       this.isCoarsePointer = ((mql?.matches === true) || isMobileUA) && !!hasTouch;
 
-      // Keep in sync if device characteristics change (rare)
       this.mqlCoarse = mql;
       this.mqlCoarse.addEventListener?.('change', (e) => {
         const updatedHasTouch = (typeof navigator !== 'undefined' && typeof (navigator as any).maxTouchPoints === 'number')
@@ -139,14 +146,10 @@ export class EmbeddedTxButton extends LitElementWithProps {
         this.requestUpdate();
       });
 
-      // Default to press-to-preview on coarse pointers (can be overridden via SET_STYLE)
       if (this.isCoarsePointer) {
         this.activationMode = 'press';
       }
     } catch {}
-
-    // Close with Escape for accessibility
-    window.addEventListener('keydown', this.handleKeyDown, { passive: true });
   }
 
   firstUpdated() {

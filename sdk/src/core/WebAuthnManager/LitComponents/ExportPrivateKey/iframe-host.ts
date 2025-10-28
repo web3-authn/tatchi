@@ -80,8 +80,6 @@ export class IframeExportHost extends LitElementWithProps {
     this.loading = false;
   }
 
-  // Static styles are externalized for CSP: see css/export-iframe.css
-
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
     const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-iframe.css', 'data-w3a-export-iframe-css');

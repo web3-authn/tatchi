@@ -105,10 +105,10 @@ export async function handleTransactionSigningFlow(
       return e.name === 'NotAllowedError' || e.name === 'AbortError';
     })();
     if (cancelled) {
-      try { window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*'); } catch {}
+      window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
     // Release any reserved nonces on failure
-    try { nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n)); } catch {}
+    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     // Close the UI to avoid stale element flashing on next open
     closeModalSafely(false, confirmHandle);
     return send(worker, {

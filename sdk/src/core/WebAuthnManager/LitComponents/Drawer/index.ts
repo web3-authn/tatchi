@@ -59,6 +59,7 @@ export class DrawerElement extends LitElementWithProps {
   private aboveFoldResizeObserver?: ResizeObserver;
   private drawerResizeObserver?: ResizeObserver;
   private detachViewportSync?: () => void;
+
   private _syncRAF: number | null = null;
   private _lastOpenTranslatePct?: string;
   private _contentAnimRAF: number | null = null;
@@ -114,11 +115,11 @@ export class DrawerElement extends LitElementWithProps {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.removeDragListeners();
-    try { this.drawerElement?.removeEventListener('transitionend', this.handleTransitionEnd as EventListener); } catch {}
-    try { this.aboveFoldResizeObserver?.disconnect(); } catch {}
-    try { this.drawerResizeObserver?.disconnect(); } catch {}
-    if (this.detachViewportSync) { try { this.detachViewportSync(); } catch {} this.detachViewportSync = undefined; }
-    if (this.detachContentAnimSync) { try { this.detachContentAnimSync(); } catch {} this.detachContentAnimSync = undefined; }
+    this.drawerElement?.removeEventListener('transitionend', this.handleTransitionEnd as EventListener);
+    this.aboveFoldResizeObserver?.disconnect();
+    this.drawerResizeObserver?.disconnect();
+    if (this.detachViewportSync) { this.detachViewportSync(); this.detachViewportSync = undefined; }
+    if (this.detachContentAnimSync) { this.detachContentAnimSync(); this.detachContentAnimSync = undefined; }
   }
 
   // Ensure visual state resets immediately when `open` attribute flips
@@ -140,25 +141,23 @@ export class DrawerElement extends LitElementWithProps {
       this._initialMount = false;
       this.requestUpdate();
     });
-    try { this.drawerElement?.addEventListener('transitionend', this.handleTransitionEnd as EventListener); } catch {}
+    this.drawerElement?.addEventListener('transitionend', this.handleTransitionEnd as EventListener);
     // Encapsulated: follow inner height transitions so the drawer animates with content
     this.setupAnimateWithContentSync();
     // Recalculate when slot content changes or viewport resizes
     const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
     slotEl?.addEventListener('slotchange', () => this.syncCssVarsForOpenTranslate());
-    try { window.addEventListener('resize', this.syncCssVarsForOpenTranslate.bind(this)); } catch {}
+    window.addEventListener('resize', this.syncCssVarsForOpenTranslate.bind(this));
     // Observe size changes of the above-fold content and drawer container
-    try {
-      const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
-      if (above && 'ResizeObserver' in window) {
-        this.aboveFoldResizeObserver = new ResizeObserver(() => this.syncCssVarsForOpenTranslate());
-        this.aboveFoldResizeObserver.observe(above);
-      }
-      if (this.drawerElement && 'ResizeObserver' in window) {
-        this.drawerResizeObserver = new ResizeObserver(() => this.syncCssVarsForOpenTranslate());
-        this.drawerResizeObserver.observe(this.drawerElement);
-      }
-    } catch {}
+    const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
+    if (above && 'ResizeObserver' in window) {
+      this.aboveFoldResizeObserver = new ResizeObserver(() => this.syncCssVarsForOpenTranslate());
+      this.aboveFoldResizeObserver.observe(above);
+    }
+    if (this.drawerElement && 'ResizeObserver' in window) {
+      this.drawerResizeObserver = new ResizeObserver(() => this.syncCssVarsForOpenTranslate());
+      this.drawerResizeObserver.observe(this.drawerElement);
+    }
     this.setupDragListeners();
   }
 
@@ -171,9 +170,9 @@ export class DrawerElement extends LitElementWithProps {
         this.isClosing = false;
         // No first-open transition suppression; double rAF in the viewer handles settle.
         this._firstOpen = false;
-        try { this.dispatchEvent(new CustomEvent('w3a:drawer-open-start', { bubbles: true, composed: true })); } catch {}
+        this.dispatchEvent(new CustomEvent('w3a:drawer-open-start', { bubbles: true, composed: true }));
       } else {
-        try { this.dispatchEvent(new CustomEvent('w3a:drawer-close-start', { bubbles: true, composed: true })); } catch {}
+        this.dispatchEvent(new CustomEvent('w3a:drawer-close-start', { bubbles: true, composed: true }));
       }
     }
 
@@ -226,12 +225,8 @@ export class DrawerElement extends LitElementWithProps {
     }
 
     // Default: auto-fit to content height (.above-fold)
-    try {
-      const unit = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '1dvh')) ? 'dvh' : 'vh';
-      this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}${unit}` });
-    } catch {
-      this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}vh` });
-    }
+    const unit = (typeof CSS !== 'undefined' && CSS.supports && CSS.supports('height', '1dvh')) ? 'dvh' : 'vh';
+    this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}${unit}` });
 
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
     const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
@@ -249,7 +244,7 @@ export class DrawerElement extends LitElementWithProps {
     // If we're open, allow transform transitions to run so the drawer
     // follows content growth in real time.
     if (this.open) {
-      try { this.drawerElement?.classList.remove('vv-sync'); } catch {}
+      this.drawerElement?.classList.remove('vv-sync');
     }
 
     this.setCssVars({ '--w3a-drawer__open-translate': pct });
@@ -259,14 +254,10 @@ export class DrawerElement extends LitElementWithProps {
   // Coalesce multiple triggers into a single measurement per frame
   private syncCssVarsForOpenTranslate(): void {
     if (this._syncRAF != null) return;
-    try {
-      this._syncRAF = requestAnimationFrame(() => {
-        this._syncRAF = null;
-        this._performSyncCssVarsForOpenTranslate();
-      });
-    } catch {
+    this._syncRAF = requestAnimationFrame(() => {
+      this._syncRAF = null;
       this._performSyncCssVarsForOpenTranslate();
-    }
+    });
   }
 
   private handleTransitionEnd = (e: TransitionEvent) => {
@@ -274,7 +265,7 @@ export class DrawerElement extends LitElementWithProps {
     if (e.target !== this.drawerElement) return;
     if (e.propertyName !== 'transform') return;
     const type = this.open ? 'w3a:drawer-open-end' : 'w3a:drawer-close-end';
-    try { this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true })); } catch {}
+    this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true }));
   };
 
   // Single entry to wire content-height animation sync (child height transitions → drawer transform)
@@ -287,29 +278,27 @@ export class DrawerElement extends LitElementWithProps {
       const step = () => {
         this._contentAnimRAF = null;
         this._performSyncCssVarsForOpenTranslate();
-        try { this._contentAnimRAF = requestAnimationFrame(step); } catch {}
+        this._contentAnimRAF = requestAnimationFrame(step);
       };
-      try { this._contentAnimRAF = requestAnimationFrame(step); } catch {}
+      this._contentAnimRAF = requestAnimationFrame(step);
     };
 
     const stopLoop = () => {
-      if (this._contentAnimRAF != null) { try { cancelAnimationFrame(this._contentAnimRAF); } catch {} this._contentAnimRAF = null; }
+      if (this._contentAnimRAF != null) { cancelAnimationFrame(this._contentAnimRAF); this._contentAnimRAF = null; }
       this.syncCssVarsForOpenTranslate();
     };
 
     const syncTimingFromElement = (el: Element) => {
-      try {
-        const cs = getComputedStyle(el);
-        const props = (cs.transitionProperty || '').split(',').map(s => s.trim());
-        const durations = (cs.transitionDuration || '').split(',').map(s => s.trim());
-        const easings = (cs.transitionTimingFunction || '').split(',').map(s => s.trim());
-        let idx = props.findIndex(p => p === 'height');
-        if (idx < 0) idx = props.findIndex(p => p === 'all');
-        if (idx < 0) idx = 0;
-        const dur = durations[Math.min(idx, durations.length - 1)] || '100ms';
-        const ease = easings[Math.min(idx, easings.length - 1)] || 'cubic-bezier(0.2, 0.6, 0.2, 1)';
-        this.setCssVars({ '--w3a-drawer__transition-duration': dur, '--w3a-drawer__transition-easing': ease });
-      } catch {}
+      const cs = getComputedStyle(el);
+      const props = (cs.transitionProperty || '').split(',').map(s => s.trim());
+      const durations = (cs.transitionDuration || '').split(',').map(s => s.trim());
+      const easings = (cs.transitionTimingFunction || '').split(',').map(s => s.trim());
+      let idx = props.findIndex(p => p === 'height');
+      if (idx < 0) idx = props.findIndex(p => p === 'all');
+      if (idx < 0) idx = 0;
+      const dur = durations[Math.min(idx, durations.length - 1)] || '100ms';
+      const ease = easings[Math.min(idx, easings.length - 1)] || 'cubic-bezier(0.2, 0.6, 0.2, 1)';
+      this.setCssVars({ '--w3a-drawer__transition-duration': dur, '--w3a-drawer__transition-easing': ease });
     };
 
     const onRun = (ev: Event) => {
@@ -324,7 +313,7 @@ export class DrawerElement extends LitElementWithProps {
       const e = ev as TransitionEvent;
       if (!this.open) return;
       if (e.propertyName !== 'height') return;
-      try { if (e.target && e.target instanceof Element) syncTimingFromElement(e.target); } catch {}
+      if (e.target && e.target instanceof Element) syncTimingFromElement(e.target);
       this._activeHeightTransitions++;
       ensureLoop();
     };
@@ -336,22 +325,18 @@ export class DrawerElement extends LitElementWithProps {
       if (this._activeHeightTransitions === 0) stopLoop();
     };
 
-    try {
-      host.addEventListener('transitionrun', onRun, true);
-      host.addEventListener('transitionstart', onStart, true);
-      host.addEventListener('transitionend', onEnd, true);
-    } catch {}
+    host.addEventListener('transitionrun', onRun, true);
+    host.addEventListener('transitionstart', onStart, true);
+    host.addEventListener('transitionend', onEnd, true);
 
     this.detachContentAnimSync = () => {
-      try { host.removeEventListener('transitionrun', onRun, true); } catch {}
-      try { host.removeEventListener('transitionstart', onStart, true); } catch {}
-      try { host.removeEventListener('transitionend', onEnd, true); } catch {}
-      if (this._contentAnimRAF != null) { try { cancelAnimationFrame(this._contentAnimRAF); } catch {} this._contentAnimRAF = null; }
+      host.removeEventListener('transitionrun', onRun, true);
+      host.removeEventListener('transitionstart', onStart, true);
+      host.removeEventListener('transitionend', onEnd, true);
+      if (this._contentAnimRAF != null) { cancelAnimationFrame(this._contentAnimRAF); this._contentAnimRAF = null; }
       this._activeHeightTransitions = 0;
     };
   }
-
-
 
   private setupDragListeners() {
     if (!this.dragToClose) return;
@@ -394,16 +379,16 @@ export class DrawerElement extends LitElementWithProps {
     const vv: any = (typeof window !== 'undefined') ? (window as any).visualViewport : undefined;
     const schedule = () => this.suppressTransitionForViewportTick();
 
-    try { window.addEventListener('resize', schedule, { passive: true } as AddEventListenerOptions); } catch {}
-    try { window.addEventListener('orientationchange', schedule, { passive: true } as AddEventListenerOptions); } catch {}
-    try { vv && vv.addEventListener && vv.addEventListener('resize', schedule); } catch {}
-    try { vv && vv.addEventListener && vv.addEventListener('scroll', schedule); } catch {}
+    window.addEventListener('resize', schedule, { passive: true } as AddEventListenerOptions);
+    window.addEventListener('orientationchange', schedule, { passive: true } as AddEventListenerOptions);
+    vv && vv.addEventListener && vv.addEventListener('resize', schedule);
+    vv && vv.addEventListener && vv.addEventListener('scroll', schedule);
 
     this.detachViewportSync = () => {
-      try { window.removeEventListener('resize', schedule as EventListener); } catch {}
-      try { window.removeEventListener('orientationchange', schedule as EventListener); } catch {}
-      try { vv && vv.removeEventListener && vv.removeEventListener('resize', schedule as EventListener); } catch {}
-      try { vv && vv.removeEventListener && vv.removeEventListener('scroll', schedule as EventListener); } catch {}
+      window.removeEventListener('resize', schedule as EventListener);
+      window.removeEventListener('orientationchange', schedule as EventListener);
+      vv && vv.removeEventListener && vv.removeEventListener('resize', schedule as EventListener);
+      vv && vv.removeEventListener && vv.removeEventListener('scroll', schedule as EventListener);
     };
   }
 
@@ -458,7 +443,7 @@ export class DrawerElement extends LitElementWithProps {
       if (absDy >= ACTIVATE_PX && atTop) {
         this.pendingDrag = false;
         this.startDrag(this.startY);
-        try { (e.target as Element)?.setPointerCapture?.(e.pointerId); } catch {}
+        (e.target as Element)?.setPointerCapture?.(e.pointerId);
       } else {
         return;
       }
@@ -475,25 +460,23 @@ export class DrawerElement extends LitElementWithProps {
       this.endDrag();
       e.preventDefault();
     }
-    try { (e.target as Element)?.releasePointerCapture?.(e.pointerId); } catch {}
+    (e.target as Element)?.releasePointerCapture?.(e.pointerId);
   };
 
   private handlePointerCancel = (e: PointerEvent) => {
     if (this.pendingDrag) this.pendingDrag = false;
     if (this.isDragging) this.endDrag();
-    try { (e.target as Element)?.releasePointerCapture?.(e.pointerId); } catch {}
+    (e.target as Element)?.releasePointerCapture?.(e.pointerId);
   };
 
   private handleTouchStart = (e: TouchEvent) => {
     if (this.loading || !this.open) return;
 
     // Do not initiate a drawer drag when the touch starts on the close button
-    try {
-      const target = e.target as HTMLElement | null;
-      if (target && target.closest && target.closest('.close-btn')) {
-        return;
-      }
-    } catch {}
+    const target = e.target as HTMLElement | null;
+    if (target && target.closest && target.closest('.close-btn')) {
+      return;
+    }
 
     const touch = e.touches[0];
     this.pendingDrag = true;

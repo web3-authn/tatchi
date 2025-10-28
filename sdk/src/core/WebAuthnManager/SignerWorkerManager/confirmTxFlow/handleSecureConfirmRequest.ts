@@ -144,8 +144,6 @@ function sendWorkerResponse(worker: Worker, responseData: SecureConfirmDecision)
     type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
     data: sanitized
   });
-  try {
-    const bh = (sanitized as any)?.vrfChallenge?.blockHeight;
-    if (bh) console.debug('[SecureConfirm] Sent VRF challenge block height', bh);
-  } catch {}
+  const bh = (sanitized as any)?.vrfChallenge?.blockHeight;
+  if (bh) console.debug('[SecureConfirm] Sent VRF challenge block height', bh);
 }

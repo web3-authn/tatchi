@@ -7,10 +7,6 @@ import type { VRFChallenge } from '../../../types/vrf-worker';
 import TxTree from '../TxTree';
 import { ensureExternalStyles } from '../css/css-loader';
 import TxConfirmContentElement from './tx-confirm-content';
-import { formatDeposit, formatGas } from '../common/formatters';
-// Theme tokens now come from external CSS (modal-confirmer.css)
-// The previous TS theme injection has been removed to satisfy strict CSP.
-// import { ModalTxConfirmerStyles, MODAL_CONFIRMER_THEMES } from './modal-confirmer-themes';
 import type { ThemeName } from '../confirm-ui-types';
 // Ensure required custom elements are defined in this bundle (avoid tree-shake drops)
 import HaloBorderElement from '../HaloBorder';
@@ -37,7 +33,7 @@ export interface TxAction {
 
 /**
  * Modal transaction confirmation component with multiple display variants.
- * Built with Lit for automatic XSS protection and reactive updates.
+ * Built with Lit with strict CSP for XSS protection and reactive updates.
  */
 export class ModalTxConfirmElement extends LitElementWithProps implements ConfirmUIElement {
   static requiredChildTags = ['w3a-tx-confirm-content'];
@@ -58,7 +54,6 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     vrfChallenge: { type: Object },
     loading: { type: Boolean },
     errorMessage: { type: String },
-    // styles: { type: Object }, // removed: theme is CSS-driven now
     theme: { type: String, attribute: 'theme', reflect: true },
   };
 
@@ -72,7 +67,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   vrfChallenge?: VRFChallenge;
   loading = false;
   errorMessage: string | undefined = undefined;
-  // styles?: ModalTxConfirmerStyles; // removed: external CSS drives tokens
+  // Theme tokens now come from external CSS (modal-confirmer.css)
+  // style injection has been removed to satisfy strict CSP.
   theme: ThemeName = 'dark';
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
@@ -83,10 +79,10 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   private _stylePromises: Promise<void>[] = [];
   private _stylesAwaiting: Promise<void> | null = null;
 
-  // Internal state
   // Keep essential custom elements from being tree-shaken
   private _ensureTreeDefinition = TxTree;
   private _ensureHaloElements = [HaloBorderElement, PasskeyHaloLoadingElement];
+
   // Removed fixed JS breakpoints; rely on CSS/container sizing for zoom resilience
   private _onKeyDown = (e: KeyboardEvent) => {
     if (e.key === 'Escape' || e.key === 'Esc') {
@@ -96,19 +92,17 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
   };
   private _onWindowMessage = (ev: MessageEvent) => {
-    try {
-      const data = (ev && ev.data) || {};
-      if (!data || typeof (data as any).type !== 'string') return;
-      if ((data as any).type === 'MODAL_TIMEOUT') {
-        const msg = typeof (data as any).payload === 'string' && (data as any).payload
-          ? (data as any).payload
-          : 'Operation timed out';
-        try { this.loading = false; } catch {}
-        try { this.errorMessage = msg; } catch {}
-        // Emit cancel so the host resolves and removes this element via two‑phase close
-        this._handleCancel();
-      }
-    } catch {}
+    const data = (ev && ev.data) || {};
+    if (!data || typeof (data as any).type !== 'string') return;
+    if ((data as any).type === 'MODAL_TIMEOUT') {
+      const msg = typeof (data as any).payload === 'string' && (data as any).payload
+        ? (data as any).payload
+        : 'Operation timed out';
+      this.loading = false;
+      this.errorMessage = msg;
+      // Emit cancel so the host resolves and removes this element via two‑phase close
+      this._handleCancel();
+    }
   };
   // Guard to prevent immediate backdrop-cancel due to the click that mounted the modal
   private _backdropArmed = false;
@@ -120,29 +114,21 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   constructor() {
     super();
     // Pre-ensure document-level styles so link loads can complete before first render
-    try {
-      const root = (document?.documentElement || null) as unknown as HTMLElement | null;
-      if (root) {
-        this._stylePromises.push(
-          ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
-          ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-          ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
-          // Preload nested visuals to avoid first-paint jank when halo/loader mount
-          ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'),
-          ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'),
-        );
-      }
-    } catch {}
+    const root = (document?.documentElement || null) as unknown as HTMLElement | null;
+    if (root) {
+      this._stylePromises.push(
+        ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
+        ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        // Preload nested visuals to avoid first-paint jank when halo/loader mount
+        ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'),
+        ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'),
+      );
+    }
   }
 
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
-
-    // Theme changes are handled by CSS via [theme] attribute
-  }
-
-  private updateTheme() {
-    // No-op: external CSS (modal-confirmer.css) provides tokens per [theme]
   }
 
   protected getComponentPrefix(): string {
@@ -166,32 +152,28 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // Dynamic style application removed; CSS variables come from modal-confirmer.css
 
   disconnectedCallback() {
-    try { window.removeEventListener('keydown', this._onKeyDown); } catch {}
-    try { window.removeEventListener('message', this._onWindowMessage as EventListener); } catch {}
+    window.removeEventListener('keydown', this._onKeyDown);
+    window.removeEventListener('message', this._onWindowMessage as EventListener);
     super.disconnectedCallback();
   }
 
   connectedCallback(): void {
     super.connectedCallback();
     // Arm backdrop after the current event loop to avoid capturing the mounting click
-    try { setTimeout(() => { this._backdropArmed = true; }, 0); } catch {}
-    // Initialize styles based on theme
-    this.updateTheme();
+    setTimeout(() => { this._backdropArmed = true; }, 0);
     // Listen globally so Escape works regardless of focus target
-    try { window.addEventListener('keydown', this._onKeyDown); } catch {}
+    window.addEventListener('keydown', this._onKeyDown);
     // Listen for global timeout notification (posted by SignerWorkerManager on operation timeout)
-    try { window.addEventListener('message', this._onWindowMessage as EventListener); } catch {}
+    window.addEventListener('message', this._onWindowMessage as EventListener);
     // Ensure this iframe/host receives keyboard focus so ESC works immediately
-    try {
-      // Make host focusable and focus it without scrolling
-      const hostEl = this as unknown as HTMLElement;
-      hostEl.tabIndex = hostEl.tabIndex ?? -1;
-      hostEl.focus({ preventScroll: true } as FocusOptions);
-      // Also attempt to focus the frame window in case we're inside an iframe
-      if (typeof window.focus === 'function') {
-        window.focus();
-      }
-    } catch {}
+    // Make host focusable and focus it without scrolling
+    const hostEl = this as unknown as HTMLElement;
+    hostEl.tabIndex = hostEl.tabIndex ?? -1;
+    hostEl.focus({ preventScroll: true } as FocusOptions);
+    // Also attempt to focus the frame window in case we're inside an iframe
+    if (typeof window.focus === 'function') {
+      window.focus();
+    }
   }
 
   protected shouldUpdate(_changed: PropertyValues): boolean {
@@ -303,14 +285,12 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
   private _handleCancel() {
     if (this.loading) return;
-    try {
-      // Canonical event (include a consistent detail payload)
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: false }
-      }));
-    } catch {}
+    // Canonical event (include a consistent detail payload)
+    this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CANCEL, {
+      bubbles: true,
+      composed: true,
+      detail: { confirmed: false }
+    }));
     if (!this.deferClose) {
       this._resolveAndCleanup(false);
     }
@@ -320,14 +300,12 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     if (this.loading) return;
     this.loading = true;
     this.requestUpdate();
-    try {
-      // Canonical event (include a consistent detail payload)
-      this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
-        bubbles: true,
-        composed: true,
-        detail: { confirmed: true }
-      }));
-    } catch {}
+    // Canonical event (include a consistent detail payload)
+    this.dispatchEvent(new CustomEvent(WalletIframeDomEvents.TX_CONFIRMER_CONFIRM, {
+      bubbles: true,
+      composed: true,
+      detail: { confirmed: true }
+    }));
     if (!this.deferClose) {
       this._resolveAndCleanup(true);
     }

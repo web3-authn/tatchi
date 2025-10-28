@@ -53,25 +53,21 @@ export function determineConfirmationConfig(
     } as ConfirmationConfig;
   }
   // Detect if running inside an iframe (wallet host context)
-  const inIframe = (() => {
-    try { return window.self !== window.top; } catch { return true; }
-  })();
+  const inIframe = (() => window.self !== window.top)();
 
   // On Safari/iOS or mobile devices without a fresh user activation,
   // clamp to a clickable UI to reliably satisfy WebAuthn requirements.
   // - If caller/user set uiMode: 'skip', promote to 'modal' + requireClick
   // - If behavior is 'autoProceed', upgrade to 'requireClick'
-  try {
-    // Use shared heuristic to decide if explicit activation is necessary
-    if (needsExplicitActivation()) {
-      const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'skip') ? 'drawer' : cfg.uiMode;
-      cfg = {
-        ...cfg,
-        uiMode: newUiMode,
-        behavior: 'requireClick',
-      } as ConfirmationConfig;
-    }
-  } catch {}
+  // Use shared heuristic to decide if explicit activation is necessary
+  if (needsExplicitActivation()) {
+    const newUiMode: ConfirmationConfig['uiMode'] = (cfg.uiMode === 'skip') ? 'drawer' : cfg.uiMode;
+    cfg = {
+      ...cfg,
+      uiMode: newUiMode,
+      behavior: 'requireClick',
+    } as ConfirmationConfig;
+  }
 
   // In wallet‑iframe host context: registration/link flows default to an explicit click.
   // However, if the effective config explicitly opts into auto‑proceed (or skip), honor it.

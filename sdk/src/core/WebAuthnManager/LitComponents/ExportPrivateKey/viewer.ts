@@ -83,19 +83,15 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     super.connectedCallback();
     this.updateTheme();
     // Prevent drawer drag initiation from content area so text can be selected
-    try {
-      this.addEventListener('pointerdown', this._stopDragStart as EventListener);
-      this.addEventListener('mousedown', this._stopDragStart as EventListener);
-      this.addEventListener('touchstart', this._stopDragStart as EventListener, { passive: false } as AddEventListenerOptions);
-    } catch {}
+    this.addEventListener('pointerdown', this._stopDragStart as EventListener);
+    this.addEventListener('mousedown', this._stopDragStart as EventListener);
+    this.addEventListener('touchstart', this._stopDragStart as EventListener, { passive: false } as AddEventListenerOptions);
   }
 
   disconnectedCallback(): void {
-    try {
-      this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
-      this.removeEventListener('mousedown', this._stopDragStart as EventListener);
-      this.removeEventListener('touchstart', this._stopDragStart as EventListener);
-    } catch {}
+    this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
+    this.removeEventListener('mousedown', this._stopDragStart as EventListener);
+    this.removeEventListener('touchstart', this._stopDragStart as EventListener);
     super.disconnectedCallback();
   }
 
@@ -105,27 +101,25 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   };
 
   private updateTheme() {
-    try {
-      const t = this.theme === 'light' ? LIGHT_THEME : DARK_THEME;
-      // Promote essential host values to base variables so global tokens are populated
-      const styles: Record<string, string> = {
-        ...t,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-        fontSize: '1rem',
-        color: t.textPrimary,
-        backgroundColor: t.colorBackground,
-        // Also expose a primary color alias for buttons
-        primary: t.primary,
-      } as any;
-      this.applyStyles(styles, 'export');
-    } catch {}
+    const t = this.theme === 'light' ? LIGHT_THEME : DARK_THEME;
+    // Promote essential host values to base variables so global tokens are populated
+    const styles: Record<string, string> = {
+      ...t,
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '1rem',
+      color: t.textPrimary,
+      backgroundColor: t.colorBackground,
+      // Also expose a primary color alias for buttons
+      primary: t.primary,
+    } as any;
+    this.applyStyles(styles, 'export');
   }
 
   private async copy(type: 'publicKey' | 'privateKey', value?: string) {
     if (!value) return;
     try {
-      try { this.ownerDocument?.defaultView?.focus?.(); } catch {}
-      try { (this as unknown as HTMLElement).focus?.(); } catch {}
+      this.ownerDocument?.defaultView?.focus?.();
+      (this as unknown as HTMLElement).focus?.();
       let ok = false;
       try {
         await navigator.clipboard.writeText(value);
@@ -172,35 +166,31 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   }
 
   private renderMaskedPrivateKey(sk: string) {
-    try {
-      if (!sk) return html`<span class="muted">—</span>`;
-      const prefix = 'ed25519:';
-      let startText = '';
-      let middleText = '';
-      let endText = '';
+    if (!sk) return html`<span class="muted">—</span>`;
+    const prefix = 'ed25519:';
+    let startText = '';
+    let middleText = '';
+    let endText = '';
 
-      if (sk.startsWith(prefix)) {
-        const after = sk.slice(prefix.length);
-        const first6 = after.slice(0, 6);
-        const midStart = prefix.length + 6;
-        const midEnd = Math.max(midStart, sk.length - 6);
-        startText = prefix + first6;
-        middleText = sk.slice(midStart, midEnd);
-        endText = sk.slice(-6);
-      } else {
-        const first6 = sk.slice(0, 6);
-        const midStart = 6;
-        const midEnd = Math.max(midStart, sk.length - 6);
-        startText = first6;
-        middleText = sk.slice(midStart, midEnd);
-        endText = sk.slice(-6);
-      }
-
-      const masked = 'x'.repeat(middleText.length || 0);
-      return html`<span>${startText}</span><span class="mask-chunk">${masked}</span><span>${endText}</span>`;
-    } catch {
-      return html`${sk}`;
+    if (sk.startsWith(prefix)) {
+      const after = sk.slice(prefix.length);
+      const first6 = after.slice(0, 6);
+      const midStart = prefix.length + 6;
+      const midEnd = Math.max(midStart, sk.length - 6);
+      startText = prefix + first6;
+      middleText = sk.slice(midStart, midEnd);
+      endText = sk.slice(-6);
+    } else {
+      const first6 = sk.slice(0, 6);
+      const midStart = 6;
+      const midEnd = Math.max(midStart, sk.length - 6);
+      startText = first6;
+      middleText = sk.slice(midStart, midEnd);
+      endText = sk.slice(-6);
     }
+
+    const masked = 'x'.repeat(middleText.length || 0);
+    return html`<span>${startText}</span><span class="mask-chunk">${masked}</span><span>${endText}</span>`;
   }
 
   render() {
@@ -271,11 +261,9 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   }
 }
 
-try {
-  if (!customElements.get('w3a-export-key-viewer')) {
-    customElements.define('w3a-export-key-viewer', ExportPrivateKeyViewer);
-  }
-} catch {}
+if (!customElements.get('w3a-export-key-viewer')) {
+  customElements.define('w3a-export-key-viewer', ExportPrivateKeyViewer);
+}
 
 // Ensure DrawerElement is kept by bundlers (used as container in iframe bootstrap)
 export default ExportPrivateKeyViewer;

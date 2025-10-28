@@ -73,11 +73,9 @@ export function awaitSecureConfirmationV2(
     // 2) Setup cleanup utilities
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const cleanup = () => {
-      try { if (timeoutId) clearTimeout(timeoutId); } catch {}
-      try { self.removeEventListener('message', onDecisionReceived); } catch {}
-      if (opts.signal) {
-        try { opts.signal.removeEventListener('abort', onAbort); } catch {}
-      }
+      if (timeoutId) clearTimeout(timeoutId);
+      self.removeEventListener('message', onDecisionReceived);
+      if (opts.signal) opts.signal.removeEventListener('abort', onAbort);
     };
 
     const onAbort = () => {

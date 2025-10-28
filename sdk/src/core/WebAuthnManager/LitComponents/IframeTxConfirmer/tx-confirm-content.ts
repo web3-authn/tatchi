@@ -66,16 +66,14 @@ export class TxConfirmContentElement extends LitElementWithProps {
   constructor() {
     super();
     // Pre-ensure document-level styles to warm the cache and await link loads
-    try {
-      const root = (document?.documentElement || null) as unknown as HTMLElement | null;
-      if (root) {
-        this._stylePromises.push(
-          ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-          ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
-          ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
-        );
-      }
-    } catch {}
+    const root = (document?.documentElement || null) as unknown as HTMLElement | null;
+    if (root) {
+      this._stylePromises.push(
+        ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
+        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
+      );
+    }
     this.nearAccountId = '';
     this.txSigningRequests = [];
     this.theme = 'dark';
@@ -104,19 +102,15 @@ export class TxConfirmContentElement extends LitElementWithProps {
     // Build initial tree from any pre-set props (upgrade-safe)
     this._rebuildTree();
     // Prevent drawer drag initiation from content area
-    try {
-      this.addEventListener('pointerdown', this._stopDragStart as EventListener);
-      this.addEventListener('mousedown', this._stopDragStart as EventListener);
-      this.addEventListener('touchstart', this._stopDragStart as EventListener, { passive: false } as AddEventListenerOptions);
-    } catch {}
+    this.addEventListener('pointerdown', this._stopDragStart as EventListener);
+    this.addEventListener('mousedown', this._stopDragStart as EventListener);
+    this.addEventListener('touchstart', this._stopDragStart as EventListener, { passive: false } as AddEventListenerOptions);
   }
 
   disconnectedCallback(): void {
-    try {
-      this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
-      this.removeEventListener('mousedown', this._stopDragStart as EventListener);
-      this.removeEventListener('touchstart', this._stopDragStart as EventListener);
-    } catch {}
+    this.removeEventListener('pointerdown', this._stopDragStart as EventListener);
+    this.removeEventListener('mousedown', this._stopDragStart as EventListener);
+    this.removeEventListener('touchstart', this._stopDragStart as EventListener);
     // No resize listener to clean up (width is CSS-driven)
     super.disconnectedCallback();
   }
@@ -143,12 +137,10 @@ export class TxConfirmContentElement extends LitElementWithProps {
   }
 
   private _applyTooltipWidthVar() {
-    try {
-      const w = this._normalizeWidth(this.tooltipWidth);
-      // Only set when a caller explicitly provides a width; otherwise
-      // keep the responsive CSS default defined on :host.
+    const w = this._normalizeWidth(this.tooltipWidth);
+    // Only set when a caller explicitly provides a width; otherwise
+    // keep the responsive CSS default defined on :host.
     if (w) this.setCssVars({ '--tooltip-width': w });
-    } catch {}
   }
 
   private _normalizeWidth(val?: string | number): string | undefined {
@@ -178,12 +170,12 @@ export class TxConfirmContentElement extends LitElementWithProps {
   private onConfirm = () => {
     if (this.loading) return;
     // Emit semantic event for containers to bridge to canonical events
-    try { dispatchLitConfirm(this); } catch {}
+    dispatchLitConfirm(this);
   };
 
   private onCancel = () => {
     if (this.loading) return;
-    try { dispatchLitCancel(this); } catch {}
+    dispatchLitCancel(this);
   };
 
   render() {
