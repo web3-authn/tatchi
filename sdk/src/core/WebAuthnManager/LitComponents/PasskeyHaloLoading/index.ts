@@ -41,11 +41,27 @@ export class PasskeyHaloLoadingElement extends LitElementWithProps {
   declare iconContainerBackgroundColor?: string;
 
   // Static styles removed; external stylesheet is adopted for CSP compatibility
+  private _stylesReady = false;
+  private _stylePromises: Promise<void>[] = [];
+  private _stylesAwaiting: Promise<void> | null = null;
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
     const root = super.createRenderRoot();
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css').catch(() => {});
+    const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css');
+    this._stylePromises.push(p);
+    p.catch(() => {});
     return root;
+  }
+
+  // Defer first render until external styles are adopted to avoid FOUC
+  protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
+    if (this._stylesReady) return true;
+    if (!this._stylesAwaiting) {
+      const settle = Promise.all(this._stylePromises)
+        .then(() => new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+      this._stylesAwaiting = settle.then(() => { this._stylesReady = true; this.requestUpdate(); });
+    }
+    return false;
   }
 
   protected updated(): void {

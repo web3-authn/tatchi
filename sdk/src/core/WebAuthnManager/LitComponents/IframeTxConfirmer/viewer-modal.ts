@@ -127,6 +127,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
           ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
           ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
           ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+          // Preload nested visuals to avoid first-paint jank when halo/loader mount
+          ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'),
+          ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'),
         );
       }
     } catch {}
@@ -154,6 +157,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
     // Base component tokens (host-level CSS variables)
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css'));
+    // Ensure nested loader/halo styles are present before first paint to avoid FOUC
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'halo-border.css', 'data-w3a-halo-border-css'));
+    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'));
     return root;
   }
 
