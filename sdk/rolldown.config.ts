@@ -1,4 +1,4 @@
-import { defineConfig } from 'rolldown';
+// Rolldown config exporting an array of build entries.
 import { BUILD_PATHS } from './build-paths.ts';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -89,12 +89,12 @@ const WALLET_SHIM_SOURCE = [
   "window.global ||= window; window.process ||= { env: {} };",
   // Infer absolute SDK base from this script's src and set it for embedded iframes (about:srcdoc)
   "(function(){try{",
-  "  var cur = (document && document.currentScript && (document.currentScript as HTMLScriptElement).src) || '';",
-  "  if(!cur) return;",
-  "  var u = new URL(cur, (typeof location !== 'undefined' ? location.href : ''));",
-  "  var base = u.href.slice(0, u.href.lastIndexOf('/') + 1);",
-  "  var w = window as any;",
-  "  if (!w.__W3A_WALLET_SDK_BASE__) { w.__W3A_WALLET_SDK_BASE__ = base; }",
+  "  var s = (typeof document !== 'undefined' && document.currentScript) ? document.currentScript.src : '';",
+  "  if(!s) return;",
+  "  var u = new URL(s, (typeof location !== 'undefined' ? location.href : ''));",
+  "  var href = u.href;",
+  "  var base = href.slice(0, href.lastIndexOf('/') + 1);",
+  "  if (typeof window !== 'undefined' && !window.__W3A_WALLET_SDK_BASE__) { window.__W3A_WALLET_SDK_BASE__ = base; }",
   "}catch(e){}})();\n",
 ].join('\n');
 const WALLET_SURFACE_CSS = [
@@ -121,7 +121,7 @@ const copyWasmAsset = (source: string, destination: string, label: string): void
   console.log(label);
 };
 
-export default defineConfig([
+const configs = [
   // ESM build
   {
     input: 'src/index.ts',
@@ -648,4 +648,6 @@ export default defineConfig([
       alias: aliasConfig
     }
   }
-]);
+] satisfies import('rolldown').RolldownOptions[];
+
+export default configs;
