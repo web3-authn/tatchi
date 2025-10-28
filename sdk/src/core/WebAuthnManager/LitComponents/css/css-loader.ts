@@ -58,13 +58,17 @@ export async function ensureExternalStyles(
   if (!root) return;
 
   try {
-    // If a <link> with the marker already exists in the document, await it and return.
-    // This allows callers (or embedding HTML) to pre-insert absolute URLs that work
-    // even in about:srcdoc + sandboxed contexts where origin is 'null'.
+    // If a <link> with the marker already exists in the document, we can often
+    // just rely on it. BUT: document-level <link> does NOT style Shadow DOM.
+    // For ShadowRoot targets with constructable support, we must still adopt a
+    // stylesheet into the shadow root. So only short-circuit for non-shadow roots
+    // or when constructable stylesheets are not available.
     const docEarly = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
     if (docEarly) {
       const preexisting = docEarly.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
-      if (preexisting) {
+      const isShadow = typeof ShadowRoot !== 'undefined' && (root instanceof ShadowRoot);
+      const canConstruct = supportsConstructable && 'adoptedStyleSheets' in root;
+      if (preexisting && (!isShadow || !canConstruct)) {
         if ((preexisting as any)._w3aLoaded) return;
         await new Promise<void>((resolve) => {
           const done = () => { (preexisting as any)._w3aLoaded = true; resolve(); };
