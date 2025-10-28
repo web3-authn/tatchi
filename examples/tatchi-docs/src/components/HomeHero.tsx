@@ -17,7 +17,7 @@ export function HomeHero() {
 
   const highlightedInstall = installBlockCmd
     .replace(/^(npm|pnpm|bun)/, '<span class="code-kw-pm">$1</span>')
-    .replace(/(@tatchi\/sdk)/, '<span class="code-kw-pkg">$1</span>');
+    .replace(/(@tatchi-xyz\/sdk)/, '<span class="code-kw-pkg">$1</span>');
 
   return (
     <>
