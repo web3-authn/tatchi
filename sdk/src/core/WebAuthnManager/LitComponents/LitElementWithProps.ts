@@ -185,7 +185,26 @@ export class LitElementWithProps extends LitElement {
   }
 
   /**
-   * Applies CSS variables for styling. Can be overridden by subclasses for component-specific behavior.
+   * Applies component styles by translating a structured style object into
+   * CSS custom properties (variables) — never inline styles.
+   *
+   * CSP notes
+   * - No style="…" attributes are written (compatible with style-src-attr 'none').
+   * - No <style> tags are injected. Variables are applied via constructable
+   *   stylesheets (adoptedStyleSheets). When unavailable, we fall back to a
+   *   document-level constructable sheet with a per-instance class. If even
+   *   that is not supported, we no-op and rely on external CSS defaults.
+   *
+   * How it works
+   * - Flattens top-level tokens (e.g., colors, radii) to canonical CSS vars
+   *   (e.g., --w3a-colors-*, --w3a-border-radius-*).
+   * - Transforms viewport units to dvh/dvw on capable engines to avoid
+   *   Safari 100vh issues.
+   * - Maps sectioned styles (nested objects) to namespaced variables of the
+   *   form --w3a-${prefix}__${section}__${prop} to scope tokens per-component.
+   * - Delegates to setCssVars(), which merges vars and updates the appropriate
+   *   constructable stylesheet target (ShadowRoot preferred).
+   *
    * @param styles - The styles object to apply
    * @param componentPrefix - Optional component prefix override, defaults to getComponentPrefix()
    */

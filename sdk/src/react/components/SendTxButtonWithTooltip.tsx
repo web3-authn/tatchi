@@ -10,7 +10,7 @@ import {
   TooltipPosition,
   TooltipPositionInternal
 } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-geometry';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
+import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SendTxButtonWithTooltipProps } from '../types';
@@ -64,7 +64,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   /** Content shown inside the button; can be text or any element */
   buttonTextElement?: React.ReactNode;
   tooltipPosition?: TooltipPosition;
-  txTreeTheme?: EmbeddedTxButtonTheme;
+  txTreeTheme?: ThemeName;
   lockTheme?: boolean;
 }> = ({
   nearAccountId,
@@ -106,14 +106,14 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
     };
   }, [passkeyManager]);
 
-  const [currentTheme, setCurrentTheme] = useState<EmbeddedTxButtonTheme>(txTreeTheme);
+  const [currentTheme, setCurrentTheme] = useState<ThemeName>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
 
   // Uncontrolled mode: drive theme from the shared Theme context
   const { theme } = useTheme();
   useEffect(() => {
     if (lockTheme) return;
-    setCurrentTheme((theme as EmbeddedTxButtonTheme) || 'dark');
+    setCurrentTheme((theme as ThemeName) || 'dark');
   }, [theme, lockTheme]);
 
   // Controlled mode: sync with TxTreeTheme prop changes

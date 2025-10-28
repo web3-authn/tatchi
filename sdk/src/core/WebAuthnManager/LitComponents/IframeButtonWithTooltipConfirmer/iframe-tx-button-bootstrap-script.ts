@@ -8,7 +8,6 @@ import type {
 } from '../common/iframe-messages'
 import type { TxTreeStyles } from '../TxTree/tx-tree-themes';
 import type { TransactionInput } from '../../../types/actions';
-import type { EmbeddedTxButtonStyles } from './button-with-tooltip-themes';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, SELECTORS } from '../tags';
 import { isObject, isString, isNumber, isBoolean } from '../../../WalletIframe/validation';
 
@@ -101,7 +100,6 @@ interface EmbeddedTxButtonEl extends HTMLElement {
   updateButtonStyles?: (
     buttonSizing: { width?: string | number; height?: string | number },
     tooltipPosition?: TooltipPositionInternal,
-    embeddedButtonTheme?: EmbeddedTxButtonStyles,
     theme?: 'dark' | 'light',
     activationMode?: 'tap' | 'press'
   ) => void;
@@ -200,7 +198,6 @@ function isSetStylePayload(payload: unknown): payload is IframeButtonMessagePayl
     buttonSizing?: { width?: unknown; height?: unknown };
     tooltipPosition?: unknown;
     tooltipTreeStyles?: unknown;
-    embeddedButtonTheme?: unknown;
     theme?: unknown;
     activationMode?: unknown;
   };
@@ -282,7 +279,6 @@ function onMessage(e: MessageEvent<IframeButtonMessage>): void {
           el.updateButtonStyles(
             (payload.buttonSizing || {}),
             payload.tooltipPosition,
-            payload.embeddedButtonTheme,
             payload.theme,
             payload.activationMode
           );

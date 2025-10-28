@@ -62,7 +62,9 @@ export class TxTree extends LitElementWithProps {
     theme: { type: String, reflect: true },
     // Optional width for the tree at depth=0. Accepts number (px) or any CSS length string.
     // Exposed as attribute for convenience, but property binding works too.
-    width: { type: String }
+    width: { type: String },
+    // Opt-in: render in Shadow DOM for encapsulation; default is light DOM for CSP simplicity
+    shadowDom: { type: Boolean, attribute: 'shadow-dom' }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
@@ -75,6 +77,8 @@ export class TxTree extends LitElementWithProps {
   class?: string;
   // Optional width for the tree (applies at depth=0 root container). Number is treated as pixels.
   width?: string | number;
+  // When true, render using Shadow DOM and adopt styles into the ShadowRoot
+  shadowDom?: boolean;
 
   // Static styles removed; this component now relies on external tx-tree.css
 
@@ -245,15 +249,17 @@ export class TxTree extends LitElementWithProps {
   // External tx-tree.css is ensured for both light/shadow contexts, but we render
   // in light DOM by default to avoid Lit injecting a <style> tag.
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    // Always adopt external stylesheet for light DOM usage
+    if (this.shadowDom) {
+      // Encapsulated mode: render in ShadowRoot and adopt stylesheet there
+      const root = super.createRenderRoot();
+      ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+      return root;
+    }
+    // Default: light DOM render for CSP simplicity; ensure styles at host and (if present) nearest ShadowRoot
     ensureExternalStyles(this as unknown as HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-    // If this component is rendered inside another component's ShadowRoot
-    // (e.g., inside the embedded button tooltip), ensure the stylesheet is
-    // also adopted into that ShadowRoot so styles apply across the boundary.
     try {
       const root = (this.getRootNode && this.getRootNode()) as any;
       if (root && typeof root === 'object' && 'host' in root) {
-        // Heuristic: ShadowRoot has a 'host' property
         ensureExternalStyles(root as ShadowRoot, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
       }
     } catch {}

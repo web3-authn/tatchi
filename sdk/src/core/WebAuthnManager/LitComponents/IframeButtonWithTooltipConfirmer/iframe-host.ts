@@ -9,7 +9,7 @@ import { onEmbeddedBaseChange } from '../../../sdkPaths';
 import { LitElementWithProps, CSSProperties } from '../LitElementWithProps';
 import { ensureExternalStyles } from '../css/css-loader';
 // TxTree theme styles are now provided via external CSS (tx-tree.css)
-import { EMBEDDED_TX_BUTTON_THEMES, type EmbeddedTxButtonTheme } from './button-with-tooltip-themes';
+import type { ThemeName } from '../confirm-ui-types';
 import { TX_TREE_THEMES } from '../TxTree/tx-tree-themes';
 import { W3A_BUTTON_WITH_TOOLTIP_ID, IFRAME_TX_BUTTON_BOOTSTRAP_MODULE, defineTag } from '../tags';
 import { resolveEmbeddedBase } from '../asset-base';
@@ -136,7 +136,7 @@ export class IframeButtonHost extends LitElementWithProps {
   declare buttonStyle: Record<string, string | number>;
   declare buttonHoverStyle: Record<string, string | number>;
   declare tooltipPosition: TooltipPositionInternal;
-  declare txTreeTheme: EmbeddedTxButtonTheme;
+  declare txTreeTheme: ThemeName;
   declare showLoading: boolean;
   declare options: SignAndSendTransactionHooksOptions;
   // Optional external confirm handler (e.g., to route via wallet iframe)
@@ -499,13 +499,11 @@ export class IframeButtonHost extends LitElementWithProps {
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree and embedded button
-    const embeddedButtonTheme = EMBEDDED_TX_BUTTON_THEMES[this.txTreeTheme || 'dark'];
     const tooltipTreeStyles = TX_TREE_THEMES[this.txTreeTheme || 'dark'];
 
     const stylePayload: any = {
       buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
-      embeddedButtonTheme: embeddedButtonTheme,
       tooltipTreeStyles,
       theme: this.txTreeTheme,
       // Force consistent mobile behavior across browsers: tap confirms, long‑press shows tooltip
@@ -689,7 +687,7 @@ export class IframeButtonHost extends LitElementWithProps {
    */
   updateTheme(newTheme: 'dark' | 'light'): void {
     // Update the txTreeTheme property
-    this.txTreeTheme = newTheme as EmbeddedTxButtonTheme;
+    this.txTreeTheme = newTheme as ThemeName;
     // If iframe is already initialized, send theme update via postMessage
     if (this.iframeInitialized) {
       this.postStyleUpdateToIframe();

@@ -1,6 +1,6 @@
 import type { ToggleColorProps } from './Toggle';
 import type { DeviceLinkingSSEEvent, LinkDeviceResult } from '@/index';
-import type { EmbeddedTxButtonTheme } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/button-with-tooltip-themes';
+import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
 
 export interface ProfileDimensions {
   width: number;
@@ -57,7 +57,7 @@ export interface UserAccountButtonProps {
   onClick: () => void;
   onMouseEnter?: () => void;
   onMouseLeave?: () => void;
-  theme?: EmbeddedTxButtonTheme;
+  theme?: ThemeName;
   // Optional ARIA linkage
   menuId?: string;
   triggerId?: string;
@@ -69,7 +69,7 @@ export interface ProfileDropdownProps {
   onLogout: () => void;
   onClose: () => void;
   toggleColors?: ToggleColorProps;
-  theme?: EmbeddedTxButtonTheme;
+  theme?: ThemeName;
   currentConfirmConfig?: any;
   onSetUiMode?: (mode: 'skip' | 'modal' | 'drawer') => void;
   onToggleShowDetails?: () => void;
@@ -113,7 +113,7 @@ export interface TransactionSettingsSectionProps {
   className?: string;
   style?: React.CSSProperties;
   isOpen?: boolean;
-  theme?: EmbeddedTxButtonTheme;
+  theme?: ThemeName;
 }
 
 export interface ProfileStateRefs {
