@@ -165,7 +165,8 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
             // Align with SDK asset headers so COEP/CORP environments can import
             res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
+            // Dev-only: provide permissive CORS so cross-origin localhost works
+            res.setHeader('Access-Control-Allow-Origin', '*')
             res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
             res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -178,7 +179,8 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
             // Important: provide CORP for cross‑origin CSS so COEP documents can load it
             res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
             res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
+            // Dev-only: provide permissive CORS so cross-origin localhost works
+            res.setHeader('Access-Control-Allow-Origin', '*')
             res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
             res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
             res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -224,7 +226,8 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           // SDK assets need COEP headers to work in wallet iframe with COEP enabled
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Do not set Access-Control-Allow-Origin here; platforms should provide CORS
+          // Dev-only: provide permissive CORS so cross-origin localhost works
+          res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
           res.setHeader('Access-Control-Allow-Credentials', 'true')
@@ -410,8 +413,9 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         }
 
         if (url.startsWith(`${sdkBasePath}/`)) {
-          // Allow resource policy for dev; do not set Access-Control-Allow-Origin
+          // Dev-only CORS for SDK assets served by Vite
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          res.setHeader('Access-Control-Allow-Origin', '*')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
           res.setHeader('Access-Control-Allow-Credentials', 'true')
