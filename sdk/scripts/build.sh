@@ -138,3 +138,11 @@ echo "  - Rolldown bundling: ✅"
 echo "  - SDK and WASM assets: ✅"
 echo ""
 echo "Output directory: $BUILD_ROOT/"
+
+# Step 8: Assert required CSS assets exist in dist/esm/sdk
+if node ./scripts/assert-sdk-css-assets.mjs; then
+  print_success "Lit CSS assets assertion passed"
+else
+  print_error "Lit CSS assets assertion failed"
+  exit 1
+fi

@@ -107,17 +107,9 @@
   transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
   background: var(--w3a-tree__summary-row__background, transparent);
 }
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-2,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-3,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-4,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-5,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-6,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-7,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-8,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-9,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-10,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-11,
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-12 {
+
+/* Align depth-2 summary rows to use depth-1 indent so connector columns match */
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-2 {
   --indent: calc(var(--indent-step, 1rem) * 1);
 }
 
