@@ -9,6 +9,12 @@ license = "Apache-2.0"
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = true
 
+[profile.release]
+# Optimize for size without sacrificing correctness; keep panic hooks working
+opt-level = "s"
+lto = true
+codegen-units = 1
+
 [lib]
 crate-type = ["cdylib"]
 

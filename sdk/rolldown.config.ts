@@ -3,6 +3,25 @@ import { BUILD_PATHS } from './build-paths.ts';
 import * as path from 'path';
 import * as fs from 'fs';
 
+// Lightweight define plugin to replace process.env.NODE_ENV with 'production' for
+// browser/embedded bundles so React and others use prod paths and treeshake well.
+const defineNodeEnvPlugin = {
+  name: 'define-node-env',
+  transform(code: string) {
+    if (code && code.includes('process.env.NODE_ENV')) {
+      return {
+        code: code.replace(/process\.env\.NODE_ENV/g, '"production"'),
+        map: null as any,
+      };
+    }
+    return null as any;
+  },
+};
+
+// Toggle production transforms based on environment
+const isProd = process.env.NODE_ENV === 'production';
+const prodPlugins = isProd ? [defineNodeEnvPlugin] : [];
+
 const external = [
   // React dependencies
   'react',
@@ -375,6 +394,9 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
+    // Minify only in production
+    minify: (isProd as any),
+    plugins: prodPlugins,
   },
   // Confirm UI helpers and elements bundle for iframe usage
   // Build from confirm-ui.ts (container-agnostic); keep output filename stable
@@ -389,6 +411,8 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
+    minify: (isProd as any),
+    plugins: prodPlugins,
   },
   // Embedded Transaction Confirmation Iframe Host component + Modal Host
   {
@@ -412,7 +436,9 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig
     },
+    minify: (isProd as any),
     plugins: [
+      ...prodPlugins,
       {
         name: 'emit-wallet-service-static',
         generateBundle() {
@@ -537,6 +563,8 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig,
     },
+    minify: (isProd as any),
+    plugins: prodPlugins,
   },
   // Standalone bundles for HaloBorder + PasskeyHaloLoading (for iframe/embedded usage)
   {
@@ -553,6 +581,8 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig,
     },
+    minify: (isProd as any),
+    plugins: prodPlugins,
   }
   ,
   // Web Components (bundle all deps for vanilla HTML usage)
@@ -571,6 +601,8 @@ export default defineConfig([
     resolve: {
       alias: aliasConfig,
     },
+    minify: (isProd as any),
+    plugins: prodPlugins,
   }
   ,
   // Vite plugin ESM build (source moved to src/plugins)

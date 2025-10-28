@@ -43,11 +43,11 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Setup Bun (for worker bundling step in build.sh)
+      - name: Setup Bun (for worker bundling step in build scripts)
         uses: oven-sh/setup-bun@v2
 
-      - name: Build SDK (sdk)
-        run: pnpm -C sdk build
+      - name: Build SDK (sdk, production)
+        run: pnpm build:sdk-prod
 
   publish-sdk-r2:
     runs-on: ubuntu-latest
@@ -95,8 +95,8 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Build SDK (sdk)
-        run: pnpm -C sdk build
+      - name: Build SDK (sdk, production)
+        run: pnpm build:sdk-prod
 
       - name: Validate R2 secrets are present
         run: |
@@ -210,14 +210,14 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Setup Bun (for worker bundling step in build.sh)
+      - name: Setup Bun (for worker bundling step in build scripts)
         uses: oven-sh/setup-bun@v2
 
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (sdk) for Worker bundling
-        run: pnpm -C sdk build
+      - name: Build SDK (sdk, production) for Worker bundling
+        run: pnpm build:sdk-prod
 
       - name: Deploy Cloudflare Worker (relay)
         env:
@@ -256,14 +256,14 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Setup Bun (for worker bundling step in build.sh)
+      - name: Setup Bun (for worker bundling step in build scripts)
         uses: oven-sh/setup-bun@v2
 
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (sdk) for Vite builds
-        run: pnpm -C sdk build
+      - name: Build SDK (sdk, production) for Vite builds
+        run: pnpm build:sdk-prod
 
       - name: Debug - print VITE_* env seen by build
         run: |
@@ -361,14 +361,14 @@ jobs:
         run: |
           curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-      - name: Setup Bun (for worker bundling step in build.sh)
+      - name: Setup Bun (for worker bundling step in build scripts)
         uses: oven-sh/setup-bun@v2
 
       - name: Install deps (workspace)
         run: pnpm install --no-frozen-lockfile
 
-      - name: Build SDK (sdk)
-        run: pnpm -C sdk build
+      - name: Build SDK (sdk, production)
+        run: pnpm build:sdk-prod
 
       - name: Build wallet host example (if present)
         if: ${{ hashFiles('examples/vite/package.json') != '' }}
@@ -443,7 +443,7 @@ jobs:
   #       run: |
   #         curl -sSf https://rustwasm.github.io/wasm-pack/installer/init.sh | sh
 
-  #     - name: Setup Bun (for worker bundling step in build.sh)
+  #     - name: Setup Bun (for worker bundling step in build scripts)
   #       uses: oven-sh/setup-bun@v2
 
   #     - name: Install deps (workspace)

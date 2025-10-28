@@ -9,6 +9,12 @@ license = "Apache-2.0"
 [package.metadata.wasm-pack.profile.release]
 wasm-opt = true
 
+# Leaner release builds for smaller WASM size
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+
 # Empty workspace to make this package independent
 [workspace]
 

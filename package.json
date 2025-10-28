@@ -4,6 +4,7 @@
   "scripts": {
     "install-all": "pnpm -r install",
     "build:sdk": "pnpm -C sdk build",
+    "build:sdk-prod": "pnpm -C sdk build:prod",
     "build:site": "pnpm -C examples/vite build && pnpm docs:build",
     "frontend": "pnpm -C examples/vite dev",
     "frontend:iphone": "pnpm -C examples/vite dev:iphone",

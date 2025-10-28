@@ -51,8 +51,8 @@ jobs:
       - name: Type-check SDK
         run: pnpm -C sdk type-check
 
-      - name: Build SDK
-        run: pnpm -C sdk build
+      - name: Build SDK (production)
+        run: pnpm build:sdk-prod
 
       - name: Assert generated palette CSS
         run: node sdk/scripts/assert-palette-css.mjs
