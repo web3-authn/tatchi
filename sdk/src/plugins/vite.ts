@@ -162,12 +162,26 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           if (url === configuredBase + '/wallet-shims.js') {
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+            // Align with SDK asset headers so COEP/CORP environments can import cross‑origin
+            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            res.setHeader('Access-Control-Allow-Credentials', 'true')
             res.end(WALLET_SHIM_SOURCE)
             return
           }
           if (url === configuredBase + '/wallet-service.css') {
             res.statusCode = 200
             res.setHeader('Content-Type', 'text/css; charset=utf-8')
+            // Important: provide CORP for cross‑origin CSS so COEP documents can load it
+            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+            res.setHeader('Access-Control-Allow-Origin', '*')
+            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+            res.setHeader('Access-Control-Allow-Credentials', 'true')
             res.end(WALLET_SURFACE_CSS)
             return
           }
@@ -428,7 +442,11 @@ export function tatchiDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
   const walletPlugin = tatchiWalletService({ walletServicePath, sdkBasePath })
   const wasmMimePlugin = tatchiWasmMime()
-  const headersPlugin = setDevHeaders ? tatchiDevHeaders({ walletOrigin, walletServicePath, sdkBasePath }) : undefined
+  // Flip wallet CSP to strict by default in dev. Consumers can override via
+  // VITE_WALLET_DEV_CSP or by composing tatchiDevHeaders directly.
+  const headersPlugin = setDevHeaders
+    ? tatchiDevHeaders({ walletOrigin, walletServicePath, sdkBasePath, devCSP: 'strict' })
+    : undefined
 
   return {
     name: 'tatchi:dev',
@@ -460,6 +478,8 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
   const walletOrigin = walletOriginRaw?.trim()
   const walletServicePath = normalizeBase(process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
   const sdkBasePath = normalizeBase(process.env.VITE_SDK_BASE_PATH, '/sdk')
+  // Allow hosts that already inject CORS for /sdk to disable emitting ACAO to avoid duplicates
+  const emitCorsForSdk = String(process.env.VITE_SDK_ADD_ACAO ?? 'true').toLowerCase() !== 'false'
 
   // Build Permissions-Policy mirroring the dev plugin format
   const ppParts: string[] = []
@@ -503,7 +523,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
             "form-action 'none'",
             "upgrade-insecure-requests",
           ].join('; ')
-          const content = [
+          const contentLines: string[] = [
             '/*',
             '  Cross-Origin-Opener-Policy: same-origin',
             '  Cross-Origin-Embedder-Policy: require-corp',
@@ -524,11 +544,14 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string } = {}): VitePl
             '/export-viewer/',
             '  Cross-Origin-Opener-Policy: unsafe-none',
             `  Permissions-Policy: ${permissionsPolicy}`,
-            `${sdkBasePath}/*`,
-            '  Access-Control-Allow-Origin: *',
-            `${sdkBasePath}/workers/*`,
-            '  Access-Control-Allow-Origin: *',
-          ].join('\n') + '\n'
+          ]
+          if (emitCorsForSdk) {
+            contentLines.push(
+              `${sdkBasePath}/*`,
+              '  Access-Control-Allow-Origin: *',
+            )
+          }
+          const content = contentLines.join('\n') + '\n'
           fs.mkdirSync(outDir, { recursive: true })
           fs.writeFileSync(hdrPath, content, 'utf-8')
           console.log('[tatchi] emitted _headers with COOP/COEP + Permissions-Policy + SDK CORS rules')
