@@ -38,10 +38,10 @@ export function PasskeyColumn() {
             currentPage={currentPage}
             onCurrentPageChange={setCurrentPage}
             rootStyle={{
-              padding: '0rem 1rem',
+              padding: '0rem 0rem 6rem 0rem',
+              // padding-bottom for tooltip so it's not clipped
               display: 'grid',
               placeContent: 'center',
-              paddingBottom: '6rem', // make space for tooltip so it's not clipped
             }}
             breadcrumbsStyle={{
               padding: '2rem 1rem 0rem 1rem',

@@ -8,7 +8,7 @@
   justify-content: flex-start;
   width: 100%;
   max-width: 480px;
-  margin: 0 auto;
+  margin: 2rem auto;
   font-family: var(--fe-font-sans);
 }
 

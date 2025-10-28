@@ -58,6 +58,24 @@ export async function ensureExternalStyles(
   if (!root) return;
 
   try {
+    // If a <link> with the marker already exists in the document, await it and return.
+    // This allows callers (or embedding HTML) to pre-insert absolute URLs that work
+    // even in about:srcdoc + sandboxed contexts where origin is 'null'.
+    const docEarly = (root as any).ownerDocument as Document | null ?? (typeof document !== 'undefined' ? document : null);
+    if (docEarly) {
+      const preexisting = docEarly.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
+      if (preexisting) {
+        if ((preexisting as any)._w3aLoaded) return;
+        await new Promise<void>((resolve) => {
+          const done = () => { (preexisting as any)._w3aLoaded = true; resolve(); };
+          if (preexisting.sheet) return done();
+          preexisting.addEventListener('load', done, { once: true } as AddEventListenerOptions);
+          preexisting.addEventListener('error', done, { once: true } as AddEventListenerOptions);
+        });
+        return;
+      }
+    }
+
     if (supportsConstructable && 'adoptedStyleSheets' in root) {
       const sheet = await loadConstructableSheet(assetName);
       if (!sheet) return;
@@ -72,7 +90,6 @@ export async function ensureExternalStyles(
     if (!doc) return;
     const existing = doc.head.querySelector(`link[${markerAttr}]`) as HTMLLinkElement | null;
     if (existing) {
-      // If the link already exists, await load if needed
       if ((existing as any)._w3aLoaded) return;
       await new Promise<void>((resolve) => {
         const done = () => { (existing as any)._w3aLoaded = true; resolve(); };
