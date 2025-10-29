@@ -3,7 +3,8 @@ import React, {
   useEffect,
   useMemo,
   isValidElement,
-  cloneElement
+  cloneElement,
+  useRef,
 } from 'react';
 import { createComponent } from '@lit/react';
 import {
@@ -18,6 +19,7 @@ import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
+import type { EventCallback, ActionSSEEvent } from '@/core/types/passkeyManager';
 
 
 export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean }> = ({
@@ -88,6 +90,8 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   txTreeTheme = 'dark',
   lockTheme = false,
 }) => {
+
+  useWarnDuplicateHooks({ onEventProp: onEvent, optionsOnEvent: options?.onEvent });
 
   const { passkeyManager } = usePasskeyContext();
   // Provide external confirm handler when using PasskeyManagerIframe (no local context)
@@ -212,5 +216,32 @@ export const toStyleRecord = (style?: React.CSSProperties): Record<string, strin
   });
   return out;
 };
+
+/**
+ * Warns when duplicate hooks are provided to SendTxButtonWithTooltip.
+ * Specifically checks for both top-level `onEvent` prop and `options.onEvent`.
+ * The component prioritizes the top-level prop and ignores `options.onEvent`.
+ */
+function useWarnDuplicateHooks({
+  onEventProp,
+  optionsOnEvent,
+}: {
+  onEventProp?: EventCallback<ActionSSEEvent>;
+  optionsOnEvent?: EventCallback<ActionSSEEvent>;
+}) {
+  const warnedRef = useRef(false);
+  useEffect(() => {
+    const bothProvided = Boolean(onEventProp) && Boolean(optionsOnEvent);
+    if (bothProvided && !warnedRef.current) {
+      console.warn(
+        '[SendTxButtonWithTooltip] Both onEvent (top-level prop) and options.onEvent are provided. The top-level onEvent takes precedence; options.onEvent will be ignored. Pass only one to avoid confusion.'
+      );
+      warnedRef.current = true;
+    }
+    if (!bothProvided) {
+      warnedRef.current = false;
+    }
+  }, [onEventProp, optionsOnEvent]);
+}
 
 export default SendTxButtonWithTooltip;

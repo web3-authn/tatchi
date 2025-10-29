@@ -1,10 +1,10 @@
 @import './layout.css';
-@import './components/GreetingMenu.css';
+@import './components/DemoTransaction.css';
 @import './components/PasskeyLoginMenu.css';
 @import './components/EmbeddedTxButton.css';
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
-@import './components/MultiTxConfirmPage.css';
+@import './components/DemoMultiTx.css';
 @import './components/carousel/carousel.css';
 
 :root, :host {

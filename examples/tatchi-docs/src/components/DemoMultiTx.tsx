@@ -12,9 +12,9 @@ import {
 import { LoadingButton } from './LoadingButton';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
 
-import './MultiTxConfirmPage.css';
+import './DemoMultiTx.css';
 
-export const MultiTxDemo: React.FC = () => {
+export const DemoMultiTx: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     passkeyManager,
@@ -149,4 +149,4 @@ export const MultiTxDemo: React.FC = () => {
   );
 };
 
-export default MultiTxDemo;
+export default DemoMultiTx;

@@ -7,8 +7,8 @@ import {
   TouchIdWithText,
   TxExecutionStatus,
   usePasskeyContext,
-  SendTxButtonWithTooltip,
 } from '@tatchi-xyz/sdk/react';
+import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
@@ -17,13 +17,11 @@ import { useSetGreeting } from '../hooks/useSetGreeting';
 import {
   WEBAUTHN_CONTRACT_ID,
   NEAR_EXPLORER_BASE_URL,
-  COBALT_BLUE,
 } from '../config';
 
-// Reuse existing styles from both components we are consolidating
-import './GreetingMenu.css';
+import './DemoTransaction.css';
 import './EmbeddedTxButton.css';
-import { MultiTxDemo } from './MultiTxDemo';
+import { DemoMultiTx } from './DemoMultiTx';
 import Refresh from './icons/Refresh';
 
 export const DemoTransaction: React.FC = () => {
@@ -160,7 +158,7 @@ export const DemoTransaction: React.FC = () => {
                 title="Refresh Greeting"
                 className="refresh-icon-button"
               >
-                <Refresh size={22} strokeWidth={2} style={{ color: COBALT_BLUE }} />
+                <Refresh size={22} strokeWidth={2} />
               </button>
               <p><strong>{onchainGreeting ?? '...'}</strong></p>
             </div>
@@ -220,6 +218,29 @@ export const DemoTransaction: React.FC = () => {
                   actions: [ { type: ActionType.Transfer, amount: '30000000000000000000' } ],
                 },
               ]}
+              onEvent={(event) => {
+                switch (event.phase) {
+                  case ActionPhase.STEP_1_PREPARATION:
+                  case ActionPhase.STEP_2_USER_CONFIRMATION:
+                  case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
+                    toast.loading(event.message, { id: 'embedded' });
+                    break;
+                  case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+                  case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+                  case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+                  case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+                  case ActionPhase.STEP_8_BROADCASTING:
+                    toast.loading(event.message, { id: 'embedded' });
+                    break;
+                  case ActionPhase.STEP_9_ACTION_COMPLETE:
+                    toast.success(event.message, { id: 'embedded' });
+                    break;
+                  case ActionPhase.ACTION_ERROR:
+                  case ActionPhase.WASM_ERROR:
+                    toast.error(`Transaction failed: ${event.error}`, { id: 'embedded' });
+                    break;
+                }
+              }}
               options={{
                 waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
                 beforeCall: () => {
@@ -278,14 +299,14 @@ export const DemoTransaction: React.FC = () => {
               }}
               buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}
               onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-              onSuccess={(result) => {
+              onSuccess={(result: any) => {
                 try {
                   let txId: string | undefined;
                   if (Array.isArray(result)) {
                     const last = result[result.length - 1] ?? result[0];
                     txId = last?.transactionId;
                   } else {
-                    txId = (result as any)?.transactionId;
+                    txId = result?.transactionId;
                   }
 
                   if (txId) {
@@ -312,7 +333,7 @@ export const DemoTransaction: React.FC = () => {
         </div>
 
         <div style={{ marginTop: '1rem' }}>
-          <MultiTxDemo />
+          <DemoMultiTx />
         </div>
       </GlassBorder>
     </div>
