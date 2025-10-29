@@ -604,7 +604,7 @@ export interface PasskeyManagerConfigs {
   // Iframe Wallet configuration (when using a separate wallet origin)
   iframeWallet?: {
     walletOrigin?: string; // e.g., https://wallet.example.com
-    walletServicePath?: string; // defaults to '/service'
+    walletServicePath?: string; // defaults to 'wallet-service'
     // Optional SDK assets base used by the parent app to tell the wallet
     // where to load embedded bundles from. The wallet host will use this
     // base as-is (ensure it ends with a trailing '/'). Example: '/sdk/'.

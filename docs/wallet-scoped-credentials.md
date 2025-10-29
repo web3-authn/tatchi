@@ -56,7 +56,7 @@ const passkey = new PasskeyManager({
   relayer: { url: '…', accountId: '…' },
   iframeWallet: {
     walletOrigin: 'https://wallet.example.com',
-    walletServicePath: '/service',
+    walletServicePath: 'wallet-service',
     rpIdOverride: 'wallet.example.com',
     // Optional: allow Safari GET fallback when in an iframe
     enableSafariGetWebauthnRegistrationFallback: true,
@@ -97,7 +97,7 @@ const passkey = new PasskeyManager({
   relayer: { url: '…', accountId: '…' },
   iframeWallet: {
     walletOrigin: 'https://wallet.example.localhost',
-    walletServicePath: '/service',
+    walletServicePath: 'wallet-service',
     rpIdOverride: 'example.localhost', // app base domain
     enableSafariGetWebauthnRegistrationFallback: true,
   },

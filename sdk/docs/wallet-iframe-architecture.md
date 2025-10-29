@@ -42,7 +42,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a crossâ€
 
 ## Boot Sequence
 
-1. Parent constructs `PasskeyManager` with `iframeWallet.walletOrigin` (recommended) and optional `walletServicePath` (defaults: SDK transport uses `/service`; dev plugin + examples use `/wallet-service`).
+1. Parent constructs `PasskeyManager` with `iframeWallet.walletOrigin` (recommended) and optional `walletServicePath` (defaults: SDK transport uses `wallet-service`; dev plugin + examples use `/wallet-service`).
 2. Parent mounts a hidden service iframe pointed at `${walletOrigin}${walletServicePath}` and opens a `MessageChannel`.
 3. Parent posts `CONNECT` (window.postMessage with transferable port). Wallet host adopts the port and replies with `READY { protocolVersion }`.
 4. Parent sends `PING` for liveness or `PM_SET_CONFIG` to configure RPC URL, contractId, theme, assets base; wallet replies with `PONG`.

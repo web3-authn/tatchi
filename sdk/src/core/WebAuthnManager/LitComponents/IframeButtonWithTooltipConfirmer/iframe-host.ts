@@ -197,6 +197,15 @@ export class IframeButtonHost extends LitElementWithProps {
       changedProperties.has('tooltipPosition')
     ) {
       this.applyButtonStyle();
+      // Option A: If width is a percentage, reinitialize once after layout so
+      // percent can resolve against the container and avoid early 420px clamp.
+      if (changedProperties.has('buttonStyle')) {
+        const w = (this.buttonStyle as any)?.width as unknown;
+        const isPercent = typeof w === 'string' && /%\s*$/.test(w.trim());
+        if (isPercent) {
+          try { requestAnimationFrame(() => this.forceIframeReinitialize()); } catch { this.forceIframeReinitialize(); }
+        }
+      }
     }
 
     // Initialize once; base is resolved via resolveEmbeddedBase() with a stable default
@@ -236,7 +245,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
 
-    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
+    const btnW = this.resolveButtonWidthString();
     const btnH = toPx(this.buttonStyle?.height || '48px');
     const iframeSize = this.calculateIframeSize();
 
@@ -325,7 +334,7 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
-    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
+    const btnW = this.resolveButtonWidthString();
     const btnH = toPx(this.buttonStyle?.height || '48px');
     return { baseDecls, hoverDecls, btnW, btnH };
   }
@@ -354,7 +363,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private buildInitData(): IframeInitData {
     const buttonSize = {
-      width: this.buttonStyle?.width || 'min(100%, 420px)',
+      width: this.resolveButtonWidthString(),
       height: this.buttonStyle?.height || '48px'
     };
 
@@ -435,7 +444,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private setHostContainerToButtonSize() {
     // Set CSS custom properties for the .iframe-button-host container
-    const buttonWidth = this.buttonStyle?.width || 'min(100%, 420px)';
+    const buttonWidth = this.resolveButtonWidthString();
     const buttonHeight = this.buttonStyle?.height || '48px';
 
     // Set CSS custom properties that the .iframe-button-host CSS will use
@@ -504,7 +513,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private postStyleUpdateToIframe() {
     const buttonSize = {
-      width: this.buttonStyle?.width || 'min(100%, 420px)',
+      width: this.resolveButtonWidthString(),
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree and embedded button
@@ -649,9 +658,10 @@ export class IframeButtonHost extends LitElementWithProps {
     const rawH = this.buttonStyle?.height ?? '48px';
 
     const resolveOne = (raw: string | number, fallback: number, axis: 'w' | 'h'): number => {
-      const isPercent = typeof raw === 'string' && raw.includes('%');
+      const isPlainPercent = typeof raw === 'string' && /^\s*\d+(?:\.\d+)?%\s*$/.test(raw);
+      const isPercentAny = typeof raw === 'string' && raw.includes('%');
       const isAuto = raw === 'auto';
-      if (isPercent || isAuto) {
+      if (isPlainPercent || isAuto) {
         const host = this.hostRef?.value as HTMLElement | null;
         const rect = host?.getBoundingClientRect?.();
         const measured = rect ? (axis === 'w' ? rect.width : rect.height) : 0;
@@ -660,6 +670,12 @@ export class IframeButtonHost extends LitElementWithProps {
         const prect = parent?.getBoundingClientRect?.();
         const measuredParent = prect ? (axis === 'w' ? prect.width : prect.height) : 0;
         if (measuredParent && measuredParent > 0) return Math.ceil(measuredParent);
+        // For plain percentages with no measurable container, warn + fallback to pixels.
+        if (isPlainPercent) {
+          this.warnPercentWidthCollapseOnce();
+          return fallback;
+        }
+        // For auto (or complex expressions containing %) try parsing via probe; else fallback
         try { return utilParsePx(raw as any); } catch { return fallback; }
       }
       try { return utilParsePx(raw as any); } catch { return fallback; }
@@ -668,6 +684,35 @@ export class IframeButtonHost extends LitElementWithProps {
     const buttonWidth = resolveOne(rawW as any, 200, 'w');
     const buttonHeight = resolveOne(rawH as any, 48, 'h');
     return { buttonWidth, buttonHeight };
+  }
+
+  /**
+   * Resolve the effective button width as a CSS string.
+   * - If buttonStyle is provided without width, default to '200px'.
+   * - If no buttonStyle is provided, default to 'min(100%, 420px)'.
+   * - If width is a plain percentage (e.g., '100%'), try to measure the host or its parent; if not
+   *   measurable yet, warn once and return the 200px fallback to avoid collapsing to 0.
+   * - If width is a number, return with 'px'.
+   */
+  private resolveButtonWidthString(): string {
+    const hasStyle = !!this.buttonStyle && Object.keys(this.buttonStyle).length > 0;
+    const hasExplicitWidth = this.buttonStyle && this.buttonStyle.width !== undefined && String(this.buttonStyle.width).trim() !== '';
+    const rawW = hasExplicitWidth ? this.buttonStyle!.width : (hasStyle ? '200px' : 'min(100%, 420px)');
+    const isPlainPercent = typeof rawW === 'string' && /^\s*\d+(?:\.\d+)?%\s*$/.test(rawW);
+    if (isPlainPercent) {
+      const measured = this.resolveButtonSizePx();
+      return `${measured.buttonWidth}px`;
+    }
+    return typeof rawW === 'number' ? `${rawW}px` : String(rawW);
+  }
+
+  private _warnedPercentWidthCollapse = false;
+  private warnPercentWidthCollapseOnce() {
+    if (this._warnedPercentWidthCollapse) return;
+    this._warnedPercentWidthCollapse = true;
+    try {
+      console.warn('[IframeButtonHost] buttonStyle.width is a percentage but container width is not measurable at init. Defaulting to 200px. Consider setting an explicit pixel width or ensuring the parent has a definite width.');
+    } catch {}
   }
 
   /**

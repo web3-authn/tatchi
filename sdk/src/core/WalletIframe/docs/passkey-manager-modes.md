@@ -86,7 +86,7 @@ Consumers instantiate a single client (or use `PasskeyProvider`) and set `iframe
 
 **Optional parameters:**
 - `iframeWallet.walletOrigin` (recommended)
-- `iframeWallet.walletServicePath` (default: `/service`)
+- `iframeWallet.walletServicePath` (default: `wallet-service`)
 - `sdkBasePath` (default: `/sdk`) for deterministic asset/service routing
 
 ### Unified Configuration Object
@@ -94,7 +94,7 @@ Consumers instantiate a single client (or use `PasskeyProvider`) and set `iframe
 `PasskeyManagerConfigs` remains the canonical input with these nested fields:
 
 - `iframeWallet.walletOrigin?: string` — wallet host origin (set for cross-origin isolation)
-- `iframeWallet.walletServicePath?: string` — default `/service` (examples use `/wallet-service`)
+- `iframeWallet.walletServicePath?: string` — default `wallet-service` (examples use `/wallet-service`)
 - `iframeWallet.rpIdOverride?: string` — base RP ID for cross-subdomain credential sharing
 - Standard fields: `nearRpcUrl`, `nearNetwork`, `contractId`, `relayer`, `vrfWorkerConfigs`
 
