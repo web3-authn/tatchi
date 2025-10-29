@@ -283,7 +283,6 @@ export const DemoTransaction: React.FC = () => {
                 background: 'var(--w3a-colors-primary)',
                 borderRadius: '2rem',
                 border: 'none',
-                transition: 'all 0.3s ease',
                 boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
                 fontSize: '16px',
                 height: '44px',

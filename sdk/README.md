@@ -210,7 +210,7 @@ const pm = new PasskeyManager({
   contractId: 'w3a-v1.testnet',
   iframeWallet: {
     walletOrigin: 'http://localhost:8080', // your wallet site
-    walletServicePath: '/service',         // must match the route above
+    walletServicePath: 'wallet-service',   // must match the route above
     // rpIdOverride: 'example.localhost',  // optional
   }
 });
@@ -220,7 +220,7 @@ await pm.initWalletIframe();
 With this approach, you don’t copy HTML into the integrator’s app and you don’t rely on any external vendor servers. You either:
 
 - Use the default same‑origin `srcdoc` mounting (zero configuration), or
-- Host the wallet service on your own separate origin by exposing `/sdk` and `/service` as shown.
+- Host the wallet service on your own separate origin by exposing `/sdk` and `/wallet-service` as shown.
 
 ### Examples
 

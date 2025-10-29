@@ -143,7 +143,7 @@ export class PasskeyManager {
     if (this.iframeRouter) return;
     this.iframeRouter = new WalletIframeRouter({
       walletOrigin,
-      servicePath: walletIframeConfig?.walletServicePath || '/service',
+      servicePath: walletIframeConfig?.walletServicePath || 'wallet-service',
       connectTimeoutMs: 20_000, // 20s
       requestTimeoutMs: 60_000, // 60s
       theme: this.configs.walletTheme,

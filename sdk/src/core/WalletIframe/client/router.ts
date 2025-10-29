@@ -91,7 +91,7 @@ import type { RecoveryResult } from '../../PasskeyManager';
 
 export interface WalletIframeRouterOptions {
   walletOrigin: string; // e.g., https://wallet.example.com
-  servicePath?: string; // default '/service'
+  servicePath?: string; // default 'wallet-service'
   connectTimeoutMs?: number; // default 8000
   requestTimeoutMs?: number; // default 20000
   theme?: 'dark' | 'light';
@@ -194,7 +194,7 @@ export class WalletIframeRouter {
     this.opts = {
       connectTimeoutMs: 8000,
       requestTimeoutMs: 20000,
-      servicePath: '/service',
+      servicePath: 'wallet-service',
       sdkBasePath: '/sdk',
       testOptions,
       ...options,

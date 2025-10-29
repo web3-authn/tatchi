@@ -136,7 +136,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
   }), []);
 
   const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
-    width: tooltipPosition.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
+    width: tooltipPosition.width,
     height: tooltipPosition.height,
     position: tooltipPosition.position,
     offset: '6px',

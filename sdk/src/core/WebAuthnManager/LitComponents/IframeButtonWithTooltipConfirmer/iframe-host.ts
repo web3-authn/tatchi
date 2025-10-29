@@ -236,7 +236,11 @@ export class IframeButtonHost extends LitElementWithProps {
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
 
-    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
+    const hasStyle = !!this.buttonStyle && Object.keys(this.buttonStyle).length > 0;
+    const rawBtnW = (this.buttonStyle && this.buttonStyle.width !== undefined)
+      ? this.buttonStyle.width
+      : (hasStyle ? '200px' : 'min(100%, 420px)');
+    const btnW = toPx(rawBtnW);
     const btnH = toPx(this.buttonStyle?.height || '48px');
     const iframeSize = this.calculateIframeSize();
 
@@ -325,7 +329,11 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
-    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
+    const hasStyle = !!this.buttonStyle && Object.keys(this.buttonStyle).length > 0;
+    const rawBtnW = (this.buttonStyle && this.buttonStyle.width !== undefined)
+      ? this.buttonStyle.width
+      : (hasStyle ? '200px' : 'min(100%, 420px)');
+    const btnW = toPx(rawBtnW);
     const btnH = toPx(this.buttonStyle?.height || '48px');
     return { baseDecls, hoverDecls, btnW, btnH };
   }
@@ -354,7 +362,9 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private buildInitData(): IframeInitData {
     const buttonSize = {
-      width: this.buttonStyle?.width || 'min(100%, 420px)',
+      width: (this.buttonStyle && this.buttonStyle.width !== undefined)
+        ? this.buttonStyle.width
+        : ((this.buttonStyle && Object.keys(this.buttonStyle).length > 0) ? '200px' : 'min(100%, 420px)'),
       height: this.buttonStyle?.height || '48px'
     };
 
@@ -435,7 +445,10 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private setHostContainerToButtonSize() {
     // Set CSS custom properties for the .iframe-button-host container
-    const buttonWidth = this.buttonStyle?.width || 'min(100%, 420px)';
+    const hasStyle = !!this.buttonStyle && Object.keys(this.buttonStyle).length > 0;
+    const buttonWidth = (this.buttonStyle && this.buttonStyle.width !== undefined)
+      ? this.buttonStyle.width
+      : (hasStyle ? '200px' : 'min(100%, 420px)');
     const buttonHeight = this.buttonStyle?.height || '48px';
 
     // Set CSS custom properties that the .iframe-button-host CSS will use
@@ -503,8 +516,11 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   private postStyleUpdateToIframe() {
+    const hasStyle = !!this.buttonStyle && Object.keys(this.buttonStyle).length > 0;
     const buttonSize = {
-      width: this.buttonStyle?.width || 'min(100%, 420px)',
+      width: (this.buttonStyle && this.buttonStyle.width !== undefined)
+        ? this.buttonStyle.width
+        : (hasStyle ? '200px' : 'min(100%, 420px)'),
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree and embedded button
