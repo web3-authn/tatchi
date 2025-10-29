@@ -22,6 +22,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
       // default Shamir's P in vrf-wasm-worker, needs to match relay server's Shamir P
       p: '3N5w46AIGjGT2v5Vua_TMD5Ywfa9U2F7-WzW8SNDsIM',
       // No default relay server URL to avoid accidental localhost usage in non-dev envs
+      // Defaults to relayer.url when undefined
       relayServerUrl: '',
       applyServerLockRoute: '/vrf/apply-server-lock',
       removeServerLockRoute: '/vrf/remove-server-lock',
@@ -39,8 +40,10 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
 
 // Minimal builder: merge defaults with overrides
 export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
-
   const shamir3passDefaults = PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass;
+  // Prefer explicit override for relayer URL; fall back to default preset.
+  // Used below to default VRF relayServerUrl when it is undefined.
+  const overrideRelayerUrl = overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url;
 
   const merged: PasskeyManagerConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
@@ -58,7 +61,9 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
           ?? shamir3passDefaults?.removeServerLockRoute,
         applyServerLockRoute: overrides.vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute
           ?? shamir3passDefaults?.applyServerLockRoute,
+        // Default VRF relayServerUrl to relayer.url when undefined
         relayServerUrl: overrides.vrfWorkerConfigs?.shamir3pass?.relayServerUrl
+          ?? overrideRelayerUrl
       }
     },
     ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),

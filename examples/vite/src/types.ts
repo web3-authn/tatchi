@@ -1,4 +1,4 @@
-// Types for server responses (simplified, ensure they match your backend)
+
 export interface ServerRegistrationOptions {
   challenge: string; // base64url
   rp: { name: string; id?: string };
@@ -7,18 +7,16 @@ export interface ServerRegistrationOptions {
   authenticatorSelection?: AuthenticatorSelectionCriteria;
   timeout?: number;
   attestation?: AttestationConveyancePreference;
-  excludeCredentials?: { id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }[]; // id is base64url, transports match AuthenticatorTransport
+  excludeCredentials?: { id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }[];
 }
 
 export interface ServerAuthenticationOptions {
   challenge: string; // base64url
   rpId?: string;
-  allowCredentials?: { id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }[]; // id is base64url
+  allowCredentials?: { id: string; type: 'public-key'; transports?: AuthenticatorTransport[] }[];
   userVerification?: UserVerificationRequirement;
   timeout?: number;
 }
-
-// === SHARED TYPES ===
 
 export interface LastTxDetails {
   id: string;

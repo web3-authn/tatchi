@@ -41,7 +41,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
   color: string = '#667eea';
   loadingTouchIdPrompt: boolean = false;
   tooltip: TooltipPositionInternal = {
-    width: '340px',
+    width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: 'auto',
     position: 'top-center',
     offset: '4px'

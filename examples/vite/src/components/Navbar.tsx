@@ -1,5 +1,4 @@
 import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 import {
@@ -13,8 +12,8 @@ import {
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
+
   const { loginState, passkeyManager } = usePasskeyContext();
-  const navigate = useNavigate();
   const { setTheme } = useTheme();
 
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
@@ -50,22 +49,9 @@ export const Navbar: React.FC = () => {
   return (
     <nav className="navbar-container">
       <div className="navbar-title">
-        <Link to="/">
-          Tatchi.xyz
-        </Link>
+        Tatchi.xyz
       </div>
-
-      <div className="navbar-links">
-        <Link to="/">
-          Home
-        </Link>
-        <Link to="/multitx">
-          Demos
-        </Link>
-      </div>
-
       <DebugBanner />
-
       {
         loginState.isLoggedIn &&
         <div style={{ position: 'fixed', top: '0.5rem', right: '0.5rem' }}>
@@ -73,7 +59,7 @@ export const Navbar: React.FC = () => {
             nearAccountId={loginState.nearAccountId!}
             nearExplorerBaseUrl="https://testnet.nearblocks.io"
             hideUsername={isMobile}
-            onLogout={() => navigate('/')}
+            onLogout={() => console.log('logged out')}
             deviceLinkingScannerParams={{
               fundingAmount: "0.05",
               onDeviceLinked: (result: any) => {
@@ -143,6 +129,6 @@ export const Navbar: React.FC = () => {
           />
         </div>
       }
-      </nav>
+    </nav>
   );
 };

@@ -167,7 +167,7 @@ export class IframeButtonHost extends LitElementWithProps {
     this.buttonHoverStyle = {};
     this.buttonTextElement = 'Sign Transaction';
     this.tooltipPosition = {
-      width: '280px',
+      width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
       height: '300px',
       position: 'top-center',
       offset: '6px',
@@ -236,7 +236,7 @@ export class IframeButtonHost extends LitElementWithProps {
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
 
-    const btnW = toPx(this.buttonStyle?.width || '200px');
+    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
     const btnH = toPx(this.buttonStyle?.height || '48px');
     const iframeSize = this.calculateIframeSize();
 
@@ -297,8 +297,7 @@ export class IframeButtonHost extends LitElementWithProps {
   }
 
   private calculateIframeSize() {
-    const buttonWidth = utilParsePx(this.buttonStyle?.width || '200px');
-    const buttonHeight = utilParsePx(this.buttonStyle?.height || '48px');
+    const { buttonWidth, buttonHeight } = this.resolveButtonSizePx();
     const tooltipWidth = utilParsePx(this.tooltipPosition.width);
     // Special case: tooltip height can be 'auto', so we provide a fallback value for iframe calculations
     const tooltipHeight = this.tooltipPosition.height === 'auto' ? 200 : utilParsePx(this.tooltipPosition.height);
@@ -326,7 +325,7 @@ export class IframeButtonHost extends LitElementWithProps {
     };
     const baseDecls = toDecls(this.buttonStyle as Record<string, unknown>);
     const hoverDecls = toDecls(this.buttonHoverStyle as Record<string, unknown>);
-    const btnW = toPx(this.buttonStyle?.width || '200px');
+    const btnW = toPx(this.buttonStyle?.width || 'min(100%, 420px)');
     const btnH = toPx(this.buttonStyle?.height || '48px');
     return { baseDecls, hoverDecls, btnW, btnH };
   }
@@ -355,7 +354,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private buildInitData(): IframeInitData {
     const buttonSize = {
-      width: this.buttonStyle?.width || '200px',
+      width: this.buttonStyle?.width || 'min(100%, 420px)',
       height: this.buttonStyle?.height || '48px'
     };
 
@@ -436,7 +435,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private setHostContainerToButtonSize() {
     // Set CSS custom properties for the .iframe-button-host container
-    const buttonWidth = this.buttonStyle?.width || '200px';
+    const buttonWidth = this.buttonStyle?.width || 'min(100%, 420px)';
     const buttonHeight = this.buttonStyle?.height || '48px';
 
     // Set CSS custom properties that the .iframe-button-host CSS will use
@@ -505,7 +504,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
   private postStyleUpdateToIframe() {
     const buttonSize = {
-      width: this.buttonStyle?.width || '200px',
+      width: this.buttonStyle?.width || 'min(100%, 420px)',
       height: this.buttonStyle?.height || '48px'
     };
     // Get theme styles for tooltip tree and embedded button
@@ -629,8 +628,7 @@ export class IframeButtonHost extends LitElementWithProps {
     if (!this.iframeRef.value) return;
 
     const iframeSize = this.calculateIframeSize();
-    const buttonWidth = utilParsePx(this.buttonStyle?.width || '200px');
-    const buttonHeight = utilParsePx(this.buttonStyle?.height || '48px');
+    const { buttonWidth, buttonHeight } = this.resolveButtonSizePx();
     // Use the calculated button position from iframe sizing
     const buttonX = iframeSize.buttonPositionX;
     const buttonY = iframeSize.buttonPositionY;
@@ -639,6 +637,37 @@ export class IframeButtonHost extends LitElementWithProps {
 
     this.setIframeClipPath(optimisticClipPath);
     this.iframeRef.value.classList.remove('interactive');
+  }
+
+  /**
+   * Resolves button width/height in pixels with robust handling of percentage and `auto` values.
+   * When a percentage is provided (e.g., '100%'), prefer measuring the host element’s width/height
+   * to avoid collapsing to 0 due to lack of a containing block during early layout.
+   */
+  private resolveButtonSizePx(): { buttonWidth: number; buttonHeight: number } {
+    const rawW = this.buttonStyle?.width ?? '200px';
+    const rawH = this.buttonStyle?.height ?? '48px';
+
+    const resolveOne = (raw: string | number, fallback: number, axis: 'w' | 'h'): number => {
+      const isPercent = typeof raw === 'string' && raw.includes('%');
+      const isAuto = raw === 'auto';
+      if (isPercent || isAuto) {
+        const host = this.hostRef?.value as HTMLElement | null;
+        const rect = host?.getBoundingClientRect?.();
+        const measured = rect ? (axis === 'w' ? rect.width : rect.height) : 0;
+        if (measured && measured > 0) return Math.ceil(measured);
+        const parent = host?.parentElement as HTMLElement | null;
+        const prect = parent?.getBoundingClientRect?.();
+        const measuredParent = prect ? (axis === 'w' ? prect.width : prect.height) : 0;
+        if (measuredParent && measuredParent > 0) return Math.ceil(measuredParent);
+        try { return utilParsePx(raw as any); } catch { return fallback; }
+      }
+      try { return utilParsePx(raw as any); } catch { return fallback; }
+    };
+
+    const buttonWidth = resolveOne(rawW as any, 200, 'w');
+    const buttonHeight = resolveOne(rawH as any, 48, 'h');
+    return { buttonWidth, buttonHeight };
   }
 
   /**

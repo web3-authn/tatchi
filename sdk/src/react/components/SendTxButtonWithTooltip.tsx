@@ -14,7 +14,7 @@ import {
 import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
-import type { SendTxButtonWithTooltipProps } from '../types';
+import type { SendTxButtonWithTooltipBaseProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
@@ -55,11 +55,7 @@ export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean 
   </span>
 )
 
-/**
- * React wrapper around the Lit `w3a-tx-button` component.
- * Much cleaner implementation that delegates iframe management to Lit.
- */
-export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
+export interface SendTxButtonWithTooltipProps extends SendTxButtonWithTooltipBaseProps {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
@@ -68,7 +64,13 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   tooltipPosition?: TooltipPosition;
   txTreeTheme?: ThemeName;
   lockTheme?: boolean;
-}> = ({
+}
+
+/**
+ * React wrapper around the Lit `w3a-tx-button` component.
+ * Much cleaner implementation that delegates iframe management to Lit.
+ */
+export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = ({
   nearAccountId,
   txSigningRequests,
   options,
@@ -83,7 +85,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   buttonHoverStyle,
   buttonTextElement = <TouchIdWithText />,
   tooltipPosition = {
-    width: '340px',
+    width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: 'auto',
     position: 'top-center',
   },
@@ -134,7 +136,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   }), []);
 
   const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
-    width: tooltipPosition.width,
+    width: tooltipPosition.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: tooltipPosition.height,
     position: tooltipPosition.position,
     offset: '6px',

@@ -55,7 +55,6 @@
   --fe-input-placeholder: var(--w3a-colors-textSecondary);
   --fe-error: var(--w3a-colors-error);
   --fe-success: var(--w3a-colors-success);
-  --cerulean-focus: var(--w3a-colors-focus);
 }
 
 html {
