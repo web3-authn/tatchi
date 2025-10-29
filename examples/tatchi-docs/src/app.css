@@ -1,10 +1,10 @@
 @import './layout.css';
-@import './components/GreetingMenu.css';
+@import './components/DemoTransaction.css';
 @import './components/PasskeyLoginMenu.css';
 @import './components/EmbeddedTxButton.css';
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
-@import './components/MultiTxConfirmPage.css';
+@import './components/DemoMultiTx.css';
 @import './components/carousel/carousel.css';
 
 :root, :host {
@@ -55,7 +55,6 @@
   --fe-input-placeholder: var(--w3a-colors-textSecondary);
   --fe-error: var(--w3a-colors-error);
   --fe-success: var(--w3a-colors-success);
-  --cerulean-focus: var(--w3a-colors-focus);
 }
 
 html {

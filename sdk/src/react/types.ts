@@ -258,7 +258,7 @@ export type {
 } from '../core/types/linkDevice';
 
 // === Secure Send Transaction Button type ===
-export interface SendTxButtonWithTooltipProps {
+export interface SendTxButtonWithTooltipBaseProps {
   /** NEAR account ID */
   nearAccountId: string;
   /** Transaction payloads to sign */

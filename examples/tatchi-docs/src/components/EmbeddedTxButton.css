@@ -91,7 +91,7 @@
 .embedded-tx-input:focus {
   outline: none;
   border-color: var(--fe-border-strong);
-  box-shadow: 0 0 0 3px var(--cerulean-focus);
+  box-shadow: 0 0 0 3px var(--w3a-colors-focus);
 }
 
 .embedded-tx-input-help {
@@ -218,7 +218,7 @@
 /* Focus Ring */
 .embedded-tx-focus-ring:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px var(--cerulean-focus);
+  box-shadow: 0 0 0 3px var(--w3a-colors-focus);
   border-color: var(--fe-border-strong);
 }
 

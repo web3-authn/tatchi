@@ -53,6 +53,7 @@
   font-size: inherit;
   font-weight: inherit;
   user-select: none;
+  transition: none;
 }
 
 iframe {

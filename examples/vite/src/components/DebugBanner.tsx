@@ -37,10 +37,10 @@ export const DebugBanner: React.FC = () => {
 
   return (
     <div style={{
-      position: 'absolute',
-      bottom: '-1rem',
-      left: '0rem',
-      color: walletIframeConnected ? 'rgba(66,140,240,0.4)' : 'rgba(234,179,8,0.4)',
+      position: 'fixed',
+      bottom: '0.5rem',
+      right: '0.5rem',
+      color: walletIframeConnected ? 'rgba(66,140,240,0.8)' : 'rgba(234,179,8,0.8)',
       padding: '4px 4px 0px 4px',
       lineHeight: '0.75rem',
       fontSize: '10px',

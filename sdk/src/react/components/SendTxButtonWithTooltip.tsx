@@ -3,7 +3,8 @@ import React, {
   useEffect,
   useMemo,
   isValidElement,
-  cloneElement
+  cloneElement,
+  useRef,
 } from 'react';
 import { createComponent } from '@lit/react';
 import {
@@ -13,11 +14,12 @@ import {
 import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-types';
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
-import type { SendTxButtonWithTooltipProps } from '../types';
+import type { SendTxButtonWithTooltipBaseProps } from '../types';
 import { usePasskeyContext } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
+import type { EventCallback, ActionSSEEvent } from '@/core/types/passkeyManager';
 
 
 export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean }> = ({
@@ -53,11 +55,7 @@ export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean 
   </span>
 )
 
-/**
- * React wrapper around the Lit `w3a-tx-button` component.
- * Much cleaner implementation that delegates iframe management to Lit.
- */
-export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
+export interface SendTxButtonWithTooltipProps extends SendTxButtonWithTooltipBaseProps {
   color?: string;
   buttonStyle?: React.CSSProperties;
   buttonHoverStyle?: React.CSSProperties;
@@ -66,7 +64,13 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   tooltipPosition?: TooltipPosition;
   txTreeTheme?: ThemeName;
   lockTheme?: boolean;
-}> = ({
+}
+
+/**
+ * React wrapper around the Lit `w3a-tx-button` component.
+ * Much cleaner implementation that delegates iframe management to Lit.
+ */
+export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = ({
   nearAccountId,
   txSigningRequests,
   options,
@@ -81,13 +85,15 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   buttonHoverStyle,
   buttonTextElement = <TouchIdWithText />,
   tooltipPosition = {
-    width: '340px',
+    width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: 'auto',
     position: 'top-center',
   },
   txTreeTheme = 'dark',
   lockTheme = false,
 }) => {
+
+  useWarnDuplicateHooks({ onEventProp: onEvent, optionsOnEvent: options?.onEvent });
 
   const { passkeyManager } = usePasskeyContext();
   // Provide external confirm handler when using PasskeyManagerIframe (no local context)
@@ -130,7 +136,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps & {
   }), []);
 
   const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
-    width: tooltipPosition.width,
+    width: tooltipPosition.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: tooltipPosition.height,
     position: tooltipPosition.position,
     offset: '6px',
@@ -212,5 +218,32 @@ export const toStyleRecord = (style?: React.CSSProperties): Record<string, strin
   });
   return out;
 };
+
+/**
+ * Warns when duplicate hooks are provided to SendTxButtonWithTooltip.
+ * Specifically checks for both top-level `onEvent` prop and `options.onEvent`.
+ * The component prioritizes the top-level prop and ignores `options.onEvent`.
+ */
+function useWarnDuplicateHooks({
+  onEventProp,
+  optionsOnEvent,
+}: {
+  onEventProp?: EventCallback<ActionSSEEvent>;
+  optionsOnEvent?: EventCallback<ActionSSEEvent>;
+}) {
+  const warnedRef = useRef(false);
+  useEffect(() => {
+    const bothProvided = Boolean(onEventProp) && Boolean(optionsOnEvent);
+    if (bothProvided && !warnedRef.current) {
+      console.warn(
+        '[SendTxButtonWithTooltip] Both onEvent (top-level prop) and options.onEvent are provided. The top-level onEvent takes precedence; options.onEvent will be ignored. Pass only one to avoid confusion.'
+      );
+      warnedRef.current = true;
+    }
+    if (!bothProvided) {
+      warnedRef.current = false;
+    }
+  }, [onEventProp, optionsOnEvent]);
+}
 
 export default SendTxButtonWithTooltip;
