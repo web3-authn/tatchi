@@ -164,6 +164,7 @@ export const EmbeddedTxButton: React.FC<EmbeddedTxButtonProps> = ({  }) => {
             boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
           }}
           tooltipPosition={{
+            width: '330px', // fixed width for tooltip
             height: 'auto',
             position: 'bottom-left',
           }}
