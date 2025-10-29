@@ -286,6 +286,7 @@ export const DemoTransaction: React.FC = () => {
                 boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
                 fontSize: '16px',
                 height: '44px',
+                width: '100%',
               }}
               buttonHoverStyle={{
                 background: 'var(--w3a-colors-primaryHover)',
