@@ -184,6 +184,64 @@ const configs = [
       alias: aliasConfig
     },
   },
+  // Plugins: headers helper ESM
+  {
+    input: 'src/plugins/headers.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
+      format: 'esm',
+      entryFileNames: 'headers.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Plugins: headers helper CJS
+  {
+    input: 'src/plugins/headers.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
+      format: 'cjs',
+      entryFileNames: 'headers.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Plugins: Next helper ESM
+  {
+    input: 'src/plugins/next.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/plugins`,
+      format: 'esm',
+      entryFileNames: 'next.js',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Plugins: Next helper CJS
+  {
+    input: 'src/plugins/next.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/plugins`,
+      format: 'cjs',
+      entryFileNames: 'next.js',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
   // Express router helper ESM bundle
   {
     input: 'src/server/router/express-adaptor.ts',
@@ -479,19 +537,10 @@ const configs = [
               const lines: string[] = [];
               lines.push('/* Generated from src/theme/palette.json. Do not edit by hand. */');
               lines.push(`${sel} {`);
-              // Base tokens (dark defaults) referencing palette vars
-              lines.push(`  --w3a-colors-textPrimary: var(--w3a-grey75);`);
-              lines.push(`  --w3a-colors-textSecondary: var(--w3a-grey500);`);
-              lines.push(`  --w3a-colors-surface: var(--w3a-slate700);`);
-              lines.push(`  --w3a-colors-surface2: var(--w3a-slate750);`);
-              lines.push(`  --w3a-colors-surface3: var(--w3a-slate800);`);
-              lines.push(`  --w3a-colors-borderPrimary: var(--w3a-grey650);`);
-              lines.push(`  --w3a-colors-borderSecondary: var(--w3a-slate650);`);
-              lines.push(`  --w3a-colors-colorBackground: var(--w3a-grey800);`);
-              // Component defaults
+              // Component defaults (no token alias assignments here)
               lines.push(`  --w3a-modal__btn__focus-outline-color: #3b82f6;`);
-              lines.push(`  --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);`);
-              lines.push(`  --w3a-tree__file-content__scrollbar-thumb__background: rgba(255,255,255,0.22);`);
+              lines.push(`  --w3a-tree__file-content__scrollbar-track__background: rgba(255, 255, 255, 0.06);`);
+              lines.push(`  --w3a-tree__file-content__scrollbar-thumb__background: rgba(255, 255, 255, 0.22);`);
               // GREY
               Object.keys(p.grey || {}).forEach((k) => {
                 lines.push(`  --w3a-grey${k}: ${p.grey[k]};`);
@@ -516,26 +565,172 @@ const configs = [
               Object.keys(p.gradients || {}).forEach((name) => {
                 lines.push(`  --w3a-gradient-${name}: ${p.gradients[name]};`);
               });
+              // Default token aliases (dark) to guarantee host tokens in Shadow DOM
+              const TOKENS = (p.tokens || {}) as { buttonBackground?: string };
+              const darkVars = {
+                textPrimary: p.grey['75'],
+                textSecondary: p.grey['500'],
+                textMuted: p.grey['650'],
+                textButton: p.grey['75'],
+                colorBackground: p.grey['800'],
+                surface: p.slate['700'],
+                surface2: p.slate['750'],
+                surface3: p.slate['800'],
+                surface4: p.slate['825'],
+                primary: (p.chroma?.blue || {})['600'],
+                primaryHover: (p.chroma?.blue || {})['500'],
+                secondary: (p.chroma?.red || {})['500'],
+                secondaryHover: (p.chroma?.red || {})['400'],
+                accent: (p.chroma?.blue || {})['400'],
+                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
+                hover: p.grey['850'],
+                active: p.grey['650'],
+                focus: (p.chroma?.blue || {})['400'],
+                success: (p.chroma?.blue || {})['400'],
+                warning: (p.chroma?.yellow || {})['400'],
+                error: (p.chroma?.red || {})['400'],
+                info: (p.chroma?.blue || {})['400'],
+                borderPrimary: p.grey['650'],
+                borderSecondary: p.slate['650'],
+                borderHover: p.grey['600'],
+                backgroundGradientPrimary: p.gradients?.blue,
+                backgroundGradientSecondary: p.gradients?.blueWhite,
+                highlightReceiverId: (p.chroma?.blue || {})['400'],
+                highlightMethodName: (p.chroma?.blue || {})['400'],
+                highlightAmount: (p.chroma?.blue || {})['400'],
+              } as const;
+              const lightVars = {
+                textPrimary: p.grey['975'],
+                textSecondary: p.grey['500'],
+                textMuted: p.grey['350'],
+                textButton: p.grey['75'],
+                colorBackground: p.grey['50'],
+                surface: p.slate['100'],
+                surface2: p.slate['150'],
+                surface3: p.slate['200'],
+                surface4: p.slate['250'],
+                primary: (p.chroma?.blue || {})['600'],
+                primaryHover: (p.chroma?.blue || {})['500'],
+                secondary: (p.chroma?.red || {})['500'],
+                secondaryHover: (p.chroma?.red || {})['400'],
+                accent: (p.chroma?.blue || {})['400'],
+                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
+                hover: p.grey['100'],
+                active: p.grey['200'],
+                focus: (p.chroma?.blue || {})['400'],
+                success: (p.chroma?.blue || {})['500'],
+                warning: (p.chroma?.yellow || {})['500'],
+                error: (p.chroma?.red || {})['500'],
+                info: (p.chroma?.blue || {})['500'],
+                borderPrimary: p.slate['300'],
+                borderSecondary: p.grey['300'],
+                borderHover: p.slate['350'],
+                backgroundGradientPrimary: p.gradients?.blue,
+                backgroundGradientSecondary: p.gradients?.blueWhite,
+                highlightReceiverId: (p.chroma?.blue || {})['500'],
+                highlightMethodName: (p.chroma?.blue || {})['500'],
+                highlightAmount: (p.chroma?.blue || {})['500'],
+              } as const;
+              const creamVars = {
+                textPrimary: p.grey['900'],
+                textSecondary: p.grey['600'],
+                textMuted: p.grey['450'],
+                textButton: p.grey['75'],
+                colorBackground: p.cream['50'],
+                surface: p.cream['100'],
+                surface2: p.cream['150'],
+                surface3: p.cream['200'],
+                surface4: p.cream['250'],
+                primary: p.grey['700'],
+                primaryHover: p.grey['650'],
+                secondary: (p.chroma?.red || {})['500'],
+                secondaryHover: (p.chroma?.red || {})['400'],
+                accent: (p.chroma?.yellow || {})['550'],
+                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
+                hover: p.cream['75'],
+                active: p.cream['200'],
+                focus: (p.chroma?.yellow || {})['500'],
+                success: (p.chroma?.yellow || {})['400'],
+                warning: (p.chroma?.yellow || {})['600'],
+                error: (p.chroma?.red || {})['500'],
+                info: (p.chroma?.blue || {})['500'],
+                borderPrimary: p.cream['300'],
+                borderSecondary: p.cream['200'],
+                borderHover: p.cream['350'],
+                backgroundGradientPrimary: p.gradients?.black,
+                backgroundGradientSecondary: p.gradients?.blackWhite,
+                highlightReceiverId: (p.chroma?.yellow || {})['400'],
+                highlightMethodName: (p.chroma?.yellow || {})['400'],
+                highlightAmount: (p.chroma?.yellow || {})['400'],
+              } as const;
+              const emitAliases = (vars: any, indent = '  ') => [
+                `${indent}--w3a-colors-textPrimary: ${vars.textPrimary};`,
+                `${indent}--w3a-colors-textSecondary: ${vars.textSecondary};`,
+                `${indent}--w3a-colors-textMuted: ${vars.textMuted};`,
+                `${indent}--w3a-colors-textButton: ${vars.textButton};`,
+                `${indent}--w3a-colors-colorBackground: ${vars.colorBackground};`,
+                `${indent}--w3a-colors-surface: ${vars.surface};`,
+                `${indent}--w3a-colors-surface2: ${vars.surface2};`,
+                `${indent}--w3a-colors-surface3: ${vars.surface3};`,
+                `${indent}--w3a-colors-surface4: ${vars.surface4};`,
+                `${indent}--w3a-colors-primary: ${vars.primary};`,
+                `${indent}--w3a-colors-primaryHover: ${vars.primaryHover};`,
+                `${indent}--w3a-colors-secondary: ${vars.secondary};`,
+                `${indent}--w3a-colors-secondaryHover: ${vars.secondaryHover};`,
+                `${indent}--w3a-colors-accent: ${vars.accent};`,
+                `${indent}--w3a-colors-buttonBackground: ${vars.buttonBackground};`,
+                `${indent}--w3a-colors-hover: ${vars.hover};`,
+                `${indent}--w3a-colors-active: ${vars.active};`,
+                `${indent}--w3a-colors-focus: ${vars.focus};`,
+                `${indent}--w3a-colors-success: ${vars.success};`,
+                `${indent}--w3a-colors-warning: ${vars.warning};`,
+                `${indent}--w3a-colors-error: ${vars.error};`,
+                `${indent}--w3a-colors-info: ${vars.info};`,
+                `${indent}--w3a-colors-borderPrimary: ${vars.borderPrimary};`,
+                `${indent}--w3a-colors-borderSecondary: ${vars.borderSecondary};`,
+                `${indent}--w3a-colors-borderHover: ${vars.borderHover};`,
+                `${indent}--w3a-colors-backgroundGradientPrimary: ${vars.backgroundGradientPrimary};`,
+                `${indent}--w3a-colors-backgroundGradientSecondary: ${vars.backgroundGradientSecondary};`,
+                `${indent}--w3a-colors-highlightReceiverId: ${vars.highlightReceiverId};`,
+                `${indent}--w3a-colors-highlightMethodName: ${vars.highlightMethodName};`,
+                `${indent}--w3a-colors-highlightAmount: ${vars.highlightAmount};`,
+              ];
+              lines.push('');
+              lines.push('  /* Default token aliases (dark) for hosts */');
+              lines.push(...emitAliases(darkVars));
               lines.push('}');
-              // Light theme overrides for core tokens on supported hosts
-              const selLight = [
-                'w3a-tx-tree[theme="light"]',
-                'w3a-drawer[theme="light"]',
-                'w3a-modal-tx-confirmer[theme="light"]',
-                'w3a-drawer-tx-confirmer[theme="light"]',
-                'w3a-button-with-tooltip[theme="light"]',
-                'w3a-halo-border[theme="light"]',
-                'w3a-passkey-halo-loading[theme="light"]',
-              ].join(',\n');
-              lines.push(`${selLight} {`);
-              lines.push(`  --w3a-colors-textPrimary: var(--w3a-grey975);`);
-              lines.push(`  --w3a-colors-textSecondary: var(--w3a-grey500);`);
-              lines.push(`  --w3a-colors-surface: var(--w3a-slate100);`);
-              lines.push(`  --w3a-colors-surface2: var(--w3a-slate150);`);
-              lines.push(`  --w3a-colors-surface3: var(--w3a-slate200);`);
-              lines.push(`  --w3a-colors-borderPrimary: var(--w3a-slate300);`);
-              lines.push(`  --w3a-colors-borderSecondary: var(--w3a-grey300);`);
-              lines.push(`  --w3a-colors-colorBackground: var(--w3a-grey50);`);
+              // Root-level tokens
+              lines.push('');
+              lines.push(':root {');
+              lines.push(...emitAliases(darkVars, '  '));
+              lines.push('}');
+              lines.push('');
+              lines.push(':root[data-w3a-theme="light"] {');
+              lines.push(...emitAliases(lightVars, '  '));
+              lines.push('}');
+              lines.push('');
+              lines.push(':root[data-w3a-theme="cream"] {');
+              lines.push(...emitAliases(creamVars, '  '));
+              lines.push('}');
+              // Theme-aware host overrides (prefix each selector with the theme scope)
+              const hostList = [
+                'w3a-tx-tree',
+                'w3a-drawer',
+                'w3a-modal-tx-confirmer',
+                'w3a-drawer-tx-confirmer',
+                'w3a-button-with-tooltip',
+                'w3a-halo-border',
+                'w3a-passkey-halo-loading',
+              ];
+              const themedSelLight = hostList.map(s => `:root[data-w3a-theme="light"] ${s}`).join(',\n');
+              const themedSelCream = hostList.map(s => `:root[data-w3a-theme="cream"] ${s}`).join(',\n');
+              lines.push('');
+              lines.push(`${themedSelLight} {`);
+              lines.push(...emitAliases(lightVars, '  '));
+              lines.push('}');
+              lines.push('');
+              lines.push(`${themedSelCream} {`);
+              lines.push(...emitAliases(creamVars, '  '));
               lines.push('}');
               fs.writeFileSync(path.join(sdkDir, 'w3a-components.css'), lines.join('\n') + '\n', 'utf-8');
             } catch (e) {

@@ -605,9 +605,8 @@ export interface PasskeyManagerConfigs {
   iframeWallet?: {
     walletOrigin?: string; // e.g., https://wallet.example.com
     walletServicePath?: string; // defaults to '/wallet-service'
-    // Optional SDK assets base used by the parent app to tell the wallet
-    // where to load embedded bundles from. The wallet host will use this base path
-    // as-is. Prefer '/sdk' (no trailing slash). The SDK appends slashes as needed.
+    // SDK assets base used by the parent app to tell the wallet
+    // where to load embedded bundles from.
     sdkBasePath?: string; // defaults to '/sdk'
     // Force WebAuthn rpId to a base domain so credentials work across subdomains
     // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
@@ -625,7 +624,7 @@ export interface PasskeyManagerConfigs {
   vrfWorkerConfigs?: {
     shamir3pass?: {
       p?: string; // Shamir's P prime number
-      relayServerUrl: string; // Relay server URL
+      relayServerUrl?: string; // Relay server URL, defaults to relayer.url
       applyServerLockRoute?: string; // Apply server lock route
       removeServerLockRoute?: string; // Remove server lock route
     }
