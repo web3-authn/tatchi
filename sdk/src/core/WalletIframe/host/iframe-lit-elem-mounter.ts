@@ -272,17 +272,7 @@ export function setupLitElemMounter(opts: {
     WALLET_SET_CONFIG: (payload) => {
       const data = payload as Record<string, unknown>;
       try { updateWalletConfigs(data); } catch {}
-      try {
-        const iframeWallet = (isObject(data) && isObject((data as { iframeWallet?: unknown }).iframeWallet))
-          ? (data as { iframeWallet?: Record<string, unknown> }).iframeWallet
-          : undefined;
-        const registry = (iframeWallet && isObject((iframeWallet as { uiRegistry?: unknown }).uiRegistry))
-          ? (iframeWallet as { uiRegistry?: WalletUIRegistry }).uiRegistry
-          : undefined;
-        if (registry) {
-          uiRegistry = { ...uiRegistry, ...registry };
-        }
-      } catch {}
+      // uiRegistry is no longer read from configs; register via WALLET_UI_REGISTER_TYPES or PM_SET_CONFIG
     },
     WALLET_UI_REGISTER_TYPES: (payload) => {
       try {

@@ -500,6 +500,10 @@ const configs = [
               Object.keys(p.slate || {}).forEach((k) => {
                 lines.push(`  --w3a-slate${k}: ${p.slate[k]};`);
               });
+              // CREAM
+              Object.keys(p.cream || {}).forEach((k) => {
+                lines.push(`  --w3a-cream${k}: ${p.cream[k]};`);
+              });
               // CHROMA
               const chroma = p.chroma || {};
               Object.keys(chroma).forEach((family) => {

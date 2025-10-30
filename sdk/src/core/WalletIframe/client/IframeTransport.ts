@@ -47,7 +47,7 @@ type GetReq = { requestId?: string; publicKey?: PublicKeyCredentialRequestOption
 
 export interface IframeTransportOptions {
   walletOrigin: string;     // e.g., https://wallet.example.com
-  servicePath?: string;      // default 'wallet-service'
+  servicePath?: string;      // default '/wallet-service'
   connectTimeoutMs?: number; // total budget for handshake retries
   testOptions?: {
     routerId?: string;         // identity tag for the iframe element
@@ -66,7 +66,7 @@ export class IframeTransport {
 
   constructor(options: IframeTransportOptions) {
     this.opts = {
-      servicePath: 'wallet-service',
+      servicePath: '/wallet-service',
       connectTimeoutMs: 8000,
       ...options,
     } as Required<IframeTransportOptions>;
@@ -74,7 +74,7 @@ export class IframeTransport {
     try {
       this.walletServiceUrl = new URL(this.opts.servicePath, this.opts.walletOrigin);
     } catch (err) {
-      throw new Error(`[IframeTransport] Invalid wallet origin (${options.walletOrigin}) or servicePath (${options.servicePath || 'wallet-service'})`);
+      throw new Error(`[IframeTransport] Invalid wallet origin (${options.walletOrigin}) or servicePath (${options.servicePath || '/wallet-service'})`);
     }
     this.walletOrigin = this.walletServiceUrl.origin;
     this.testOptions = {

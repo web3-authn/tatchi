@@ -136,9 +136,6 @@ export interface DesignTokens {
     highlightReceiverId: string;
     highlightMethodName: string;
     highlightAmount: string;
-    highlightReceiverIdBackground: string;
-    highlightMethodNameBackground: string;
-    highlightAmountBackground: string;
   };
 
   spacing: {
@@ -255,9 +252,6 @@ export const LIGHT_TOKENS: DesignTokens = {
     highlightReceiverId: LIGHT_THEME.highlightReceiverId,
     highlightMethodName: LIGHT_THEME.highlightMethodName,
     highlightAmount: LIGHT_THEME.highlightAmount,
-    highlightReceiverIdBackground: LIGHT_THEME.highlightReceiverIdBackground,
-    highlightMethodNameBackground: LIGHT_THEME.highlightMethodNameBackground,
-    highlightAmountBackground: LIGHT_THEME.highlightAmountBackground,
   },
 
   spacing: {
@@ -365,9 +359,6 @@ export const DARK_TOKENS: DesignTokens = {
     highlightReceiverId: DARK_THEME.highlightReceiverId,
     highlightMethodName: DARK_THEME.highlightMethodName,
     highlightAmount: DARK_THEME.highlightAmount,
-    highlightReceiverIdBackground: DARK_THEME.highlightReceiverIdBackground,
-    highlightMethodNameBackground: DARK_THEME.highlightMethodNameBackground,
-    highlightAmountBackground: DARK_THEME.highlightAmountBackground,
   },
 
   // Same spacing, border radius, and shadows for consistency
