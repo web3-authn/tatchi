@@ -48,6 +48,7 @@ import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
 import { isObject, isString } from '../validation';
 import { errorMessage } from '../../../utils/errors';
 import { PasskeyManager } from '../../PasskeyManager';
+import { __setWalletIframeHostMode } from '../host-mode';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
@@ -98,22 +99,24 @@ function ensurePasskeyManager(): void {
   if (!walletConfigs.contractId) {
     throw new Error('Wallet service misconfigured: contractId is required.');
   }
-  if (!nearClient) nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
+  if (!nearClient) {
+    nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
+  }
   if (!passkeyManager) {
-    // IMPORTANT: The wallet host must not consider itself an iframe client.
-    // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
-
     const cfg = {
       ...walletConfigs,
       iframeWallet: {
         ...(walletConfigs?.iframeWallet || {}),
+        // IMPORTANT: The wallet host must not consider itself an iframe client.
+        // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
         walletOrigin: undefined,
         walletServicePath: undefined,
         // Rely on rpIdOverride provided by the parent (if any).
         rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
-        isWalletIframeHost: true,
       },
     } as PasskeyManagerConfigs;
+    // Mark runtime as wallet iframe host (internal flag)
+    __setWalletIframeHostMode(true);
     passkeyManager = new PasskeyManager(cfg, nearClient);
     // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
     // Non-blocking and safe to call without account context.

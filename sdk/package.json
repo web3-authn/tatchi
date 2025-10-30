@@ -13,6 +13,16 @@
       "require": "./dist/cjs/index.js",
       "types": "./dist/types/src/index.d.ts"
     },
+    "./plugins/headers": {
+      "import": "./dist/esm/plugins/headers.js",
+      "require": "./dist/cjs/plugins/headers.js",
+      "types": "./dist/types/src/plugins/headers.d.ts"
+    },
+    "./plugins/next": {
+      "import": "./dist/esm/plugins/next.js",
+      "require": "./dist/cjs/plugins/next.js",
+      "types": "./dist/types/src/plugins/next.d.ts"
+    },
     "./core": {
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js",

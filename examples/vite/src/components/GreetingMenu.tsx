@@ -128,6 +128,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
       <div className="section-container">
         <input
           type="text"
+          name="greeting"
           className="embedded-tx-input"
           value={greetingInput}
           onChange={(e) => setGreetingInput(e.target.value)}

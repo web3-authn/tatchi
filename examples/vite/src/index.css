@@ -188,7 +188,7 @@ h4 {
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .button--primary {
@@ -199,11 +199,11 @@ h4 {
 
 .button--primary:hover:not(:disabled) {
   background: var(--w3a-colors-primaryHover);
-  box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 6px 12px var(--fe-shadow);
 }
 
 .button--primary:active:not(:disabled) {
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .button--medium {
@@ -223,7 +223,7 @@ h4 {
 
 .button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 0 0 3px var(--fe-shadow);
 }
 
 .button__spinner {

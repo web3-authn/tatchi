@@ -112,7 +112,7 @@ export class PasskeyManagerIframe {
 
     this.router = new WalletIframeRouter({
       walletOrigin: parsedWalletOrigin.toString(),
-      servicePath: configs.iframeWallet?.walletServicePath || 'wallet-service',
+      servicePath: configs.iframeWallet?.walletServicePath || '/wallet-service',
       // Lower connect timeout to reduce initial boot-wait window (25% of this).
       // With 3_000ms, boot wait caps at ~750ms; improves sub‑second readiness in dev.
       connectTimeoutMs: 3_000,
@@ -125,7 +125,6 @@ export class PasskeyManagerIframe {
       vrfWorkerConfigs: configs.vrfWorkerConfigs,
       rpIdOverride: configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: configs.authenticatorOptions,
-      uiRegistry: configs.iframeWallet?.uiRegistry,
     });
   }
 

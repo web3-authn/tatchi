@@ -124,7 +124,10 @@ const WALLET_SURFACE_CSS = [
   '.w3a-portal { position: relative; z-index: 2147483647; opacity: 0; pointer-events: none; }',
   '.w3a-portal.w3a-portal--visible { opacity: 1; pointer-events: auto; }',
   '',
-  ':root {',
+  // Provide baseline tokens only when the document does not declare a theme.
+  // This avoids overriding :root[data-w3a-theme] values supplied by token sheet
+  // or integrator-injected themes.
+  ':root:not([data-w3a-theme]) {',
   '  --w3a-colors-textPrimary: #f6f7f8;',
   '  --w3a-colors-textSecondary: rgba(255,255,255,0.7);',
   '  --w3a-colors-surface: rgba(255,255,255,0.08);',

@@ -34,6 +34,7 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
 }: PasskeyInputProps) => {
 
   const statusId = React.useId();
+  const inputId = React.useId();
   const { bindInput, bindPostfix } = usePostfixPosition({ inputValue: value, gap: 1 });
   const isRegisterMode = mode === AuthMenuMode.Register || (typeof mode === 'number' && (AuthMenuModeMap as any)[mode] === 'register');
   const inputEnabled = canProceed && !waiting;
@@ -49,6 +50,8 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
           <input
             ref={bindInput}
             type="text"
+            id={inputId}
+            name="passkey"
             value={value}
             onChange={(e) => { onChange(e.target.value); }}
             onKeyDown={onEnter}

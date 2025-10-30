@@ -669,14 +669,14 @@
 }
 
 .w3a-link-device-btn-primary {
-  background: var(--w3a-colors-primary, #3b82f6);
+  background: var(--w3a-colors-buttonBackground, var(--w3a-colors-primary, #3b82f6));
   border-radius: 2rem;
-  color: white;
+  color: var(--w3a-colors-textButton, white);
 }
 
 .w3a-link-device-btn-primary:hover:not(:disabled) {
-  background: var(--w3a-colors-primaryHover, #2563eb);
-  color: white;
+  background: var(--w3a-colors-buttonBackground, var(--w3a-colors-primaryHover, #2563eb));
+  color: var(--w3a-colors-textButton, white);
   box-shadow: var(--w3a-shadows-sm, 0 1px 2px 0 rgba(0, 0, 0, 0.05));
 }
 

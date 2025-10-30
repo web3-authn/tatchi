@@ -271,14 +271,15 @@ export class TxTree extends LitElementWithProps {
    */
   protected updated(changedProperties: Map<string | number | symbol, unknown>): void {
     super.updated(changedProperties);
-    // 1) Apply explicit styles when provided
-    if (changedProperties.has('styles') && this.styles) {
-      this.applyStyles(this.styles);
+    // 1) Apply explicit styles when provided and non-empty
+    const hasExplicitStyles = !!this.styles && Object.keys(this.styles as Record<string, unknown>).length > 0;
+    if (changedProperties.has('styles') && hasExplicitStyles) {
+      this.applyStyles(this.styles as TxTreeStyles);
     }
     // 2) Fall back to theme-driven defaults when styles are not provided/changed
     // This makes <w3a-tx-tree theme="dark|light"> responsive even if a parent forgets
     // to pass a styles object for the theme.
-    if (changedProperties.has('theme') && !this.styles && this.theme) {
+    if (changedProperties.has('theme') && !hasExplicitStyles && this.theme) {
       const preset = TX_TREE_THEMES[this.theme] || TX_TREE_THEMES.dark;
       this.applyStyles(preset);
     }

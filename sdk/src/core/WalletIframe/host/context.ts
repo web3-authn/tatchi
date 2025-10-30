@@ -1,5 +1,6 @@
 import { MinimalNearClient } from '../../NearClient';
 import { PasskeyManager } from '../../PasskeyManager';
+import { __setWalletIframeHostMode } from '../host-mode';
 import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
 import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
 import type { PMSetConfigPayload } from '../shared/messages';
@@ -36,18 +37,22 @@ export function ensurePasskeyManager(ctx: HostContext): void {
   if (!walletConfigs.contractId) {
     throw new Error('Wallet service misconfigured: contractId is required.');
   }
-  if (!ctx.nearClient) ctx.nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
+  if (!ctx.nearClient) {
+    ctx.nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
+  }
   if (!ctx.passkeyManager) {
     const cfg = {
       ...walletConfigs,
       iframeWallet: {
         ...(walletConfigs?.iframeWallet || {}),
+        // IMPORTANT: The wallet host must not consider itself an iframe client.
+        // Clear walletOrigin/servicePath so SignerWorkerManager does NOT enable nested iframe mode.
         walletOrigin: undefined,
         walletServicePath: undefined,
         rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
-        isWalletIframeHost: true,
       },
     } as PasskeyManagerConfigs;
+    __setWalletIframeHostMode(true);
     ctx.passkeyManager = new PasskeyManager(cfg, ctx.nearClient);
     try {
       const pmAny = ctx.passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
@@ -130,4 +135,3 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     }
   } catch {}
 }
-

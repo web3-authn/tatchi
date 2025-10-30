@@ -69,10 +69,10 @@ export class WebAuthnManager {
       applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
       removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
     });
-    // Respect rpIdOverride and enable/disable get() bridge fallback (cross-origin wallet scenarios)
+    // Respect rpIdOverride. Safari get() bridge fallback is always enabled.
     this.touchIdPrompt = new TouchIdPrompt(
       passkeyManagerConfigs.iframeWallet?.rpIdOverride,
-      !!passkeyManagerConfigs.iframeWallet?.enableSafariGetWebauthnRegistrationFallback,
+      true,
     );
     this.userPreferencesManager = UserPreferencesInstance;
     this.nonceManager = NonceManagerInstance;
@@ -83,7 +83,7 @@ export class WebAuthnManager {
       UserPreferencesInstance,
       NonceManagerInstance,
       passkeyManagerConfigs.iframeWallet?.rpIdOverride,
-      !!passkeyManagerConfigs.iframeWallet?.enableSafariGetWebauthnRegistrationFallback,
+      true,
     );
     this.passkeyManagerConfigs = passkeyManagerConfigs;
     // VRF worker initializes on-demand with proper error propagation

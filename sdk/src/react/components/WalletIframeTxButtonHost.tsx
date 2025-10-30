@@ -88,7 +88,7 @@ export function WalletIframeTxButtonHost({
     }
 
     try {
-      const path = walletServicePath || 'wallet-service';
+      const path = walletServicePath || '/wallet-service';
       const iframeSrc = new URL(path, originUrl).href;
       return {
         iframeSrc,

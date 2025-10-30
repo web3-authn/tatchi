@@ -15,7 +15,7 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 // Requirements
 // - `config.iframeWallet.walletOrigin` points to the wallet site (e.g. https://web3authn.org)
 // - `config.iframeWallet.sdkBasePath` (default '/sdk') is served on that wallet site
-// - `config.iframeWallet.walletServicePath` (default 'wallet-service') is reachable
+// - `config.iframeWallet.walletServicePath` (default '/wallet-service') is reachable
 //
 // Gotchas
 // - Always resolve `${sdkBasePath}/...` with a trailing slash; otherwise `new URL('file', '/sdk')`
@@ -27,7 +27,7 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['config']): void {
   // Derive stable primitives to avoid re-running the effect on object identity changes.
   const walletOrigin = config?.iframeWallet?.walletOrigin as string | undefined;
-  const servicePath = config?.iframeWallet?.walletServicePath || 'wallet-service';
+  const servicePath = config?.iframeWallet?.walletServicePath || '/wallet-service';
   const sdkBasePath = config?.iframeWallet?.sdkBasePath || '/sdk';
   const relayerUrl = config?.relayer?.url as string | undefined;
 

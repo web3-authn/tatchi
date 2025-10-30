@@ -19,7 +19,7 @@ export type TxConfirmerVariantElement = (ConfirmUIElement & HTMLElement) & {
   nearAccountId?: string;
   txSigningRequests?: TransactionInputWasm[];
   vrfChallenge?: VRFChallenge;
-  theme?: 'dark' | 'light';
+  theme?: ThemeName;
   loading?: boolean;
   errorMessage?: string;
   title?: string;

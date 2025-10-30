@@ -60,6 +60,7 @@ export const EmbeddedTxButton: React.FC<EmbeddedTxButtonProps> = ({  }) => {
       <div className="section-container">
         <input
           type="text"
+          name="embedded-greeting"
           className="embedded-tx-input"
           value={embeddedGreetingInput}
           onChange={(e) => setEmbeddedGreetingInput(e.target.value)}

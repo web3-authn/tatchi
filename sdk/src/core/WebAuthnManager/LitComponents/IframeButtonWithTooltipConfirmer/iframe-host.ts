@@ -516,14 +516,16 @@ export class IframeButtonHost extends LitElementWithProps {
       width: this.resolveButtonWidthString(),
       height: this.buttonStyle?.height || '48px'
     };
+    // Map extended theme names to TxTree's supported keys
+    const treeTheme: 'dark' | 'light' = this.txTreeTheme === 'dark' ? 'dark' : 'light';
     // Get theme styles for tooltip tree and embedded button
-    const tooltipTreeStyles = TX_TREE_THEMES[this.txTreeTheme || 'dark'];
+    const tooltipTreeStyles = TX_TREE_THEMES[treeTheme];
 
     const stylePayload: any = {
       buttonSizing: buttonSize,
       tooltipPosition: this.tooltipPosition,
       tooltipTreeStyles,
-      theme: this.txTreeTheme,
+      theme: treeTheme,
       // Force consistent mobile behavior across browsers: tap confirms, long‑press shows tooltip
       activationMode: 'press',
     };
@@ -898,6 +900,7 @@ export class IframeButtonHost extends LitElementWithProps {
 
       // Prefer an external confirm handler when provided (e.g., wallet iframe route)
       if (typeof this.externalConfirm === 'function') {
+        const treeTheme: 'dark' | 'light' = this.txTreeTheme === 'dark' ? 'dark' : 'light';
         txResults = await this.externalConfirm({
           nearAccountId: this.nearAccountId,
           txSigningRequests: this.txSigningRequests,
@@ -907,7 +910,7 @@ export class IframeButtonHost extends LitElementWithProps {
             waitUntil: this.options?.waitUntil,
             executionWait: this.options?.executionWait
           },
-          theme: this.txTreeTheme
+          theme: treeTheme
         });
       } else {
         throw new Error('No external confirm handler provided');

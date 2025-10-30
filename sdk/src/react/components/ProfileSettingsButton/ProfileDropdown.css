@@ -65,7 +65,12 @@ body[data-w3a-theme-pulse="1"] .w3a-profile-dropdown-menu {
 .w3a-dropdown-menu-item:active {
   transform: scale(0.98);
   background: var(--w3a-colors-surface2);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 70%);
+}
+
+/* Themed focus ring for accessibility */
+.w3a-dropdown-menu-item:focus { outline: none; }
+.w3a-dropdown-menu-item:focus-visible {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 60%);
 }
 
 /* Menu item animation states */

@@ -100,14 +100,8 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
   if (!loginState.isLoggedIn) {
     return null;
   } else {
-    const baseStyle: React.CSSProperties = {
-      // position: 'absolute',
-      // zIndex: 100,
-      // top: '0.5rem',
-      // right: '0.5rem'
-    };
     return (
-      <div className="tatchi-profile-button-container" style={{ ...baseStyle, ...style }}>
+      <div className="tatchi-profile-button-container" style={style}>
         <ProfileSettingsButton
           nearAccountId={loginState.nearAccountId!}
           nearExplorerBaseUrl="https://testnet.nearblocks.io"

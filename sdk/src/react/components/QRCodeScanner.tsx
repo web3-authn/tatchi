@@ -241,6 +241,7 @@ export const QRCodeScanner: React.FC<QRCodeScannerProps> = ({
               {qrCamera.cameras.length > 1 && (
                 <div className="qr-scanner-camera-controls">
                   <select
+                    name="camera"
                     value={qrCamera.selectedCamera}
                     onChange={(e) => qrCamera.handleCameraChange(e.target.value)}
                     className="qr-scanner-camera-selector"

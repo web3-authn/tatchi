@@ -51,19 +51,13 @@ import type {
 import { LinkDeviceFlow } from './linkDevice';
 import { linkDeviceWithScannedQRData } from './scanDevice';
 import {
-  ScanQRCodeFlow,
-  type ScanQRCodeFlowOptions,
-  type ScanQRCodeFlowEvents,
-} from '../../utils/qrScanner';
-import {
   signNEP413Message,
   type SignNEP413MessageParams,
   type SignNEP413MessageResult
 } from './signNEP413';
-import { getOptimalCameraFacingMode } from '@/utils';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import { WalletIframeRouter } from '../WalletIframe/client/router';
-
+import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 let warnedAboutMissingWalletOrigin = false;
 let warnedAboutSameOriginWallet = false;
 
@@ -101,7 +95,7 @@ export class PasskeyManager {
     // VRF worker initializes automatically in the constructor
 
     const walletOrigin = configs.iframeWallet?.walletOrigin;
-    const isWalletIframeHost = !!configs.iframeWallet?.isWalletIframeHost;
+    const isWalletIframeHost = __isWalletIframeHostMode();
     if (!walletOrigin) {
       // In the wallet-iframe host itself, walletOrigin is intentionally unset to prevent nesting.
       // Suppress this warning in that context.
@@ -143,7 +137,7 @@ export class PasskeyManager {
     if (this.iframeRouter) return;
     this.iframeRouter = new WalletIframeRouter({
       walletOrigin,
-      servicePath: walletIframeConfig?.walletServicePath || 'wallet-service',
+      servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
       connectTimeoutMs: 20_000, // 20s
       requestTimeoutMs: 60_000, // 60s
       theme: this.configs.walletTheme,

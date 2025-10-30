@@ -14,6 +14,9 @@ const env = loadEnv(resolvedMode, projectRoot, '')
 export default defineConfig({
   // Hosted at the site root
   base: '/',
+  head: [
+    ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+  ],
 
   title: 'Tatchi SDK',
   description: 'Docs for the SDK and examples',

@@ -25,6 +25,7 @@ export const Slider: React.FC<SliderProps> = ({
   onChange,
   theme,
 }) => {
+  const sliderId = React.useId();
   return (
     <div className="w3a-slider-root" style={{
       opacity: disabled ? 0.5 : 1,
@@ -33,6 +34,8 @@ export const Slider: React.FC<SliderProps> = ({
       <div className="w3a-slider-container">
         <input
           type="range"
+          id={sliderId}
+          name="tx-timeout"
           role="slider"
           aria-valuemin={min}
           aria-valuemax={max}

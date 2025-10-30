@@ -10,7 +10,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const repoRoot = path.resolve(process.cwd(), 'sdk');
+// Resolve SDK root robustly whether invoked from repo root or sdk/
+
+function resolveSdkRoot() {
+  const cwd = process.cwd();
+  const tryDirect = path.join(cwd, 'src', 'theme', 'palette.json');
+  if (fs.existsSync(tryDirect)) return cwd; // inside sdk/
+  const trySdk = path.join(cwd, 'sdk', 'src', 'theme', 'palette.json');
+  if (fs.existsSync(trySdk)) return path.join(cwd, 'sdk'); // repo root
+  return cwd; // best effort; downstream checks will fail with clear message
+}
+
+const repoRoot = resolveSdkRoot();
 const palettePath = path.join(repoRoot, 'src', 'theme', 'palette.json');
 const defaultCssPath = path.join(repoRoot, 'dist', 'esm', 'sdk', 'w3a-components.css');
 
@@ -59,6 +70,7 @@ const addVars = (prefix, obj) => {
 
 addVars('grey', palette.grey);
 addVars('slate', palette.slate);
+addVars('cream', palette.cream);
 
 const chroma = palette.chroma || {};
 for (const fam of Object.keys(chroma)) {
@@ -80,4 +92,3 @@ if (missing.length) {
 }
 
 console.log('[assert-palette-css] OK: palette variables present in CSS');
-

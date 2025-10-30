@@ -136,12 +136,18 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
   }), []);
 
   const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
-    width: tooltipPosition.width,
+    // If a tooltipPosition is provided without a width, use a sensible default.
+    width: (tooltipPosition as any)?.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: tooltipPosition.height,
     position: tooltipPosition.position,
     offset: '6px',
     boxPadding: '6px',
-  }), [tooltipPosition.width, tooltipPosition.height, tooltipPosition.position]);
+  }), [
+    // Use optional chaining in deps to account for runtime undefineds
+    (tooltipPosition as any)?.width,
+    (tooltipPosition as any)?.height,
+    (tooltipPosition as any)?.position,
+  ]);
   // NOTE: ensure offset >= boxPadding or tooltip's padding overlaps the button and makes
   // it harder to click in some areas of the button.
   // boxPadding is padding to ensure the tooltip has space for it's shadow

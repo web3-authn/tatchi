@@ -20,6 +20,157 @@
   --w3a-tree__connector__elbow-delta: 0rem;
 }
 
+:is(w3a-tx-tree, tx-tree)[theme="dark"] {
+  --w3a-tree__host__font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-tree__host__font-size: 1rem;
+  --w3a-tree__host__color: var(--w3a-grey75);
+  --w3a-tree__host__background-color: var(--w3a-grey800);
+  --w3a-tree__tooltip-border-outer__border-radius: 1.5rem;
+  --w3a-tree__tooltip-border-outer__border: 1px solid transparent;
+  --w3a-tree__tooltip-border-outer__box-shadow: 0 1px 3px 0px rgba(5, 5, 5, 0.4);
+  --w3a-tree__tooltip-tree-root__background: var(--w3a-colors-surface2);
+  --w3a-tree__tooltip-tree-root__padding: 0rem;
+  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey75);
+  --w3a-tree__tooltip-tree-children__padding: 0.5rem 0rem;
+  --w3a-tree__tooltip-border-outer__background: var(--w3a-slate700);
+  --w3a-tree__tooltip-tree-root__border: none;
+  --w3a-tree__row__background: transparent;
+  --w3a-tree__row__color: var(--w3a-grey75);
+  --w3a-tree__row__border-radius: 0.5rem;
+  --w3a-tree__row__transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  --w3a-tree__summary-row__background: transparent;
+  --w3a-tree__summary-row-hover__background: var(--w3a-slate700);
+  --w3a-tree__summary-row-hover__border-color: var(--w3a-grey500);
+  --w3a-tree__summary-row__padding: 0rem 0.5rem;
+  --w3a-tree__label__color: var(--w3a-grey75);
+  --w3a-tree__label__font-size: 0.875rem;
+  --w3a-tree__label__gap: 4px;
+  --w3a-tree__label__line-height: 1.5;
+  --w3a-tree__label__border: 1px solid transparent;
+  --w3a-tree__label__padding: 0.25rem 0.75rem;
+  --w3a-tree__label__border-radius: 1rem;
+  --w3a-tree__label-hover__background: var(--w3a-grey650);
+  --w3a-tree__label-hover__border-color: var(--w3a-grey500);
+  --w3a-tree__chevron__color: var(--w3a-grey500);
+  --w3a-tree__chevron__width: 14px;
+  --w3a-tree__chevron__height: 14px;
+  --w3a-tree__file-row__font-size: 0.875rem;
+  --w3a-tree__file-row__padding: 0.5rem 0.75rem;
+  --w3a-tree__file-content__background: var(--w3a-colors-surface2);
+  --w3a-tree__file-content__color: var(--w3a-grey500);
+  --w3a-tree__file-content__border: 1px solid none;
+  --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --w3a-tree__file-content__border-radius: 0.5rem;
+  --w3a-tree__file-content__padding: 0.5rem;
+  --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate700);
+  --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-grey500);
+  --w3a-tree__folder-children__padding: 0.5rem 0;
+  --w3a-tree__folder-children__margin-left: 1rem;
+  --w3a-tree__folder-children-mobile__margin-left: 0.75rem;
+  --w3a-tree__tree-children-mobile__padding: 0.75rem;
+  --w3a-tree__root-mobile__border-radius: 0.5rem;
+  --w3a-tree__root-mobile__margin: 0;
+  --w3a-tree__row-mobile__padding: 0.5rem;
+  --w3a-tree__file-content-mobile__font-size: 0.7rem;
+  --w3a-tree__file-content-mobile__max-height: 150px;
+  --w3a-tree__highlight-receiver-id__color: var(--w3a-blue400);
+  --w3a-tree__highlight-receiver-id__font-weight: 600;
+  --w3a-tree__highlight-method-name__color: var(--w3a-blue400);
+  --w3a-tree__highlight-method-name__font-weight: 600;
+  --w3a-tree__highlight-amount__color: var(--w3a-blue400);
+  --w3a-tree__highlight-amount__font-weight: 600;
+  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.8 0.02 240));
+  --w3a-tree__connector__thickness: 2px;
+  --w3a-tree__connector__elbow-length: 10px;
+}
+
+:is(w3a-tx-tree, tx-tree)[theme="light"] {
+  --w3a-tree__host__font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-tree__host__font-size: 1rem;
+  --w3a-tree__host__color: var(--w3a-grey975);
+  --w3a-tree__host__background-color: var(--w3a-grey50);
+  --w3a-tree__tooltip-border-outer__border-radius: 24px;
+  --w3a-tree__tooltip-border-outer__border: 1px solid var(--w3a-slate300);
+  --w3a-tree__tooltip-border-outer__box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --w3a-tree__tooltip-tree-root__background: var(--w3a-colors-surface);
+  --w3a-tree__tooltip-tree-root__padding: 0rem;
+  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey975);
+  --w3a-tree__tooltip-tree-children__padding: 0.5rem 0rem;
+  --w3a-tree__tooltip-border-outer__background: var(--w3a-grey50);
+  --w3a-tree__tooltip-tree-root__border: none;
+  --w3a-tree__row__background: transparent;
+  --w3a-tree__row__color: var(--w3a-grey975);
+  --w3a-tree__row__border-radius: 0.5rem;
+  --w3a-tree__row__transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
+  --w3a-tree__summary-row__background: transparent;
+  --w3a-tree__summary-row-hover__background: var(--w3a-slate150);
+  --w3a-tree__summary-row-hover__border-color: var(--w3a-slate300);
+  --w3a-tree__summary-row__padding: 0rem 0.5rem;
+  --w3a-tree__label__color: var(--w3a-grey975);
+  --w3a-tree__label__font-size: 0.875rem;
+  --w3a-tree__label__gap: 4px;
+  --w3a-tree__label__line-height: 1.5;
+  --w3a-tree__label__border: 1px solid transparent;
+  --w3a-tree__label__padding: 0.25rem 0.75rem;
+  --w3a-tree__label__border-radius: 1rem;
+  --w3a-tree__label-hover__background: var(--w3a-grey75);
+  --w3a-tree__label-hover__border-color: var(--w3a-slate300);
+  --w3a-tree__chevron__color: var(--w3a-grey500);
+  --w3a-tree__chevron__width: 14px;
+  --w3a-tree__chevron__height: 14px;
+  --w3a-tree__file-row__font-size: 0.875rem;
+  --w3a-tree__file-row__padding: 0.5rem 0.75rem;
+  --w3a-tree__file-content__background: var(--w3a-colors-surface);
+  --w3a-tree__file-content__color: var(--w3a-grey500);
+  --w3a-tree__file-content__border: 1px solid var(--w3a-slate300);
+  --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --w3a-tree__file-content__border-radius: 0.5rem;
+  --w3a-tree__file-content__padding: 0.5rem;
+  --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate100);
+  --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-slate300);
+  --w3a-tree__folder-children__padding: 0.5rem 0;
+  --w3a-tree__folder-children__margin-left: 1rem;
+  --w3a-tree__folder-children-mobile__margin-left: 0.75rem;
+  --w3a-tree__tree-children-mobile__padding: 0.75rem;
+  --w3a-tree__root-mobile__border-radius: 0.5rem;
+  --w3a-tree__root-mobile__margin: 0;
+  --w3a-tree__row-mobile__padding: 0.5rem;
+  --w3a-tree__file-content-mobile__font-size: 0.7rem;
+  --w3a-tree__file-content-mobile__max-height: 150px;
+  --w3a-tree__highlight-receiver-id__color: var(--w3a-blue500);
+  --w3a-tree__highlight-receiver-id__font-weight: 600;
+  --w3a-tree__highlight-method-name__color: var(--w3a-blue500);
+  --w3a-tree__highlight-method-name__font-weight: 600;
+  --w3a-tree__highlight-amount__color: var(--w3a-blue500);
+  --w3a-tree__highlight-amount__font-weight: 600;
+  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.8 0.02 240));
+  --w3a-tree__connector__thickness: 2px;
+  --w3a-tree__connector__elbow-length: 10px;
+}
+
+/* Contextual custom properties (indent/connectors) moved near top for clarity */
+:is(w3a-tx-tree, tx-tree) .depth-0 { --indent: 0; }
+:is(w3a-tx-tree, tx-tree) .depth-1 { --indent: calc(var(--indent-step) * 1); }
+:is(w3a-tx-tree, tx-tree) .depth-2 { --indent: calc(var(--indent-step) * 2); }
+:is(w3a-tx-tree, tx-tree) .depth-3 { --indent: calc(var(--indent-step) * 3); }
+:is(w3a-tx-tree, tx-tree) .depth-4 { --indent: calc(var(--indent-step) * 4); }
+:is(w3a-tx-tree, tx-tree) .depth-5 { --indent: calc(var(--indent-step) * 5); }
+:is(w3a-tx-tree, tx-tree) .depth-6 { --indent: calc(var(--indent-step) * 6); }
+:is(w3a-tx-tree, tx-tree) .depth-7 { --indent: calc(var(--indent-step) * 7); }
+:is(w3a-tx-tree, tx-tree) .depth-8 { --indent: calc(var(--indent-step) * 8); }
+:is(w3a-tx-tree, tx-tree) .depth-9 { --indent: calc(var(--indent-step) * 9); }
+:is(w3a-tx-tree, tx-tree) .depth-10 { --indent: calc(var(--indent-step) * 10); }
+:is(w3a-tx-tree, tx-tree) .depth-11 { --indent: calc(var(--indent-step) * 11); }
+:is(w3a-tx-tree, tx-tree) .depth-12 { --indent: calc(var(--indent-step) * 12); }
+
+/* Align depth-2 summary/file rows to maintain connector column alignment */
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-2 { --indent: calc(var(--indent-step, 1rem) * 1); }
+:is(w3a-tx-tree, tx-tree) .folder-children > .row.file-row.depth-2 { --indent: calc(var(--indent-step, 1rem) * 1 + 0.5rem); }
+
+/* Default elbow start for connector lines inside folder children */
+:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0)); }
+
+
 :is(w3a-tx-tree, tx-tree) [hidden] { display: none !important; }
 
 :is(w3a-tx-tree, tx-tree) .tooltip-border-outer {
@@ -36,7 +187,7 @@
 }
 
 :is(w3a-tx-tree, tx-tree) .tooltip-tree-root {
-  background: var(--w3a-tree__tooltip-tree-root__background, #151833);
+  background: var(--w3a-tree__tooltip-tree-root__background, #f1f1f1);
   max-width: var(--w3a-tree__tooltip-tree-root__max-width, 600px);
   margin: var(--w3a-tree__tooltip-tree-root__margin, 0 auto);
   border-radius: var(--w3a-tree__tooltip-tree-root__border-radius, 12px);
@@ -62,20 +213,6 @@
   display: var(--w3a-tree__tooltip-tree-children__display, block);
   padding: var(--w3a-tree__tooltip-tree-children__padding, 0px);
 }
-
-:is(w3a-tx-tree, tx-tree) .depth-0 { --indent: 0; }
-:is(w3a-tx-tree, tx-tree) .depth-1 { --indent: calc(var(--indent-step) * 1); }
-:is(w3a-tx-tree, tx-tree) .depth-2 { --indent: calc(var(--indent-step) * 2); }
-:is(w3a-tx-tree, tx-tree) .depth-3 { --indent: calc(var(--indent-step) * 3); }
-:is(w3a-tx-tree, tx-tree) .depth-4 { --indent: calc(var(--indent-step) * 4); }
-:is(w3a-tx-tree, tx-tree) .depth-5 { --indent: calc(var(--indent-step) * 5); }
-:is(w3a-tx-tree, tx-tree) .depth-6 { --indent: calc(var(--indent-step) * 6); }
-:is(w3a-tx-tree, tx-tree) .depth-7 { --indent: calc(var(--indent-step) * 7); }
-:is(w3a-tx-tree, tx-tree) .depth-8 { --indent: calc(var(--indent-step) * 8); }
-:is(w3a-tx-tree, tx-tree) .depth-9 { --indent: calc(var(--indent-step) * 9); }
-:is(w3a-tx-tree, tx-tree) .depth-10 { --indent: calc(var(--indent-step) * 10); }
-:is(w3a-tx-tree, tx-tree) .depth-11 { --indent: calc(var(--indent-step) * 11); }
-:is(w3a-tx-tree, tx-tree) .depth-12 { --indent: calc(var(--indent-step) * 12); }
 
 :is(w3a-tx-tree, tx-tree) details {
   margin: var(--w3a-tree__details__margin, 0);
@@ -106,16 +243,6 @@
   border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
   transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
   background: var(--w3a-tree__summary-row__background, transparent);
-}
-
-/* Align depth-2 summary rows to use depth-1 indent so connector columns match */
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-2 {
-  --indent: calc(var(--indent-step, 1rem) * 1);
-}
-
-/* Align depth-2 file rows under folder-children to use depth-1 indent + 0.5rem */
-:is(w3a-tx-tree, tx-tree) .folder-children > .row.file-row.depth-2 {
-  --indent: calc(var(--indent-step, 1rem) * 1 + 0.5rem);
 }
 
 :is(w3a-tx-tree, tx-tree) .indent {
@@ -255,7 +382,6 @@
   background: var(--w3a-tree__connector__color);
 }
 
-:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0)); }
 :is(w3a-tx-tree, tx-tree) .folder-children .row.file-row .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children .row[data-no-elbow="true"] .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + var(--w3a-tree__row__gap, 0px)); }
@@ -340,134 +466,4 @@
   padding: var(--w3a-tree__highlight-amount__padding, 0);
   border-radius: var(--w3a-tree__highlight-amount__border-radius, 0);
   box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none);
-}
-
-/* Theme variables mapped from tx-tree-themes.ts */
-
-:is(w3a-tx-tree, tx-tree)[theme="dark"] {
-  --w3a-tree__host__font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --w3a-tree__host__font-size: 1rem;
-  --w3a-tree__host__color: var(--w3a-grey75);
-  --w3a-tree__host__background-color: var(--w3a-grey800);
-  --w3a-tree__tooltip-border-outer__border-radius: 1.5rem;
-  --w3a-tree__tooltip-border-outer__border: 1px solid transparent;
-  --w3a-tree__tooltip-border-outer__box-shadow: 0 1px 3px 0px rgba(5, 5, 5, 0.4);
-  --w3a-tree__tooltip-tree-root__background: var(--w3a-colors-surface2);
-  --w3a-tree__tooltip-tree-root__padding: 0rem;
-  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey75);
-  --w3a-tree__tooltip-tree-children__padding: 0.5rem 0rem;
-  --w3a-tree__tooltip-border-outer__background: var(--w3a-slate700);
-  --w3a-tree__tooltip-tree-root__border: none;
-  --w3a-tree__row__background: transparent;
-  --w3a-tree__row__color: var(--w3a-grey75);
-  --w3a-tree__row__border-radius: 0.5rem;
-  --w3a-tree__row__transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
-  --w3a-tree__summary-row__background: transparent;
-  --w3a-tree__summary-row-hover__background: var(--w3a-slate700);
-  --w3a-tree__summary-row-hover__border-color: var(--w3a-grey500);
-  --w3a-tree__summary-row__padding: 0rem 0.5rem;
-  --w3a-tree__label__color: var(--w3a-grey75);
-  --w3a-tree__label__font-size: 0.875rem;
-  --w3a-tree__label__gap: 4px;
-  --w3a-tree__label__line-height: 1.5;
-  --w3a-tree__label__border: 1px solid transparent;
-  --w3a-tree__label__padding: 0.25rem 0.75rem;
-  --w3a-tree__label__border-radius: 1rem;
-  --w3a-tree__label-hover__background: var(--w3a-grey650);
-  --w3a-tree__label-hover__border-color: var(--w3a-grey500);
-  --w3a-tree__chevron__color: var(--w3a-grey500);
-  --w3a-tree__chevron__width: 14px;
-  --w3a-tree__chevron__height: 14px;
-  --w3a-tree__file-row__font-size: 0.875rem;
-  --w3a-tree__file-row__padding: 0.5rem 0.75rem;
-  --w3a-tree__file-content__background: var(--w3a-colors-surface2);
-  --w3a-tree__file-content__color: var(--w3a-grey500);
-  --w3a-tree__file-content__border: 1px solid none;
-  --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --w3a-tree__file-content__border-radius: 0.5rem;
-  --w3a-tree__file-content__padding: 0.5rem;
-  --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate700);
-  --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-grey500);
-  --w3a-tree__folder-children__padding: 0.5rem 0;
-  --w3a-tree__folder-children__margin-left: 1rem;
-  --w3a-tree__folder-children-mobile__margin-left: 0.75rem;
-  --w3a-tree__tree-children-mobile__padding: 0.75rem;
-  --w3a-tree__root-mobile__border-radius: 0.5rem;
-  --w3a-tree__root-mobile__margin: 0;
-  --w3a-tree__row-mobile__padding: 0.5rem;
-  --w3a-tree__file-content-mobile__font-size: 0.7rem;
-  --w3a-tree__file-content-mobile__max-height: 150px;
-  --w3a-tree__highlight-receiver-id__color: var(--w3a-blue400);
-  --w3a-tree__highlight-receiver-id__font-weight: 600;
-  --w3a-tree__highlight-method-name__color: var(--w3a-blue400);
-  --w3a-tree__highlight-method-name__font-weight: 600;
-  --w3a-tree__highlight-amount__color: var(--w3a-blue400);
-  --w3a-tree__highlight-amount__font-weight: 600;
-  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.8 0.02 240));
-  --w3a-tree__connector__thickness: 2px;
-  --w3a-tree__connector__elbow-length: 10px;
-}
-
-:is(w3a-tx-tree, tx-tree)[theme="light"] {
-  --w3a-tree__host__font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --w3a-tree__host__font-size: 1rem;
-  --w3a-tree__host__color: var(--w3a-grey975);
-  --w3a-tree__host__background-color: var(--w3a-grey50);
-  --w3a-tree__tooltip-border-outer__border-radius: 24px;
-  --w3a-tree__tooltip-border-outer__border: 1px solid var(--w3a-slate300);
-  --w3a-tree__tooltip-border-outer__box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  --w3a-tree__tooltip-tree-root__background: var(--w3a-colors-surface);
-  --w3a-tree__tooltip-tree-root__padding: 0rem;
-  --w3a-tree__tooltip-tree-root__color: var(--w3a-grey975);
-  --w3a-tree__tooltip-tree-children__padding: 0.5rem 0rem;
-  --w3a-tree__tooltip-border-outer__background: var(--w3a-grey50);
-  --w3a-tree__tooltip-tree-root__border: none;
-  --w3a-tree__row__background: transparent;
-  --w3a-tree__row__color: var(--w3a-grey975);
-  --w3a-tree__row__border-radius: 0.5rem;
-  --w3a-tree__row__transition: all 160ms cubic-bezier(0.2, 0.6, 0.2, 1);
-  --w3a-tree__summary-row__background: transparent;
-  --w3a-tree__summary-row-hover__background: var(--w3a-slate150);
-  --w3a-tree__summary-row-hover__border-color: var(--w3a-slate300);
-  --w3a-tree__summary-row__padding: 0rem 0.5rem;
-  --w3a-tree__label__color: var(--w3a-grey975);
-  --w3a-tree__label__font-size: 0.875rem;
-  --w3a-tree__label__gap: 4px;
-  --w3a-tree__label__line-height: 1.5;
-  --w3a-tree__label__border: 1px solid transparent;
-  --w3a-tree__label__padding: 0.25rem 0.75rem;
-  --w3a-tree__label__border-radius: 1rem;
-  --w3a-tree__label-hover__background: var(--w3a-grey75);
-  --w3a-tree__label-hover__border-color: var(--w3a-slate300);
-  --w3a-tree__chevron__color: var(--w3a-grey500);
-  --w3a-tree__chevron__width: 14px;
-  --w3a-tree__chevron__height: 14px;
-  --w3a-tree__file-row__font-size: 0.875rem;
-  --w3a-tree__file-row__padding: 0.5rem 0.75rem;
-  --w3a-tree__file-content__background: var(--w3a-colors-surface);
-  --w3a-tree__file-content__color: var(--w3a-grey500);
-  --w3a-tree__file-content__border: 1px solid var(--w3a-slate300);
-  --w3a-tree__file-content__font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  --w3a-tree__file-content__border-radius: 0.5rem;
-  --w3a-tree__file-content__padding: 0.5rem;
-  --w3a-tree__file-content__scrollbar-track__background: var(--w3a-slate100);
-  --w3a-tree__file-content__scrollbar-thumb__background: var(--w3a-slate300);
-  --w3a-tree__folder-children__padding: 0.5rem 0;
-  --w3a-tree__folder-children__margin-left: 1rem;
-  --w3a-tree__folder-children-mobile__margin-left: 0.75rem;
-  --w3a-tree__tree-children-mobile__padding: 0.75rem;
-  --w3a-tree__root-mobile__border-radius: 0.5rem;
-  --w3a-tree__root-mobile__margin: 0;
-  --w3a-tree__row-mobile__padding: 0.5rem;
-  --w3a-tree__file-content-mobile__font-size: 0.7rem;
-  --w3a-tree__file-content-mobile__max-height: 150px;
-  --w3a-tree__highlight-receiver-id__color: var(--w3a-blue500);
-  --w3a-tree__highlight-receiver-id__font-weight: 600;
-  --w3a-tree__highlight-method-name__color: var(--w3a-blue500);
-  --w3a-tree__highlight-method-name__font-weight: 600;
-  --w3a-tree__highlight-amount__color: var(--w3a-blue500);
-  --w3a-tree__highlight-amount__font-weight: 600;
-  --w3a-tree__connector__color: var(--w3a-colors-borderPrimary, oklch(0.3 0.02 240));
-  --w3a-tree__connector__thickness: 2px;
-  --w3a-tree__connector__elbow-length: 10px;
 }

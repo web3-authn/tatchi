@@ -604,24 +604,13 @@ export interface PasskeyManagerConfigs {
   // Iframe Wallet configuration (when using a separate wallet origin)
   iframeWallet?: {
     walletOrigin?: string; // e.g., https://wallet.example.com
-    walletServicePath?: string; // defaults to 'wallet-service'
-    // Optional SDK assets base used by the parent app to tell the wallet
-    // where to load embedded bundles from. The wallet host will use this
-    // base as-is (ensure it ends with a trailing '/'). Example: '/sdk/'.
-    sdkBasePath?: string;
-    // Internal flag set only inside the wallet iframe host context. Not for public consumption.
-    // Signals that WebAuthn flows are executing within the wallet.* origin.
-    isWalletIframeHost?: boolean;
-    // Optional: register wallet-host UI components (Lit tags + bindings)
-    // Allows mounting custom surfaces via generic messages without hardcoding.
-    uiRegistry?: Record<string, unknown>;
+    walletServicePath?: string; // defaults to '/wallet-service'
+    // SDK assets base used by the parent app to tell the wallet
+    // where to load embedded bundles from.
+    sdkBasePath?: string; // defaults to '/sdk'
     // Force WebAuthn rpId to a base domain so credentials work across subdomains
     // Example: rpIdOverride = 'example.localhost' usable from wallet.example.localhost
     rpIdOverride?: string;
-    // Safari-only workaround: allow bridging navigator.credentials.get() to the top-level
-    // parent when Safari throws the ancestor error in cross-origin iframes. Disabled by
-    // default; registration create() uses the bridge automatically when needed.
-    enableSafariGetWebauthnRegistrationFallback?: boolean;
   };
   // Relay Server is used to create new NEAR accounts
   relayer: {
@@ -630,11 +619,12 @@ export interface PasskeyManagerConfigs {
   }
   // authenticator options for registrations
   authenticatorOptions?: AuthenticatorOptions;
-  // Shamir 3-pass configuration (optional, used for auto-unlocking VRF keypairs)
+  // Shamir 3-pass configuration (optional)
+  // used for auto-unlocking VRF keypairs used for Web3authn challenges
   vrfWorkerConfigs?: {
     shamir3pass?: {
       p?: string; // Shamir's P prime number
-      relayServerUrl: string; // Relay server URL
+      relayServerUrl?: string; // Relay server URL, defaults to relayer.url
       applyServerLockRoute?: string; // Apply server lock route
       removeServerLockRoute?: string; // Remove server lock route
     }

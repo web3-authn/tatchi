@@ -29,7 +29,11 @@ export const TransactionSettingsSection: React.FC<TransactionSettingsSectionProp
       onClick={handleClick}
     >
       <div className="w3a-dropdown-toggle-tx-settings">
-        <div className="w3a-dropdown-toggle-tx-settings-content">
+        <div
+          className="w3a-dropdown-toggle-tx-settings-content"
+          aria-hidden={!isOpen}
+          {...(!isOpen ? ({ inert: '' } as any) : {})}
+        >
           <div style={{
             width: '100%',
             display: 'flex',

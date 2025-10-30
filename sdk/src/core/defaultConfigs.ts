@@ -69,6 +69,13 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
     ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
   } as PasskeyManagerConfigs;
 
+  // Normalize iframeWallet defaults when iframe mode is configured
+  if (merged.iframeWallet) {
+    // Default wallet service route and SDK base path if unspecified
+    merged.iframeWallet.walletServicePath = merged.iframeWallet.walletServicePath ?? '/wallet-service';
+    merged.iframeWallet.sdkBasePath = merged.iframeWallet.sdkBasePath ?? '/sdk';
+  }
+
   if (!merged.relayer?.url) {
     throw new Error('[configPresets] Missing relayer config: relayer.url');
   }
