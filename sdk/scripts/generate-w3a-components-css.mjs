@@ -35,7 +35,7 @@ function readJson(p) {
 
 const palette = readJson(palettePath);
 
-const { grey = {}, slate = {}, cream = {}, chroma = {}, gradients = {} } = palette;
+const { grey = {}, slate = {}, cream = {}, chroma = {}, gradients = {}, tokens = {} } = palette;
 
 const emitScale = (name, scale) => {
   const keys = Object.keys(scale);
@@ -62,27 +62,131 @@ const emitGradients = () => {
   return names.map((n) => `  --w3a-gradient-${n}: ${gradients[n]};`).join('\n');
 };
 
-// Mappings that mirror base-styles DARK_THEME / LIGHT_THEME
-const darkVars = {
+// Mappings that mirror base-styles DARK_THEME / LIGHT_THEME (classic) / CREAM (warm light)
+// Keep in sync with sdk/src/core/WebAuthnManager/LitComponents/base-styles.ts
+const buttonBg = tokens.buttonBackground || (chroma?.blue?.['500'] || '#3b82f6');
+
+const DARK_VARS = {
+  // Text
   textPrimary: grey['75'],
   textSecondary: grey['500'],
+  textMuted: grey['650'],
+  textButton: grey['75'],
+  // Surfaces
+  colorBackground: grey['800'],
   surface: slate['700'],
   surface2: slate['750'],
   surface3: slate['800'],
+  surface4: slate['825'],
+  // Brand/accents
+  primary: chroma?.blue?.['600'] || '#2563eb',
+  primaryHover: chroma?.blue?.['500'] || '#3b82f6',
+  secondary: chroma?.red?.['500'] || '#ef4444',
+  secondaryHover: chroma?.red?.['400'] || '#f87171',
+  accent: chroma?.blue?.['400'] || '#60a5fa',
+  buttonBackground: buttonBg,
+  // Interactive states
+  hover: grey['850'],
+  active: grey['650'],
+  focus: chroma?.blue?.['400'] || '#60a5fa',
+  // Status
+  success: chroma?.blue?.['400'] || '#60a5fa',
+  warning: chroma?.yellow?.['400'] || '#facc15',
+  error: chroma?.red?.['400'] || '#f87171',
+  info: chroma?.blue?.['400'] || '#60a5fa',
+  // Borders
   borderPrimary: grey['650'],
   borderSecondary: slate['650'],
-  colorBackground: grey['800'],
+  borderHover: grey['600'],
+  // Background Gradients
+  backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
+  backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
+  // Highlights
+  highlightReceiverId: chroma?.blue?.['400'] || '#60a5fa',
+  highlightMethodName: chroma?.blue?.['400'] || '#60a5fa',
+  highlightAmount: chroma?.blue?.['400'] || '#60a5fa',
 };
 
-const lightVars = {
+const LIGHT_VARS = {
+  // Text
   textPrimary: grey['975'],
   textSecondary: grey['500'],
+  textMuted: grey['350'],
+  textButton: grey['75'],
+  // Surfaces
+  colorBackground: grey['50'],
   surface: slate['100'],
   surface2: slate['150'],
   surface3: slate['200'],
+  surface4: slate['250'],
+  // Brand/accents
+  primary: chroma?.blue?.['600'] || '#2563eb',
+  primaryHover: chroma?.blue?.['500'] || '#3b82f6',
+  secondary: chroma?.red?.['500'] || '#ef4444',
+  secondaryHover: chroma?.red?.['400'] || '#f87171',
+  accent: chroma?.blue?.['400'] || '#60a5fa',
+  buttonBackground: buttonBg,
+  // Interactive states
+  hover: grey['100'],
+  active: grey['200'],
+  focus: chroma?.blue?.['400'] || '#60a5fa',
+  // Status
+  success: chroma?.blue?.['500'] || '#3b82f6',
+  warning: chroma?.yellow?.['500'] || '#f59e0b',
+  error: chroma?.red?.['500'] || '#ef4444',
+  info: chroma?.blue?.['500'] || '#3b82f6',
+  // Borders
   borderPrimary: slate['300'],
   borderSecondary: grey['300'],
-  colorBackground: grey['50'],
+  borderHover: slate['350'],
+  // Background Gradients
+  backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
+  backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
+  // Highlights
+  highlightReceiverId: chroma?.blue?.['500'] || '#3b82f6',
+  highlightMethodName: chroma?.blue?.['500'] || '#3b82f6',
+  highlightAmount: chroma?.blue?.['500'] || '#3b82f6',
+};
+
+const CREAM_VARS = {
+  // Text
+  textPrimary: grey['900'],
+  textSecondary: grey['600'],
+  textMuted: grey['450'],
+  textButton: grey['75'],
+  // Surfaces (warm neutrals)
+  colorBackground: cream['50'],
+  surface: cream['100'],
+  surface2: cream['150'],
+  surface3: cream['200'],
+  surface4: cream['250'],
+  // Brand/accents (neutral primary, warm accent)
+  primary: grey['700'],
+  primaryHover: grey['650'],
+  secondary: chroma?.red?.['500'] || '#ef4444',
+  secondaryHover: chroma?.red?.['400'] || '#f87171',
+  accent: chroma?.yellow?.['550'] || '#eab308',
+  buttonBackground: buttonBg,
+  // Interactive states (warm neutrals)
+  hover: cream['75'],
+  active: cream['200'],
+  focus: chroma?.yellow?.['500'] || '#eab308',
+  // Status
+  success: chroma?.yellow?.['400'] || '#facc15',
+  warning: chroma?.yellow?.['600'] || '#d97706',
+  error: chroma?.red?.['500'] || '#ef4444',
+  info: chroma?.blue?.['500'] || '#3b82f6',
+  // Borders
+  borderPrimary: cream['300'],
+  borderSecondary: cream['200'],
+  borderHover: cream['350'],
+  // Background Gradients (neutrals)
+  backgroundGradientPrimary: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
+  backgroundGradientSecondary: gradients?.blackWhite || 'linear-gradient(90deg, oklch(0.20 0.010 240) 0%, oklch(0.95 0.005 240) 100%)',
+  // Highlights
+  highlightReceiverId: chroma?.yellow?.['400'] || '#facc15',
+  highlightMethodName: chroma?.yellow?.['400'] || '#facc15',
+  highlightAmount: chroma?.yellow?.['400'] || '#facc15',
 };
 
 const header = `/*
@@ -132,15 +236,57 @@ ${emitGradients()}
   --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textPrimary);
   --w3a-modal__passkey-halo-loading-touch-icon__margin: 0.75rem;
   --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
+
+  /* Default token aliases (dark) so components have tokens without relying on :root */
+${emitAliasBlock(DARK_VARS)}
 }`;
 
 /* No per-host token overrides; tokens come from Theme or host boundary. */
 const lightBlock = '';
 
-// Root-level token defaults and light overrides (for iframe/docs without React Theme)
-const rootTokens = `:root {\n  --w3a-colors-textPrimary: ${darkVars.textPrimary};\n  --w3a-colors-textSecondary: ${darkVars.textSecondary};\n  --w3a-colors-surface: ${darkVars.surface};\n  --w3a-colors-surface2: ${darkVars.surface2};\n  --w3a-colors-surface3: ${darkVars.surface3};\n  --w3a-colors-borderPrimary: ${darkVars.borderPrimary};\n  --w3a-colors-borderSecondary: ${darkVars.borderSecondary};\n  --w3a-colors-colorBackground: ${darkVars.colorBackground};\n}\n\n:root[data-w3a-theme=\"light\"] {\n  --w3a-colors-textPrimary: ${lightVars.textPrimary};\n  --w3a-colors-textSecondary: ${lightVars.textSecondary};\n  --w3a-colors-surface: ${lightVars.surface};\n  --w3a-colors-surface2: ${lightVars.surface2};\n  --w3a-colors-surface3: ${lightVars.surface3};\n  --w3a-colors-borderPrimary: ${lightVars.borderPrimary};\n  --w3a-colors-borderSecondary: ${lightVars.borderSecondary};\n  --w3a-colors-colorBackground: ${lightVars.colorBackground};\n}`;
+// Helper to emit a complete alias block from a vars map
+function emitAliasBlock(vars) {
+  return [
+    `  --w3a-colors-textPrimary: ${vars.textPrimary};`,
+    `  --w3a-colors-textSecondary: ${vars.textSecondary};`,
+    `  --w3a-colors-textMuted: ${vars.textMuted};`,
+    `  --w3a-colors-textButton: ${vars.textButton};`,
+    `  --w3a-colors-colorBackground: ${vars.colorBackground};`,
+    `  --w3a-colors-surface: ${vars.surface};`,
+    `  --w3a-colors-surface2: ${vars.surface2};`,
+    `  --w3a-colors-surface3: ${vars.surface3};`,
+    `  --w3a-colors-surface4: ${vars.surface4};`,
+    `  --w3a-colors-primary: ${vars.primary};`,
+    `  --w3a-colors-primaryHover: ${vars.primaryHover};`,
+    `  --w3a-colors-secondary: ${vars.secondary};`,
+    `  --w3a-colors-secondaryHover: ${vars.secondaryHover};`,
+    `  --w3a-colors-accent: ${vars.accent};`,
+    `  --w3a-colors-buttonBackground: ${vars.buttonBackground};`,
+    `  --w3a-colors-hover: ${vars.hover};`,
+    `  --w3a-colors-active: ${vars.active};`,
+    `  --w3a-colors-focus: ${vars.focus};`,
+    `  --w3a-colors-success: ${vars.success};`,
+    `  --w3a-colors-warning: ${vars.warning};`,
+    `  --w3a-colors-error: ${vars.error};`,
+    `  --w3a-colors-info: ${vars.info};`,
+    `  --w3a-colors-borderPrimary: ${vars.borderPrimary};`,
+    `  --w3a-colors-borderSecondary: ${vars.borderSecondary};`,
+    `  --w3a-colors-borderHover: ${vars.borderHover};`,
+    `  --w3a-colors-backgroundGradientPrimary: ${vars.backgroundGradientPrimary};`,
+    `  --w3a-colors-backgroundGradientSecondary: ${vars.backgroundGradientSecondary};`,
+    `  --w3a-colors-highlightReceiverId: ${vars.highlightReceiverId};`,
+    `  --w3a-colors-highlightMethodName: ${vars.highlightMethodName};`,
+    `  --w3a-colors-highlightAmount: ${vars.highlightAmount};`,
+  ].join('\n');
+}
 
-const cssOut = `${header}\n\n${darkBlock}\n\n${rootTokens}\n`;
+// Root-level token defaults and overrides (for iframe/docs without React Theme)
+const rootTokens = `:root {\n${emitAliasBlock(DARK_VARS)}\n}\n\n:root[data-w3a-theme=\"light\"] {\n${emitAliasBlock(LIGHT_VARS)}\n}\n\n:root[data-w3a-theme=\"cream\"] {\n${emitAliasBlock(CREAM_VARS)}\n}`;
+
+// Also emit theme-specific alias blocks scoped to component hosts, so tokens pierce Shadow DOM via host inheritance
+const hostThemeTokens = `:root[data-w3a-theme=\"light\"] ${hostSelectors} {\n${emitAliasBlock(LIGHT_VARS)}\n}\n\n:root[data-w3a-theme=\"cream\"] ${hostSelectors} {\n${emitAliasBlock(CREAM_VARS)}\n}`;
+
+const cssOut = `${header}\n\n${darkBlock}\n\n${rootTokens}\n\n${hostThemeTokens}\n`;
 
 fs.writeFileSync(cssOutPath, cssOut);
 console.log('[generate-w3a-components-css] Wrote', path.relative(process.cwd(), cssOutPath));
