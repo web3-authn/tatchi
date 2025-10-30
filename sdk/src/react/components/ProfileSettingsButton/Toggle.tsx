@@ -77,6 +77,7 @@ export const Toggle: React.FC<ToggleProps> = ({
       >
         <input
           type="checkbox"
+          name="toggle"
           checked={checked}
           onChange={(e) => !disabled && onChange(e.target.checked)}
           className="toggle-checkbox"

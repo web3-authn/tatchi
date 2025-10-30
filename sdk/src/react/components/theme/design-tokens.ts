@@ -48,6 +48,11 @@ export interface DesignTokens {
     textPrimary: string;
     textSecondary: string;
     textMuted: string;
+    // Button text (explicit light text for buttons)
+    textButton: string;
+
+    // Button background (primary action buttons)
+    buttonBackground: string;
 
     // Surface layers
     colorBackground: string;
@@ -186,6 +191,10 @@ export const LIGHT_TOKENS: DesignTokens = {
     textPrimary: LIGHT_THEME.textPrimary,
     textSecondary: LIGHT_THEME.textSecondary,
     textMuted: LIGHT_THEME.textMuted,
+    // Button text
+    textButton: (LIGHT_THEME as any).textButton || '#ffffff',
+    // Button background
+    buttonBackground: (LIGHT_THEME as any).buttonBackground || LIGHT_THEME.accent,
 
     // Core colors
     colorBackground: LIGHT_THEME.colorBackground,
@@ -294,6 +303,10 @@ export const DARK_TOKENS: DesignTokens = {
     textPrimary: DARK_THEME.textPrimary,
     textSecondary: DARK_THEME.textSecondary,
     textMuted: DARK_THEME.textMuted,
+    // Button text
+    textButton: (DARK_THEME as any).textButton || '#ffffff',
+    // Button background
+    buttonBackground: (DARK_THEME as any).buttonBackground || DARK_THEME.accent,
 
     colorBackground: DARK_THEME.colorBackground,
     surface: DARK_THEME.surface,
@@ -371,6 +384,10 @@ export const DARK_TOKENS: DesignTokens = {
     xl: '0 20px 25px -5px rgba(0, 0, 0, 0.4), 0 10px 10px -5px rgba(0, 0, 0, 0.3)',
   },
 };
+
+// Optional alias exposing the warm light palette explicitly as a "cream" token set.
+// It matches LIGHT_TOKENS values but provides a clearer name for consumers.
+export const CREAM_TOKENS: DesignTokens = LIGHT_TOKENS;
 
 // ============================================================================
 // CSS CUSTOM PROPERTY GENERATOR
