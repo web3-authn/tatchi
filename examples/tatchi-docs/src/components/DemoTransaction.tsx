@@ -166,6 +166,7 @@ export const DemoTransaction: React.FC = () => {
             <div className="greeting-input-group">
               <input
                 type="text"
+                name="greeting"
                 value={greetingInput}
                 onChange={(e) => setGreetingInput(e.target.value)}
                 placeholder="Enter new greeting"

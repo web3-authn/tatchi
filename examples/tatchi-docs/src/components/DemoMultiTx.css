@@ -116,7 +116,7 @@
   white-space: nowrap;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .action-section button:hover {
@@ -126,7 +126,7 @@
 }
 
 .action-section button:active {
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .action-section button:focus-visible {
@@ -161,7 +161,7 @@
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .button--primary {
@@ -175,7 +175,7 @@
 }
 
 .button--primary:active:not(:disabled) {
-  box-shadow: 0 2px 4px rgba(46, 84, 211, 0.2);
+  box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
 .button--medium {

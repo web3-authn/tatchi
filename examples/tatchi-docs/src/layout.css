@@ -178,7 +178,7 @@
 
 /* Hero fingerprint icon variant: thicker stroke and draw animation */
 .hero .w3a-user-account--fingerprint-icon.w3a-touch-icon--hero path {
-  stroke-width: 2.5;
+  stroke-width: 3;
 }
 /* Avoid hover spin on the hero heading icon */
 .hero .w3a-touch-icon--hero:hover { transform: none; }

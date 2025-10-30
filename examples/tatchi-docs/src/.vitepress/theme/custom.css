@@ -90,3 +90,4 @@ body::-webkit-scrollbar {
   display: flex;
 }
 
+/* (Removed custom TouchIcon stroke/animation overrides to use original styles) */
