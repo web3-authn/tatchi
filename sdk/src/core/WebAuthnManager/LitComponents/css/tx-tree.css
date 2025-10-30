@@ -148,6 +148,28 @@
   --w3a-tree__connector__elbow-length: 10px;
 }
 
+/* Contextual custom properties (indent/connectors) moved near top for clarity */
+:is(w3a-tx-tree, tx-tree) .depth-0 { --indent: 0; }
+:is(w3a-tx-tree, tx-tree) .depth-1 { --indent: calc(var(--indent-step) * 1); }
+:is(w3a-tx-tree, tx-tree) .depth-2 { --indent: calc(var(--indent-step) * 2); }
+:is(w3a-tx-tree, tx-tree) .depth-3 { --indent: calc(var(--indent-step) * 3); }
+:is(w3a-tx-tree, tx-tree) .depth-4 { --indent: calc(var(--indent-step) * 4); }
+:is(w3a-tx-tree, tx-tree) .depth-5 { --indent: calc(var(--indent-step) * 5); }
+:is(w3a-tx-tree, tx-tree) .depth-6 { --indent: calc(var(--indent-step) * 6); }
+:is(w3a-tx-tree, tx-tree) .depth-7 { --indent: calc(var(--indent-step) * 7); }
+:is(w3a-tx-tree, tx-tree) .depth-8 { --indent: calc(var(--indent-step) * 8); }
+:is(w3a-tx-tree, tx-tree) .depth-9 { --indent: calc(var(--indent-step) * 9); }
+:is(w3a-tx-tree, tx-tree) .depth-10 { --indent: calc(var(--indent-step) * 10); }
+:is(w3a-tx-tree, tx-tree) .depth-11 { --indent: calc(var(--indent-step) * 11); }
+:is(w3a-tx-tree, tx-tree) .depth-12 { --indent: calc(var(--indent-step) * 12); }
+
+/* Align depth-2 summary/file rows to maintain connector column alignment */
+:is(w3a-tx-tree, tx-tree) .summary-row.depth-2 { --indent: calc(var(--indent-step, 1rem) * 1); }
+:is(w3a-tx-tree, tx-tree) .folder-children > .row.file-row.depth-2 { --indent: calc(var(--indent-step, 1rem) * 1 + 0.5rem); }
+
+/* Default elbow start for connector lines inside folder children */
+:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0)); }
+
 
 :is(w3a-tx-tree, tx-tree) [hidden] { display: none !important; }
 
@@ -192,20 +214,6 @@
   padding: var(--w3a-tree__tooltip-tree-children__padding, 0px);
 }
 
-:is(w3a-tx-tree, tx-tree) .depth-0 { --indent: 0; }
-:is(w3a-tx-tree, tx-tree) .depth-1 { --indent: calc(var(--indent-step) * 1); }
-:is(w3a-tx-tree, tx-tree) .depth-2 { --indent: calc(var(--indent-step) * 2); }
-:is(w3a-tx-tree, tx-tree) .depth-3 { --indent: calc(var(--indent-step) * 3); }
-:is(w3a-tx-tree, tx-tree) .depth-4 { --indent: calc(var(--indent-step) * 4); }
-:is(w3a-tx-tree, tx-tree) .depth-5 { --indent: calc(var(--indent-step) * 5); }
-:is(w3a-tx-tree, tx-tree) .depth-6 { --indent: calc(var(--indent-step) * 6); }
-:is(w3a-tx-tree, tx-tree) .depth-7 { --indent: calc(var(--indent-step) * 7); }
-:is(w3a-tx-tree, tx-tree) .depth-8 { --indent: calc(var(--indent-step) * 8); }
-:is(w3a-tx-tree, tx-tree) .depth-9 { --indent: calc(var(--indent-step) * 9); }
-:is(w3a-tx-tree, tx-tree) .depth-10 { --indent: calc(var(--indent-step) * 10); }
-:is(w3a-tx-tree, tx-tree) .depth-11 { --indent: calc(var(--indent-step) * 11); }
-:is(w3a-tx-tree, tx-tree) .depth-12 { --indent: calc(var(--indent-step) * 12); }
-
 :is(w3a-tx-tree, tx-tree) details {
   margin: var(--w3a-tree__details__margin, 0);
   padding: var(--w3a-tree__details__padding, 0);
@@ -235,16 +243,6 @@
   border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
   transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
   background: var(--w3a-tree__summary-row__background, transparent);
-}
-
-/* Align depth-2 summary rows to use depth-1 indent so connector columns match */
-:is(w3a-tx-tree, tx-tree) .summary-row.depth-2 {
-  --indent: calc(var(--indent-step, 1rem) * 1);
-}
-
-/* Align depth-2 file rows under folder-children to use depth-1 indent + 0.5rem */
-:is(w3a-tx-tree, tx-tree) .folder-children > .row.file-row.depth-2 {
-  --indent: calc(var(--indent-step, 1rem) * 1 + 0.5rem);
 }
 
 :is(w3a-tx-tree, tx-tree) .indent {
@@ -384,7 +382,6 @@
   background: var(--w3a-tree__connector__color);
 }
 
-:is(w3a-tx-tree, tx-tree) .folder-children .row { --connector-indent: calc(var(--indent, 0)); }
 :is(w3a-tx-tree, tx-tree) .folder-children .row.file-row .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children .row[data-no-elbow="true"] .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + var(--w3a-tree__row__gap, 0px)); }

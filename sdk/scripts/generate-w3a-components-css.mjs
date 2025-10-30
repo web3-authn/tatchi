@@ -213,21 +213,6 @@ ${hostSelectors} {
   --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);
   --w3a-tree__file-content__scrollbar-thumb__background: rgba(255,255,255,0.22);
 
-  /* === Base palette variables (from palette.json) === */
-${emitScale('grey', grey)}
-
-  /* Slate variations */
-${emitScale('slate', slate)}
-
-  /* Cream variations */
-${emitScale('cream', cream)}
-
-  /* === Chroma families === */
-${emitChroma()}
-
-  /* Gradients */
-${emitGradients()}
-
   /* Neutral defaults for PasskeyHaloLoading (baseline outside confirmer context) */
   --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, var(--w3a-blue500) 10%, var(--w3a-blue500) 25%, transparent 35%;
   --w3a-modal__passkey-halo-loading__inner-background: transparent;
@@ -280,13 +265,10 @@ function emitAliasBlock(vars) {
   ].join('\n');
 }
 
-// Root-level token defaults and overrides (for iframe/docs without React Theme)
-const rootTokens = `:root {\n${emitAliasBlock(DARK_VARS)}\n}\n\n:root[data-w3a-theme=\"light\"] {\n${emitAliasBlock(LIGHT_VARS)}\n}\n\n:root[data-w3a-theme=\"cream\"] {\n${emitAliasBlock(CREAM_VARS)}\n}`;
-
 // Also emit theme-specific alias blocks scoped to component hosts, so tokens pierce Shadow DOM via host inheritance
 const hostThemeTokens = `:root[data-w3a-theme=\"light\"] ${hostSelectors} {\n${emitAliasBlock(LIGHT_VARS)}\n}\n\n:root[data-w3a-theme=\"cream\"] ${hostSelectors} {\n${emitAliasBlock(CREAM_VARS)}\n}`;
 
-const cssOut = `${header}\n\n${darkBlock}\n\n${rootTokens}\n\n${hostThemeTokens}\n`;
+const cssOut = `${header}\n\n${darkBlock}\n\n${hostThemeTokens}\n`;
 
 fs.writeFileSync(cssOutPath, cssOut);
 console.log('[generate-w3a-components-css] Wrote', path.relative(process.cwd(), cssOutPath));

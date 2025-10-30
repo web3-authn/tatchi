@@ -25,13 +25,27 @@ export function buildPermissionsPolicy(walletOrigin?: string): string {
   ].join(', ')
 }
 
-export function buildWalletCsp(opts: { frameSrc?: string[]; mode?: CspMode } = {}): string {
+/**
+ * Build a wallet-friendly Content Security Policy string.
+ *
+ * mode:
+ *  - 'strict' (default): no inline styles, injects "style-src-attr 'none'", and forbids 'unsafe-eval'.
+ *  - 'compatible': allows inline styles/scripts via 'unsafe-inline' for friendlier dev/local setups.
+ *
+ * allowUnsafeEval:
+ *  - false by default. Set to true only for development servers that require eval (e.g., Next.js Fast Refresh).
+ *  - Tatchi SDK does not require 'unsafe-eval' in production.
+ */
+export function buildWalletCsp(opts: { frameSrc?: string[]; mode?: CspMode; allowUnsafeEval?: boolean } = {}): string {
   const mode: CspMode = opts.mode || 'strict'
   const frame = (opts.frameSrc || []).filter(Boolean)
+  const scriptUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''
+  const styleUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''
+  const scriptUnsafeEval = opts.allowUnsafeEval ? " 'unsafe-eval'" : ''
   const base: string[] = [
     "default-src 'self'",
-    `script-src 'self'${mode === 'compatible' ? " 'unsafe-inline'" : ''}`,
-    `style-src 'self'${mode === 'compatible' ? " 'unsafe-inline'" : ''}`,
+    `script-src 'self'${scriptUnsafeInline}${scriptUnsafeEval}`,
+    `style-src 'self'${styleUnsafeInline}`,
     "img-src 'self' data:",
     "font-src 'self'",
     "connect-src 'self' https:",

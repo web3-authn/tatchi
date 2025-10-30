@@ -1,5 +1,10 @@
 // Minimal Next.js helpers: compose a headers() entry for cross-origin wallet embedding.
 // Avoid importing Next types; keep shapes generic.
+//
+// CSP policy note:
+// - We RELAX CSP ONLY FOR NEXT DEV to accommodate the framework's dev runtime (Fast Refresh/overlay),
+//   which requires 'unsafe-eval' and inline styles. This relaxation is not required by the Tatchi SDK itself.
+// - In PRODUCTION you should keep a strict CSP (no 'unsafe-eval', no inline styles, and include "style-src-attr 'none'").
 
 import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from './headers'
 
@@ -10,10 +15,15 @@ export function tatchiNextHeaders(opts: {
   walletOrigin: string
   cspMode?: CspMode
   extraFrameSrc?: string[]
+  allowUnsafeEvalDev?: boolean
+  compatibleInDev?: boolean
 }): NextHeaderEntry[] {
   const wallet = opts.walletOrigin
   const permissions = buildPermissionsPolicy(wallet)
-  const csp = buildWalletCsp({ frameSrc: [wallet, ...(opts.extraFrameSrc || [])], mode: opts.cspMode || 'strict' })
+  const isDev = process.env.NODE_ENV !== 'production'
+  const mode: CspMode = opts.cspMode ?? (isDev && (opts.compatibleInDev ?? true) ? 'compatible' : 'strict')
+  const allowUnsafeEval = isDev && (opts.allowUnsafeEvalDev ?? true)
+  const csp = buildWalletCsp({ frameSrc: [wallet, ...(opts.extraFrameSrc || [])], mode, allowUnsafeEval })
   return [
     { source: '/:path*', headers: [
       { key: 'Permissions-Policy', value: permissions },
@@ -26,6 +36,8 @@ export function withTatchiHeaders(config: any, opts: {
   walletOrigin: string
   cspMode?: CspMode
   extraFrameSrc?: string[]
+  allowUnsafeEvalDev?: boolean
+  compatibleInDev?: boolean
 }): any {
   const existing = config?.headers
   return {
@@ -36,4 +48,3 @@ export function withTatchiHeaders(config: any, opts: {
     }
   }
 }
-
