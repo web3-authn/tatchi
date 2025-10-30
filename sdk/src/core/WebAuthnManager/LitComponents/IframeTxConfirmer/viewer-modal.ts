@@ -107,8 +107,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // Guard to prevent immediate backdrop-cancel due to the click that mounted the modal
   private _backdropArmed = false;
 
-  // Closed Shadow DOM for security
-  static shadowRootOptions: ShadowRootInit = { mode: 'closed' };
+  // Render in light DOM to simplify CSS variable flow across nested components
+  // (Shadow DOM disabled by returning the host element as the render root)
 
   // No inline static styles; see modal-confirmer.css
   constructor() {
@@ -147,17 +147,14 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   }
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    const root = super.createRenderRoot();
+    const root = (this as unknown) as HTMLElement;
     // tx-tree.css for nested TxTree visuals inside the modal
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css'));
+    this._stylePromises.push(ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'));
     // modal-confirmer.css for modal layout + tokens
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
-    // Base component tokens are provided at the document root. Avoid adopting
-    // w3a-components.css inside this shadow to prevent overriding
-    // :root[data-w3a-theme] values applied on the document element.
+    this._stylePromises.push(ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
     // Ensure nested loader/halo styles are present before first paint to avoid FOUC
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'halo-border.css', 'data-w3a-halo-border-css'));
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'));
+    this._stylePromises.push(ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'));
+    this._stylePromises.push(ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'));
     return root;
   }
 

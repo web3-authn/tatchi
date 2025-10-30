@@ -95,12 +95,6 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;
-    // Ensure root-level tokens are available; do not adopt inside shadow to
-    // avoid overriding :root[data-w3a-theme] on the document element.
-    const docEl = (document?.documentElement || null) as HTMLElement | null;
-    if (docEl) {
-      ensureExternalStyles(docEl, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
-    }
   }
 
   protected getComponentPrefix(): string { return 'drawer-tx'; }
@@ -139,7 +133,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   }
 
   async firstUpdated(): Promise<void> {
-    this._drawerEl = this.shadowRoot?.querySelector(W3A_DRAWER_ID) as any;
+    this._drawerEl = (this as unknown as HTMLElement).querySelector(W3A_DRAWER_ID) as any;
     // Ensure external styles are ready before opening (await Promise-based loader)
     const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
     await Promise.all([

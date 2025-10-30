@@ -1,10 +1,35 @@
 import palette from '@/theme/palette.json';
 
+// Optional flat tokens sourced from palette.json
+// Allows single-source overrides like `buttonBackground`
+const TOKENS: { buttonBackground?: string } = (palette as any).tokens || {};
+
 /**
  * Base color palette for Web3Auth components (single-source from palette.json)
  */
 
 export const CHROMA_COLORS = {
+  //yellow
+  yellow50: palette.chroma.yellow['50'],
+  yellow100: palette.chroma.yellow['100'],
+  yellow150: palette.chroma.yellow['150'],
+  yellow200: palette.chroma.yellow['200'],
+  yellow250: palette.chroma.yellow['250'],
+  yellow300: palette.chroma.yellow['300'],
+  yellow350: palette.chroma.yellow['350'],
+  yellow400: palette.chroma.yellow['400'],
+  yellow450: palette.chroma.yellow['450'],
+  yellow500: palette.chroma.yellow['500'],
+  yellow550: palette.chroma.yellow['550'],
+  yellow600: palette.chroma.yellow['600'],
+  yellow650: palette.chroma.yellow['650'],
+  yellow700: palette.chroma.yellow['700'],
+  yellow750: palette.chroma.yellow['750'],
+  yellow800: palette.chroma.yellow['800'],
+  yellow850: palette.chroma.yellow['850'],
+  yellow900: palette.chroma.yellow['900'],
+  yellow950: palette.chroma.yellow['950'],
+
   // blue
   blue50: palette.chroma.blue['50'],
   blue100: palette.chroma.blue['100'],
@@ -143,7 +168,9 @@ export const GRADIENTS = {
   blue: palette.gradients.blue,
   red: palette.gradients.red,
   green: palette.gradients.green,
+  black: palette.gradients.black,
   blueWhite: palette.gradients.blueWhite,
+  blackWhite: palette.gradients.blackWhite,
 } as const;
 
 // Dark Theme Colors
@@ -155,6 +182,7 @@ export const DARK_THEME = {
   textPrimary: GREY_COLORS.grey75,
   textSecondary: GREY_COLORS.grey500,
   textMuted: GREY_COLORS.grey650,
+  textButton: GREY_COLORS.grey75,
 
   colorBackground: GREY_COLORS.grey800,
   surface: GREY_COLORS.slate700,
@@ -168,6 +196,9 @@ export const DARK_THEME = {
   secondary: CHROMA_COLORS.red500,
   secondaryHover: CHROMA_COLORS.red400,
   accent: CHROMA_COLORS.blue400,
+
+  // Buttons
+  buttonBackground: TOKENS.buttonBackground || CHROMA_COLORS.blue500,
 
   // Interactive states
   hover: GREY_COLORS.grey850,
@@ -204,6 +235,8 @@ export const LIGHT_THEME = {
   textPrimary: GREY_COLORS.grey975,
   textSecondary: GREY_COLORS.grey500,
   textMuted: GREY_COLORS.grey350,
+  // Button text color (light on both themes)
+  textButton: GREY_COLORS.grey75,
 
   colorBackground: GREY_COLORS.grey50,
   surface: GREY_COLORS.slate100,
@@ -217,6 +250,9 @@ export const LIGHT_THEME = {
   secondary: CHROMA_COLORS.red500,
   secondaryHover: CHROMA_COLORS.red400,
   accent: CHROMA_COLORS.blue400,
+
+  // Buttons
+  buttonBackground: TOKENS.buttonBackground || CHROMA_COLORS.blue500,
 
   // Interactive states
   hover: GREY_COLORS.grey100,
@@ -248,7 +284,7 @@ export const LIGHT_THEME = {
 // Inspired by a soft beige/cream UI with charcoal accents.
 // Keeps the same token structure as LIGHT_THEME but warms surfaces
 // and tweaks text/border contrast for a calmer look.
-export const CREAM_THEME = {
+export const LIGHT_THEME2 = {
   ...GREY_COLORS,
   ...CREAM_COLORS,
   ...CHROMA_COLORS,
@@ -257,6 +293,8 @@ export const CREAM_THEME = {
   textPrimary: GREY_COLORS.grey900,
   textSecondary: GREY_COLORS.grey600,
   textMuted: GREY_COLORS.grey450,
+  // Button text color (light for cream/light theme)
+  textButton: GREY_COLORS.grey75,
 
   // Warm neutral surfaces pulled from cream scale
   colorBackground: CREAM_COLORS.cream50,
@@ -274,16 +312,19 @@ export const CREAM_THEME = {
   secondary: CHROMA_COLORS.red500,
   secondaryHover: CHROMA_COLORS.red400,
   // Subtle accent for outlines or small highlights
-  accent: CHROMA_COLORS.blue550,
+  accent: CHROMA_COLORS.yellow550,
+
+  // Buttons (defaults to shared token or blue scale)
+  buttonBackground: TOKENS.buttonBackground || CHROMA_COLORS.blue500,
 
   // Interactive states tuned to warm neutrals
   hover: CREAM_COLORS.cream75,
   active: CREAM_COLORS.cream200,
-  focus: CHROMA_COLORS.blue450,
+  focus: CHROMA_COLORS.yellow500,
 
   // Status colors
-  success: CHROMA_COLORS.blue500,
-  warning: palette.chroma.yellow['500'],
+  success: CHROMA_COLORS.yellow400,
+  warning: CHROMA_COLORS.yellow600,
   error: CHROMA_COLORS.red500,
   info: CHROMA_COLORS.blue500,
 
@@ -293,11 +334,15 @@ export const CREAM_THEME = {
   borderHover: CREAM_COLORS.cream350,
 
   // Background Gradients (reuse neutrals-friendly sets)
-  backgroundGradientPrimary: GRADIENTS.blue,
-  backgroundGradientSecondary: GRADIENTS.blueWhite,
+  backgroundGradientPrimary: GRADIENTS.black,
+  backgroundGradientSecondary: GRADIENTS.blackWhite,
 
   // Highlights
-  highlightReceiverId: CHROMA_COLORS.blue600,
-  highlightMethodName: CHROMA_COLORS.blue600,
-  highlightAmount: CHROMA_COLORS.blue600,
+  highlightReceiverId: CHROMA_COLORS.yellow400,
+  highlightMethodName: CHROMA_COLORS.yellow400,
+  highlightAmount: CHROMA_COLORS.yellow400,
 } as const;
+
+// Public alias for the warm light scheme
+// This makes it discoverable as a named theme without breaking existing imports.
+export const CREAM_THEME = LIGHT_THEME;

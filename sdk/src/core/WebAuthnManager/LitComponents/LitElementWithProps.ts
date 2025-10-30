@@ -139,6 +139,8 @@ export class LitElementWithProps extends LitElement {
       this.applyStyles(this.styles, this.getComponentPrefix());
     }
 
+    // No global token side-effects here; components read tokens from host/theme CSS
+
     // Ensure referenced definitions are kept by bundlers (touch the values)
     try {
       const ctor = this.constructor as typeof LitElementWithProps & {
