@@ -21,6 +21,49 @@ If you use another framework or dev server (Next.js, CRA/Webpack, Vue CLI, Expre
   - [ ] `curl -I` a `.wasm` under `/sdk/workers/*` to verify headers and MIME.
   - [ ] Load wallet pages and confirm no inline CSP violations and no CORP/ORB errors in DevTools.
 
+Note (cross-origin mode): If your app embeds a remote wallet (for example, https://wallet.tatchi.xyz), you do not need to copy `/sdk/*` or serve wallet HTML on your app origin. Configure your provider with `iframeWallet.walletOrigin` and ensure your app’s CSP/Permissions‑Policy allow the wallet origin.
+
+### Minimal Cross‑Origin Examples (recommended)
+
+- Do not copy or serve SDK assets locally; use the remote wallet origin.
+- Configure your app provider with a hardcoded `iframeWallet.walletOrigin` and `relayer.url` for dev.
+- Add only the headers you need on the app:
+  - Permissions‑Policy delegation to the wallet origin (WebAuthn, clipboard).
+  - CSP `frame-src 'self' https://wallet.tatchi.xyz` (and any other embedded origins).
+- In Vite‑based stacks, you can either:
+  - Use no plugin and set headers via your reverse proxy (e.g., Caddy), or
+  - Use the lightweight `tatchiDevHeaders({ walletOrigin: 'https://wallet.tatchi.xyz' })` plugin.
+
+Minimal React provider snippet:
+
+```tsx
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+
+const config = {
+  nearNetwork: 'testnet',
+  nearRpcUrl: 'https://test.rpc.fastnear.com',
+  contractId: 'w3a-v1.testnet',
+  relayer: { accountId: 'w3a-v1.testnet', url: 'https://relay-server.localhost' },
+  iframeWallet: { walletOrigin: 'https://wallet.tatchi.xyz' },
+}
+
+export function AppProviders({ children }) {
+  return <TatchiPasskeyProvider config={config}>{children}</TatchiPasskeyProvider>
+}
+```
+
+Minimal Vite config (headers only):
+
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tatchiDevHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig({
+  plugins: [react(), tatchiDevHeaders({ walletOrigin: 'https://wallet.tatchi.xyz' })],
+})
+```
+
 ## What you must provide
 
 - Static SDK files available at a predictable base, typically /sdk, including:
@@ -126,18 +169,18 @@ Notes:
 - Avoid implementing /wallet-service as a React page to keep CSP strict; serve the static HTML from public instead.
 - If you must SSR the wallet route, you’ll need to relax CSP in dev and ensure no inline styles/scripts are injected by the framework.
 
-Plan (Next.js)
+Plan (Next.js — cross-origin wallet at https://wallet.tatchi.xyz)
 
-- [ ] Phase 1 — Assets & HTML
-  - [ ] Add a copy script for SDK -> `public/sdk`.
-  - [ ] Create `public/wallet-service/index.html` and `public/export-viewer/index.html` from the skeleton above.
+- [ ] Phase 1 — Cross-Origin Setup
+  - [ ] In your provider config: set `iframeWallet.walletOrigin = 'https://wallet.tatchi.xyz'` and a dev `relayer.url`.
+  - [ ] Do not copy `/sdk/*`; do not serve wallet HTML from the app.
 - [ ] Phase 2 — Dev Headers
-  - [ ] Implement `headers()` in `next.config.js` for `/wallet-service`, `/export-viewer`, `/sdk/:path*`, and `.wasm`.
+  - [ ] Add `Permissions-Policy` delegating WebAuthn + clipboard to `https://wallet.tatchi.xyz` in `next.config.js` headers.
+  - [ ] Ensure CSP `frame-src` includes `https://wallet.tatchi.xyz`.
 - [ ] Phase 3 — Production Headers
-  - [ ] Configure your host (Vercel/Pages/Netlify/nginx) to mirror these headers; ensure only one `Access-Control-Allow-Origin`.
+  - [ ] Keep the same delegation and frame-src. No `_headers` emission needed for SDK assets since they’re remote.
 - [ ] Phase 4 — Verification
-  - [ ] `curl -I https://your-app/sdk/workers/wasm_signer_worker_bg.wasm` shows `application/wasm` and a single ACAO.
-  - [ ] Open `/wallet-service` and check DevTools for CSP/COEP/CORP correctness.
+  - [ ] App renders; wallet iframe boots from `https://wallet.tatchi.xyz` with no CSP or isolation errors in DevTools.
 
 ### Vanilla React (CRA/Webpack) & Vue CLI (webpack)
 
@@ -169,102 +212,56 @@ module.exports = function (app) {
 
 ### Vue (Vite)
 
-- If your Vue app uses Vite, you can import the SDK’s Vite plugin directly (tatchiDev + tatchiBuildHeaders) just like the examples do.
+- If your Vue app uses Vite, prefer the lightweight `tatchiDevHeaders` for cross‑origin setups; no local `/sdk` is required.
 
-Plan (Vue with Vite)
+Plan (Vue with Vite — cross-origin wallet at https://wallet.tatchi.xyz)
 
-- [ ] Phase 1 — Assets & HTML
-  - [ ] Add static wallet pages under the project’s `public/` if you want to serve them as-is.
+- [ ] Phase 1 — Cross-Origin Setup
+  - [ ] Configure provider with `iframeWallet.walletOrigin = 'https://wallet.tatchi.xyz'` and a dev `relayer.url`.
+  - [ ] Skip copying `/sdk/*` and wallet HTML; assets and pages live on the wallet origin.
 - [ ] Phase 2 — Dev Headers
-  - [ ] Use the SDK Vite plugin `tatchiDev` to serve `/sdk` and apply dev headers + WASM MIME.
+  - [ ] Prefer `tatchiDevHeaders({ walletOrigin: 'https://wallet.tatchi.xyz' })` for minimal setup.
+  - [ ] Alternatively rely on your proxy (Caddy) to inject `Permissions-Policy` and CSP `frame-src`.
 - [ ] Phase 3 — Production Headers
-  - [ ] Use `tatchiBuildHeaders({ walletOrigin })` to emit `_headers` for Pages/Netlify, or mirror rules in your platform.
+  - [ ] No `_headers` emission needed for SDK assets since they’re remote; keep delegation/frame-src.
 - [ ] Phase 4 — Verification
-  - [ ] `curl -I` a `.wasm`; check wallet route CSP in DevTools.
+  - [ ] App renders; wallet iframe boots; no CSP violations in DevTools.
 
 ### SvelteKit (Vite)
 
-- Static assets: create `static/wallet-service/index.html` and (optionally) `static/export-viewer/index.html` with only external CSS/JS from `/sdk/*`.
-- Dev/build: use the SDK’s Vite plugins like in the React/Vue examples.
+- Minimal cross‑origin setup: no static wallet HTML in `static/`; assets and pages come from the wallet origin.
 
-Example `vite.config.ts`:
+Example `vite.config.ts` (headers‑only, minimal):
 
 ```ts
 import { defineConfig, loadEnv } from 'vite'
 import { sveltekit } from '@sveltejs/kit/vite'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiDevHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
     plugins: [
       sveltekit(),
-      tatchiDev({
-        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
-        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        walletOrigin: env.VITE_WALLET_ORIGIN,
-      }),
-      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
+      tatchiDevHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz' }),
     ],
   }
 })
 ```
 
-Plan (SvelteKit with Vite)
+Plan (SvelteKit with Vite — cross-origin wallet at https://wallet.tatchi.xyz)
 
-- [ ] Phase 1 — Assets & HTML
-  - [ ] Place `static/wallet-service/index.html` (and `static/export-viewer/index.html`) with links to `/sdk/*`.
+- [ ] Phase 1 — Cross-Origin Setup
+  - [ ] Configure provider with `iframeWallet.walletOrigin = 'https://wallet.tatchi.xyz'` and a dev `relayer.url`.
+  - [ ] Skip `static/wallet-service` pages; they live on the wallet origin.
 - [ ] Phase 2 — Dev Headers
-  - [ ] Enable `tatchiDev` to serve `/sdk` and apply COEP/CORP/COOP, CSP, Permissions-Policy, and WASM MIME in dev.
+  - [ ] Use `tatchiDevHeaders` or set headers via your proxy (Caddy); ensure CSP `frame-src` includes the wallet origin.
 - [ ] Phase 3 — Production Headers
-  - [ ] Enable `tatchiBuildHeaders({ walletOrigin })` to emit `_headers`, or configure headers in your target adapter/host.
+  - [ ] Keep delegation/frame-src. No `_headers` emission needed for SDK assets.
 - [ ] Phase 4 — Verification
-  - [ ] `curl -I` a `.wasm`; confirm wallet routes load with strict CSP and no ORB/CORP issues.
+  - [ ] App renders; wallet iframe boots; no CSP or isolation errors.
 
-Express / generic Node servers
-
-- Serve /sdk as static with headers:
-
-app.use('/sdk', (req, res, next) => {
-  res.set('Cross-Origin-Embedder-Policy', 'require-corp')
-  res.set('Cross-Origin-Resource-Policy', 'cross-origin')
-  res.set('Access-Control-Allow-Origin', '*')
-  next()
-}, express.static(path.join(__dirname, 'public', 'sdk')))
-
-- Serve /wallet-service and /export-viewer as static HTML files with the strict CSP and Permissions‑Policy headers shown above.
-- Ensure .wasm served with application/wasm.
-
-Plan (Express / Node)
-
-- [ ] Phase 1 — Assets & HTML
-  - [ ] Copy SDK to `public/sdk`; add `public/wallet-service/index.html` and `public/export-viewer/index.html`.
-- [ ] Phase 2 — Dev Headers
-  - [ ] Add an `app.use('/sdk', …)` that sets COEP/CORP + CORS and serves static files; set MIME for `.wasm`.
-  - [ ] Set wallet route headers (COOP unsafe-none, COEP, CSP, Permissions-Policy) when serving the HTML files.
-- [ ] Phase 3 — Production Headers
-  - [ ] Mirror the same headers in your reverse proxy/CDN; ensure only one ACAO header.
-- [ ] Phase 4 — Verification
-  - [ ] `curl -I` a `.wasm` in `/sdk/workers/*`; load `/wallet-service` and check DevTools security headers.
-
-Production hosting (Cloudflare Pages/Netlify)
-
-- Use the SDK’s build helper when building with Vite to emit dist/_headers with the security headers, or replicate equivalent headers in your platform UI.
-- Ensure /sdk/* and /sdk/workers/* have CORS and CORP.
-- Keep wallet HTML static to satisfy strict CSP.
-
-Plan (Hosting)
-
-- [ ] Phase 1 — Assets & HTML
-  - [ ] Ensure `/sdk/*` and static wallet pages are included in the deploy artifact.
-- [ ] Phase 2 — Dev Headers
-  - [ ] N/A (platform-specific); verify local dev mirrors production headers.
-- [ ] Phase 3 — Production Headers
-  - [ ] Add COEP/CORP/COOP, CSP, Permissions-Policy; set `application/wasm` for `.wasm`.
-  - [ ] Avoid duplicated ACAO when combining platform rules with build-time `_headers`.
-- [ ] Phase 4 — Verification
-  - [ ] `curl -I https://wallet.example.com/sdk/workers/wasm_signer_worker_bg.wasm` shows correct headers and MIME.
-  - [ ] Confirm wallet pages render with strict CSP and no cross-origin isolation errors.
+<!-- Express/Node and hosting sections intentionally omitted here: focus is minimal frontend cross-origin examples. -->
 
 Note on CORS header duplication
 
