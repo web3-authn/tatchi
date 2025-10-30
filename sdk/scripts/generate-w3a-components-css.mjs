@@ -104,17 +104,7 @@ const hostSelectors = hostSelectorsArr.join(',\n');
 
 const darkBlock = `/* Base CSS variables for W3A custom elements (applied on hosts) */
 ${hostSelectors} {
-  /* Text + surfaces (dark defaults) */
-  --w3a-colors-textPrimary: ${darkVars.textPrimary};
-  --w3a-colors-textSecondary: ${darkVars.textSecondary};
-  --w3a-colors-surface: ${darkVars.surface};
-  --w3a-colors-surface2: ${darkVars.surface2};
-  --w3a-colors-surface3: ${darkVars.surface3};
-  --w3a-colors-borderPrimary: ${darkVars.borderPrimary};
-  --w3a-colors-borderSecondary: ${darkVars.borderSecondary};
-  --w3a-colors-colorBackground: ${darkVars.colorBackground};
-
-  /* Component defaults */
+  /* Component defaults (no token alias assignments here) */
   --w3a-modal__btn__focus-outline-color: ${chroma?.blue?.['400'] || '#3b82f6'};
   --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);
   --w3a-tree__file-content__scrollbar-thumb__background: rgba(255,255,255,0.22);
@@ -144,19 +134,13 @@ ${emitGradients()}
   --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
 }`;
 
-const lightBlock = `/* Light theme overrides for hosts that set [theme=\"light\"] */
-${hostSelectorsArr.map((s) => `${s}[theme=\"light\"]`).join(',\n')} {
-  --w3a-colors-textPrimary: ${lightVars.textPrimary};
-  --w3a-colors-textSecondary: ${lightVars.textSecondary};
-  --w3a-colors-surface: ${lightVars.surface};
-  --w3a-colors-surface2: ${lightVars.surface2};
-  --w3a-colors-surface3: ${lightVars.surface3};
-  --w3a-colors-borderPrimary: ${lightVars.borderPrimary};
-  --w3a-colors-borderSecondary: ${lightVars.borderSecondary};
-  --w3a-colors-colorBackground: ${lightVars.colorBackground};
-}`;
+/* No per-host token overrides; tokens come from Theme or host boundary. */
+const lightBlock = '';
 
-const cssOut = `${header}\n\n${darkBlock}\n\n${lightBlock}\n`;
+// Root-level token defaults and light overrides (for iframe/docs without React Theme)
+const rootTokens = `:root {\n  --w3a-colors-textPrimary: ${darkVars.textPrimary};\n  --w3a-colors-textSecondary: ${darkVars.textSecondary};\n  --w3a-colors-surface: ${darkVars.surface};\n  --w3a-colors-surface2: ${darkVars.surface2};\n  --w3a-colors-surface3: ${darkVars.surface3};\n  --w3a-colors-borderPrimary: ${darkVars.borderPrimary};\n  --w3a-colors-borderSecondary: ${darkVars.borderSecondary};\n  --w3a-colors-colorBackground: ${darkVars.colorBackground};\n}\n\n:root[data-w3a-theme=\"light\"] {\n  --w3a-colors-textPrimary: ${lightVars.textPrimary};\n  --w3a-colors-textSecondary: ${lightVars.textSecondary};\n  --w3a-colors-surface: ${lightVars.surface};\n  --w3a-colors-surface2: ${lightVars.surface2};\n  --w3a-colors-surface3: ${lightVars.surface3};\n  --w3a-colors-borderPrimary: ${lightVars.borderPrimary};\n  --w3a-colors-borderSecondary: ${lightVars.borderSecondary};\n  --w3a-colors-colorBackground: ${lightVars.colorBackground};\n}`;
+
+const cssOut = `${header}\n\n${darkBlock}\n\n${rootTokens}\n`;
 
 fs.writeFileSync(cssOutPath, cssOut);
 console.log('[generate-w3a-components-css] Wrote', path.relative(process.cwd(), cssOutPath));

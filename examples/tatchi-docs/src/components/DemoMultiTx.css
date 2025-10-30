@@ -83,7 +83,7 @@
 .multi-tx-input:focus {
   outline: none;
   border-color: var(--w3a-colors-primary);
-  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 0 0 3px var(--fe-shadow);
   background: var(--fe-input-bg);
 }
 
@@ -122,7 +122,7 @@
 .action-section button:hover {
   background: var(--w3a-colors-primary);
   color: white;
-  box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 6px 12px var(--fe-shadow);
 }
 
 .action-section button:active {
@@ -131,7 +131,7 @@
 
 .action-section button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 0 0 3px var(--fe-shadow);
   border: 2px solid var(--w3a-colors-primary);
 }
 
@@ -171,7 +171,7 @@
 
 .button--primary:hover:not(:disabled) {
   background: var(--w3a-colors-primaryHover);
-  box-shadow: 0 6px 12px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 6px 12px var(--fe-shadow);
 }
 
 .button--primary:active:not(:disabled) {
@@ -195,7 +195,7 @@
 
 .button:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 3px rgba(46, 84, 211, 0.3);
+  box-shadow: 0 0 0 3px var(--fe-shadow);
 }
 
 .button__spinner {

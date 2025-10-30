@@ -127,8 +127,19 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     }
   }
 
+  private _ownsThemeAttr = false;
+
   updated(changedProperties: PropertyValues) {
     super.updated(changedProperties);
+    // Keep the iframe/root document's theme in sync so :root[data-w3a-theme] tokens apply
+    if (changedProperties.has('theme')) {
+      try {
+        const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+        if (docEl && this.theme && this._ownsThemeAttr) {
+          docEl.setAttribute('data-w3a-theme', this.theme);
+        }
+      } catch {}
+    }
   }
 
   protected getComponentPrefix(): string {
@@ -141,8 +152,9 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css'));
     // modal-confirmer.css for modal layout + tokens
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
-    // Base component tokens (host-level CSS variables)
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css'));
+    // Base component tokens are provided at the document root. Avoid adopting
+    // w3a-components.css inside this shadow to prevent overriding
+    // :root[data-w3a-theme] values applied on the document element.
     // Ensure nested loader/halo styles are present before first paint to avoid FOUC
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'halo-border.css', 'data-w3a-halo-border-css'));
     this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'));
@@ -159,6 +171,18 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
 
   connectedCallback(): void {
     super.connectedCallback();
+    // Ensure root token theme is applied immediately on mount
+    try {
+      const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+      if (docEl && this.theme) {
+        const current = docEl.getAttribute('data-w3a-theme');
+        // If missing or already using built-in values, take ownership and set
+        if (!current || current === 'dark' || current === 'light') {
+          docEl.setAttribute('data-w3a-theme', this.theme);
+          this._ownsThemeAttr = true;
+        }
+      }
+    } catch {}
     // Arm backdrop after the current event loop to avoid capturing the mounting click
     setTimeout(() => { this._backdropArmed = true; }, 0);
     // Listen globally so Escape works regardless of focus target

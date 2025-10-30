@@ -273,7 +273,7 @@ export const DemoTransaction: React.FC = () => {
                     toast.error(`Embedded flow failed: ${result?.error || 'Unknown error'}`, { id: 'embedded' });
                   }
                 },
-                onError: (error: any) => {
+                onError: (error) => {
                   const message = error instanceof Error ? error.message : String(error);
                   toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
                 },
@@ -286,15 +286,12 @@ export const DemoTransaction: React.FC = () => {
                 boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
                 fontSize: '16px',
                 height: '44px',
-                width: '100%',
               }}
               buttonHoverStyle={{
                 background: 'var(--w3a-colors-primaryHover)',
                 boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
               }}
               tooltipPosition={{
-                width: 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
-                height: 'auto',
                 position: 'bottom-left',
               }}
               buttonTextElement={<TouchIdWithText buttonText="Send Transaction" />}

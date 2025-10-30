@@ -95,6 +95,12 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     this.confirmText = 'Next';
     this.cancelText = 'Cancel';
     this.deferClose = false;
+    // Ensure root-level tokens are available; do not adopt inside shadow to
+    // avoid overriding :root[data-w3a-theme] on the document element.
+    const docEl = (document?.documentElement || null) as HTMLElement | null;
+    if (docEl) {
+      ensureExternalStyles(docEl, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
+    }
   }
 
   protected getComponentPrefix(): string { return 'drawer-tx'; }
@@ -110,6 +116,17 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   connectedCallback(): void {
     super.connectedCallback();
+    // Ensure root token theme is applied immediately on mount
+    try {
+      const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+      if (docEl && this.theme) {
+        const current = docEl.getAttribute('data-w3a-theme');
+        if (!current || current === 'dark' || current === 'light') {
+          docEl.setAttribute('data-w3a-theme', this.theme);
+          (this as any)._ownsThemeAttr = true;
+        }
+      }
+    } catch {}
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('message', this._onWindowMessage as EventListener);
     // Ensure immediate keyboard handling (e.g., ESC) by focusing host/iframe
@@ -145,6 +162,15 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
 
   updated(changed: PropertyValues) {
     super.updated(changed);
+    // Keep the iframe/root document's theme in sync so :root[data-w3a-theme] tokens apply
+    if (changed.has('theme')) {
+      try {
+        const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+        if (docEl && this.theme && (this as any)._ownsThemeAttr) {
+          docEl.setAttribute('data-w3a-theme', this.theme);
+        }
+      } catch {}
+    }
   }
 
   private onDrawerCancel = () => {

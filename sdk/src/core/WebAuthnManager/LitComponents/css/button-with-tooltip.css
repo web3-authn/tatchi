@@ -7,10 +7,6 @@ body, body.w3a-transparent {
   padding: 0 !important;
 }
 
-/* Externalized styles for <button-with-tooltip> / <w3a-button-with-tooltip> shadow root */
-
-/* Data attribute selectors correspond to HTML data attributes for type-safe element selection */
-
 :host {
   display: var(--w3a-embedded__host__display, block);
   font-family: var(--w3a-embedded__host__font-family, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);

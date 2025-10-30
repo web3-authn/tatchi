@@ -9,6 +9,7 @@ import TxTree from '../TxTree';
 import { buildDisplayTreeFromTxPayloads } from '../TxTree/tx-tree-utils';
 import { ensureExternalStyles } from '../css/css-loader';
 import { W3A_TX_TREE_ID } from '../tags';
+import type { ThemeName } from '../confirm-ui-types';
 
 /**
  * Shared confirmation content surface used by both Modal and Drawer containers.
@@ -41,7 +42,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   declare txSigningRequests: TransactionInputWasm[];
   declare intentDigest?: string;
   declare vrfChallenge?: VRFChallenge;
-  declare theme: 'dark' | 'light';
+  declare theme: ThemeName;
   declare loading: boolean;
   declare errorMessage?: string;
   declare title: string;
@@ -87,11 +88,11 @@ export class TxConfirmContentElement extends LitElementWithProps {
   protected getComponentPrefix(): string { return 'tx-confirm-content'; }
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    const root = super.createRenderRoot();
-    // Adopt tx-tree.css into this shadow root so light‑DOM TxTree is styled
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css'));
-    // Also adopt modal-confirmer.css for shared confirmer styles
-    this._stylePromises.push(ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
+    const root = (this as unknown) as HTMLElement;
+    // Ensure tx-tree.css for nested light-DOM TxTree
+    this._stylePromises.push(ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'));
+    // Also ensure modal-confirmer.css for shared confirmer styles
+    this._stylePromises.push(ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
     return root;
   }
 
@@ -182,19 +183,19 @@ export class TxConfirmContentElement extends LitElementWithProps {
     return html`
       <div class="txc-root">
         ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
-        ${
-          this._treeNode
-          ? html`<div class="tooltip-width">
-                  <w3a-tx-tree
-                    light-dom
-                    .styles=${{}}
-                    .node=${this._treeNode}
-                    .theme=${this.theme}
-                    .width=${this._txTreeWidth}
-                  ></w3a-tx-tree>
-                </div>`
-          : html`<div class="muted">No actions</div>`
-        }
+        ${(() => {
+          const treeTheme: 'dark' | 'light' = this.theme === 'dark' ? 'dark' : 'light';
+          return this._treeNode
+            ? html`<div class="tooltip-width">
+                    <w3a-tx-tree
+                      light-dom
+                      .node=${this._treeNode}
+                      .theme=${treeTheme}
+                      .width=${this._txTreeWidth}
+                    ></w3a-tx-tree>
+                  </div>`
+            : html`<div class="muted">No actions</div>`;
+        })()}
         <div class="actions">
           <button
             class="cancel"

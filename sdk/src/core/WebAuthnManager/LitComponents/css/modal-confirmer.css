@@ -5,95 +5,10 @@
 
 /* Defaults (dark theme) */
 w3a-modal-tx-confirmer,
-w3a-drawer-tx-confirmer {
-  /* Host surface + text */
-  --w3a-colors-textPrimary: var(--w3a-grey75);
-  --w3a-colors-textSecondary: var(--w3a-grey500);
-  --w3a-colors-surface: var(--w3a-slate700);
-  --w3a-colors-surface2: var(--w3a-slate750);
-  --w3a-colors-surface3: var(--w3a-slate800);
-  --w3a-colors-borderPrimary: var(--w3a-grey650);
-  --w3a-colors-borderSecondary: var(--w3a-slate650);
-  --w3a-colors-colorBackground: var(--w3a-grey800);
-
-  /* Host */
-  --w3a-modal__host__font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --w3a-modal__host__font-size: 1rem;
-  --w3a-modal__host__color: var(--w3a-colors-textPrimary);
-  --w3a-modal__host__background-color: var(--w3a-colors-colorBackground);
-
-  /* Backdrop + Container */
-  --w3a-modal__modal-backdrop-blur__background: oklch(0.2 0.01 240 / 0.2);
-  --w3a-modal__modal-backdrop-blur__backdrop-filter: blur(0px);
-  --w3a-modal__modal-backdrop-blur__will-change: opacity;
-  --w3a-modal__modal-container-root__border: 1px solid var(--w3a-colors-borderPrimary);
-  --w3a-modal__modal-container-root__border-radius: 2rem;
-  --w3a-modal__modal-container-root__margin: 1rem 0 0 0;
-  --w3a-modal__modal-container-root__padding: 0.75rem;
-  --w3a-modal__modal-container-root__box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
-  --w3a-modal__modal-container-root__background: var(--w3a-colors-colorBackground);
-
-  --w3a-modal__responsive-card__padding: 0rem;
-  --w3a-modal__responsive-card__margin: 0px;
-  --w3a-modal__card-background-border-radius: 2rem;
-  --w3a-modal__card-background-border__background: var(--w3a-grey800);
-  --w3a-modal__card-background-border__border: 1px solid var(--w3a-grey650);
-
-  /* Header + text colors */
-  --w3a-modal__label__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__value__color: var(--w3a-colors-textPrimary);
-  --w3a-modal__summary-label__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__hero-heading__color: var(--w3a-colors-textPrimary);
-  --w3a-modal__hero-subheading__color: var(--w3a-grey500);
-  --w3a-modal__hero-container__min-height: 48px;
-  --w3a-modal__error-banner__color: oklch(0.66 0.180 19);
-  --w3a-modal__error-banner__font-size: 0.9rem;
-
-  /* Icons + domain */
-  --w3a-modal__padlock-icon__color: var(--w3a-blue600);
-  --w3a-modal__block-height-icon__color: var(--w3a-blue600);
-  --w3a-modal__domain-text__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__security-details__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__rpid-wrapper__border-bottom: 1px solid var(--w3a-colors-borderPrimary);
-
-  /* Tx section */
-  --w3a-modal__action-item__background: transparent;
-  --w3a-modal__action-label__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__action-label__padding: 2px 0px;
-  --w3a-modal__action-content__padding: 0.5rem;
-  --w3a-modal__action-content__background: var(--w3a-grey700);
-  --w3a-modal__action-content__max-height: 50vh;
-  --w3a-modal__action-content-scrollbar-track__background: var(--w3a-colors-surface2);
-  --w3a-modal__action-content-scrollbar-thumb__background: var(--w3a-colors-borderPrimary);
-  --w3a-modal__action-value__color: var(--w3a-colors-textPrimary);
-  --w3a-modal__action-subheader__color: #8dd5ff;
-
-  --w3a-modal__code-block__background: var(--w3a-grey650);
-  --w3a-modal__code-block__color: var(--w3a-grey350);
-  --w3a-modal__code-block__margin: 4px 0 0 0;
-
-  --w3a-modal__method-name__color: var(--w3a-blue400);
-
-  /* Buttons */
-  --w3a-modal__btn__focus-outline-color: #3b82f6;
-  --w3a-modal__btn__color: var(--w3a-grey75);
-  --w3a-modal__btn__background-color: var(--w3a-slate700);
-  --w3a-modal__btn-hover__background-color: rgba(77, 175, 254, 0.08);
-  --w3a-modal__btn-cancel__background-color: var(--w3a-grey800);
-  --w3a-modal__btn-cancel__color: var(--w3a-grey75);
-  --w3a-modal__btn-cancel__border: 1px solid var(--w3a-grey650);
-
-  --w3a-modal__btn-confirm__background-color: var(--w3a-blue500);
-  --w3a-modal__btn-confirm__color: var(--w3a-grey50);
-  --w3a-modal__btn-confirm__border: 1px solid var(--w3a-blue400);
-  --w3a-modal__btn-confirm-hover__background-color: var(--w3a-blue600);
-
-  --w3a-modal__btn-danger__background-color: var(--w3a-red500);
-  --w3a-modal__btn-danger__border: 1px solid var(--w3a-red450);
-  --w3a-modal__btn-danger-hover__background-color: var(--w3a-red400);
-
-  --w3a-modal__loading-indicator__border-color: rgba(255,255,255,0.2);
-
+w3a-drawer-tx-confirmer,
+w3a-tx-confirm-content,
+/* Declare at document root for global availability across the iframe */
+:root {
   /* Passkey halo loading defaults (dark) */
   --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
   --w3a-modal__passkey-halo-loading__inner-background: transparent;
@@ -102,6 +17,8 @@ w3a-drawer-tx-confirmer {
   --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textSecondary);
   --w3a-modal__passkey-halo-loading-touch-icon__margin: 0.75rem;
   --w3a-modal__passkey-halo-loading-touch-icon__stroke-width: 3;
+  /* Provide explicit radius token so consumers avoid "undefined" */
+  --w3a-modal__passkey-halo-loading-icon-container__border-radius: 1.125rem;
 }
 
 /* Tx confimer variants set layout tokens */
@@ -113,64 +30,6 @@ w3a-modal-tx-confirmer {
 w3a-drawer-tx-confirmer {
   /* Drawer uses row layout for rpid */
   --w3a-modal__rpid__flex-direction: row;
-}
-
-/* Light theme overrides */
-w3a-modal-tx-confirmer[theme="light"],
-w3a-drawer-tx-confirmer[theme="light"] {
-  --w3a-colors-textPrimary: var(--w3a-grey975);
-  --w3a-colors-textSecondary: var(--w3a-grey500);
-  --w3a-colors-surface: var(--w3a-slate100);
-  --w3a-colors-surface2: var(--w3a-slate150);
-  --w3a-colors-surface3: var(--w3a-slate200);
-  --w3a-colors-borderPrimary: var(--w3a-slate300);
-  --w3a-colors-borderSecondary: var(--w3a-grey300);
-  --w3a-colors-colorBackground: var(--w3a-grey50);
-
-  /* Container background/border must override dark defaults */
-  --w3a-modal__modal-container-root__background: var(--w3a-grey50);
-  --w3a-modal__modal-container-root__border: 1px solid var(--w3a-slate300);
-  --w3a-modal__modal-container-root__box-shadow: 0 8px 18px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.08);
-
-  /* Card background/border */
-  --w3a-modal__card-background-border__background: var(--w3a-grey50);
-  --w3a-modal__card-background-border__border: 1px solid var(--w3a-slate300);
-
-  --w3a-modal__hero-subheading__color: var(--w3a-slate500); /* slate-500 */
-
-  --w3a-modal__padlock-icon__color: var(--w3a-blue600); /* blue-600 */
-  --w3a-modal__block-height-icon__color: var(--w3a-blue600);
-  --w3a-modal__domain-text__color: var(--w3a-colors-textSecondary);
-  --w3a-modal__security-details__color: var(--w3a-colors-textSecondary);
-
-  --w3a-modal__action-content__background: var(--w3a-slate150);
-  --w3a-modal__code-block__background: var(--w3a-slate150);
-  --w3a-modal__code-block__color: var(--w3a-grey500);
-  --w3a-modal__method-name__color: var(--w3a-blue600);
-
-  --w3a-modal__btn__background-color: var(--w3a-slate100);
-  --w3a-modal__btn__color: var(--w3a-grey975);
-  --w3a-modal__btn-cancel__background-color: var(--w3a-grey50);
-  --w3a-modal__btn-cancel__color: var(--w3a-grey975);
-  --w3a-modal__btn-cancel__border: 1px solid var(--w3a-slate300);
-
-  --w3a-modal__btn-confirm__background-color: var(--w3a-blue600);
-  --w3a-modal__btn-confirm__color: var(--w3a-grey50);
-  --w3a-modal__btn-confirm__border: 1px solid var(--w3a-blue400);
-  --w3a-modal__btn-confirm-hover__background-color: var(--w3a-blue700);
-
-  --w3a-modal__btn-danger__background-color: var(--w3a-red500);
-  --w3a-modal__btn-danger__border: 1px solid var(--w3a-red450);
-  --w3a-modal__btn-danger-hover__background-color: var(--w3a-red400);
-
-  --w3a-modal__loading-indicator__border-color: rgba(255,255,255,0.2);
-
-  /* Passkey halo loading defaults (light) */
-  --w3a-modal__passkey-halo-loading__ring-background: transparent 0%, #4DAFFE 10%, #4DAFFE 25%, transparent 35%;
-  --w3a-modal__passkey-halo-loading__inner-background: transparent;
-  --w3a-modal__passkey-halo-loading__inner-padding: 3px;
-  --w3a-modal__passkey-halo-loading-icon-container__background-color: var(--w3a-colors-surface);
-  --w3a-modal__passkey-halo-loading-touch-icon__color: var(--w3a-colors-textSecondary);
 }
 
 /* Structural styles for modal confirmer */
@@ -190,13 +49,37 @@ w3a-drawer-tx-confirmer[theme="light"] {
   /* Component display */
   display: block;
 
-  /* Prefer component-scoped host vars with global fallbacks */
-  font-family: var(--w3a-modal__host__font-family, var(--w3a-font-family));
-  font-size: var(--w3a-modal__host__font-size, var(--w3a-font-size-base));
+  /* Use global tokens directly */
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
   line-height: 1.5;
-  color: var(--w3a-modal__host__color, var(--w3a-colors-textPrimary));
-  background-color: var(--w3a-modal__host__background-color, var(--w3a-colors-colorBackground));
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
 
+  scrollbar-width: thin;
+  scrollbar-color: rgba(25, 25, 25, 0.2);
+}
+
+/* Light DOM host equivalents when Shadow DOM is disabled */
+w3a-modal-tx-confirmer,
+w3a-drawer-tx-confirmer,
+w3a-tx-confirm-content {
+  --w3a-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --w3a-font-size-sm: 0.8rem;
+  --w3a-font-size-base: 1rem;
+  --w3a-font-size-lg: 1.125rem;
+  --w3a-font-size-xl: 1.25rem;
+
+  --w3a-radius-md: 0.5rem;
+  --w3a-radius-lg: 0.75rem;
+  --w3a-radius-xl: 1rem;
+
+  display: block;
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
+  line-height: 1.5;
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
   scrollbar-width: thin;
   scrollbar-color: rgba(25, 25, 25, 0.2);
 }
@@ -239,31 +122,31 @@ w3a-drawer-tx-confirmer[theme="light"] {
 }
 .actions > * { min-width: 0; }
 .cancel {
-  background: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.08)));
-  color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary, #f6f7f8));
-  border: var(--w3a-modal__btn-cancel__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.14)));
+  background: none;
+  color: var(--w3a-colors-textPrimary);
+  border: 1px solid transparent;
   border-radius: 2rem;
   font: inherit; padding: 0.7em 1em; min-height: 2.75em; cursor: pointer;
 }
 .confirm {
-  background: var(--w3a-modal__btn-confirm__background-color, var(--w3a-colors-accent, #3b82f6));
-  color: var(--w3a-modal__btn-confirm__color, #fff);
-  border: var(--w3a-modal__btn-confirm__border, 1px solid transparent);
+  background: var(--w3a-colors-buttonBackground);
+  color: var(--w3a-colors-textButton, #fff);
+  border: 1px solid transparent;
   border-radius: 2rem;
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5em;
   font: inherit; padding: 0.7em 1em; min-height: 2.75em; cursor: pointer;
 }
 .confirm.loading { cursor: progress; opacity: 0.9; }
 .cancel:hover {
-  background: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-surface, rgba(255,255,255,0.12)));
-  border: var(--w3a-modal__btn-cancel-hover__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.2)));
+  background: var(--w3a-colors-hover);
+  border: 1px solid var(--w3a-colors-borderHover);
 }
 .confirm:hover {
-  background: var(--w3a-modal__btn-confirm-hover__background-color, var(--w3a-colors-accent, #3b82f6));
-  border: var(--w3a-modal__btn-confirm-hover__border, 1px solid transparent);
+  background: var(--w3a-colors-buttonBackground);
+  border: 1px solid transparent;
 }
 .cancel:focus-visible, .confirm:focus-visible {
-  outline: 2px solid var(--w3a-modal__btn__focus-outline-color, var(--w3a-colors-accent, #3b82f6));
+  outline: 2px solid var(--w3a-colors-focus, var(--w3a-blue400));
   outline-offset: 3px;
 }
 w3a-modal-tx-confirmer {
@@ -284,12 +167,12 @@ w3a-modal-tx-confirmer {
   /* Component display */
   display: block;
 
-  /* Prefer component-scoped host vars with global fallbacks */
-  font-family: var(--w3a-modal__host__font-family, var(--w3a-font-family));
-  font-size: var(--w3a-modal__host__font-size, var(--w3a-font-size-base));
+  /* Use global tokens directly */
+  font-family: var(--w3a-font-family);
+  font-size: var(--w3a-font-size-base);
   line-height: 1.5;
-  color: var(--w3a-modal__host__color, var(--w3a-colors-textPrimary));
-  background-color: var(--w3a-modal__host__background-color, var(--w3a-colors-colorBackground));
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-colorBackground);
 
   scrollbar-width: thin;
   scrollbar-color: rgba(25, 25, 25, 0.2);
@@ -306,11 +189,11 @@ w3a-modal-tx-confirmer {
   display: grid;
   justify-content: center;
   z-index: 2147483647;
-  background: var(--w3a-modal__modal-backdrop-blur__background, rgba(0, 0, 0, 0.8));
-  backdrop-filter: var(--w3a-modal__modal-backdrop-blur__backdrop-filter, blur(0px));
+  background: oklch(0.2 0.01 240 / 0.2);
+  backdrop-filter: blur(0px);
   /* animation: var(--w3a-modal__modal-backdrop-blur__animation, backdrop-opacity 60ms ease-in); */
   opacity: 1;
-  will-change: var(--w3a-modal__modal-backdrop-blur__will-change, opacity, backdrop-filter);
+  will-change: opacity;
 }
 
 @keyframes backdrop-opacity {
@@ -339,15 +222,14 @@ w3a-modal-tx-confirmer {
   display: grid;
   gap: 0.5rem;
   position: relative;
-  border: var(--w3a-modal__modal-container-root__border, 1px solid var(--w3a-colors-borderPrimary, rgba(255,255,255,0.12)));
-  border-radius: var(--w3a-modal__modal-container-root__border-radius, 2rem);
-  margin: var(--w3a-modal__modal-container-root__margin, 0px);
-  padding: var(--w3a-modal__modal-container-root__padding, 0.75rem);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  border-radius: 2rem;
+  margin: 1rem 0 0 0;
+  padding: 0.75rem;
   height: auto;
   overflow: hidden;
-  box-shadow: var(--w3a-modal__modal-container-root__box-shadow, 0 20px 60px rgba(0, 0, 0, 0.6), 0 8px 24px rgba(0, 0, 0, 0.4));
-  background: var(--w3a-modal__modal-container-root__background, var(--w3a-colors-colorBackground, #111));
-  backdrop-filter: blur(4px);
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
+  background: var(--w3a-colors-colorBackground);
   animation: fadeIn 32ms ease-in;
   will-change: opacity, transform;
 }
@@ -364,10 +246,10 @@ w3a-modal-tx-confirmer {
 }
 
 .card-background-border {
-  border-radius: var(--w3a-modal__card-background-border-radius, 2rem);
-  background: var(--w3a-modal__card-background-border__background, oklch(0.25 0.012 240));
-  border: var(--w3a-modal__card-background-border__border, 1px solid var(--w3a-slate600));
-  margin: var(--w3a-modal__card-background-border__margin, 0px);
+  border-radius: 2rem;
+  background: var(--w3a-colors-colorBackground);
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  margin: 0px;
 }
 
 .modal-container-root .rpid {
@@ -378,11 +260,11 @@ w3a-modal-tx-confirmer {
   gap: 2px;
   margin-top: 2px;
   font-size: 0.7rem;
-  color: var(--w3a-modal__label__color);
+  color: var(--w3a-colors-textSecondary);
   font-weight: 400;
 }
 .domain-text {
-  color: var(--w3a-modal__domain-text__color, rgba(255, 255, 255, 0.6));
+  color: var(--w3a-colors-textSecondary);
 }
 
 /* Hero section with halo and headings */
@@ -395,7 +277,7 @@ w3a-modal-tx-confirmer {
   display: flex;
 }
 .hero-container {
-  min-height: var(--w3a-modal__hero-container__min-height, none);
+  min-height: 48px;
   display: grid;
   align-items: flex-start;
   margin-right: 1rem;
@@ -405,13 +287,13 @@ w3a-modal-tx-confirmer {
   margin: 0;
   font-size: var(--w3a-font-size-lg);
   font-weight: 500;
-  color: var(--w3a-modal__hero-heading__color, var(--w3a-colors-textPrimary));
+  color: var(--w3a-colors-textPrimary);
   text-align: start;
 }
 .hero-subheading {
   margin: 0;
   font-size: 0.9rem;
-  color: var(--w3a-modal__hero-subheading__color);
+  color: var(--w3a-colors-textSecondary);
   text-align: start;
 }
 
@@ -429,12 +311,12 @@ w3a-modal-tx-confirmer {
 }
 .summary-row > * { min-width: 0; }
 .summary-label {
-  color: var(--w3a-modal__summary-label__color);
+  color: var(--w3a-colors-textSecondary);
   font-size: var(--w3a-font-size-sm);
   font-weight: 500;
 }
 .summary-value {
-  color: var(--w3a-modal__value__color);
+  color: var(--w3a-colors-textPrimary);
   font-size: var(--w3a-font-size-sm);
   font-weight: 500;
   word-break: break-word;
@@ -457,7 +339,7 @@ w3a-modal-tx-confirmer {
 .action-row {
   display: grid;
   /* Content-aware label column that adapts to larger text sizes */
-  grid-template-columns: var(--w3a-modal__action-row__grid-template-columns, minmax(7.5em, max-content) 1fr);
+  grid-template-columns: minmax(7.5em, max-content) 1fr;
   align-items: center;
   gap: var(--w3a-spacing-sm);
   padding: 0;
@@ -473,63 +355,63 @@ w3a-modal-tx-confirmer {
 
 .action-label {
   font-family: var(--w3a-font-family);
-  color: var(--w3a-modal__action-label__color);
+  color: var(--w3a-colors-textSecondary);
   font-size: var(--w3a-font-size-sm);
   line-height: 1.5;
-  font-weight: var(--w3a-modal__action-label__font-weight, 500);
+  font-weight: 500;
   letter-spacing: 0.02em;
-  padding: var(--w3a-modal__action-label__padding, 2px 0px);
-  margin: var(--w3a-modal__action-label__margin, 0px);
+  padding: 2px 0px;
+  margin: 0px;
 }
 
 .action-content {
-  padding: var(--w3a-modal__action-content__padding, 0.5rem);
+  padding: 0.5rem;
   font-size: var(--w3a-font-size-sm);
   line-height: 1.4;
-  max-height: var(--w3a-modal__action-content__max-height, 50vh);
+  max-height: 50vh;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
-  background: var(--w3a-modal__action-content__background, #242628);
+  background: var(--w3a-colors-surface2);
   border-radius: 12px;
 }
 
 /* Prefer dynamic viewport units when supported (iOS Safari address bar) */
 @supports (height: 1dvh) {
   .action-content {
-    max-height: var(--w3a-modal__action-content__max-height, 50dvh);
+    max-height: 50dvh;
   }
 }
 
 .action-content-min-height {
-  min-height: var(--w3a-modal__action-content__min-height, 200px);
+  min-height: 200px;
 }
 
 .action-content::-webkit-scrollbar {
-  width: var(--w3a-modal__action-content__scrollbar-width, 6px);
+  width: 6px;
 }
 
 .action-content::-webkit-scrollbar-track {
-  background: var(--w3a-modal__action-content-scrollbar-track__background);
+  background: var(--w3a-colors-surface2);
   border-radius: var(--w3a-radius-md);
 }
 
 .action-content::-webkit-scrollbar-thumb {
-  background: var(--w3a-modal__action-content-scrollbar-thumb__background);
+  background: var(--w3a-colors-borderPrimary);
   border-radius: var(--w3a-radius-md);
 }
 
 .action-value {
-  color: var(--w3a-modal__action-value__color);
+  color: var(--w3a-colors-textPrimary);
   word-break: break-word;
-  font-weight: var(--w3a-modal__action-value__font-weight, 500);
+  font-weight: 500;
   font-size: var(--w3a-font-size-sm);
 }
 
 .action-subitem {
-  margin-bottom: var(--w3a-modal__action-subitem__margin-bottom, var(--w3a-spacing-sm));
-  padding: 0rem 0rem 0rem var(--w3a-modal__action-subitem__padding, var(--w3a-spacing-md));
-  background: var(--w3a-modal__action-subitem__background, unset);
+  margin-bottom: var(--w3a-spacing-sm);
+  padding: 0rem 0rem 0rem var(--w3a-spacing-md);
+  background: unset;
   position: relative;
 }
 
@@ -540,16 +422,16 @@ w3a-modal-tx-confirmer {
 .action-subheader {
   font-size: var(--w3a-font-size-sm);
   font-weight: 600;
-  color: var(--w3a-modal__action-subheader__color);
+  color: var(--w3a-colors-accent, var(--w3a-blue400));
 }
 
 .code-block {
-  background: var(--w3a-modal__code-block__background);
-  border: var(--w3a-modal__code-block__border, 1px solid transparent);
-  border-radius: var(--w3a-modal__code-block__border-radius, var(--w3a-radius-md));
+  background: var(--w3a-colors-surface2);
+  border: 1px solid transparent;
+  border-radius: var(--w3a-radius-md);
   /* dimensions */
-  margin: var(--w3a-modal__code-block__margin, 4px 0px 0px 0px);
-  padding: var(--w3a-modal__code-block__padding, var(--w3a-spacing-sm));
+  margin: 4px 0px 0px 0px;
+  padding: var(--w3a-spacing-sm);
   min-height: calc(1.4em * 3);
   max-height: var(--w3a-modal__code-block__max-height, 400px);
   height: auto;
@@ -558,7 +440,7 @@ w3a-modal-tx-confirmer {
   /* text styles */
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: var(--w3a-modal__code-block__font-size, var(--w3a-font-size-sm));
-  color: var(--w3a-modal__code-block__color);
+  color: var(--w3a-colors-textSecondary);
   line-height: 1.4;
   /* pretty print JSON and text wrap */
   white-space: pre;
@@ -571,8 +453,8 @@ w3a-modal-tx-confirmer {
 
 .method-name {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-weight: var(--w3a-modal__method-name__font-weight, 600);
-  color: var(--w3a-modal__method-name__color);
+  font-weight: 600;
+  color: var(--w3a-blue400);
 }
 
 /* Button styles */
@@ -586,16 +468,16 @@ w3a-modal-tx-confirmer {
 }
 
 .error-banner {
-  color: var(--w3a-modal__error-banner__color, #ef4444);
-  font-size: var(--w3a-modal__error-banner__font-size, 0.9rem);
+  color: var(--w3a-colors-error, var(--w3a-red400));
+  font-size: 0.9rem;
   text-align: var(--w3a-modal__error-banner__text-align, start);
   font-weight: 500;
 }
 
 .btn {
-  background-color: var(--w3a-modal__btn__background-color);
+  background-color: var(--w3a-colors-surface);
   box-shadow: var(--w3a-modal__btn__box-shadow, none);
-  color: var(--w3a-modal__btn__color);
+  color: var(--w3a-colors-textPrimary);
   text-align: center;
   border-radius: 2rem;
   margin-right: 1px;
@@ -626,51 +508,51 @@ w3a-modal-tx-confirmer {
 }
 
 .btn:hover {
-  background-color: var(--w3a-modal__btn-hover__background-color);
+  background-color: var(--w3a-colors-hover);
   box-shadow: var(--w3a-modal__btn-hover__box-shadow, none);
 }
 
 .btn:active {
-  background-color: var(--w3a-modal__btn-active__background-color);
+  background-color: var(--w3a-colors-active);
   /* Default to a subtle scale-down on press; overridable via CSS var */
   transform: var(--w3a-modal__btn__active-transform, scale(0.98));
 }
 
 .btn-cancel {
   box-shadow: none;
-  color: var(--w3a-modal__btn-cancel__color, var(--w3a-colors-textPrimary));
-  background-color: var(--w3a-modal__btn-cancel__background-color, var(--w3a-colors-surface));
-  border: var(--w3a-modal__btn-cancel__border, none);
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-surface);
+  border: 1px solid var(--w3a-colors-borderPrimary);
 }
 
 .btn-cancel:hover {
-  color: var(--w3a-modal__btn-cancel-hover__color, var(--w3a-colors-textPrimary));
-  background-color: var(--w3a-modal__btn-cancel-hover__background-color, var(--w3a-colors-borderPrimary));
-  border: var(--w3a-modal__btn-cancel-hover__border, none);
+  color: var(--w3a-colors-textPrimary);
+  background-color: var(--w3a-colors-hover);
+  border: 1px solid var(--w3a-colors-borderHover);
 }
 
 .btn-confirm {
-  background-color: var(--w3a-modal__btn-confirm__background-color);
-  color: var(--w3a-modal__btn-confirm__color);
-  border: var(--w3a-modal__btn-confirm__border, none);
+  background-color: var(--w3a-colors-buttonBackground);
+  color: var(--w3a-colors-textButton, #fff);
+  border: 1px solid transparent;
 }
 
 .btn-confirm:hover {
-  background-color: var(--w3a-modal__btn-confirm-hover__background-color);
-  border: var(--w3a-modal__btn-confirm-hover__border, none);
+  background-color: var(--w3a-colors-buttonBackground);
+  border: 1px solid transparent;
 }
 
 .btn-danger {
-  background-color: var(--w3a-modal__btn-danger__background-color, oklch(0.66 0.180 19)); /* red500 */
-  color: var(--w3a-modal__btn-danger__color, #ffffff);
-  border: var(--w3a-modal__btn-danger__border, none);
+  background-color: var(--w3a-red500);
+  color: #ffffff;
+  border: 1px solid var(--w3a-red450);
 }
 .btn-danger:hover {
-  background-color: var(--w3a-modal__btn-danger-hover__background-color, oklch(0.74 0.166 19)); /* red400 */
+  background-color: var(--w3a-red400);
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--w3a-modal__btn__focus-outline-color);
+  outline: 2px solid var(--w3a-colors-focus, var(--w3a-blue400));
   outline-offset: 3px;
   box-shadow: var(--w3a-modal__btn__focus-box-shadow, 0 0 0 3px oklch(0.55 0.18 240 / 0.12));
 }
@@ -698,13 +580,13 @@ w3a-modal-tx-confirmer {
 @media (max-width: 640px) {
   .responsive-card {
     /* Make modal 1rem narrower on small/zoomed viewports */
-    max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100vw - 2rem));
+    max-width: calc(100vw - 2rem);
   }
 
   /* Override with dvw on capable browsers for Safari correctness */
   @supports (width: 1dvw) {
     .responsive-card {
-      max-width: var(--w3a-modal__mobile__responsive-card__max-width, calc(100dvw - 2rem));
+      max-width: calc(100dvw - 2rem);
     }
   }
 
@@ -715,18 +597,18 @@ w3a-modal-tx-confirmer {
 
   .summary-row {
     grid-template-columns: 1fr;
-    gap: var(--w3a-modal__responsive-row__gap, 0.25rem);
+    gap: 0.25rem;
     padding: calc(var(--w3a-spacing-sm) + var(--w3a-spacing-xs));
   }
 
   .summary-label {
     font-size: var(--w3a-font-size-sm);
-    margin-bottom: var(--w3a-modal__responsive-label__margin-bottom, 2px);
+    margin-bottom: 2px;
   }
 
   .action-row {
-    grid-template-columns: var(--w3a-modal__action-row__template-columns, 100px 1fr);
-    gap: var(--w3a-modal__responsive-action-row__gap, 0.25rem);
+    grid-template-columns: 100px 1fr;
+    gap: 0.25rem;
     padding: var(--w3a-spacing-sm);
   }
 
@@ -741,32 +623,32 @@ w3a-modal-tx-confirmer {
 
   .action-content {
     font-size: var(--w3a-font-size-sm);
-    max-height: var(--w3a-modal__responsive-action-content__max-height, 100px);
+    max-height: 100px;
   }
 }
 
 /* Tablet adjustments */
 @media (min-width: 641px) and (max-width: 1024px) {
   .responsive-card {
-    max-width: var(--w3a-modal__tablet__responsive-card__max-width, 500px);
+    max-width: 500px;
   }
 }
 
 /* Large desktop adjustments */
 @media (min-width: 1025px) {
   .responsive-card {
-    max-width: var(--w3a-modal__desktop__responsive-card__max-width, 600px);
+    max-width: 600px;
   }
 }
 
 /* Loading indicator styles */
 .loading-indicator {
   display: inline-block;
-  width: var(--w3a-modal__loading-indicator__width, 20px);
-  height: var(--w3a-modal__loading-indicator__height, 20px);
-  border: 2px solid var(--w3a-modal__loading-indicator__border-color, rgba(255,255,255,0.2));
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(255,255,255,0.2);
   border-radius: 50%;
-  border-top-color: var(--w3a-modal__loading-indicator__border-top-color, rgba(255,255,255,0.95));
+  border-top-color: rgba(255,255,255,0.95);
   animation: spin 1s ease-in-out infinite;
   margin-right: var(--w3a-spacing-sm);
 }
@@ -782,11 +664,11 @@ w3a-modal-tx-confirmer {
 
 /* Fallback support for browsers without backdrop-filter */
 @supports not (backdrop-filter: blur(8px)) {
-  .row { background: var(--w3a-modal__row__background); }
-  .action-item { background: var(--w3a-modal__action-item__background); }
-  .action-content { background: var(--w3a-modal__action-content__background); }
-  .btn { background: var(--w3a-modal__btn__background-color); }
-  .btn-confirm { background: var(--w3a-modal__btn-confirm__background-color); }
+  .row { background: transparent; }
+  .action-item { background: transparent; }
+  .action-content { background: var(--w3a-colors-surface2); }
+  .btn { background: var(--w3a-colors-surface); }
+  .btn-confirm { background: var(--w3a-colors-buttonBackground); }
 }
 
 /* Drawer variant styles (extracted from viewer-drawer.ts) */
@@ -828,8 +710,8 @@ w3a-drawer {
   cursor: pointer;
 }
 .drawer-btn.primary {
-  background: var(--w3a-btn-primary, #4DAFFE);
-  color: var(--w3a-btn-text, #0b1220);
+  background: var(--w3a-btn-primary, var(--w3a-colors-buttonBackground, #4DAFFE));
+  color: var(--w3a-btn-text, var(--w3a-colors-textButton, #0b1220));
   border-color: transparent;
 }
 .footer-actions {
@@ -851,8 +733,8 @@ w3a-drawer {
   overflow: visible;
   border-radius: 1rem;
   z-index: 1;
-  padding: var(--w3a-modal__responsive-card__padding, 0rem);
-  margin: var(--w3a-modal__responsive-card__margin, 0px);
+  padding: 0rem;
+  margin: 0px;
 }
 .margin-left1 {
   margin-left: 1rem;
@@ -870,7 +752,7 @@ w3a-drawer {
   font-size: 0.7rem;
   overflow-wrap: anywhere;
   hyphens: auto;
-  color: var(--w3a-modal__label__color);
+  color: var(--w3a-colors-textSecondary);
   font-weight: 400;
 }
 .secure-indicator {
@@ -884,7 +766,7 @@ w3a-drawer {
   height: 1em;
   margin-inline-end: 0.5em;
   flex: none;
-  color: var(--w3a-modal__padlock-icon__color, oklch(0.66 0.180 255));
+  color: var(--w3a-blue600);
 }
 
 .security-details {
@@ -892,13 +774,14 @@ w3a-drawer {
   display: flex;
   align-items: center;
   justify-content: center;
+  color: var(--w3a-colors-textSecondary);
 }
 .block-height-icon {
   width: 1em;
   height: 1em;
   margin-inline-end: 0.5em;
   flex: none;
-  color: var(--w3a-modal__block-height-icon__color, oklch(0.66 0.180 255));
+  color: var(--w3a-blue600);
 }
 .divider {
   width: 1px; height: 12px;
