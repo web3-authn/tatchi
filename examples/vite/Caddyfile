@@ -20,7 +20,7 @@ relay-server.localhost {
 		output stdout
 		format console
 	}
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy localhost:3000
 }
 
 # --- mDNS (.local) access from iPhone/macOS ---
@@ -49,5 +49,5 @@ pta-m4.local:8444 {
 		output stdout
 		format console
 	}
-	reverse_proxy 127.0.0.1:3000
+	reverse_proxy localhost:3000
 }
