@@ -133,7 +133,7 @@ export class PasskeyManager {
    */
   async initWalletIframe(nearAccountId?: string): Promise<void> {
     // Warm local critical resources (NonceManager, IndexedDB, workers) regardless of iframe usage
-    try { await this.webAuthnManager.warmCriticalResources(nearAccountId); } catch {}
+    await this.webAuthnManager.warmCriticalResources(nearAccountId);
 
     const walletIframeConfig = this.configs.iframeWallet;
     const walletOrigin = walletIframeConfig?.walletOrigin;
@@ -219,7 +219,7 @@ export class PasskeyManager {
   ): Promise<RegistrationResult> {
     // Route via wallet iframe when available so WebAuthn ceremony runs inside host
     if (this.iframeRouter) {
-      try { await options?.beforeCall?.(); } catch {}
+      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         // Mirror wallet-host initialization locally so preferences (theme, confirm config)
@@ -227,11 +227,11 @@ export class PasskeyManager {
         try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
         // Opportunistically warm resources (non-blocking)
         try { void this.warmCriticalResources(nearAccountId); } catch {}
-        try { await options?.afterCall?.(true, res); } catch {}
+        await options?.afterCall?.(true, res);
         return res;
       } catch (err: any) {
-        try { options?.onError?.(err); } catch {}
-        try { await options?.afterCall?.(false, err); } catch {}
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -253,7 +253,7 @@ export class PasskeyManager {
     confirmationConfigOverride?: ConfirmationConfig
   ): Promise<RegistrationResult> {
     if (this.iframeRouter) {
-      try { await options?.beforeCall?.(); } catch {}
+      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.registerPasskey({
           nearAccountId,
@@ -263,11 +263,11 @@ export class PasskeyManager {
         // Ensure local manager knows the current user
         try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
         try { void this.warmCriticalResources(nearAccountId); } catch {}
-        try { await options?.afterCall?.(true, res); } catch {}
+        await options?.afterCall?.(true, res);
         return res;
       } catch (err: any) {
-        try { options?.onError?.(err); } catch {}
-        try { await options?.afterCall?.(false, err); } catch {}
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -292,16 +292,16 @@ export class PasskeyManager {
     if (this.iframeRouter) {
       // Keep local preferences in sync
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
-      try { await options?.beforeCall?.(); } catch {}
+      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         // Best-effort warm-up after successful login (non-blocking)
         try { void this.warmCriticalResources(nearAccountId); } catch {}
-        try { await options?.afterCall?.(true, res); } catch {}
+        await options?.afterCall?.(true, res);
         return res;
       } catch (err: any) {
-        try { options?.onError?.(err); } catch {}
-        try { await options?.afterCall?.(false, err); } catch {}
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -363,7 +363,7 @@ export class PasskeyManager {
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
       void this.iframeRouter.setConfirmBehavior(behavior).catch(() => {});
       // Mirror locally so UI reads from preferences stay in sync immediately
-      try { this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior); } catch {}
+      this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
       return;
     }
     this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
@@ -377,7 +377,7 @@ export class PasskeyManager {
       // Fire and forget; avoid unhandled rejections in consumers
       void this.iframeRouter.setConfirmationConfig(config).catch(() => {});
       // Mirror locally for immediate UI coherence
-      try { this.webAuthnManager.getUserPreferences().setConfirmationConfig(config); } catch {}
+      this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
       return;
     }
     this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
@@ -386,7 +386,7 @@ export class PasskeyManager {
   setUserTheme(theme: 'dark' | 'light'): void {
     if (this.iframeRouter) {
       // Ensure local UI updates immediately while propagating to wallet host
-      try { void this.webAuthnManager.getUserPreferences().setUserTheme(theme); } catch {}
+      void this.webAuthnManager.getUserPreferences().setUserTheme(theme);
       void this.iframeRouter.setTheme(theme);
       return;
     }
@@ -490,7 +490,7 @@ export class PasskeyManager {
   }): Promise<ActionResult> {
     // cross-origin iframe mode
     if (this.iframeRouter) {
-      try { await args.options?.beforeCall?.(); } catch {}
+      await args.options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.executeAction({
           nearAccountId: args.nearAccountId,
@@ -501,11 +501,11 @@ export class PasskeyManager {
             ...({ waitUntil: args.options?.waitUntil })
           }
         });
-        try { await args.options?.afterCall?.(true, res); } catch {}
+        await args.options?.afterCall?.(true, res);
         return res;
       } catch (err: any) {
-        try { args.options?.onError?.(err); } catch {}
-        try { await args.options?.afterCall?.(false, err); } catch {}
+        await args.options?.onError?.(err);
+        await args.options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -671,7 +671,7 @@ export class PasskeyManager {
   }): Promise<VerifyAndSignTransactionResult[]> {
     // If a service iframe is initialized, route signing via wallet origin
     if (this.iframeRouter) {
-      try { await options?.beforeCall?.(); } catch {}
+      await options?.beforeCall?.();
       try {
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
         const result = await this.iframeRouter.signTransactionsWithActions({
@@ -680,11 +680,11 @@ export class PasskeyManager {
           options: { onEvent: options?.onEvent }
         });
         const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? result : [];
-        try { await options?.afterCall?.(true, arr); } catch {}
+        await options?.afterCall?.(true, arr);
         return arr;
       } catch (err: any) {
-        try { options?.onError?.(err); } catch {}
-        try { await options?.afterCall?.(false, err); } catch {}
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -729,7 +729,7 @@ export class PasskeyManager {
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
     if (this.iframeRouter) {
-      try { await options?.beforeCall?.(); } catch {}
+      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.sendTransaction({
           signedTransaction,
@@ -740,12 +740,12 @@ export class PasskeyManager {
               : {})
           }
         });
-        try { await options?.afterCall?.(true, res); } catch {}
+        await options?.afterCall?.(true, res);
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
         return res;
       } catch (err: any) {
-        try { options?.onError?.(err); } catch {}
-        try { await options?.afterCall?.(false, err); } catch {}
+        await options?.onError?.(err);
+        await options?.afterCall?.(false, err);
         throw err;
       }
     }
@@ -804,12 +804,12 @@ export class PasskeyManager {
         recipient: args.params.recipient,
         state: args.params.state,
       };
-      try { await args.options?.beforeCall?.(); } catch {}
+      await args.options?.beforeCall?.();
       const result = await this.iframeRouter.signNep413Message({
         ...payload,
         options: { onEvent: args.options?.onEvent }
       });
-      try { await args.options?.afterCall?.(true, result); } catch {}
+      await args.options?.afterCall?.(true, result);
       // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
       return result as SignNEP413MessageResult;
     }
@@ -863,11 +863,9 @@ export class PasskeyManager {
       });
     }
     // If walletOrigin is configured but iframe is not ready, warn: recovery should run under wallet.*
-    try {
-      if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
-        console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
-      }
-    } catch {}
+    if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
+      console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
+    }
     // Local orchestration using AccountRecoveryFlow for a single-call UX
     await options?.beforeCall?.();
     try {
@@ -918,7 +916,7 @@ export class PasskeyManager {
       });
     }
     // Local fallback: keep internal flow reference for cancellation
-    try { this.activeDeviceLinkFlow?.cancel(); } catch {}
+    this.activeDeviceLinkFlow?.cancel();
     const flow = new LinkDeviceFlow(this.getContext(), {
       onEvent: args?.onEvent,
     });
@@ -935,7 +933,7 @@ export class PasskeyManager {
       await this.iframeRouter.stopDevice2LinkingFlow();
       return;
     }
-    try { this.activeDeviceLinkFlow?.cancel(); } catch {}
+    this.activeDeviceLinkFlow?.cancel();
     this.activeDeviceLinkFlow = null;
   }
 

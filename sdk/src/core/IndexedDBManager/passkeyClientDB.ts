@@ -321,13 +321,8 @@ export class PasskeyClientDBManager {
   }
 
   async hasPasskeyCredential(nearAccountId: AccountId): Promise<boolean> {
-    try {
-      const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
-      return !!authenticators[0]?.credentialId;
-    } catch (error) {
-      console.warn('Error checking passkey credential:', error);
-      return false;
-    }
+    const authenticators = await this.getAuthenticatorsByUser(nearAccountId);
+    return !!authenticators[0]?.credentialId;
   }
 
   /**

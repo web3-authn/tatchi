@@ -60,7 +60,7 @@ const __ensureTreeDefinition = [__IframeButtonKeep];
 import './WalletHostElements';
 import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mounter-styles';
 
-try { defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor); } catch {}
+defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor);
 
 export type EnsurePasskeyManager = () => void;
 export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
@@ -81,7 +81,7 @@ export function setupLitElemMounter(opts: {
   let uidCounter = 0;
 
   // Ensure global host styles via stylesheet (no inline style attributes)
-  try { ensureHostBaseStyles(); } catch {}
+  ensureHostBaseStyles();
 
   const pickRoot = (selector?: string | null): HTMLElement => {
     try {
@@ -130,51 +130,47 @@ export function setupLitElemMounter(opts: {
     const id = payload?.id || `w3a-ui-${++uidCounter}`;
     // If already mounted with same id, perform an update instead of mounting a duplicate
     if (mountedById.has(id)) {
-      try { updateUiComponent({ id, props: payload?.props || {} }); } catch {}
+      updateUiComponent({ id, props: payload?.props || {} });
       return id;
     }
     const el = document.createElement(def.tag) as HTMLElement & Record<string, unknown>;
-    try { el.style.display = 'inline-block'; } catch {}
+    el.style.display = 'inline-block';
     const props = { ...(def.propDefaults || {}), ...(payload?.props || {}) } as Record<string, unknown>;
     applyProps(el, props);
 
     // Wire event bindings to run pm actions and optionally post results
     if (Array.isArray(def.eventBindings)) {
       for (const b of def.eventBindings) {
-        try {
-          el.addEventListener(b.event, async () => {
-            try {
-              // Generic bridge for other UI events if needed in the future
-              try { opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } }); } catch {}
+        el.addEventListener(b.event, async () => {
+          try {
+            // Generic bridge for other UI events if needed in the future
+            opts.postToParent({ type: 'WALLET_UI_EVENT', payload: { id, key, event: b.event } });
 
-              const args: Record<string, unknown> = {};
-              if (b.argsFromProps) {
-                for (const [argName, propKey] of Object.entries(b.argsFromProps)) {
-                  args[argName] = (el as unknown as Record<string, unknown>)[propKey];
-                }
+            const args: Record<string, unknown> = {};
+            if (b.argsFromProps) {
+              for (const [argName, propKey] of Object.entries(b.argsFromProps)) {
+                args[argName] = (el as unknown as Record<string, unknown>)[propKey];
               }
-              const result = await runPmAction(b.action, args);
-              if (b.resultMessageType) {
-                try { opts.postToParent({ type: b.resultMessageType, payload: { ok: true, id, result } }); } catch {}
-              }
-            } catch (err: unknown) {
-              const type = b.resultMessageType || 'UI_ACTION_RESULT';
-              try { opts.postToParent({ type, payload: { ok: false, id, error: errorMessage(err) } }); } catch {}
             }
-          });
-        } catch {}
+            const result = await runPmAction(b.action, args);
+            if (b.resultMessageType) {
+              opts.postToParent({ type: b.resultMessageType, payload: { ok: true, id, result } });
+            }
+          } catch (err: unknown) {
+            const type = b.resultMessageType || 'UI_ACTION_RESULT';
+            opts.postToParent({ type, payload: { ok: false, id, error: errorMessage(err) } });
+          }
+        });
       }
     }
 
     // Wire prop bindings (e.g., externalConfirm)
     if (Array.isArray(def.propBindings)) {
       for (const pb of def.propBindings) {
-        try {
-          (el as unknown as Record<string, unknown>)[pb.prop] = async (args: Record<string, unknown>) => {
-            const res = await runPmAction(pb.action, args);
-            return res;
-          };
-        } catch {}
+        (el as unknown as Record<string, unknown>)[pb.prop] = async (args: Record<string, unknown>) => {
+          const res = await runPmAction(pb.action, args);
+          return res;
+        };
       }
     }
 
@@ -182,10 +178,14 @@ export function setupLitElemMounter(opts: {
     if (def.bridgeProps) {
       const { successProp, cancelProp, messageType } = def.bridgeProps;
       if (successProp) {
-        try { (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => { try { opts.postToParent({ type: messageType, payload: { ok: true, id, result } }); } catch {} }; } catch {}
+        (el as unknown as Record<string, unknown>)[successProp] = (result: unknown) => {
+          opts.postToParent({ type: messageType, payload: { ok: true, id, result } });
+        };
       }
       if (cancelProp) {
-        try { (el as unknown as Record<string, unknown>)[cancelProp] = () => { try { opts.postToParent({ type: messageType, payload: { ok: false, id, cancelled: true } }); } catch {} }; } catch {}
+        (el as unknown as Record<string, unknown>)[cancelProp] = () => {
+          opts.postToParent({ type: messageType, payload: { ok: false, id, cancelled: true } });
+        };
       }
     }
 
@@ -203,18 +203,16 @@ export function setupLitElemMounter(opts: {
       if ([top, left, width, height].every((n) => Number.isFinite(n))) {
         const container = document.createElement('div');
         // Mark container and apply anchored geometry via stylesheet
-        try { markContainer(container); } catch {}
-        try { setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport'); } catch {}
+        markContainer(container);
+        setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport');
         container.appendChild(el);
         // Bridge pointer enter/leave to parent so it can manage lifecycle without flicker
-        try {
-          container.addEventListener('pointerenter', () => {
-            try { opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } }); } catch {}
-          });
-          container.addEventListener('pointerleave', () => {
-            try { opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } }); } catch {}
-          });
-        } catch {}
+        container.addEventListener('pointerenter', () => {
+          opts.postToParent({ type: 'WALLET_UI_ANCHOR_ENTER', payload: { id } });
+        });
+        container.addEventListener('pointerleave', () => {
+          opts.postToParent({ type: 'WALLET_UI_ANCHOR_LEAVE', payload: { id } });
+        });
         root.appendChild(container);
         mountedById.set(id, container);
         return id;
@@ -243,7 +241,7 @@ export function setupLitElemMounter(opts: {
         const width = Number((vr as any).width);
         const height = Number((vr as any).height);
         if ([top, left, width, height].every((n) => Number.isFinite(n))) {
-          try { setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport'); } catch {}
+          setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport');
         }
       }
       // Update child element props (mode, label, disabled, etc.)
@@ -263,7 +261,7 @@ export function setupLitElemMounter(opts: {
   const unmountUiComponent = (payload: { id: string }) => {
     const el = mountedById.get(payload.id);
     if (!el) return false;
-    try { el.remove(); } catch {}
+    el.remove();
     mountedById.delete(payload.id);
     return true;
   };
@@ -271,24 +269,22 @@ export function setupLitElemMounter(opts: {
   const messageHandlers: Record<string, (payload: unknown) => void> = {
     WALLET_SET_CONFIG: (payload) => {
       const data = payload as Record<string, unknown>;
-      try { updateWalletConfigs(data); } catch {}
+      updateWalletConfigs(data);
       // uiRegistry is no longer read from configs; register via WALLET_UI_REGISTER_TYPES or PM_SET_CONFIG
     },
     WALLET_UI_REGISTER_TYPES: (payload) => {
-      try {
-        if (isObject(payload)) {
-          uiRegistry = { ...uiRegistry, ...(payload as WalletUIRegistry) };
-        }
-      } catch {}
+      if (isObject(payload)) {
+        uiRegistry = { ...uiRegistry, ...(payload as WalletUIRegistry) };
+      }
     },
     WALLET_UI_MOUNT: (payload) => {
-      try { mountUiComponent(payload as { key: string }); } catch {}
+      mountUiComponent(payload as { key: string });
     },
     WALLET_UI_UPDATE: (payload) => {
-      try { updateUiComponent(payload as { id: string; props?: Record<string, unknown> }); } catch {}
+      updateUiComponent(payload as { id: string; props?: Record<string, unknown> });
     },
     WALLET_UI_UNMOUNT: (payload) => {
-      try { unmountUiComponent(payload as { id: string }); } catch {}
+      unmountUiComponent(payload as { id: string });
     },
   };
 
@@ -297,8 +293,6 @@ export function setupLitElemMounter(opts: {
     if (!type) return;
     const handler = messageHandlers[type as keyof typeof messageHandlers];
     if (!handler) return;
-    try {
-      handler(evt?.data?.payload ?? evt?.data ?? {});
-    } catch {}
+    handler(evt?.data?.payload ?? evt?.data ?? {});
   });
 }

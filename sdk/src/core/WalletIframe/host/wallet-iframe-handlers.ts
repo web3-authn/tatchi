@@ -182,7 +182,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         if (respondIfCancelled(req.requestId)) return;
         const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
           accountId,
-          onEvent: (ev: ProgressPayload) => { try { postProgress(req.requestId, ev); } catch {} },
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
         });
         if (respondIfCancelled(req.requestId)) return;
         post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: { flowId: req.requestId, qrData, qrCodeDataURL } } });
@@ -273,11 +273,11 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         if (pm.exportNearKeypairWithUI) {
           void pm
             .exportNearKeypairWithUI(nearAccountId, { variant, theme })
-            .catch((_err: unknown) => { try { postToParent?.({ type: 'WALLET_UI_CLOSED' }); } catch {} });
+            .catch((_err: unknown) => { postToParent?.({ type: 'WALLET_UI_CLOSED' }); });
         }
         post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
       } catch (e: unknown) {
-        try { postToParent?.({ type: 'WALLET_UI_CLOSED' }); } catch {}
+        postToParent?.({ type: 'WALLET_UI_CLOSED' });
         post({
           type: 'ERROR',
           requestId: req.requestId,
