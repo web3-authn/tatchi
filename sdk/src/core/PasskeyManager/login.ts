@@ -113,7 +113,6 @@ async function handleLoginUnlockVRF(
   const { webAuthnManager } = context;
 
   try {
-
     // Step 1: Get VRF credentials and authenticators, and validate them
     const {
       userData,

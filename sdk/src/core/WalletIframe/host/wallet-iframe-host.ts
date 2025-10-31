@@ -175,10 +175,8 @@ function postToParent(message: unknown): void {
 function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boolean {
   // Only accept CONNECT from our direct parent window and only once.
   if (hasAdoptedPort) return false;
-  try {
-    const src = (e as MessageEvent).source as Window | null;
-    if (src !== window.parent) return false;
-  } catch {}
+  const src = (e as MessageEvent).source as Window | null;
+  if (src !== window.parent) return false;
   return true;
 }
 
@@ -243,36 +241,32 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       },
     } as PasskeyManagerConfigs;
     // Configure SDK embedded asset base for Lit modal/embedded components
-    try {
-      const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
-      // Default to serving embedded assets from this wallet origin under /sdk/
-      const defaultRoot = (() => {
-        try {
-          const base = new URL('/sdk/', window.location.origin).toString();
-          return base.endsWith('/') ? base : base + '/';
-        } catch { return '/sdk/'; }
-      })();
-      let resolvedBase = defaultRoot;
-      if (isString(assetsBaseUrl)) {
-        try {
-          const u = new URL(assetsBaseUrl, window.location.origin);
-          // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
-          if (u.origin === window.location.origin) {
-            const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
-            resolvedBase = norm;
-          }
-        } catch {}
-      }
-      setEmbeddedBase(resolvedBase);
-    } catch {}
+    const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
+    // Default to serving embedded assets from this wallet origin under /sdk/
+    const defaultRoot = (() => {
+      try {
+        const base = new URL('/sdk/', window.location.origin).toString();
+        return base.endsWith('/') ? base : base + '/';
+      } catch { return '/sdk/'; }
+    })();
+    let resolvedBase = defaultRoot;
+    if (isString(assetsBaseUrl)) {
+      try {
+        const u = new URL(assetsBaseUrl, window.location.origin);
+        // Only honor provided assetsBaseUrl if it matches this wallet origin to avoid CORS
+        if (u.origin === window.location.origin) {
+          const norm = u.toString().endsWith('/') ? u.toString() : (u.toString() + '/');
+          resolvedBase = norm;
+        }
+      } catch {}
+    }
+    setEmbeddedBase(resolvedBase);
     nearClient = null; passkeyManager = null;
     // Forward UI registry to iframe-lit-elem-mounter if provided
-    try {
-      const uiRegistry = payload?.uiRegistry;
-      if (uiRegistry && isObject(uiRegistry)) {
-        window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
-      }
-    } catch {}
+    const uiRegistry = payload?.uiRegistry;
+    if (uiRegistry && isObject(uiRegistry)) {
+      window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
+    }
     post({ type: 'PONG', requestId });
     return;
   }

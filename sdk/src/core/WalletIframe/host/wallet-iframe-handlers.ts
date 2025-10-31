@@ -182,7 +182,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         if (respondIfCancelled(req.requestId)) return;
         const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
           accountId,
-          onEvent: (ev: ProgressPayload) => { try { postProgress(req.requestId, ev); } catch {} },
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
         });
         if (respondIfCancelled(req.requestId)) return;
         post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result: { flowId: req.requestId, qrData, qrCodeDataURL } } });
@@ -192,10 +192,8 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     },
 
     PM_STOP_DEVICE2_LINKING_FLOW: async (req: Req<'PM_STOP_DEVICE2_LINKING_FLOW'>) => {
-      try {
-        const pm = getPasskeyManager() as PM;
-        await pm.stopDevice2LinkingFlow();
-      } catch {}
+      const pm = getPasskeyManager() as PM;
+      await pm.stopDevice2LinkingFlow().catch(() => undefined);
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
@@ -203,16 +201,15 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getPasskeyManager() as PM;
       const { signedTransaction, options } = (req.payload || {} as { signedTransaction?: unknown; options?: SendTransactionHooksOptions });
       let st: SignedTransaction | unknown = signedTransaction;
-      try {
-        if (isPlainSignedTransactionLike(st)) {
-          const s = st as { transaction: unknown; signature: unknown };
-          st = SignedTransaction.fromPlain({
-            transaction: s.transaction,
-            signature: s.signature,
-            borsh_bytes: extractBorshBytesFromPlainSignedTx(st as Parameters<typeof extractBorshBytesFromPlainSignedTx>[0]),
-          });
+      if (isPlainSignedTransactionLike(st)) {
+        const s = st as { transaction: unknown; signature: unknown };
+        try {
+          const borsh = extractBorshBytesFromPlainSignedTx(st as Parameters<typeof extractBorshBytesFromPlainSignedTx>[0]);
+          st = SignedTransaction.fromPlain({ transaction: s.transaction, signature: s.signature, borsh_bytes: borsh });
+        } catch {
+          // If conversion fails, pass through original value
         }
-      } catch {}
+      }
       const result = await pm.sendTransaction({
         signedTransaction: st as SignedTransaction,
         options: {
@@ -269,21 +266,12 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_EXPORT_NEAR_KEYPAIR_UI: async (req: Req<'PM_EXPORT_NEAR_KEYPAIR_UI'>) => {
       const pm = getPasskeyManager() as PM;
       const { nearAccountId, variant, theme } = req.payload!;
-      try {
-        if (pm.exportNearKeypairWithUI) {
-          void pm
-            .exportNearKeypairWithUI(nearAccountId, { variant, theme })
-            .catch((_err: unknown) => { try { postToParent?.({ type: 'WALLET_UI_CLOSED' }); } catch {} });
-        }
-        post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
-      } catch (e: unknown) {
-        try { postToParent?.({ type: 'WALLET_UI_CLOSED' }); } catch {}
-        post({
-          type: 'ERROR',
-          requestId: req.requestId,
-          payload: { code: 'EXPORT_NEAR_KEYPAIR_UI_FAILED', message: errorMessage(e) }
-        });
+      if (pm.exportNearKeypairWithUI) {
+        void pm
+          .exportNearKeypairWithUI(nearAccountId, { variant, theme })
+          .catch((_err: unknown) => { postToParent?.({ type: 'WALLET_UI_CLOSED' }); });
       }
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_GET_RECENT_LOGINS: async (req: Req<'PM_GET_RECENT_LOGINS'>) => {
@@ -294,51 +282,35 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_PREFETCH_BLOCKHEIGHT: async (req: Req<'PM_PREFETCH_BLOCKHEIGHT'>) => {
       const pm = getPasskeyManager() as PM;
-      try { await pm.prefetchBlockheight(); } catch {}
+      await pm.prefetchBlockheight().catch(() => undefined);
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_SET_CONFIRM_BEHAVIOR: async (req: Req<'PM_SET_CONFIRM_BEHAVIOR'>) => {
       const pm = getPasskeyManager() as PM;
       const { behavior } = req.payload!;
-      try {
-        pm.setConfirmBehavior(behavior);
-        post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
-      } catch (e: unknown) {
-        post({
-          type: 'ERROR',
-          requestId: req.requestId,
-          payload: { code: 'SET_CONFIRM_BEHAVIOR_FAILED', message: errorMessage(e) }
-        });
-      }
+      pm.setConfirmBehavior(behavior);
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_SET_CONFIRMATION_CONFIG: async (req: Req<'PM_SET_CONFIRMATION_CONFIG'>) => {
       const pm = getPasskeyManager() as PM;
       const { nearAccountId } = (req.payload || {});
-      try {
-        const incoming = (req.payload?.config || {}) as Record<string, unknown>;
-        let patch: Record<string, unknown> = { ...incoming };
-        if (nearAccountId) {
-          try {
-            const loginState = await pm.getLoginState(nearAccountId);
+      const incoming = (req.payload?.config || {}) as Record<string, unknown>;
+      let patch: Record<string, unknown> = { ...incoming };
+      if (nearAccountId) {
+        await pm.getLoginState(nearAccountId)
+          .then((loginState) => {
             const existing = (loginState?.userData?.preferences?.confirmationConfig || {}) as Record<string, unknown>;
             patch = { ...existing, ...incoming };
-          } catch {}
-        }
-        const base: ConfirmationConfig = pm.getConfirmationConfig();
-        // Normalize at callsite if available; otherwise set directly
-        if (typeof pm.setConfirmationConfig === 'function') {
-          pm.setConfirmationConfig({ ...base, ...patch });
-        }
-        post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
-      } catch (e: unknown) {
-        post({
-          type: 'ERROR',
-          requestId: req.requestId,
-          payload: { code: 'SET_CONFIRMATION_CONFIG_FAILED', message: errorMessage(e) }
-        });
+          })
+          .catch(() => undefined);
       }
+      const base: ConfirmationConfig = pm.getConfirmationConfig();
+      if (typeof pm.setConfirmationConfig === 'function') {
+        pm.setConfirmationConfig({ ...base, ...patch });
+      }
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
     },
 
     PM_GET_CONFIRMATION_CONFIG: async (req: Req<'PM_GET_CONFIRMATION_CONFIG'>) => {
@@ -357,15 +329,13 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
     PM_HAS_PASSKEY: async (req: Req<'PM_HAS_PASSKEY'>) => {
       const pm = getPasskeyManager() as PM;
       const { nearAccountId } = req.payload!;
-      try {
-        // Soft probe to warm caches in some environments (optional)
-        const ctx = (pm.getContext?.() as any) || {};
-        const web = ctx?.webAuthnManager;
-        if (web) {
-          try { await web.getUser(toAccountId(nearAccountId)); } catch {}
-          try { await web.getAuthenticatorsByUser(toAccountId(nearAccountId)); } catch {}
-        }
-      } catch {}
+      // Soft probe to warm caches in some environments (optional)
+      const ctx = (pm.getContext?.() as any) || {};
+      const web = ctx?.webAuthnManager;
+      if (web) {
+        await web.getUser(toAccountId(nearAccountId)).catch(() => undefined);
+        await web.getAuthenticatorsByUser(toAccountId(nearAccountId)).catch(() => undefined);
+      }
       const result = await pm.hasPasskeyCredential(toAccountId(nearAccountId));
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },

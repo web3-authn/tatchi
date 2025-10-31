@@ -9,68 +9,54 @@ import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensur
  * - Establishes a default embedded asset base (if not already set)
  */
 export function bootstrapTransparentHost(): void {
-  try {
-    (globalThis as unknown as { global?: unknown }).global =
-      (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown);
-  } catch {}
-  try {
-    (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process =
-      (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} };
-  } catch {}
+  (globalThis as unknown as { global?: unknown }).global =
+    (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown);
+  (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process =
+    (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} };
 
   if (window.location.origin === 'null') {
-    try {
-      // Helpful in misconfigured cross-origin or COOP/COEP situations
-      // (use direct '*' targeting before we know parent origin)
-      window.parent?.postMessage(
-        { type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href },
-        '*'
-      );
-      // Keep a console trace locally too
-      // eslint-disable-next-line no-console
-      console.warn(
-        '[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.'
-      );
-    } catch {}
+    // Helpful in misconfigured cross-origin or COOP/COEP situations
+    // (use direct '*' targeting before we know parent origin)
+    window.parent?.postMessage(
+      { type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href },
+      '*'
+    );
+    // Keep a console trace locally too
+    // eslint-disable-next-line no-console
+    console.warn(
+      '[WalletHost] iframe is running with opaque (null) origin. Check COEP/CORP headers and ensure navigation succeeded.'
+    );
   }
 
   ensureTransparentSurface();
 
   // Early lifecycle signal for observers in the parent
-  try {
-    window.parent?.postMessage({ type: 'SERVICE_HOST_BOOTED' }, '*');
-    window.parent?.postMessage(
-      { type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href },
-      '*'
-    );
-  } catch {}
+  window.parent?.postMessage({ type: 'SERVICE_HOST_BOOTED' }, '*');
+  window.parent?.postMessage(
+    { type: 'SERVICE_HOST_DEBUG_ORIGIN', origin: window.location.origin, href: window.location.href },
+    '*'
+  );
 
   // Establish a default embedded assets base as soon as this module loads.
   // This points to the directory containing the compiled SDK files (e.g., '/sdk/').
-  try {
-    const here = new URL('.', import.meta.url).toString();
-    const norm = here.endsWith('/') ? here : here + '/';
-    if (!getEmbeddedBase()) setEmbeddedBase(norm);
-  } catch {}
+  const here = new URL('.', import.meta.url).toString();
+  const norm = here.endsWith('/') ? here : here + '/';
+  if (!getEmbeddedBase()) setEmbeddedBase(norm);
 
   // Lightweight click telemetry for debugging embedded UI interactions
-  try {
-    window.addEventListener(
-      'click',
-      (e) => {
-        try {
-          const t = e.target as HTMLElement;
-          const name = t?.tagName?.toLowerCase() || 'unknown';
-          const cls = (t as any)?.className || '';
-          window.parent?.postMessage({ type: 'SERVICE_HOST_CLICK', name, cls }, '*');
-        } catch {}
-      },
-      true
-    );
-  } catch {}
+  window.addEventListener(
+    'click',
+    (e) => {
+      const t = e.target as HTMLElement;
+      const name = t?.tagName?.toLowerCase() || 'unknown';
+      const cls = (t as any)?.className || '';
+      window.parent?.postMessage({ type: 'SERVICE_HOST_CLICK', name, cls }, '*');
+    },
+    true
+  );
 
   // Dev-only: warn when w3a-* custom elements remain un-upgraded
-  try { setupDevUnupgradedObserver(); } catch {}
+  setupDevUnupgradedObserver();
 }
 
 /**
@@ -79,10 +65,10 @@ export function bootstrapTransparentHost(): void {
 export function ensureTransparentSurface(): void {
   const apply = () => {
     const doc = document;
-    try { doc.documentElement.classList.add('w3a-transparent'); } catch {}
-    try { doc.body?.classList.add('w3a-transparent'); } catch {}
-    try { doc.documentElement.classList.remove('dark'); } catch {}
-    try { doc.body?.classList.remove('dark'); } catch {}
+    doc.documentElement.classList.add('w3a-transparent');
+    doc.body?.classList.add('w3a-transparent');
+    doc.documentElement.classList.remove('dark');
+    doc.body?.classList.remove('dark');
   };
 
   if (document.readyState === 'loading') {
@@ -100,60 +86,48 @@ export function ensureTransparentSurface(): void {
  */
 function setupDevUnupgradedObserver(): void {
   const isDev = (() => {
-    try {
-      const env = (globalThis as any)?.process?.env?.NODE_ENV;
-      if (env && env !== 'production') return true;
-    } catch {}
-    try {
-      const h = window.location.hostname || '';
-      if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
-    } catch {}
+    const env = (globalThis as any)?.process?.env?.NODE_ENV;
+    if (env && env !== 'production') return true;
+    const h = window.location.hostname || '';
+    if (/localhost|127\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)\.(?:0|[1-9]\d?)|\.local(?:host)?$/i.test(h)) return true;
     return false;
   })();
   if (!isDev) return;
 
   const pending = new WeakMap<Element, number>();
   const schedule = (el: Element) => {
-    try {
-      const tag = (el.tagName || '').toLowerCase();
-      if (!tag.startsWith('w3a-')) return;
-      if (customElements.get(tag)) return; // already defined
-      if (pending.has(el)) return;
-      const id = window.setTimeout(async () => {
-        pending.delete(el);
-        if (customElements.get(tag)) return; // defined in the meantime
-        try { await ensureKnownW3aElement(tag); } catch {}
-        if (!customElements.get(tag)) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[W3A][Dev] <${tag}> not upgraded after 250ms. Ensure a dynamic import runs before createElement. See LitComponents/README-lit-elements.md (Never Break Again).`
-          );
-        }
-      }, 250);
-      pending.set(el, id);
-    } catch {}
+    const tag = (el.tagName || '').toLowerCase();
+    if (!tag.startsWith('w3a-')) return;
+    if (customElements.get(tag)) return; // already defined
+    if (pending.has(el)) return;
+    const id = window.setTimeout(async () => {
+      pending.delete(el);
+      if (customElements.get(tag)) return; // defined in the meantime
+      await ensureKnownW3aElement(tag);
+      if (!customElements.get(tag)) {
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[W3A][Dev] <${tag}> not upgraded after 250ms. Ensure a dynamic import runs before createElement. See LitComponents/README-lit-elements.md (Never Break Again).`
+        );
+      }
+    }, 250);
+    pending.set(el, id);
   };
 
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
-      try {
-        for (const node of Array.from(m.addedNodes)) {
-          if (!(node instanceof Element)) continue;
-          schedule(node);
-          try {
-            const nodes = (node as Element).querySelectorAll('*');
-            for (const n of Array.from(nodes)) schedule(n as Element);
-          } catch {}
-        }
-      } catch {}
+      for (const node of Array.from(m.addedNodes)) {
+        if (!(node instanceof Element)) continue;
+        schedule(node);
+        const nodes = (node as Element).querySelectorAll('*');
+        for (const n of Array.from(nodes)) schedule(n as Element);
+      }
     }
   });
 
-  try { observer.observe(document.documentElement || document.body, { childList: true, subtree: true }); } catch {}
+  observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
 
   // Seed: schedule existing nodes
-  try {
-    const nodes = document.querySelectorAll('*');
-    for (const n of Array.from(nodes)) schedule(n as Element);
-  } catch {}
+  const nodes = document.querySelectorAll('*');
+  for (const n of Array.from(nodes)) schedule(n as Element);
 }

@@ -77,9 +77,7 @@ export async function createAccountAndRegisterWithRelayServer(
     const serializedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serialized);
     // Normalize transports to an array (avoid null)
     if (!Array.isArray(serializedCredential?.response?.transports)) {
-      try {
-        serializedCredential.response.transports = [];
-      } catch {}
+      serializedCredential.response.transports = [];
     }
 
     // Prepare data for atomic endpoint

@@ -84,7 +84,6 @@ export async function handleTransactionSigningFlow(
     });
 
     const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: false });
-    if (!dualPrfOutputs.chacha20PrfOutput) throw new Error('Failed to extract PRF output from credential');
     const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
     // 6) Respond; keep nonces reserved for worker to use
@@ -104,6 +103,14 @@ export async function handleTransactionSigningFlow(
       const e = toError(err);
       return e.name === 'NotAllowedError' || e.name === 'AbortError';
     })();
+    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
+    const msg = String((toError(err))?.message || err || '');
+    if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
+      // Ensure UI is closed and nonces released, then rethrow
+      nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+      closeModalSafely(false, confirmHandle);
+      throw err;
+    }
     if (cancelled) {
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }

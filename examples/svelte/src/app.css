@@ -1,0 +1,4 @@
+html, body, #app { height: 100%; margin: 0; }
+body { font-family: system-ui, Arial, sans-serif; }
+h1 { font-size: 1.25rem; }
+

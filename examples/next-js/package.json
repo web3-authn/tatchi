@@ -1,0 +1,22 @@
+{
+  "name": "@tatchi-xyz/examples-next",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others --names app,wallet,caddy \"next dev -p 4200\" \"vite --config wallet.vite.config.ts --mode wallet --port 5174\" \"sh run_caddy.sh\"",
+    "dev:app": "next dev -p 4200",
+    "dev:wallet": "vite --config wallet.vite.config.ts --mode wallet --port 5174",
+    "build": "next build",
+    "start": "next start -p 4200"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@tatchi-xyz/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "vite": "^5.4.0"
+  }
+}

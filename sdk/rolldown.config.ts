@@ -794,26 +794,6 @@ const configs = [
     plugins: prodPlugins,
   }
   ,
-  // Web Components (bundle all deps for vanilla HTML usage)
-  {
-    input: {
-      'profile-settings': 'src/web-components/profile-settings.ts',
-      'index': 'src/web-components/index.ts',
-    },
-    output: {
-      dir: `${BUILD_PATHS.BUILD.ESM}/web-components`,
-      format: 'esm',
-      entryFileNames: '[name].js',
-      sourcemap: true,
-    },
-    external: embeddedExternal,
-    resolve: {
-      alias: aliasConfig,
-    },
-    // Minification is controlled via CLI flags; no config option in current Rolldown types
-    plugins: prodPlugins,
-  }
-  ,
   // Vite plugin ESM build (source moved to src/plugins)
   {
     input: 'src/plugins/vite.ts',

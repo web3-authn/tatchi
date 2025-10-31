@@ -1,0 +1,21 @@
+next.example.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy 127.0.0.1:4200
+}
+
+wallet.example.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy 127.0.0.1:5174
+}
+
+relay-server.localhost {
+	tls internal
+	encode gzip
+	log {
+		output stdout
+		format console
+	}
+	reverse_proxy localhost:3000
+}

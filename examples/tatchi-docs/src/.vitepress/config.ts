@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiDevServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -127,7 +127,7 @@ export default defineConfig({
       dedupe: ['react', 'react-dom'],
     },
     plugins: [
-      tatchiDev({
+      tatchiDevServer({
         mode: 'self-contained',
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',

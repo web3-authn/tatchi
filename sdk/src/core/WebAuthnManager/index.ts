@@ -111,7 +111,7 @@ export class WebAuthnManager {
    * Delegates to TouchIdPrompt to centralize rpId selection logic.
    */
   getRpId(): string {
-    try { return this.touchIdPrompt.getRpId(); } catch { return ''; }
+    return this.touchIdPrompt.getRpId();
   }
 
   /**
@@ -119,12 +119,10 @@ export class WebAuthnManager {
    * Safe to call multiple times; errors are non-fatal.
    */
   prewarmSignerWorkers(): void {
-    try {
-      if (typeof window === 'undefined' || typeof (window as any).Worker === 'undefined') return;
-      // Avoid noisy SecurityError in cross‑origin dev: only prewarm when same‑origin
-      if (this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return;
-      this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
-    } catch {}
+    if (typeof window === 'undefined' || typeof (window as any).Worker === 'undefined') return;
+    // Avoid noisy SecurityError in cross‑origin dev: only prewarm when same‑origin
+    if (this.workerBaseOrigin && this.workerBaseOrigin !== window.location.origin) return;
+    this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
   }
 
   /**
@@ -135,26 +133,24 @@ export class WebAuthnManager {
    * - Pre-warm signer workers in the background
    */
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
-    try {
-      // Initialize current user first (best-effort)
-      if (nearAccountId) {
-        await this.initializeCurrentUser(
-          toAccountId(nearAccountId),
-          this.nearClient,
-        );
-      }
+    // Initialize current user first (best-effort)
+    if (nearAccountId) {
+      await this.initializeCurrentUser(
+        toAccountId(nearAccountId),
+        this.nearClient,
+      ).catch(() => undefined);
+    }
 
-      // Prefetch latest block/nonce context
-      try { await this.nonceManager.prefetchBlockheight(this.nearClient); } catch {}
+    // Prefetch latest block/nonce context (best-effort)
+    await this.nonceManager.prefetchBlockheight(this.nearClient).catch(() => undefined);
 
-      // Best-effort: open IndexedDB and warm key data for the account
-      if (nearAccountId) {
-        try { await IndexedDBManager.getUserWithKeys(toAccountId(nearAccountId)); } catch {}
-      }
+    // Best-effort: open IndexedDB and warm key data for the account
+    if (nearAccountId) {
+      await IndexedDBManager.getUserWithKeys(toAccountId(nearAccountId)).catch(() => undefined);
+    }
 
-      // Warm signer workers in background
-      try { this.prewarmSignerWorkers(); } catch {}
-    } catch {}
+    // Warm signer workers in background
+    this.prewarmSignerWorkers();
   }
 
   getAuthenticationCredentialsSerialized({
@@ -381,7 +377,7 @@ export class WebAuthnManager {
       }
 
       // Warm up signer workers after a successful unlock to minimize first-use latency
-      try { this.signerWorkerManager.preWarmWorkerPool().catch(() => {}); } catch {}
+      this.signerWorkerManager.preWarmWorkerPool().catch(() => {});
 
       return { success: true };
 
@@ -572,39 +568,27 @@ export class WebAuthnManager {
     nearAccountId: AccountId,
     nearClient?: NearClient,
   ): Promise<void> {
-    try {
-      // Set as last user for future sessions
-      await this.setLastUser(nearAccountId);
-      // Set as current user for immediate use
-      this.userPreferencesManager.setCurrentUser(nearAccountId);
-      // Ensure confirmation preferences are loaded before callers read them
-      try { await this.userPreferencesManager.reloadUserSettings(); } catch {}
+    // Set as last user for future sessions
+    await this.setLastUser(nearAccountId);
+    // Set as current user for immediate use
+    this.userPreferencesManager.setCurrentUser(nearAccountId);
+    // Ensure confirmation preferences are loaded before callers read them (best-effort)
+    await this.userPreferencesManager.reloadUserSettings().catch(() => undefined);
 
-      // Initialize NonceManager with the selected user's public key (if available)
-      try {
-        let userData = await IndexedDBManager.clientDB.getUser(nearAccountId);
-        // Backward-compat fallback: if not found, try last user entry
-        if (!userData) {
-          try { userData = await IndexedDBManager.clientDB.getLastUser(); } catch {}
-        }
-        if (userData && userData.clientNearPublicKey) {
-          this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
-        }
-      } catch {
-        // NonceManager init is best-effort; signing path can still fetch context lazily
-      }
+    // Initialize NonceManager with the selected user's public key (best-effort)
+    const userData = await IndexedDBManager.clientDB
+      .getUser(nearAccountId)
+      .catch(() => null)
+      .then(async (u) => (u ? u : await IndexedDBManager.clientDB.getLastUser().catch(() => null)));
+    if (userData && userData.clientNearPublicKey) {
+      this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+    }
 
-      // Prefetch block height for better UX (non-fatal if it fails and nearClient is provided)
-      if (nearClient) {
-        try {
-          await this.nonceManager.prefetchBlockheight(nearClient);
-        } catch (prefetchErr) {
-          console.debug('Nonce prefetch after authentication state initialization failed (non-fatal):', prefetchErr);
-        }
-      }
-    } catch (initErr) {
-      console.warn('Failed to initialize current user:', initErr);
-      throw initErr;
+    // Prefetch block height for better UX (non-fatal if it fails and nearClient is provided)
+    if (nearClient) {
+      await this.nonceManager
+        .prefetchBlockheight(nearClient)
+        .catch((prefetchErr) => console.debug('Nonce prefetch after authentication state initialization failed (non-fatal):', prefetchErr));
     }
   }
 

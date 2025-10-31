@@ -50,6 +50,12 @@ export type DevHeadersOptions = {
 
 const requireCjs = createRequire(import.meta.url)
 
+/**
+ * Normalize a path base used to mount SDK assets or routes.
+ * - Ensures a single leading slash
+ * - Removes trailing slash (except for root)
+ * Used by both app and wallet-iframe dev servers when composing routes.
+ */
 function normalizeBase(p?: string, fallback = '/sdk'): string {
   let out = (p || fallback).trim()
   if (!out.startsWith('/')) out = '/' + out
@@ -58,6 +64,11 @@ function normalizeBase(p?: string, fallback = '/sdk'): string {
   return out
 }
 
+/**
+ * Resolve the absolute filesystem directory that contains the built SDK ESM files.
+ * Falls back to @tatchi-xyz/sdk/dist when resolution fails.
+ * Used by both app and wallet-iframe dev servers for serving /sdk/*.
+ */
 function resolveSdkDistRoot(explicit?: string): string {
   if (explicit) return path.resolve(explicit)
   // Resolve the installed package (works with workspace + node_modules)
@@ -75,6 +86,10 @@ function resolveSdkDistRoot(explicit?: string): string {
   }
 }
 
+/**
+ * Infer and set a proper Content-Type header for a given file path.
+ * Used by both app and wallet-iframe dev servers while streaming assets.
+ */
 function setContentType(res: any, filePath: string) {
   const ext = path.extname(filePath)
   switch (ext) {
@@ -101,6 +116,10 @@ function setContentType(res: any, filePath: string) {
   }
 }
 
+/**
+ * Return the first candidate path that exists and is a file.
+ * Helper for robust /sdk/* asset resolution on dev servers (app and wallet).
+ */
 function tryFile(...candidates: string[]): string | undefined {
   for (const file of candidates) {
     try {
@@ -143,6 +162,12 @@ const WALLET_SURFACE_CSS = [
   '',
 ].join('\n')
 
+/**
+ * Dev plugin: serve SDK assets under a stable base (default: /sdk) with COEP/CORP and permissive CORS.
+ * Where it runs: both the app dev server and the wallet-iframe dev server.
+ * - App server: lets host pages and Lit components load SDK CSS/JS locally.
+ * - Wallet server: used by /wallet-service to load wallet-iframe-host.js and related CSS/JS.
+ */
 export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
@@ -160,37 +185,37 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     configureServer(server) {
       // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
       server.middlewares.use((req: any, res: any, next: any) => {
-        try {
-          const url = (req.url || '').split('?')[0]
-          if (url === configuredBase + '/wallet-shims.js') {
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-            // Align with SDK asset headers so COEP/CORP environments can import
-            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Dev-only: provide permissive CORS so cross-origin localhost works
-            res.setHeader('Access-Control-Allow-Origin', '*')
-            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            res.setHeader('Access-Control-Allow-Credentials', 'true')
-            res.end(WALLET_SHIM_SOURCE)
-            return
-          }
-          if (url === configuredBase + '/wallet-service.css') {
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'text/css; charset=utf-8')
-            // Important: provide CORP for cross‑origin CSS so COEP documents can load it
-            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Dev-only: provide permissive CORS so cross-origin localhost works
-            res.setHeader('Access-Control-Allow-Origin', '*')
-            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            res.setHeader('Access-Control-Allow-Credentials', 'true')
-            res.end(WALLET_SURFACE_CSS)
-            return
-          }
-        } catch {}
+        const url = (req.url || '').split('?')[0]
+        if (url === configuredBase + '/wallet-shims.js') {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+          // Align with SDK asset headers so COEP/CORP environments can import
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          const origin = (req.headers && (req.headers.origin as string)) || '*'
+          res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.end(WALLET_SHIM_SOURCE)
+          return
+        }
+        if (url === configuredBase + '/wallet-service.css') {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/css; charset=utf-8')
+          // Important: provide CORP for cross‑origin CSS so COEP documents can load it
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          const origin = (req.headers && (req.headers.origin as string)) || '*'
+          res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.end(WALLET_SURFACE_CSS)
+          return
+        }
         next()
       })
       // Optional debug route to confirm resolution
@@ -224,27 +249,28 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           return
         }
 
-        try {
-          setContentType(res, candidate)
-          // SDK assets need COEP headers to work in wallet iframe with COEP enabled
-          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Dev-only: provide permissive CORS so cross-origin localhost works
-          res.setHeader('Access-Control-Allow-Origin', '*')
-          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-          res.setHeader('Access-Control-Allow-Credentials', 'true')
-          const stream = fs.createReadStream(candidate)
-          stream.on('error', () => next())
-          stream.pipe(res)
-        } catch (e) {
-          next()
-        }
+        setContentType(res, candidate)
+        // SDK assets need COEP headers to work in wallet iframe with COEP enabled
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+        // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+        const origin = (req.headers && (req.headers.origin as string)) || '*'
+        res.setHeader('Access-Control-Allow-Origin', origin)
+        res.setHeader('Vary', 'Origin')
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        const stream = fs.createReadStream(candidate)
+        stream.on('error', () => next())
+        stream.pipe(res)
       })
     },
   }
 }
 
+/**
+ * Dev plugin: expose the wallet service HTML route (default: /wallet-service) that links only external CSS/JS.
+ * Where it runs: wallet-iframe dev server (wallet origin). In `tatchiDev` this is used for modes 'self-contained' and 'wallet-only'.
+ */
 export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin {
   const walletServicePath = normalizeBase(opts.walletServicePath, '/wallet-service')
   const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
@@ -292,20 +318,22 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
         // Enable cross-origin isolation to make module workers + WASM more reliable in Safari
         // These headers mirror the SDK asset responses and help ensure the iframe document
         // participates in the same agent cluster required by some engines.
-        try {
-          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
-          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-          // Allow SDK assets to load across origins when needed
-          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Explicitly allow features used by the wallet service itself
-          res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)`)
-        } catch {}
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        // Allow SDK assets to load across origins when needed
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+        // Explicitly allow features used by the wallet service itself
+        res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)`)
         res.end(html)
       })
     },
   }
 }
 
+/**
+ * Dev plugin: force the correct `.wasm` MIME type (application/wasm) for any served wasm file.
+ * Where it runs: both app and wallet-iframe dev servers.
+ */
 export function tatchiWasmMime(): VitePlugin {
   return {
     name: 'tatchi:wasm-mime',
@@ -324,6 +352,13 @@ export function tatchiWasmMime(): VitePlugin {
   }
 }
 
+/**
+ * Dev plugin: add Permissions-Policy (delegating WebAuthn + clipboard), COOP/COEP/CORP, and optional dev CSP.
+ * Where it runs: both app and wallet-iframe dev servers.
+ * Notes:
+ * - Uses Structured Header format for Permissions-Policy (double-quoted origins).
+ * - Wallet dev CSP can be toggled strict/compatible via opts.devCSP.
+ */
 export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
@@ -434,7 +469,18 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   }
 }
 
-export function tatchiDev(options: Web3AuthnDevOptions = {}): VitePlugin {
+/**
+ * Dev plugin (composed): convenience entry that wires SDK server, WASM MIME, optional headers,
+ * and (in wallet modes) the wallet service route.
+ * Where it runs:
+ * - App server: mode 'front-only' (or 'self-contained' when serving wallet pages on the same origin).
+ * - Wallet-iframe server: modes 'wallet-only' or 'self-contained'.
+ */
+/**
+ * Compose dev plugins for serving SDK assets, wallet service HTML and dev headers.
+ * External-facing entry for configuring either the app or wallet-iframe dev server.
+ */
+export function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
   const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -471,13 +517,16 @@ export function tatchiDev(options: Web3AuthnDevOptions = {}): VitePlugin {
   }
 }
 
-// Named exports for advanced composition
-export default tatchiDev
-
 // === Build-time helper: emit Cloudflare Pages/Netlify _headers ===
 // This plugin writes a _headers file into Vite's outDir with COOP/COEP and a
 // Permissions-Policy delegating WebAuthn to the configured wallet origin.
 // It is a no-op if a _headers file already exists (to avoid overriding app settings).
+/**
+ * Build-time plugin: writes a Cloudflare Pages/Netlify-compatible `_headers` file into Vite's `outDir`.
+ * Adds COOP/COEP/CORP and a Permissions-Policy delegating WebAuthn to the configured wallet origin.
+ * Where it runs: build for either the app or a static wallet host (not used in dev).
+ * Notes: no-ops if `_headers` already exists in `outDir` (to avoid overriding platform config).
+ */
 export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { accessControlAllowOrigin?: string } } = {}): VitePlugin {
   const walletOriginRaw = opts.walletOrigin ?? process.env.VITE_WALLET_ORIGIN
   const walletOrigin = walletOriginRaw?.trim()
@@ -501,7 +550,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
     enforce: 'post' as const,
     // Capture the resolved outDir
     configResolved(config: any) {
-      try { outDir = (config?.build?.outDir as string) || outDir } catch {}
+      outDir = (config?.build?.outDir as string) || outDir
     },
     generateBundle() {
       try {

@@ -91,10 +91,9 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
   const pmIframeRef = useRef<WalletIframeRouter | null>(null);
 
-  // Opportunistically warm critical resources (VRF workers, IndexedDB) and
-  // kick off iframe handshake/login state fetch as early as possible.
+  // Initialize and warm via consolidated initWalletIframe()
   useEffect(() => {
-    try { void passkeyManager.warmCriticalResources(); } catch {}
+    try { void passkeyManager.initWalletIframe(); } catch {}
   }, [passkeyManager]);
 
   // Initialize wallet service via PasskeyManagerIframe when walletOrigin is provided
@@ -111,14 +110,14 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
         }
 
         await passkeyManager.initWalletIframe();
-        const client = passkeyManager.getServiceClient();
+        const client = (passkeyManager as any).getWalletIframeClient?.() || (passkeyManager as any).getServiceClient?.();
         if (!client) { setWalletIframeConnected(false); return; }
         if (cancelled) return;
         setWalletIframeConnected(client.isReady());
 
         offReady = client.onReady?.(() => setWalletIframeConnected(true));
 
-        offVrf = client.onVrfStatusChanged?.(async (status) => {
+        offVrf = client.onVrfStatusChanged?.(async (status: { active: boolean; nearAccountId: string | null; sessionDuration?: number }) => {
           if (cancelled) return;
           if (status?.active && status?.nearAccountId) {
             const state = await client.getLoginState(status.nearAccountId);

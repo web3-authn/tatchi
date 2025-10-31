@@ -110,13 +110,8 @@ export class PasskeyNearKeysDBManager {
    * Verify key storage by attempting retrieval
    */
   async verifyKeyStorage(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
-    try {
-      const retrievedKey = await this.getEncryptedKey(nearAccountId, deviceNumber);
-      return !!retrievedKey;
-    } catch (error) {
-      console.error('PasskeyNearKeysDB: verifyKeyStorage - Error:', error);
-      return false;
-    }
+    const retrievedKey = await this.getEncryptedKey(nearAccountId, deviceNumber);
+    return !!retrievedKey;
   }
 
   /**
@@ -128,16 +123,14 @@ export class PasskeyNearKeysDBManager {
       await db.delete(this.config.storeName, [nearAccountId, deviceNumber]);
     } else {
       // Delete all keys for this account if device unspecified
-      try {
-        const tx = db.transaction(this.config.storeName, 'readwrite');
-        const idx = tx.store.index('nearAccountId');
-        let cursor = await idx.openCursor(IDBKeyRange.only(nearAccountId));
-        while (cursor) {
-          await tx.store.delete(cursor.primaryKey);
-          cursor = await cursor.continue();
-        }
-        await tx.done;
-      } catch {}
+      const tx = db.transaction(this.config.storeName, 'readwrite');
+      const idx = tx.store.index('nearAccountId');
+      let cursor = await idx.openCursor(IDBKeyRange.only(nearAccountId));
+      while (cursor) {
+        await tx.store.delete(cursor.primaryKey);
+        cursor = await cursor.continue();
+      }
+      await tx.done;
     }
     console.debug('PasskeyNearKeysDB: deleteEncryptedKey - Successfully deleted');
   }
@@ -154,12 +147,7 @@ export class PasskeyNearKeysDBManager {
    * Check if a key exists for the given account
    */
   async hasEncryptedKey(nearAccountId: string, deviceNumber?: number): Promise<boolean> {
-    try {
-      const keyData = await this.getEncryptedKey(nearAccountId, deviceNumber);
-      return !!keyData;
-    } catch (error) {
-      console.error('PasskeyNearKeysDB: hasEncryptedKey - Error:', error);
-      return false;
-    }
+    const keyData = await this.getEncryptedKey(nearAccountId, deviceNumber);
+    return !!keyData;
   }
 }

@@ -130,8 +130,6 @@ export class TouchIdPrompt {
   private static _inIframe(): boolean {
     try { return window.self !== window.top; } catch { return true; }
   }
-  // (briding moved to dedicated parent-bridge-client + orchestrator)
-
 
   /**
    * Get authentication credentials
