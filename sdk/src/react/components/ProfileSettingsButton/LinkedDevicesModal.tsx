@@ -55,6 +55,19 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
     }
   }, [isOpen]);
 
+  // Close on ESC press while modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' || e.key === 'Esc') {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
   const loadAuthenticators = async () => {
     if (!passkeyManager) return;
 

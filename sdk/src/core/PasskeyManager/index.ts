@@ -127,37 +127,51 @@ export class PasskeyManager {
   }
 
   /**
-   * Initialize the hidden wallet service iframe client (optional).
-   * If `walletOrigin` is not provided in configs, this is a no‑op.
-  */
-  async initWalletIframe(): Promise<void> {
+   * Initialize the hidden wallet service iframe client (optional) and warm critical resources.
+   * Always warms local resources; initializes iframe when `walletOrigin` is provided.
+   * Idempotent and safe to call multiple times.
+   */
+  async initWalletIframe(nearAccountId?: string): Promise<void> {
+    // Warm local critical resources (NonceManager, IndexedDB, workers) regardless of iframe usage
+    try { await this.webAuthnManager.warmCriticalResources(nearAccountId); } catch {}
+
     const walletIframeConfig = this.configs.iframeWallet;
     const walletOrigin = walletIframeConfig?.walletOrigin;
-    if (!walletOrigin) return;
-    if (this.iframeRouter) return;
-    this.iframeRouter = new WalletIframeRouter({
-      walletOrigin,
-      servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
-      connectTimeoutMs: 20_000, // 20s
-      requestTimeoutMs: 60_000, // 60s
-      theme: this.configs.walletTheme,
-      nearRpcUrl: this.configs.nearRpcUrl,
-      nearNetwork: this.configs.nearNetwork,
-      contractId: this.configs.contractId,
-      // Ensure relay server config reaches the wallet host for atomic registration
-      relayer: this.configs.relayer,
-      vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
-      rpIdOverride: walletIframeConfig?.rpIdOverride,
-      // Allow apps/CI to control where embedded bundles are served from
-      sdkBasePath: walletIframeConfig?.sdkBasePath,
-    });
+    // If no wallet origin configured, we're done after local warm-up
+    if (!walletOrigin) {
+      // Reflect local login state so callers depending on init() get fresh status
+      await this.getLoginState(nearAccountId);
+      return;
+    }
+
+    // Initialize iframe router once
+    if (!this.iframeRouter) {
+      this.iframeRouter = new WalletIframeRouter({
+        walletOrigin,
+        servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
+        connectTimeoutMs: 20_000, // 20s
+        requestTimeoutMs: 60_000, // 60s
+        theme: this.configs.walletTheme,
+        nearRpcUrl: this.configs.nearRpcUrl,
+        nearNetwork: this.configs.nearNetwork,
+        contractId: this.configs.contractId,
+        // Ensure relay server config reaches the wallet host for atomic registration
+        relayer: this.configs.relayer,
+        vrfWorkerConfigs: this.configs.vrfWorkerConfigs,
+        rpIdOverride: walletIframeConfig?.rpIdOverride,
+        // Allow apps/CI to control where embedded bundles are served from
+        sdkBasePath: walletIframeConfig?.sdkBasePath,
+      });
+    }
+
     await this.iframeRouter.init();
-    // Opportunistically warm remote NonceManager (no-op if user not initialized yet)
+    // Opportunistically warm remote NonceManager and surface initial login state
     try { await this.iframeRouter.prefetchBlockheight(); } catch {}
+    await this.getLoginState(nearAccountId);
   }
 
-  /** Get the service iframe client if initialized. */
-  getServiceClient(): WalletIframeRouter | null { return this.iframeRouter; }
+  /** Get the wallet iframe client if initialized. */
+  getWalletIframeClient(): WalletIframeRouter | null { return this.iframeRouter; }
 
   getContext(): PasskeyManagerContext {
     return {
@@ -175,17 +189,8 @@ export class PasskeyManager {
    * Warm critical resources: delegates to WebAuthnManager and ensures iframe handshake when configured.
    */
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
-    try {
-      // Core warm-up (NonceManager, IndexedDB, signer workers)
-      await this.webAuthnManager.warmCriticalResources(nearAccountId);
-      // Ensure iframe client is initialized and handshake completed (iframe mode only)
-      if (this.configs.iframeWallet?.walletOrigin) {
-        try {
-          if (!this.iframeRouter) await this.initWalletIframe();
-          await this.getLoginState(nearAccountId);
-        } catch {}
-      }
-    } catch {}
+    // Maintain backward compatibility: delegate to consolidated init
+    await this.initWalletIframe(nearAccountId);
   }
 
   /**

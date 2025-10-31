@@ -93,7 +93,11 @@ function onMessage(e: MessageEvent<{ type: MessageType; payload?: any }>) {
     case 'SET_EXPORT_DATA': {
       if (!isSetExportDataPayload(payload)) break;
       const viewer = getViewer();
-      if (payload.theme && isString(payload.theme)) viewer.theme = payload.theme;
+      if (payload.theme && isString(payload.theme)) {
+        // Reflect theme to viewer and document root so host-scoped tokens update
+        viewer.theme = payload.theme;
+        try { document.documentElement.setAttribute('data-w3a-theme', payload.theme); } catch {}
+      }
       if (payload.variant && isString(payload.variant)) viewer.variant = payload.variant;
       viewer.accountId = payload.accountId;
       viewer.publicKey = payload.publicKey;

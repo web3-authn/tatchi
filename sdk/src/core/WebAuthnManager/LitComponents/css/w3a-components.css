@@ -11,7 +11,8 @@ w3a-modal-tx-confirmer,
 w3a-drawer-tx-confirmer,
 w3a-button-with-tooltip,
 w3a-halo-border,
-w3a-passkey-halo-loading {
+w3a-passkey-halo-loading,
+w3a-export-key-viewer {
   /* Component defaults (no token alias assignments here) */
   --w3a-modal__btn__focus-outline-color: oklch(0.74 0.166 255);
   --w3a-tree__file-content__scrollbar-track__background: rgba(255,255,255,0.06);
@@ -65,7 +66,8 @@ w3a-modal-tx-confirmer,
 w3a-drawer-tx-confirmer,
 w3a-button-with-tooltip,
 w3a-halo-border,
-w3a-passkey-halo-loading {
+w3a-passkey-halo-loading,
+w3a-export-key-viewer {
   --w3a-colors-textPrimary: oklch(0.025 0.001 240);
   --w3a-colors-textSecondary: oklch(0.53 0.02 240);
   --w3a-colors-textMuted: oklch(0.75 0.016 240);
@@ -104,7 +106,8 @@ w3a-modal-tx-confirmer,
 w3a-drawer-tx-confirmer,
 w3a-button-with-tooltip,
 w3a-halo-border,
-w3a-passkey-halo-loading {
+w3a-passkey-halo-loading,
+w3a-export-key-viewer {
   --w3a-colors-textPrimary: oklch(0.1 0.005 240);
   --w3a-colors-textSecondary: oklch(0.4 0.02 240);
   --w3a-colors-textMuted: oklch(0.6 0.021 240);

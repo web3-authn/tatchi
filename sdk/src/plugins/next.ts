@@ -15,6 +15,8 @@ export function tatchiNextHeaders(opts: {
   walletOrigin: string
   cspMode?: CspMode
   extraFrameSrc?: string[]
+  /** Optional allowlist for script-src (e.g., wallet origin for modulepreload in dev) */
+  extraScriptSrc?: string[]
   allowUnsafeEvalDev?: boolean
   compatibleInDev?: boolean
 }): NextHeaderEntry[] {
@@ -23,7 +25,12 @@ export function tatchiNextHeaders(opts: {
   const isDev = process.env.NODE_ENV !== 'production'
   const mode: CspMode = opts.cspMode ?? (isDev && (opts.compatibleInDev ?? true) ? 'compatible' : 'strict')
   const allowUnsafeEval = isDev && (opts.allowUnsafeEvalDev ?? true)
-  const csp = buildWalletCsp({ frameSrc: [wallet, ...(opts.extraFrameSrc || [])], mode, allowUnsafeEval })
+  const csp = buildWalletCsp({
+    frameSrc: [wallet, ...(opts.extraFrameSrc || [])],
+    scriptSrcAllowlist: [...(opts.extraScriptSrc || [])],
+    mode,
+    allowUnsafeEval,
+  })
   return [
     { source: '/:path*', headers: [
       { key: 'Permissions-Policy', value: permissions },
@@ -36,6 +43,7 @@ export function withTatchiHeaders(config: any, opts: {
   walletOrigin: string
   cspMode?: CspMode
   extraFrameSrc?: string[]
+  extraScriptSrc?: string[]
   allowUnsafeEvalDev?: boolean
   compatibleInDev?: boolean
 }): any {

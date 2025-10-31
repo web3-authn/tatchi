@@ -1,7 +1,8 @@
 import { html, type PropertyValues } from 'lit';
 import { LitElementWithProps } from '../LitElementWithProps';
 import DrawerElement from '../Drawer';
-import { DARK_THEME, LIGHT_THEME } from '@/base-styles';
+// Tokens for this component now come from w3a-components.css host scoping.
+// We no longer map full color sets from DARK_THEME/LIGHT_THEME here.
 import { dispatchLitCancel, dispatchLitCopy } from '../lit-events';
 import { ensureExternalStyles } from '../css/css-loader';
 
@@ -101,18 +102,13 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   };
 
   private updateTheme() {
-    const t = this.theme === 'light' ? LIGHT_THEME : DARK_THEME;
-    // Promote essential host values to base variables so global tokens are populated
-    const styles: Record<string, string> = {
-      ...t,
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      fontSize: '1rem',
-      color: t.textPrimary,
-      backgroundColor: t.colorBackground,
-      // Also expose a primary color alias for buttons
-      primary: t.primary,
-    } as any;
-    this.applyStyles(styles, 'export');
+    // Reflect theme to document root so host-scoped tokens respond
+    try {
+      const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+      if (docEl && this.theme) {
+        docEl.setAttribute('data-w3a-theme', this.theme);
+      }
+    } catch {}
   }
 
   private async copy(type: 'publicKey' | 'privateKey', value?: string) {

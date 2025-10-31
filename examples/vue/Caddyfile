@@ -1,0 +1,17 @@
+vue.example.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy localhost:5176
+}
+
+wallet.example.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy localhost:5174
+}
+
+relay-server.localhost {
+	tls internal
+	encode gzip
+	reverse_proxy 127.0.0.1:3000
+}

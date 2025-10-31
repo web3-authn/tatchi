@@ -36,15 +36,23 @@ export function buildPermissionsPolicy(walletOrigin?: string): string {
  *  - false by default. Set to true only for development servers that require eval (e.g., Next.js Fast Refresh).
  *  - Tatchi SDK does not require 'unsafe-eval' in production.
  */
-export function buildWalletCsp(opts: { frameSrc?: string[]; mode?: CspMode; allowUnsafeEval?: boolean } = {}): string {
+export function buildWalletCsp(opts: {
+  frameSrc?: string[]
+  mode?: CspMode
+  allowUnsafeEval?: boolean
+  scriptSrcAllowlist?: string[]
+} = {}): string {
   const mode: CspMode = opts.mode || 'strict'
   const frame = (opts.frameSrc || []).filter(Boolean)
+  const scriptAllow = (opts.scriptSrcAllowlist || [])
+    .map((s) => normalizeOrigin(s) || s)
+    .filter(Boolean) as string[]
   const scriptUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''
   const styleUnsafeInline = mode === 'compatible' ? " 'unsafe-inline'" : ''
   const scriptUnsafeEval = opts.allowUnsafeEval ? " 'unsafe-eval'" : ''
   const base: string[] = [
     "default-src 'self'",
-    `script-src 'self'${scriptUnsafeInline}${scriptUnsafeEval}`,
+    `script-src 'self'${scriptUnsafeInline}${scriptUnsafeEval}${scriptAllow.length ? ' ' + scriptAllow.join(' ') : ''}`,
     `style-src 'self'${styleUnsafeInline}`,
     "img-src 'self' data:",
     "font-src 'self'",

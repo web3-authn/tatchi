@@ -124,7 +124,7 @@ w3a-tx-confirm-content {
 .cancel {
   background: none;
   color: var(--w3a-colors-textPrimary);
-  border: 1px solid transparent;
+  border: 1px solid var(--w3a-colors-borderPrimary);
   border-radius: 2rem;
   font: inherit; padding: 0.7em 1em; min-height: 2.75em; cursor: pointer;
 }

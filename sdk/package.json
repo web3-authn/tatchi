@@ -81,14 +81,6 @@
       "import": "./dist/esm/core/WebAuthnManager/Components/embedded.js",
       "require": "./dist/cjs/core/WebAuthnManager/Components/embedded.js",
       "types": "./dist/types/src/core/WebAuthnManager/Components/embedded.d.ts"
-    },
-    "./web-components": {
-      "import": "./dist/esm/web-components/index.js",
-      "types": "./dist/types/src/web-components/index.d.ts"
-    },
-    "./web-components/profile-settings": {
-      "import": "./dist/esm/web-components/profile-settings.js",
-      "types": "./dist/types/src/web-components/profile-settings.d.ts"
     }
   },
   "files": [

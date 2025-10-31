@@ -15,7 +15,11 @@ export async function awaitWalletIframeReady(
   if (!manager || (typeof manager !== 'object' && typeof manager !== 'function')) return false;
 
   const getClient = (): any => {
-    try { return (typeof manager.getServiceClient === 'function') ? manager.getServiceClient() : null; } catch { return null; }
+    try {
+      if (typeof manager.getWalletIframeClient === 'function') return manager.getWalletIframeClient();
+      if (typeof (manager as any).getServiceClient === 'function') return (manager as any).getServiceClient();
+      return null;
+    } catch { return null; }
   };
 
   const isReadyNow = (): boolean => {
@@ -28,7 +32,9 @@ export async function awaitWalletIframeReady(
   };
 
   // Only wait if the manager looks iframe-capable
-  const iframeCapable = (typeof manager.initWalletIframe === 'function') || (typeof manager.getServiceClient === 'function');
+  const iframeCapable = (typeof manager.initWalletIframe === 'function') ||
+    (typeof manager.getWalletIframeClient === 'function') ||
+    (typeof manager.getServiceClient === 'function');
   if (!iframeCapable) return false;
 
   // Kick init (idempotent in implementations)
