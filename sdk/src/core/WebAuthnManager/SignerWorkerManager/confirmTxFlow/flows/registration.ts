@@ -128,9 +128,6 @@ export async function handleRegistrationFlow(
     }
 
     const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: true });
-    if (!dualPrfOutputs.chacha20PrfOutput) {
-      throw new Error('Failed to extract PRF output from credential');
-    }
     // Support parent-performed fallback that may already return serialized credential
     const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
       ? (credential as unknown as WebAuthnRegistrationCredential)
@@ -152,6 +149,13 @@ export async function handleRegistrationFlow(
       const e = toError(err);
       return e.name === 'NotAllowedError' || e.name === 'AbortError';
     })();
+    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
+    const msg = String((toError(err))?.message || err || '');
+    if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
+      nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+      closeModalSafely(false, confirmHandle);
+      throw err;
+    }
     if (cancelled) {
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }

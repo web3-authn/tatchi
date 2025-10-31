@@ -137,23 +137,21 @@ export class UserPreferencesManager {
 
     // One-time: align user theme to current host appearance (e.g., VitePress html.dark)
     if (!this.envThemeSyncedForSession) {
-      try {
-        let envTheme: 'dark' | 'light' | null = null;
+      let envTheme: 'dark' | 'light' | null = null;
+      const isDark = (globalThis as any)?.document?.documentElement?.classList?.contains?.('dark');
+      if (typeof isDark === 'boolean') envTheme = isDark ? 'dark' : 'light';
+      if (!envTheme) {
         try {
-          const isDark = (globalThis as any)?.document?.documentElement?.classList?.contains?.('dark');
-          if (typeof isDark === 'boolean') envTheme = isDark ? 'dark' : 'light';
-        } catch {}
-        if (!envTheme) {
-          try {
-            const stored = (globalThis as any)?.localStorage?.getItem?.('vitepress-theme-appearance');
-            if (stored === 'dark' || stored === 'light') envTheme = stored;
-          } catch {}
+          const stored = (globalThis as any)?.localStorage?.getItem?.('vitepress-theme-appearance');
+          if (stored === 'dark' || stored === 'light') envTheme = stored;
+        } catch {
+          // Storage may be blocked by the environment (e.g., third-party iframes)
         }
-        if (envTheme && envTheme !== this.confirmationConfig.theme) {
-          // Fire-and-forget; listeners will propagate the change
-          void this.setUserTheme(envTheme);
-        }
-      } catch {}
+      }
+      if (envTheme && envTheme !== this.confirmationConfig.theme) {
+        // Fire-and-forget; listeners will propagate the change
+        void this.setUserTheme(envTheme);
+      }
       this.envThemeSyncedForSession = true;
     }
   }
@@ -226,14 +224,11 @@ export class UserPreferencesManager {
    */
   async saveUserSettings(): Promise<void> {
     try {
-      let accountId: AccountId | undefined = undefined;
-      try {
-        accountId = this.currentUserAccountId ?? undefined;
-        if (!accountId) {
-          const last = await IndexedDBManager.clientDB.getLastUser();
-          accountId = (last as any)?.nearAccountId;
-        }
-      } catch {}
+      let accountId: AccountId | undefined = this.currentUserAccountId ?? undefined;
+      if (!accountId) {
+        const last = await IndexedDBManager.clientDB.getLastUser().catch(() => undefined as any);
+        accountId = (last as any)?.nearAccountId;
+      }
 
       if (!accountId) {
         console.warn('[UserPreferences]: No current user set; keeping confirmation config in memory only');
@@ -253,14 +248,11 @@ export class UserPreferencesManager {
    * Get user theme preference from IndexedDB
    */
   async getCurrentUserAccountIdTheme(): Promise<'dark' | 'light' | null> {
+    const id = this.currentUserAccountId;
+    if (!id) return null;
     try {
-      const currentUserAccountId = this.getCurrentUserAccountId();
-      return await IndexedDBManager.clientDB.getTheme(currentUserAccountId);
+      return await IndexedDBManager.clientDB.getTheme(id);
     } catch (error) {
-      // When no current user is set (logged out) or IndexedDB fails, return null silently
-      if (error instanceof Error && /No current user set/i.test(error.message)) {
-        return null;
-      }
       console.debug('[WebAuthnManager]: getCurrentUserAccountIdTheme:', error);
       return null;
     }
@@ -274,9 +266,10 @@ export class UserPreferencesManager {
    * Set user theme preference in IndexedDB
    */
   async setUserTheme(theme: 'dark' | 'light'): Promise<void> {
+    const id = this.currentUserAccountId;
+    if (!id) return; // No-op when no user is set (logged-out state)
     try {
-      const currentUserAccountId = this.getCurrentUserAccountId();
-      await IndexedDBManager.clientDB.setTheme(currentUserAccountId, theme);
+      await IndexedDBManager.clientDB.setTheme(id, theme);
       // Also update the current context
       this.confirmationConfig = {
         ...this.confirmationConfig,
@@ -285,10 +278,6 @@ export class UserPreferencesManager {
       // Notify all listeners of theme change
       this.notifyThemeChange(theme);
     } catch (error) {
-      // If no user is set, swallow to avoid noisy logs in logged-out state
-      if (error instanceof Error && /No current user set/i.test(error.message)) {
-        return;
-      }
       console.warn('[UserPreferencesManager]: Failed to save user theme:', error);
     }
   }

@@ -41,11 +41,13 @@ export function ensureHostBaseStyles(): void {
       const current = (document.adoptedStyleSheets || []) as CSSStyleSheet[];
       (document as any).adoptedStyleSheets = [...current, state.baseSheet];
       return;
-    } catch {}
+    } catch {
+      // Fallback to a regular <style> element below
+    }
   }
   const styleEl = document.createElement('style');
   const nonce = getNonce();
-  if (nonce) try { styleEl.setAttribute('nonce', nonce); } catch {}
+  if (nonce) styleEl.setAttribute('nonce', nonce);
   styleEl.textContent = css;
   document.head.appendChild(styleEl);
 }
@@ -54,7 +56,7 @@ function ensureDynStyleEl(): HTMLStyleElement {
   if (state.dynStyleEl) return state.dynStyleEl;
   const el = document.createElement('style');
   const nonce = getNonce();
-  if (nonce) try { el.setAttribute('nonce', nonce); } catch {}
+  if (nonce) el.setAttribute('nonce', nonce);
   el.setAttribute('data-w3a-host-dyn', '');
   document.head.appendChild(el);
   state.dynStyleEl = el;
@@ -64,14 +66,14 @@ function ensureDynStyleEl(): HTMLStyleElement {
 function asId(el: HTMLElement): string {
   if (el.id && el.id.startsWith('w3a-host-')) return el.id;
   const id = `w3a-host-${Math.random().toString(36).slice(2, 9)}`;
-  try { el.id = id; } catch {}
+  el.id = id;
   return id;
 }
 
 export function markContainer(el: HTMLElement): void {
   ensureHostBaseStyles();
-  try { el.classList.add(CLASS_CONTAINER); } catch {}
-  try { el.dataset.w3aContainer = '1'; } catch {}
+  el.classList.add(CLASS_CONTAINER);
+  el.dataset.w3aContainer = '1';
 }
 
 export function setContainerAnchored(el: HTMLElement, rect: DOMRectLike, anchorMode: 'iframe' | 'viewport'): void {
@@ -87,10 +89,20 @@ export function setContainerAnchored(el: HTMLElement, rect: DOMRectLike, anchorM
     const s = state.baseSheet;
     const prev = state.ruleIndex.get(id);
     try {
-      if (typeof prev === 'number') { try { s.deleteRule(prev); } catch {} }
+      if (typeof prev === 'number') {
+        try { s.deleteRule(prev); } catch { /* ignore and attempt to insert new rule */ }
+      }
       const idx = s.insertRule(rule, s.cssRules.length);
       state.ruleIndex.set(id, idx);
-    } catch {}
+    } catch {
+      // Fallback to text-based dynamic style element if constructable rule insertion fails
+      const elDyn = ensureDynStyleEl();
+      const lines = (elDyn.textContent || '').split('\n').filter(Boolean);
+      const prefix = `#${id}.`;
+      const rest = lines.filter(l => !l.startsWith(prefix));
+      rest.push(rule);
+      elDyn.textContent = rest.join('\n');
+    }
   } else {
     const elDyn = ensureDynStyleEl();
     const lines = (elDyn.textContent || '').split('\n').filter(Boolean);
@@ -100,11 +112,10 @@ export function setContainerAnchored(el: HTMLElement, rect: DOMRectLike, anchorM
     elDyn.textContent = rest.join('\n');
   }
 
-  try { el.classList.add(CLASS_ANCHORED); } catch {}
+  el.classList.add(CLASS_ANCHORED);
 }
 
 export const HostMounterClasses = {
   CONTAINER: CLASS_CONTAINER,
   ANCHORED: CLASS_ANCHORED,
 };
-

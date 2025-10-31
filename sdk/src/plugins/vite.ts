@@ -185,37 +185,37 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
     configureServer(server) {
       // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
       server.middlewares.use((req: any, res: any, next: any) => {
-        try {
-          const url = (req.url || '').split('?')[0]
-          if (url === configuredBase + '/wallet-shims.js') {
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-            // Align with SDK asset headers so COEP/CORP environments can import
-            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Dev-only: provide permissive CORS so cross-origin localhost works
-            res.setHeader('Access-Control-Allow-Origin', '*')
-            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            res.setHeader('Access-Control-Allow-Credentials', 'true')
-            res.end(WALLET_SHIM_SOURCE)
-            return
-          }
-          if (url === configuredBase + '/wallet-service.css') {
-            res.statusCode = 200
-            res.setHeader('Content-Type', 'text/css; charset=utf-8')
-            // Important: provide CORP for cross‑origin CSS so COEP documents can load it
-            res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-            res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-            // Dev-only: provide permissive CORS so cross-origin localhost works
-            res.setHeader('Access-Control-Allow-Origin', '*')
-            res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-            res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-            res.setHeader('Access-Control-Allow-Credentials', 'true')
-            res.end(WALLET_SURFACE_CSS)
-            return
-          }
-        } catch {}
+        const url = (req.url || '').split('?')[0]
+        if (url === configuredBase + '/wallet-shims.js') {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+          // Align with SDK asset headers so COEP/CORP environments can import
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          const origin = (req.headers && (req.headers.origin as string)) || '*'
+          res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.end(WALLET_SHIM_SOURCE)
+          return
+        }
+        if (url === configuredBase + '/wallet-service.css') {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/css; charset=utf-8')
+          // Important: provide CORP for cross‑origin CSS so COEP documents can load it
+          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          const origin = (req.headers && (req.headers.origin as string)) || '*'
+          res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
+          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.end(WALLET_SURFACE_CSS)
+          return
+        }
         next()
       })
       // Optional debug route to confirm resolution
@@ -249,22 +249,19 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           return
         }
 
-        try {
-          setContentType(res, candidate)
-          // SDK assets need COEP headers to work in wallet iframe with COEP enabled
-          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Dev-only: provide permissive CORS so cross-origin localhost works
-          res.setHeader('Access-Control-Allow-Origin', '*')
-          res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-          res.setHeader('Access-Control-Allow-Credentials', 'true')
-          const stream = fs.createReadStream(candidate)
-          stream.on('error', () => next())
-          stream.pipe(res)
-        } catch (e) {
-          next()
-        }
+        setContentType(res, candidate)
+        // SDK assets need COEP headers to work in wallet iframe with COEP enabled
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+        // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+        const origin = (req.headers && (req.headers.origin as string)) || '*'
+        res.setHeader('Access-Control-Allow-Origin', origin)
+        res.setHeader('Vary', 'Origin')
+        res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        const stream = fs.createReadStream(candidate)
+        stream.on('error', () => next())
+        stream.pipe(res)
       })
     },
   }
@@ -321,14 +318,12 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
         // Enable cross-origin isolation to make module workers + WASM more reliable in Safari
         // These headers mirror the SDK asset responses and help ensure the iframe document
         // participates in the same agent cluster required by some engines.
-        try {
-          res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
-          res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
-          // Allow SDK assets to load across origins when needed
-          res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Explicitly allow features used by the wallet service itself
-          res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)`)
-        } catch {}
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
+        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
+        // Allow SDK assets to load across origins when needed
+        res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+        // Explicitly allow features used by the wallet service itself
+        res.setHeader('Permissions-Policy', `publickey-credentials-get=(self), publickey-credentials-create=(self), clipboard-read=(self), clipboard-write=(self)`)
         res.end(html)
       })
     },
@@ -555,7 +550,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
     enforce: 'post' as const,
     // Capture the resolved outDir
     configResolved(config: any) {
-      try { outDir = (config?.build?.outDir as string) || outDir } catch {}
+      outDir = (config?.build?.outDir as string) || outDir
     },
     generateBundle() {
       try {

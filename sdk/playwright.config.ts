@@ -1,9 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-// Ensure tests default to NO_CADDY mode unless explicitly overridden.
-if (!process.env.USE_CADDY && !process.env.NO_CADDY) {
-  process.env.NO_CADDY = '1';
+// Prefer Caddy (separate origins) by default unless explicitly disabled.
+if (process.env.NO_CADDY == null && process.env.USE_CADDY == null) {
+  process.env.NO_CADDY = '0';
 }
 
 /**
@@ -11,6 +11,7 @@ if (!process.env.USE_CADDY && !process.env.NO_CADDY) {
  */
 const USE_RELAY_SERVER = process.env.USE_RELAY_SERVER === '1' || process.env.USE_RELAY_SERVER === 'true';
 const NO_CADDY = process.env.NO_CADDY === '1' || process.env.VITE_NO_CADDY === '1' || process.env.CI === '1';
+const BASE_URL = NO_CADDY ? 'http://localhost:5174' : 'https://example.localhost';
 
 // Resolve absolute path to the examples/vite folder from this config location
 const __filename = fileURLToPath(import.meta.url);
@@ -36,7 +37,7 @@ export default defineConfig({
   reporter: 'html',
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:5174',
+    baseURL: BASE_URL,
     /* Caddy serves self-signed certs for example.localhost */
     ignoreHTTPSErrors: true,
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
