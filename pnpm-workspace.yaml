@@ -2,5 +2,8 @@ packages:
   - sdk
   - examples/relay-server
   - examples/vite
+  - examples/next-js
+  - examples/svelte
+  - examples/vue
   - examples/tatchi-docs
   - examples/relay-cloudflare-worker

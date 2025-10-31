@@ -1,0 +1,20 @@
+{
+  "name": "@tatchi-xyz/examples-svelte",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently --kill-others --names app,wallet,caddy \"vite --port 5175\" \"vite --mode wallet --port 5174\" \"sh run_caddy.sh\"",
+    "dev:wallet": "vite --mode wallet --port 5174",
+    "build": "vite build",
+    "preview": "vite preview --port 4175"
+  },
+  "dependencies": {
+    "svelte": "^5.1.0",
+    "@tatchi-xyz/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^5.4.0",
+    "@sveltejs/vite-plugin-svelte": "^4.0.0",
+    "concurrently": "^9.1.2"
+  }
+}

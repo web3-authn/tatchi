@@ -10,12 +10,13 @@ node_modules
 # Frontend test certs
 examples/vite/certs
 examples/tatchi-docs/certs
-examples/nextjs/certs
-
+examples/next-js/certs
 
 # Build output
 examples/vite/public
 examples/vite/dist
+
+examples/next-js/.next
 
 examples/tatchi-docs/public
 examples/tatchi-docs/dist
@@ -23,8 +24,8 @@ examples/tatchi-docs/docs/dist
 examples/tatchi-docs/src/.vitepress/cache
 examples/.vitepress-cache
 
-examples/nextjs/public
-examples/nextjs/dist
+examples/next-js/public
+examples/next-js/dist
 
 examples/relay-server/dist
 examples/relay-server/dist/*

@@ -1,13 +1,13 @@
-vue.example.localhost {
+next.example.localhost {
 	tls internal
 	encode gzip
-	reverse_proxy localhost:5176
+	reverse_proxy 127.0.0.1:4200
 }
 
 wallet.example.localhost {
 	tls internal
 	encode gzip
-	reverse_proxy localhost:5174
+	reverse_proxy 127.0.0.1:5174
 }
 
 relay-server.localhost {

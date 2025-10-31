@@ -1,7 +1,7 @@
-vue.example.localhost {
+svelte.example.localhost {
 	tls internal
 	encode gzip
-	reverse_proxy localhost:5176
+	reverse_proxy localhost:5175
 }
 
 wallet.example.localhost {
