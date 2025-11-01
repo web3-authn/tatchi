@@ -24,7 +24,7 @@ This document maps what gets deployed, to which GitHub Environments, with which 
     - deploy-worker
       - What: Deploy Relay Cloudflare Worker from `examples/relay-cloudflare-worker`
       - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
-      - Notes: Runtime Worker vars/secrets are configured in Cloudflare (not GitHub); see docs/deployment/cloudflare-github-actions-setup.md
+      - Notes: Runtime Worker vars/secrets are configured in Cloudflare (not GitHub); see /docs/guides/cloudflare-github-actions-setup
     - deploy-pages
       - What: Deploy docs/site from `examples/tatchi-docs/dist/docs` to Cloudflare Pages
       - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `CF_PAGES_PROJECT_VITE`
@@ -98,5 +98,5 @@ This document maps what gets deployed, to which GitHub Environments, with which 
 
 ## Notes
 
-- Worker runtime configuration (RELAYER_*, NEAR_*, EXPECTED_ORIGIN, etc.) lives in Cloudflare and is not managed as GitHub secrets. See docs/deployment/cloudflare-github-actions-setup.md for the full list.
+- Worker runtime configuration (RELAYER_*, NEAR_*, EXPECTED_ORIGIN, etc.) lives in Cloudflare and is not managed as GitHub secrets. See /docs/guides/cloudflare-github-actions-setup for the full list.
 - There is an optional npm publish job in deploy-cloudflare.yml (commented out). Enable and provide `NPM_TOKEN` if you want automatic publishes on tags.

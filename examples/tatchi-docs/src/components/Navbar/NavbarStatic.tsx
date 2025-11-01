@@ -29,6 +29,7 @@ export const NavbarStatic: React.FC = () => {
   // Simple top-right navbar with links + dark mode toggle + profile button
   return (
     <nav
+      className="navbar-static"
       style={{
         position: 'fixed',
         top: '0rem',
@@ -49,8 +50,7 @@ export const NavbarStatic: React.FC = () => {
         style={{
           textDecoration: 'none',
           padding: '0.25rem 0.5rem',
-          borderRadius: '0.5rem',
-          color: 'inherit'
+          borderRadius: '0.5rem'
         }}
       >Home</a>
       <a
@@ -58,8 +58,7 @@ export const NavbarStatic: React.FC = () => {
         style={{
           textDecoration: 'none',
           padding: '0.5rem 0.75rem',
-          borderRadius: '0.5rem',
-          color: 'inherit'
+          borderRadius: '0.5rem'
         }}
       >Docs</a>
       <button

@@ -62,7 +62,7 @@ Notes:
 ## WebAuthn & User Activation
 
 - Use wallet‑origin visible surfaces to satisfy user activation; the service iframe stays hidden.
-- Iframe `allow` includes `publickey-credentials-get/create` (plus clipboard). The front sets `Permissions‑Policy` delegations; dev/build helpers are provided (`tatchiDevHeaders`, `tatchiBuildHeaders`).
+- Iframe `allow` includes `publickey-credentials-get/create` (plus clipboard). The front sets `Permissions‑Policy` delegations; dev/build helpers are provided (`tatchiHeaders`, `tatchiBuildHeaders`).
 - Safari cross‑origin bridge: when in‑iframe WebAuthn is blocked, the wallet host requests the parent to run WebAuthn at top‑level; the parent only honors bridge requests from the wallet origin and returns serialized credentials with PRF outputs.
 
 ## WebAuthn Flow (No Popups)

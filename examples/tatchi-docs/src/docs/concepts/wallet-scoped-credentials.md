@@ -1,8 +1,8 @@
 ---
-title: Wallet‑Scoped vs App‑Scoped Credentials
+title: Credential Scope (rpId Strategy)
 ---
 
-# Wallet‑Scoped vs App‑Scoped Credentials (rpId strategy)
+# Credential Scope (rpId Strategy)
 
 This doc explains two deployment patterns for WebAuthn `rpId` and how to choose between them. Your choice affects which passkeys are shown to users and how you integrate across origins.
 

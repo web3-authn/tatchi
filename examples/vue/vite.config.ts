@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { tatchiDevServer, tatchiDevHeaders, tatchiServeSdkDev } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiDevServer, tatchiHeaders, tatchiServeSdk } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -27,8 +27,8 @@ export default defineConfig(({ mode }) => {
     ]
   : [
       // App instance: SDK assets for local dev + headers delegating to the wallet origin
-      tatchiServeSdkDev(),
-      tatchiDevHeaders({ walletOrigin }),
+      tatchiServeSdk(),
+      tatchiHeaders({ walletOrigin }),
     ]
 
   return {

@@ -211,7 +211,7 @@
   background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
   color: var(--fe-text);
   box-shadow: 0 1px 2px var(--fe-shadow);
-  transition: transform var(--fe-fast) var(--fe-ease), box-shadow var(--fe-fast) var(--fe-ease), background var(--fe-fast) var(--fe-ease);
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 [data-w3a-theme="dark"] .cta-primary {
@@ -221,7 +221,8 @@
 
 .cta-primary:hover {
   box-shadow: 0 4px 12px var(--fe-shadow-strong);
-  color: var(--fe-primary);
+  color: var(--w3a-colors-primaryHover);
+  border-color: var(--w3a-colors-primaryHover);
 }
 
 .cta-secondary {
@@ -233,13 +234,14 @@
   border-radius: 2rem;
   border: 1px solid var(--fe-border);
   background: color-mix(in srgb, var(--fe-bg) 60%, transparent);
-  transition: color var(--fe-fast) var(--fe-ease), background var(--fe-fast) var(--fe-ease), box-shadow var(--fe-fast) var(--fe-ease);
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .cta-secondary:hover {
-  color: var(--fe-primary);
+  color: var(--w3a-colors-primaryHover);
   background: color-mix(in srgb, var(--fe-bg) 80%, transparent);
   box-shadow: 0 3px 10px var(--fe-shadow);
+  border-color: var(--w3a-colors-primaryHover);
 }
 .cta-primary:focus-visible, .cta-secondary:focus-visible {
   outline: none;
@@ -247,6 +249,17 @@
 }
 .cta-icon { display: inline-block; }
 .cta-chevron { font-size: 1.25rem; line-height: 1; }
+
+/* Navbar: links and toggle hover color */
+.navbar-static a { color: var(--w3a-colors-textPrimary); }
+.navbar-static a,
+.navbar-static button {
+  transition: color 0.2s ease;
+}
+.navbar-static a:hover,
+.navbar-static button:hover {
+  color: var(--w3a-colors-primaryHover);
+}
 
 /* Bento grid */
 .bento-grid {
