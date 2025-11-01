@@ -9,11 +9,13 @@
  */
 
 import { test, expect } from '../setup/fixtures';
-import { bypassContractVerification, mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/intercepts';
+import { bypassContractVerification } from '../setup/bypasses';
+import { mockRelayServer, mockAccessKeyLookup, mockSendTransaction } from '../setup/route-mocks';
 import { registerPasskey, loginPasskey, executeTransfer, recoverAccount } from '../setup/flows';
 import { handleInfrastructureErrors, type TestUtils } from '../setup';
 import { printLog } from '../setup/logging';
 import { BUILD_PATHS } from '@build-paths';
+import { buildPermissionsPolicy } from '../../plugins/headers';
 
 const TRANSFER_AMOUNT_YOCTO = '5000000000000000000000'; // 0.005 NEAR
 
@@ -56,6 +58,30 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
     try {
       await page.waitForLoadState('networkidle', { timeout: 3000 });
     } catch {}
+
+    // Probe worker URL headers before registration to surface CORS/CORP issues early
+    await passkey.withTestUtils(async () => {
+      const url = 'https://wallet.example.localhost/sdk/workers/web3authn-signer.worker.js';
+      try {
+        const resp = await fetch(url, { mode: 'cors' });
+        const corp = resp.headers.get('cross-origin-resource-policy');
+        const coep = resp.headers.get('cross-origin-embedder-policy');
+        const acao = resp.headers.get('access-control-allow-origin');
+        console.log(`[cors] probe worker: ok=${resp.ok} status=${resp.status} corp=${corp} coep=${coep} acao=${acao}`);
+      } catch (err) {
+        console.error(`[cors] probe worker failed: ${(err as any)?.message || String(err)}`);
+      }
+    });
+
+    // Node-side probe (has full header visibility; not subject to CORS exposure)
+    try {
+      const walletWorker = 'https://wallet.example.localhost/sdk/workers/web3authn-signer.worker.js';
+      const resp = await page.request.get(walletWorker, { headers: { Origin: 'https://example.localhost' } });
+      const h = resp.headers();
+      console.log(`[cors] node probe worker: status=${resp.status()} acao=${h['access-control-allow-origin']} corp=${h['cross-origin-resource-policy']} coep=${h['cross-origin-embedder-policy']} ctype=${h['content-type']}`);
+    } catch (err) {
+      console.error(`[cors] node probe failed: ${(err as any)?.message || String(err)}`);
+    }
 
     const registration = await registerPasskey(passkey);
     const accountId = registration.accountId;
@@ -204,5 +230,30 @@ test.describe('PasskeyManager Complete E2E Test Suite', () => {
 
     printLog('test', `final login state: ${JSON.stringify(finalState.state)}`, { indent: 2 });
     printLog('test', `recent logins count: ${finalState.recent.accountIds.length}`, { indent: 2 });
+  });
+
+  test('Headers sanity', async ({ passkey, page }) => {
+    // Assert that WASM is served with the correct MIME (exposed header)
+    const wasmHeaderChecks = await passkey.withTestUtils<
+      { ok: boolean; contentType: string | null },
+      { buildPaths: typeof BUILD_PATHS }
+    >(async (args) => {
+      const resp = await fetch(args.buildPaths.TEST_WORKERS.WASM_SIGNER_WASM);
+      return { ok: resp.ok, contentType: resp.headers.get('content-type') };
+    }, { buildPaths: BUILD_PATHS });
+
+    expect(wasmHeaderChecks.ok).toBe(true);
+    expect(wasmHeaderChecks.contentType?.toLowerCase()).toContain('application/wasm');
+
+    // Verify wallet-service page carries expected Permissions-Policy and COEP/CORP
+    const walletOrigin = 'https://wallet.example.localhost';
+    const serviceResp = await page.request.get(`${walletOrigin}/wallet-service/`);
+    expect(serviceResp.ok()).toBeTruthy();
+    const pp = serviceResp.headers()['permissions-policy'];
+    const coep = serviceResp.headers()['cross-origin-embedder-policy'];
+    const corp = serviceResp.headers()['cross-origin-resource-policy'];
+    expect(pp).toBe(buildPermissionsPolicy(walletOrigin));
+    expect(coep).toBe('require-corp');
+    expect(corp).toBe('cross-origin');
   });
 });

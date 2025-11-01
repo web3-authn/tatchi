@@ -1,5 +1,6 @@
 import { Page } from '@playwright/test';
 import { printStepLine } from './logging';
+import { installWalletSdkCorsShim } from './cross-origin-headers';
 import type { PasskeyTestConfig } from './types';
 
 async function setupWebAuthnVirtualAuthenticator(page: Page): Promise<string> {
@@ -21,7 +22,7 @@ async function setupWebAuthnVirtualAuthenticator(page: Page): Promise<string> {
   });
 
   const authenticatorId = authenticator.authenticatorId;
-  printStepLine(1, `virtual authenticator ready (${authenticatorId})`);
+  printStepLine(2, `virtual authenticator ready (${authenticatorId})`);
   return authenticatorId;
 }
 
@@ -78,7 +79,7 @@ async function injectImportMap(page: Page): Promise<void> {
     }
   });
 
-  printStepLine(2, 'import map injected');
+  printStepLine(3, 'import map injected');
 }
 
 /**
@@ -92,7 +93,7 @@ async function waitForEnvironmentStabilization(page: Page): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 500));
   await page.waitForLoadState('domcontentloaded');
 
-  printStepLine(3, 'environment stabilized');
+  printStepLine(4, 'environment stabilized');
 }
 
 /**
@@ -110,12 +111,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      printStepLine(4, `importing PasskeyManager: attempt ${attempt}/${maxRetries}`, 1);
+      printStepLine(5, `importing PasskeyManager: attempt ${attempt}/${maxRetries}`, 1);
 
       const loadHandle = await page.waitForFunction(async (setupOptions) => {
         try {
           console.log('[setup:browser - step 4] importing PasskeyManager from built SDK...');
-          // @ts-ignore
           const { PasskeyManager } = await import('/sdk/esm/core/PasskeyManager/index.js');
 
           if (!PasskeyManager) {
@@ -188,15 +188,15 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
         throw new Error(message);
       }
 
-      printStepLine(4, `PasskeyManager ready (attempt ${attempt})`, 2);
+      printStepLine(5, `PasskeyManager ready (attempt ${attempt})`, 2);
       return;
 
     } catch (error: any) {
       lastError = error;
-      printStepLine(4, `attempt ${attempt} failed: ${error.message}`, 3);
+      printStepLine(5, `attempt ${attempt} failed: ${error.message}`, 3);
 
       if (attempt < maxRetries) {
-        printStepLine(4, `retrying in 2 seconds (${maxRetries - attempt} retries remaining)`, 3);
+        printStepLine(5, `retrying in 2 seconds (${maxRetries - attempt} retries remaining)`, 3);
         await new Promise(resolve => setTimeout(resolve, 2000));
         // Wait for page to be stable again before retry
         await page.waitForLoadState('domcontentloaded');
@@ -219,7 +219,6 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       // This prevents "base64UrlEncode is not defined" errors even if timing issues occur
       if (typeof (window as any).base64UrlEncode === 'undefined') {
         try {
-          // @ts-ignore
           const { base64UrlEncode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlEncode = base64UrlEncode;
           console.log('[setup:browser - step 5] base64UrlEncode made available globally as fallback');
@@ -231,7 +230,6 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       // Also ensure base64UrlDecode is available for credential ID decoding
       if (typeof (window as any).base64UrlDecode === 'undefined') {
         try {
-          // @ts-ignore
           const { base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlDecode = base64UrlDecode;
           console.log('[setup:browser - step 5] base64UrlDecode made available globally');
@@ -243,7 +241,6 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
       // Ensure toAccountId is available globally for tests
       if (typeof (window as any).toAccountId === 'undefined') {
         try {
-          // @ts-ignore
           const { toAccountId } = await import('/sdk/esm/core/types/accountIds.js');
           (window as any).toAccountId = toAccountId;
           console.log('[setup:browser - step 5] toAccountId made available globally');
@@ -262,28 +259,32 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
     polling: 500    // Check every 500ms
   });
 
-  printStepLine(5, 'global fallbacks ready');
+  printStepLine(6, 'global fallbacks ready');
 }
 
 /**
  * Orchestrator function that executes all 5 setup steps sequentially
  */
 export async function executeSequentialSetup(page: Page, configs: PasskeyTestConfig): Promise<string> {
-  printStepLine('bootstrap', 'starting 5-step sequential bootstrap', 0);
+  printStepLine('bootstrap', 'starting 6-step sequential bootstrap', 0);
 
-  // Step 1: ENVIRONMENT SETUP
+  // Step 1a: Log CORS/CORP headers installation (routes already installed pre-navigation)
+  const appOrigin = new URL(configs.frontendUrl).origin;
+  await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'setup' });
+
+  // Step 2: ENVIRONMENT SETUP
   const authenticatorId = await setupWebAuthnVirtualAuthenticator(page);
 
-  // Step 2: IMPORT MAP INJECTION
+  // Step 3: IMPORT MAP INJECTION
   await injectImportMap(page);
 
-  // Step 3: STABILIZATION WAIT
+  // Step 4: STABILIZATION WAIT
   await waitForEnvironmentStabilization(page);
 
-  // Step 4: DYNAMIC IMPORTS
+  // Step 5: DYNAMIC IMPORTS
   await loadPasskeyManagerDynamically(page, configs);
 
-  // Step 5: GLOBAL FALLBACK
+  // Step 6: GLOBAL FALLBACK
   await ensureGlobalFallbacks(page);
 
   console.log('[setup] finished');

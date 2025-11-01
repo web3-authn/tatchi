@@ -40,9 +40,11 @@ import { Page, test } from '@playwright/test';
 import type { PasskeyManager } from '../../index';
 import { executeSequentialSetup } from './bootstrap';
 import { DEFAULT_TEST_CONFIG } from './config';
-import { setupWebAuthnMocks, setupTestUtilities } from './mocks';
+import { setupWebAuthnMocks } from './webauthn-mocks';
+import { setupTestUtilities } from './test-utils';
 import type { PasskeyTestConfig, PasskeyTestConfigOverrides } from './types';
-import { bypassContractVerification } from './intercepts';
+import { bypassContractVerification } from './bypasses';
+import { installWalletSdkCorsShim } from './cross-origin-headers';
 
 // =============================================================================
 // MAIN SETUP FUNCTION
@@ -66,7 +68,72 @@ export async function setupBasicPasskeyTest(
 ): Promise<void> {
   const config: PasskeyTestConfig = { ...DEFAULT_TEST_CONFIG, ...options };
 
-  // Navigate to the frontend first
+  // Install shim BEFORE navigation so earliest requests are covered
+  // (ensures cross-origin worker and wasm loads succeed deterministically)
+  try {
+    const appOrigin = new URL(config.frontendUrl).origin;
+    const mirror = true;
+    await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'silent', mirror });
+  } catch {}
+
+  // Defensive shims (test-only):
+  // 1) Pin embedded base to app origin so all SDK assets resolve same-origin
+  // 2) Patch Worker() to rewrite cross-origin URLs to same-origin equivalents
+  // Enabled by default; set W3A_FORCE_SAME_ORIGIN_WORKERS=0 to disable.
+  try {
+    const appOrigin = new URL(config.frontendUrl).origin;
+    const forceSameOrigin = process.env.W3A_FORCE_SAME_ORIGIN_WORKERS !== '0';
+
+    // (1) Lock __W3A_WALLET_SDK_BASE__ to same-origin /sdk/
+    await page.addInitScript((args: { origin: string; enable: boolean }) => {
+      const { origin, enable } = args || ({} as any);
+      if (!enable) return;
+      try {
+        const base = origin.replace(/\/$/, '') + '/sdk/';
+        Object.defineProperty(window, '__W3A_WALLET_SDK_BASE__', {
+          get() { return base; },
+          set() { /* ignore test overrides */ },
+          configurable: false,
+        } as any);
+        try {
+          window.addEventListener('W3A_WALLET_SDK_BASE_CHANGED' as any, (e: Event) => {
+            try { (e as any).stopImmediatePropagation?.(); } catch {}
+            try { e.stopPropagation(); } catch {}
+          }, true);
+        } catch {}
+      } catch {}
+    }, { origin: appOrigin, enable: forceSameOrigin });
+
+    // (2) Patch Worker constructor to force same-origin worker URLs
+    await page.addInitScript((args: { origin: string; enable: boolean }) => {
+      const { origin, enable } = args || ({} as any);
+      if (!enable) return;
+      try {
+        const OriginalWorker = window.Worker;
+        const normalize = (url: string) => {
+          try {
+            const u = new URL(url, origin);
+            if (u.origin !== origin) {
+              // preserve path/query/hash but swap origin
+              return new URL(u.pathname + u.search + u.hash, origin).toString();
+            }
+            return u.toString();
+          } catch {
+            return url;
+          }
+        };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const PatchedWorker: any = function(this: any, url: string | URL, options?: WorkerOptions) {
+          const patchedUrl = normalize(String(url));
+          return new (OriginalWorker as any)(patchedUrl, options);
+        };
+        PatchedWorker.prototype = (OriginalWorker as any).prototype;
+        Object.defineProperty(window, 'Worker', { value: PatchedWorker });
+      } catch {}
+    }, { origin: appOrigin, enable: forceSameOrigin });
+  } catch {}
+
+  // Navigate to the frontend
   await page.goto(config.frontendUrl);
 
   // Execute the 5-step sequential setup process
@@ -80,7 +147,7 @@ export async function setupBasicPasskeyTest(
   // Tests should call setupRelayServerMock(true) in their page.evaluate context
   // before attempting registration to avoid "Invalid signed transaction payload" errors.
 
-  console.log('Playwright test environment ready!');
+  // environment ready
 }
 
 /**

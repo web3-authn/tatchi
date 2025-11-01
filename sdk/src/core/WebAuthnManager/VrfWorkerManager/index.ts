@@ -20,7 +20,6 @@ import type {
   WasmUnlockVrfKeypairRequest,
   WasmDeriveVrfKeypairFromPrfRequest,
 } from '../../types/vrf-worker';
-import { WebAuthnRegistrationCredential } from '../../types';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
 import { resolveWorkerScriptUrl } from '../../sdkPaths';
@@ -129,9 +128,10 @@ export class VrfWorkerManager {
    */
   private async createVrfWorker(): Promise<void> {
     try {
+      const relativePath = this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER;
       const vrfUrlStr = this.workerBaseOrigin
-        ? new URL(this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER, this.workerBaseOrigin).toString()
-        : resolveWorkerScriptUrl(this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER);
+        ? new URL(relativePath, this.workerBaseOrigin).toString()
+        : resolveWorkerScriptUrl(relativePath);
       console.debug('VRF Manager: Worker URL:', vrfUrlStr);
       // Create Web Worker from resolved URL
       this.vrfWorker = new Worker(vrfUrlStr, {

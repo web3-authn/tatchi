@@ -100,10 +100,7 @@
       ]
     }
   },
-  "sideEffects": [
-    "**/*.css",
-    "**/*.scss"
-  ],
+  "sideEffects": false,
   "scripts": {
     "build": "./scripts/build-dev.sh",
     "build:prod": "./scripts/build-prod.sh",

@@ -111,6 +111,7 @@ async function main() {
   function shutdown(code = 0) {
     try { relay.kill(); } catch {}
     try { vite.kill(); } catch {}
+    // no wallet dev server in shim mode
     process.exit(code);
   }
   process.on('SIGINT', () => shutdown(0));

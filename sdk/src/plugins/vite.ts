@@ -168,7 +168,9 @@ const WALLET_SURFACE_CSS = [
  * - App server: lets host pages and Lit components load SDK CSS/JS locally.
  * - Wallet server: used by /wallet-service to load wallet-iframe-host.js and related CSS/JS.
  */
-export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
+// Dev-only: serves SDK assets under a base path for local development.
+// Renamed for clarity: tatchiServeSdkDev (was tatchiServeSdk)
+export function tatchiServeSdkDev(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
@@ -192,12 +194,13 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           // Align with SDK asset headers so COEP/CORP environments can import
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          // Dev-only CORS: echo Origin and allow credentials for parity with prod
           const origin = (req.headers && (req.headers.origin as string)) || '*'
           res.setHeader('Access-Control-Allow-Origin', origin)
           res.setHeader('Vary', 'Origin')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.setHeader('Access-Control-Allow-Credentials', 'true')
           res.end(WALLET_SHIM_SOURCE)
           return
         }
@@ -207,12 +210,13 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
           // Important: provide CORP for cross‑origin CSS so COEP documents can load it
           res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+          // Dev-only CORS: echo Origin and allow credentials for parity with prod
           const origin = (req.headers && (req.headers.origin as string)) || '*'
           res.setHeader('Access-Control-Allow-Origin', origin)
           res.setHeader('Vary', 'Origin')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+          res.setHeader('Access-Control-Allow-Credentials', 'true')
           res.end(WALLET_SURFACE_CSS)
           return
         }
@@ -253,12 +257,13 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         // SDK assets need COEP headers to work in wallet iframe with COEP enabled
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-        // Dev-only CORS: echo Origin rather than '*', and do not set credentials
+        // Dev-only CORS: echo Origin and allow credentials for parity with prod
         const origin = (req.headers && (req.headers.origin as string)) || '*'
         res.setHeader('Access-Control-Allow-Origin', origin)
         res.setHeader('Vary', 'Origin')
         res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
         res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        res.setHeader('Access-Control-Allow-Credentials', 'true')
         const stream = fs.createReadStream(candidate)
         stream.on('error', () => next())
         stream.pipe(res)
@@ -453,10 +458,15 @@ export function tatchiDevHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         if (url.startsWith(`${sdkBasePath}/`)) {
           // Dev-only CORS for SDK assets served by Vite
           res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
-          res.setHeader('Access-Control-Allow-Origin', '*')
+          // Honor existing echo from tatchiServeSdkDev; otherwise echo Origin
+          const existingAcaOrigin = res.getHeader('Access-Control-Allow-Origin')
+          const origin = (req.headers && (req.headers.origin as string)) || '*'
+          if (!existingAcaOrigin) res.setHeader('Access-Control-Allow-Origin', origin)
+          res.setHeader('Vary', 'Origin')
           res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-          res.setHeader('Access-Control-Allow-Credentials', 'true')
+          // Allow credentials only when origin is explicit (not *)
+          if (origin !== '*') res.setHeader('Access-Control-Allow-Credentials', 'true')
           if (req.method && String(req.method).toUpperCase() === 'OPTIONS') {
             res.statusCode = 204
             res.end()
@@ -490,7 +500,7 @@ export function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const sdkDistRoot = resolveSdkDistRoot(options.sdkDistRoot)
 
   // Build the sub-plugins to keep logic small and testable
-  const sdkPlugin = tatchiServeSdk({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
+  const sdkPlugin = tatchiServeSdkDev({ sdkBasePath, sdkDistRoot, enableDebugRoutes })
   const walletPlugin = tatchiWalletService({ walletServicePath, sdkBasePath })
   const wasmMimePlugin = tatchiWasmMime()
   // Flip wallet CSP to strict by default in dev. Consumers can override via
