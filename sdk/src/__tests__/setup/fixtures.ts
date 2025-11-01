@@ -26,10 +26,8 @@ const test = base.extend<Fixtures>({
     const ensureSetup = async (overrides?: PasskeyTestConfigOverrides) => {
       if (!hasSetupRun || (overrides && Object.keys(overrides).length)) {
         const stepLabel = hasSetupRun ? 'rerun' : 1;
-        printLog('setup', 'invoking setupBasicPasskeyTest()', { step: stepLabel });
         await setupBasicPasskeyTest(page, overrides);
         hasSetupRun = true;
-        printLog('setup', 'setupBasicPasskeyTest complete', { step: stepLabel, indent: 1 });
       }
     };
 
@@ -40,7 +38,6 @@ const test = base.extend<Fixtures>({
       if (!hasSetupRun) {
         await ensureSetup();
       }
-      printLog('harness', 'executing browser utility callback', { indent: 1 });
       return page.evaluate(callback as any, arg as any);
     };
 

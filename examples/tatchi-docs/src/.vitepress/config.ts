@@ -31,7 +31,7 @@ export default defineConfig({
     // Keep default navbar links for non-home pages
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Docs', link: '/docs/getting-started/install' },
+      { text: 'Docs', link: '/docs/getting-started/overview' },
     ],
 
     // Global sidebar: always show all sections (collapsible groups)
@@ -40,23 +40,33 @@ export default defineConfig({
         text: 'Getting Started',
         collapsed: false,
         items: [
-          { text: 'Install', link: '/docs/getting-started/install' },
+          { text: 'Overview', link: '/docs/getting-started/overview' },
+          { text: 'Install & Configure', link: '/docs/getting-started/install-and-configure' },
           { text: 'Quickstart', link: '/docs/getting-started/quickstart' },
+          { text: 'First Flow', link: '/docs/getting-started/first-flow' },
+          { text: 'Framework by Framework', link: '/docs/getting-started/frameworks' },
         ],
       },
       {
         text: 'Guides',
         collapsed: false,
         items: [
-          { text: 'Guides Index', link: '/docs/guides/' },
-          { text: 'Wallet Iframe', link: '/docs/guides/wallet-iframe' },
-          { text: 'Passkeys', link: '/docs/guides/passkeys' },
-          { text: 'Secure Tx Confirmation', link: '/docs/guides/tx-confirmation' },
-          { text: 'Relay Server', link: '/docs/guides/relay-server' },
-          { text: 'Device Linking', link: '/docs/guides/device-linking' },
-          { text: 'Cloudflare Worker', link: '/docs/guides/cloudflare-worker' },
-          { text: 'Cloudflare WASM Imports', link: '/docs/guides/cloudflare-wasm-imports' },
-          { text: 'Cloudflare + GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
+          { text: 'Core Flows', items: [
+            { text: 'Passkeys', link: '/docs/guides/passkeys' },
+            { text: 'Secure Tx Confirmation', link: '/docs/guides/tx-confirmation' },
+          ]},
+          { text: 'Integration', items: [
+            { text: 'Wallet Iframe', link: '/docs/guides/wallet-iframe' },
+            { text: 'Framework Snippets', link: '/docs/guides/frameworks' },
+            { text: 'Relay Server', link: '/docs/guides/relay-server' },
+            { text: 'Device Linking', link: '/docs/guides/device-linking' },
+          ]},
+          { text: 'Deployment', items: [
+            { text: 'Cloudflare Worker', link: '/docs/guides/cloudflare-worker' },
+            { text: 'Cloudflare WASM Imports', link: '/docs/guides/cloudflare-wasm-imports' },
+            { text: 'Cloudflare + GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
+            { text: 'Asset URL Resolution', link: '/docs/guides/asset-url-resolution' },
+          ]},
         ],
       },
       {
@@ -64,13 +74,16 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Overview', link: '/docs/concepts/' },
+          { text: 'Goals of the Wallet', link: '/docs/concepts/goals' },
+          { text: 'Architecture Overview', link: '/docs/concepts/wallet-iframe-architecture' },
+          { text: 'Security Model', link: '/docs/concepts/security-model' },
+          { text: 'Credential Scope (rpId)', link: '/docs/concepts/wallet-scoped-credentials' },
+          { text: 'VRF & PRF', link: '/docs/concepts/vrf-and-prf' },
           { text: 'Shamir 3‑pass', link: '/docs/concepts/shamir3pass' },
           { text: 'Server key rotation', link: '/docs/concepts/shamir3pass-rotate-keys' },
           { text: 'Nonce manager', link: '/docs/concepts/nonce-manager' },
-          { text: 'RPID policy', link: '/docs/concepts/rpid-policy' },
-          { text: 'Wallet iframe architecture', link: '/docs/concepts/wallet-iframe-architecture' },
-          { text: 'Wallet‑scoped credentials', link: '/docs/concepts/wallet-scoped-credentials' },
-          { text: 'VRF & PRF', link: '/docs/concepts/vrf-and-prf' },
+          { text: 'Confirmation UX', link: '/docs/concepts/confirmation-ux' },
+          { text: 'CSP for Lit Components', link: '/docs/concepts/csp-lit-components' },
         ],
       },
       {

@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv } from 'vite'
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte'
-import { tatchiDevHeaders, tatchiServeSdk, tatchiDevServer } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiDevHeaders, tatchiServeSdkDev, tatchiDevServer } from '@tatchi-xyz/sdk/plugins/vite-dev'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -24,7 +24,7 @@ export default defineConfig(({ mode }) => {
         ]
       : [
           // App server: expose /sdk locally and delegate features to wallet origin
-          tatchiServeSdk(),
+          tatchiServeSdkDev(),
           tatchiDevHeaders({ walletOrigin }),
         ]),
   ]

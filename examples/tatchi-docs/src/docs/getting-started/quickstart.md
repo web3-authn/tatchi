@@ -69,5 +69,7 @@ await manager.loginPasskey('alice.testnet')
 
 ## 4) Next steps
 
+- Do [Install & Configure](./install-and-configure)
+- Walk through the [First Flow](./first-flow)
 - Explore [Passkeys](../guides/passkeys)
 - Try [Secure Tx Confirmation](../guides/tx-confirmation)

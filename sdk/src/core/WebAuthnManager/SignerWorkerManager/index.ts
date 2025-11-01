@@ -121,18 +121,20 @@ export class SignerWorkerManager {
     const workerUrlStr = this.workerBaseOrigin
       ? new URL(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL, this.workerBaseOrigin).toString()
       : resolveWorkerScriptUrl(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL);
-    console.debug('Creating secure worker from:', workerUrlStr);
     try {
       const worker = new Worker(workerUrlStr, {
         type: SIGNER_WORKER_MANAGER_CONFIG.WORKER.TYPE,
         name: SIGNER_WORKER_MANAGER_CONFIG.WORKER.NAME
       });
-      worker.onerror = (event) => { console.error('Worker error:', event); };
-      // Add error handling
+      // minimal error handler in tests; avoid noisy logs
+      worker.onerror = () => {};
       return worker;
     } catch (error) {
-      console.error('Failed to create worker:', error);
-      throw new Error(`Failed to create secure worker: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Do not silently downgrade to same‑origin. Cross‑origin workers must be
+      // resolvable under the configured wallet origin with proper headers.
+      // Surface a precise error so tests assert the real path.
+      const msg = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create secure worker: ${msg}`);
     }
   }
 

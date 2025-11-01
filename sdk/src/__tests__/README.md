@@ -64,8 +64,8 @@ The test bootstrap is a precise 5‑step sequence to avoid WebAuthn/import‑map
   - `handleInfrastructureErrors()` centralizes CI‑skip for faucet 429
   - `setupRelayServerTest()` / `setupTestnetFaucetTest()` presets
 
-- `passkey-sdk/src/__tests__/setup/mocks.ts`: WebAuthn PRF‑capable mocks, utilities, NonceManager test patches
-- `passkey-sdk/src/__tests__/setup/intercepts.ts`: RPC bypass + relay/faucet mocks
+- `passkey-sdk/src/__tests__/setup/route-mocks.ts`: Playwright route mocks (relay/faucet/access-key/send-tx)
+- `passkey-sdk/src/__tests__/setup/bypasses.ts`: RPC bypass (verify_authentication_response)
 - `passkey-sdk/src/__tests__/setup/logging.ts`: quiet‑by‑default console capture (`VERBOSE_TEST_LOGS`)
 
 ## Fixtures & Helpers
