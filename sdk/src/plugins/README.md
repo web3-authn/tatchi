@@ -69,42 +69,9 @@ Takeaways:
 - `VITE_SDK_BASE_PATH` – path for SDK assets (default `/sdk`).
 - `VITE_WALLET_DEV_CSP` – `'strict' | 'compatible'` (dev only; default strict in tests and dev servers).
 
-## Quick usage
+## Recommended usage (wrappers)
 
-App server (headers only):
-```ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { tatchiHeaders } from '@tatchi-xyz/sdk/plugins/vite'
-
-export default defineConfig({
-  plugins: [react(), tatchiHeaders({ walletOrigin: 'https://wallet.example.com' })],
-})
-```
-
-Wallet server (full dev integration: serve SDK + wallet HTML + headers):
-```ts
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import { tatchiWalletServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
-
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  return {
-    plugins: [
-      react(),
-      tatchiWalletServer({
-        walletOrigin: env.VITE_WALLET_ORIGIN,
-        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
-        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-      }),
-      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
-    ],
-  }
-})
-```
-
-Single‑liner for app (dev + optional build headers):
+App (dev + optional build headers):
 ```ts
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -118,7 +85,7 @@ export default defineConfig(({ mode }) => {
 })
 ```
 
-Single‑liner for wallet (dev + optional build headers):
+Wallet (dev + optional build headers):
 ```ts
 import { defineConfig, loadEnv } from 'vite'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
@@ -134,20 +101,6 @@ export default defineConfig(({ mode }) => {
         emitHeaders: true,
       }),
     ],
-  }
-})
-```
-
-Single‑liner for app (dev + optional build headers):
-```ts
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
-
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  return {
-    plugins: [react(), tatchiApp({ walletOrigin: env.VITE_WALLET_ORIGIN, emitHeaders: true })],
   }
 })
 ```
@@ -191,21 +144,57 @@ Notes
 - `emitHeaders` has no effect for Next.js; headers are added via `headers()` in `next.config.js`.
 - In production, keep CSP strict on wallet HTML (no inline styles/scripts; include `style-src-attr 'none'`).
 
+
+## Advanced: granular/server-level composition
+
+If you need fine-grained control, you can compose the lower-level servers directly.
+
+App server (headers only):
+```ts
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tatchiHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig({
+  plugins: [react(), tatchiHeaders({ walletOrigin: 'https://wallet.example.com' })],
+})
+```
+
+Wallet server (serve SDK + wallet HTML + headers):
+```ts
+import { defineConfig, loadEnv } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tatchiWalletServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
+    plugins: [
+      react(),
+      tatchiWalletServer({
+        walletOrigin: env.VITE_WALLET_ORIGIN,
+        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
+        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
+      }),
+      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
+    ],
+  }
+})
+```
+
 ## Which plugins to use
 
 App integrators (your app server):
-- Most common (cross‑origin wallet):
-  - Dev: `tatchiHeaders({ walletOrigin })` only.
-  - Do not mount `tatchiServeSdk` or `tatchiWalletService` on the app.
-  - Your app can keep using inline styles/scripts; no CSP is applied to app routes.
-- Same‑origin (host wallet pages on the app):
-  - Dev: If you must run a single server, use `tatchiWalletServer({ ... })` on the app server to serve `/sdk` and `/wallet-service` from the same origin.
-    Alternatively: `tatchiAppServer({ ... })` for headers only + `tatchiServeSdk()` if you want local `/sdk` without wallet HTML.
-  - Build: optionally use `tatchiBuildHeaders()` on static hosts, or the convenience wrappers `tatchiApp({ emitHeaders: true })` / `tatchiWallet({ emitHeaders: true })` to emit `_headers` (COOP/COEP/CORP + PP + strict CSP on wallet routes).
+- Recommended (cross‑origin wallet):
+  - Dev+Build: `tatchiApp({ walletOrigin, emitHeaders: true })`.
+  - Advanced: dev-only headers via `tatchiHeaders({ walletOrigin })` if you manage build-time headers yourself.
+- Same‑origin (dev convenience only):
+  - Dev: If you must run a single server, use `tatchiWallet({ ... })` on the app server. Avoid this in production.
+  - Advanced: `tatchiWalletServer` / `tatchiAppServer` exist for granular composition when needed.
 
 Wallet deployers (wallet‑iframe host):
-- Dev: `tatchiWalletServer({ ... })` on the wallet origin. This composes headers, SDK serving, wallet HTML, and WASM MIME.
-- Build/Static hosting: `tatchiBuildHeaders({ walletOrigin })` to emit `_headers`. Serve the generated `wallet-service/index.html`, `export-viewer/index.html`, and `/sdk/*` assets.
+- Recommended: `tatchiWallet({ walletOrigin, sdkBasePath, walletServicePath, emitHeaders: true })`.
+- Advanced: `tatchiWalletServer({ ... })` in dev, `tatchiBuildHeaders({ walletOrigin })` at build. Serve the generated `wallet-service/index.html`, `export-viewer/index.html`, and `/sdk/*` assets.
 
 ## Production guidance
 
