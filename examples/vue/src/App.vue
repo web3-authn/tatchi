@@ -124,7 +124,7 @@ async function login() {
   <main class="app-main">
     <h1>Vue Tatchi Passkey Example</h1>
     <p>Wallet iframe runs on <code>{{ walletOrigin }}</code></p>
-    <p>Ensure your dev server sets Permissions-Policy and CSP headers in vite.config.ts with the tatchiDevHeaders() plugin.</p>
+    <p>Ensure your dev server sets Permissions-Policy and CSP headers in vite.config.ts with the tatchiHeaders() plugin.</p>
     <br/>
     <h2>Tatchi Status</h2>
     <ul>

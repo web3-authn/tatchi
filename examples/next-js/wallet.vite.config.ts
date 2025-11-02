@@ -1,4 +1,11 @@
-import { tatchiDevServer } from '@tatchi-xyz/sdk/plugins/vite'
+/*
+  DEVELOPMENT ONLY
+  - Dedicated wallet dev server used alongside Next.js app. Serves /wallet-service
+    and /sdk/* on the wallet origin so the app stays cross‑origin in dev.
+  - In production, deploy the wallet site separately and point NEXT_PUBLIC_WALLET_ORIGIN
+    at that remote origin.
+*/
+import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default () => {
   const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
@@ -13,12 +20,11 @@ export default () => {
       hmr: { host: hmrHost, protocol: 'wss' },
     },
     plugins: [
-      tatchiDevServer({
-        mode: 'wallet-only',
+      tatchiWallet({
         sdkBasePath: '/sdk',
         walletServicePath: '/wallet-service',
         walletOrigin,
-        setDevHeaders: true,
+        emitHeaders: true,
       }),
     ],
   }

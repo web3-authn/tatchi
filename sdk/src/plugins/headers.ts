@@ -35,6 +35,9 @@ export function buildPermissionsPolicy(walletOrigin?: string): string {
  * allowUnsafeEval:
  *  - false by default. Set to true only for development servers that require eval (e.g., Next.js Fast Refresh).
  *  - Tatchi SDK does not require 'unsafe-eval' in production.
+ *
+ * Typical usage: apply strict CSP only to wallet HTML routes
+ * (/wallet-service, /export-viewer); do not attach CSP to host app routes.
  */
 export function buildWalletCsp(opts: {
   frameSrc?: string[]

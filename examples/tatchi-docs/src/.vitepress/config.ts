@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
-import { tatchiDevServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 
 const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -140,14 +140,17 @@ export default defineConfig({
       dedupe: ['react', 'react-dom'],
     },
     plugins: [
-      tatchiDevServer({
-        mode: 'self-contained',
+      // Dev: serve /wallet-service and /sdk with headers (no files written).
+      // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP/CORP and
+      // a Permissions-Policy delegating WebAuthn to the wallet origin. Wallet HTML gets
+      // strict CSP. If your CI already writes a _headers file, this will no-op.
+      tatchiWallet({
         enableDebugRoutes: true,
         sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         walletOrigin: env.VITE_WALLET_ORIGIN,
+        emitHeaders: true,
       }),
-      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN })
     ],
   },
 })

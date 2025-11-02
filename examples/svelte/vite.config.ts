@@ -1,42 +1,23 @@
 import { defineConfig, loadEnv } from 'vite'
 import { svelte, vitePreprocess } from '@sveltejs/vite-plugin-svelte'
-import { tatchiDevHeaders, tatchiServeSdkDev, tatchiDevServer } from '@tatchi-xyz/sdk/plugins/vite-dev'
+import { tatchiApp } from '@tatchi-xyz/sdk/plugins/vite'
 
+// App-only dev server. Wallet server runs separately via wallet.vite.config.ts.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const isWallet = mode === 'wallet'
   const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.example.localhost'
-  const port = isWallet ? 5174 : 5175
-  const hmrHost = isWallet ? 'wallet.example.localhost' : 'svelte.example.localhost'
-
-  const plugins = [
-    svelte({ preprocess: vitePreprocess() }),
-    ...(isWallet
-      ? [
-          // Wallet server: serve /wallet-service + /sdk + strict dev headers
-          tatchiDevServer({
-            mode: 'wallet-only',
-            sdkBasePath: '/sdk',
-            walletServicePath: '/wallet-service',
-            walletOrigin,
-            setDevHeaders: true,
-          }),
-        ]
-      : [
-          // App server: expose /sdk locally and delegate features to wallet origin
-          tatchiServeSdkDev(),
-          tatchiDevHeaders({ walletOrigin }),
-        ]),
-  ]
 
   return {
-    cacheDir: isWallet ? 'node_modules/.vite-wallet' : 'node_modules/.vite-app',
     server: {
-      port,
-      host: '127.0.0.1',
-      strictPort: true,
-      hmr: { host: hmrHost, protocol: 'wss' },
+      port: 5175,
+      host: 'localhost',
+      allowedHosts: ['svelte.example.localhost', 'pta-m4.local'],
     },
-    plugins,
+    plugins: [
+      svelte({ preprocess: vitePreprocess() }),
+      // Dev: headers only; Build: emit _headers when emitHeaders=true
+      tatchiApp({ walletOrigin, emitHeaders: true }),
+    ],
+    cacheDir: 'node_modules/.vite-app', // avoid lock contention with wallet.vite.config.ts
   }
 })

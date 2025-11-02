@@ -19,6 +19,8 @@ export function addPreconnectLink(res: any, origin?: string) {
   } catch {}
 }
 
+// Builds wallet service HTML that links only external CSS/JS (no inline),
+// so strict CSP (style-src 'self'; style-src-attr 'none') works in dev/prod.
 export function buildWalletServiceHtml(sdkBasePath: string): string {
   return `<!doctype html>
 <html lang="en">
@@ -50,6 +52,7 @@ export function buildWalletServiceHtml(sdkBasePath: string): string {
 </html>`
 }
 
+// Export viewer HTML is also fully externalized (no inline) to keep CSP strict.
 export function buildExportViewerHtml(sdkBasePath: string): string {
   return `<!doctype html>
 <html lang="en">

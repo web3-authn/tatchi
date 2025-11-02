@@ -73,3 +73,6 @@ await manager.loginPasskey('alice.testnet')
 - Walk through the [First Flow](./first-flow)
 - Explore [Passkeys](../guides/passkeys)
 - Try [Secure Tx Confirmation](../guides/tx-confirmation)
+
+## Self‑hosted note
+If you operate the wallet origin yourself (e.g., `wallet.example.com`), see the self‑hosted options in [Install & Configure](./install-and-configure#self-hosted-vs-app-only) for which dev/build plugins to use.
