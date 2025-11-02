@@ -1,9 +1,6 @@
 # Chain Intents & Chain Signatures — Integration Plan (Revised)
 
-This document defines a client-first plan for “Chain Intents / Chain Signatures” with an EVM example. It aligns with NEAR Chain Signatures docs and the chainsig.js approach rather than `omni-transaction-rs`.
-
-Why: `omni-transaction-rs` is aimed at building transactions inside NEAR smart contracts. Our SDK runs in clients and needs to prepare chain-specific payloads (e.g., EVM), request an MPC signature from the NEAR Chain Signatures contract, then finalize and broadcast. That maps closely to chainsig.js and viem.
-
+This document defines a client-first plan for “Chain Intents / Chain Signatures” with an EVM example. It aligns with NEAR Chain Signatures docs and the chainsig.js approach.
 
 ## Objectives
 
@@ -14,7 +11,6 @@ Why: `omni-transaction-rs` is aimed at building transactions inside NEAR smart c
 
 ## What We Will Not Do
 
-- Do not embed `omni-transaction-rs` into our signer worker for client payload prep.
 - Do not attempt to produce EVM secp256k1 signatures directly from WebAuthn passkeys (mismatched algorithms). Instead, use NEAR MPC contract to sign the EVM hash.
 
 

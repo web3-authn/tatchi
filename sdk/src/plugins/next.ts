@@ -39,20 +39,61 @@ export function tatchiNextHeaders(opts: {
   ]
 }
 
-export function withTatchiHeaders(config: any, opts: {
+/**
+ * Convenience wrapper for Next.js app origin.
+ * Adds Permissions-Policy and a wallet-friendly CSP via Next's headers() API.
+ * emitHeaders has no effect for Next.js; kept for parity with Vite wrappers.
+ */
+export function tatchiNextApp(opts: {
   walletOrigin: string
+  emitHeaders?: boolean
   cspMode?: CspMode
   extraFrameSrc?: string[]
   extraScriptSrc?: string[]
   allowUnsafeEvalDev?: boolean
   compatibleInDev?: boolean
-}): any {
-  const existing = config?.headers
-  return {
-    ...config,
-    async headers() {
-      const user = typeof existing === 'function' ? await existing() : []
-      return [...(user || []), ...tatchiNextHeaders(opts)]
+}) {
+  if (opts.emitHeaders) {
+    console.warn('[tatchi] tatchiNextApp: emitHeaders has no effect in Next.js; headers are applied via next.config.js headers().')
+  }
+  return (config: any) => {
+    const existing = config?.headers
+    return {
+      ...config,
+      async headers() {
+        const user = typeof existing === 'function' ? await existing() : []
+        return [...(user || []), ...tatchiNextHeaders(opts)]
+      },
+    }
+  }
+}
+
+/**
+ * Convenience wrapper for Next.js wallet origin.
+ * Same behavior as tatchiNextApp — Next.js does not serve the SDK/wallet HTML; this
+ * helper only sets headers via headers() so the wallet host can be prepped if you
+ * proxy wallet routes through Next in dev.
+ */
+export function tatchiNextWallet(opts: {
+  walletOrigin: string
+  emitHeaders?: boolean
+  cspMode?: CspMode
+  extraFrameSrc?: string[]
+  extraScriptSrc?: string[]
+  allowUnsafeEvalDev?: boolean
+  compatibleInDev?: boolean
+}) {
+  if (opts.emitHeaders) {
+    console.warn('[tatchi] tatchiNextWallet: emitHeaders has no effect in Next.js; headers are applied via next.config.js headers().')
+  }
+  return (config: any) => {
+    const existing = config?.headers
+    return {
+      ...config,
+      async headers() {
+        const user = typeof existing === 'function' ? await existing() : []
+        return [...(user || []), ...tatchiNextHeaders(opts)]
+      },
     }
   }
 }

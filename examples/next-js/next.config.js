@@ -1,4 +1,4 @@
-import { withTatchiHeaders } from '@tatchi-xyz/sdk/plugins/next'
+import { tatchiNextApp } from '@tatchi-xyz/sdk/plugins/next'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
 
@@ -22,13 +22,13 @@ const baseConfig = {
 const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
 
 const isDev = process.env.NODE_ENV !== 'production'
-const nextConfig = withTatchiHeaders(baseConfig, {
+const nextConfig = tatchiNextApp({
   walletOrigin,
   cspMode: isDev ? 'compatible' : 'strict',
   allowUnsafeEvalDev: true,
   compatibleInDev: true,
   // Allow wallet origin in script-src for dev cross-origin modulepreload
   extraScriptSrc: isDev ? [walletOrigin] : [],
-})
+})(baseConfig)
 
 export default nextConfig
