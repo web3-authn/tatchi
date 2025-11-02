@@ -11,7 +11,8 @@ import { ensureComponentModule, mountComponent } from './harness';
 // - No request failed events for these CSS assets (i.e., no ORB)
 test.describe('Iframe button cross-origin CSS', () => {
   test.beforeEach(async ({ page }) => {
-    await setupBasicPasskeyTest(page);
+    // Disable same-origin shims so we can assert absolute wallet origin in CSS hrefs
+    await setupBasicPasskeyTest(page, { forceSameOriginWorkers: false, forceSameOriginSdkBase: false });
   });
 
   test('resolves styles from wallet origin without ORB', async ({ page }) => {

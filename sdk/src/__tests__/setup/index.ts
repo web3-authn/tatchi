@@ -42,7 +42,7 @@ import { executeSequentialSetup } from './bootstrap';
 import { DEFAULT_TEST_CONFIG } from './config';
 import { setupWebAuthnMocks } from './webauthn-mocks';
 import { setupTestUtilities } from './test-utils';
-import type { PasskeyTestConfig, PasskeyTestConfigOverrides } from './types';
+import type { PasskeyTestConfig, PasskeyTestSetupOptions } from './types';
 import { bypassContractVerification } from './bypasses';
 import { installWalletSdkCorsShim } from './cross-origin-headers';
 
@@ -64,7 +64,7 @@ import { installWalletSdkCorsShim } from './cross-origin-headers';
  */
 export async function setupBasicPasskeyTest(
   page: Page,
-  options: PasskeyTestConfigOverrides = {}
+  options: PasskeyTestSetupOptions = {}
 ): Promise<void> {
   const config: PasskeyTestConfig = { ...DEFAULT_TEST_CONFIG, ...options };
 
@@ -77,12 +77,14 @@ export async function setupBasicPasskeyTest(
   } catch {}
 
   // Defensive shims (test-only):
-  // 1) Pin embedded base to app origin so all SDK assets resolve same-origin
-  // 2) Patch Worker() to rewrite cross-origin URLs to same-origin equivalents
-  // Enabled by default; set W3A_FORCE_SAME_ORIGIN_WORKERS=0 to disable.
+  // 1) Pin embedded base to app origin so all SDK assets resolve same-origin (toggle: forceSameOriginSdkBase)
+  // 2) Patch Worker() to rewrite cross-origin URLs to same-origin equivalents (toggle: forceSameOriginWorkers)
+  // Defaults: both true unless W3A_FORCE_SAME_ORIGIN_WORKERS=0
   try {
     const appOrigin = new URL(config.frontendUrl).origin;
-    const forceSameOrigin = process.env.W3A_FORCE_SAME_ORIGIN_WORKERS !== '0';
+    const envDefault = process.env.W3A_FORCE_SAME_ORIGIN_WORKERS !== '0';
+    const forceSameOriginWorkers = options.forceSameOriginWorkers ?? envDefault;
+    const forceSameOriginSdkBase = options.forceSameOriginSdkBase ?? forceSameOriginWorkers;
 
     // (1) Lock __W3A_WALLET_SDK_BASE__ to same-origin /sdk/
     await page.addInitScript((args: { origin: string; enable: boolean }) => {
@@ -102,7 +104,7 @@ export async function setupBasicPasskeyTest(
           }, true);
         } catch {}
       } catch {}
-    }, { origin: appOrigin, enable: forceSameOrigin });
+    }, { origin: appOrigin, enable: forceSameOriginSdkBase });
 
     // (2) Patch Worker constructor to force same-origin worker URLs
     await page.addInitScript((args: { origin: string; enable: boolean }) => {
@@ -130,7 +132,7 @@ export async function setupBasicPasskeyTest(
         PatchedWorker.prototype = (OriginalWorker as any).prototype;
         Object.defineProperty(window, 'Worker', { value: PatchedWorker });
       } catch {}
-    }, { origin: appOrigin, enable: forceSameOrigin });
+    }, { origin: appOrigin, enable: forceSameOriginWorkers });
   } catch {}
 
   // Navigate to the frontend
