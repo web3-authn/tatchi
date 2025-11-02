@@ -1,11 +1,7 @@
 import { resolveEmbeddedBase } from '../asset-base';
 
-// Feature detection & caches
-
 const supportsConstructable = typeof ShadowRoot !== 'undefined' && 'adoptedStyleSheets' in ShadowRoot.prototype;
 const sheetCache: Map<string, Promise<CSSStyleSheet | null>> = new Map();
-
-// URL resolution
 
 let warnedRelativeBaseOnce = false;
 
@@ -22,8 +18,11 @@ function resolveStylesheetUrl(assetName: string): string {
   try {
     if (!warnedRelativeBaseOnce && typeof document !== 'undefined' && document.URL === 'about:srcdoc') {
       warnedRelativeBaseOnce = true;
-      console.warn('[W3A][css-loader] Relative SDK base', base, 'in about:srcdoc; assets will resolve to the host origin. '
-        + 'Set window.__W3A_WALLET_SDK_BASE__ to an absolute https://wallet-origin/sdk/ or use the React provider hook.');
+      console.warn(
+        `[W3A][css-loader] Embedded SDK base is relative: "${base}". ` +
+        `In production, configure an absolute base so iframe assets resolve: ` +
+        `set TatchiPasskeyProvider config { iframeWallet: { walletOrigin: "https://wallet.example.com", sdkBasePath: "/sdk" } }, `
+      );
     }
   } catch {}
 

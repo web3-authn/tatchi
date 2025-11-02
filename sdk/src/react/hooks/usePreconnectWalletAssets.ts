@@ -8,7 +8,7 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 // What this hook does
 // - Adds resource hints for the configured wallet origin (dns‑prefetch, preconnect, prefetch)
 //   and modulepreload for the wallet host script.
-// - Sets `window.__W3A_EMBEDDED_BASE__` to an absolute `${walletOrigin}${sdkBasePath}/` so
+// - Sets `window.__W3A_WALLET_SDK_BASE__` to an absolute `${walletOrigin}${sdkBasePath}/` so
 //   any embedded srcdoc iframes created by the SDK load ESM bundles from the wallet origin,
 //   not from the host app origin.
 //

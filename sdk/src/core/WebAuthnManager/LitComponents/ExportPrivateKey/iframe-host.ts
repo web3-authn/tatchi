@@ -140,7 +140,11 @@ export class IframeExportHost extends LitElementWithProps {
     const isAbsoluteBase = /^https?:/i.test(base);
     if (!isAbsoluteBase) {
       try {
-        console.warn('[W3A][IframeExportHost] Embedded SDK base is not absolute. Skipping pre-insert/preload of some CSS. Set window.__W3A_WALLET_SDK_BASE__ to an absolute https://wallet-origin/sdk/');
+        console.warn(
+          '[W3A][IframeExportHost] Embedded SDK base is not absolute. Skipping CSS preloads. ' +
+          'Configure an absolute base so assets resolve: React → set TatchiPasskeyProvider config ' +
+          '{ iframeWallet: { walletOrigin: "https://wallet.example.com", sdkBasePath: "/sdk" } }, '
+        );
       } catch {}
     }
     const viewerBundle = EXPORT_VIEWER_BUNDLE;
