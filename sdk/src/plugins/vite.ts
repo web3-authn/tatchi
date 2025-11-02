@@ -11,7 +11,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
 import { buildPermissionsPolicy, buildWalletCsp } from './headers'
-import { addPreconnectLink, buildWalletServiceHtml, buildExportViewerHtml, applyCoepCorp, echoCorsFromRequest } from './plugin-utils'
+import { addPreconnectLink, buildWalletServiceHtml, buildExportViewerHtml, applyCoepCorp, echoCorsFromRequest, logRorConfig } from './plugin-utils'
 
 // Avoid importing 'vite' types to keep this package light. Define a minimal shape.
 export type VitePlugin = {
@@ -20,6 +20,8 @@ export type VitePlugin = {
   enforce?: 'pre' | 'post'
   configureServer?: (server: any) => void | Promise<void>
 }
+// For consumers that prefer a neutral name without importing Vite types
+export type ViteLikePlugin = VitePlugin
 
 export type Web3AuthnDevOptions = {
   mode?: 'self-contained' | 'front-only' | 'wallet-only'
@@ -340,6 +342,8 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      // Log ROR endpoint info when configured, and validate origins
+      if (rorAllowedOrigins.length > 0) logRorConfig(rorAllowedOrigins, '/.well-known/webauthn')
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0] || ''
         const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
@@ -585,7 +589,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
   return plugin as unknown as VitePlugin
 }
 
-// --- Small test helpers to keep unit tests decoupled from Vite server implementation ---
+// Small test helpers to keep unit tests decoupled from Vite server implementation
 export function computeDevPermissionsPolicy(walletOrigin?: string): string {
   return buildPermissionsPolicy(walletOrigin)
 }
@@ -594,7 +598,6 @@ export function computeDevWalletCsp(mode: 'strict' | 'compatible' = 'strict'): s
   return buildWalletCsp({ mode })
 }
 
-// Convenience wrappers for clearer intent without changing behavior
 export function tatchiWalletServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {}): VitePlugin {
   return tatchiDevServer({ ...options, mode: 'wallet-only' })
 }
@@ -602,8 +605,6 @@ export function tatchiWalletServer(options: Omit<Web3AuthnDevOptions, 'mode'> = 
 export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {}): VitePlugin {
   return tatchiDevServer({ ...options, mode: 'front-only' })
 }
-
-// Removed self-contained alias (equivalent to wallet server on same origin)
 
 /**
  * Convenience wrapper: app origin helper that combines dev-time headers with optional
@@ -622,13 +623,13 @@ export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {})
  *   already manage headers via custom servers or platform rules.
  * - Returns a plugin array for ergonomics; Vite accepts arrays in the `plugins` list.
  */
-export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any {
+export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any[] /* Vite Plugin[] */ {
   const { emitHeaders, ...rest } = options
   const walletOrigin = (rest.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const app = tatchiAppServer(rest)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
   const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin }) : undefined
-  return [app, hdr].filter(Boolean)
+  return [app, hdr].filter(Boolean) as any[]
 }
 
 /**
@@ -648,17 +649,11 @@ export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHea
  * - Keeps production header emission opt-in to avoid overriding platform/server configs.
  * - Returns a plugin array for ergonomics; Vite accepts arrays in the `plugins` list.
  */
-export function tatchiWallet(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any {
+export function tatchiWallet(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any[] /* Vite Plugin[] */ {
   const { emitHeaders, ...rest } = options
   const walletOrigin = (rest.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
   const wallet = tatchiWalletServer(rest)
   // Build-time emission is opt-in and will no-op if `_headers` already exists.
   const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin }) : undefined
-  return [wallet, hdr].filter(Boolean)
+  return [wallet, hdr].filter(Boolean) as any[]
 }
-
-// Backward-compat alias exports (avoid breaking existing consumers)
-// Deprecated: use tatchiServeSdk instead
-export const tatchiServeSdkDev = tatchiServeSdk
-// Deprecated: use tatchiHeaders instead
-export const tatchiDevHeaders = tatchiHeaders

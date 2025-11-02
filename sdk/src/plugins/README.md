@@ -152,6 +152,45 @@ export default defineConfig(({ mode }) => {
 })
 ```
 
+## Next.js usage
+
+Use the Next helpers to apply Permissions-Policy and a wallet-friendly CSP via `next.config.js` headers().
+
+App origin:
+```js
+// next.config.js (ESM)
+import { tatchiNextApp } from '@tatchi-xyz/sdk/plugins/next'
+
+const isDev = process.env.NODE_ENV !== 'production'
+const walletOrigin = process.env.NEXT_PUBLIC_WALLET_ORIGIN || 'https://wallet.example.localhost'
+
+const baseConfig = {
+  // Optional: silence workspace monorepo root warning
+  // outputFileTracingRoot: __dirname,
+}
+
+export default tatchiNextApp({
+  walletOrigin,
+  // Relax CSP only in dev to accommodate Next's dev runtime
+  cspMode: isDev ? 'compatible' : 'strict',
+  allowUnsafeEvalDev: true,
+  compatibleInDev: true,
+  // Allow wallet origin for dev cross-origin modulepreload
+  extraScriptSrc: isDev ? [walletOrigin] : [],
+})(baseConfig)
+```
+
+Wallet origin (if you proxy wallet routes through Next in dev):
+```js
+import { tatchiNextWallet } from '@tatchi-xyz/sdk/plugins/next'
+
+export default tatchiNextWallet({ walletOrigin: process.env.NEXT_PUBLIC_WALLET_ORIGIN })(/** base config **/)
+```
+
+Notes
+- `emitHeaders` has no effect for Next.js; headers are added via `headers()` in `next.config.js`.
+- In production, keep CSP strict on wallet HTML (no inline styles/scripts; include `style-src-attr 'none'`).
+
 ## Which plugins to use
 
 App integrators (your app server):

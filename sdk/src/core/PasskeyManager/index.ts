@@ -58,7 +58,6 @@ import {
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
-let warnedAboutMissingWalletOrigin = false;
 let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
@@ -93,29 +92,6 @@ export class PasskeyManager {
     this.nearClient = nearClient || new MinimalNearClient(configs.nearRpcUrl);
     this.webAuthnManager = new WebAuthnManager(this.configs, this.nearClient);
     // VRF worker initializes automatically in the constructor
-
-    const walletOrigin = configs.iframeWallet?.walletOrigin;
-    const isWalletIframeHost = __isWalletIframeHostMode();
-    if (!walletOrigin) {
-      // In the wallet-iframe host itself, walletOrigin is intentionally unset to prevent nesting.
-      // Suppress this warning in that context.
-      if (!isWalletIframeHost && !warnedAboutMissingWalletOrigin) {
-        warnedAboutMissingWalletOrigin = true;
-        console.warn('[PasskeyManager] No iframeWallet.walletOrigin configured. The wallet iframe will share the host origin and secret isolation relies on the parent page.');
-      }
-    } else if (!warnedAboutSameOriginWallet) {
-      try {
-        const parsed = new URL(walletOrigin);
-        if (typeof window !== 'undefined' && parsed.origin === window.location.origin) {
-          if (!isWalletIframeHost) {
-            warnedAboutSameOriginWallet = true;
-            console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
-          }
-        }
-      } catch {
-        // ignore invalid URL here; constructor downstream will surface an error
-      }
-    }
   }
 
   /**
@@ -142,6 +118,20 @@ export class PasskeyManager {
       // Reflect local login state so callers depending on init() get fresh status
       await this.getLoginState(nearAccountId);
       return;
+    }
+
+    // Emit same-origin co-hosting warning only when actually initializing the iframe
+    if (!warnedAboutSameOriginWallet) {
+      try {
+        const isWalletIframeHost = __isWalletIframeHostMode();
+        const parsed = new URL(walletOrigin);
+        if (typeof window !== 'undefined' && parsed.origin === window.location.origin && !isWalletIframeHost) {
+          warnedAboutSameOriginWallet = true;
+          console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+        }
+      } catch {
+        // ignore invalid URL here; constructor downstream will surface an error
+      }
     }
 
     // Initialize iframe router once

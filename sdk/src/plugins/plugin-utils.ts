@@ -117,3 +117,30 @@ export function echoCorsFromRequest(
   }
   return false
 }
+
+/**
+ * Log and validate Related Origin Requests (ROR) configuration.
+ * - Prints the well-known endpoint and the configured origins list.
+ * - Warns if any origins are not absolute (e.g., missing protocol/hostname).
+ */
+export function logRorConfig(origins: string[], endpoint = '/.well-known/webauthn') {
+  if (!Array.isArray(origins) || origins.length === 0) return
+  const invalid: string[] = []
+  for (const o of origins) {
+    try {
+      const u = new URL(o)
+      if (!u.protocol || !u.hostname) invalid.push(o)
+    } catch {
+      invalid.push(o)
+    }
+  }
+  const msg = `[tatchi] ROR enabled: GET ${endpoint} -> { origins: [${origins.join(', ')}] }`
+  console.log(msg)
+  if (invalid.length > 0) {
+    console.warn(
+      `[tatchi] ROR warning: invalid origins: ${invalid.join(
+        ', '
+      )} (expected absolute origins like https://app.example.com)`
+    )
+  }
+}
