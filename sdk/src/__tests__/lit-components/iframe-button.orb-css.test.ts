@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 import { ensureComponentModule, mountComponent } from './harness';
 
-// Integration test to catch ORB regressions when the embedded tx button
+// Integration test to catch ORB (Opaque Response Blocking) regressions when the embedded tx button
 // runs in a srcdoc iframe and loads CSS cross‑origin from the wallet origin.
 //
 // Asserts:
