@@ -1,7 +1,11 @@
-// Minimal Vite dev plugin(s) to support Passkey Manager modes
-// See docs/passkey-manager-modes.md (Vite Plugin section)
-// The plugin serves SDK assets under a base path, exposes a wallet service route,
-// adds dev headers (COOP/COEP + Permissions-Policy), and enforces WASM MIME type.
+// Minimal Vite dev plugin(s) to support Passkey Manager modes.
+// See docs/passkey-manager-modes.md (Vite Plugin section).
+//
+// What these plugins do:
+// - Serve SDK assets under a base path, expose a wallet service route,
+// - Add dev headers (COOP/COEP/CORP + Permissions-Policy), and enforce WASM MIME.
+// - IMPORTANT: Strict CSP is scoped only to wallet HTML routes (/wallet-service, /export-viewer),
+//   not to the host app pages. App routes remain free to use inline styles/scripts.
 
 import * as fs from 'node:fs'
 import * as path from 'node:path'
@@ -256,7 +260,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
 
 /**
  * Dev plugin: expose the wallet service HTML route (default: /wallet-service) that links only external CSS/JS.
- * Where it runs: wallet-iframe dev server (wallet origin). In `tatchiDev` this is used for modes 'self-contained' and 'wallet-only'.
+ * Where it runs: wallet-iframe dev server (wallet origin). Used by tatchiWalletServer.
  */
 export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin {
   const walletServicePath = normalizeBase(opts.walletServicePath, '/wallet-service')
@@ -343,7 +347,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp')
         res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
         res.setHeader('Permissions-Policy', permissionsPolicy)
-        // Optional dev-time CSP for the wallet service page only
+        // Optional dev-time CSP for the wallet service page only (app pages are unaffected)
         if (isWalletRoute && devCSPMode) {
           const mode = devCSPMode === 'strict' ? 'strict' : 'compatible'
           const walletCsp = buildWalletCsp({ mode })
@@ -384,7 +388,7 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
  * Compose dev plugins for serving SDK assets, wallet service HTML and dev headers.
  * External-facing entry for configuring either the app or wallet-iframe dev server.
  */
-export function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
+function tatchiDevServer(options: Web3AuthnDevOptions = {}): VitePlugin {
   const mode: Required<Web3AuthnDevOptions>['mode'] = options.mode || 'self-contained'
   const sdkBasePath = normalizeBase(options.sdkBasePath || process.env.VITE_SDK_BASE_PATH, '/sdk')
   const walletServicePath = normalizeBase(options.walletServicePath || process.env.VITE_WALLET_SERVICE_PATH, '/wallet-service')
@@ -459,6 +463,7 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
           // Do not override existing headers; leave a note in build logs
           console.warn('[tatchi] _headers already exists in outDir; skipping auto-emission')
         } else {
+          // Strict CSP is emitted only for wallet HTML routes; not for app pages.
           const contentLines: string[] = [
             '/*',
             '  Cross-Origin-Opener-Policy: same-origin',
@@ -588,3 +593,72 @@ export function computeDevPermissionsPolicy(walletOrigin?: string): string {
 export function computeDevWalletCsp(mode: 'strict' | 'compatible' = 'strict'): string {
   return buildWalletCsp({ mode })
 }
+
+// Convenience wrappers for clearer intent without changing behavior
+export function tatchiWalletServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {}): VitePlugin {
+  return tatchiDevServer({ ...options, mode: 'wallet-only' })
+}
+
+export function tatchiAppServer(options: Omit<Web3AuthnDevOptions, 'mode'> = {}): VitePlugin {
+  return tatchiDevServer({ ...options, mode: 'front-only' })
+}
+
+// Removed self-contained alias (equivalent to wallet server on same origin)
+
+/**
+ * Convenience wrapper: app origin helper that combines dev-time headers with optional
+ * build-time headers emission for static hosts.
+ *
+ * Dev-time (serve): applies COOP/COEP/CORP and Permissions-Policy via tatchiAppServer.
+ * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
+ * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
+ * wallet HTML routes only.
+ *   - Emits: COOP=same-origin, COEP=require-corp, CORP=cross-origin, and a
+ *     Permissions-Policy delegating WebAuthn/clipboard to the configured wallet origin.
+ *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
+ *
+ * Notes
+ * - Keeps production header emission opt-in to avoid surprising overrides when apps
+ *   already manage headers via custom servers or platform rules.
+ * - Returns a plugin array for ergonomics; Vite accepts arrays in the `plugins` list.
+ */
+export function tatchiApp(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any {
+  const { emitHeaders, ...rest } = options
+  const walletOrigin = (rest.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
+  const app = tatchiAppServer(rest)
+  // Build-time emission is opt-in and will no-op if `_headers` already exists.
+  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin }) : undefined
+  return [app, hdr].filter(Boolean)
+}
+
+/**
+ * Convenience wrapper: wallet origin helper that combines dev-time wallet server
+ * with optional build-time headers emission for static hosts.
+ *
+ * Dev-time (serve): serves `/wallet-service` and `/sdk/*` plus headers via tatchiWalletServer.
+ * Build-time (build): when `emitHeaders` is true, writes a Cloudflare Pages/Netlify
+ * `_headers` file into Vite's `outDir` via tatchiBuildHeaders, scoping strict CSP to
+ * wallet HTML routes only.
+ *   - Emits: COOP=same-origin (wallet HTML routes use `unsafe-none`), COEP=require-corp,
+ *     CORP=cross-origin, and a Permissions-Policy delegating WebAuthn/clipboard to the
+ *     configured wallet origin.
+ *   - No-op if a `_headers` file already exists in `outDir` (avoids clobbering CI/platform rules).
+ *
+ * Notes
+ * - Keeps production header emission opt-in to avoid overriding platform/server configs.
+ * - Returns a plugin array for ergonomics; Vite accepts arrays in the `plugins` list.
+ */
+export function tatchiWallet(options: Omit<Web3AuthnDevOptions, 'mode'> & { emitHeaders?: boolean } = {}): any {
+  const { emitHeaders, ...rest } = options
+  const walletOrigin = (rest.walletOrigin ?? process.env.VITE_WALLET_ORIGIN)?.trim()
+  const wallet = tatchiWalletServer(rest)
+  // Build-time emission is opt-in and will no-op if `_headers` already exists.
+  const hdr = emitHeaders ? tatchiBuildHeaders({ walletOrigin }) : undefined
+  return [wallet, hdr].filter(Boolean)
+}
+
+// Backward-compat alias exports (avoid breaking existing consumers)
+// Deprecated: use tatchiServeSdk instead
+export const tatchiServeSdkDev = tatchiServeSdk
+// Deprecated: use tatchiHeaders instead
+export const tatchiDevHeaders = tatchiHeaders

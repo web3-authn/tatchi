@@ -89,7 +89,12 @@ export async function installWalletSdkCorsShim(
         printLog('intercept', `sdk fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`, { scope: 'cors', indent: 1 });
       }
     } catch (error) {
-      printLog('intercept', `cors shim fell back (${(error as Error).message})`, { scope: 'cors', indent: 1 });
+      // Quiet teardown noise (page/context closed or response disposed) unless explicitly in intercept mode
+      const msg = String((error as Error)?.message || '')
+      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg)
+      if (!isTeardownNoise && (options.logStyle === 'intercept')) {
+        printLog('intercept', `cors shim fell back (${msg})`, { scope: 'cors', indent: 1 });
+      }
       return route.fallback();
     }
   });
@@ -122,7 +127,11 @@ export async function installWalletSdkCorsShim(
         printLog('intercept', `wallet-service fulfilled ${url} ← ${upstreamUrl} (status ${fetched.status()})`, { scope: 'cors', indent: 1 });
       }
     } catch (error) {
-      printLog('intercept', `wallet-service shim fell back (${(error as Error).message})`, { scope: 'cors', indent: 1 });
+      const msg = String((error as Error)?.message || '')
+      const isTeardownNoise = /Target page|context|browser has been closed|Response has been disposed/i.test(msg)
+      if (!isTeardownNoise && (options.logStyle === 'intercept')) {
+        printLog('intercept', `wallet-service shim fell back (${msg})`, { scope: 'cors', indent: 1 });
+      }
       return route.fallback();
     }
   });

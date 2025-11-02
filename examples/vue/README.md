@@ -14,6 +14,6 @@ Quick start
 
 Notes
 
-- Headers: vite.config.ts uses `tatchiServeSdk` + `tatchiHeaders` (app) and `tatchiDevServer` (wallet).
+- Headers: vite.config.ts uses `tatchiServeSdk` + `tatchiHeaders` (app) and `tatchiWalletServer` (wallet).
 - UI: Input with username postfix + Register/Login using PasskeyManager.
 - No manual `_headers` setup needed in dev; Caddy proxies TLS hosts to local Vite servers.

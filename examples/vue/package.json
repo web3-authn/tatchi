@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently --kill-others --names app,wallet,caddy \"vite --port 5176\" \"vite --mode wallet --port 5174\" \"sh run_caddy.sh\"",
-    "dev:wallet": "vite --mode wallet --port 5174",
+    "dev": "concurrently --kill-others --names app,wallet,caddy \"vite --port 5176\" \"vite --config wallet.vite.config.ts --port 5174\" \"sh run_caddy.sh\"",
+    "dev:wallet": "vite --config wallet.vite.config.ts --port 5174",
     "build": "vite build",
     "preview": "vite preview --port 4176"
   },

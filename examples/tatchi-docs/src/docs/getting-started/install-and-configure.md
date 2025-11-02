@@ -29,23 +29,77 @@ Optional peer deps (only if you use these features)
 
 ## 2) Configure Vite (dev/build)
 
-Add the plugin to serve wallet assets and headers during dev/build:
+Choose one of the two integration modes below.
+
+### App‑only (cross‑origin wallet)
+
+Your app delegates to a remote wallet origin in dev and prod. The app dev server only sets headers; it does not host wallet pages or SDK assets.
 
 ```ts
 // vite.config.ts
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
-import { tatchiDev, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+  return {
+    plugins: [
+      react(),
+      // Dev: headers only, wallet pages/assets are remote
+      tatchiAppServer({ walletOrigin }),
+      // Build: emit COOP/COEP/CORP + Permissions‑Policy (+ strict CSP on wallet HTML)
+      tatchiBuildHeaders({ walletOrigin }),
+    ],
+  }
+})
+```
+
+Notes
+- The app does not mount `/wallet-service` or `/sdk/*` in dev.
+- In production, deploy your app normally; the wallet origin serves wallet pages and SDK.
+
+### Self‑hosted (same domain wallet)
+
+You operate the wallet origin yourself (e.g., `app.example.com` and `wallet.example.com`). In dev you can:
+
+- Run two servers (recommended):
+  - App dev server: headers only
+  - Wallet dev server: serves `/wallet-service` and `/sdk/*`
+
+App (headers only):
+
+```ts
+// app/vite.config.ts
+import { defineConfig, loadEnv } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const walletOrigin = env.VITE_WALLET_ORIGIN
+  return {
+    plugins: [react(), tatchiAppServer({ walletOrigin }), tatchiBuildHeaders({ walletOrigin })],
+  }
+})
+```
+
+Wallet (serve wallet pages + SDK):
+
+```ts
+// wallet/vite.config.ts
+import { defineConfig, loadEnv } from 'vite'
+import { tatchiWalletServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
     plugins: [
-      react(),
-      tatchiDev({
-        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
-        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
+      tatchiWalletServer({
         walletOrigin: env.VITE_WALLET_ORIGIN,
+        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
+        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
       }),
       tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
     ],
@@ -53,8 +107,9 @@ export default defineConfig(({ mode }) => {
 })
 ```
 
-Notes
-- On build, the plugin emits `dist/wallet-service/index.html` if missing and adds CORS for `${VITE_SDK_BASE_PATH||'/sdk'}` (including `/workers/*`) in `_headers`.
+Single‑server dev (optional):
+- If you prefer one dev server, mount `tatchiWalletServer({ ... })` on your app’s dev server. This serves `/wallet-service` and `/sdk/*` from the same origin in dev only.
+- For production, deploy the wallet pages and SDK under the wallet origin.
 
 ## 3) Env vars
 
@@ -87,6 +142,18 @@ import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sd
 More: [Wallet Iframe guide](/docs/guides/wallet-iframe) and [Credential Scope](/docs/concepts/wallet-scoped-credentials).
 
 Next: [Quickstart](./quickstart)
+
+## Self‑hosted vs App‑only
+
+- App‑only (cross‑origin wallet)
+  - Dev: `tatchiAppServer({ walletOrigin })`
+  - Build: `tatchiBuildHeaders({ walletOrigin })`
+  - Do not serve `/wallet-service` or `/sdk/*` on the app.
+
+- Self‑hosted (same domain wallet)
+  - Dev (two servers): app → `tatchiAppServer`, wallet → `tatchiWalletServer`
+  - Dev (single server, optional): `tatchiWalletServer` on the app dev server
+  - Build: `tatchiBuildHeaders` on both app and wallet deployments as needed
 
 ## Troubleshooting
 

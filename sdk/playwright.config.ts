@@ -6,6 +6,13 @@ if (process.env.NO_CADDY == null && process.env.USE_CADDY == null) {
   process.env.NO_CADDY = '0';
 }
 
+// Ensure wallet dev CSP is strict during tests unless explicitly overridden.
+// This allows tests to rely on strict CSP while preserving an escape hatch
+// for local debugging (set VITE_WALLET_DEV_CSP=compatible).
+if (process.env.VITE_WALLET_DEV_CSP == null) {
+  process.env.VITE_WALLET_DEV_CSP = 'strict';
+}
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -66,5 +73,9 @@ export default defineConfig({
     url: 'http://localhost:5174',
     reuseExistingServer: true,
     timeout: 60000, // Allow time for relay health check + build
+    // Propagate strict CSP to the dev server process.
+    env: {
+      VITE_WALLET_DEV_CSP: process.env.VITE_WALLET_DEV_CSP ?? 'strict',
+    },
   },
 });

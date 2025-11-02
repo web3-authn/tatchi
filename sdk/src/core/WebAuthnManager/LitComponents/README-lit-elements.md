@@ -2,30 +2,35 @@
 
 ## What Are Iframe Lit Components?
 
-- Lit custom elements that render UI, but live inside a sandboxed iframe to avoid CSS/DOM interference and to enable precise clipping of interactive areas.
-- The iframe hosts a single root element (e.g., `<embedded-tx-button>`), which composes smaller components like the tooltip transaction tree.
+Lit‑based web components that power the wallet UI in two contexts:
 
-Key components:
-- Embedded Transaction Button: Iframe host + embedded element that shows a button and on hover displays a tooltip with transaction details.
-- TxTree: A tiny, dependency‑free tree component used to visualize transactions, actions, and arguments.
+- Embedded on the host app (sandboxed child iframe)
+  - `<w3a-tx-button-host>` mounts a child srcdoc iframe and hydrates `<w3a-button-with-tooltip>` via a tiny bootstrap module.
+  - Purpose: perfect visual isolation and precise clipping for the tooltip/button without leaking styles into the host page.
 
-## Initialization (Iframe Bootstrap Scripts)
+- Rendered inside the wallet iframe (no extra iframe)
+  - `<w3a-modal-tx-confirmer>` and `<w3a-drawer-tx-confirmer>` render directly in the wallet iframe (wallet origin).
+  - Shared building blocks include `<w3a-drawer>`, `<w3a-tx-tree>`, `<w3a-halo-border>`, and `<w3a-passkey-halo-loading>`.
+  - The export viewer uses an additional iframe host: `<w3a-export-viewer-iframe>` + `<w3a-export-key-viewer>`.
 
-The parent page never directly manipulates DOM inside the iframe. Instead, it sends messages to a tiny bootstrap module that:
-- Loads the embedded element script inside the iframe.
-- Positions the embedded element precisely (before measuring geometry).
-- Performs an initial geometry handshake (HS1…HS5) so the parent can apply a clip‑path that only exposes the button/tooltip areas.
+All components are CSP‑safe: static CSS is externalized under `/sdk/*` and dynamic values are applied via constructable stylesheets (no inline styles or `<style>` tags). TxTree defaults to light DOM (opt‑in Shadow DOM via `shadow-dom`).
 
-Files:
-- `IframeButtonWithTooltipConfirmer/iframe-tx-button-bootstrap-script.ts`: Child‑side ESM bootstrap handling READY, HS1_INIT, geometry requests/results, and style/data updates. The emitted module name is `iframe-tx-button-bootstrap.js`.
-- `IframeTxConfirmer/tx-confirmer-wrapper.ts`: Inline wrapper that chooses modal or drawer.
+## Components
 
-## Prop Flow and Data Updates
+- IframeButtonWithTooltipConfirmer: iframe host + embedded tooltip button (bootstrap hydrates the child)
+- IframeTxConfirmer: modal and drawer variants for confirmation UI
+- Drawer: reusable sliding container used by the drawer variant
+- TxTree: lightweight, themeable transaction tree
+- HaloBorder and PasskeyHaloLoading: animated visuals used in confirm flows
+- ExportPrivateKey: export viewer (iframe host + viewer + bootstrap)
 
-Props and updates are delivered via `postMessage`:
-- Parent (host) Lit component builds an init payload and sends it to the iframe (HS1_INIT).
-- Subsequent changes (tx data, loading state, theme, tooltip position, button styles) are sent as typed messages (e.g., SET_TX_DATA, SET_STYLE).
-- The bootstrap receives these and calls methods on the embedded element (`updateProperties`, `updateButtonStyles`) or sets properties directly, then requests a render/update. The embedded element measures its tooltip and returns geometry back to the parent when needed.
+See the component index below for file paths and tags.
+
+## Runtime Architecture
+
+- Parent never manipulates DOM inside the embedded iframe. A small bootstrap script runs in the child and communicates via postMessage.
+- Bootstrap responsibilities: load the embedded element, position it, measure layout, and respond with geometry.
+- Flow of updates: parent posts typed messages (e.g., SET_TX_DATA, SET_STYLE); child applies props to the element and triggers re-render; child returns measurements when needed.
 
 ## Editing Components and Styles
 
@@ -36,129 +41,95 @@ These components use a small base helper and a variable‑driven styling approac
 For guidance on editing properties, style sections, and the CSS variable naming convention, see:
 - `./lit-element-with-props.md` – how properties are upgraded and how `applyStyles` maps section/key pairs to CSS vars.
 
+## Styles and CSP
+
+We no longer inject inline styles or `<style>` tags. All components follow strict CSP (no `unsafe-inline`) using:
+
+- External CSS files served under the SDK base (default `/sdk/*`).
+- Constructable stylesheets (adoptedStyleSheets) for both static CSS and dynamic CSS variables.
+- First‑paint gating to avoid FOUC while styles load.
+
+Key utilities:
+- `css/css-loader.ts` → `ensureExternalStyles(root, assetName, marker)` adopts external CSS (ShadowRoot, srcdoc import, or head `<link>` fallback).
+- `LitElementWithProps#setCssVars(vars)` writes variables via constructable stylesheets (never `element.style`).
+
+Tokens and scoping:
+- Theme tokens come from `css/w3a-components.css`.
+- Component variables follow `--w3a-${component}__${section}__${prop}`.
+
+Other notes:
+- Base resolution: `asset-base.ts#resolveEmbeddedBase()` prefers `window.__W3A_WALLET_SDK_BASE__`, else `/sdk/`.
+- Shadow vs light DOM: TxTree defaults to light DOM; others use Shadow DOM and adopt styles there.
+
+### CSS assets by component
+
+- Shared theme/tokens: `css/w3a-components.css`
+- TxTree visuals: `css/tx-tree.css`
+- Modal confirmer layout/tokens: `css/modal-confirmer.css`
+- Drawer (when used): `css/drawer.css`
+- Button host + tooltip: `css/button-with-tooltip.css`, `css/iframe-button-host.css`
+- Halo ring + loading icon: `css/halo-border.css`, `css/passkey-halo-loading.css`, `css/padlock-icon.css`
+- Export private key UI: `css/export-iframe.css`, `css/export-viewer.css`
+
+These assets are emitted under the SDK base and are loaded at runtime through `ensureExternalStyles()`.
+
+Examples omitted for brevity; see HaloBorder, PasskeyHaloLoading, and Modal viewer for usage.
+
 ## Subcomponent Docs
 
-- Tooltip tree: `./TooltipTxTree/README.md`
+- TxTree: `./TxTree/README.md`
 - Iframe button + tooltip confirmer: `./IframeButtonWithTooltipConfirmer/README.md`
-- Arrow register button: `./ArrowRegisterButton/index.ts` (emits `arrow-submit` when proceeding)
-
-Tip: When changing dimensions (tooltip width/height or modal size), prefer updating the theme objects or the `tooltipPosition` prop so geometry and clip‑path remain aligned.
 
 
 ## Confirm UI API
 
-- File: `passkey-sdk/src/core/WebAuthnManager/LitComponents/confirm-ui.ts`
-- Element contract: `passkey-sdk/src/core/WebAuthnManager/LitComponents/confirm-ui-types.ts`
+- File: `sdk/src/core/WebAuthnManager/LitComponents/confirm-ui.ts`
+- Element contract: `sdk/src/core/WebAuthnManager/LitComponents/confirm-ui-types.ts`
 
 Confirm UI is container‑agnostic and driven by `uiMode: 'skip' | 'modal' | 'drawer'`.
-
-- ConfirmUIElement: Minimal element API implemented by both containers.
-  - deferClose: When true, host controls removal (two‑phase close).
-  - close(confirmed): Optional programmatic close.
-
-Example usage (inline wrapper rendered inside the wallet iframe):
-
-```ts
-import { mountConfirmUI, awaitConfirmUIDecision } from '@/core/WebAuthnManager/LitComponents/confirm-ui';
-
-// Mount + auto‑proceed (e.g., show loading then close)
-const handle = await mountConfirmUI({
-  ctx,
-  summary,                // TransactionSummary
-  txSigningRequests,      // optional
-  vrfChallenge,           // optional
-  loading: true,
-  theme: 'dark',
-  uiMode: 'drawer',       // 'modal' | 'drawer' | 'skip'
-  nearAccountIdOverride: accountId, // optional
-});
-// ... do work, then close
-handle.close(true);
-
-// Or await an explicit decision from the UI
-const { confirmed, handle: h } = await awaitConfirmUIDecision({
-  ctx,
-  summary,
-  txSigningRequests,
-  vrfChallenge,
-  theme: 'dark',
-  uiMode: 'modal',
-  nearAccountIdOverride: accountId,
-});
-if (!confirmed) h.close(false);
-```
+- Element contract: `ConfirmUIElement` supports `deferClose` and `close(confirmed)`.
+- Helpers: `mountConfirmUI()` and `awaitConfirmUIDecision()` mount and coordinate lifecycle.
 
 
-## Lit Components: Editing Guide
+## Editing Guide (brief)
 
-When renaming Lit component files, several files must be updated to maintain consistency across the build system. Follow this checklist:
-
-#### 1. Rolldown Configuration (`packages/passkey/rolldown.config.ts`)
-- Update entry points in the `input` configuration
-
-### 2. Dev Asset Serving
-
-Use the Vite dev plugin to serve SDK assets at `/sdk/*` directly from the SDK `dist/` directory (no manual copy):
-- Plugin: `@tatchi-xyz/sdk/plugins/vite`
-- Example usage (in `vite.config.ts`):
-  ```ts
-  import { tatchiDev } from '@tatchi-xyz/sdk/plugins/vite'
-  export default defineConfig({
-    plugins: [
-      web3authnDev({ mode: 'self-contained', setDevHeaders: false }),
-    ],
-  })
-  ```
+When adding or refactoring components:
+- Expose a single defining module that calls `customElements.define()`.
+- If moving/renaming, update build entries and re‑exports so the defining chunk still emits under `/sdk/*`.
+- In the wallet host, dynamically import the element module before `document.createElement()` (see tree‑shaking section).
+- Ensure required CSS assets exist in `css/` and are adopted via `ensureExternalStyles()`.
 
 
-### 3. Update Class Names and Exports
+## Component Index
 
-In the renamed component file:
-- Update the class name to match the new filename (following PascalCase convention)
-- Update the `customElements.define()` call to use the new class name
-- Update the default export to match the new class name
+- IframeButtonWithTooltipConfirmer/
+  - `iframe-host.ts` — `<w3a-tx-button-host>`; mounts embedded button inside an iframe
+  - `ButtonWithTooltip.ts` — `<w3a-button-with-tooltip>` embedded element (child iframe)
+  - `iframe-tx-button-bootstrap-script.ts` — child bootstrap module
 
-Example:
-```typescript
-// Before: IframeButton.ts
-export class IframeButton extends LitElement {
-  // ...
-}
-customElements.define(IFRAME_BUTTON_ID, IframeButton);
-export default IframeButton;
+- IframeTxConfirmer/
+  - `viewer-modal.ts` — `<w3a-modal-tx-confirmer>`
+  - `viewer-drawer.ts` — `<w3a-drawer-tx-confirmer>`
+  - `tx-confirmer-wrapper.ts` — inline wrapper selects variant
 
-// After: IframeButtonHost.ts
-export class IframeButtonHost extends LitElement {
-  // ...
-}
-customElements.define(IFRAME_BUTTON_ID, IframeButtonHost);
-export default IframeButtonHost;
-```
+- Drawer/ — `index.ts` — `<w3a-drawer>`
+- TxTree/ — `index.ts` — `<w3a-tx-tree>` (light DOM by default)
+- HaloBorder/ — `index.ts` — `<w3a-halo-border>`
+- PasskeyHaloLoading/ — `index.ts` — `<w3a-passkey-halo-loading>`
 
-### 4. Update Documentation
+- ExportPrivateKey/
+  - `viewer.ts` — `<w3a-export-key-viewer>`
+  - `iframe-host.ts` — `<w3a-export-viewer-iframe>`
+  - `iframe-export-bootstrap-script.ts` — child bootstrap
 
-- **Component README**: Update component overview and file references
-- **API Documentation**: Update class names and file paths in docs
-- **Architecture Docs**: Update component references in architectural documentation
+- Base / helpers
+  - `LitElementWithProps.ts` — CSP‑safe CSS variable application
+  - `confirm-ui.ts`, `confirm-ui-types.ts` — confirm UI API and types
+  - `css/css-loader.ts` — external CSS adoption
+  - `tags.ts` — tag names and helpers
 
 
-### Common Files to Check
-
-- `packages/passkey/rolldown.config.ts` - Build entry points
-- `packages/passkey/src/core/types/components.ts` - Component exports
-- Dev server config (Vite) that serves `/sdk/*` via the plugin
-- `packages/passkey/docs/*.md` - Documentation files
-- Any test files in `packages/passkey/src/__tests__/`
-
-
-## Components
-
-- **IframeButtonWithTooltipConfirmer/**: Transaction confirmation components with iframe isolation
-- **ModalTxConfirmElement.ts**: Modal transaction confirmation dialog
-- **renderUtils.ts**: Shared rendering utilities for Lit components
-
-
-## Wallet-Iframe Lit Integration: Gotchas & Checklist
+## Wallet-Iframe Lit Components: Tree-shaking Gotchas
 
 When adding a new Lit component that must render inside the wallet iframe host (e.g., a new drawer or modal), there are a few integration pitfalls that can make the custom element appear in the DOM but never upgrade (empty UI). This section documents the fixes and a repeatable checklist.
 
@@ -182,17 +153,10 @@ When adding a new Lit component that must render inside the wallet iframe host (
 Implementation reference:
 - `src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts` (SHOW_SECURE_PRIVATE_KEY_UI path) dynamically imports the iframe host module before creating the element.
 
-### Embedded asset serving (dev)
-
-- Embedded UIs that render in a child srcdoc iframe must import their bundles from `/sdk/` (viewer + bootstrap). Rolldown produces these under `dist/esm/sdk/`.
-- The Vite dev plugin serves `/sdk/**` by probing `dist/esm/sdk` (canonical), with fallbacks to `dist/esm` and `dist` so no manual copy is needed:
-  - `/sdk/export-private-key-viewer.js`
-  - `/sdk/iframe-export-bootstrap.js`
-- Wallet host initializes the base: `window.__W3A_EMBEDDED_BASE__ = '/sdk/'` during `PM_SET_CONFIG` handling.
-
-Sanity checks in the wallet origin devtools:
-- Network 200 for `/sdk/<bundle>.js` requests
-- Console: no “Unknown custom element” warnings; the element should upgrade and post READY back to parent
+### Embedded assets (dev)
+- Bundles load from `/sdk/` (viewer + bootstrap) under `dist/esm/sdk/`.
+- Dev plugin serves JS/CSS with correct MIME and COEP/CORP.
+- Sanity: `/sdk/<bundle>.js` returns 200; no “Unknown custom element” warnings.
 
 ### Sticky overlay for two‑phase flows
 
@@ -213,28 +177,15 @@ Sanity checks in the wallet origin devtools:
 Implementation reference:
 - `src/core/WalletIframe/client/router.ts` sets `options: { sticky: true }` for the export‑UI call and guards overlay hiding with `isSticky()`.
 
-### Rolldown entries to include
+### Build entries
+- Add both: `iframe-<feature>-bootstrap.js` and `<feature>-viewer.js` (emit under `dist/esm/sdk/`).
 
-- For any new iframe‑hosted UI:
-  - Add a bundle for the child iframe bootstrap (e.g., `iframe-<feature>-bootstrap.js`)
-  - Add a bundle for the viewer element (`<feature>-viewer.js`)
-- Ensure both end up under `dist/esm/sdk/`
-
-Implementation reference:
-- `rolldown.config.ts` entries for:
-  - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/iframe-export-bootstrap-script.ts`
-  - `src/core/WebAuthnManager/LitComponents/ExportPrivateKey/viewer.ts`
-
-## Never Break Again: Definition + Tree‑Shaking Rules
-
-These are hard guardrails to eliminate “empty custom element” regressions when refactoring Lit + wallet‑iframe code.
-
-1) Hard rules
+### Hard rules (never break again)
 - Always ensure definition at use‑site: before `document.createElement('w3a-*')`, dynamically import the module that calls `customElements.define()` for that tag.
 - Never rely only on side‑effect imports for elements rendered inside the wallet iframe.
 - Centralize tag names in `tags.ts` and prefer a small helper to ensure definition.
 
-2) Use‑site helper pattern
+### Use‑site helper pattern
 
 Create a tiny helper to guarantee the module runs before creating the element:
 
@@ -245,9 +196,9 @@ export async function ensureDefined(tag: string, loader: () => Promise<unknown>)
 }
 
 // Usage (export viewer)
-import { W3A_EXPORT_VIEWER_IFRAME_ID } from './ExportPrivateKey/../tags';
+import { W3A_EXPORT_VIEWER_IFRAME_ID } from '../tags';
 import { ensureDefined } from '../ensure-defined';
-await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('./ExportPrivateKey/iframe-host'));
+await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../ExportPrivateKey/iframe-host'));
 const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID);
 document.body.appendChild(host);
 ```
@@ -255,7 +206,7 @@ document.body.appendChild(host);
 Reference in codebase:
 - `SignerWorkerManager/confirmTxFlow/flows/common.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
 
-3) Keep‑imports in wallet host (secondary defense)
+### Keep‑imports in wallet host (secondary defense)
 
 Keep critical element definitions alive in the wallet host runtime:
 
@@ -266,40 +217,27 @@ import { IframeExportHost as __KeepExportViewerIframe } from '../../WebAuthnMana
 const __ensure = [__KeepTxButton, __KeepExportViewerIframe];
 ```
 
-4) Dev/Test guardrails
+### Dev/Test guardrails
 - Unit: keep the SHOW_SECURE_PRIVATE_KEY_UI test that verifies the viewer remains mounted (already present under `src/__tests__/unit/confirmTxFlow.defensivePaths.test.ts`).
 - E2E: add a production‑bundle run that triggers export viewer to catch treeshaking differences from dev.
 - Lint/check: optional script that fails CI if a `document.createElement('w3a-…')` call is not preceded by an `ensureDefined(...)` in the same module.
 - Dev observer: optional `MutationObserver` in wallet host that warns if a `w3a-*` element is un‑upgraded for >250ms after insertion.
 
-5) Build config notes
+### Build config notes
 - `package.json#sideEffects` cannot protect intra‑bundle treeshaking across all tools. The reliable fix is dynamic import at use‑site, plus keep‑imports in the wallet host.
 
-## Importing and Composing Lit Components
+## Importing and Composing (quick checklist)
 
-### Quick checklist (copy/paste for new components)
+- Define the element in a standalone module and `customElements.define()` it.
+- In wallet host paths, dynamically `await import('<module>')` before `document.createElement('<tag>')`.
+- When composing, keep required sub‑elements referenced so they aren’t tree‑shaken (e.g., private field or `static keepDefinitions`).
+- For iframe bootstraps, set variant flags before element creation.
+- Use two‑phase close (`deferClose`) for animated flows; close after animation.
+- Ensure srcdoc loads viewer + bootstrap from `/sdk/` with `type="module"`.
+- Validate in dev: `/sdk/*.js` 200; element upgrades; READY/SET_* messages flow.
 
-1) Define the custom element and export it from a standalone module (ensures a direct defining chunk in dist/esm/sdk)
-2) In the wallet host code path that uses it, add a dynamic `await import('<module>')` before `document.createElement('<tag>')`
-3) Prevent tree-shaking of required sub-elements when composing
-   - If your component composes other custom elements (e.g., Drawer, TxTree), reference them in a private field so bundlers don’t drop the import:
-     ```ts
-     import DrawerElement from '../Drawer';
-     import TxTree from '../TxTree';
-     export class MyElement extends LitElementWithProps {
-       private _ensureDrawerDefinition = DrawerElement;
-       private _ensureTreeDefinition = TxTree;
-       // ...
-     }
-     ```
-   - For iframe bootstraps, import side-effect modules for variants you may dynamically create (e.g., `'./DrawerTxConfirmer'`).
-4) Set variant before creating elements in iframe bootstraps
-   - Apply any `variant`/mode flags before calling your `ensureElement()` function so the correct tag is created on first paint.
-5) Two‑phase close in embedded flows
-   - Set `deferClose = true` on the inner element and have the bootstrap/host call `close(confirmed)` after animations complete.
-3) Ensure the child iframe HTML (srcdoc) loads the viewer and bootstrap with `type="module"` under `__W3A_EMBEDDED_BASE__`
-4) Add rolldown entries so both viewer and bootstrap bundles are emitted
-5) For two‑phase or long‑lived UIs, mark the wallet request sticky and hide the overlay only on WALLET_UI_CLOSED
-6) Dev validate: Network 200 for `/sdk/*.js`; element upgrades; READY/SET_* messages flow between parent and child
+## Troubleshooting Styles + FOUC
 
-Following this checklist prevents “empty custom element” regressions when introducing new Lit components into the wallet‑iframe architecture.
+- Unstyled component: ensure correct SDK base; confirm a single head `<link data-w3a-…>` or adopted sheet; check `/sdk/*.css` fetches succeed without CSP errors.
+- FOUC: gate first paint on `ensureExternalStyles()` settling (see HaloBorder, PasskeyHaloLoading, Modal viewer patterns).
+- CSP violations: never write `element.style`; use `setCssVars()` + external CSS.

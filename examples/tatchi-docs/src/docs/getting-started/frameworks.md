@@ -54,3 +54,9 @@ onMount(async () => {
 
 More examples: [Framework Snippets](/docs/guides/frameworks)
 
+## Plugin Choices
+- App‑only (cross‑origin wallet): use `tatchiAppServer({ walletOrigin })` in dev and `tatchiBuildHeaders({ walletOrigin })` at build.
+- Self‑hosted (same domain wallet):
+  - Two servers in dev → app: `tatchiAppServer`, wallet: `tatchiWalletServer`
+  - One server in dev (optional) → `tatchiWalletServer` on the app dev server
+See full details in [Install & Configure](./install-and-configure#self-hosted-vs-app-only).
