@@ -300,7 +300,8 @@ export async function executeActionInternal({
   receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
   options?: ActionHooksOptions,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  // Accept partial override and merge later in confirm flow
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult> {
 
   const { onEvent, onError, beforeCall, afterCall, waitUntil } = options || {};
@@ -365,7 +366,7 @@ export async function signAndSendTransactionsInternal({
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: SignAndSendTransactionHooksOptions,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult[]> {
 
   try {
@@ -426,7 +427,7 @@ export async function signTransactionsWithActionsInternal({
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: Omit<ActionHooksOptions, 'afterCall'>,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<VerifyAndSignTransactionResult[]> {
 
   const { onEvent, onError, beforeCall, waitUntil } = options || {};
@@ -518,7 +519,7 @@ async function wasmAuthenticateAndSignTransactions(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: ConfirmationConfig }
+  options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: Partial<ConfirmationConfig> }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<VerifyAndSignTransactionResult[]> {
 

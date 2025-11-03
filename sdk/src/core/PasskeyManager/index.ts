@@ -36,6 +36,8 @@ import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
+import type { DerivedAddressRecord } from '../IndexedDBManager';
+import { chainsigAddressManager } from '../ChainsigAddressManager';
 import {
   ActionType,
   type ActionArgs,
@@ -844,6 +846,34 @@ export class PasskeyManager {
       return;
     }
     await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
+  }
+
+  ///////////////////////////////////////
+  // === DERIVED ADDRESSES (public helpers) ===
+  ///////////////////////////////////////
+
+  /** Store a derived address for an account + contract + path (multi-chain capable via path encoding). */
+  async setDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string; address: string }
+  ): Promise<void> {
+    await chainsigAddressManager.setDerivedAddress(toAccountId(nearAccountId), args);
+  }
+
+  /** Retrieve the full derived address record (or null if not found). */
+  async getDerivedAddressRecord(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<DerivedAddressRecord | null> {
+    return await chainsigAddressManager.getDerivedAddressRecord(toAccountId(nearAccountId), args);
+  }
+
+  /** Retrieve only the derived address string for convenience. */
+  async getDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<string | null> {
+    return await chainsigAddressManager.getDerivedAddress(toAccountId(nearAccountId), args);
   }
 
   ///////////////////////////////////////

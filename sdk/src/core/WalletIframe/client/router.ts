@@ -426,7 +426,8 @@ export class WalletIframeRouter {
       onError?: (error: Error) => void;
       beforeCall?: BeforeCall;
       afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
-      confirmationConfig?: ConfirmationConfig;
+      // Allow minimal overrides (e.g., { uiMode: 'drawer' })
+      confirmationConfig?: Partial<ConfirmationConfig>;
     }
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages

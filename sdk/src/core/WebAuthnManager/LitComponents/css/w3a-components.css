@@ -55,6 +55,7 @@ w3a-export-key-viewer {
   --w3a-colors-borderHover: oklch(0.4 0.02 240);
   --w3a-colors-backgroundGradientPrimary: linear-gradient(45deg, oklch(0.82 0.130 255) 0%, oklch(0.66 0.180 255) 50%);
   --w3a-colors-backgroundGradientSecondary: linear-gradient(90deg, hsla(213, 62%, 45%, 1) 0%, hsla(203, 89%, 71%, 1) 50%, hsla(0, 0%, 96%, 1) 100%);
+  --w3a-colors-backgroundGradient4: linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%);
   --w3a-colors-highlightReceiverId: oklch(0.74 0.166 255);
   --w3a-colors-highlightMethodName: oklch(0.74 0.166 255);
   --w3a-colors-highlightAmount: oklch(0.74 0.166 255);
@@ -95,6 +96,7 @@ w3a-export-key-viewer {
   --w3a-colors-borderHover: oklch(0.725 0.0225 240);
   --w3a-colors-backgroundGradientPrimary: linear-gradient(45deg, oklch(0.82 0.130 255) 0%, oklch(0.66 0.180 255) 50%);
   --w3a-colors-backgroundGradientSecondary: linear-gradient(90deg, hsla(213, 62%, 45%, 1) 0%, hsla(203, 89%, 71%, 1) 50%, hsla(0, 0%, 96%, 1) 100%);
+  --w3a-colors-backgroundGradient4: linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%);
   --w3a-colors-highlightReceiverId: oklch(0.66 0.180 255);
   --w3a-colors-highlightMethodName: oklch(0.66 0.180 255);
   --w3a-colors-highlightAmount: oklch(0.66 0.180 255);
@@ -135,6 +137,7 @@ w3a-export-key-viewer {
   --w3a-colors-borderHover: oklch(0.74 0.020 95);
   --w3a-colors-backgroundGradientPrimary: linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%);
   --w3a-colors-backgroundGradientSecondary: linear-gradient(90deg, oklch(0.20 0.010 240) 0%, oklch(0.95 0.005 240) 100%);
+  --w3a-colors-backgroundGradient4: linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%);
   --w3a-colors-highlightReceiverId: oklch(0.74 0.176 95);
   --w3a-colors-highlightMethodName: oklch(0.74 0.176 95);
   --w3a-colors-highlightAmount: oklch(0.74 0.176 95);

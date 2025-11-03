@@ -86,21 +86,47 @@ interface PasskeyClientDBConfig {
   userStore: string;
   appStateStore: string;
   authenticatorStore: string;
+  derivedAddressStore: string;
 }
 
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 13, // Bump version; add fallback open for mixed-version contexts
+  dbVersion: 14, // v14: add derivedAddresses store
   userStore: 'users',
   appStateStore: 'appState',
-  authenticatorStore: 'authenticators'
+  authenticatorStore: 'authenticators',
+  derivedAddressStore: 'derivedAddresses'
 } as const;
 
 export interface IndexedDBEvent {
   type: 'user-updated' | 'preferences-updated' | 'user-deleted';
   accountId: AccountId;
   data?: Record<string, unknown>;
+}
+
+// Persisted mapping of derived (e.g., EVM) addresses tied to an account
+/**
+ * Persisted mapping of derived (e.g., EVM/Solana/Zcash) addresses tied to an account.
+ *
+ * Notes on multi-chain support:
+ * - The composite primary key is [nearAccountId, contractId, path]. To support
+ *   different chains and chain IDs, encode them in the `path` string, e.g.:
+ *     - EVM: `evm:<chainId>:<derivationPath>` → `evm:84532:ethereum-1`
+ *     - Solana: `solana:<derivationPath>`
+ *     - Zcash: `zcash:<derivationPath>`
+ * - Additional descriptive fields like `namespace` and `chainRef` are optional metadata
+ *   and are not part of the key.
+ */
+export interface DerivedAddressRecord {
+  nearAccountId: AccountId;
+  contractId: string; // MPC/Derivation contract on NEAR
+  path: string;       // Composite path (may include namespace/chainId); see docs above
+  address: string;    // Derived address (e.g., 0x...)
+  updatedAt: number;
+  // Optional metadata (not used in the key)
+  namespace?: string; // e.g., 'evm', 'solana', 'zcash'
+  chainRef?: string;  // e.g., chainId '84532' or a named network slug
 }
 
 export class PasskeyClientDBManager {
@@ -144,7 +170,7 @@ export class PasskeyClientDBManager {
 
     try {
       this.db = await openDB(this.config.dbName, this.config.dbVersion, {
-        upgrade: (db, oldVersion, _newVersion, _transaction): void => {
+      upgrade: (db, oldVersion, _newVersion, _transaction): void => {
           // Create stores if they don't exist
           if (!db.objectStoreNames.contains(DB_CONFIG.userStore)) {
             // Users table: composite key of [nearAccountId, deviceNumber]
@@ -158,6 +184,11 @@ export class PasskeyClientDBManager {
             // Authenticators table: composite key of [nearAccountId, deviceNumber, credentialId]
             const authStore = db.createObjectStore(DB_CONFIG.authenticatorStore, { keyPath: ['nearAccountId', 'deviceNumber', 'credentialId'] });
             authStore.createIndex('nearAccountId', 'nearAccountId', { unique: false });
+          }
+          if (!db.objectStoreNames.contains(DB_CONFIG.derivedAddressStore)) {
+            // Derived addresses: composite key of [nearAccountId, contractId, path]
+            const dStore = db.createObjectStore(DB_CONFIG.derivedAddressStore, { keyPath: ['nearAccountId', 'contractId', 'path'] });
+            try { dStore.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
           }
         },
         blocked() {
@@ -191,28 +222,8 @@ export class PasskeyClientDBManager {
     return this.db;
   }
 
-  private async runMigrationsIfNeeded(db: IDBPDatabase): Promise<void> {
-    try {
-      const migrated = await db.get(DB_CONFIG.appStateStore, 'migrated_v13_serverKeyFields');
-      if (migrated?.value === true) return;
-
-      const tx = db.transaction(DB_CONFIG.userStore, 'readwrite');
-      const store = tx.objectStore(DB_CONFIG.userStore);
-      const users: any[] = await store.getAll();
-      const now = Date.now();
-      for (const user of users) {
-        if (user?.serverEncryptedVrfKeypair && typeof user.serverEncryptedVrfKeypair === 'object') {
-          if (user.serverEncryptedVrfKeypair.updatedAt == null) {
-            user.serverEncryptedVrfKeypair.updatedAt = now;
-            await store.put(user);
-          }
-        }
-      }
-      await tx.done;
-      await db.put(DB_CONFIG.appStateStore, { key: 'migrated_v13_serverKeyFields', value: true });
-    } catch (e) {
-      console.warn('PasskeyClientDB migration v13 failed (non-fatal):', e);
-    }
+  private async runMigrationsIfNeeded(_db: IDBPDatabase): Promise<void> {
+    return;
   }
 
   // === APP STATE METHODS ===
@@ -685,6 +696,44 @@ export class PasskeyClientDBManager {
     const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
     await this.setTheme(nearAccountId, newTheme);
     return newTheme;
+  }
+
+  // === DERIVED ADDRESS METHODS ===
+
+  /**
+   * Store a derived address for a given NEAR account + contract + path
+   */
+  async setDerivedAddress(nearAccountId: AccountId, args: { contractId: string; path: string; address: string }): Promise<void> {
+    if (!nearAccountId || !args?.contractId || !args?.path || !args?.address) return;
+    const validation = this.validateNearAccountId(nearAccountId);
+    if (!validation.valid) return;
+    const rec: DerivedAddressRecord = {
+      nearAccountId: toAccountId(nearAccountId),
+      contractId: String(args.contractId),
+      path: String(args.path),
+      address: String(args.address),
+      updatedAt: Date.now(),
+    };
+    const db = await this.getDB();
+    await db.put(DB_CONFIG.derivedAddressStore, rec);
+  }
+
+  /**
+   * Fetch a derived address record; returns null if not found
+   */
+  async getDerivedAddressRecord(nearAccountId: AccountId, args: { contractId: string; path: string }): Promise<DerivedAddressRecord | null> {
+    if (!nearAccountId || !args?.contractId || !args?.path) return null;
+    const db = await this.getDB();
+    const rec = await db.get(DB_CONFIG.derivedAddressStore, [toAccountId(nearAccountId), String(args.contractId), String(args.path)]);
+    return (rec as DerivedAddressRecord) || null;
+  }
+
+  /**
+   * Get only the derived address string; returns null if not set
+   */
+  async getDerivedAddress(nearAccountId: AccountId, args: { contractId: string; path: string }): Promise<string | null> {
+    const rec = await this.getDerivedAddressRecord(nearAccountId, args);
+    return rec?.address || null;
   }
 
   /**

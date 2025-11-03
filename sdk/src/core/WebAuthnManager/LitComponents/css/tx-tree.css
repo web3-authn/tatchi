@@ -395,7 +395,7 @@
   padding: var(--w3a-tree__file-content__padding, 0rem 0.25rem 0rem 0.25rem);
   border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
   background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
-  max-height: var(--w3a-tree__file-content__max-height, 120px);
+  max-height: var(--w3a-tree__file-content__max-height, 40vh);
   resize: var(--w3a-tree__file-content__resize, vertical);
   min-height: var(--w3a-tree__file-content__min-height, 60px);
   width: var(--w3a-tree__file-content__width, 100%);

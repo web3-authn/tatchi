@@ -495,7 +495,8 @@ export interface ActionHooksOptions {
   afterCall?: AfterCall<ActionResult>;
   // Per-call confirmation configuration. When provided, overrides user preferences
   // for this request only (not persisted).
-  confirmationConfig?: ConfirmationConfig;
+  // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
 export type ExecutionWaitOption =
@@ -514,7 +515,8 @@ export interface SignAndSendTransactionHooksOptions {
   afterCall?: AfterCall<ActionResult[]>;
   // Per-call confirmation configuration. When provided, overrides user preferences
   // for this request only (not persisted).
-  confirmationConfig?: ConfirmationConfig;
+  // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
 export interface SignTransactionHooksOptions {
@@ -524,7 +526,8 @@ export interface SignTransactionHooksOptions {
   afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
   // Per-call confirmation configuration (non-persistent)
-  confirmationConfig?: ConfirmationConfig;
+  // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
+  confirmationConfig?: Partial<ConfirmationConfig>;
 }
 
 export interface SendTransactionHooksOptions {

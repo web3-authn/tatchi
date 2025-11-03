@@ -127,6 +127,7 @@ export type {
 export {
   AccountRecoveryPhase,
   AccountRecoveryStatus,
+  type ActionResult,
 } from '../core/types/passkeyManager';
 
 // === DEVICE LINKING ENUMS ===

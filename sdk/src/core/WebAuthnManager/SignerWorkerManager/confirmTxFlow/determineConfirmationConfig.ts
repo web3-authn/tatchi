@@ -32,12 +32,12 @@ export function determineConfirmationConfig(
   ctx: SignerWorkerManagerContext,
   request: SecureConfirmRequest | undefined,
 ): ConfirmationConfig {
+
   // Merge request‑level override over user preferences
-  let cfg: ConfirmationConfig = {
-    ...ctx.userPreferencesManager.getConfirmationConfig(),
-    ...request?.confirmationConfig,
-  };
-  const hasOverride = !!request?.confirmationConfig;
+  const configBase = ctx.userPreferencesManager.getConfirmationConfig();
+  const configOverride = (request?.confirmationConfig || {}) as Partial<ConfirmationConfig>;
+  let cfg: ConfirmationConfig = { ...configBase, ...configOverride } as ConfirmationConfig;
+
   // Normalize theme default
   cfg = { ...cfg, theme: cfg.theme || 'dark' } as ConfirmationConfig;
   // Default decrypt-private-key confirmations to 'skip' UI. The flow collects

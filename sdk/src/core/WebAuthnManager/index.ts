@@ -735,7 +735,8 @@ export class WebAuthnManager {
   }: {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
-    confirmationConfigOverride?: ConfirmationConfig,
+    // Accept partial override; merging happens in handlers layer
+    confirmationConfigOverride?: Partial<ConfirmationConfig>,
     onEvent?: (update: onProgressEvents) => void,
   }): Promise<VerifyAndSignTransactionResult[]> {
 
