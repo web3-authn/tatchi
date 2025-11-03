@@ -149,6 +149,7 @@ export class PasskeyManager {
         nearRpcUrl: this.configs.nearRpcUrl,
         nearNetwork: this.configs.nearNetwork,
         contractId: this.configs.contractId,
+        nearExplorerUrl: this.configs.nearExplorerUrl,
         // Ensure relay server config reaches the wallet host for atomic registration
         relayer: this.configs.relayer,
         vrfWorkerConfigs: this.configs.vrfWorkerConfigs,

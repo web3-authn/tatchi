@@ -442,6 +442,14 @@
   box-shadow: var(--w3a-tree__highlight-receiver-id__box-shadow, none);
 }
 
+/* Underline on hover/focus to indicate link affordance */
+:is(w3a-tx-tree, tx-tree) .highlight-receiver-id:hover,
+:is(w3a-tx-tree, tx-tree) .highlight-receiver-id:focus-visible {
+  text-decoration: underline;
+  text-underline-offset: var(--w3a-tree__highlight-receiver-id__underline-offset, 0.08em);
+  text-decoration-thickness: var(--w3a-tree__highlight-receiver-id__underline-thickness, 2px);
+}
+
 :is(w3a-tx-tree, tx-tree) .highlight-method-name {
   color: var(--w3a-tree__highlight-method-name__color, #4ecdc4);
   background: var(--w3a-tree__highlight-method-name__background, transparent);

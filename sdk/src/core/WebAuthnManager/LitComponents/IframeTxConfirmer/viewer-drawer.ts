@@ -30,6 +30,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     cancelText: { type: String },
     // Two‑phase close: when true, host controls removal
     deferClose: { type: Boolean, attribute: 'defer-close' },
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
   } as const;
 
   declare nearAccountId: string;
@@ -44,6 +45,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare confirmText: string;
   declare cancelText: string;
   declare deferClose: boolean;
+  declare nearExplorerUrl?: string;
 
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
@@ -263,6 +265,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               .txSigningRequests=${this.txSigningRequests || []}
               .vrfChallenge=${this.vrfChallenge}
               theme=${this.theme}
+              .nearExplorerUrl=${this.nearExplorerUrl}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
               .title=${this.title}

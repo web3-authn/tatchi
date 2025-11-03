@@ -64,7 +64,9 @@ export class TxTree extends LitElementWithProps {
     // Exposed as attribute for convenience, but property binding works too.
     width: { type: String },
     // Opt-in: render in Shadow DOM for encapsulation; default is light DOM for CSP simplicity
-    shadowDom: { type: Boolean, attribute: 'shadow-dom' }
+    shadowDom: { type: Boolean, attribute: 'shadow-dom' },
+    // Optional: base URL for NEAR explorer links, e.g., https://testnet.nearblocks.io
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
@@ -79,6 +81,8 @@ export class TxTree extends LitElementWithProps {
   width?: string | number;
   // When true, render using Shadow DOM and adopt styles into the ShadowRoot
   shadowDom?: boolean;
+  // Optional base URL for explorer (e.g., https://testnet.nearblocks.io)
+  nearExplorerUrl?: string;
 
   // Static styles removed; this component now relies on external tx-tree.css
 
@@ -136,12 +140,34 @@ export class TxTree extends LitElementWithProps {
    * Keeps native semantics by toggling details.open at the appropriate time.
    */
   private onSummaryClick = (e: Event) => {
-    // Prevent native toggle so we can animate first
-    e.preventDefault();
-    e.stopPropagation();
-
     const summary = e.currentTarget as HTMLElement | null;
     if (!summary) return;
+
+    // If the click originated on a receiver-id link, prevent the native
+    // toggle on <summary> and open the link in a new tab instead.
+    const path = (e as any).composedPath?.() as EventTarget[] | undefined;
+    let clickedReceiverLink: HTMLAnchorElement | null = null;
+    if (Array.isArray(path)) {
+      for (const t of path) {
+        if (t && typeof (t as any).matches === 'function' && (t as any).matches('a.highlight-receiver-id')) {
+          clickedReceiverLink = t as HTMLAnchorElement;
+          break;
+        }
+      }
+    } else {
+      const target = e.target as HTMLElement | null;
+      clickedReceiverLink = (target?.closest?.('a.highlight-receiver-id') as HTMLAnchorElement | null) ?? null;
+    }
+    if (clickedReceiverLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      try { window.open(clickedReceiverLink.href, '_blank', 'noopener'); } catch {}
+      return;
+    }
+
+    // Otherwise, prevent native toggle so we can animate first
+    e.preventDefault();
+    e.stopPropagation();
 
     const details = summary.closest('details') as HTMLDetailsElement | null;
     if (!details || this._animating.has(details)) return;
@@ -338,7 +364,14 @@ export class TxTree extends LitElementWithProps {
       const idx = treeNode.transactionIndex ?? 0;
       const prefix = total > 1 ? `Transaction ${idx + 1}: to ` : 'Transaction to ';
       const receiverId = treeNode.transaction.receiverId;
-      return html`${prefix}<span class="highlight-receiver-id">${receiverId}</span>`;
+      const base = (this.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
+      const href = `${base}/address/${encodeURIComponent(receiverId)}`;
+      return html`${prefix}<a
+        class="highlight-receiver-id"
+        href=${href}
+        target="_blank"
+        rel="noopener noreferrer"
+      >${receiverId}</a>`;
     }
 
     // Fallback to plain label for non-action, non-transaction nodes

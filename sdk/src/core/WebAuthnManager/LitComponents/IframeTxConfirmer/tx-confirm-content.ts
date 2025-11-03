@@ -36,6 +36,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
     _treeNode: { attribute: false, state: true },
     // Optional: set tooltip width via CSS var for nested components
     tooltipWidth: { type: String, attribute: 'tooltip-width' },
+    // Optional: pass explorer base URL down to TxTree
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
   } as const;
 
   declare nearAccountId: string;
@@ -49,6 +51,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   declare confirmText: string;
   declare cancelText: string;
   declare tooltipWidth?: string | number;
+  declare nearExplorerUrl?: string;
 
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
@@ -185,6 +188,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
         ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
         ${(() => {
           const treeTheme: 'dark' | 'light' = this.theme === 'dark' ? 'dark' : 'light';
+          const explorerBase = this.nearExplorerUrl || 'https://testnet.nearblocks.io';
           return this._treeNode
             ? html`<div class="tooltip-width">
                     <w3a-tx-tree
@@ -192,6 +196,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
                       .node=${this._treeNode}
                       .theme=${treeTheme}
                       .width=${this._txTreeWidth}
+                      .nearExplorerUrl=${explorerBase}
                     ></w3a-tx-tree>
                   </div>`
             : html`<div class="muted">No actions</div>`;

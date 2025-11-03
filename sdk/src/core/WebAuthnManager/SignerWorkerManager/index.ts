@@ -57,6 +57,7 @@ export interface SignerWorkerManagerContext {
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
   rpIdOverride?: string;
+  nearExplorerUrl?: string;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
@@ -82,6 +83,7 @@ export class SignerWorkerManager {
   private userPreferencesManager: UserPreferencesManager;
   private nonceManager: NonceManager;
   private workerBaseOrigin: string | undefined;
+  private nearExplorerUrl?: string;
 
   constructor(
     vrfWorkerManager: VrfWorkerManager,
@@ -90,6 +92,7 @@ export class SignerWorkerManager {
     nonceManager: NonceManager,
     rpIdOverride?: string,
     enableSafariGetWebauthnRegistrationFallback: boolean = true,
+    nearExplorerUrl?: string,
   ) {
     this.indexedDB = IndexedDBManager;
     this.touchIdPrompt = new TouchIdPrompt(rpIdOverride, enableSafariGetWebauthnRegistrationFallback);
@@ -97,6 +100,7 @@ export class SignerWorkerManager {
     this.nearClient = nearClient;
     this.userPreferencesManager = userPreferencesManager;
     this.nonceManager = nonceManager;
+    this.nearExplorerUrl = nearExplorerUrl;
   }
 
   setWorkerBaseOrigin(origin: string | undefined): void {
@@ -113,6 +117,7 @@ export class SignerWorkerManager {
       userPreferencesManager: this.userPreferencesManager,
       nonceManager: this.nonceManager,
       rpIdOverride: this.touchIdPrompt.getRpId(),
+      nearExplorerUrl: this.nearExplorerUrl,
     };
   }
 

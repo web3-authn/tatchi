@@ -86,7 +86,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
     nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
     contractId: payload?.contractId || prev.contractId || '',
-    nearExplorerUrl: prev.nearExplorerUrl,
+    nearExplorerUrl: payload?.nearExplorerUrl || prev.nearExplorerUrl,
     relayer: payload?.relayer || prev.relayer,
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
     vrfWorkerConfigs: payload?.vrfWorkerConfigs || prev.vrfWorkerConfigs,
