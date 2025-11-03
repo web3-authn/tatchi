@@ -234,6 +234,13 @@ w3a-modal-tx-confirmer {
   will-change: opacity, transform;
 }
 
+/* Softer elevation in light theme */
+:root[data-w3a-theme="light"] .modal-container-root,
+w3a-modal-tx-confirmer[theme="light"] .modal-container-root,
+w3a-drawer-tx-confirmer[theme="light"] .modal-container-root {
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

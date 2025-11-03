@@ -759,7 +759,7 @@ export const DemoChainsigs: React.FC = () => {
             size="medium"
             style={{ width: 260 }}
           >
-            Sign Base Transfer with NEAR
+            Sign and Send Base Transfer
           </LoadingButton>
         </div>
       </div>

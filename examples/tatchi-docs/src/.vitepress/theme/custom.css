@@ -9,10 +9,6 @@ body {
   min-height: unset;
 }
 
-.Layout {
-  min-height: unset !important;
-}
-
 .VPContent.is-home .VPHome .vp-doc.container {
   max-width: none;
   min-height: 0 !important;
@@ -23,8 +19,9 @@ body {
 }
 
 body:has(.VPContent.is-home)[data-w3a-theme="light"] {
-  --w3a-colors-colorBackground: oklch(0.98 0 0);
-  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
+  --w3a-colors-colorBackground: oklch(0.99 0 0);
+  --w3a-colors-colorBackground2: oklch(0.98 0 0);
+  background: linear-gradient(45deg, var(--w3a-colors-colorBackground) 0%, var(--w3a-colors-colorBackground2) 50%);
   background-attachment: fixed;
   /* background-image: radial-gradient(#d1d5db 1px, transparent 1px); */
   /* background-size: 24px 24px; */
@@ -34,8 +31,9 @@ body:has(.VPContent.is-home)[data-w3a-theme="light"] {
 }
 
 body:has(.VPContent.is-home)[data-w3a-theme="dark"] {
-  --w3a-colors-colorBackground: oklch(0.2 0.01 240);
-  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
+  --w3a-colors-colorBackground: oklch(0.1 0.01 240);
+  --w3a-colors-colorBackground2: oklch(0.20 0.01 240);
+  background: linear-gradient(45deg, var(--w3a-colors-colorBackground) 0%, var(--w3a-colors-colorBackground2) 50%);
   background-attachment: fixed;
   /* background-image: radial-gradient(#34343a 1px, transparent 1px); */
   /* background-size: 24px 24px; */
