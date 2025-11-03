@@ -63,6 +63,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   const activeIndex = Math.max(0, items.findIndex((it) => Object.is(it.value, value)));
   const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
   const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const gridRef = React.useRef<HTMLDivElement | null>(null);
   const buttonRefs = React.useRef<Array<HTMLButtonElement | null>>([]);
   const activeMetricsRef = React.useRef({ width: 0, translateX: 0 });
   const [activeMetrics, setActiveMetrics] = React.useState({ width: 0, translateX: 0 });
@@ -91,20 +92,81 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
 
   useIsomorphicLayoutEffect(() => {
     updateActiveMetrics();
+    // Schedule a couple of rAF ticks to catch post-animation/layout settles
+    // (e.g., after parent height transitions or content animations)
+    let raf1 = 0;
+    let raf2 = 0;
+    raf1 = requestAnimationFrame(() => {
+      updateActiveMetrics();
+      raf2 = requestAnimationFrame(() => {
+        updateActiveMetrics();
+      });
+    });
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
   }, [updateActiveMetrics, items, value]);
 
   useIsomorphicLayoutEffect(() => {
+    const onResize = () => updateActiveMetrics();
+
+    // Fallback listeners when ResizeObserver is not available
     if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateActiveMetrics);
-      return () => window.removeEventListener('resize', updateActiveMetrics);
+      window.addEventListener('resize', onResize);
+      document.addEventListener('visibilitychange', onResize);
+      return () => {
+        window.removeEventListener('resize', onResize);
+        document.removeEventListener('visibilitychange', onResize);
+      };
     }
 
-    const resizeObserver = new ResizeObserver(() => updateActiveMetrics());
-    const container = containerRef.current;
-    if (container) resizeObserver.observe(container);
+    // Observe container, grid, and active button for size changes
+    const observers: ResizeObserver[] = [];
+    const makeRO = () => new ResizeObserver(() => updateActiveMetrics());
 
-    return () => resizeObserver.disconnect();
-  }, [updateActiveMetrics, items.length]);
+    const roContainer = makeRO();
+    observers.push(roContainer);
+    const container = containerRef.current;
+    if (container) roContainer.observe(container);
+
+    const roGrid = makeRO();
+    observers.push(roGrid);
+    const grid = gridRef.current;
+    if (grid) roGrid.observe(grid);
+
+    const roActiveBtn = makeRO();
+    observers.push(roActiveBtn);
+    const activeBtn = buttonRefs.current[activeIndex] ?? null;
+    if (activeBtn) roActiveBtn.observe(activeBtn);
+
+    // Also re-measure after transitions/animations on the nearest content switcher
+    const root = container?.closest('.w3a-content-switcher') || container;
+    const onTransitionEnd = () => updateActiveMetrics();
+    const onAnimationEnd = () => updateActiveMetrics();
+    root?.addEventListener('transitionend', onTransitionEnd);
+    root?.addEventListener('animationend', onAnimationEnd);
+
+    // Fonts can change text metrics; remeasure when ready
+    const fonts: any = (document as any)?.fonts;
+    let fontsReadyCancelled = false;
+    if (fonts?.ready) {
+      fonts.ready.then(() => { if (!fontsReadyCancelled) updateActiveMetrics(); }).catch(() => {});
+    }
+
+    // Recalculate when tab becomes visible again
+    document.addEventListener('visibilitychange', onResize);
+    window.addEventListener('resize', onResize);
+
+    return () => {
+      observers.forEach((ro) => ro.disconnect());
+      root?.removeEventListener('transitionend', onTransitionEnd);
+      root?.removeEventListener('animationend', onAnimationEnd);
+      document.removeEventListener('visibilitychange', onResize);
+      window.removeEventListener('resize', onResize);
+      fontsReadyCancelled = true;
+    };
+  }, [updateActiveMetrics, items.length, activeIndex]);
 
   const hasCustomHeight = height !== undefined;
   const insetCss = toCssDim(inset);
@@ -140,7 +202,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   return (
     <div className={`w3a-seg${className ? ` ${className}` : ''}`} style={rootStyle} ref={containerRef}>
       <div className="w3a-seg-active" style={activeStyle} />
-      <div className="w3a-seg-grid">
+      <div className="w3a-seg-grid" ref={gridRef}>
         {items.map((it, i) => {
           const isActive = i === activeIndex;
           return (

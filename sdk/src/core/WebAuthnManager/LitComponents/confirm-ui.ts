@@ -37,6 +37,7 @@ interface HostTxConfirmerElement extends HTMLElement {
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
   requestUpdate?: () => void; // Lit element update hook (optional)
+  nearExplorerUrl?: string;
 }
 
 ////////////////////////////
@@ -288,6 +289,9 @@ function mountHostElement({
   el.variant = v;
   el.nearAccountId = nearAccountIdOverride || ctx.userPreferencesManager.getCurrentUserAccountId() || '';
   el.txSigningRequests = txSigningRequests || [];
+  if (ctx.nearExplorerUrl) {
+    el.nearExplorerUrl = ctx.nearExplorerUrl;
+  }
   // Only enable UI digest validation for transaction-signing flows where txs exist.
   // Registration/link and other non-tx flows should not set intentDigest to avoid
   // spurious INTENT_DIGEST_MISMATCH on confirm.

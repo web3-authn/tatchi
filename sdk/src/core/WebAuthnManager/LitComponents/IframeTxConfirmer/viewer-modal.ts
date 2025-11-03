@@ -55,6 +55,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     loading: { type: Boolean },
     errorMessage: { type: String },
     theme: { type: String, attribute: 'theme', reflect: true },
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
   };
 
   totalAmount = '';
@@ -70,6 +71,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // Theme tokens now come from external CSS (modal-confirmer.css)
   // style injection has been removed to satisfy strict CSP.
   theme: ThemeName = 'dark';
+  nearExplorerUrl?: string;
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
@@ -290,6 +292,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               .txSigningRequests=${this.txSigningRequests || []}
               .vrfChallenge=${this.vrfChallenge}
               .theme=${this.theme}
+              .nearExplorerUrl=${this.nearExplorerUrl}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
               .title=${this.title}

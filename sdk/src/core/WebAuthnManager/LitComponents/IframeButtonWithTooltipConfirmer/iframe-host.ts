@@ -299,7 +299,7 @@ export class IframeButtonHost extends LitElementWithProps {
           class="${iframeSize.flushClass}"
           width="${iframeSize.width}"
           height="${iframeSize.height}"
-          sandbox="allow-scripts"
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
         ></iframe>
       </div>
     `;

@@ -121,6 +121,8 @@ export interface WalletIframeRouterOptions {
   sdkBasePath?: string;
   // Optional: pre-register UI components in wallet host
   uiRegistry?: Record<string, unknown>;
+  // Optional: explorer base URL for TxTree links
+  nearExplorerUrl?: string;
 }
 
 type Pending = {
@@ -322,6 +324,7 @@ export class WalletIframeRouter {
           // Align with PMSetConfigPayload which expects `contractId`
           // while keeping RouterOptions field name `contractId` for external API.
           contractId: this.opts.contractId,
+          nearExplorerUrl: this.opts.nearExplorerUrl,
           relayer: this.opts.relayer,
           vrfWorkerConfigs: this.opts.vrfWorkerConfigs,
           rpIdOverride: this.opts.rpIdOverride,

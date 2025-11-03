@@ -75,6 +75,7 @@ export interface PMSetConfigPayload {
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
+  nearExplorerUrl?: string;
   relayer?: {
     initialUseRelayer?: boolean;
     accountId: string;

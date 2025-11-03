@@ -57,6 +57,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     confirmText: { type: String, attribute: 'confirm-text' },
     cancelText: { type: String, attribute: 'cancel-text' },
     deferClose: { type: Boolean, attribute: 'defer-close' },
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
   } as const;
 
   static keepDefinitions = [ModalTxConfirmElement, DrawerTxConfirmerElement];
@@ -73,6 +74,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
   declare confirmText: string;
   declare cancelText: string;
   declare deferClose: boolean;
+  declare nearExplorerUrl?: string;
 
   private readonly childRef: Ref<TxConfirmerVariantElement> = createRef();
   private redispatchingEvent = false;
@@ -117,6 +119,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
           .txSigningRequests=${this.txSigningRequests}
           .vrfChallenge=${this.vrfChallenge}
           .theme=${this.theme}
+          .nearExplorerUrl=${this.nearExplorerUrl}
           .loading=${this.loading}
           .errorMessage=${this.errorMessage || ''}
           .title=${this.title}
@@ -157,6 +160,7 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
     child.confirmText = this.confirmText;
     child.cancelText = this.cancelText;
     child.deferClose = this.deferClose;
+    (child as any).nearExplorerUrl = this.nearExplorerUrl;
     child.requestUpdate?.();
     this.attachChildListeners();
   }
