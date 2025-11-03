@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 /**
  * Do NOT use optional chaining or dynamic access such as `import.meta?.env`
@@ -30,6 +31,14 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      // Polyfill Node globals and built-ins needed by chainsig.js (Buffer, process, etc.)
+      nodePolyfills({
+        protocolImports: true,
+        globals: {
+          Buffer: true,
+          process: true,
+        },
+      }),
       // Web3Authn dev integration: wallet server (serve SDK + wallet HTML + headers)
       // Build: emit _headers for COOP/COEP/CORP + Permissions‑Policy; wallet HTML gets strict CSP.
       tatchiWallet({
@@ -46,6 +55,34 @@ export default defineConfig(({ mode }) => {
     define: {
       // Shim minimal globals some legacy/browserified deps expect
       global: 'globalThis',
+      'process.env': {},
+    },
+    optimizeDeps: {
+      include: [
+        'buffer',
+        'events',
+        'util',
+        'stream-browserify',
+        'crypto-browserify',
+      ],
+      esbuildOptions: {
+        define: {
+          global: 'globalThis',
+          'process.env': '{}',
+          'process.browser': 'true',
+          'process.version': '"v0.0.0"',
+        },
+      },
+    },
+    resolve: {
+      alias: {
+        stream: 'stream-browserify',
+        crypto: 'crypto-browserify',
+        util: 'util',
+        events: 'events',
+        buffer: 'buffer',
+        process: 'process/browser',
+      },
     },
   }
 })

@@ -1,6 +1,5 @@
-/* Styles used by MultiTxDemo */
 
-.demo-multi-tx-root {
+.demo-chainsigs-root {
   width: 100%;
 }
 
@@ -28,7 +27,7 @@
 
 /* Input Group Styles */
 .input-group {
-  margin-bottom: var(--fe-gap-4);
+  margin-bottom: 0;
 }
 
 .input-group label {
@@ -36,7 +35,6 @@
   font-size: var(--fe-text-sm);
   font-weight: var(--fe-font-semibold);
   color: var(--fe-text-primary);
-  margin-bottom: var(--fe-gap-2);
 }
 
 /* Input Styles */
@@ -94,6 +92,42 @@
 .multi-tx-input:hover {
   border-color: var(--fe-border-strong);
   background: var(--fe-input-bg);
+}
+
+/* Derived address pill with inline copy button */
+.derived-address-pill {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 10px 10px 14px;
+  border-radius: 2rem;
+  background: var(--w3a-colors-surface2);
+  margin-bottom: 0.5rem;
+}
+
+.derived-address-text {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  color: var(--fe-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small rectangular copy button override */
+.install-copy.derived-copy-btn {
+  background: var(--fe-surface);
+  border: 1px solid var(--fe-border);
+  border-radius: 6px;
+  padding: 6px;
+  color: var(--fe-text-dim);
+}
+.install-copy.derived-copy-btn:hover {
+  color: var(--fe-text);
 }
 
 /* LoadingButton component styles */
@@ -177,4 +211,95 @@
   .action-section h2 {
     font-size: var(--fe-text-base);
   }
+}
+
+.demo-page-header {
+  padding: var(--fe-gap-6);
+  text-align: center;
+}
+
+.demo-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
+}
+
+/* Card that wraps chainId + EVM tx inputs */
+.chain-fields-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--w3a-colors-surface2);
+  border-radius: 2rem;
+  padding: 1rem 1rem 0 1rem; /* remove bottom padding so toggle can hug the bottom */
+  margin: 0 0 1rem 0;
+  overflow: hidden; /* allow full-bleed toggle without overflow */
+}
+
+/* Softer, rounded inputs inside the card */
+.chain-fields-card .multi-tx-input {
+  border-radius: 2rem;
+  border: none;
+  font-size: 13px;
+}
+
+.chain-fields-card .multi-tx-input:focus {
+  box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
+}
+
+/* Smaller labels inside the chain card */
+.chain-fields-card label {
+  font-size: 12px;
+  color: var(--w3a-colors-textPrimary);
+  margin-left: 0.5rem;
+  margin-bottom: 0rem;
+}
+
+/* Toggle row */
+.chain-fields-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: stretch;
+  margin-top: 0; /* eliminate non-clickable dead zone above the toggle */
+  margin-left: -1rem;  /* full-bleed horizontally */
+  margin-right: -1rem; /* full-bleed horizontally */
+}
+
+.chain-fields-toggle {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--fe-text-secondary);
+  font-size: 12px;
+  padding: 12px 1rem; /* comfortable click area and align with card padding */
+  line-height: 1.2;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.chain-fields-toggle:hover {
+  color: var(--fe-text);
+}
+
+.chain-fields-toggle .chevron {
+  display: inline-block;
+  width: 1em;
+}
+
+/* Expand/collapse animation for advanced fields */
+.chain-fields-advanced {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  margin-top: 0;
+  transition: max-height 220ms ease, opacity 220ms ease, margin-top 220ms ease;
+}
+.chain-fields-advanced.expanded {
+  max-height: 1200px; /* large enough to contain inputs */
+  opacity: 1;
+  margin-top: 0.25rem;
 }

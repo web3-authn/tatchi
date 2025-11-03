@@ -3,7 +3,6 @@ import { toast } from 'sonner';
 
 import {
   ActionPhase,
-  ActionStatus,
   ActionType,
   TxExecutionStatus,
   usePasskeyContext,
@@ -27,7 +26,7 @@ export const DemoMultiTx: React.FC = () => {
   const DEMO_STAKE_AMOUNT = '0.1';
   const DEMO_PUBLIC_KEY = 'ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd';
   const DEMO_BENEFICIARY = 'w3a-v1.testnet';
-  const [isExecuting, setIsExecuting] = useState(false);
+  const [loadingUi, setLoadingUi] = useState<null | 'modal' | 'drawer'>(null);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -39,10 +38,10 @@ export const DemoMultiTx: React.FC = () => {
     return wholePart + fracPart;
   };
 
-  const handleExecuteTransaction = useCallback(async () => {
+  const handleExecuteTransaction = useCallback(async (uiMode: 'modal' | 'drawer') => {
     if (!isLoggedIn || !nearAccountId) return;
 
-    setIsExecuting(true);
+    setLoadingUi(uiMode);
     try {
       const actions: any[] = [];
 
@@ -89,6 +88,8 @@ export const DemoMultiTx: React.FC = () => {
         receiverId: WEBAUTHN_CONTRACT_ID,
         actionArgs: actions,
         options: {
+          // Per-call confirmation config (non-persistent)
+          confirmationConfig: { uiMode: uiMode },
           onEvent: (event) => {
             switch (event.phase) {
               case ActionPhase.STEP_1_PREPARATION:
@@ -115,36 +116,46 @@ export const DemoMultiTx: React.FC = () => {
       console.error('Transaction execution error:', error);
       toast.error('Failed to execute transaction');
     } finally {
-      setIsExecuting(false);
+      setLoadingUi(null);
     }
   }, [isLoggedIn, nearAccountId, passkeyManager]);
 
   if (!isLoggedIn) return null;
 
   return (
-    <div>
-      <div className="multi-tx-confirm-page-content">
-        <div className="action-section">
-          <h2 className="action-subheader">
-            Choose between Modal or Drawer
-          </h2>
-          <div className="action-text">
-            Choose between Modal or Drawer for the tx confirmer menus.
-            No confirmer is also possible on desktop (no mobile).
-          </div>
+    <div className="demo-multi-tx-root">
+      <div className="action-section">
+        <h2 className="action-subheader">
+          Choose between Modal or Drawer
+        </h2>
+        <div className="action-text">
+          Choose between Modal or Drawer for the tx confirmer menus.
+          You can also skip the confirmation menu (only on desktop).
+        </div>
+        <div style={{ display: 'flex', gap: 12 }}>
           <LoadingButton
-            onClick={handleExecuteTransaction}
-            loading={isExecuting}
+            onClick={() => handleExecuteTransaction('modal')}
+            loading={loadingUi === 'modal'}
             loadingText="Signing..."
             variant="primary"
             size="medium"
             style={{ width: 200 }}
           >
-            Sign Multiple Actions
+            Sign with Modal
+          </LoadingButton>
+          <LoadingButton
+            onClick={() => handleExecuteTransaction('drawer')}
+            loading={loadingUi === 'drawer'}
+            loadingText="Signing..."
+            variant="primary"
+            size="medium"
+            style={{ width: 200 }}
+          >
+            sign with Drawer
           </LoadingButton>
         </div>
-
       </div>
+
     </div>
   );
 };

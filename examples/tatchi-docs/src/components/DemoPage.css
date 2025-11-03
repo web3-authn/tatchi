@@ -32,12 +32,12 @@
 }
 
 /* Header Section */
-.greeting-header {
+.demo-page-header {
   padding: var(--fe-gap-6);
   text-align: center;
 }
 
-.greeting-title {
+.demo-title {
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--fe-text);
@@ -52,7 +52,7 @@
 
 /* Content Section */
 .greeting-content {
-  padding: var(--fe-gap-6);
+  padding: var(--fe-gap-4);
 }
 
 /* Greeting Controls Box */
@@ -85,8 +85,7 @@
   gap: var(--fe-gap-3);
   padding: var(--fe-gap-2);
   background: var(--fe-bg-secondary);
-  border: 1px solid var(--fe-border);
-  border-radius: var(--fe-radius-sm);
+  border-radius: var(--fe-radius-lg);
   margin-bottom: var(--fe-gap-2);
 }
 
@@ -101,9 +100,10 @@
 .refresh-icon-button {
   background: none;
   border: none;
+  color: var(--w3a-colors-textSecondary);
   cursor: pointer;
   padding: var(--fe-gap-2);
-  border-radius: var(--fe-radius-sm);
+  border-radius: 4rem;
   transition: background var(--fe-fast) var(--fe-ease);
   display: flex;
   align-items: center;
@@ -119,19 +119,30 @@
   cursor: not-allowed;
 }
 
+/* Loading state: spin the icon when busy/disabled */
+.refresh-icon-button[aria-busy="true"] svg,
+.refresh-icon-button:disabled svg {
+  animation: refresh-spin 0.9s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+@keyframes refresh-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Greeting Input Group */
 .greeting-input-group {
-  display: flex;
-  gap: var(--fe-gap-2);
-  flex-wrap: wrap; /* allow wrap under text zoom */
+  margin-bottom: 0.5rem;
 }
 
 .greeting-input-group input {
-  flex: 1;
-  padding: var(--fe-gap-3) var(--fe-gap-4);
-  border: 1px solid var(--fe-border);
-  border-radius: var(--fe-radius-sm);
+  width: 100%;
+  height: 54px;
+  padding: var(--fe-gap-2) var(--fe-gap-4);
   background-color: var(--w3a-colors-surface2);
+  border: 1px solid var(--fe-border);
+  border-radius: var(--fe-radius-lg);
   color: var(--fe-input-text);
   font-size: 0.9rem;
   font-family: var(--fe-font-sans);
@@ -261,7 +272,7 @@
     margin: 1rem;
   }
 
-  .greeting-header,
+  .demo-page-header,
   .greeting-content {
     padding: var(--fe-gap-4);
   }
@@ -273,23 +284,4 @@
   .transfer-input-group {
     gap: var(--fe-gap-2);
   }
-}
-
-/* Scrollbar Styling */
-.greeting-container-root::-webkit-scrollbar {
-  width: 6px;
-}
-
-.greeting-container-root::-webkit-scrollbar-track {
-  background: var(--fe-bg);
-  border-radius: 3px;
-}
-
-.greeting-container-root::-webkit-scrollbar-thumb {
-  background: var(--fe-border-strong);
-  border-radius: 3px;
-}
-
-.greeting-container-root::-webkit-scrollbar-thumb:hover {
-  background: var(--fe-text-secondary);
 }

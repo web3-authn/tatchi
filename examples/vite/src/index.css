@@ -357,7 +357,8 @@ h4 {
   place-content: center;
   justify-content: center;
   align-items: flex-start;
-  background: var(--w3a-colors-colorBackground);
+  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
+  background-attachment: fixed;
   width: 100%;
   height: 100%;
   min-height: 100dvh;

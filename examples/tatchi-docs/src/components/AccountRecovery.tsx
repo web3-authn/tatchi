@@ -1,54 +1,33 @@
 import React from 'react'
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
+import { usePasskeyContext, AuthMenuMode } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 import { friendlyWebAuthnMessage } from '../utils/strings'
 import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
+import { BrowserWithQR } from './icons/BrowserWithQR'
+import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
+import { useCarousel } from './carousel/CarouselProvider'
+import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 
 export function AccountRecovery() {
   const { accountInputState, passkeyManager, refreshLoginState, loginState, logout } = usePasskeyContext()
   const [busy, setBusy] = React.useState(false)
   const target = accountInputState?.targetAccountId || ''
+  const carousel = useCarousel()
+  const authMenuControl = useAuthMenuControl()
 
   const onRecover = async () => {
-    if (!target) {
-      toast.error('Please enter an account ID above in the login field.')
-      return
-    }
     setBusy(true)
-    // Track whether the user was logged in when starting recovery.
-    // If the flow is cancelled or errors, logout to reflect cleared VRF session.
-    const startedLoggedIn = !!loginState?.isLoggedIn
     try {
-      const result = await passkeyManager.recoverAccountFlow({
-        accountId: target,
-        options: {
-          onEvent: async (event: any) => {
-            // No-op here; success handling is below
-          },
-          onError: async (err: any) => {
-            // Recovery flows clear VRF session on error; if we started logged in, logout for consistency
-            toast.error(friendlyWebAuthnMessage(err))
-            if (startedLoggedIn) {
-              try { await logout(); } catch {}
-            }
-          },
-        }
-      })
-      if (result?.success) {
-        toast.success(`Account ${target} recovered!`)
-        await refreshLoginState()
-      } else {
-        toast.error(result?.error || 'Recovery failed')
-        if (startedLoggedIn) {
-          try { await logout(); } catch {}
-        }
-      }
+      // Ensure we are logged out, then navigate to the Login slide
+      try { await logout(); } catch {}
+      carousel.goTo(0)
+      // Switch the PasskeyAuthMenu to the Recover segment on mount
+      authMenuControl.setAndRemount(AuthMenuMode.Recover)
+      toast.success('Switched to account recovery')
     } catch (err) {
+      // Best-effort UX; show friendly error if anything goes wrong
       toast.error(friendlyWebAuthnMessage(err))
-      if (startedLoggedIn) {
-        try { await logout(); } catch {}
-      }
     } finally {
       setBusy(false)
     }
@@ -60,13 +39,17 @@ export function AccountRecovery() {
         display: 'flex',
         flexDirection: 'column',
         gap: '0.5rem',
-        padding: '2rem'
+        padding: '1rem'
       }}>
         <h2 style={{ margin: 0 }}>Account Recovery</h2>
         <p style={{ margin: 0, color: 'var(--fe-text-secondary)' }}>
-          Recover access to <strong>{target || '...'}</strong> using your existing device credentials.
+          Recover accounts on any device where your passkeys are located.
+          <br/>
+          If your passkeys are
+          synced to iCloud Keychain or Google Password Manager, you can recover your wallet on
+          those devices.
         </p>
-        <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <LoadingButton
             onClick={onRecover}
             loading={busy}
@@ -74,15 +57,45 @@ export function AccountRecovery() {
             variant="primary"
             size="medium"
             className="greeting-btn"
-            // disabled={busy}
-            style={{ width: 200 }}
           >
-            Start Recovery
+            Start Account Recovery
           </LoadingButton>
         </div>
-        <p style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--fe-text-dim)' }}>
-          Tip: the account ID is managed by the login box above; update it there before starting recovery.
-        </p>
+
+        <div style={{
+          marginTop: '1rem',
+          paddingTop: '1rem',
+          borderTop: '1px solid var(--fe-border)'
+        }}>
+          <h3 style={{ margin: 0 }}>Device Linking</h3>
+          <p style={{ marginTop: '0.25rem', color: 'var(--fe-text-secondary)' }}>
+            You can also use QR codes to scan and link a new device to your account. This serves as a
+            password-less backup of your wallet.
+          </p>
+          <div
+            aria-label="Illustration: iPhone scanning browser QR code"
+            style={{
+              marginTop: '0.5rem',
+              width: '100%',
+              height: 230,
+              position: 'relative',
+              borderRadius: 12,
+              overflow: 'visible',
+            }}
+          >
+            <BrowserWithQR width="100%" height="100%" />
+            <IPhoneQRScanner
+              width={110}
+              style={{
+                position: 'absolute',
+                right: 16,
+                bottom: -8,
+                transform: 'rotate(-6deg)',
+                filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.28))',
+              }}
+            />
+          </div>
+        </div>
       </div>
     </GlassBorder>
   )

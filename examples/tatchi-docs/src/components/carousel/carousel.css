@@ -8,7 +8,7 @@
   --carousel-scale-out-start: 1;
   --carousel-scale-out-end: 0.97;
   /* Default delay before fade-in begins */
-  --carousel-fade-in-delay: 100ms;
+  --carousel-fade-in-delay: 200ms;
   --carousel-slide-distance: 25%;
 }
 /* Use CSS grid overlay so the container height fits content (max of visible pages during transition). */
@@ -41,13 +41,13 @@
 }
 
 /* Slide: use translateX only (avoid parent scaling that can skew child layouts) */
-[data-transition="slide"] .page--enter { transform: translateX(var(--enter-from, 0)); opacity: 0; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 100ms); will-change: transform, opacity; }
+[data-transition="slide"] .page--enter { transform: translateX(var(--enter-from, 0)); opacity: 0; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms); will-change: transform, opacity; }
 [data-transition="slide"] .page--enter.page--active { transform: translateX(0); opacity: 1; }
 [data-transition="slide"] .page--exit { transform: translateX(0); opacity: 1; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease); will-change: transform, opacity; }
 [data-transition="slide"] .page--exit.page--leaving { transform: translateX(var(--exit-to, -100%)); opacity: 0; }
 
 /* Fade transition (shorter fadeOut) */
-[data-transition="fade"] .page--enter { opacity: 0; transform: scale(var(--carousel-scale-in-start, 0.985)); transition: transform var(--carousel-fade-in-duration, 240ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 100ms); }
+[data-transition="fade"] .page--enter { opacity: 0; transform: scale(var(--carousel-scale-in-start, 0.985)); transition: transform var(--carousel-fade-in-duration, 240ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms); }
 [data-transition="fade"] .page--enter.page--active { opacity: 1; transform: scale(var(--carousel-scale-in-end, 1)); }
 [data-transition="fade"] .page--exit { opacity: 1; transform: scale(var(--carousel-scale-out-start, 1)); transition: opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease), transform var(--carousel-fade-out-duration, 200ms) var(--fe-ease); }
 [data-transition="fade"] .page--exit.page--leaving { opacity: 0; transform: scale(var(--carousel-scale-out-end, 0.985)); }
