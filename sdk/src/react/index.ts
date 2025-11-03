@@ -111,7 +111,7 @@ export type {
   // Re-exported from PasskeyManager types
   RegistrationHooksOptions,
   LoginHooksOptions,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   ActionHooksOptions,
 
   // Toasts
@@ -127,6 +127,7 @@ export type {
 export {
   AccountRecoveryPhase,
   AccountRecoveryStatus,
+  type ActionResult,
 } from '../core/types/passkeyManager';
 
 // === DEVICE LINKING ENUMS ===

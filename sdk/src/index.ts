@@ -31,10 +31,10 @@ export type {
   // Device Linking
   DeviceLinkingSSEEvent,
   // Hooks Options
-  BaseHooksOptions,
   LoginHooksOptions,
   RegistrationHooksOptions,
   ActionHooksOptions,
+  SignNEP413HooksOptions,
   BeforeCall,
   AfterCall,
   EventCallback,

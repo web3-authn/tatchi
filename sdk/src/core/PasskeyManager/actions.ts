@@ -42,14 +42,15 @@ export async function executeAction(args: {
   options?: ActionHooksOptions,
 }): Promise<ActionResult> {
   try {
-    // Public API always uses undefined override (respects user settings)
+    // Thread optional per-call confirmation override when provided; otherwise
+    // user preferences determine the confirmation behavior.
     return executeActionInternal({
       context: args.context,
       nearAccountId: args.nearAccountId,
       receiverId: args.receiverId,
       actionArgs: args.actionArgs,
       options: args.options,
-      confirmationConfigOverride: undefined
+      confirmationConfigOverride: args.options?.confirmationConfig
     });
   } catch (error: unknown) {
     throw toError(error);
@@ -75,7 +76,10 @@ async function sendTransactionsParallelStaggered({
     return sendTransaction({
       context,
       signedTransaction: tx.signedTransaction,
-      options
+      options: {
+        onEvent: options?.onEvent,
+        waitUntil: options?.waitUntil,
+      }
     });
   }));
 }
@@ -129,7 +133,7 @@ export async function signAndSendTransactions(args: {
     nearAccountId: args.nearAccountId,
     transactionInputs: args.transactionInputs,
     options: args.options,
-    confirmationConfigOverride: undefined
+    confirmationConfigOverride: args.options?.confirmationConfig
   });
 }
 
@@ -154,7 +158,7 @@ export async function signTransactionsWithActions(args: {
       nearAccountId: args.nearAccountId,
       transactionInputs: args.transactionInputs,
       options: args.options,
-      confirmationConfigOverride: undefined
+      confirmationConfigOverride: args.options?.confirmationConfig
       // Public API always uses undefined override (respects user settings)
     });
   } catch (error: unknown) {
@@ -296,7 +300,8 @@ export async function executeActionInternal({
   receiverId: AccountId,
   actionArgs: ActionArgs | ActionArgs[],
   options?: ActionHooksOptions,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  // Accept partial override and merge later in confirm flow
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult> {
 
   const { onEvent, onError, beforeCall, afterCall, waitUntil } = options || {};
@@ -328,9 +333,8 @@ export async function executeActionInternal({
     const txResult = await sendTransaction({
       context,
       signedTransaction: signedTxs[0].signedTransaction,
-      options: { onEvent, onError, afterCall, waitUntil }
+      options: { onEvent, onError, waitUntil }
     });
-
     afterCall?.(true, txResult);
     return txResult;
 
@@ -346,7 +350,7 @@ export async function executeActionInternal({
       error: e.message
     });
     const result: ActionResult = { success: false, error: e.message, transactionId: undefined };
-    afterCall?.(false, result);
+    afterCall?.(false);
     return result;
   }
 }
@@ -362,7 +366,7 @@ export async function signAndSendTransactionsInternal({
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: SignAndSendTransactionHooksOptions,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult[]> {
 
   try {
@@ -384,7 +388,7 @@ export async function signAndSendTransactionsInternal({
           context,
           signedTransaction: tx.signedTransaction,
           options: {
-            ...options,
+            onEvent: options?.onEvent,
             waitUntil: plan.waitUntil ?? options?.waitUntil,
           }
         });
@@ -422,8 +426,8 @@ export async function signTransactionsWithActionsInternal({
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions,
-  confirmationConfigOverride?: ConfirmationConfig | undefined,
+  options?: Omit<ActionHooksOptions, 'afterCall'>,
+  confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<VerifyAndSignTransactionResult[]> {
 
   const { onEvent, onError, beforeCall, waitUntil } = options || {};
@@ -441,14 +445,14 @@ export async function signTransactionsWithActionsInternal({
     });
 
     // 1. Basic validation (NEAR data fetching moved to confirmation flow)
-    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil } as any);
+    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil });
 
     // 2. VRF Authentication + Transaction Signing (NEAR data fetched in confirmation flow)
     const signedTxs = await wasmAuthenticateAndSignTransactions(
       context,
       nearAccountId,
       transactionInputs,
-      { onEvent, onError, waitUntil, confirmationConfigOverride } as any
+      { onEvent, onError, waitUntil, confirmationConfigOverride }
     );
 
     return signedTxs;
@@ -476,7 +480,7 @@ export async function signTransactionsWithActionsInternal({
 async function validateInputsOnly(
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions,
+  options?: Omit<ActionHooksOptions, 'afterCall'>,
 ): Promise<void> {
   const { onEvent, onError } = options || {};
 
@@ -515,7 +519,7 @@ async function wasmAuthenticateAndSignTransactions(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions & { confirmationConfigOverride?: ConfirmationConfig }
+  options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: Partial<ConfirmationConfig> }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<VerifyAndSignTransactionResult[]> {
 

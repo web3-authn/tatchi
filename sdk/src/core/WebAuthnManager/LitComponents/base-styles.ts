@@ -219,6 +219,8 @@ export const DARK_THEME = {
   // Background Gradients
   backgroundGradientPrimary: GRADIENTS.blue,
   backgroundGradientSecondary: GRADIENTS.blueWhite,
+  backgroundGradient3: GRADIENTS.blackWhite,
+  backgroundGradient4: GRADIENTS.black,
 
   // Highlights
   highlightReceiverId: CHROMA_COLORS.blue400,
@@ -273,6 +275,8 @@ export const LIGHT_THEME = {
   // Background Gradients
   backgroundGradientPrimary: GRADIENTS.blue,
   backgroundGradientSecondary: GRADIENTS.blueWhite,
+  backgroundGradient3: GRADIENTS.blackWhite,
+  backgroundGradient4: GRADIENTS.black,
 
   // Highlights
   highlightReceiverId: CHROMA_COLORS.blue500,

@@ -101,6 +101,8 @@ const DARK_VARS = {
   // Background Gradients
   backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
   backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
+  // Additional gradient slot for app usage
+  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
   // Highlights
   highlightReceiverId: chroma?.blue?.['400'] || '#60a5fa',
   highlightMethodName: chroma?.blue?.['400'] || '#60a5fa',
@@ -142,6 +144,8 @@ const LIGHT_VARS = {
   // Background Gradients
   backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
   backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
+  // Additional gradient slot for app usage
+  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
   // Highlights
   highlightReceiverId: chroma?.blue?.['500'] || '#3b82f6',
   highlightMethodName: chroma?.blue?.['500'] || '#3b82f6',
@@ -183,6 +187,8 @@ const CREAM_VARS = {
   // Background Gradients (neutrals)
   backgroundGradientPrimary: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
   backgroundGradientSecondary: gradients?.blackWhite || 'linear-gradient(90deg, oklch(0.20 0.010 240) 0%, oklch(0.95 0.005 240) 100%)',
+  // Additional gradient slot for app usage
+  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
   // Highlights
   highlightReceiverId: chroma?.yellow?.['400'] || '#facc15',
   highlightMethodName: chroma?.yellow?.['400'] || '#facc15',
@@ -261,6 +267,7 @@ function emitAliasBlock(vars) {
     `  --w3a-colors-borderHover: ${vars.borderHover};`,
     `  --w3a-colors-backgroundGradientPrimary: ${vars.backgroundGradientPrimary};`,
     `  --w3a-colors-backgroundGradientSecondary: ${vars.backgroundGradientSecondary};`,
+    `  --w3a-colors-backgroundGradient4: ${vars.backgroundGradient4};`,
     `  --w3a-colors-highlightReceiverId: ${vars.highlightReceiverId};`,
     `  --w3a-colors-highlightMethodName: ${vars.highlightMethodName};`,
     `  --w3a-colors-highlightAmount: ${vars.highlightAmount};`,

@@ -26,8 +26,19 @@ export const TouchIdWithText: React.FC<{ buttonText?: string; loading?: boolean 
   buttonText = 'Send Transaction',
   loading = false,
 }) => (
-  <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-    <div style={{ borderRadius: '50%', position: 'relative', width: 22, height: 22, marginRight: 4 }}>
+  <span style={{
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: '0.9rem',
+   }}
+  >
+    <div style={{
+      borderRadius: '50%',
+      position: 'relative',
+      width: 22,
+      height: 22,
+      marginRight: 4,
+    }}>
       <div style={{
         position: 'absolute', inset: 0,
         display: 'grid', placeItems: 'center',
@@ -137,16 +148,16 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
 
   const internalTooltipPosition: TooltipPositionInternal = useMemo(() => ({
     // If a tooltipPosition is provided without a width, use a sensible default.
-    width: (tooltipPosition as any)?.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
+    width: tooltipPosition?.width ?? 'min(330px, calc(var(--w3a-vw, 100vw) - 1rem))',
     height: tooltipPosition.height,
     position: tooltipPosition.position,
     offset: '6px',
     boxPadding: '6px',
   }), [
     // Use optional chaining in deps to account for runtime undefineds
-    (tooltipPosition as any)?.width,
-    (tooltipPosition as any)?.height,
-    (tooltipPosition as any)?.position,
+    tooltipPosition?.width,
+    tooltipPosition?.height,
+    tooltipPosition?.position,
   ]);
   // NOTE: ensure offset >= boxPadding or tooltip's padding overlaps the button and makes
   // it harder to click in some areas of the button.
@@ -192,7 +203,9 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
         // Prefer explicit onEvent prop if provided, else fall back to options.onEvent
         onEvent: onEvent ?? options?.onEvent,
         waitUntil: options?.waitUntil,
-        executionWait: options?.executionWait
+        executionWait: options?.executionWait,
+        // Plumb per-call confirmation override (e.g., force drawer)
+        confirmationConfig: options?.confirmationConfig,
       }}
       onCancel={onCancel}
       onSuccess={onSuccess}

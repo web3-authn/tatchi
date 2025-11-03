@@ -221,27 +221,28 @@
 
 .cta-primary:hover {
   box-shadow: 0 4px 12px var(--fe-shadow-strong);
-  color: var(--w3a-colors-primaryHover);
-  border-color: var(--w3a-colors-primaryHover);
+  /* Subtle background change on hover; keep text and border neutral */
+  background: color-mix(in srgb, var(--fe-bg) 85%, var(--fe-surface) 15%);
+  color: var(--fe-text);
 }
 
 .cta-secondary {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  color: var(--fe-text);
+  color: var(--w3a-colors-textButton, #fff);
   padding: 0.6rem 0.9rem;
   border-radius: 2rem;
-  border: 1px solid var(--fe-border);
-  background: color-mix(in srgb, var(--fe-bg) 60%, transparent);
+  border: 1px solid transparent;
+  background: var(--w3a-colors-buttonPrimary, var(--w3a-colors-primary));
   transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .cta-secondary:hover {
-  color: var(--w3a-colors-primaryHover);
-  background: color-mix(in srgb, var(--fe-bg) 80%, transparent);
+  color: var(--w3a-colors-textButton, #fff);
+  background: var(--w3a-colors-buttonPrimaryHover, var(--w3a-colors-primaryHover));
   box-shadow: 0 3px 10px var(--fe-shadow);
-  border-color: var(--w3a-colors-primaryHover);
+  border-color: transparent;
 }
 .cta-primary:focus-visible, .cta-secondary:focus-visible {
   outline: none;
@@ -274,7 +275,7 @@
 .bento-card {
   position: relative;
   border-radius: 1rem;
-  background: var(--w3a-colors-surface);
+  background: var(--w3a-colors-surface2);
   /* border: 1px solid var(--w3a-colors-borderPrimary); */
   box-shadow: 0 1px 3px var(--w3a-shadows-md);
 }

@@ -85,7 +85,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
   ctx.walletConfigs = {
     nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
-    contractId: (payload as any)?.contractId || prev.contractId || '',
+    contractId: payload?.contractId || prev.contractId || '',
     nearExplorerUrl: prev.nearExplorerUrl,
     relayer: payload?.relayer || prev.relayer,
     authenticatorOptions: payload?.authenticatorOptions || prev.authenticatorOptions,
@@ -129,7 +129,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
 
   // Forward UI registry to iframe-lit-elem-mounter if provided
   try {
-    const uiRegistry = (payload as any)?.uiRegistry;
+    const uiRegistry = payload?.uiRegistry;
     if (uiRegistry && typeof uiRegistry === 'object') {
       window.postMessage({ type: 'WALLET_UI_REGISTER_TYPES', payload: uiRegistry }, '*');
     }

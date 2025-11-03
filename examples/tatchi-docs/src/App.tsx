@@ -21,6 +21,8 @@ export const App: React.FC = () => {
   return (
     <TatchiPasskeyProvider
       config={{
+        // Prefer reliable NEAR RPCs with fallback. You can override via VITE_NEAR_RPC_URL.
+        nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://rpc.testnet.near.org,https://test.rpc.fastnear.com',
         relayer: {
           url: env.VITE_RELAYER_URL!,
           accountId: env.VITE_RELAYER_ACCOUNT_ID!

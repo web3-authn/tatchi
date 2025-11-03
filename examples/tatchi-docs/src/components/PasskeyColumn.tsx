@@ -6,9 +6,11 @@ import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 import { CarouselProvider } from './carousel/CarouselProvider'
 import { Carousel } from './carousel/Carousel'
 
-import { DemoTransaction } from './DemoTransaction';
+import { DemoPage } from './DemoPage';
 import { PasskeyLoginMenu } from './PasskeyLoginMenu';
-import { AccountRecovery } from './AccountRecovery'
+import { AccountRecovery } from './AccountRecovery';
+import { DemoChainsigs } from './DemoChainsigs';
+import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 
 export function PasskeyColumn() {
   const { loginState } = usePasskeyContext()
@@ -21,7 +23,8 @@ export function PasskeyColumn() {
 
   const pages = React.useMemo(() => ([
     { key: 'login', title: 'Login', element: <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} /> },
-    { key: 'demo-tx', title: 'Demo Tx', element: <DemoTransaction />, disabled: !loginState?.isLoggedIn },
+    { key: 'demo-page', title: 'Demos', element: <DemoPage />, disabled: !loginState?.isLoggedIn },
+    { key: 'intents', title: 'NEAR Intents', element: <DemoChainsigs />, disabled: !loginState?.isLoggedIn },
     { key: 'recovery', title: 'Account Recovery', element: <AccountRecovery />, disabled: !loginState?.isLoggedIn },
   ]), [loginState?.isLoggedIn])
 
@@ -31,26 +34,28 @@ export function PasskeyColumn() {
         <NavbarStatic />
         <NavbarProfileOverlay />
         <div className="passkey-demo">
-          <CarouselProvider
-            pages={pages}
-            initialKey="login"
-            showBreadcrumbs
-            currentPage={currentPage}
-            onCurrentPageChange={setCurrentPage}
-            rootStyle={{
-              padding: '0rem 0rem 6rem 0rem',
-              // padding-bottom for tooltip so it's not clipped
-              display: 'grid',
-              placeContent: 'center',
-            }}
-            breadcrumbsStyle={{
-              padding: '2rem 1rem 0rem 1rem',
-              display: 'grid',
-              placeContent: 'center',
-            }}
-          >
-            <Carousel />
-          </CarouselProvider>
+          <AuthMenuControlProvider>
+            <CarouselProvider
+              pages={pages}
+              initialKey="login"
+              showBreadcrumbs
+              currentPage={currentPage}
+              onCurrentPageChange={setCurrentPage}
+              rootStyle={{
+                padding: '0rem 0rem 6rem 0rem',
+                // padding-bottom for tooltip so it's not clipped
+                display: 'grid',
+                placeContent: 'center',
+              }}
+              breadcrumbsStyle={{
+                padding: '2rem 1rem 0rem 1rem',
+                display: 'grid',
+                placeContent: 'center',
+              }}
+            >
+              <Carousel />
+            </CarouselProvider>
+          </AuthMenuControlProvider>
         </div>
       </div>
     </div>

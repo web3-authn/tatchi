@@ -427,7 +427,7 @@ export async function recoverAccount(
       phase: AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE,
       status: AccountRecoveryStatus.SUCCESS,
       message: 'Account recovery completed successfully',
-      data: recoveryResult,
+      data: { recoveryResult },
     });
 
     afterCall?.(true, recoveryResult);
@@ -494,7 +494,7 @@ function handleRecoveryError(
   };
 
   const result = { success: false, accountId, error: errorMessage } as any;
-  afterCall?.(false, result);
+  afterCall?.(false);
   return errorResult;
 }
 

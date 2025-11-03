@@ -912,7 +912,9 @@ export class IframeButtonHost extends LitElementWithProps {
             onEvent: this.options?.onEvent,
             onError: this.options?.onError,
             waitUntil: this.options?.waitUntil,
-            executionWait: this.options?.executionWait
+            executionWait: this.options?.executionWait,
+            // Forward per-call confirmation override so callers can force drawer/modal/skip
+            confirmationConfig: this.options?.confirmationConfig,
           },
           theme: treeTheme
         });

@@ -576,6 +576,11 @@ export class DrawerElement extends LitElementWithProps {
       // Prevent initial flash to top when adding the dragging class by
       // publishing the current translateY as the drag variable first.
       this.setCssVars({ '--w3a-drawer__drag-translate': `${this.startTranslateYPx}px` });
+      // Force a layout flush so the newly-applied CSS variable is visible to
+      // the next style recalculation that includes the `.dragging` selector.
+      // Without this, some engines may briefly resolve the var() fallback (0px)
+      // for one frame, causing a jump to the top when starting an upward drag.
+      try { void this.drawerElement.offsetHeight; } catch {}
       this.drawerElement.classList.add('dragging');
     }
   }

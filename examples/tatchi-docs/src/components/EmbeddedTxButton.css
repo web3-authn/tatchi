@@ -19,8 +19,6 @@
   font-weight: 500;
   color: var(--fe-text-primary);
   margin: 0 0 1rem 0;
-  border-bottom: 1px solid var(--fe-border);
-  padding-bottom: var(--fe-gap-2);
 }
 
 .embedded-tx-caption {

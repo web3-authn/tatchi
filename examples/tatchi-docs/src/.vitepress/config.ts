@@ -2,6 +2,7 @@ import { defineConfig } from 'vitepress'
 import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -131,15 +132,49 @@ export default defineConfig({
         '@tatchi-xyz/sdk/react',
         '@tatchi-xyz/sdk/plugins/vite',
       ],
-      include: ['react', 'react-dom']
+      include: [
+        'react',
+        'react-dom',
+        'buffer',
+        'events',
+        'util',
+        'stream-browserify',
+        'crypto-browserify',
+      ],
+      esbuildOptions: {
+        define: {
+          global: 'globalThis',
+          'process.env': '{}',
+          'process.browser': 'true',
+          'process.version': '"v0.0.0"',
+        },
+      },
     },
     resolve: {
       alias: {
         '@app': appSrc,
+        process: 'process/browser',
+        stream: 'stream-browserify',
+        crypto: 'crypto-browserify',
+        util: 'util',
+        events: 'events',
+        buffer: 'buffer',
       },
       dedupe: ['react', 'react-dom'],
     },
+    define: {
+      global: 'globalThis',
+      'process.env': {},
+    },
     plugins: [
+      // Polyfill Node globals/builtins used by chainsig.js (Buffer, process, etc.)
+      nodePolyfills({
+        protocolImports: true,
+        globals: {
+          Buffer: true,
+          process: true,
+        },
+      }),
       // Dev: serve /wallet-service and /sdk with headers (no files written).
       // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP/CORP and
       // a Permissions-Policy delegating WebAuthn to the wallet origin. Wallet HTML gets

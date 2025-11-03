@@ -70,7 +70,8 @@ export interface SecureConfirmRequest<TPayload = unknown, TSummary = unknown> {
   type: SecureConfirmationType;
   summary: TSummary;
   payload: TPayload;
-  confirmationConfig?: ConfirmationConfig;
+  // Allow partial override from callers; effective config is computed later
+  confirmationConfig?: Partial<ConfirmationConfig>;
   // Optional intent digest to echo back in responses for flows that
   // do not have a tx-centric payload (e.g., registration/link flows)
   intentDigest?: string;

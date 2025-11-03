@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 
 import { friendlyWebAuthnMessage } from '../utils/strings'
 import './PasskeyLoginMenu.css'
+import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 
 
 export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) => void }) {
@@ -33,6 +34,9 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     loginState,
     logout,
   } = usePasskeyContext();
+
+  // Allow external control of initial mode and remounting the menu
+  const authMenuControl = useAuthMenuControl();
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {
@@ -189,7 +193,8 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   return (
     <div className="passkey-login-container-root">
       <PasskeyAuthMenu
-        defaultMode={accountExists ? AuthMenuMode.Login : AuthMenuMode.Register}
+        key={`pam-${authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}-${authMenuControl.remountKey}`}
+        defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
         onLogin={onLogin}
         onRegister={onRegister}
         onRecoverAccount={onRecover}

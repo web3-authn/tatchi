@@ -2,8 +2,8 @@ import type { ReactNode } from 'react';
 import type {
   LoginHooksOptions,
   RegistrationHooksOptions,
-  BaseHooksOptions,
   ActionHooksOptions,
+  SignNEP413HooksOptions,
   PasskeyManager,
   PasskeyManagerConfigs,
   RecoveryResult,
@@ -14,6 +14,7 @@ import type {
 } from '../core/PasskeyManager';
 import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
+import type { ClientUserData } from '../core/IndexedDBManager/passkeyClientDB';
 import type { ActionArgs } from '../core/types/actions';
 import type {
   StartDeviceLinkingOptionsDevice2,
@@ -105,7 +106,7 @@ export interface LoginResult extends BaseResult {
 // === ACTION EXECUTION TYPES ===
 export interface ExecuteActionCallbacks {
   beforeDispatch?: () => void;
-  afterDispatch?: (success: boolean, data?: any) => void;
+  afterDispatch?: (success: boolean, data?: ActionExecutionResult) => void;
 }
 
 export interface ActionExecutionResult {
@@ -177,7 +178,7 @@ export interface PasskeyContextType {
   signNEP413Message: (args: {
     nearAccountId: string;
     params: SignNEP413MessageParams;
-    options?: BaseHooksOptions;
+    options?: SignNEP413HooksOptions;
   }) => Promise<SignNEP413MessageResult>;
 
   // Account recovery function
@@ -196,7 +197,7 @@ export interface PasskeyContextType {
     nearAccountId: string | null;
     publicKey: string | null;
     vrfActive: boolean;
-    userData: any | null;
+    userData: ClientUserData | null;
     vrfSessionDuration?: number;
   }>;
   refreshLoginState: (nearAccountId?: string) => Promise<void>;
@@ -242,8 +243,8 @@ export type {
   // Core manager types
   RegistrationHooksOptions,
   LoginHooksOptions,
-  BaseHooksOptions,
   ActionHooksOptions,
+  SignNEP413HooksOptions,
   // SSE Events
   RegistrationSSEEvent,
   LoginSSEvent,

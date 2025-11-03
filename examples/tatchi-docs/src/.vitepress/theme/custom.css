@@ -24,7 +24,8 @@ body {
 
 body:has(.VPContent.is-home)[data-w3a-theme="light"] {
   --w3a-colors-colorBackground: oklch(0.98 0 0);
-  background-color: var(--w3a-colors-colorBackground);
+  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
+  background-attachment: fixed;
   /* background-image: radial-gradient(#d1d5db 1px, transparent 1px); */
   /* background-size: 24px 24px; */
   /* background-size: 32px 32px; */
@@ -34,7 +35,8 @@ body:has(.VPContent.is-home)[data-w3a-theme="light"] {
 
 body:has(.VPContent.is-home)[data-w3a-theme="dark"] {
   --w3a-colors-colorBackground: oklch(0.2 0.01 240);
-  background-color: var(--w3a-colors-colorBackground);
+  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
+  background-attachment: fixed;
   /* background-image: radial-gradient(#34343a 1px, transparent 1px); */
   /* background-size: 24px 24px; */
   /* background-size: 32px 32px; */

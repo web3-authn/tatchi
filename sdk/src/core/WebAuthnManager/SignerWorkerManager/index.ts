@@ -452,7 +452,7 @@ export class SignerWorkerManager {
     transactions: TransactionInputWasm[],
     rpcCall: RpcCallPayload,
     onEvent?: (update: onProgressEvents) => void,
-    confirmationConfigOverride?: ConfirmationConfig,
+    confirmationConfigOverride?: Partial<ConfirmationConfig>,
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
     nearAccountId: AccountId;

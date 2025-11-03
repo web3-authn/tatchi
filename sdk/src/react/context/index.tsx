@@ -26,8 +26,8 @@ import type {
   LoginHooksOptions,
   LoginResult,
   RegistrationHooksOptions,
-  BaseHooksOptions,
   ActionHooksOptions,
+  SignNEP413HooksOptions,
   StartDeviceLinkingOptionsDevice2,
   ScanAndLinkDeviceOptionsDevice1,
   DeviceLinkingSSEEvent,
@@ -36,6 +36,7 @@ import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
+import { Sign } from 'crypto';
 
 const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
 
@@ -297,7 +298,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   const signNEP413Message = async (args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
-    options?: BaseHooksOptions
+    options?: SignNEP413HooksOptions,
   }) => {
     return await passkeyManager.signNEP413Message({
       nearAccountId: args.nearAccountId,

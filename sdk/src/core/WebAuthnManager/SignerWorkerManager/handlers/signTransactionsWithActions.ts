@@ -30,7 +30,8 @@ export async function signTransactionsWithActions({
   transactions: TransactionInputWasm[],
   rpcCall: RpcCallPayload;
   onEvent?: (update: onProgressEvents) => void;
-  confirmationConfigOverride?: ConfirmationConfig;
+  // Allow callers to pass a partial override (e.g., { uiMode: 'drawer' })
+  confirmationConfigOverride?: Partial<ConfirmationConfig>;
 }): Promise<Array<{
   signedTransaction: SignedTransaction;
   nearAccountId: AccountId;
@@ -73,8 +74,10 @@ export async function signTransactionsWithActions({
       actions: JSON.stringify(tx.actions)
     }));
 
-    const confirmationConfig = confirmationConfigOverride
-      || ctx.userPreferencesManager.getConfirmationConfig();
+    // Merge partial override over the user's persisted preferences to form a complete config
+    const confirmationConfig: ConfirmationConfig = confirmationConfigOverride
+      ? { ...ctx.userPreferencesManager.getConfirmationConfig(), ...confirmationConfigOverride }
+      : ctx.userPreferencesManager.getConfirmationConfig();
 
     // Send batch signing request to WASM worker
     // Normalize rpcCall to ensure required fields are present

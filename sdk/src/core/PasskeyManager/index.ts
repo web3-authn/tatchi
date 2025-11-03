@@ -19,7 +19,7 @@ import type {
   PasskeyManagerConfigs,
   RegistrationResult,
   LoginResult,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   RegistrationHooksOptions,
   LoginHooksOptions,
   ActionHooksOptions,
@@ -29,12 +29,15 @@ import type {
   VerifyAndSignTransactionResult,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
+  SignTransactionHooksOptions,
   GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
+import type { DerivedAddressRecord } from '../IndexedDBManager';
+import { chainsigAddressManager } from '../ChainsigAddressManager';
 import {
   ActionType,
   type ActionArgs,
@@ -58,6 +61,7 @@ import {
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
+import { toError } from '../../utils/errors';
 let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
@@ -214,15 +218,18 @@ export class PasskeyManager {
         const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         // Mirror wallet-host initialization locally so preferences (theme, confirm config)
         // have a current user context immediately after successful registration.
-        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        if (res?.success) {
+          try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        }
         // Opportunistically warm resources (non-blocking)
-        try { void this.warmCriticalResources(nearAccountId); } catch {}
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
         return res;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     return registerPasskey(
@@ -251,14 +258,17 @@ export class PasskeyManager {
           options: { onEvent: options?.onEvent }
         });
         // Ensure local manager knows the current user
-        try { if (res?.success) await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
-        try { void this.warmCriticalResources(nearAccountId); } catch {}
+        if (res?.success) {
+          try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
+        }
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
         return res;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     // App-wallet path: call core internal with override
@@ -286,13 +296,14 @@ export class PasskeyManager {
       try {
         const res = await this.iframeRouter.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         // Best-effort warm-up after successful login (non-blocking)
-        try { void this.warmCriticalResources(nearAccountId); } catch {}
+        void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);
         return res;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     // Initialize current user before login
@@ -309,11 +320,9 @@ export class PasskeyManager {
   async logoutAndClearVrfSession(): Promise<void> {
     await logoutAndClearVrfSession(this.getContext());
     // Also clear wallet-origin VRF session if service iframe is active
-    try {
-      if (this.iframeRouter) {
-        await this.iframeRouter.clearVrfSession?.();
-      }
-    } catch {}
+    if (this.iframeRouter) {
+      try { await this.iframeRouter.clearVrfSession?.(); } catch {}
+    }
   }
 
   /**
@@ -351,7 +360,8 @@ export class PasskeyManager {
   setConfirmBehavior(behavior: 'requireClick' | 'autoProceed'): void {
     if (this.iframeRouter) {
       // Fire and forget; persistence handled in wallet host. Avoid unhandled rejections.
-      void this.iframeRouter.setConfirmBehavior(behavior).catch(() => {});
+      const router = this.iframeRouter;
+      void router.setConfirmBehavior(behavior).catch(() => undefined);
       // Mirror locally so UI reads from preferences stay in sync immediately
       this.webAuthnManager.getUserPreferences().setConfirmBehavior(behavior);
       return;
@@ -365,7 +375,8 @@ export class PasskeyManager {
   setConfirmationConfig(config: ConfirmationConfig): void {
     if (this.iframeRouter) {
       // Fire and forget; avoid unhandled rejections in consumers
-      void this.iframeRouter.setConfirmationConfig(config).catch(() => {});
+      const router = this.iframeRouter;
+      void router.setConfirmationConfig(config).catch(() => undefined);
       // Mirror locally for immediate UI coherence
       this.webAuthnManager.getUserPreferences().setConfirmationConfig(config);
       return;
@@ -398,10 +409,11 @@ export class PasskeyManager {
    * perceived latency when the user initiates a signing flow.
    */
   async prefetchBlockheight(): Promise<void> {
-    try {
-      if (this.iframeRouter) { await this.iframeRouter.prefetchBlockheight(); return; }
-      await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient);
-    } catch {}
+    if (this.iframeRouter) {
+      await this.iframeRouter.prefetchBlockheight();
+      return;
+    }
+    try { await this.webAuthnManager.getNonceManager().prefetchBlockheight(this.nearClient); } catch {}
   }
 
   async getRecentLogins(): Promise<GetRecentLoginsResult> {
@@ -488,15 +500,17 @@ export class PasskeyManager {
           actionArgs: args.actionArgs,
           options: {
             onEvent: args.options?.onEvent,
-            ...({ waitUntil: args.options?.waitUntil })
+            waitUntil: args.options?.waitUntil,
+            confirmationConfig: args.options?.confirmationConfig,
           }
         });
         await args.options?.afterCall?.(true, res);
         return res;
-      } catch (err: any) {
-        await args.options?.onError?.(err);
-        await args.options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
+        throw e;
       }
     }
     // same-origin mode
@@ -571,7 +585,8 @@ export class PasskeyManager {
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
           options: {
             onEvent: options?.onEvent,
-            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil }
+            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
+            confirmationConfig: options?.confirmationConfig,
           }
         });
         // Emit completion
@@ -579,10 +594,11 @@ export class PasskeyManager {
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `All transactions sent: ${txIds}` });
         await options?.afterCall?.(true, res);
         return res;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     return signAndSendTransactions({
@@ -657,7 +673,7 @@ export class PasskeyManager {
   async signTransactionsWithActions({ nearAccountId, transactions, options }: {
     nearAccountId: string,
     transactions: TransactionInput[],
-    options?: ActionHooksOptions
+    options?: SignTransactionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
     // If a service iframe is initialized, route signing via wallet origin
     if (this.iframeRouter) {
@@ -667,15 +683,19 @@ export class PasskeyManager {
         const result = await this.iframeRouter.signTransactionsWithActions({
           nearAccountId, transactions:
           txs,
-          options: { onEvent: options?.onEvent }
+          options: {
+            onEvent: options?.onEvent,
+            confirmationConfig: options?.confirmationConfig
+          }
         });
         const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? result : [];
         await options?.afterCall?.(true, arr);
         return arr;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     return signTransactionsWithActions({
@@ -733,10 +753,11 @@ export class PasskeyManager {
         await options?.afterCall?.(true, res);
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${res?.transactionId} broadcasted` });
         return res;
-      } catch (err: any) {
-        await options?.onError?.(err);
-        await options?.afterCall?.(false, err);
-        throw err;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
       }
     }
     return sendTransaction({ context: this.getContext(), signedTransaction, options })
@@ -784,7 +805,7 @@ export class PasskeyManager {
   async signNEP413Message(args: {
     nearAccountId: string,
     params: SignNEP413MessageParams,
-    options?: BaseHooksOptions
+    options?: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
     // Route via wallet service if available for stronger isolation
     if (this.iframeRouter) {
@@ -828,6 +849,34 @@ export class PasskeyManager {
   }
 
   ///////////////////////////////////////
+  // === DERIVED ADDRESSES (public helpers) ===
+  ///////////////////////////////////////
+
+  /** Store a derived address for an account + contract + path (multi-chain capable via path encoding). */
+  async setDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string; address: string }
+  ): Promise<void> {
+    await chainsigAddressManager.setDerivedAddress(toAccountId(nearAccountId), args);
+  }
+
+  /** Retrieve the full derived address record (or null if not found). */
+  async getDerivedAddressRecord(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<DerivedAddressRecord | null> {
+    return await chainsigAddressManager.getDerivedAddressRecord(toAccountId(nearAccountId), args);
+  }
+
+  /** Retrieve only the derived address string for convenience. */
+  async getDerivedAddress(
+    nearAccountId: string,
+    args: { contractId: string; path: string }
+  ): Promise<string | null> {
+    return await chainsigAddressManager.getDerivedAddress(toAccountId(nearAccountId), args);
+  }
+
+  ///////////////////////////////////////
   // === Account Recovery Flow ===
   ///////////////////////////////////////
 
@@ -864,8 +913,8 @@ export class PasskeyManager {
       const discovered = await flow.discover(accountIdInput || '');
       if (!Array.isArray(discovered) || discovered.length === 0) {
         const err = new Error('No recoverable accounts found');
-        try { options?.onError?.(err); } catch {}
-        await options?.afterCall?.(false, err);
+        await options?.onError?.(err);
+        await options?.afterCall?.(false);
         return { success: false, accountId: accountIdInput || '', publicKey: '', message: err.message, error: err.message };
       }
       // Phase 2: User selects account in UI
@@ -881,9 +930,10 @@ export class PasskeyManager {
       await options?.afterCall?.(true, result);
       return result;
 
-    } catch (e: any) {
-      try { options?.onError?.(e); } catch {}
-      await options?.afterCall?.(false, e);
+    } catch (error: unknown) {
+      const e = toError(error);
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -996,7 +1046,7 @@ export type {
   LoginHooksOptions,
   LoginResult,
   LoginSSEvent,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   ActionHooksOptions,
   ActionResult,
   EventCallback,

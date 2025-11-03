@@ -242,8 +242,8 @@ export class WalletIframeRouter {
           // Force the overlay to fullscreen immediately so the TxConfirmer
           // can mount and capture activation in Safari/iOS/mobile.
           this.overlayForceFullscreen = true;
-          try { this.overlay.setSticky(true); } catch {}
-          try { this.overlay.showFullscreen(); } catch {}
+          this.overlay.setSticky(true);
+          this.overlay.showFullscreen();
           for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
             try { cb(); } catch {}
           }
@@ -255,13 +255,13 @@ export class WalletIframeRouter {
             | undefined;
           const ok = !!payload?.ok;
           for (const cb of Array.from(this.registerOverlayResultListeners)) {
-            try { cb({ ok, result: payload?.result, cancelled: (payload as any)?.cancelled, error: (payload as any)?.error }); } catch {}
+            cb({ ok, result: payload?.result, cancelled: payload?.cancelled, error: payload?.error });
           }
           // Release overlay lock after result
           this.overlayForceFullscreen = false;
-          try { this.overlay.setSticky(false); } catch {}
+          this.overlay.setSticky(false);
           // Progress bus will hide after completion; hide defensively here
-          try { this.hideFrameForActivation(); } catch {}
+          this.hideFrameForActivation();
           if (ok) {
             const acct = payload?.result?.nearAccountId;
             Promise.resolve().then(async () => {
@@ -275,7 +275,7 @@ export class WalletIframeRouter {
         }
       } catch {}
     };
-    try { window.addEventListener('message', this.windowMsgHandlerBound); } catch {}
+    window.addEventListener('message', this.windowMsgHandlerBound);
   }
 
   /**
@@ -284,9 +284,7 @@ export class WalletIframeRouter {
    */
   onReady(listener: () => void): () => void {
     if (this.ready) {
-      Promise.resolve().then(() => {
-        try { listener(); } catch {}
-      });
+      Promise.resolve().then(() => { listener(); });
       return () => {};
     }
     this.readyListeners.add(listener);
@@ -295,9 +293,7 @@ export class WalletIframeRouter {
 
   private emitReady(): void {
     if (!this.readyListeners.size) return;
-    for (const cb of Array.from(this.readyListeners)) {
-      try { cb(); } catch {}
-    }
+    for (const cb of Array.from(this.readyListeners)) { cb(); }
     // Keep listeners registered; callers can unsubscribe if desired.
   }
 
@@ -430,6 +426,8 @@ export class WalletIframeRouter {
       onError?: (error: Error) => void;
       beforeCall?: BeforeCall;
       afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
+      // Allow minimal overrides (e.g., { uiMode: 'drawer' })
+      confirmationConfig?: Partial<ConfirmationConfig>;
     }
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
@@ -437,7 +435,10 @@ export class WalletIframeRouter {
       type: 'PM_SIGN_TXS_WITH_ACTIONS',
       payload: {
         nearAccountId: payload.nearAccountId,
-        transactions: payload.transactions
+        transactions: payload.transactions,
+        options: payload.options?.confirmationConfig
+          ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+          : undefined
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -455,8 +456,8 @@ export class WalletIframeRouter {
     // so the TxConfirmer (drawer/modal) has space to render and capture activation.
     // Lock overlay to fullscreen for the duration of registration
     this.overlayForceFullscreen = true;
-    try { this.overlay.setSticky(true); } catch {}
-    try { this.overlay.showFullscreen(); } catch { this.showFrameForActivation(); }
+    this.overlay.setSticky(true);
+    this.overlay.showFullscreen();
 
     try {
       // Optional one-time confirmation override (non-persistent)
@@ -491,7 +492,7 @@ export class WalletIframeRouter {
     } finally {
       // Step 5: Always release overlay lock and hide when done (success or error)
       this.overlayForceFullscreen = false;
-      try { this.overlay.setSticky(false); } catch {}
+      this.overlay.setSticky(false);
       this.hideFrameForActivation();
     }
   }
@@ -597,7 +598,10 @@ export class WalletIframeRouter {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = payload;
     const safeOptions = options
-      ? { waitUntil: options.waitUntil }
+      ? {
+          waitUntil: options.waitUntil,
+          confirmationConfig: options.confirmationConfig,
+        }
       : undefined;
 
     const res = await this.post<ActionResult>({
@@ -672,7 +676,8 @@ export class WalletIframeRouter {
     const safeOptions = options
       ? {
           waitUntil: options.waitUntil,
-          executionWait: options.executionWait
+          executionWait: options.executionWait,
+          confirmationConfig: options.confirmationConfig,
         }
       : undefined;
 
@@ -747,17 +752,15 @@ export class WalletIframeRouter {
     // its own lifecycle; it will notify us when to hide via window message.
     this.showFrameForActivation();
     const onUiClosed = (ev: MessageEvent) => {
-      try {
-        const origin = this.opts.walletOrigin || window.location.origin;
-        if (ev.origin !== origin) return;
-        const data = ev.data as unknown;
-        if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
-        try { this.overlay.setSticky(false); } catch {}
-        this.hideFrameForActivation();
-        window.removeEventListener('message', onUiClosed);
-      } catch {}
+      const origin = this.opts.walletOrigin || window.location.origin;
+      if (ev.origin !== origin) return;
+      const data = ev.data as unknown;
+      if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
+      this.overlay.setSticky(false);
+      this.hideFrameForActivation();
+      window.removeEventListener('message', onUiClosed);
     };
-    try { window.addEventListener('message', onUiClosed); } catch {}
+    window.addEventListener('message', onUiClosed);
 
     await this.post<void>({
       type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
@@ -831,24 +834,24 @@ export class WalletIframeRouter {
 
   async stopDevice2LinkingFlow(): Promise<void> {
     await this.post<void>({ type: 'PM_STOP_DEVICE2_LINKING_FLOW' });
-    try { this.progressBus.clearAll(); } catch {}
+    this.progressBus.clearAll();
   }
 
   // ===== Control APIs =====
   async cancelRequest(requestId: string): Promise<void> {
     // Best-effort cancel. Host will attempt to close open modals and mark the request as cancelled.
-    try { await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }); } catch {}
+    await this.post<void>({ type: 'PM_CANCEL', payload: { requestId } }).catch(() => {});
     // Always clear local progress + hide overlay even if the host didn't receive the message
-    try { this.progressBus.unregister(requestId); } catch {}
-    try { this.hideFrameForActivation(); } catch {}
+    this.progressBus.unregister(requestId);
+    this.hideFrameForActivation();
   }
 
   async cancelAll(): Promise<void> {
     // Try to cancel all requests on the host, but don't depend on READY/port availability
-    try { await this.post<void>({ type: 'PM_CANCEL', payload: {} }); } catch {}
+    await this.post<void>({ type: 'PM_CANCEL', payload: {} }).catch(() => {});
     // Clear all local progress listeners and force-hide the overlay
-    try { this.progressBus.clearAll(); } catch {}
-    try { this.hideFrameForActivation(); } catch {}
+    this.progressBus.clearAll();
+    this.hideFrameForActivation();
   }
 
   private onPortMessage(e: MessageEvent<ChildToParentEnvelope>) {
@@ -884,15 +887,13 @@ export class WalletIframeRouter {
     if (!pending) {
       // Even if no pending exists (e.g., early cancel or pre-resolved),
       // ensure any lingering progress subscriber is removed.
-      try {
-        if (this.debug) {
-          console.debug('[WalletIframeRouter] Non-PROGRESS without pending → hide + unregister', {
-            requestId,
-            type: (msg as unknown as { type?: unknown })?.type || 'unknown'
-          });
-        }
-      } catch {}
-      try { this.progressBus.unregister(requestId); } catch {}
+      if (this.debug) {
+        console.debug('[WalletIframeRouter] Non-PROGRESS without pending → hide + unregister', {
+          requestId,
+          type: (msg as unknown as { type?: unknown })?.type || 'unknown'
+        });
+      }
+      this.progressBus.unregister(requestId);
       return;
     }
     this.pending.delete(requestId);
@@ -919,9 +920,9 @@ export class WalletIframeRouter {
     }
 
     pending.resolve(msg.payload);
-    if (!this.progressBus.isSticky(requestId)) {
-      this.progressBus.unregister(requestId);
-    }
+      if (!this.progressBus.isSticky(requestId)) {
+        this.progressBus.unregister(requestId);
+      }
   }
 
   /**
@@ -953,17 +954,13 @@ export class WalletIframeRouter {
     return new Promise<PostResult<T>>((resolve, reject) => {
       const onTimeout = () => {
         const pending = this.pending.get(requestId);
-        try {
-          if (pending?.timer !== undefined) window.clearTimeout(pending.timer);
-        } catch {}
-        try { this.pending.delete(requestId); } catch {}
-        try { this.progressBus.unregister(requestId); } catch {}
-        try { this.overlay.setSticky(false); } catch {}
-      try {
+        if (pending?.timer !== undefined) window.clearTimeout(pending.timer);
+        this.pending.delete(requestId);
+        this.progressBus.unregister(requestId);
+        this.overlay.setSticky(false);
         if (!this.progressBus.wantsVisible()) {
           this.hideFrameForActivation();
         }
-      } catch {}
       this.sendBestEffortCancel(requestId);
       return new Error(`Wallet request timeout for ${envelope.type}`);
       };
@@ -1006,18 +1003,16 @@ export class WalletIframeRouter {
         const serializableFull = wireOptions ? { ...full, options: wireOptions } : { ...full, options: undefined };
 
         // Align overlay stickiness with request options (phase 2 will use intents)
-        try { this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky)); } catch {}
+        this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
 
         // Step 7: Apply overlay intent (conservative) if not already visible, then post
-        try {
-          if (!this.overlay.getState().visible) {
-            const intent = this.computeOverlayIntent(serializableFull.type);
-            if (intent.mode === 'fullscreen') {
-              this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
-              this.overlay.showFullscreen();
-            }
+        if (!this.overlay.getState().visible) {
+          const intent = this.computeOverlayIntent(serializableFull.type);
+          if (intent.mode === 'fullscreen') {
+            this.overlay.setSticky(!!(wireOptions && (wireOptions as { sticky?: boolean }).sticky));
+            this.overlay.showFullscreen();
           }
-        } catch {}
+        }
 
         // Send message to iframe via MessagePort
         this.port!.postMessage(serializableFull as ParentToChildEnvelope);
@@ -1025,7 +1020,7 @@ export class WalletIframeRouter {
         // Step 8: Handle send errors - clean up and reject
         this.pending.delete(requestId);
         window.clearTimeout(timer);
-        try { this.progressBus.unregister(requestId); } catch {}
+        this.progressBus.unregister(requestId);
         reject(toError(err));
       }
     });
@@ -1100,32 +1095,28 @@ export class WalletIframeRouter {
   private showFrameForActivation(): void {
     // Ensure iframe exists so overlay can be applied immediately
     this.transport.ensureIframeMounted();
-    try {
-      if (this.overlayForceFullscreen) {
-        this.overlay.showFullscreen();
-      } else {
-        // Prefer fullscreen by default; anchored pre-show is deprecated for registration flows
-        this.overlay.showFullscreen();
-      }
-    } catch {}
+    if (this.overlayForceFullscreen) {
+      this.overlay.showFullscreen();
+    } else {
+      // Prefer fullscreen by default; anchored pre-show is deprecated for registration flows
+      this.overlay.showFullscreen();
+    }
   }
 
   private hideFrameForActivation(): void {
     if (!this.overlay.getState().visible) return;
-    try { this.overlay.hide(); } catch {}
+    this.overlay.hide();
   }
 
   private sendBestEffortCancel(targetRequestId?: string): void {
     const port = this.port;
     if (!port) return;
-    try {
-      const cancelEnvelope: ParentToChildEnvelope = {
-        type: 'PM_CANCEL',
-        requestId: `cancel-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        payload: targetRequestId ? { requestId: targetRequestId } : {}
-      };
-      port.postMessage(cancelEnvelope);
-    } catch {}
+    const cancelEnvelope: ParentToChildEnvelope = {
+      type: 'PM_CANCEL',
+      requestId: `cancel-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      payload: targetRequestId ? { requestId: targetRequestId } : {}
+    };
+    port.postMessage(cancelEnvelope);
   }
 
   /**
@@ -1136,7 +1127,7 @@ export class WalletIframeRouter {
     if (visible) {
       // Respect fullscreen lock when present
       if (this.overlayForceFullscreen) {
-        try { this.overlay.showFullscreen(); } catch {}
+        this.overlay.showFullscreen();
       } else {
         this.showFrameForActivation();
       }
@@ -1167,7 +1158,7 @@ export class WalletIframeRouter {
   setOverlayBounds(rect: { top: number; left: number; width: number; height: number }): void {
     if (this.overlayForceFullscreen) return; // ignore anchored bounds while locked to fullscreen
     this.transport.ensureIframeMounted();
-    try { this.overlay.showAnchored(rect as DOMRectLike); } catch {}
+    this.overlay.showAnchored(rect as DOMRectLike);
   }
 
   // setAnchoredOverlayBounds/clearAnchoredOverlay removed with Arrow overlay deprecation
@@ -1193,7 +1184,7 @@ const DEVICE_LINKING_PHASES = new Set<string>(Object.values(DeviceLinkingPhase) 
 const ACCOUNT_RECOVERY_PHASES = new Set<string>(Object.values(AccountRecoveryPhase) as string[]);
 
 function phaseOf(progress: ProgressPayload): string {
-  try { return String(progress?.phase || ''); } catch { return ''; }
+  return String((progress as { phase?: unknown })?.phase ?? '');
 }
 
 function isRegistrationSSEEvent(progress: ProgressPayload): progress is RegistrationSSEEvent {

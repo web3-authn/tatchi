@@ -5,7 +5,8 @@ export type {
   ClientUserData,
   UserPreferences,
   ClientAuthenticatorData,
-  IndexedDBEvent
+  IndexedDBEvent,
+  DerivedAddressRecord
 } from './passkeyClientDB';
 
 export type {
@@ -90,6 +91,28 @@ export class UnifiedIndexedDBManager {
       hasKeys,
       keyData: hasKeys ? keyData : undefined
     };
+  }
+
+  // === Derived addresses convenience ===
+  async setDerivedAddress(
+    nearAccountId: AccountId,
+    args: { contractId: string; path: string; address: string }
+  ): Promise<void> {
+    return this.clientDB.setDerivedAddress(nearAccountId, args);
+  }
+
+  async getDerivedAddressRecord(
+    nearAccountId: AccountId,
+    args: { contractId: string; path: string }
+  ): Promise<import('./passkeyClientDB').DerivedAddressRecord | null> {
+    return this.clientDB.getDerivedAddressRecord(nearAccountId, args);
+  }
+
+  async getDerivedAddress(
+    nearAccountId: AccountId,
+    args: { contractId: string; path: string }
+  ): Promise<string | null> {
+    return this.clientDB.getDerivedAddress(nearAccountId, args);
   }
 }
 

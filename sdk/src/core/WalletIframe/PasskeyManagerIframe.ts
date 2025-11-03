@@ -30,12 +30,13 @@ import type {
   LoginResult,
   VerifyAndSignTransactionResult,
   LoginState,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   ActionHooksOptions,
   AccountRecoveryHooksOptions,
   GetRecentLoginsResult,
   ActionResult,
   SignAndSendTransactionHooksOptions,
+  SignTransactionHooksOptions,
 } from '../types/passkeyManager';
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
@@ -179,7 +180,7 @@ export class PasskeyManagerIframe {
       // Step 4: Handle errors - convert to standard Error and call error hooks
       const e = toError(err);
       await options?.onError?.(e);
-      await options?.afterCall?.(false, e); // Call afterCall with error
+      await options?.afterCall?.(false); // Call afterCall with error
       throw e; // Re-throw for caller
     }
   }
@@ -201,7 +202,7 @@ export class PasskeyManagerIframe {
       // Step 4: Handle errors with same pattern as registerPasskey
       const e = toError(err);
       await options?.onError?.(e);
-      await options?.afterCall?.(false, e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -224,7 +225,7 @@ export class PasskeyManagerIframe {
   async signTransactionsWithActions(args: {
     nearAccountId: string;
     transactions: TransactionInput[];
-    options?: ActionHooksOptions
+    options?: SignTransactionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Step 1: Call beforeCall hook if provided
     await args.options?.beforeCall?.();
@@ -249,7 +250,7 @@ export class PasskeyManagerIframe {
       // Step 4: Handle errors with same pattern
       const e = toError(err);
       await args.options?.onError?.(e);
-      await args.options?.afterCall?.(false, e);
+      await args.options?.afterCall?.(false);
       throw e;
     }
   }
@@ -257,7 +258,7 @@ export class PasskeyManagerIframe {
   async signNEP413Message(args: {
     nearAccountId: string;
     params: SignNEP413MessageParams;
-    options?: BaseHooksOptions
+    options?: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
     await args.options?.beforeCall?.();
     try {
@@ -273,7 +274,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await args.options?.onError?.(e);
-      await args.options?.afterCall?.(false, e);
+      await args.options?.afterCall?.(false);
       throw e;
     }
   }
@@ -310,7 +311,7 @@ export class PasskeyManagerIframe {
       } catch (err: unknown) {
         const e = toError(err);
         await options?.onError?.(e);
-        await options?.afterCall?.(false, e);
+        await options?.afterCall?.(false);
         throw e;
       }
     }
@@ -354,7 +355,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await onError?.(e);
-      await afterCall?.(false, e);
+      await afterCall?.(false);
       throw e;
     }
   }
@@ -391,7 +392,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await options?.onError?.(e);
-      await options?.afterCall?.(false, e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -464,7 +465,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await options?.onError?.(e);
-      await options?.afterCall?.(false, e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -491,7 +492,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await args.options?.onError?.(e);
-      await args.options?.afterCall?.(false, e);
+      await args.options?.afterCall?.(false);
       throw e;
     }
   }
@@ -501,7 +502,7 @@ export class PasskeyManagerIframe {
   }): Promise<ActionResult> {
     // Route via iframe router with PROGRESS bridging
     const options = args.options;
-    options?.beforeCall?.();
+    await options?.beforeCall?.();
     try {
       const res = await this.router.sendTransaction({
         signedTransaction: args.signedTransaction,
@@ -514,8 +515,8 @@ export class PasskeyManagerIframe {
       return res;
     } catch (err: unknown) {
       const e = toError(err);
-      options?.onError?.(e);
-      options?.afterCall?.(false, e);
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }
@@ -547,7 +548,7 @@ export class PasskeyManagerIframe {
     } catch (err: unknown) {
       const e = toError(err);
       await options?.onError?.(e);
-      await options?.afterCall?.(false, e);
+      await options?.afterCall?.(false);
       throw e;
     }
   }

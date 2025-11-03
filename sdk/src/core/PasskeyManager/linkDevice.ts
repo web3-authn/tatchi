@@ -1,11 +1,15 @@
-import { createNearKeypair } from '../nearCrypto';
-import type { PasskeyManagerContext } from './index';
-import { IndexedDBManager } from '../IndexedDBManager';
 import { validateNearAccountId } from '../../utils/validation';
 import { DEVICE_LINKING_CONFIG } from '../../config';
+import { createNearKeypair } from '../nearCrypto';
+import { IndexedDBManager } from '../IndexedDBManager';
 import { ActionType, type ActionArgsWasm } from '../types/actions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import { VRFChallenge, type EncryptedVRFKeypair, type ServerEncryptedVrfKeypair } from '../types/vrf-worker';
+import {
+  VRFChallenge,
+  type EncryptedVRFKeypair,
+  type ServerEncryptedVrfKeypair
+} from '../types/vrf-worker';
+import type { PasskeyManagerContext } from './index';
 import type { WebAuthnRegistrationCredential } from '../types';
 import { DEFAULT_WAIT_STATUS } from "../types/rpc";
 import { getDeviceLinkingAccountContractCall } from "../rpcCalls";
