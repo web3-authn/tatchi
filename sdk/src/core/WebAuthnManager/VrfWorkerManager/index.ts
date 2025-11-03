@@ -301,8 +301,9 @@ export class VrfWorkerManager {
       throw new Error(`VRF challenge generation failed: ${response.error}`);
     }
 
+    const data = response.data as unknown as VRFChallenge;
     console.debug('VRF Manager: VRF challenge generated successfully');
-    return validateVRFChallenge(response.data);
+    return validateVRFChallenge(data);
   }
 
   /**
@@ -326,10 +327,11 @@ export class VrfWorkerManager {
       const response = await this.sendMessage(message);
 
       if (response.success && response.data) {
+        const data = response.data as { active: boolean; sessionDuration?: number };
         return {
-          active: response.data.active,
+          active: data.active,
           nearAccountId: this.currentVrfAccountId ? toAccountId(this.currentVrfAccountId) : null,
-          sessionDuration: response.data.sessionDuration
+          sessionDuration: data.sessionDuration
         };
       }
 
@@ -409,11 +411,12 @@ export class VrfWorkerManager {
       if (!response.success || !response.data) {
         throw new Error(`VRF bootstrap keypair generation failed: ${response.error}`);
       }
-      const challengeData = response.data.vrf_challenge_data;
+      const data = response.data as { vrf_challenge_data?: VRFChallenge; vrfPublicKey?: string };
+      const challengeData = data.vrf_challenge_data as VRFChallenge | undefined;
       if (!challengeData) {
         throw new Error('VRF challenge data failed to be generated');
       }
-      const vrfPublicKey = response.data.vrfPublicKey || challengeData.vrfPublicKey;
+      const vrfPublicKey = data.vrfPublicKey || challengeData.vrfPublicKey;
       if (!vrfPublicKey) {
         throw new Error('VRF public key missing in bootstrap response');
       }
@@ -510,26 +513,32 @@ export class VrfWorkerManager {
       if (!response.success || !response.data) {
         throw new Error(`VRF keypair derivation failed: ${response.error}`);
       }
-      const vrfPublicKey = response.data.vrfPublicKey || response.data.vrfChallengeData?.vrfPublicKey;
+      const data = response.data as {
+        vrfPublicKey?: string;
+        vrfChallengeData?: VRFChallenge;
+        encryptedVrfKeypair: EncryptedVRFKeypair;
+        serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair;
+      };
+      const vrfPublicKey = data.vrfPublicKey || data.vrfChallengeData?.vrfPublicKey;
       if (!vrfPublicKey) {
         throw new Error('VRF public key not found in response');
       }
-      if (!response.data.encryptedVrfKeypair) {
+      if (!data.encryptedVrfKeypair) {
         throw new Error('Encrypted VRF keypair not found in response - this is required for registration');
       }
       console.debug('VRF Manager: Deterministic VRF keypair derivation successful');
 
       // VRF challenge data is optional - only generated if vrfInputData was provided
-      const vrfChallenge = response.data.vrfChallengeData
+      const vrfChallenge = data.vrfChallengeData
         ? validateVRFChallenge({
-            vrfInput: response.data.vrfChallengeData.vrfInput,
-            vrfOutput: response.data.vrfChallengeData.vrfOutput,
-            vrfProof: response.data.vrfChallengeData.vrfProof,
-            vrfPublicKey: response.data.vrfChallengeData.vrfPublicKey,
-            userId: response.data.vrfChallengeData.userId,
-            rpId: response.data.vrfChallengeData.rpId,
-            blockHeight: response.data.vrfChallengeData.blockHeight,
-            blockHash: response.data.vrfChallengeData.blockHash,
+            vrfInput: data.vrfChallengeData.vrfInput,
+            vrfOutput: data.vrfChallengeData.vrfOutput,
+            vrfProof: data.vrfChallengeData.vrfProof,
+            vrfPublicKey: data.vrfChallengeData.vrfPublicKey,
+            userId: data.vrfChallengeData.userId,
+            rpId: data.vrfChallengeData.rpId,
+            blockHeight: data.vrfChallengeData.blockHeight,
+            blockHash: data.vrfChallengeData.blockHash,
           })
         : null;
 
@@ -541,8 +550,8 @@ export class VrfWorkerManager {
       } = {
         vrfPublicKey,
         vrfChallenge,
-        encryptedVrfKeypair: response.data.encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: response.data.serverEncryptedVrfKeypair,
+        encryptedVrfKeypair: data.encryptedVrfKeypair,
+        serverEncryptedVrfKeypair: data.serverEncryptedVrfKeypair || null,
       };
 
       return result;
@@ -600,21 +609,27 @@ export class VrfWorkerManager {
     if (!response.success || !response.data) {
       throw new Error(`VRF keypair derivation failed: ${response.error}`);
     }
+    const data = response.data as {
+      vrfChallengeData?: VRFChallenge;
+      vrfPublicKey?: string;
+      encryptedVrfKeypair: EncryptedVRFKeypair;
+      serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair | null;
+    };
 
-    const vrfChallenge = response.data.vrfChallengeData
+    const vrfChallenge = data.vrfChallengeData
       ? validateVRFChallenge({
-          vrfInput: response.data.vrfChallengeData.vrfInput,
-          vrfOutput: response.data.vrfChallengeData.vrfOutput,
-          vrfProof: response.data.vrfChallengeData.vrfProof,
-          vrfPublicKey: response.data.vrfChallengeData.vrfPublicKey,
-          userId: response.data.vrfChallengeData.userId,
-          rpId: response.data.vrfChallengeData.rpId,
-          blockHeight: response.data.vrfChallengeData.blockHeight,
-          blockHash: response.data.vrfChallengeData.blockHash,
+          vrfInput: data.vrfChallengeData.vrfInput,
+          vrfOutput: data.vrfChallengeData.vrfOutput,
+          vrfProof: data.vrfChallengeData.vrfProof,
+          vrfPublicKey: data.vrfChallengeData.vrfPublicKey,
+          userId: data.vrfChallengeData.userId,
+          rpId: data.vrfChallengeData.rpId,
+          blockHeight: data.vrfChallengeData.blockHeight,
+          blockHash: data.vrfChallengeData.blockHash,
         })
       : null;
 
-    const vrfPublicKey = response.data.vrfPublicKey || response.data.vrfChallengeData?.vrfPublicKey;
+    const vrfPublicKey = data.vrfPublicKey || data.vrfChallengeData?.vrfPublicKey;
     if (!vrfPublicKey) {
       throw new Error('VRF public key not found in response');
     }
@@ -622,8 +637,8 @@ export class VrfWorkerManager {
     return {
       vrfPublicKey,
       vrfChallenge,
-      encryptedVrfKeypair: response.data.encryptedVrfKeypair,
-      serverEncryptedVrfKeypair: response.data.serverEncryptedVrfKeypair || null,
+      encryptedVrfKeypair: data.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: data.serverEncryptedVrfKeypair || null,
     };
   }
 
@@ -681,7 +696,11 @@ export class VrfWorkerManager {
     if (!response.success || !response.data) {
       throw new Error(`VRF encrypt-current failed: ${response.error}`);
     }
-    const { ciphertextVrfB64u, kek_s_b64u, serverKeyId } = response.data as any;
+    const { ciphertextVrfB64u, kek_s_b64u, serverKeyId } = response.data as {
+      ciphertextVrfB64u: string;
+      kek_s_b64u: string;
+      serverKeyId: string;
+    };
     if (!ciphertextVrfB64u || !kek_s_b64u) {
       throw new Error('Invalid encrypt-current response');
     }

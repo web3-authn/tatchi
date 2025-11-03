@@ -69,7 +69,7 @@ export interface ClientAuthenticatorData {
   vrfPublicKey: string; // Base64-encoded VRF public key (1:1 relationship on client)
 }
 
-interface AppStateEntry<T = any> {
+interface AppStateEntry<T = unknown> {
   key: string;
   value: T;
 }
@@ -100,7 +100,7 @@ const DB_CONFIG: PasskeyClientDBConfig = {
 export interface IndexedDBEvent {
   type: 'user-updated' | 'preferences-updated' | 'user-deleted';
   accountId: AccountId;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export class PasskeyClientDBManager {
@@ -217,13 +217,13 @@ export class PasskeyClientDBManager {
 
   // === APP STATE METHODS ===
 
-  async getAppState<T = any>(key: string): Promise<T | undefined> {
+  async getAppState<T = unknown>(key: string): Promise<T | undefined> {
     const db = await this.getDB();
     const result = await db.get(DB_CONFIG.appStateStore, key);
     return result?.value as T | undefined;
   }
 
-  async setAppState<T = any>(key: string, value: T): Promise<void> {
+  async setAppState<T = unknown>(key: string, value: T): Promise<void> {
     const db = await this.getDB();
     const entry: AppStateEntry<T> = { key, value };
     await db.put(DB_CONFIG.appStateStore, entry);

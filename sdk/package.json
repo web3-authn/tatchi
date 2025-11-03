@@ -172,7 +172,7 @@
     "tslib": "^2.8.1"
   },
   "devDependencies": {
-    "@near-js/types": "^2.0.1",
+    "@near-js/types": "^2.4.0",
     "@types/qrcode": "^1.5.5",
     "@types/express": "^4.17.21",
     "@playwright/test": "^1.40.0",

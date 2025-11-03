@@ -50,7 +50,7 @@ export async function loginPasskey(
         error: errorMessage
       });
       const result = { success: false, error: errorMessage };
-      afterCall?.(false, result);
+      afterCall?.(false);
       return result;
     }
 
@@ -74,7 +74,7 @@ export async function loginPasskey(
       error: err.message
     });
     const result = { success: false, error: err.message };
-    afterCall?.(false, result);
+    afterCall?.(false);
     return result;
   }
 }
@@ -276,7 +276,7 @@ async function handleLoginUnlockVRF(
     });
 
     const result = { success: false, error: errorMessage };
-    afterCall?.(false, result);
+    afterCall?.(false);
     return result;
   }
 }

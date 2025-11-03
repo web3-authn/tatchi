@@ -111,7 +111,7 @@ export type {
   // Re-exported from PasskeyManager types
   RegistrationHooksOptions,
   LoginHooksOptions,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   ActionHooksOptions,
 
   // Toasts

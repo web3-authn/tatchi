@@ -75,7 +75,10 @@ async function sendTransactionsParallelStaggered({
     return sendTransaction({
       context,
       signedTransaction: tx.signedTransaction,
-      options
+      options: {
+        onEvent: options?.onEvent,
+        waitUntil: options?.waitUntil,
+      }
     });
   }));
 }
@@ -328,9 +331,8 @@ export async function executeActionInternal({
     const txResult = await sendTransaction({
       context,
       signedTransaction: signedTxs[0].signedTransaction,
-      options: { onEvent, onError, afterCall, waitUntil }
+      options: { onEvent, onError, waitUntil }
     });
-
     afterCall?.(true, txResult);
     return txResult;
 
@@ -346,7 +348,7 @@ export async function executeActionInternal({
       error: e.message
     });
     const result: ActionResult = { success: false, error: e.message, transactionId: undefined };
-    afterCall?.(false, result);
+    afterCall?.(false);
     return result;
   }
 }
@@ -384,7 +386,7 @@ export async function signAndSendTransactionsInternal({
           context,
           signedTransaction: tx.signedTransaction,
           options: {
-            ...options,
+            onEvent: options?.onEvent,
             waitUntil: plan.waitUntil ?? options?.waitUntil,
           }
         });
@@ -422,7 +424,7 @@ export async function signTransactionsWithActionsInternal({
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions,
+  options?: Omit<ActionHooksOptions, 'afterCall'>,
   confirmationConfigOverride?: ConfirmationConfig | undefined,
 }): Promise<VerifyAndSignTransactionResult[]> {
 
@@ -441,14 +443,14 @@ export async function signTransactionsWithActionsInternal({
     });
 
     // 1. Basic validation (NEAR data fetching moved to confirmation flow)
-    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil } as any);
+    await validateInputsOnly(nearAccountId, transactionInputs, { onEvent, onError, waitUntil });
 
     // 2. VRF Authentication + Transaction Signing (NEAR data fetched in confirmation flow)
     const signedTxs = await wasmAuthenticateAndSignTransactions(
       context,
       nearAccountId,
       transactionInputs,
-      { onEvent, onError, waitUntil, confirmationConfigOverride } as any
+      { onEvent, onError, waitUntil, confirmationConfigOverride }
     );
 
     return signedTxs;
@@ -476,7 +478,7 @@ export async function signTransactionsWithActionsInternal({
 async function validateInputsOnly(
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions,
+  options?: Omit<ActionHooksOptions, 'afterCall'>,
 ): Promise<void> {
   const { onEvent, onError } = options || {};
 
@@ -515,7 +517,7 @@ async function wasmAuthenticateAndSignTransactions(
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
-  options?: ActionHooksOptions & { confirmationConfigOverride?: ConfirmationConfig }
+  options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: ConfirmationConfig }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
 ): Promise<VerifyAndSignTransactionResult[]> {
 

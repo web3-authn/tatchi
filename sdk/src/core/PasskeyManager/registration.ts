@@ -321,7 +321,7 @@ export async function registerPasskeyInternal(
     } as RegistrationSSEEvent);
 
     const result = { success: false, error: errorMessage };
-    afterCall?.(false, result);
+    afterCall?.(false);
     return result;
   }
 }

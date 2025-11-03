@@ -20,7 +20,7 @@ import type {
   ActionHooksOptions,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
-  BaseHooksOptions,
+  SignNEP413HooksOptions,
   AccountRecoveryHooksOptions,
   LoginResult,
   LoginState,
@@ -66,7 +66,7 @@ interface PM {
   stopDevice2LinkingFlow(): Promise<void>;
   sendTransaction(args: { signedTransaction: SignedTransaction; options?: SendTransactionHooksOptions }): Promise<ActionResult>;
   executeAction(args: { nearAccountId: string; receiverId: string; actionArgs: ActionArgs | ActionArgs[]; options?: ActionHooksOptions }): Promise<ActionResult>;
-  signNEP413Message(args: { nearAccountId: string; params: { message: string; recipient: string; state?: string }; options?: BaseHooksOptions }): Promise<SignNEP413MessageResult>;
+  signNEP413Message(args: { nearAccountId: string; params: { message: string; recipient: string; state?: string }; options?: SignNEP413HooksOptions }): Promise<SignNEP413MessageResult>;
   exportNearKeypairWithUI?(accountId: string, opts: { variant?: 'modal' | 'drawer'; theme?: 'dark' | 'light' }): Promise<void>;
   getRecentLogins(): Promise<GetRecentLoginsResult>;
   prefetchBlockheight(): Promise<void>;
@@ -246,7 +246,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
         options: {
           ...options,
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
-        } as BaseHooksOptions,
+        } as SignNEP413HooksOptions,
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -330,7 +330,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const pm = getPasskeyManager() as PM;
       const { nearAccountId } = req.payload!;
       // Soft probe to warm caches in some environments (optional)
-      const ctx = (pm.getContext?.() as any) || {};
+      const ctx = pm.getContext?.();
       const web = ctx?.webAuthnManager;
       if (web) {
         await web.getUser(toAccountId(nearAccountId)).catch(() => undefined);

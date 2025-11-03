@@ -196,10 +196,10 @@ export function setupLitElemMounter(opts: {
 
     const root = pickRoot((payload?.props as unknown as { targetSelector?: string })?.targetSelector || (payload as { targetSelector?: string } | undefined)?.targetSelector);
     if (vr && typeof vr === 'object') {
-      const top = Number((vr as any).top);
-      const left = Number((vr as any).left);
-      const width = Number((vr as any).width);
-      const height = Number((vr as any).height);
+      const top = Number(vr.top);
+      const left = Number(vr.left);
+      const width = Number(vr.width);
+      const height = Number(vr.height);
       if ([top, left, width, height].every((n) => Number.isFinite(n))) {
         const container = document.createElement('div');
         // Mark container and apply anchored geometry via stylesheet
@@ -236,10 +236,10 @@ export function setupLitElemMounter(opts: {
       const vr = props.viewportRect as { top?: unknown; left?: unknown; width?: unknown; height?: unknown } | undefined;
       const anchorMode = String((props as { anchorMode?: unknown })?.anchorMode || 'viewport');
       if (vr && typeof vr === 'object') {
-        const top = Number((vr as any).top);
-        const left = Number((vr as any).left);
-        const width = Number((vr as any).width);
-        const height = Number((vr as any).height);
+        const top = Number(vr.top);
+        const left = Number(vr.left);
+        const width = Number(vr.width);
+        const height = Number(vr.height);
         if ([top, left, width, height].every((n) => Number.isFinite(n))) {
           setContainerAnchored(container, { top, left, width, height }, anchorMode === 'iframe' ? 'iframe' : 'viewport');
         }

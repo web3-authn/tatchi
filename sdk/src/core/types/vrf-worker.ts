@@ -169,10 +169,10 @@ export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
   payload?: T;
 }
 
-export interface VRFWorkerResponse {
+export interface VRFWorkerResponse<TData = Record<string, unknown>> {
   id?: string;
   success: boolean;
-  data?: any;
+  data?: TData;
   error?: string;
 }
 

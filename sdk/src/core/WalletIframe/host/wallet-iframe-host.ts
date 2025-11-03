@@ -296,9 +296,11 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   }
 
   try {
-    const handler = handlers[req.type as ParentToChildType];
+    // Widen handler type for dynamic dispatch. HandlerMap is strongly typed at creation,
+    // but when indexing with a runtime key, TS cannot correlate the specific envelope type.
+    const handler = handlers[req.type as ParentToChildType] as unknown as (r: ParentToChildEnvelope) => Promise<void>;
     if (handler) {
-      await handler(req as any);
+      await handler(req);
     }
   } catch (err: unknown) {
     post({ type: 'ERROR', requestId, payload: { code: 'HOST_ERROR', message: errorMessage(err) } });

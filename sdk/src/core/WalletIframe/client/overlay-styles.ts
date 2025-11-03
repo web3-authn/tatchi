@@ -61,7 +61,7 @@ function installBaseStyles(): void {
       state.baseSheet = new CSSStyleSheet();
       state.baseSheet.replaceSync(css);
       const current = (document.adoptedStyleSheets || []) as CSSStyleSheet[];
-      (document as any).adoptedStyleSheets = [...current, state.baseSheet];
+      document.adoptedStyleSheets = [...current, state.baseSheet];
       return;
     } catch {}
   }

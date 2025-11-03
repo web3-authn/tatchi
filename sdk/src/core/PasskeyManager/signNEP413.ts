@@ -1,5 +1,5 @@
 import type { PasskeyManagerContext } from './index';
-import type { BaseHooksOptions } from '../types/passkeyManager';
+import type { SignNEP413HooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
@@ -55,7 +55,7 @@ export async function signNEP413Message(args: {
   context: PasskeyManagerContext,
   nearAccountId: AccountId,
   params: SignNEP413MessageParams,
-  options?: BaseHooksOptions
+  options?: SignNEP413HooksOptions
 }): Promise<SignNEP413MessageResult> {
 
   const { context, nearAccountId, params, options } = args;

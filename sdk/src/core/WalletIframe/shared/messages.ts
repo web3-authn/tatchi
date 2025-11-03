@@ -4,7 +4,6 @@ import { AuthenticatorOptions } from '@/server';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { ActionArgs, TransactionInput } from '../../types';
 import {
-  BaseHooksOptions,
   LoginHooksOptions,
   ActionHooksOptions,
   RegistrationHooksOptions,

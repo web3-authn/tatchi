@@ -5,6 +5,7 @@ import { SignedTransaction } from "../NearClient";
 import type { AuthenticatorOptions } from './authenticatorOptions';
 import { ClientUserData } from ".";
 import { RecoveryResult } from '../PasskeyManager';
+import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 
 //////////////////////////
 // Progress Events Enums
@@ -101,7 +102,12 @@ export enum DeviceLinkingStatus {
 export type EventCallback<T> = (event: T) => void;
 
 export type BeforeCall = () => void | Promise<void>;
-export type AfterCall<T> = (success: boolean, result?: T | Error) => void | Promise<void>;
+// afterCall overload: success requires a result; failure has no result.
+// Users can still supply a single implementation: (success: boolean, result?: T) => ...
+export interface AfterCall<T> {
+  (success: true, result: T): void | Promise<void>;
+  (success: false): void | Promise<void>;
+}
 
 // Base SSE Event Types (unified for Registration and Actions)
 export interface BaseSSEEvent {
@@ -428,7 +434,7 @@ export interface AccountRecoveryEventStep2 extends BaseAccountRecoveryEvent {
 export interface AccountRecoveryEventStep3 extends BaseAccountRecoveryEvent {
   step: 3;
   phase: AccountRecoveryPhase.STEP_3_SYNC_AUTHENTICATORS_ONCHAIN;
-  data?: any;
+  data?: Record<string, unknown>;
   logs?: string[];
 }
 
@@ -436,14 +442,14 @@ export interface AccountRecoveryEventStep4 extends BaseAccountRecoveryEvent {
   step: 4;
   phase: AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED;
   status: AccountRecoveryStatus.SUCCESS;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export interface AccountRecoveryEventStep5 extends BaseAccountRecoveryEvent {
   step: 5;
   phase: AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE;
   status: AccountRecoveryStatus.SUCCESS;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export interface AccountRecoveryError extends BaseAccountRecoveryEvent {
@@ -465,27 +471,19 @@ export type AccountRecoverySSEEvent =
 /// Hooks Options
 //////////////////////////////////
 
-export interface BaseHooksOptions {
-  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent>;
-  onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
-}
-
 // Function Options
 export interface RegistrationHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent>;
   onError?: (error: Error) => void;
-  // Back-compat fields (temporarily supported)
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<RegistrationResult>;
 }
 
 export interface LoginHooksOptions {
   onEvent?: EventCallback<LoginSSEvent>;
   onError?: (error: Error) => void;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<LoginResult>;
 }
 
 export interface ActionHooksOptions {
@@ -493,7 +491,7 @@ export interface ActionHooksOptions {
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<ActionResult>;
 }
 
 export type ExecutionWaitOption =
@@ -509,14 +507,14 @@ export interface SignAndSendTransactionHooksOptions {
   // - { mode: 'parallelStaggered', staggerMs: number }
   executionWait?: ExecutionWaitOption;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<ActionResult[]>;
 }
 
 export interface SignTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   beforeCall?: BeforeCall;
-  afterCall?: AfterCall<any>;
+  afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
 }
 
@@ -534,6 +532,13 @@ export interface AccountRecoveryHooksOptions {
   waitUntil?: TxExecutionStatus;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<RecoveryResult>;
+}
+
+export interface SignNEP413HooksOptions {
+  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent>;
+  onError?: (error: Error) => void;
+  beforeCall?: BeforeCall;
+  afterCall?: AfterCall<SignNEP413MessageResult>;
 }
 
 //////////////////////////////////
