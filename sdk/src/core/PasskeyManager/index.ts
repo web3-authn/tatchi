@@ -498,7 +498,8 @@ export class PasskeyManager {
           actionArgs: args.actionArgs,
           options: {
             onEvent: args.options?.onEvent,
-            ...({ waitUntil: args.options?.waitUntil })
+            waitUntil: args.options?.waitUntil,
+            confirmationConfig: args.options?.confirmationConfig,
           }
         });
         await args.options?.afterCall?.(true, res);
@@ -582,7 +583,8 @@ export class PasskeyManager {
           transactions: transactions.map(t => ({ receiverId: t.receiverId, actions: t.actions })),
           options: {
             onEvent: options?.onEvent,
-            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil }
+            executionWait: options?.executionWait ?? { mode: 'sequential', waitUntil: options?.waitUntil },
+            confirmationConfig: options?.confirmationConfig,
           }
         });
         // Emit completion
@@ -679,7 +681,10 @@ export class PasskeyManager {
         const result = await this.iframeRouter.signTransactionsWithActions({
           nearAccountId, transactions:
           txs,
-          options: { onEvent: options?.onEvent }
+          options: {
+            onEvent: options?.onEvent,
+            confirmationConfig: options?.confirmationConfig
+          }
         });
         const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? result : [];
         await options?.afterCall?.(true, arr);

@@ -426,6 +426,7 @@ export class WalletIframeRouter {
       onError?: (error: Error) => void;
       beforeCall?: BeforeCall;
       afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
+      confirmationConfig?: ConfirmationConfig;
     }
   }): Promise<VerifyAndSignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
@@ -433,7 +434,10 @@ export class WalletIframeRouter {
       type: 'PM_SIGN_TXS_WITH_ACTIONS',
       payload: {
         nearAccountId: payload.nearAccountId,
-        transactions: payload.transactions
+        transactions: payload.transactions,
+        options: payload.options?.confirmationConfig
+          ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+          : undefined
       },
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
@@ -593,7 +597,10 @@ export class WalletIframeRouter {
     // Strip non-cloneable functions from options; host emits PROGRESS events
     const { options } = payload;
     const safeOptions = options
-      ? { waitUntil: options.waitUntil }
+      ? {
+          waitUntil: options.waitUntil,
+          confirmationConfig: options.confirmationConfig,
+        }
       : undefined;
 
     const res = await this.post<ActionResult>({
@@ -668,7 +675,8 @@ export class WalletIframeRouter {
     const safeOptions = options
       ? {
           waitUntil: options.waitUntil,
-          executionWait: options.executionWait
+          executionWait: options.executionWait,
+          confirmationConfig: options.confirmationConfig,
         }
       : undefined;
 

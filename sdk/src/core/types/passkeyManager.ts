@@ -1,4 +1,5 @@
 import type { FinalExecutionOutcome, TxExecutionStatus } from "@near-js/types";
+import type { ConfirmationConfig } from './signer-worker';
 import type { EncryptedVRFKeypair } from './vrf-worker';
 import { AccountId } from "./accountIds";
 import { SignedTransaction } from "../NearClient";
@@ -492,6 +493,9 @@ export interface ActionHooksOptions {
   waitUntil?: TxExecutionStatus;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<ActionResult>;
+  // Per-call confirmation configuration. When provided, overrides user preferences
+  // for this request only (not persisted).
+  confirmationConfig?: ConfirmationConfig;
 }
 
 export type ExecutionWaitOption =
@@ -508,6 +512,9 @@ export interface SignAndSendTransactionHooksOptions {
   executionWait?: ExecutionWaitOption;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<ActionResult[]>;
+  // Per-call confirmation configuration. When provided, overrides user preferences
+  // for this request only (not persisted).
+  confirmationConfig?: ConfirmationConfig;
 }
 
 export interface SignTransactionHooksOptions {
@@ -516,6 +523,8 @@ export interface SignTransactionHooksOptions {
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
+  // Per-call confirmation configuration (non-persistent)
+  confirmationConfig?: ConfirmationConfig;
 }
 
 export interface SendTransactionHooksOptions {

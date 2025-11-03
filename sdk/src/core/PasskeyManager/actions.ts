@@ -42,14 +42,15 @@ export async function executeAction(args: {
   options?: ActionHooksOptions,
 }): Promise<ActionResult> {
   try {
-    // Public API always uses undefined override (respects user settings)
+    // Thread optional per-call confirmation override when provided; otherwise
+    // user preferences determine the confirmation behavior.
     return executeActionInternal({
       context: args.context,
       nearAccountId: args.nearAccountId,
       receiverId: args.receiverId,
       actionArgs: args.actionArgs,
       options: args.options,
-      confirmationConfigOverride: undefined
+      confirmationConfigOverride: args.options?.confirmationConfig
     });
   } catch (error: unknown) {
     throw toError(error);
@@ -132,7 +133,7 @@ export async function signAndSendTransactions(args: {
     nearAccountId: args.nearAccountId,
     transactionInputs: args.transactionInputs,
     options: args.options,
-    confirmationConfigOverride: undefined
+    confirmationConfigOverride: args.options?.confirmationConfig
   });
 }
 
@@ -157,7 +158,7 @@ export async function signTransactionsWithActions(args: {
       nearAccountId: args.nearAccountId,
       transactionInputs: args.transactionInputs,
       options: args.options,
-      confirmationConfigOverride: undefined
+      confirmationConfigOverride: args.options?.confirmationConfig
       // Public API always uses undefined override (respects user settings)
     });
   } catch (error: unknown) {
