@@ -141,4 +141,6 @@ w3a-drawer {
   background: var(--w3a-colors-colorBackground, #fff);
   color: var(--w3a-colors-textPrimary, #181a1f);
   border-color: var(--w3a-colors-borderPrimary, rgba(0,0,0,0.08));
+  /* Softer elevation for light theme */
+  box-shadow: 0 0px 12px rgba(0,0,0,0.12);
 }

@@ -46,6 +46,12 @@
   --fe-gap-6: 24px;
 }
 
+/* Expose gradient tokens for app-level background usage */
+:root, [data-w3a-theme] {
+  --w3a-colors-backgroundGradient4: linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%);
+  --w3a-colors-backgroundGradientPrimary: linear-gradient(45deg, oklch(0.82 0.130 255) 0%, oklch(0.66 0.180 255) 50%);
+}
+
 .w3a-theme-provider {
   /* Ensure default text/background derive from theme */
   color: var(--fe-text);
@@ -357,8 +363,7 @@ h4 {
   place-content: center;
   justify-content: center;
   align-items: flex-start;
-  background: var(--w3a-colors-backgroundGradient4, var(--w3a-colors-backgroundGradientPrimary));
-  background-attachment: fixed;
+  background: var(--w3a-colors-colorBackground);
   width: 100%;
   height: 100%;
   min-height: 100dvh;

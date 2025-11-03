@@ -1,4 +1,5 @@
 import React from 'react'
+import { TatchiQRSvg } from './tatchiQRSvg'
 
 export function BrowserWithQR(props: {
   width?: number | string
@@ -45,38 +46,9 @@ export function BrowserWithQR(props: {
       {/* Content area */}
       <g transform="translate(0, 72)">
         <rect x={16} y={0} width={vbW - 32} height={vbH - 88} rx={12} fill="rgba(0,0,0,0.02)" stroke={'none'} />
-        {/* QR container (explicit coordinates from provided SVG) */}
-        <g transform="translate(220, 102)">
-          <rect x="0" y="0" width="160" height="160" rx="22" fill={qrBg} />
-          <g>
-            <g>
-              <rect x="16" y="16" width="48" height="48" fill={qrInk} />
-              <rect x="24" y="24" width="32" height="32" fill={qrBg} />
-              <rect x="32" y="32" width="16" height="16" fill={qrInk} />
-            </g>
-            <g>
-              <rect x="96" y="16" width="48" height="48" fill={qrInk} />
-              <rect x="104" y="24" width="32" height="32" fill={qrBg} />
-              <rect x="112" y="32" width="16" height="16" fill={qrInk} />
-            </g>
-            <g>
-              <rect x="16" y="96" width="48" height="48" fill={qrInk} />
-              <rect x="24" y="104" width="32" height="32" fill={qrBg} />
-              <rect x="32" y="112" width="16" height="16" fill={qrInk} />
-            </g>
-          </g>
-          <g>
-            <rect x="104" y="92" width="12" height="12" fill={qrInk} />
-            <rect x="104" y="104" width="12" height="12" fill={qrInk} />
-            <rect x="92" y="104" width="12" height="12" fill={qrInk} />
-            <rect x="116" y="104" width="12" height="12" fill={qrInk} />
-            <rect x="104" y="116" width="12" height="12" fill={qrInk} />
-            <rect x="140" y="104" width="12" height="12" fill={qrInk} />
-            <rect x="140" y="116" width="12" height="12" fill={qrInk} />
-            <rect x="140" y="128" width="12" height="12" fill={qrInk} />
-            <rect x="128" y="128" width="12" height="12" fill={qrInk} />
-            <rect x="116" y="128" width="12" height="12" fill={qrInk} />
-          </g>
+        {/* QR container: re-use TatchiQRSvg scaled to 160px and positioned */}
+        <g transform="translate(220, 66)">
+          <TatchiQRSvg width={160} height={160} />
         </g>
       </g>
     </svg>

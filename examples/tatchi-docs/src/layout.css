@@ -110,6 +110,7 @@
     height: auto;
     overflow: visible;
     min-height: auto;
+    border: none;
     border-radius: 0rem;
   }
   .layout-column-right > .constrained-column {
@@ -147,6 +148,9 @@
 
 /* On narrow viewports, remove inner padding/radius so content fits flush */
 @media (max-width: 600px) {
+  /* Hide the static navbar on small screens */
+  .navbar-static { display: none !important; }
+
   .layout-root > .hero,
   .layout-root > .hero-intro,
   .layout-root > .bento-grid,
