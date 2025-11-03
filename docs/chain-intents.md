@@ -8,6 +8,23 @@ This document defines a client-first plan for “Chain Intents / Chain Signature
 - Keep the client small: prepare unsigned EVM tx + signing hash with viem (or chainsig.js), then have NEAR “sign” via MPC contract, then finalize and broadcast.
 - Reuse our current SignerWorker, iframe confirmer, and relay Cloudflare worker for orchestration, observability, and CORS.
 
+## Default Network & RPC Choices
+
+- Default demo network: Base Sepolia (`chainId = 84532`).
+- RPC selection: a small `chooseRpc(chainId, override?)` helper probes candidates (8s timeout) via `getBlockNumber()` and picks the first responsive URL; a manual override takes precedence.
+- Base Sepolia RPC candidates (in order):
+  - `https://sepolia.base.org`
+  - `https://base-sepolia.gateway.tenderly.co`
+- Ethereum Sepolia RPC candidates (if you switch back):
+  - `https://rpc.sepolia.org`
+  - `https://ethereum-sepolia.publicnode.com`
+  - `https://sepolia.gateway.tenderly.co`
+  - `https://eth-sepolia.g.alchemy.com/v2/demo`
+
+Notes:
+- Public RPCs can intermittently 408/timeout; probing improves reliability without hard-coding vendor keys.
+- UI exposes an “RPC override” input to paste a preferred endpoint.
+
 
 ## What We Will Not Do
 
@@ -162,6 +179,7 @@ export async function requestChainSignature(hash: Uint8Array, p: MpcSignParams):
 - Add a minimal demo page to collect `chainId`, `to`, and `amount`.
 - Use `buildCanonicalIntent` → display preview → open confirmation modal.
 - On confirm, call `signAndSubmitCanonicalIntent` to trigger NEAR MPC sign and show final EVM tx hash.
+- Demo defaults to Base Sepolia (`84532`) for better RPC responsiveness and uses `chooseRpc()` to probe multiple endpoints; an input lets you override the RPC URL.
 
 
 ## Milestones
@@ -186,3 +204,48 @@ export async function requestChainSignature(hash: Uint8Array, p: MpcSignParams):
 - Pick chainsig.js vs. viem-only and scaffold TS modules.
 - Wire NEAR MPC call using existing passkey signing flow.
 - Add the confirmation node and relay adapter; then iterate with real RPC once mocks pass.
+
+
+## Progress Summary
+
+**What Worked**
+- Browser compatibility for chainsig.js by adding Node polyfills and aliases in docs and example apps:
+  - `examples/tatchi-docs/src/.vitepress/config.ts`
+  - `examples/tatchi-docs/vite.config.ts`
+  - `examples/tatchi-docs/src/main.tsx` (global `process`/`Buffer` shims)
+- EVM flow end-to-end (client):
+  - Prepared unsigned EIP‑1559 tx and signing hash (viem or chainsig.js adapter when possible).
+  - Called NEAR MPC contract with the correct schema (`request.payload_v2`) and payload hex without `0x`.
+  - Decoded MPC signature formats (65‑byte RSV, JSON r/s/v or yParity, or concatenated hex) and finalized via viem.
+- RPC reliability improved by switching demo default to Base Sepolia and adding a responsive RPC chooser with manual override.
+- Demo UX improvements in `examples/tatchi-docs/src/components/DemoChainsigs.tsx`:
+  - “Derive Address + Faucet” helper to compute the MPC EVM address up front and show faucet links per chain.
+  - Clear logging of the derived EVM address that needs funding.
+  - Fallback path when estimateGas fails for unfunded accounts: prepare minimal tx with viem so signing can be validated even if broadcast is not possible yet.
+
+**What Didn’t (or Caveats)**
+- RPC wait on FINAL can return generic “Server error” on some public nodes; switching to `EXECUTED_OPTIMISTIC` improves reliability but may require a follow‑up fetch for `SuccessValue` when not present in the immediate outcome.
+- Broadcasting will fail if the derived EVM address is unfunded. The demo now surfaces faucet links, but funding remains a prerequisite for non‑zero value transfers.
+- chainsig.js address derivation requires the adapter contract wrapper; to avoid heavy imports, we still rely on the library but keep Node polyfill surface minimal and prebundled.
+
+**Contract Payload Shape and Encoding — Confirmed**
+- Contract: `sign` expects (for EVM) the newer payload envelope on your deployment:
+  - `args: { request: { payload_v2: { Ecdsa: <hex-without-0x> }, path, domain_id: 0 } }`
+- Gas/deposit defaults that work across nodes match chainsig.js:
+  - `gas ≈ 300_000_000_000_000` (300 Tgas), `deposit = 1` (yocto NEAR)
+- Hex payload must not include the `0x` prefix; passing `0x...` caused “Failed to deserialize input from JSON”.
+
+**Files Touched (Key)**
+- `examples/tatchi-docs/src/components/DemoChainsigs.tsx` — end‑to‑end demo flow, schema fixes, fallback, and faucet helper.
+- `examples/tatchi-docs/src/.vitepress/config.ts`, `examples/tatchi-docs/vite.config.ts` — polyfills and Vite aliases for browser build.
+- `examples/tatchi-docs/src/main.tsx` — global shims for `process`/`Buffer` prior to app boot.
+
+**Open Items / Next Actions**
+- Add follow‑up outcome retrieval when using `EXECUTED_OPTIMISTIC` to reliably fetch `SuccessValue` by `transactionId` and proceed to finalize even if the immediate outcome omits it.
+- Gate broadcast in the demo until a minimal balance is detected on the derived address; add a small balance check (viem) and CTA to faucet links.
+- Extract the demo logic into SDK helpers (viem‑only path) to reduce reliance on chainsig.js at runtime while keeping chainsig.js for parity tests/fixtures.
+- Add unit tests for:
+  - Payload normalization (hex without `0x`).
+  - RSV decoding variants and viem finalization.
+  - Outcome parsing with immediate vs. deferred `SuccessValue`.
+- Align hashing/finalization test vectors with `omni-transaction-rs` to guarantee cross‑impl determinism; optionally wire a small WASM test helper for conformance (test‑only).

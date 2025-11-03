@@ -102,7 +102,7 @@ Call the NEAR MPC contract to sign the payload(s). Provide:
 1. The `payloads` (array of hashes) to sign from step 2.
 2. The derivation `path` (string; e.g., `ethereum-1`).
 3. The `key_version` (number; usually `0` unless you’ve rotated).
-4. Optionally, `keyType` — `"Ecdsa"` for secp256k1 chains (EVM, Bitcoin) or `"Eddsa"` for ed25519 chains (Solana, etc.).
+4. The `keyType` — `"Ecdsa"` for secp256k1 chains (EVM, Bitcoin) or `"Eddsa"` for ed25519 chains (Solana, etc.).
 5. A `signerAccount` object containing the NEAR `accountId` and a `signAndSendTransactions` function (e.g., from Wallet Selector) to authorize the on‑chain call.
 
 ```ts
