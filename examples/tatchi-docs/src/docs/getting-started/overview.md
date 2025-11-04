@@ -17,4 +17,4 @@ What you’ll do next:
 - Self‑hosted (same domain wallet): you run the wallet origin (e.g., `wallet.example.com`); use `tatchiWalletServer` in dev and `tatchiBuildHeaders` on deploy.
 See details in [Install & Configure](./install-and-configure#self-hosted-vs-app-only).
 
-Next: [Install](./install)
+Next: [Install & Configure](./install-and-configure)
