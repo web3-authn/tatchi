@@ -6,7 +6,7 @@ import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
 import { BrowserWithQR } from './icons/BrowserWithQR'
 import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
-import { useCarousel } from './Carousel/CarouselProvider'
+import { useCarousel } from './Carousel2/CarouselProvider'
 import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 
 export function AccountRecovery() {

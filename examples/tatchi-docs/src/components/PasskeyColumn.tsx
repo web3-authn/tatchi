@@ -4,8 +4,8 @@ import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 
-import { CarouselProvider } from './Carousel/CarouselProvider'
-import { Carousel } from './Carousel/Carousel'
+import { CarouselProvider } from './Carousel2/CarouselProvider'
+import { Carousel } from './Carousel2/Carousel'
 
 import { DemoPage } from './DemoPage';
 import { PasskeyLoginMenu } from './PasskeyLoginMenu';
