@@ -11,6 +11,7 @@ interface LoadingButtonProps {
   size?: 'small' | 'medium' | 'large';
   className?: string;
   style?: React.CSSProperties;
+  textStyles?: React.CSSProperties;
   type?: 'button' | 'submit' | 'reset';
 }
 
@@ -24,6 +25,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
   size = 'medium',
   className = '',
   style,
+  textStyles,
   type = 'button',
 }) => {
   const isDisabled = disabled || loading;
@@ -72,7 +74,7 @@ export const LoadingButton: React.FC<LoadingButtonProps> = ({
           />
         </svg>
       )}
-      <span className="button__text">{displayText}</span>
+      <span className="button__text" style={textStyles}>{displayText}</span>
     </button>
   );
 };

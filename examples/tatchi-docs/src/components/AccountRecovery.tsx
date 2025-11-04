@@ -41,14 +41,16 @@ export function AccountRecovery() {
         gap: '0.5rem',
         padding: '1rem'
       }}>
-        <h2 style={{ margin: 0 }}>Account Recovery</h2>
-        <p style={{ margin: 0, color: 'var(--fe-text-secondary)' }}>
-          Recover accounts on any device where your passkeys are located.
+        <div className="demo-page-header">
+        <h2 className="demo-title">Account Recovery</h2>
+        </div>
+        <div className="action-text">
+          Recover accounts on any device where your passkeys are located
           <br/>
-          If your passkeys are
-          synced to iCloud Keychain or Google Password Manager, you can recover your wallet on
-          those devices.
-        </p>
+          • Passkeys can be synced on iCloud Keychain or Google Password Manager
+          <br/>
+          • Synced passkeys across devices can recover the same wallet
+        </div>
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <LoadingButton
             onClick={onRecover}
@@ -62,19 +64,20 @@ export function AccountRecovery() {
         </div>
 
         <div style={{
-          marginTop: '1rem',
-          paddingTop: '1rem',
+          marginTop: '2rem',
+          paddingTop: '2rem',
           borderTop: '1px solid var(--fe-border)'
         }}>
-          <h3 style={{ margin: 0 }}>Device Linking</h3>
-          <p style={{ marginTop: '0.25rem', color: 'var(--fe-text-secondary)' }}>
+          <h2 className="demo-title">Device Linking</h2>
+          <div className="action-text">
             You can also use QR codes to scan and link a new device to your account. This serves as a
             password-less backup of your wallet.
-          </p>
+          </div>
           <div
             aria-label="Illustration: iPhone scanning browser QR code"
             style={{
-              marginTop: '0.5rem',
+              marginTop: '2rem',
+              marginBottom: '2rem',
               width: '100%',
               height: 230,
               position: 'relative',

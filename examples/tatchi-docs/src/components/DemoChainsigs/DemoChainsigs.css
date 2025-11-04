@@ -9,7 +9,7 @@
 
 .input-group label {
   display: block;
-  font-size: var(--fe-text-sm);
+  font-size: var(--fe-text-md);
   font-weight: var(--fe-font-semibold);
   color: var(--fe-text-primary);
 }
@@ -43,9 +43,9 @@
   background: var(--fe-input-bg);
   color: var(--fe-input-text);
   border: 1px solid var(--fe-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  font-size: 14px;
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   transition: all 0.2s ease;
   box-sizing: border-box;
@@ -85,16 +85,12 @@
 
 .derived-address-text {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
+  font-size: var(--fe-text-sm);
   color: var(--fe-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-/* LoadingButton styles moved to LoadingButton.css */
-
-/* Responsive ActionSection styles moved to ActionSection.css */
 
 .demo-page-header {
   padding: var(--fe-gap-6);
@@ -129,14 +125,12 @@
 }
 
 .chain-fields-card label {
-  font-size: 12px;
+  font-size: var(--fe-text-sm);
   color: var(--w3a-colors-textPrimary);
-  margin-left: 0.5rem;
-  margin-bottom: 0rem;
+  margin: 0.25rem 0.5rem;
 }
 
 .chain-fields-toggle-row {
-  display: flex;
   align-items: center;
   justify-content: stretch;
   margin-top: 0; /* eliminate non-clickable dead zone above the toggle */
@@ -145,11 +139,12 @@
 }
 
 .chain-fields-toggle {
+  font-size: var(--fe-text-sm);
+  display: flex;
   appearance: none;
   border: none;
   background: transparent;
   color: var(--fe-text-secondary);
-  font-size: 12px;
   padding: 12px 1rem; /* comfortable click area and align with card padding */
   line-height: 1.2;
   cursor: pointer;
