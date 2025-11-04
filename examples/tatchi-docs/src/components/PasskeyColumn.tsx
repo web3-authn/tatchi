@@ -50,7 +50,9 @@ export function PasskeyColumn() {
         <>
           <DemoPage />
           {index > 0 && (
-            <div className="carousel-cta">
+            <div className="carousel-cta"
+              style={{ paddingBottom: '4rem' }} // prevent clipping of ButtonWithTooltip
+            >
               <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
                 <span className="btn-icon-left" aria-hidden>
                   <ChevronLeft size={16} />

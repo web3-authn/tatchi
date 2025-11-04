@@ -5,7 +5,7 @@
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
 @import './components/LoadingButton.css';
-@import './components/Carousel/Carousel.css';
+@import './components/Carousel/CarouselStyles.css';
 
 
 :root, :host {

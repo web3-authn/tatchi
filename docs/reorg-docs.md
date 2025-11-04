@@ -85,7 +85,7 @@ Notes
 
 Getting Started
 - Overview (new): `/docs/getting-started/overview`
-- Install: `/docs/getting-started/install`
+- Install & Configure: `/docs/getting-started/install-and-configure`
 - Quickstart: `/docs/getting-started/quickstart`
 - Configure Wallet Iframe: `/docs/getting-started/wallet-iframe`
 - First Passkey: `/docs/getting-started/first-passkey`
@@ -96,7 +96,7 @@ Concepts
 1) Goals of the Wallet: `/docs/concepts/goals`
 2) Architecture Overview: `/docs/concepts/wallet-iframe-architecture`
 3) Security Model: `/docs/concepts/security-model`
-4) RPID Strategy: `/docs/concepts/rpid-policy` → Deep dive: `/docs/concepts/wallet-scoped-credentials`
+4) Credential Scope: `/docs/concepts/wallet-scoped-credentials`
 5) VRF & PRF: `/docs/concepts/vrf-and-prf`
 6) Shamir 3‑pass: `/docs/concepts/shamir3pass` → Rotation: `/docs/concepts/shamir3pass-rotate-keys`
 7) Nonce Manager: `/docs/concepts/nonce-manager`
@@ -261,4 +261,3 @@ Success Criteria
 - Should “Header plugins and server setup for non‑Vite stacks” be surfaced as a Guide? If yes, add under Deployment.
 - Do we want a “Web Components” quickstart alongside React? If so, add to Getting Started → Quickstart as a sub-section.
 - Keep both `rpid-policy` and `wallet-scoped-credentials` pages, or merge into one? Proposal: keep both (overview + deep dive) for better scannability.
-

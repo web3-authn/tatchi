@@ -54,7 +54,7 @@ export const NavbarStatic: React.FC = () => {
         }}
       >Home</a>
       <a
-        {...linkProps('/docs/getting-started/install')}
+        {...linkProps('/docs/getting-started/install-and-configure')}
         style={{
           textDecoration: 'none',
           padding: '0.5rem 0.75rem',
