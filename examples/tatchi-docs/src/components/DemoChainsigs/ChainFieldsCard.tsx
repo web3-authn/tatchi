@@ -32,13 +32,13 @@ export const ChainFieldsCard: React.FC<ChainFieldsCardProps> = ({
   return (
     <div className="chain-fields-card">
       <div className="input-group">
-        <label>to (EVM address)</label>
+        <label>Recipient (ETH address)</label>
         <input className="multi-tx-input" value={to} onChange={(e) => onChangeTo(e.target.value)} placeholder="0x…" />
       </div>
 
       <div id="chain-fields-advanced" className={`chain-fields-advanced ${expanded ? 'expanded' : ''}`}>
         <div className="input-group">
-          <label>amount (ETH)</label>
+          <label>Amount (ETH)</label>
           <input className="multi-tx-input" value={amountEth} onChange={(e) => onChangeAmountEth(e.target.value)} placeholder="0.01" />
         </div>
 

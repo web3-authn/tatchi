@@ -8,8 +8,8 @@ export function faucetLinksForChainId(chainId: number): Array<{ label: string; u
       ];
     case 84532: // Base Sepolia
       return [
-        { label: 'Alchemy Base Sepolia Faucet', url: 'https://www.alchemy.com/faucets/base-sepolia' },
-        { label: 'QuickNode Base Sepolia Faucet', url: 'https://faucet.quicknode.com/base/sepolia' },
+        { label: 'Alchemy Base Faucet', url: 'https://www.alchemy.com/faucets/base-sepolia' },
+        { label: 'QuickNode Base Faucet', url: 'https://faucet.quicknode.com/base/sepolia' },
       ];
     case 80002: // Polygon Amoy
       return [

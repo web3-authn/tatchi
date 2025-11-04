@@ -7,16 +7,12 @@ import './DemoChainsigs.css';
 
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 
-// Use the hook that encapsulates the whole MPC EVM flow
 import { useMpcEvmFlow } from './hooks/useMpcEvmFlow';
 import DerivedAddressPill from './DerivedAddressPill';
 import FaucetLinksRow from './FaucetLinksRow';
 import { explorerTxBaseForChainId } from './utils';
 import { useDerivedEvmAddress } from './hooks/useDerivedEvmAddress';
 import ChainFieldsCard from './ChainFieldsCard';
-// Signature parsing and finalize/broadcast happen in the flow hook
-
-// No local hex helpers needed; the flow hook normalizes inputs
 
 export const DemoChainsigs: React.FC = () => {
   const {
@@ -90,19 +86,28 @@ export const DemoChainsigs: React.FC = () => {
             <h2 className="demo-title">NEAR Intents Demo</h2>
           </div>
           <div className="action-text">
-            Send an EVM transaction on Base using touchID.<br />
+            Send an EVM transaction on Base using touchID.
+            <br />
             Request a Chain Signature from the NEAR MPC contract,
-            then finalize and broadcast to Base Sepolia network.
+            then broadcast it to the Base Sepolia network.
           </div>
 
-          <div className="input-group">
-            <label>Derived sender address</label>
+          <div className="input-group"
+            style={{
+              marginTop: '2rem',
+              paddingTop: '2rem',
+              borderTop: '1px solid var(--fe-border)'
+            }}
+          >
+            <label style={{ textAlign: "center", margin: '0rem 0 0.25rem 0' }}>
+              Derived sender address
+            </label>
             <DerivedAddressPill address={derivedAddress} />
           </div>
 
           {derivedAddress ? (
-            <div className="action-text" style={{ marginTop: 6 }}>
-              Fund your derived address with Base Sepolia ETH for this demo
+            <div className="action-text" style={{ margin: '0rem 0rem 2rem 0rem' }}>
+              Fund your address with Base Sepolia ETH for this demo
               <FaucetLinksRow chainId={chainIdNum} />
             </div>
           ) : null}
@@ -128,7 +133,8 @@ export const DemoChainsigs: React.FC = () => {
             loadingText="Processing..."
             variant="primary"
             size="medium"
-            style={{ width: 260 }}
+            style={{ width: '100%', height: '55px' }}
+            textStyles={{ fontSize: '1rem' }}
           >
             Sign and Send Base Transfer
           </LoadingButton>

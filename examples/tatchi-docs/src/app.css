@@ -10,9 +10,9 @@
 
 :root, :host {
   /* Text Sizes */
-  --fe-text-xs: 0.75rem;
-  --fe-text-sm: 0.875rem;
-  --fe-text-base: 1rem;
+  --fe-text-xs: 0.8rem;
+  --fe-text-sm: 0.9rem;
+  --fe-text-md: 1rem;
   --fe-text-lg: 1.125rem;
   --fe-text-xl: 1.25rem;
   --fe-text-2xl: 1.5rem;
