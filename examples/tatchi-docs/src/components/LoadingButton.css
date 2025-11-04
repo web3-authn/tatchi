@@ -1,0 +1,64 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: none;
+  border-radius: 2rem;
+  font-size: var(--fe-text-sm);
+  font-weight: var(--fe-font-medium);
+  font-family: var(--fe-font-sans);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  line-height: 1.4;
+  box-shadow: 0 2px 4px var(--fe-shadow);
+  padding: 0rem 1rem 0rem 0.5rem;
+}
+
+.button--primary {
+  background: var(--w3a-colors-primary);
+  color: white;
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--w3a-colors-primaryHover);
+  /* Add a subtle primary-colored ring on hover */
+  box-shadow:
+    0 6px 12px var(--fe-shadow),
+    0 0 0 2px var(--w3a-colors-primary);
+}
+
+.button--primary:active:not(:disabled) {
+  box-shadow: 0 2px 4px var(--fe-shadow);
+}
+
+.button:disabled,
+.button--loading {
+  cursor: not-allowed;
+  pointer-events: none;
+  opacity: 0.6;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--fe-shadow);
+}
+
+.button__spinner {
+  animation: spin 1s linear infinite;
+  transform-origin: 50% 50%;
+  flex-shrink: 0;
+}
+
+.button__text {
+  display: inline-block;
+  margin-left: var(--fe-gap-2);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

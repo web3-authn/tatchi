@@ -6,7 +6,7 @@ import { useCarousel } from './CarouselProvider'
  * Uses CSS classes and data-attributes to drive slide/fade animations.
  */
 export function Carousel({ style }: { style?: React.CSSProperties }) {
-  const { pages, index, transition, direction, rootStyle } = useCarousel()
+  const { pages, index, transition, direction, rootStyle, nextSlide, prevSlide, isFirst, isLast } = useCarousel()
   const [leavingIndex, setLeavingIndex] = React.useState<number | null>(null)
   const [stageKey, setStageKey] = React.useState(0)
   const [activate, setActivate] = React.useState(false)
@@ -49,6 +49,23 @@ export function Carousel({ style }: { style?: React.CSSProperties }) {
 
   const mergedStyle = React.useMemo(() => ({ ...(rootStyle || {}), ...(style || {}) }), [rootStyle, style])
 
+  const renderPage = React.useCallback(
+    (page: (typeof pages)[number] | null) => {
+      if (!page) return null
+      const el = page.element as any
+      if (typeof el === 'function') {
+        // compute whether there is an enabled prev/next
+        let canPrev = false
+        for (let i = index - 1; i >= 0; i--) { if (!pages[i]?.disabled) { canPrev = true; break } }
+        let canNext = false
+        for (let i = index + 1; i < pages.length; i++) { if (!pages[i]?.disabled) { canNext = true; break } }
+        return el({ index, isFirst, isLast, canPrev, canNext, nextSlide, prevSlide })
+      }
+      return el
+    },
+    [index, isFirst, isLast, nextSlide, prevSlide, pages]
+  )
+
   return (
     <div className="carousel-root"
       data-transition={transition}
@@ -59,12 +76,12 @@ export function Carousel({ style }: { style?: React.CSSProperties }) {
       <div className="carousel-stage" key={stageKey} ref={stageRef}>
         {leavingPage && (
           <div ref={exitRef} className={`carousel-page page--exit${activate ? ' page--leaving' : ''}`} aria-hidden>
-            {leavingPage.element}
+            {renderPage(leavingPage)}
           </div>
         )}
         {activePage && (
           <div ref={enterRef} className={`carousel-page page--enter${activate ? ' page--active' : ''}`}>
-            {activePage.element}
+            {renderPage(activePage)}
           </div>
         )}
       </div>

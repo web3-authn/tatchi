@@ -1,4 +1,5 @@
 import React from 'react';
+import './LoadingButton.css';
 
 interface LoadingButtonProps {
   onClick: () => void | Promise<void>;

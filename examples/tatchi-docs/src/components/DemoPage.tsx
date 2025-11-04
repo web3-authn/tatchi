@@ -14,23 +14,15 @@ import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 
 import { GlassBorder } from './GlassBorder';
 import { LoadingButton } from './LoadingButton';
-import { useSetGreeting } from '../hooks/useSetGreeting';
-import {
-  WEBAUTHN_CONTRACT_ID,
-  NEAR_EXPLORER_BASE_URL,
-} from '../config';
-
-import './DemoPage.css';
-import './EmbeddedTxButton.css';
-import { DemoMultiTx } from './DemoMultiTx';
 import Refresh from './icons/Refresh';
+import { useSetGreeting } from '../hooks/useSetGreeting';
+import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
+import './DemoPage.css';
+
 
 export const DemoPage: React.FC = () => {
   const {
-    loginState: {
-      isLoggedIn,
-      nearAccountId,
-    },
+    loginState: { isLoggedIn, nearAccountId },
     passkeyManager,
   } = usePasskeyContext();
 
@@ -42,16 +34,19 @@ export const DemoPage: React.FC = () => {
   } = useSetGreeting();
 
   const networkPostfix = passkeyManager.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
-
-  // Inputs for the two demo flows
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
+  const [loadingUi, setLoadingUi] = useState<null | 'modal' | 'drawer'>(null);
+
+  const canExecuteGreeting = useCallback(
+    (val: string, loggedIn: boolean, accountId?: string | null) =>
+      Boolean(val?.trim()) && loggedIn && Boolean(accountId),
+  []);
 
   const handleRefreshGreeting = async () => {
     await fetchGreeting();
   };
 
-  // Shared greeting action builder with optional postfix
   const createGreetingAction = useCallback((greeting: string, opts?: { postfix?: string }): ActionArgs => {
     const base = greeting.trim();
     const parts = [base];
@@ -68,14 +63,14 @@ export const DemoPage: React.FC = () => {
   }, []);
 
   const handleSetGreeting = useCallback(async () => {
-    if (!greetingInput.trim() || !isLoggedIn || !nearAccountId) return;
+    if (!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId)) return;
     // Build the greeting action using the shared helper
     const actionToExecute: FunctionCallAction = createGreetingAction(greetingInput) as FunctionCallAction;
 
     setTxLoading(true);
     try {
       await passkeyManager.executeAction({
-      nearAccountId,
+      nearAccountId: nearAccountId!,
       receiverId: WEBAUTHN_CONTRACT_ID,
       actionArgs: actionToExecute,
       options: {
@@ -89,8 +84,6 @@ export const DemoPage: React.FC = () => {
               toast.loading(event.message, { id: 'greeting' });
               break;
             case ActionPhase.STEP_8_BROADCASTING:
-              toast.success(event.message, { id: 'greeting' });
-              break;
             case ActionPhase.STEP_9_ACTION_COMPLETE:
               toast.success(event.message, { id: 'greeting' });
               break;
@@ -132,6 +125,95 @@ export const DemoPage: React.FC = () => {
     }
   }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting]);
 
+  const nearToYocto = (nearAmount: string): string => {
+    const amount = parseFloat(nearAmount);
+    if (isNaN(amount) || amount <= 0) return '0';
+    const nearStr = amount.toString();
+    const parts = nearStr.split('.');
+    const wholePart = parts[0] || '0';
+    const fracPart = (parts[1] || '').padEnd(24, '0').slice(0, 24);
+    return wholePart + fracPart;
+  };
+
+  const handleExecuteMultiActions = useCallback(async (uiMode: 'modal' | 'drawer') => {
+    if (!isLoggedIn || !nearAccountId) return;
+    setLoadingUi(uiMode);
+
+    const DEMO_GREETING = 'Demo sign multiple actions';
+    const DEMO_TRANSFER_AMOUNT = '0.001';
+    const DEMO_STAKE_AMOUNT = '0.1';
+    const DEMO_PUBLIC_KEY = 'ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd';
+    const DEMO_BENEFICIARY = 'w3a-v1.testnet';
+
+    await passkeyManager.executeAction({
+      nearAccountId,
+      receiverId: WEBAUTHN_CONTRACT_ID,
+      actionArgs: [
+        {
+          type: ActionType.FunctionCall,
+          methodName: 'set_greeting',
+          args: { greeting: DEMO_GREETING },
+          gas: '30000000000000',
+          deposit: '0',
+        },
+        {
+          type: ActionType.Transfer,
+          amount: nearToYocto(DEMO_TRANSFER_AMOUNT),
+        },
+        {
+          type: ActionType.CreateAccount
+        },
+        {
+          type: ActionType.DeployContract,
+          code: new Uint8Array([0x00, 0x61, 0x73, 0x6d]),
+        },
+        {
+          type: ActionType.Stake,
+          stake: nearToYocto(DEMO_STAKE_AMOUNT),
+          publicKey: DEMO_PUBLIC_KEY.trim()
+        },
+        {
+          type: ActionType.AddKey,
+          publicKey: DEMO_PUBLIC_KEY.trim(),
+          accessKey: { permission: 'FullAccess' }
+        },
+        {
+          type: ActionType.DeleteKey,
+          publicKey: DEMO_PUBLIC_KEY.trim()
+        },
+        {
+          type: ActionType.DeleteAccount,
+          beneficiaryId: DEMO_BENEFICIARY.trim()
+        },
+      ],
+      options: {
+        confirmationConfig: { uiMode },
+        onEvent: (event) => {
+          switch (event.phase) {
+            case ActionPhase.STEP_1_PREPARATION:
+              toast.loading('Processing transaction...', { id: 'combinedTx' });
+              break;
+            case ActionPhase.STEP_9_ACTION_COMPLETE:
+              toast.success('Transaction completed successfully!', { id: 'combinedTx' });
+              break;
+            case ActionPhase.ACTION_ERROR:
+              toast.error(`Transaction failed: ${event.error}`, { id: 'combinedTx' });
+              break;
+          }
+        },
+        waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
+        afterCall: (success: boolean, result?: any) => {
+          if (success && result?.transactionId) {
+            console.log('Combined transaction success:', result.transactionId);
+          } else if (!success) {
+            toast.error('Failed to execute transaction');
+          }
+          setLoadingUi(null);
+        },
+      },
+    });
+  }, [isLoggedIn, nearAccountId, passkeyManager]);
+
   if (!isLoggedIn || !nearAccountId) {
     return null;
   }
@@ -147,6 +229,9 @@ export const DemoPage: React.FC = () => {
         </div>
 
         <h2 className="embedded-tx-title">Sign Transactions with TouchId</h2>
+        <div className="embedded-tx-caption">
+          Sign transactions securely in an cross-origin iframe.
+        </div>
 
         <div className="greeting-controls-box">
           <div className="on-chain-greeting-box">
@@ -169,7 +254,6 @@ export const DemoPage: React.FC = () => {
               value={greetingInput}
               onChange={(e) => setGreetingInput(e.target.value)}
               placeholder="Enter new greeting"
-              className="greeting-focus-ring"
             />
           </div>
           <LoadingButton
@@ -179,7 +263,7 @@ export const DemoPage: React.FC = () => {
             variant="primary"
             size="medium"
             className="greeting-btn"
-            disabled={!greetingInput.trim() || txLoading}
+            disabled={!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId) || txLoading}
             style={{ width: 200 }}
           >
             Set Greeting
@@ -194,6 +278,7 @@ export const DemoPage: React.FC = () => {
       <div className="embedded-tx-page-root">
         <h2 className="embedded-tx-title">Batch Sign Transactions</h2>
         <div className="embedded-tx-caption">
+          Sign multiple transactions securely in an cross-origin iframe.
           Tx data in the tooltip is validated before signing.
           What you see is what you sign.
         </div>
@@ -223,8 +308,6 @@ export const DemoPage: React.FC = () => {
                 case ActionPhase.STEP_1_PREPARATION:
                 case ActionPhase.STEP_2_USER_CONFIRMATION:
                 case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
-                  toast.loading(event.message, { id: 'embedded' });
-                  break;
                 case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
                 case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
                 case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
@@ -292,16 +375,10 @@ export const DemoPage: React.FC = () => {
             }}
             buttonTextElement={<TouchIdWithText buttonText="Batch Sign Actions" />}
             onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-            onSuccess={(result: any) => {
+            onSuccess={(result) => {
               try {
-                let txId: string | undefined;
-                if (Array.isArray(result)) {
-                  const last = result[result.length - 1] ?? result[0];
-                  txId = last?.transactionId;
-                } else {
-                  txId = result?.transactionId;
-                }
-
+                const last = result[result.length - 1] ?? result[0];
+                let txId = last?.transactionId;
                 if (txId) {
                   const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
                   toast.success('Tx Success', {
@@ -326,7 +403,37 @@ export const DemoPage: React.FC = () => {
       </div>
 
       <div style={{ marginTop: '1rem' }}>
-        <DemoMultiTx />
+        <div className="demo-multi-tx-root">
+          <div className="action-section">
+            <h2 className="action-subheader">Choose between Modal or Drawer</h2>
+            <div className="action-text">
+              Choose between Modal or Drawer for the tx confirmer menus.
+              You can also skip the confirmation menu (only on desktop).
+            </div>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <LoadingButton
+                onClick={() => handleExecuteMultiActions('modal')}
+                loading={loadingUi === 'modal'}
+                loadingText="Signing..."
+                variant="primary"
+                size="medium"
+                style={{ width: 200 }}
+              >
+                Sign with Modal
+              </LoadingButton>
+              <LoadingButton
+                onClick={() => handleExecuteMultiActions('drawer')}
+                loading={loadingUi === 'drawer'}
+                loadingText="Signing..."
+                variant="primary"
+                size="medium"
+                style={{ width: 200 }}
+              >
+                sign with Drawer
+              </LoadingButton>
+            </div>
+          </div>
+        </div>
       </div>
 
     </GlassBorder>

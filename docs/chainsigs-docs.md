@@ -423,3 +423,124 @@ Adapters (like chainsig.js’ EVM) provide helpers to finalize and broadcast. If
 - `TipAboveFeeCapError` (viem)
   - Ensure `maxFeePerGas >= maxPriorityFeePerGas` before serialization.
   - Consider fetching `baseFeePerGas` and computing a sane cap.
+
+
+## Adapter Finalize Gotchas (EVM)
+
+When using `chainsig.js` EVM adapter’s `finalizeTransactionSigning`, keep these in mind:
+- Signature fields: provide `r` and `s` as 32‑byte hex (do not include `0x`), and `v` as 27/28. If you only have `yParity` (0/1), convert via `v = yParity + 27`.
+- Transaction fields: coerce types before finalization. Use numbers for `chainId` and `nonce`, bigints for `gas`, `maxFeePerGas`, `maxPriorityFeePerGas`, and `value`. Ensure `data` is a hex string (use `'0x'` for empty).
+- Access list: ensure it’s an array (empty array if omitted).
+
+If you serialize via viem directly instead of the adapter, use `0x`‑prefixed `r` and `s` and pass either `v` (27/28) or `yParity` (0/1) according to viem’s type.
+
+Type alias used for adapter finalize input:
+
+```ts
+// For adapter finalizeTransactionSigning
+export type EVMUnsignedTransaction = TransactionRequest & {
+  type: 'eip1559';
+  chainId: number;
+};
+```
+
+Example finalize with normalization and adapter‑first strategy:
+
+```ts
+// Simple coercers
+const toNumber = (v: unknown, d = 0) => (typeof v === 'number' ? v : (typeof v === 'bigint' ? Number(v) : d));
+const toBigInt = (v: unknown, d = 0n) => (typeof v === 'bigint' ? v : (typeof v === 'number' ? BigInt(v) : d));
+
+// Normalize MPC signature → adapter RSV
+const normalized = {
+  // r/s without 0x for adapter finalize
+  r: rawR.replace(/^0x/i, ''),
+  s: rawS.replace(/^0x/i, ''),
+  v: typeof yParity === 'number' ? yParity + 27 : vIn, // 27/28
+};
+
+const txForFinalize: EVMUnsignedTransaction = {
+  ...unsignedTx,
+  chainId: toNumber(unsignedTx.chainId, chainId),
+  nonce: toNumber(unsignedTx.nonce, 0),
+  to: unsignedTx.to || toAddr,
+  gas: toBigInt(unsignedTx.gas, 21000n),
+  maxFeePerGas: toBigInt(unsignedTx.maxFeePerGas, 0n),
+  maxPriorityFeePerGas: toBigInt(unsignedTx.maxPriorityFeePerGas, 0n),
+  value: toBigInt(unsignedTx.value, 0n),
+  data: unsignedTx.data ?? '0x',
+  accessList: Array.isArray(unsignedTx.accessList) ? unsignedTx.accessList : [],
+  type: 'eip1559',
+};
+
+// Adapter finalize → raw tx (hex)
+const raw = await Evm.finalizeTransactionSigning({
+  transaction: txForFinalize,
+  rsvSignatures: [normalized],
+});
+```
+
+Common serialization error: Invalid byte sequence ('0x')
+- Cause: passing fields with the wrong type/shape, e.g., `r`/`s` not 32‑byte hex, or double‑prefixed hex.
+- Fix: ensure `r`/`s` are exactly 32‑byte values; for adapter finalize, strip `0x`; for viem direct serialization, include `0x`.
+- Also confirm `data` is a hex string (use `'0x'` for empty) and that fee fields are bigints.
+
+
+## Broadcast Fallback
+
+Prefer the adapter’s broadcast if available:
+
+```ts
+let txHash: string;
+if (typeof Evm.broadcastTx === 'function') {
+  txHash = await Evm.broadcastTx(raw);
+} else {
+  // Fallback to viem if adapter method is absent
+  txHash = await publicClient.sendRawTransaction({ serializedTransaction: raw });
+}
+```
+
+
+## Vite/Node Polyfills for chainsig.js
+
+chainsig.js expects Node globals (Buffer, process). In Vite, add polyfills:
+
+```ts
+// vite.config.ts
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
+
+export default defineConfig({
+  plugins: [
+    nodePolyfills({
+      protocolImports: true,
+      globals: { Buffer: true, process: true },
+    }),
+  ],
+  define: {
+    global: 'globalThis',
+    'process.env': {},
+  },
+  resolve: {
+    alias: {
+      stream: 'stream-browserify',
+      crypto: 'crypto-browserify',
+      buffer: 'buffer',
+      process: 'process/browser',
+    },
+  },
+});
+```
+
+
+## Environment and RPC Notes
+
+- Adapter vs viem ordering: adapter‑first then viem fallback tends to work well; depending on environment, you may invert. Keep a single place to choose the order.
+- RPC reliability: for demos, Base Sepolia has been reliable. Ensure your endpoint permits CORS, or proxy appropriately during local development.
+- Explorers: build links conditionally; if broadcast fails, don’t render an explorer URL.
+
+
+## Smart‑Contract Builders (Omni Transaction)
+
+If you want to build cross‑chain transactions directly in a NEAR smart contract, see Omni Transaction (Rust):
+- Repository: https://github.com/near/omni-transaction-rs
+- Use with the MPC contract in this guide to produce and relay chain‑agnostic transaction intents.

@@ -3,29 +3,6 @@
   width: 100%;
 }
 
-/* Action Sections */
-.action-section {
-  padding: 1rem;
-  margin-bottom: 0;
-  width: 100%;
-  transition: all var(--fe-fast) var(--fe-ease);
-}
-
-.action-subheader {
-  font-size: var(--fe-text-lg);
-  font-weight: 500;
-  color: var(--fe-text-primary);
-  margin: 0 0 1rem 0;
-  padding-bottom: var(--fe-gap-2);
-}
-
-.action-text {
-  font-size: var(--fe-text-sm);
-  color: var(--fe-text-secondary);
-  margin-bottom: 0.5rem;
-}
-
-/* Input Group Styles */
 .input-group {
   margin-bottom: 0;
 }
@@ -37,7 +14,6 @@
   color: var(--fe-text-primary);
 }
 
-/* Input Styles */
 .action-section input {
   width: 100%;
   padding: var(--fe-gap-3) var(--fe-gap-4);
@@ -63,7 +39,6 @@
   opacity: 0.7;
 }
 
-/* Modal TX Input */
 .multi-tx-input {
   background: var(--fe-input-bg);
   color: var(--fe-input-text);
@@ -94,7 +69,6 @@
   background: var(--fe-input-bg);
 }
 
-/* Derived address pill with inline copy button */
 .derived-address-pill {
   display: flex;
   flex-direction: row;
@@ -118,100 +92,9 @@
   white-space: nowrap;
 }
 
-/* Small rectangular copy button override */
-.install-copy.derived-copy-btn {
-  background: var(--fe-surface);
-  border: 1px solid var(--fe-border);
-  border-radius: 6px;
-  padding: 6px;
-  color: var(--fe-text-dim);
-}
-.install-copy.derived-copy-btn:hover {
-  color: var(--fe-text);
-}
+/* LoadingButton styles moved to LoadingButton.css */
 
-/* LoadingButton component styles */
-.button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--fe-gap-2);
-  min-height: 44px;
-  border: none;
-  border-radius: 2rem;
-  font-size: var(--fe-text-sm);
-  font-weight: var(--fe-font-medium);
-  font-family: var(--fe-font-sans);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-decoration: none;
-  line-height: 1.4;
-  white-space: nowrap;
-  overflow: hidden;
-  box-shadow: 0 2px 4px var(--fe-shadow);
-}
-
-.button--primary {
-  background: var(--w3a-colors-primary);
-  color: white;
-}
-
-.button--primary:hover:not(:disabled) {
-  background: var(--w3a-colors-primaryHover);
-  box-shadow: 0 6px 12px var(--fe-shadow);
-}
-
-.button--primary:active:not(:disabled) {
-  box-shadow: 0 2px 4px var(--fe-shadow);
-}
-
-.button--medium {
-  padding: var(--fe-gap-3) var(--fe-gap-4);
-  font-size: var(--fe-text-sm);
-  min-height: 44px;
-}
-
-.button:disabled,
-.button--loading {
-  cursor: not-allowed;
-  pointer-events: none;
-  opacity: 0.6;
-  transform: none !important;
-  box-shadow: none !important;
-}
-
-.button:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 3px var(--fe-shadow);
-}
-
-.button__spinner {
-  animation: spin 1s linear infinite;
-  transform-origin: 50% 50%;
-  flex-shrink: 0;
-}
-
-.button__text {
-  display: inline-block;
-  margin-left: var(--fe-gap-2);
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-/* Responsive Design */
-@media (max-width: 768px) {
-  .action-section {
-    padding: var(--fe-gap-3);
-  }
-
-  .action-section h2 {
-    font-size: var(--fe-text-base);
-  }
-}
+/* Responsive ActionSection styles moved to ActionSection.css */
 
 .demo-page-header {
   padding: var(--fe-gap-6);
@@ -225,7 +108,6 @@
   margin: 0 0 var(--fe-gap-2) 0;
 }
 
-/* Card that wraps chainId + EVM tx inputs */
 .chain-fields-card {
   display: flex;
   flex-direction: column;
@@ -236,7 +118,6 @@
   overflow: hidden; /* allow full-bleed toggle without overflow */
 }
 
-/* Softer, rounded inputs inside the card */
 .chain-fields-card .multi-tx-input {
   border-radius: 2rem;
   border: none;
@@ -247,7 +128,6 @@
   box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
 }
 
-/* Smaller labels inside the chain card */
 .chain-fields-card label {
   font-size: 12px;
   color: var(--w3a-colors-textPrimary);
@@ -255,7 +135,6 @@
   margin-bottom: 0rem;
 }
 
-/* Toggle row */
 .chain-fields-toggle-row {
   display: flex;
   align-items: center;

@@ -82,9 +82,9 @@ export function parseMpcSignature(bytes: Uint8Array): RSVSignature[] | null {
       const affinePoint: string | undefined = bigR.affine_point || bigR.affinePoint;
       if (typeof x === 'string') {
         const xHex = x.startsWith('0x') ? x.slice(2) : x;
-        const r = ('0x' + xHex.padStart(64, '0')) as Hex;
+        const r = sanitizeHex('0x' + xHex.padStart(64, '0'));
         const sHexOnly = (sText.startsWith('0x') ? sText.slice(2) : sText).padStart(64, '0');
-        const s = (`0x${sHexOnly}`) as Hex;
+        const s = sanitizeHex(`0x${sHexOnly}`);
         let yParity: number = 0;
         if (typeof recId === 'number' && (recId === 0 || recId === 1)) {
           yParity = recId;
@@ -100,7 +100,7 @@ export function parseMpcSignature(bytes: Uint8Array): RSVSignature[] | null {
           if (prefix === '02') yParity = 0; else if (prefix === '03') yParity = 1;
           // r is X from the compressed point
           const xFromPoint = ap.slice(2);
-          const r2 = ('0x' + xFromPoint.padStart(64, '0')) as Hex;
+          const r2 = sanitizeHex('0x' + xFromPoint.padStart(64, '0'));
           const v2 = yParity === 0 || yParity === 1 ? yParity + 27 : yParity;
           return [{ r: r2, s, v: v2 }];
         }
@@ -114,9 +114,9 @@ export function parseMpcSignature(bytes: Uint8Array): RSVSignature[] | null {
         if (/^(02|03)[0-9a-fA-F]{64}$/.test(ap)) {
           const prefix = ap.slice(0, 2);
           const xHex = ap.slice(2);
-          const r = ('0x' + xHex.padStart(64, '0')) as Hex;
+          const r = sanitizeHex('0x' + xHex.padStart(64, '0'));
           const sHexOnly = (sText.startsWith('0x') ? sText.slice(2) : sText).padStart(64, '0');
-          const s = (`0x${sHexOnly}`) as Hex;
+          const s = sanitizeHex(`0x${sHexOnly}`);
           let yParity: number = (prefix === '03') ? 1 : 0;
           if (typeof recId === 'number' && (recId === 0 || recId === 1)) yParity = recId;
           const v = yParity === 0 || yParity === 1 ? yParity + 27 : yParity;
@@ -130,8 +130,8 @@ export function parseMpcSignature(bytes: Uint8Array): RSVSignature[] | null {
     if (typeof sigHex === 'string') {
       const hexish = sigHex.startsWith('0x') ? sigHex.slice(2) : sigHex;
       if (/^[0-9a-fA-F]{130}$/.test(hexish)) {
-        const r = ('0x' + hexish.slice(0, 64)) as Hex;
-        const s = ('0x' + hexish.slice(64, 128)) as Hex;
+        const r = sanitizeHex('0x' + hexish.slice(0, 64));
+        const s = sanitizeHex('0x' + hexish.slice(64, 128));
         const vByte = parseInt(hexish.slice(128, 130), 16);
         const v = vByte === 0 || vByte === 1 ? vByte + 27 : vByte;
         return [{ r, s, v }];
@@ -145,16 +145,16 @@ export function parseMpcSignature(bytes: Uint8Array): RSVSignature[] | null {
     const hexish = str.startsWith('0x') ? str.slice(2) : str;
     const isHex = /^[0-9a-fA-F]+$/.test(hexish);
     if (isHex && hexish.length === 65 * 2) {
-      const r = ('0x' + hexish.slice(0, 64)) as Hex;
-      const s = ('0x' + hexish.slice(64, 128)) as Hex;
+      const r = sanitizeHex('0x' + hexish.slice(0, 64));
+      const s = sanitizeHex('0x' + hexish.slice(64, 128));
       const vByte = parseInt(hexish.slice(128, 130), 16);
       const v = vByte === 0 || vByte === 1 ? vByte + 27 : vByte;
       return [{ r, s, v }];
     }
     // 64-byte hex without v — return both v candidates
     if (isHex && hexish.length === 64 * 2) {
-      const r = ('0x' + hexish.slice(0, 64)) as Hex;
-      const s = ('0x' + hexish.slice(64, 128)) as Hex;
+      const r = sanitizeHex('0x' + hexish.slice(0, 64));
+      const s = sanitizeHex('0x' + hexish.slice(64, 128));
       return [
         { r, s, v: 27 },
         { r, s, v: 28 },

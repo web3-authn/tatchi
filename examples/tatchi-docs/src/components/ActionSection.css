@@ -1,0 +1,23 @@
+.action-section {
+  padding: 1rem;
+  margin-bottom: 0;
+  width: 100%;
+  transition: all var(--fe-fast) var(--fe-ease);
+}
+
+.action-text {
+  font-size: var(--fe-text-sm);
+  color: var(--fe-text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 768px) {
+  .action-section {
+    padding: var(--fe-gap-3);
+  }
+
+  .action-section h2 {
+    font-size: var(--fe-text-base);
+  }
+}
+

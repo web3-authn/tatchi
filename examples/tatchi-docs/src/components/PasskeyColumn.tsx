@@ -1,10 +1,11 @@
 import React from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
 
-import { CarouselProvider } from './carousel/CarouselProvider'
-import { Carousel } from './carousel/Carousel'
+import { CarouselProvider } from './Carousel/CarouselProvider'
+import { Carousel } from './Carousel/Carousel'
 
 import { DemoPage } from './DemoPage';
 import { PasskeyLoginMenu } from './PasskeyLoginMenu';
@@ -22,10 +23,97 @@ export function PasskeyColumn() {
   }, [loginState?.isLoggedIn])
 
   const pages = React.useMemo(() => ([
-    { key: 'login', title: 'Login', element: <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} /> },
-    { key: 'demo-page', title: 'Demos', element: <DemoPage />, disabled: !loginState?.isLoggedIn },
-    { key: 'intents', title: 'NEAR Intents', element: <DemoChainsigs />, disabled: !loginState?.isLoggedIn },
-    { key: 'recovery', title: 'Account Recovery', element: <AccountRecovery />, disabled: !loginState?.isLoggedIn },
+    {
+      key: 'login',
+      title: 'Login',
+      element: ({ nextSlide, canNext, index }: { nextSlide: () => void; canNext: boolean; index: number }) => (
+        <>
+          <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
+          {index > 0 && canNext && (
+            <div className="carousel-cta">
+              <button type="button" className="carousel-next-btn" onClick={nextSlide}>
+                <span className="btn-icon-left" aria-hidden>
+                  <ChevronRight size={16} />
+                </span>
+                Next
+              </button>
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'demo-page',
+      title: 'Demos',
+      disabled: !loginState?.isLoggedIn,
+      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
+        <>
+          <DemoPage />
+          {index > 0 && (
+            <div className="carousel-cta">
+              <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
+                <span className="btn-icon-left" aria-hidden>
+                  <ChevronLeft size={16} />
+                </span>
+                Previous
+              </button>
+              <button type="button" className="carousel-next-btn" onClick={nextSlide} disabled={!canNext}>
+                Next
+                <span className="btn-icon-right" aria-hidden>
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'intents',
+      title: 'NEAR Intents',
+      disabled: !loginState?.isLoggedIn,
+      element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
+        <>
+          <DemoChainsigs />
+          {index > 0 && (
+            <div className="carousel-cta">
+              <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
+                <span className="btn-icon-left" aria-hidden>
+                  <ChevronLeft size={16} />
+                </span>
+                Previous
+              </button>
+              <button type="button" className="carousel-next-btn" onClick={nextSlide} disabled={!canNext}>
+                Next
+                <span className="btn-icon-right" aria-hidden>
+                  <ChevronRight size={16} />
+                </span>
+              </button>
+            </div>
+          )}
+        </>
+      ),
+    },
+    {
+      key: 'recovery',
+      title: 'Account Recovery',
+      disabled: !loginState?.isLoggedIn,
+      element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
+        <>
+          <AccountRecovery />
+          {index > 0 && canPrev && (
+            <div className="carousel-cta carousel-cta--left">
+              <button type="button" className="carousel-next-btn" onClick={prevSlide}>
+                <span className="btn-icon-left" aria-hidden>
+                  <ChevronLeft size={16} />
+                </span>
+                Previous
+              </button>
+            </div>
+          )}
+        </>
+      ),
+    },
   ]), [loginState?.isLoggedIn])
 
   return (

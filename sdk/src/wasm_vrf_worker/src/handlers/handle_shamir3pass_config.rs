@@ -1,6 +1,6 @@
 use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;
-use log::info;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -56,7 +56,7 @@ pub fn handle_shamir3pass_config_server_urls(
     message_id: Option<String>,
     payload: Shamir3PassConfigServerUrlsRequest,
 ) -> VrfWorkerResponse {
-    info!(
+    debug!(
         "Configuring Shamir server URLs: relay_url={}, apply_route={}, remove_route={}",
         payload.relay_server_url, payload.apply_lock_route, payload.remove_lock_route
     );
