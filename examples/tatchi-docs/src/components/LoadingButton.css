@@ -54,7 +54,9 @@
 }
 
 .button__text {
-  display: inline-block;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   margin-left: var(--fe-gap-2);
 }
 

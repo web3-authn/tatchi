@@ -43,7 +43,7 @@ export function HomeHero() {
         <div className="hero-ctas">
           <a
             className="cta-secondary"
-            {...linkProps('/docs/getting-started/install')}
+            {...linkProps('/docs/getting-started/install-and-configure')}
             aria-label="Read the documentation"
           >
             <BookOpenText size={16} className="cta-icon" aria-hidden="true" />

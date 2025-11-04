@@ -58,7 +58,6 @@ export default defineConfig({
           ]},
           { text: 'Integration', items: [
             { text: 'Wallet Iframe', link: '/docs/guides/wallet-iframe' },
-            { text: 'Framework Snippets', link: '/docs/guides/frameworks' },
             { text: 'Relay Server', link: '/docs/guides/relay-server' },
             { text: 'Device Linking', link: '/docs/guides/device-linking' },
           ]},

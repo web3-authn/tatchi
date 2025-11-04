@@ -157,7 +157,7 @@
   margin-bottom: 0.5rem;
 }
 
-.test-embedded-section {
+.button-with-tooltip-container {
   display: flex;
   flex-direction: column;
   gap: var(--fe-gap-2);
@@ -169,11 +169,6 @@
   .embedded-tx-title { font-size: var(--fe-text-xl); }
 }
 
-.embedded-tx-page-root::-webkit-scrollbar { width: 6px; }
-.embedded-tx-page-root::-webkit-scrollbar-track { border-radius: var(--fe-radius-sm); }
-.embedded-tx-page-root::-webkit-scrollbar-thumb { border-radius: var(--fe-radius-sm); }
-
-/* DemoMultiTx styles merged */
 .demo-multi-tx-root { width: 100%; }
 
 .action-section {
@@ -200,4 +195,21 @@
 @media (max-width: 768px) {
   .action-section { padding: var(--fe-gap-3); }
   .action-section h2 { font-size: var(--fe-text-base); }
+}
+
+/* Fade-in helper for embedded button */
+.button-with-tooltip-container {
+  z-index: 1;
+  opacity: 1;
+  will-change: opacity;
+}
+.fade-in {
+  animation: demo-embedded-fade-in 160ms var(--fe-ease) forwards;
+}
+@keyframes demo-embedded-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .button-with-tooltip-container { animation: none; opacity: 1; }
 }
