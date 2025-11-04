@@ -2,16 +2,6 @@
 example.localhost {
 	tls internal
 	encode gzip
-
-	# Proxy NEAR RPC through same-origin to avoid browser CORS
-	@nearRpc path /near-rpc*
-	handle @nearRpc {
-		uri strip_prefix /near-rpc
-		reverse_proxy https://rpc.testnet.near.org {
-			header_up Host rpc.testnet.near.org
-		}
-	}
-
 	handle {
 		reverse_proxy localhost:5222
 	}

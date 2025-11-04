@@ -54,7 +54,7 @@ export function LoginButton() {
 import { PasskeyManager } from '@tatchi-xyz/sdk'
 
 const manager = new PasskeyManager({
-  nearRpcUrl: 'https://rpc.testnet.near.org',
+  nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   iframeWallet: {

@@ -8,13 +8,18 @@
   --carousel-scale-out-start: 1;
   --carousel-scale-out-end: 0.97;
   /* Default delay before fade-in begins */
-  --carousel-fade-in-delay: 200ms;
+  --carousel-fade-in-delay: 0ms;
   --carousel-slide-distance: 25%;
 }
 /* Use CSS grid overlay so the container height fits content (max of visible pages during transition). */
-.carousel-stage { position: relative; display: grid; align-items: start; min-height: 120px; will-change: height; }
-.carousel-page { position: relative; grid-area: 1 / 1; opacity: 0; transform: translateZ(0); pointer-events: none; }
+.carousel-stage { position: relative; display: grid; align-items: start; min-height: 120px; will-change: height; isolation: isolate; }
+.carousel-page { position: relative; grid-area: 1 / 1; opacity: 0; transform: translateZ(0); pointer-events: none; contain: paint; }
 .carousel-page.page--active { opacity: 1; pointer-events: auto; }
+
+/* Prevent the incoming page from painting until it is armed as active */
+.carousel-root .page--enter { visibility: hidden; z-index: 2; }
+.carousel-root .page--enter.page--active { visibility: visible; }
+.carousel-root .page--exit { z-index: 1; }
 
 /* Direction variables for slide */
 .carousel-root[data-dir="forward"] {
@@ -91,6 +96,40 @@
   max-width: 600px;
   width: 100%;
 }
+
+.carousel-cta {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 1rem;
+}
+.carousel-cta--left {
+  justify-content: flex-start;
+}
+.carousel-cta--split {
+  justify-content: space-between;
+}
+.carousel-next-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100px;
+  padding: 0.6rem 0.5rem;
+  border-radius: 2rem;
+  border: 1px solid var(--w3a-colors-borderPrimary);
+  background: var(--w3a-colors-colorBackground);
+  color: var(--fe-text);
+  box-shadow: 0 1px 2px var(--fe-shadow);
+  transition: background var(--fe-fast) var(--fe-ease), box-shadow var(--fe-fast) var(--fe-ease), opacity var(--fe-fast) var(--fe-ease);
+}
+.carousel-next-btn:hover { background: var(--w3a-colors-surface2); box-shadow: 0 2px 8px var(--fe-shadow); cursor: pointer; }
+.carousel-next-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Icon alignment inside nav buttons */
+.carousel-next-btn .btn-icon-left { display: inline-flex; margin-right: 6px; line-height: 0; }
+.carousel-next-btn .btn-icon-right { display: inline-flex; margin-left: 6px; line-height: 0; }
+.carousel-next-btn svg { width: 16px; height: 16px; }
 
 /* Utility */
 .sr-only {

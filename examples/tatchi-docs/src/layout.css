@@ -1,7 +1,8 @@
-/* Homepage Content Layout */
 .layout-root {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* constrain the two content columns but keep container full-bleed */
+  grid-template-columns: minmax(0, var(--layout-left-max, 720px)) minmax(0, var(--layout-right-max, 720px));
+  justify-content: center; /* center the two tracks within full-width container */
   gap: 0;
   margin: 0;
   padding: 0;
@@ -13,7 +14,37 @@
     "five  two";
 }
 
-/* Card mapping for grid-areas */
+/* Extend the right column's background to the viewport edge when centered */
+.layout-column-right { position: relative; overflow: visible; }
+.layout-column-right::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 100%;
+  /* extend background one viewport width to the right */
+  width: 100vw;
+  pointer-events: none;
+  z-index: -1;
+}
+[data-w3a-theme="light"] .layout-column-right::before {
+  background: var(--w3a-colors-surface);
+  background-image: radial-gradient(var(--w3a-colors-borderPrimary) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 0 0;
+}
+[data-w3a-theme="dark"] .layout-column-right::before {
+  background: var(--w3a-colors-surface4);
+  background-image: radial-gradient(var(--w3a-colors-borderPrimary) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 0 15px;
+}
+
+@media (max-width: 1024px) {
+  /* Disable full-bleed extension on stacked layout */
+  .layout-column-right::before { display: none; }
+}
+
 .card {
   min-width: 0;
   max-width: 100%;
@@ -212,22 +243,29 @@
   padding: 0.6rem 0.9rem;
   border-radius: 2rem;
   border: 1px solid var(--fe-border);
-  background: linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0.85));
+  /* Darker base to make hover feel lighter */
+  background: color-mix(in srgb, var(--fe-surface) 70%, var(--fe-bg) 30%);
   color: var(--fe-text);
   box-shadow: 0 1px 2px var(--fe-shadow);
   transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 [data-w3a-theme="dark"] .cta-primary {
-  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.08));
+  /* Slightly darker base in dark mode */
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.06));
   color: var(--fe-text);
 }
 
 .cta-primary:hover {
   box-shadow: 0 4px 12px var(--fe-shadow-strong);
-  /* Subtle background change on hover; keep text and border neutral */
-  background: color-mix(in srgb, var(--fe-bg) 85%, var(--fe-surface) 15%);
+  /* Lighter background on hover */
+  background: color-mix(in srgb, var(--fe-bg) 92%, var(--fe-surface) 8%);
   color: var(--fe-text);
+}
+
+/* Dark theme hover: lighten a touch more */
+[data-w3a-theme="dark"] .cta-primary:hover {
+  background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.12));
 }
 
 .cta-secondary {

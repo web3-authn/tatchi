@@ -25,6 +25,12 @@ export interface PasskeyAuthMenuProps {
   onLogin?: () => void;
   onRegister?: () => void;
   onRecoverAccount?: () => void;
+  /**
+   * Optional delay (in ms) before the waiting screen animation starts.
+   * Useful to hold the loading view briefly to avoid jarring flashes
+   * during fast transitions. Defaults to 100ms.
+   */
+  loadingScreenDelayMs?: number;
   /** Optional callbacks for the link-device QR flow */
   linkDeviceOptions?: {
     onEvent?: (event: DeviceLinkingSSEEvent) => void;
@@ -71,6 +77,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   className,
   // login options
   socialLogin,
+  loadingScreenDelayMs,
 }) => {
 
   const { tokens, isDark } = useTheme();
@@ -195,7 +202,11 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
       data-mode={mode}
       data-waiting={waiting}
       data-scan-device={showScanDevice}
-      style={style}
+      style={{
+        ...style,
+        // CSS var consumed by .w3a-waiting in PasskeyAuthMenu.css
+        ["--w3a-waiting-delay" as any]: loadingScreenDelayMs != null ? `${loadingScreenDelayMs}ms` : undefined,
+      }}
     >
       <ContentSwitcher
         waiting={waiting}

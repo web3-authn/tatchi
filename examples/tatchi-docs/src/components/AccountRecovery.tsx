@@ -6,7 +6,7 @@ import { LoadingButton } from './LoadingButton';
 import { GlassBorder } from './GlassBorder'
 import { BrowserWithQR } from './icons/BrowserWithQR'
 import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
-import { useCarousel } from './carousel/CarouselProvider'
+import { useCarousel } from './Carousel/CarouselProvider'
 import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 
 export function AccountRecovery() {
@@ -56,7 +56,6 @@ export function AccountRecovery() {
             loadingText="Recovering..."
             variant="primary"
             size="medium"
-            className="greeting-btn"
           >
             Start Account Recovery
           </LoadingButton>

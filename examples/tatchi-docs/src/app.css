@@ -1,12 +1,12 @@
 @import './layout.css';
-@import './components/DemoMultiTx.css';
-@import './components/DemoChainsigs.css';
+@import './components/DemoChainsigs/DemoChainsigs.css';
 @import './components/DemoPage.css';
 @import './components/PasskeyLoginMenu.css';
-@import './components/EmbeddedTxButton.css';
 @import './components/GlassBorder.css';
 @import './components/Toaster.css';
-@import './components/carousel/carousel.css';
+@import './components/LoadingButton.css';
+@import './components/Carousel/Carousel.css';
+
 
 :root, :host {
   /* Text Sizes */

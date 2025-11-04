@@ -7,7 +7,22 @@ export type TransitionKind = 'slide' | 'fade'
 export type CarouselPage = {
   key: string
   title: string
-  element: React.ReactNode
+  /**
+   * A page can be a plain ReactNode or a render function that receives
+   * navigation helpers so slides can render their own controls.
+   */
+  element:
+    | React.ReactNode
+    | ((args: {
+        index: number
+        isFirst: boolean
+        isLast: boolean
+        /** Whether there is an enabled previous/next slide */
+        canPrev: boolean
+        canNext: boolean
+        nextSlide: () => void
+        prevSlide: () => void
+      }) => React.ReactNode)
   disabled?: boolean
 }
 
@@ -24,6 +39,9 @@ export type CarouselControls = {
   setTransition: (t: TransitionKind) => void
   next: () => void
   prev: () => void
+  /** Aliases provided for slide-local semantics */
+  nextSlide: () => void
+  prevSlide: () => void
   goTo: (index: number) => void
   goToByKey: (key: string) => void
   rootStyle?: React.CSSProperties
@@ -103,8 +121,21 @@ export function CarouselProvider(props: {
     if (i >= 0) goTo(i)
   }, [pages, goTo])
 
-  const next = React.useCallback(() => { if (!isLast) goTo(index + 1) }, [goTo, index, isLast])
-  const prev = React.useCallback(() => { if (!isFirst) goTo(index - 1) }, [goTo, index, isFirst])
+  const next = React.useCallback(() => {
+    if (isLast) return
+    // advance to next enabled page
+    for (let i = index + 1; i < pages.length; i++) {
+      if (!pages[i]?.disabled) { goTo(i); return }
+    }
+  }, [goTo, index, isLast, pages])
+
+  const prev = React.useCallback(() => {
+    if (isFirst) return
+    // go back to previous enabled page
+    for (let i = index - 1; i >= 0; i--) {
+      if (!pages[i]?.disabled) { goTo(i); return }
+    }
+  }, [goTo, index, isFirst, pages])
 
   // Sync internal state when controlled currentPage changes
   React.useEffect(() => {
@@ -127,6 +158,8 @@ export function CarouselProvider(props: {
     setTransition,
     next,
     prev,
+    nextSlide: next,
+    prevSlide: prev,
     goTo,
     goToByKey,
     rootStyle: props.rootStyle,

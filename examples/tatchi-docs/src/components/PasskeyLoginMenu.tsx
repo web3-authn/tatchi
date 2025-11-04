@@ -38,6 +38,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   // Allow external control of initial mode and remounting the menu
   const authMenuControl = useAuthMenuControl();
 
+  // Minimum time to keep the PasskeyAuthMenu in the "waiting" state
+  // to avoid jarring flashes on very fast logins.
+  const LOADING_MIN_MS = 500;
+
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {
       onEvent: (event: RegistrationSSEEvent) => {
@@ -121,7 +125,9 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   };
 
   const onLogin = async () => {
-    // Return the promise so caller can await and catch
+    // Ensure the waiting screen stays visible at least LOADING_MIN_MS
+    const started = Date.now();
+
     const result = await loginPasskey(targetAccountId, {
       onEvent: (event) => {
         switch (event.phase) {
@@ -135,7 +141,6 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
             break;
           case LoginPhase.STEP_4_LOGIN_COMPLETE:
             toast.success(`Logged in as ${event.nearAccountId}!`, { id: 'login' });
-            try { props.onLoggedIn?.(event.nearAccountId) } catch {}
             break;
           case LoginPhase.LOGIN_ERROR:
             toast.error(event.error, { id: 'login' });
@@ -143,11 +148,13 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         }
       }
     });
-    try {
-      if ((result as any)?.success) {
-        props.onLoggedIn?.((result as any)?.nearAccountId)
+    if (result?.success) {
+      const elapsed = Date.now() - started;
+      if (elapsed < LOADING_MIN_MS) {
+        await new Promise((res) => setTimeout(res, LOADING_MIN_MS - elapsed));
       }
-    } catch {}
+      props.onLoggedIn?.(result?.nearAccountId);
+    }
     return result
   };
 
@@ -196,6 +203,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         key={`pam-${authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}-${authMenuControl.remountKey}`}
         defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
         onLogin={onLogin}
+        loadingScreenDelayMs={0}
         onRegister={onRegister}
         onRecoverAccount={onRecover}
         linkDeviceOptions={{

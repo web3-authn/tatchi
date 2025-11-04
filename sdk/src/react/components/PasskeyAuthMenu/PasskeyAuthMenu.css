@@ -483,9 +483,9 @@
   background: transparent;
   text-align: center;
   min-height: 200px;
-  /* Quick fade with slight delay for smoother handoff */
+  /* Quick fade with configurable delay for smoother handoff */
   animation: content-enter 200ms ease-out;
-  animation-delay: 60ms;
+  animation-delay: var(--w3a-waiting-delay, 0ms);
   animation-fill-mode: both;
 }
 .w3a-waiting-text { font-size: 18px; font-weight: 600; }
