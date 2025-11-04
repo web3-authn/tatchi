@@ -179,6 +179,7 @@
 
 /* Fade-in helper for embedded button */
 .button-with-tooltip-container {
+  position: relative;
   z-index: 1;
   opacity: 1;
   will-change: opacity;
