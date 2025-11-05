@@ -70,7 +70,6 @@ export function useMpcEvmFlow() {
         value: viem.parseEther(amountEth || '0'),
       });
       let unsignedTx = transaction;
-      console.log("UNSIGNED TX SHAPE: ", unsignedTx)
 
       const first = hashesToSign?.[0];
       if (!first) {
@@ -159,7 +158,10 @@ export function useMpcEvmFlow() {
         } catch {}
         return null;
       })();
-      if (!successValue) throw new Error('No SuccessValue in result');
+
+      if (!successValue) {
+        throw new Error('No SuccessValue in result');
+      }
       const decodedBytes = base64ToBytes(successValue);
       const rsvSignatures = parseMpcSignature(decodedBytes) || [];
       if (!rsvSignatures.length) throw new Error('Invalid MPC signature');

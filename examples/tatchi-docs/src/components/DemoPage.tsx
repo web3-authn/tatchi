@@ -493,7 +493,7 @@ export const DemoPage: React.FC = () => {
               size="medium"
               style={{ width: 200 }}
             >
-              Sign with Modal
+              Show Modal
             </LoadingButton>
             <LoadingButton
               onClick={() => handleExecuteMultiActions('drawer')}
@@ -503,7 +503,7 @@ export const DemoPage: React.FC = () => {
               size="medium"
               style={{ width: 200 }}
             >
-              sign with Drawer
+              Show Drawer
             </LoadingButton>
           </div>
         </div>

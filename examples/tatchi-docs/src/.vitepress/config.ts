@@ -17,10 +17,14 @@ export default defineConfig({
   base: '/',
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    // Inter font for headings, subtitles, etc.
+    ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
+    ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400..900;1,400..900&display=swap' }],
   ],
 
-  title: 'Tatchi SDK',
-  description: 'Docs for the SDK and examples',
+  title: 'tatchi.xyz',
+  description: 'A browser based embedded wallet',
   // Use VitePress built-in appearance + nav; hidden on homepage via theme logic
   appearance: true,
 

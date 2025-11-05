@@ -1,4 +1,14 @@
-/* Export Private Key iframe host styles (inherits tokens from w3a-components.css). */
+/*
+  Export Private Key iframe host styles.
+
+  Theme tokens used by this component come from w3a-components.css, which is
+  generated from sdk/src/theme/palette.json via createThemeTokens in
+  sdk/src/theme/base-styles.js. The stylesheet is ensured by the component
+  loader (see css/css-loader.ts). To modify colors, edit palette.json or
+  adjust alias mappings in base-styles.js, then regenerate via:
+    - node sdk/scripts/generate-w3a-components-css.mjs (dev)
+    - or build, which emits dist/esm/sdk/w3a-components.css
+*/
 
 :host {
   position: fixed;
