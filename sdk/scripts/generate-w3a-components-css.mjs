@@ -8,6 +8,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Resolve SDK root robustly whether invoked from repo root or sdk/
 function resolveSdkRoot() {
@@ -35,7 +36,33 @@ function readJson(p) {
 
 const palette = readJson(palettePath);
 
-const { grey = {}, slate = {}, cream = {}, chroma = {}, gradients = {}, tokens = {} } = palette;
+const { grey = {}, slate = {}, cream = {}, gradients = {}, tokens = {}, themes = {} } = palette;
+let chroma = palette.chroma || {};
+if (!chroma || Object.keys(chroma).length === 0) {
+  chroma = {};
+  const exclude = new Set(['grey','slate','cream','gradients','tokens','themes']);
+  Object.keys(palette).filter((k) => !exclude.has(k)).forEach((fam) => {
+    if (palette[fam] && typeof palette[fam] === 'object') chroma[fam] = palette[fam];
+  });
+}
+
+function get(obj, path) {
+  if (!obj || typeof path !== 'string') return undefined;
+  const parts = path.split('.');
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null) return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+function resolveRef(v) {
+  if (typeof v !== 'string') return v;
+  // Allow references like "grey.75" or "chroma.blue.500" or "tokens.buttonBackground" or "gradients.blue"
+  const maybe = get({ grey, slate, cream, chroma, gradients, tokens }, v);
+  return maybe !== undefined ? maybe : v;
+}
 
 const emitScale = (name, scale) => {
   const keys = Object.keys(scale);
@@ -62,142 +89,19 @@ const emitGradients = () => {
   return names.map((n) => `  --w3a-gradient-${n}: ${gradients[n]};`).join('\n');
 };
 
-// Mappings that mirror base-styles DARK_THEME / LIGHT_THEME (classic) / CREAM (warm light)
-// Keep in sync with sdk/src/core/WebAuthnManager/LitComponents/base-styles.ts
-const buttonBg = tokens.buttonBackground || (chroma?.blue?.['500'] || '#3b82f6');
+// Resolve theme vars from palette.themes if present; otherwise fall back to prior mapping
+const buttonBg = resolveRef(tokens.buttonBackground) || (chroma?.blue?.['500'] || '#3b82f6');
+const buttonHoverBg = resolveRef(tokens.buttonHoverBackground) || (chroma?.blue?.['400'] || '#60a5fa');
 
-const DARK_VARS = {
-  // Text
-  textPrimary: grey['75'],
-  textSecondary: grey['500'],
-  textMuted: grey['650'],
-  textButton: grey['75'],
-  // Surfaces
-  colorBackground: grey['800'],
-  surface: slate['700'],
-  surface2: slate['750'],
-  surface3: slate['800'],
-  surface4: slate['825'],
-  // Brand/accents
-  primary: chroma?.blue?.['600'] || '#2563eb',
-  primaryHover: chroma?.blue?.['500'] || '#3b82f6',
-  secondary: chroma?.red?.['500'] || '#ef4444',
-  secondaryHover: chroma?.red?.['400'] || '#f87171',
-  accent: chroma?.blue?.['400'] || '#60a5fa',
-  buttonBackground: buttonBg,
-  // Interactive states
-  hover: grey['850'],
-  active: grey['650'],
-  focus: chroma?.blue?.['400'] || '#60a5fa',
-  // Status
-  success: chroma?.blue?.['400'] || '#60a5fa',
-  warning: chroma?.yellow?.['400'] || '#facc15',
-  error: chroma?.red?.['400'] || '#f87171',
-  info: chroma?.blue?.['400'] || '#60a5fa',
-  // Borders
-  borderPrimary: grey['650'],
-  borderSecondary: slate['650'],
-  borderHover: grey['600'],
-  // Background Gradients
-  backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
-  backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
-  // Additional gradient slot for app usage
-  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
-  // Highlights
-  highlightReceiverId: chroma?.blue?.['400'] || '#60a5fa',
-  highlightMethodName: chroma?.blue?.['400'] || '#60a5fa',
-  highlightAmount: chroma?.blue?.['400'] || '#60a5fa',
-};
-
-const LIGHT_VARS = {
-  // Text
-  textPrimary: grey['975'],
-  textSecondary: grey['500'],
-  textMuted: grey['350'],
-  textButton: grey['75'],
-  // Surfaces
-  colorBackground: grey['50'],
-  surface: slate['100'],
-  surface2: slate['150'],
-  surface3: slate['200'],
-  surface4: slate['250'],
-  // Brand/accents
-  primary: chroma?.blue?.['600'] || '#2563eb',
-  primaryHover: chroma?.blue?.['500'] || '#3b82f6',
-  secondary: chroma?.red?.['500'] || '#ef4444',
-  secondaryHover: chroma?.red?.['400'] || '#f87171',
-  accent: chroma?.blue?.['400'] || '#60a5fa',
-  buttonBackground: buttonBg,
-  // Interactive states
-  hover: grey['100'],
-  active: grey['200'],
-  focus: chroma?.blue?.['400'] || '#60a5fa',
-  // Status
-  success: chroma?.blue?.['500'] || '#3b82f6',
-  warning: chroma?.yellow?.['500'] || '#f59e0b',
-  error: chroma?.red?.['500'] || '#ef4444',
-  info: chroma?.blue?.['500'] || '#3b82f6',
-  // Borders
-  borderPrimary: slate['300'],
-  borderSecondary: grey['300'],
-  borderHover: slate['350'],
-  // Background Gradients
-  backgroundGradientPrimary: gradients?.blue || 'linear-gradient(45deg, #60a5fa 0%, #60a5fa 50%)',
-  backgroundGradientSecondary: gradients?.blueWhite || 'linear-gradient(90deg, #2563eb 0%, #93c5fd 50%, #f5f5f5 100%)',
-  // Additional gradient slot for app usage
-  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
-  // Highlights
-  highlightReceiverId: chroma?.blue?.['500'] || '#3b82f6',
-  highlightMethodName: chroma?.blue?.['500'] || '#3b82f6',
-  highlightAmount: chroma?.blue?.['500'] || '#3b82f6',
-};
-
-const CREAM_VARS = {
-  // Text
-  textPrimary: grey['900'],
-  textSecondary: grey['600'],
-  textMuted: grey['450'],
-  textButton: grey['75'],
-  // Surfaces (warm neutrals)
-  colorBackground: cream['50'],
-  surface: cream['100'],
-  surface2: cream['150'],
-  surface3: cream['200'],
-  surface4: cream['250'],
-  // Brand/accents (neutral primary, warm accent)
-  primary: grey['700'],
-  primaryHover: grey['650'],
-  secondary: chroma?.red?.['500'] || '#ef4444',
-  secondaryHover: chroma?.red?.['400'] || '#f87171',
-  accent: chroma?.yellow?.['550'] || '#eab308',
-  buttonBackground: buttonBg,
-  // Interactive states (warm neutrals)
-  hover: cream['75'],
-  active: cream['200'],
-  focus: chroma?.yellow?.['500'] || '#eab308',
-  // Status
-  success: chroma?.yellow?.['400'] || '#facc15',
-  warning: chroma?.yellow?.['600'] || '#d97706',
-  error: chroma?.red?.['500'] || '#ef4444',
-  info: chroma?.blue?.['500'] || '#3b82f6',
-  // Borders
-  borderPrimary: cream['300'],
-  borderSecondary: cream['200'],
-  borderHover: cream['350'],
-  // Background Gradients (neutrals)
-  backgroundGradientPrimary: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
-  backgroundGradientSecondary: gradients?.blackWhite || 'linear-gradient(90deg, oklch(0.20 0.010 240) 0%, oklch(0.95 0.005 240) 100%)',
-  // Additional gradient slot for app usage
-  backgroundGradient4: gradients?.black || 'linear-gradient(45deg, oklch(0.53 0.03 240) 0%, oklch(0.2 0.015 240) 50%)',
-  // Highlights
-  highlightReceiverId: chroma?.yellow?.['400'] || '#facc15',
-  highlightMethodName: chroma?.yellow?.['400'] || '#facc15',
-  highlightAmount: chroma?.yellow?.['400'] || '#facc15',
-};
+// Use centralized theme maps from src/theme/base-styles.js
+const baseStylesPath = path.join(repoRoot, 'src', 'theme', 'base-styles.js');
+const base = await import(pathToFileURL(baseStylesPath).href);
+const { createThemeTokens } = base;
+const { DARK_THEME: DARK_VARS, LIGHT_THEME: LIGHT_VARS, CREAM_THEME: CREAM_VARS } = createThemeTokens(palette);
 
 const header = `/*
   AUTO-GENERATED FILE – DO NOT EDIT.
-  Source: sdk/src/theme/palette.json + mappings from base-styles.ts
+  Source: sdk/src/theme/palette.json + mappings from src/theme/base-styles.js (createThemeTokens)
   Run: node sdk/scripts/generate-w3a-components-css.mjs
 */`;
 
@@ -206,6 +110,7 @@ const hostSelectorsArr = [
   'w3a-drawer',
   'w3a-modal-tx-confirmer',
   'w3a-drawer-tx-confirmer',
+  'w3a-tx-confirm-content',
   'w3a-button-with-tooltip',
   'w3a-halo-border',
   'w3a-passkey-halo-loading',
@@ -255,6 +160,7 @@ function emitAliasBlock(vars) {
     `  --w3a-colors-secondaryHover: ${vars.secondaryHover};`,
     `  --w3a-colors-accent: ${vars.accent};`,
     `  --w3a-colors-buttonBackground: ${vars.buttonBackground};`,
+    `  --w3a-colors-buttonHoverBackground: ${vars.buttonHoverBackground};`,
     `  --w3a-colors-hover: ${vars.hover};`,
     `  --w3a-colors-active: ${vars.active};`,
     `  --w3a-colors-focus: ${vars.focus};`,

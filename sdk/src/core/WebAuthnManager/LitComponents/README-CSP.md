@@ -29,7 +29,7 @@ Component Notes
   - No inline styles. Sizing via width/height attributes; interactive area via CSS var `--w3a-iframe-clip-path`.
   - `sandbox="allow-scripts"` for opaque origin; communication via postMessage only.
 - Iframe Tx Confirmer (modal/drawer)
-  - `modal-confirmer.css` provides layout/tokens; `tx-tree.css` for nested tree.
+- `tx-confirmer.css` provides layout/tokens; `tx-tree.css` for nested tree.
   - First render is gated on required styles (including halo/loader) to avoid FOUC.
 - Export Private Key (viewer + host)
   - Srcdoc loads `wallet-service.css`, `w3a-components.css`, and viewer CSS; no inline styles/scripts.
@@ -44,7 +44,7 @@ Dev and CI
 
 Emitted CSS Assets
 - The build copies all component CSS to `/sdk` and generates `w3a-components.css` from the palette:
-  - wallet-service.css, w3a-components.css, tx-tree.css, drawer.css, modal-confirmer.css,
+- wallet-service.css, w3a-components.css, tx-tree.css, drawer.css, tx-confirmer.css,
     button-with-tooltip.css, halo-border.css, passkey-halo-loading.css, padlock-icon.css,
     iframe-button-host.css, export-iframe.css, export-viewer.css, overlay.css.
 - A build-time assertion (`scripts/assert-sdk-css-assets.mjs`) fails if any are missing.
@@ -54,4 +54,3 @@ Shadow DOM (opt‑in)
   - Improve encapsulation (style isolation),
   - Potentially reduce selector conflicts.
 - Performance is typically neutral; initial paint may be slightly slower if styles must be fetched for the shadow root. The default remains light DOM.
-

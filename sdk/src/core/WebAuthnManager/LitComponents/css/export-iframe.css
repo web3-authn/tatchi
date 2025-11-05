@@ -1,4 +1,4 @@
-/* Export Private Key iframe host styles */
+/* Export Private Key iframe host styles (inherits tokens from w3a-components.css). */
 
 :host {
   position: fixed;
@@ -26,4 +26,3 @@ iframe {
 @supports (width: 100dvw) and (height: 100dvh) {
   iframe { width: 100dvw; height: 100dvh; }
 }
-

@@ -1,4 +1,11 @@
-/* Tokens and defaults for <w3a-drawer> */
+/*
+  Tokens and defaults for <w3a-drawer>
+
+  Theme tokens come from w3a-components.css, generated from
+  sdk/src/theme/palette.json via createThemeTokens in sdk/src/theme/base-styles.js.
+  See css-loader.ts for how components ensure the stylesheet is present.
+  Modify palette.json or base-styles.js to change colors/aliases.
+*/
 
 w3a-drawer {
   /* Size defaults */

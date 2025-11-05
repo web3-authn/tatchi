@@ -183,7 +183,7 @@ async function handleLoginUnlockVRF(
           throw new Error(`Shamir3Pass auto-unlock failed: ${unlockResult.error}`);
         }
       } catch (error: any) {
-        console.warn('Shamir3Pass unlock error, falling back to TouchID:', error.message);
+        console.debug('[tatchi]: Shamir3Pass unlock skipped, falling back to TouchID:', error.message);
         unlockResult = { success: false, error: error.message };
       }
     }

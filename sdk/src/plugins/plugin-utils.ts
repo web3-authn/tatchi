@@ -39,7 +39,7 @@ export function buildWalletServiceHtml(sdkBasePath: string): string {
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css" />
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css" />
     <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css" />
-    <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css" />
+    <link rel="stylesheet" href="${sdkBasePath}/tx-confirmer.css" />
     <!-- Minimal shims some ESM bundles expect (externalized to enable strict CSP) -->
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <!-- Hint the browser to fetch the host script earlier -->
@@ -63,7 +63,7 @@ export function buildExportViewerHtml(sdkBasePath: string): string {
     <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
     <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
     <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
-    <link rel="stylesheet" href="${sdkBasePath}/modal-confirmer.css">
+    <link rel="stylesheet" href="${sdkBasePath}/tx-confirmer.css">
     <script src="${sdkBasePath}/wallet-shims.js"></script>
     <link rel="modulepreload" href="${sdkBasePath}/export-private-key-viewer.js" crossorigin>
     <link rel="modulepreload" href="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin>

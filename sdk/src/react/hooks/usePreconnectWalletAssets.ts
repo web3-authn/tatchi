@@ -108,7 +108,7 @@ export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['c
           // // Preload core CSS used by confirmer to reduce first-paint FOUC
           // const tokensCss = new URL('w3a-components.css', base).toString();
           // const txTreeCss = new URL('tx-tree.css', base).toString();
-          // const modalCss = new URL('modal-confirmer.css', base).toString();
+          // const txConfirmerCss = new URL('tx-confirmer.css', base).toString();
           // const drawerCss = new URL('drawer.css', base).toString();
           // ensureLink('preload', tokensCss, { as: 'style', crossorigin: '' });
           // ensureLink('preload', txTreeCss, { as: 'style', crossorigin: '' });

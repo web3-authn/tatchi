@@ -1,4 +1,25 @@
-/* Structural styles for <w3a-tx-tree> / <tx-tree> (mirrors TxTree/index.ts static CSS) */
+/*
+  Styles for <w3a-tx-tree> / <tx-tree> (mirrors TxTree/index.ts static CSS)
+
+  How tokens work (important for customization):
+  - Design tokens (e.g., --w3a-colors-*) are generated from the single palette:
+      sdk/src/theme/palette.json
+    using the factory in:
+      sdk/src/theme/base-styles.js (createThemeTokens)
+    and emitted for Lit components by:
+      - node sdk/scripts/generate-w3a-components-css.mjs (dev/local)
+      - sdk/rolldown.config.ts (build: emits dist/esm/sdk/w3a-components.css)
+
+  - Components load tokens by ensuring w3a-components.css is present once
+    (see css/css-loader.ts and usages in viewer-modal.ts, tx-confirm-content.ts).
+    Theme is selected via document attribute: :root[data-w3a-theme="dark|light|cream"].
+
+  To modify colors:
+  - Prefer editing sdk/src/theme/palette.json (scales, gradients) or
+    adjust mappings in createThemeTokens if you need different aliasing.
+  - Avoid editing this file for palette changes; this file only wires component
+    variables to those tokens and provides structural styles.
+*/
 
 :is(w3a-tx-tree, tx-tree) {
   display: block;
@@ -174,27 +195,27 @@
 :is(w3a-tx-tree, tx-tree) [hidden] { display: none !important; }
 
 :is(w3a-tx-tree, tx-tree) .tooltip-border-outer {
-  max-width: var(--w3a-tree__tooltip-tree-root__max-width, 600px);
-  position: var(--w3a-tree__tooltip-border-outer__position, relative);
+  max-width: 600px;
+  position: relative;
   border: var(--w3a-tree__tooltip-border-outer__border, 1px solid transparent);
   border-radius: var(--w3a-tree__tooltip-border-outer__border-radius, 24px);
-  margin: var(--w3a-tree__tooltip-border-outer__margin, 0px);
-  padding: var(--w3a-tree__tooltip-border-outer__padding, 0px);
-  height: var(--w3a-tree__tooltip-border-outer__height, auto);
-  overflow: var(--w3a-tree__tooltip-border-outer__overflow, hidden);
+  margin: 0px;
+  padding: 0px;
+  height: auto;
+  overflow: hidden;
   box-shadow: var(--w3a-tree__tooltip-border-outer__box-shadow, 0 2px 4px rgba(0, 0, 0, 0.05));
   background: var(--w3a-tree__tooltip-border-outer__background, var(--w3a-colors-surface));
 }
 
 :is(w3a-tx-tree, tx-tree) .tooltip-tree-root {
   background: var(--w3a-tree__tooltip-tree-root__background, #f1f1f1);
-  max-width: var(--w3a-tree__tooltip-tree-root__max-width, 600px);
-  margin: var(--w3a-tree__tooltip-tree-root__margin, 0 auto);
-  border-radius: var(--w3a-tree__tooltip-tree-root__border-radius, 12px);
+  max-width: 600px;
+  margin: 0 auto;
+  border-radius: 1.5rem;
   border: var(--w3a-tree__tooltip-tree-root__border, none);
-  overflow: var(--w3a-tree__tooltip-tree-root__overflow, hidden);
-  width: var(--w3a-tree__tooltip-tree-root__width, auto);
-  height: var(--w3a-tree__tooltip-tree-root__height, auto);
+  overflow: hidden;
+  width: auto;
+  height: auto;
   padding: var(--w3a-tree__tooltip-tree-root__padding, 0);
   -webkit-text-size-adjust: 100%;
 }
@@ -210,66 +231,66 @@
 }
 
 :is(w3a-tx-tree, tx-tree) .tooltip-tree-children {
-  display: var(--w3a-tree__tooltip-tree-children__display, block);
+  display: block;
   padding: var(--w3a-tree__tooltip-tree-children__padding, 0px);
 }
 
 :is(w3a-tx-tree, tx-tree) details {
-  margin: var(--w3a-tree__details__margin, 0);
-  padding: var(--w3a-tree__details__padding, 0);
-  border-radius: var(--w3a-tree__details__border-radius, 8px);
-  overflow: var(--w3a-tree__details__overflow, hidden);
-  background: var(--w3a-tree__details__background, transparent);
+  margin: 0;
+  padding: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background: transparent;
 }
 
 :is(w3a-tx-tree, tx-tree) summary::-webkit-details-marker { display: none; }
 :is(w3a-tx-tree, tx-tree) summary { list-style: none; }
 
 :is(w3a-tx-tree, tx-tree) .row {
-  display: var(--w3a-tree__row__display, grid);
-  grid-template-columns: var(--w3a-tree__row__grid-template-columns, var(--indent, 0) 1fr 0px);
-  align-items: var(--w3a-tree__row__align-items, center);
-  box-sizing: var(--w3a-tree__row__box-sizing, border-box);
-  width: var(--w3a-tree__row__width, 100%);
+  display: grid;
+  grid-template-columns: var(--indent, 0) 1fr 0px;
+  align-items: center;
+  box-sizing: border-box;
+  width: 100%;
   color: var(--w3a-tree__row__color, #e6e9f5);
   background: var(--w3a-tree__row__background, transparent);
-  margin-bottom: var(--w3a-tree__row__gap, 0px);
+  margin-bottom: 0px;
 }
 
 :is(w3a-tx-tree, tx-tree) .summary-row {
-  cursor: var(--w3a-tree__summary-row__cursor, pointer);
+  cursor: pointer;
   padding: var(--w3a-tree__summary-row__padding, 0px 0px);
-  margin-bottom: var(--w3a-tree__summary-row__margin-bottom, 0px);
-  border-radius: var(--w3a-tree__summary-row__border-radius, 0px);
-  transition: var(--w3a-tree__summary-row__transition, background 0.15s ease);
+  margin-bottom: 0px;
+  border-radius: 0px;
+  transition: background 0.15s ease;
   background: var(--w3a-tree__summary-row__background, transparent);
 }
 
 :is(w3a-tx-tree, tx-tree) .indent {
-  width: var(--w3a-tree__indent__width, var(--indent, 0));
-  height: var(--w3a-tree__indent__height, 100%);
-  position: var(--w3a-tree__indent__position, relative);
+  width: var(--indent, 0);
+  height: 100%;
+  position: relative;
 }
 
 :is(w3a-tx-tree, tx-tree) .label {
-  display: var(--w3a-tree__label__display, inline-flex);
-  align-items: var(--w3a-tree__label__align-items, center);
+  display: inline-flex;
+  align-items: center;
   gap: var(--w3a-tree__label__gap, 0px);
   padding: var(--w3a-tree__label__padding, 0px);
-  min-width: var(--w3a-tree__label__min-width, 0);
-  max-width: var(--w3a-tree__label__max-width, 100%);
-  flex: var(--w3a-tree__label__flex, 1 1 auto);
-  white-space: var(--w3a-tree__label__white-space, nowrap);
-  overflow: var(--w3a-tree__label__overflow, hidden);
-  text-overflow: var(--w3a-tree__label__text-overflow, ellipsis);
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: var(--w3a-tree__label__font-size, 9px);
   color: var(--w3a-tree__label__color, inherit);
-  font-weight: var(--w3a-tree__label__font-weight, inherit);
+  font-weight: inherit;
   line-height: var(--w3a-tree__label__line-height, 1.2);
   border: var(--w3a-tree__label__border, none);
   border-radius: var(--w3a-tree__label__border-radius, 0);
-  -webkit-background-clip: var(--w3a-tree__label__webkit-background-clip, initial);
-  -webkit-text-fill-color: var(--w3a-tree__label__webkit-text-fill-color, currentColor);
+  -webkit-background-clip: initial;
+  -webkit-text-fill-color: currentColor;
 }
 
 :is(w3a-tx-tree, tx-tree) .label-text {
@@ -283,8 +304,8 @@
 }
 
 :is(w3a-tx-tree, tx-tree) .label.label-action-node {
-  font-size: var(--w3a-tree__label-action-node__font-size, 0.8rem);
-  color: var(--w3a-color-text-secondary, #94a3b8);
+  font-size: 0.8rem;
+  color: #94a3b8;
   margin: 0rem 0.5rem 0rem 1rem;
 }
 
@@ -307,39 +328,39 @@
 :is(w3a-tx-tree, tx-tree) .copy-badge {
   margin-left: auto;
   font-size: 0.7em;
-  color: var(--w3a-tree__copy-badge__color, var(--w3a-color-text-secondary));
-  background: var(--w3a-tree__copy-badge__background, transparent);
-  border: var(--w3a-tree__copy-badge__border, 1px solid transparent);
-  border-radius: var(--w3a-tree__copy-badge__border-radius, 8px);
-  padding: var(--w3a-tree__copy-badge__padding, 2px 6px);
+  color: var(--w3a-color-text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 2px 6px;
   cursor: pointer;
   user-select: none;
   transition: color 100ms ease, background 100ms ease;
 }
 
 :is(w3a-tx-tree, tx-tree) .copy-badge:hover {
-  background: var(--w3a-tree__copy-badge-hover__background, rgba(255,255,255,0.06));
-  color: var(--w3a-tree__copy-badge-hover__color, var(--w3a-color-primary));
+  background: rgba(255,255,255,0.06);
+  color: var(--w3a-color-primary);
 }
 
 :is(w3a-tx-tree, tx-tree) .copy-badge[data-copied="true"] {
-  color: var(--w3a-tree__copy-badge-copied__color, var(--w3a-color-text));
-  background: var(--w3a-tree__copy-badge-copied__background, rgba(255,255,255,0.06));
+  color: var(--w3a-color-text);
+  background: rgba(255,255,255,0.06);
 }
 
 :is(w3a-tx-tree, tx-tree) .chevron {
-  display: var(--w3a-tree__chevron__display, inline-block);
+  display: inline-block;
   width: var(--w3a-tree__chevron__width, 8px);
   height: var(--w3a-tree__chevron__height, 8px);
-  transform: var(--w3a-tree__chevron__transform, rotate(0deg));
-  transition: var(--w3a-tree__chevron__transition, transform 0.12s ease);
-  opacity: var(--w3a-tree__chevron__opacity, 0.85);
+  transform: rotate(0deg);
+  transition: transform 0.12s ease;
+  opacity: 0.85;
   color: var(--w3a-tree__chevron__color, currentColor);
-  overflow: var(--w3a-tree__chevron__overflow, visible);
+  overflow: visible;
 }
 
 :is(w3a-tx-tree, tx-tree) details[open] > summary .chevron {
-  transform: var(--w3a-tree__chevron-open__transform, rotate(90deg));
+  transform: rotate(90deg);
 }
 
 :is(w3a-tx-tree, tx-tree) .file-row {
@@ -364,14 +385,14 @@
   left: var(--connector-indent, var(--indent, 0));
   right: auto;
   width: var(--w3a-tree__connector__thickness);
-  height: calc(100% + var(--w3a-tree__row__gap, 0px));
+  height: calc(100% + 0px);
   background: var(--w3a-tree__connector__color);
 }
 
 :is(w3a-tx-tree, tx-tree) .folder-children .row .indent::after {
   content: '';
   position: absolute;
-  top: var(--w3a-tree__connector__elbow-top, 50%);
+  top: 50%;
   height: var(--w3a-tree__connector__thickness);
   width: calc(
     (var(--indent, 0) - var(--connector-indent, var(--indent, 0)))
@@ -384,94 +405,94 @@
 
 :is(w3a-tx-tree, tx-tree) .folder-children .row.file-row .indent::after { content: none; }
 :is(w3a-tx-tree, tx-tree) .folder-children .row[data-no-elbow="true"] .indent::after { content: none; }
-:is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + var(--w3a-tree__row__gap, 0px)); }
-:is(w3a-tx-tree, tx-tree) .folder-children > details.file:last-child > summary .indent::before { height: calc(100% + var(--w3a-tree__row__gap, 0px)); }
+:is(w3a-tx-tree, tx-tree) .folder-children > details:last-child > summary .indent::before { height: calc(50% + 0px); }
+:is(w3a-tx-tree, tx-tree) .folder-children > details.file:last-child > summary .indent::before { height: calc(100% + 0px); }
 :is(w3a-tx-tree, tx-tree) .tooltip-tree-children > details > .folder-children > details:last-child .folder-children .row .indent::before,
 :is(w3a-tx-tree, tx-tree) .tooltip-tree-children > details > .folder-children > details:last-child .folder-children .row .indent::after { content: none; }
 
 :is(w3a-tx-tree, tx-tree) .file-content {
-  box-sizing: var(--w3a-tree__file-content__box-sizing, border-box);
-  margin: var(--w3a-tree__file-content__margin, 0rem 0.25rem 0rem 0.5rem);
+  box-sizing: border-box;
+  margin: 0rem 0.25rem 0rem 0.5rem;
   padding: var(--w3a-tree__file-content__padding, 0rem 0.25rem 0rem 0.25rem);
   border-radius: var(--w3a-tree__file-content__border-radius, 0.5rem);
   background: var(--w3a-tree__file-content__background, rgba(255, 255, 255, 0.06));
-  max-height: var(--w3a-tree__file-content__max-height, 40vh);
-  resize: var(--w3a-tree__file-content__resize, vertical);
-  min-height: var(--w3a-tree__file-content__min-height, 60px);
-  width: var(--w3a-tree__file-content__width, 100%);
-  overflow: var(--w3a-tree__file-content__overflow, auto);
+  max-height: 40vh;
+  resize: vertical;
+  min-height: 60px;
+  width: 100%;
+  overflow: auto;
   color: var(--w3a-tree__file-content__color, #e2e8f0);
   font-family: var(--w3a-tree__file-content__font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace);
-  white-space: var(--w3a-tree__file-content__white-space, pre-wrap);
-  word-break: var(--w3a-tree__file-content__word-break, break-word);
-  line-height: var(--w3a-tree__file-content__line-height, 1.3);
-  font-size: var(--w3a-tree__file-content__font-size, 0.7rem);
-  box-shadow: var(--w3a-tree__file-content__box-shadow, none);
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.3;
+  font-size: 0.7rem;
+  box-shadow: none;
   white-space: pre;
   text-wrap: auto;
 }
 
 :is(w3a-tx-tree, tx-tree) .file-content::-webkit-scrollbar {
-  width: var(--w3a-tree__file-content__scrollbar-width, 4px);
+  width: 4px;
 }
 
 :is(w3a-tx-tree, tx-tree) .file-content::-webkit-scrollbar-track {
   background: var(--w3a-tree__file-content__scrollbar-track__background, var(--w3a-colors-surface, #f8fafc));
-  border-radius: var(--w3a-tree__file-content__scrollbar-track__border-radius, 2px);
+  border-radius: 2px;
 }
 
 :is(w3a-tx-tree, tx-tree) .file-content::-webkit-scrollbar-thumb {
   background: var(--w3a-tree__file-content__scrollbar-thumb__background, var(--w3a-color-border, #e2e8f0));
-  border-radius: var(--w3a-tree__file-content__scrollbar-thumb__border-radius, 2px);
+  border-radius: 2px;
 }
 
 :is(w3a-tx-tree, tx-tree) .folder-children {
-  display: var(--w3a-tree__folder-children__display, block);
+  display: block;
 }
 
 :is(w3a-tx-tree, tx-tree) .highlight-receiver-id {
   color: var(--w3a-tree__highlight-receiver-id__color, #ff6b6b);
-  background: var(--w3a-tree__highlight-receiver-id__background, transparent);
-  -webkit-background-clip: var(--w3a-tree__highlight-receiver-id__background-clip, none);
-  -webkit-text-fill-color: var(--w3a-tree__highlight-receiver-id__text-fill-color, none);
+  background: transparent;
+  -webkit-background-clip: none;
+  -webkit-text-fill-color: none;
   margin: 0px 4px;
   font-weight: var(--w3a-tree__highlight-receiver-id__font-weight, 600);
-  text-decoration: var(--w3a-tree__highlight-receiver-id__text-decoration, none);
-  padding: var(--w3a-tree__highlight-receiver-id__padding, 0);
-  border-radius: var(--w3a-tree__highlight-receiver-id__border-radius, 0);
-  box-shadow: var(--w3a-tree__highlight-receiver-id__box-shadow, none);
+  text-decoration: none;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Underline on hover/focus to indicate link affordance */
 :is(w3a-tx-tree, tx-tree) .highlight-receiver-id:hover,
 :is(w3a-tx-tree, tx-tree) .highlight-receiver-id:focus-visible {
   text-decoration: underline;
-  text-underline-offset: var(--w3a-tree__highlight-receiver-id__underline-offset, 0.08em);
-  text-decoration-thickness: var(--w3a-tree__highlight-receiver-id__underline-thickness, 2px);
+  text-underline-offset: 0.08em;
+  text-decoration-thickness: 2px;
 }
 
 :is(w3a-tx-tree, tx-tree) .highlight-method-name {
   color: var(--w3a-tree__highlight-method-name__color, #4ecdc4);
-  background: var(--w3a-tree__highlight-method-name__background, transparent);
-  -webkit-background-clip: var(--w3a-tree__highlight-method-name__background-clip, none);
-  -webkit-text-fill-color: var(--w3a-tree__highlight-method-name__text-fill-color, none);
+  background: transparent;
+  -webkit-background-clip: none;
+  -webkit-text-fill-color: none;
   margin: 0px 4px;
   font-weight: var(--w3a-tree__highlight-method-name__font-weight, 600);
-  text-decoration: var(--w3a-tree__highlight-method-name__text-decoration, none);
-  padding: var(--w3a-tree__highlight-method-name__padding, 0);
-  border-radius: var(--w3a-tree__highlight-method-name__border-radius, 0);
-  box-shadow: var(--w3a-tree__highlight-method-name__box-shadow, none);
+  text-decoration: none;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 :is(w3a-tx-tree, tx-tree) .highlight-amount {
   color: var(--w3a-tree__highlight-amount__color, #4ecdc4);
-  background: var(--w3a-tree__highlight-amount__background, transparent);
-  -webkit-background-clip: var(--w3a-tree__highlight-amount__background-clip, none);
-  -webkit-text-fill-color: var(--w3a-tree__highlight-amount__text-fill-color, none);
+  background: transparent;
+  -webkit-background-clip: none;
+  -webkit-text-fill-color: none;
   margin: 0px 4px;
   font-weight: var(--w3a-tree__highlight-amount__font-weight, 600);
-  text-decoration: var(--w3a-tree__highlight-amount__text-decoration, none);
-  padding: var(--w3a-tree__highlight-amount__padding, 0);
-  border-radius: var(--w3a-tree__highlight-amount__border-radius, 0);
-  box-shadow: var(--w3a-tree__highlight-amount__box-shadow, none);
+  text-decoration: none;
+  padding: 0;
+  border-radius: 0;
+  box-shadow: none;
 }

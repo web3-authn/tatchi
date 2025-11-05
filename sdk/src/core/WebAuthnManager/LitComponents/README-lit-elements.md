@@ -65,7 +65,7 @@ Other notes:
 
 - Shared theme/tokens: `css/w3a-components.css`
 - TxTree visuals: `css/tx-tree.css`
-- Modal confirmer layout/tokens: `css/modal-confirmer.css`
+- Tx confirmer layout/tokens: `css/tx-confirmer.css`
 - Drawer (when used): `css/drawer.css`
 - Button host + tooltip: `css/button-with-tooltip.css`, `css/iframe-button-host.css`
 - Halo ring + loading icon: `css/halo-border.css`, `css/passkey-halo-loading.css`, `css/padlock-icon.css`

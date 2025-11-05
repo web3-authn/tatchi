@@ -824,6 +824,7 @@ export class EmbeddedTxButton extends LitElementWithProps {
             .depth=${0}
             .styles=${this.styles}
             .theme=${this.TxTreeTheme}
+            .showShadow=${true}
             @lit-tree-toggled=${this.handleTreeToggled}
           ></w3a-tx-tree>
         </div>

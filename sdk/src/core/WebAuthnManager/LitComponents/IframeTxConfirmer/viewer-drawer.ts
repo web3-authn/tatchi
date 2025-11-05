@@ -145,6 +145,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     // Ensure external styles are ready before opening (await Promise-based loader)
     const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
     await Promise.all([
+      ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
       ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
       ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'),
       // Preload drawer.css so fallback <link> is loaded before opening
@@ -166,12 +167,10 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     super.updated(changed);
     // Keep the iframe/root document's theme in sync so :root[data-w3a-theme] tokens apply
     if (changed.has('theme')) {
-      try {
-        const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
-        if (docEl && this.theme && (this as any)._ownsThemeAttr) {
-          docEl.setAttribute('data-w3a-theme', this.theme);
-        }
-      } catch {}
+      const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+      if (docEl && this.theme && (this as any)._ownsThemeAttr) {
+        docEl.setAttribute('data-w3a-theme', this.theme);
+      }
     }
   }
 

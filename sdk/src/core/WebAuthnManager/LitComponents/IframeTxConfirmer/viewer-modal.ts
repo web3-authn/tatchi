@@ -68,7 +68,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   vrfChallenge?: VRFChallenge;
   loading = false;
   errorMessage: string | undefined = undefined;
-  // Theme tokens now come from external CSS (modal-confirmer.css)
+  // Theme tokens now come from external CSS (tx-confirmer.css)
   // style injection has been removed to satisfy strict CSP.
   theme: ThemeName = 'dark';
   nearExplorerUrl?: string;
@@ -112,7 +112,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // Render in light DOM to simplify CSS variable flow across nested components
   // (Shadow DOM disabled by returning the host element as the render root)
 
-  // No inline static styles; see modal-confirmer.css
+  // No inline static styles; see tx-confirmer.css
   constructor() {
     super();
     // Pre-ensure document-level styles so link loads can complete before first render
@@ -121,7 +121,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
       this._stylePromises.push(
         ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
         ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'),
         // Preload nested visuals to avoid first-paint jank when halo/loader mount
         ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'),
         ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'),
@@ -152,15 +152,15 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
     const root = (this as unknown) as HTMLElement;
     // tx-tree.css for nested TxTree visuals inside the modal
     this._stylePromises.push(ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'));
-    // modal-confirmer.css for modal layout + tokens
-    this._stylePromises.push(ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
+    // tx-confirmer.css for modal layout + tokens
+    this._stylePromises.push(ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'));
     // Ensure nested loader/halo styles are present before first paint to avoid FOUC
     this._stylePromises.push(ensureExternalStyles(root, 'halo-border.css', 'data-w3a-halo-border-css'));
     this._stylePromises.push(ensureExternalStyles(root, 'passkey-halo-loading.css', 'data-w3a-passkey-halo-loading-css'));
     return root;
   }
 
-  // Dynamic style application removed; CSS variables come from modal-confirmer.css
+  // Dynamic style application removed; CSS variables come from tx-confirmer.css
 
   disconnectedCallback() {
     window.removeEventListener('keydown', this._onKeyDown);
@@ -293,6 +293,7 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
               .vrfChallenge=${this.vrfChallenge}
               .theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
+              .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
               .title=${this.title}
