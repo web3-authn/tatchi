@@ -193,7 +193,7 @@ Ensure accessible contrast for text and interactive states.
   Yes. The theme system writes CSS vars (e.g., `--w3a-colors-primary`) that both stacks use. The generator also emits defaults on component hosts to bridge Shadow DOM; your runtime overrides should target both the themed root and hosts as shown above.
 
 - Where are defaults defined?
-  Base scales: `sdk/src/theme/palette.json`. Base themes: `sdk/src/core/WebAuthnManager/LitComponents/base-styles.ts`. React tokens: `sdk/src/react/components/theme/design-tokens.ts`.
+  Base scales: `sdk/src/theme/palette.json`. Base themes: `sdk/src/base-styles.ts` (built from `sdk/src/theme/base-styles.js`). React tokens: `sdk/src/react/components/theme/design-tokens.ts`.
 
 - Why do I still see defaults sometimes inside an iframe?
   Ensure the SDK assets (especially `w3a-components.css`) resolve for the iframe origin. Set `window.__W3A_WALLET_SDK_BASE__` to an absolute `https://your-cdn/sdk/` before mounting, or serve `/sdk/*` at that base. Then inject your custom theme in that document (the iframe’s `document.head`).

@@ -75,8 +75,9 @@ export class DrawerElement extends LitElementWithProps {
   private _stylesAwaiting: Promise<void> | null = null;
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    const root = super.createRenderRoot();
-    // Adopt drawer.css (structural + tokens) for <w3a-drawer>
+    // Light DOM render: return host to avoid Shadow DOM
+    const root = (this as unknown) as HTMLElement;
+    // Ensure drawer structural styles are available on the host/document
     const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css');
     this._stylePromises.push(p);
     p.catch(() => {});
@@ -96,7 +97,17 @@ export class DrawerElement extends LitElementWithProps {
 
   protected getComponentPrefix(): string { return 'modal'; }
 
+  // Capture initial light-DOM children so they can be projected into the template
+  private _initialChildren: Node[] | null = null;
+
   connectedCallback() {
+    // Preserve existing child nodes before Lit's first render
+    if (!this._initialChildren) {
+      this._initialChildren = Array.from(this.childNodes);
+      try {
+        for (const n of this._initialChildren) this.removeChild(n);
+      } catch {}
+    }
     super.connectedCallback();
     this.attachViewportSync();
   }
@@ -132,10 +143,15 @@ export class DrawerElement extends LitElementWithProps {
   }
 
   firstUpdated() {
-    this.drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
-    this.overlayElement = this.shadowRoot?.querySelector('.overlay') as HTMLElement;
-    this.bodyElement = this.shadowRoot?.querySelector('.body') as HTMLElement;
+    const root = this.renderRoot as unknown as ParentNode;
+    this.drawerElement = root.querySelector('.drawer') as HTMLElement;
+    this.overlayElement = root.querySelector('.overlay') as HTMLElement;
+    this.bodyElement = root.querySelector('.body') as HTMLElement;
     this.syncCssVarsForOpenTranslate();
+    // Seed a safe default for drag translate so if a drag starts before
+    // we have published a pixel value, it falls back to the current open
+    // translate instead of 0px. This prevents any momentary jump to the top.
+    try { this.setCssVars({ '--w3a-drawer__drag-translate': 'var(--w3a-drawer__open-translate)' }); } catch {}
     // Ensure no transition on first measurement; enable after a frame
     requestAnimationFrame(() => {
       this._initialMount = false;
@@ -145,11 +161,10 @@ export class DrawerElement extends LitElementWithProps {
     // Encapsulated: follow inner height transitions so the drawer animates with content
     this.setupAnimateWithContentSync();
     // Recalculate when slot content changes or viewport resizes
-    const slotEl = this.shadowRoot?.querySelector('slot') as HTMLSlotElement | null;
-    slotEl?.addEventListener('slotchange', () => this.syncCssVarsForOpenTranslate());
+    // In light DOM mode, slotchange is not meaningful; rely on ResizeObserver below
     window.addEventListener('resize', this.syncCssVarsForOpenTranslate.bind(this));
     // Observe size changes of the above-fold content and drawer container
-    const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
+    const above = root.querySelector('.above-fold') as HTMLElement | null;
     if (above && 'ResizeObserver' in window) {
       this.aboveFoldResizeObserver = new ResizeObserver(() => this.syncCssVarsForOpenTranslate());
       this.aboveFoldResizeObserver.observe(above);
@@ -207,6 +222,10 @@ export class DrawerElement extends LitElementWithProps {
   private _performSyncCssVarsForOpenTranslate(): void {
     const drawer = this.drawerElement;
     if (!drawer) return;
+    // Do not mutate the open rest position while the user is dragging or a drag is queued.
+    // Freezing prevents sudden jumps when content inside (e.g., TxTree) expands/collapses
+    // and height transitions are running.
+    if (this.isDragging || this.pendingDrag) return;
 
     // Prefer explicit height prop; otherwise fit to content
     const h = (this.height || '').trim();
@@ -229,13 +248,21 @@ export class DrawerElement extends LitElementWithProps {
     this.setCssVars({ '--w3a-drawer__sheet-height': `${SHEET_HEIGHT_VH}${unit}` });
 
     // Measure above-fold bottom relative to drawer top to fit content exactly above the fold
-    const above = this.shadowRoot?.querySelector('.above-fold') as HTMLElement | null;
+    const root = this.renderRoot as unknown as ParentNode;
+    const above = root.querySelector('.above-fold') as HTMLElement | null;
     if (!above) return;
     const drawerRect = drawer.getBoundingClientRect();
     const aboveRect = above.getBoundingClientRect();
     const contentBottomPx = Math.max(0, Math.round(aboveRect.bottom - drawerRect.top));
     const sheetPx = drawer.offsetHeight || (typeof window !== 'undefined' ? window.innerHeight : contentBottomPx);
-    const ratio = clamp(1 - contentBottomPx / Math.max(1, sheetPx), 0, 1);
+    // Compute desired open translate from content.
+    // For auto height (no explicit `height` provided), fully follow the
+    // measured content height so the drawer can both open further (expand)
+    // and close further (collapse) as the TxTree changes size.
+    // This ensures the action buttons remain visible and the drawer slides
+    // down enough on collapse.
+    const measured = clamp(1 - contentBottomPx / Math.max(1, sheetPx), 0, 1);
+    const ratio = measured;
     const pct = (ratio * 100).toFixed(4) + '%';
 
     // Avoid thrashing if value hasn't meaningfully changed
@@ -270,7 +297,8 @@ export class DrawerElement extends LitElementWithProps {
 
   // Single entry to wire content-height animation sync (child height transitions → drawer transform)
   private setupAnimateWithContentSync() {
-    const host = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    const root = this.renderRoot as unknown as ParentNode;
+    const host = root.querySelector('.drawer') as HTMLElement | null;
     if (!host) return;
 
     const ensureLoop = () => {
@@ -343,7 +371,8 @@ export class DrawerElement extends LitElementWithProps {
 
     // Use a small delay to ensure the element is rendered
     setTimeout(() => {
-      const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+      const root = this.renderRoot as unknown as ParentNode;
+      const drawerElement = root.querySelector('.drawer') as HTMLElement;
 
       if (!drawerElement) {
         console.warn('Drawer element not found for drag listeners');
@@ -374,7 +403,8 @@ export class DrawerElement extends LitElementWithProps {
   }
 
   private attachViewportSync() {
-    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    const root = this.renderRoot as unknown as ParentNode;
+    const drawerElement = root.querySelector('.drawer') as HTMLElement | null;
     if (!drawerElement) return;
     const vv: any = (typeof window !== 'undefined') ? (window as any).visualViewport : undefined;
     const schedule = () => this.suppressTransitionForViewportTick();
@@ -393,14 +423,16 @@ export class DrawerElement extends LitElementWithProps {
   }
 
   private suppressTransitionForViewportTick() {
-    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement | null;
+    const root = this.renderRoot as unknown as ParentNode;
+    const drawerElement = root.querySelector('.drawer') as HTMLElement | null;
     if (!drawerElement) return;
     // Avoid fighting with active drag state; dragging already disables transitions
     if (!this.isDragging) drawerElement.classList.add('vv-sync');
   }
 
   private removeDragListeners() {
-    const drawerElement = this.shadowRoot?.querySelector('.drawer') as HTMLElement;
+    const root = this.renderRoot as unknown as ParentNode;
+    const drawerElement = root.querySelector('.drawer') as HTMLElement;
     if (!drawerElement) return;
 
     // Remove listeners from drawer element
@@ -761,7 +793,7 @@ export class DrawerElement extends LitElementWithProps {
         </div>
         <div class="body">
           ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
-          <div class="above-fold"><slot></slot></div>
+          <div class="above-fold">${this._initialChildren}</div>
         </div>
       </section>
     `;

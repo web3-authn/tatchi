@@ -5,6 +5,16 @@ iframe[data-w3a-router-id] {
   color-scheme: normal !important;
 }
 
+/* Headings use Noto Sans across VitePress-rendered docs */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3,
+.vp-doc h4,
+.vp-doc h5,
+.vp-doc h6 {
+  font-family: 'Noto Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+}
+
 body {
   min-height: unset;
 }

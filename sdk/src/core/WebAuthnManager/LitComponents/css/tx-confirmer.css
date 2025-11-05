@@ -1,7 +1,12 @@
-/* Theme tokens for modal and drawer confirmers
- * These map the TS theme object into
- * static CSS variables that components read in their styles.
- */
+/*
+  Theme tokens for modal and drawer confirmers.
+  These map the TS theme object into static CSS variables used by the UI.
+
+  Tokens are generated from sdk/src/theme/palette.json via
+  sdk/src/theme/base-styles.js (createThemeTokens) and emitted as
+  w3a-components.css by the dev/build pipelines. Components ensure the
+  stylesheet is present (see css-loader.ts and usages).
+*/
 
 /* Defaults (dark theme) */
 w3a-modal-tx-confirmer,
@@ -142,7 +147,7 @@ w3a-tx-confirm-content {
   border: 1px solid var(--w3a-colors-borderHover);
 }
 .confirm:hover {
-  background: var(--w3a-colors-buttonBackground);
+  background: var(--w3a-colors-buttonHoverBackground);
   border: 1px solid transparent;
 }
 .cancel:focus-visible, .confirm:focus-visible {
@@ -545,7 +550,7 @@ w3a-drawer-tx-confirmer[theme="light"] .modal-container-root {
 }
 
 .btn-confirm:hover {
-  background-color: var(--w3a-colors-buttonBackground);
+  background-color: var(--w3a-colors-buttonHoverBackground);
   border: 1px solid transparent;
 }
 

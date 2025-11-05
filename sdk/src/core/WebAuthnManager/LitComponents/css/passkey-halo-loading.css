@@ -1,3 +1,4 @@
+/* Inherits theme tokens from w3a-components.css (generated from palette.json). */
 :host { display: inline-block; }
 
 .w3a-passkey-loading-root { display: inline-grid; }

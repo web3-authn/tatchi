@@ -1,4 +1,11 @@
-/* Externalized styles for <w3a-iframe-button-host> container */
+/*
+  Externalized styles for <w3a-iframe-button-host> container
+
+  Theme variables (colors, surfaces) are provided by w3a-components.css,
+  generated from sdk/src/theme/palette.json via sdk/src/theme/base-styles.js.
+  The host element inherits those tokens; modify palette.json or alias
+  mappings (createThemeTokens) to change visuals globally.
+*/
 
 :host {
   display: inline-block;
@@ -75,4 +82,3 @@ iframe.flush-right { top: 50%; right: 0; transform: translateY(-50%); }
 iframe.flush-bottom-left { bottom: 0; left: 0; }
 iframe.flush-bottom-center { bottom: 0; left: 50%; transform: translateX(-50%); }
 iframe.flush-bottom-right { bottom: 0; right: 0; }
-

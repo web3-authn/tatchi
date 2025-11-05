@@ -1,3 +1,8 @@
+/*
+  Uses host-scoped tokens (w3a-components.css) generated from palette.json
+  via sdk/src/theme/base-styles.js. Adjust palette/aliases there.
+*/
+
 :host {
   display: inline-block;
   background: transparent;

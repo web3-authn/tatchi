@@ -1,4 +1,8 @@
-/* Export Private Key viewer structural and visual styles */
+/*
+  Export Private Key viewer structural and visual styles.
+  Reads theme tokens from w3a-components.css (generated from palette.json).
+  See sdk/src/theme/base-styles.js and sdk/scripts/generate-w3a-components-css.mjs.
+*/
 
 :host { display: block; position: relative; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif; }
 

@@ -1,8 +1,15 @@
-/* Tokens and defaults for <w3a-drawer> */
+/*
+  Tokens and defaults for <w3a-drawer>
+
+  Theme tokens come from w3a-components.css, generated from
+  sdk/src/theme/palette.json via createThemeTokens in sdk/src/theme/base-styles.js.
+  See css-loader.ts for how components ensure the stylesheet is present.
+  Modify palette.json or base-styles.js to change colors/aliases.
+*/
 
 w3a-drawer {
   /* Size defaults */
-  --w3a-drawer__max-width: 420px;
+  --w3a-drawer__max-width: 375px;
   --w3a-drawer__sheet-height: 100dvh; /* prefer dynamic viewport */
   --w3a-drawer__open-offset: 0px;     /* mobile chrome compensation */
   /* Match TxTree row expand/collapse timing */
@@ -12,14 +19,15 @@ w3a-drawer {
 
 /* Duplicate token defaults for shadow-adopted usage */
 :host {
-  --w3a-drawer__max-width: var(--w3a-drawer__max-width, 420px);
+  --w3a-drawer__max-width: var(--w3a-drawer__max-width, 375px);
   --w3a-drawer__sheet-height: var(--w3a-drawer__sheet-height, 100dvh);
   --w3a-drawer__open-offset: var(--w3a-drawer__open-offset, 0px);
 }
 
-/* Structural styles for <w3a-drawer> (used inside ShadowRoot) */
-:host { display: contents; }
+/* Structural styles for <w3a-drawer> (Shadow and Light DOM) */
+:host, w3a-drawer { display: contents; }
 
+w3a-drawer .overlay,
 :host .overlay {
   position: fixed;
   inset: 0;
@@ -30,8 +38,10 @@ w3a-drawer {
   transition: opacity .15s ease;
 }
 
+w3a-drawer[open] .overlay,
 :host([open]) .overlay { /* opacity: 1; */ pointer-events: auto; }
 
+w3a-drawer .drawer,
 :host .drawer {
   position: fixed;
   left: 0; right: 0; bottom: 0;
@@ -49,7 +59,7 @@ w3a-drawer {
   box-shadow: 0 0px 8px rgba(0,0,0,0.2);
   padding: 0.5rem;
   /* Constrain width and center horizontally */
-  max-width: var(--w3a-drawer__max-width, 420px);
+  max-width: var(--w3a-drawer__max-width, 375px);
   margin-left: auto;
   margin-right: auto;
   /* Use a tall sheet so we can overpull without clipping */
@@ -61,14 +71,15 @@ w3a-drawer {
 }
 
 /* Default to closed (100%) until JS computes the open translate. */
+w3a-drawer[open] .drawer,
 :host([open]) .drawer {
   /* Allow a small upward offset (in px) to compensate for mobile UI chrome */
   transform: translateY(calc(var(--w3a-drawer__open-translate, 100%) - var(--w3a-drawer__open-offset, 0px)));
 }
 
 .drawer.dragging, .drawer.vv-sync { transition: none; }
-:host .drawer.init { transition: none !important; }
-:host([open]) .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
+w3a-drawer .drawer.init, :host .drawer.init { transition: none !important; }
+w3a-drawer[open] .drawer.dragging, :host([open]) .drawer.dragging { transform: translateY(var(--w3a-drawer__drag-translate, 0px)); }
 
 .handle {
   width: 36px;
@@ -132,11 +143,14 @@ w3a-drawer {
 .relative { position: relative; }
 
 /* Light theme adjustments */
+w3a-drawer[theme="light"] .close-btn,
 :host([theme="light"]) .close-btn { color: var(--w3a-colors-textMuted, #667085); }
+w3a-drawer[theme="light"] .close-btn:hover,
 :host([theme="light"]) .close-btn:hover {
   color: var(--w3a-colors-textPrimary, #181a1f);
   background: var(--w3a-colors-surface,  rgba(0,0,0,0.06));
 }
+w3a-drawer[theme="light"] .drawer,
 :host([theme="light"]) .drawer {
   background: var(--w3a-colors-colorBackground, #fff);
   color: var(--w3a-colors-textPrimary, #181a1f);

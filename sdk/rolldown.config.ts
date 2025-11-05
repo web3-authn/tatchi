@@ -2,6 +2,7 @@
 import { BUILD_PATHS } from './build-paths.ts';
 import * as path from 'path';
 import * as fs from 'fs';
+import { pathToFileURL } from 'url';
 
 // Lightweight define plugin to replace process.env.NODE_ENV with 'production' for
 // browser/embedded bundles so React and others use prod paths and treeshake well.
@@ -509,7 +510,7 @@ const configs = [
       ...prodPlugins,
       {
         name: 'emit-wallet-service-static',
-        generateBundle() {
+        async generateBundle() {
           try {
             const sdkDir = path.join(process.cwd(), `${BUILD_PATHS.BUILD.ESM}/sdk`);
             fs.mkdirSync(sdkDir, { recursive: true });
@@ -520,152 +521,51 @@ const configs = [
             if (!fs.existsSync(shimPath)) fs.writeFileSync(shimPath, WALLET_SHIM_SOURCE, 'utf-8');
             const cssPath = path.join(sdkDir, 'wallet-service.css');
             if (!fs.existsSync(cssPath)) fs.writeFileSync(cssPath, WALLET_SURFACE_CSS, 'utf-8');
-            // Generate w3a-components.css from single-source palette
+            // Generate w3a-components.css from palette + centralized base-styles.js
             try {
               const palettePath = path.join(process.cwd(), 'src/theme/palette.json');
               const paletteRaw = fs.readFileSync(palettePath, 'utf-8');
               const p = JSON.parse(paletteRaw) as any;
+              const baseStylesPath = path.join(process.cwd(), 'src/theme/base-styles.js');
+              const base = await import(pathToFileURL(baseStylesPath).href);
+              const { createThemeTokens } = base as any;
+              const { DARK_THEME: darkVars, LIGHT_THEME: lightVars, CREAM_THEME: creamVars } = createThemeTokens(p);
               const sel = [
                 'w3a-tx-tree',
                 'w3a-drawer',
                 'w3a-modal-tx-confirmer',
                 'w3a-drawer-tx-confirmer',
+                'w3a-tx-confirm-content',
                 'w3a-button-with-tooltip',
                 'w3a-halo-border',
                 'w3a-passkey-halo-loading',
               ].join(',\n');
               const lines: string[] = [];
-              lines.push('/* Generated from src/theme/palette.json. Do not edit by hand. */');
+              lines.push('/* Generated from src/theme/palette.json + src/theme/base-styles.js. Do not edit by hand. */');
               lines.push(`${sel} {`);
               // Component defaults (no token alias assignments here)
-              lines.push(`  --w3a-modal__btn__focus-outline-color: #3b82f6;`);
+              lines.push(`  --w3a-modal__btn__focus-outline-color: ${darkVars?.focus || '#3b82f6'};`);
               lines.push(`  --w3a-tree__file-content__scrollbar-track__background: rgba(255, 255, 255, 0.06);`);
               lines.push(`  --w3a-tree__file-content__scrollbar-thumb__background: rgba(255, 255, 255, 0.22);`);
-              // GREY
-              Object.keys(p.grey || {}).forEach((k) => {
-                lines.push(`  --w3a-grey${k}: ${p.grey[k]};`);
-              });
-              // SLATE
-              Object.keys(p.slate || {}).forEach((k) => {
-                lines.push(`  --w3a-slate${k}: ${p.slate[k]};`);
-              });
-              // CREAM
-              Object.keys(p.cream || {}).forEach((k) => {
-                lines.push(`  --w3a-cream${k}: ${p.cream[k]};`);
-              });
-              // CHROMA
-              const chroma = p.chroma || {};
-              Object.keys(chroma).forEach((family) => {
-                const scale = chroma[family] || {};
-                Object.keys(scale).forEach((k) => {
-                  lines.push(`  --w3a-${family}${k}: ${scale[k]};`);
+              // Base scales from palette
+              const pushScale = (name: string, scale: Record<string, string>) => {
+                Object.keys(scale || {}).forEach((k) => {
+                  lines.push(`  --w3a-${name}${k}: ${scale[k]};`);
                 });
+              };
+              pushScale('grey', p.grey || {});
+              pushScale('slate', p.slate || {});
+              pushScale('cream', p.cream || {});
+              // Discover chroma families at root (blue, red, green, yellow, etc.)
+              const exclude = new Set(['grey','slate','cream','gradients','tokens','themes']);
+              Object.keys(p).filter((k) => !exclude.has(k)).forEach((fam) => {
+                if (p[fam] && typeof p[fam] === 'object') pushScale(fam, p[fam]);
               });
               // Gradients
               Object.keys(p.gradients || {}).forEach((name) => {
                 lines.push(`  --w3a-gradient-${name}: ${p.gradients[name]};`);
               });
-              // Default token aliases (dark) to guarantee host tokens in Shadow DOM
-              const TOKENS = (p.tokens || {}) as { buttonBackground?: string };
-              const darkVars = {
-                textPrimary: p.grey['75'],
-                textSecondary: p.grey['500'],
-                textMuted: p.grey['650'],
-                textButton: p.grey['75'],
-                colorBackground: p.grey['800'],
-                surface: p.slate['700'],
-                surface2: p.slate['750'],
-                surface3: p.slate['800'],
-                surface4: p.slate['825'],
-                primary: (p.chroma?.blue || {})['600'],
-                primaryHover: (p.chroma?.blue || {})['500'],
-                secondary: (p.chroma?.red || {})['500'],
-                secondaryHover: (p.chroma?.red || {})['400'],
-                accent: (p.chroma?.blue || {})['400'],
-                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
-                hover: p.grey['850'],
-                active: p.grey['650'],
-                focus: (p.chroma?.blue || {})['400'],
-                success: (p.chroma?.blue || {})['400'],
-                warning: (p.chroma?.yellow || {})['400'],
-                error: (p.chroma?.red || {})['400'],
-                info: (p.chroma?.blue || {})['400'],
-                borderPrimary: p.grey['650'],
-                borderSecondary: p.slate['650'],
-                borderHover: p.grey['600'],
-                backgroundGradientPrimary: p.gradients?.blue,
-                backgroundGradientSecondary: p.gradients?.blueWhite,
-                backgroundGradient4: p.gradients?.black,
-                highlightReceiverId: (p.chroma?.blue || {})['400'],
-                highlightMethodName: (p.chroma?.blue || {})['400'],
-                highlightAmount: (p.chroma?.blue || {})['400'],
-              } as const;
-              const lightVars = {
-                textPrimary: p.grey['975'],
-                textSecondary: p.grey['500'],
-                textMuted: p.grey['350'],
-                textButton: p.grey['75'],
-                colorBackground: p.grey['50'],
-                surface: p.slate['100'],
-                surface2: p.slate['150'],
-                surface3: p.slate['200'],
-                surface4: p.slate['250'],
-                primary: (p.chroma?.blue || {})['600'],
-                primaryHover: (p.chroma?.blue || {})['500'],
-                secondary: (p.chroma?.red || {})['500'],
-                secondaryHover: (p.chroma?.red || {})['400'],
-                accent: (p.chroma?.blue || {})['400'],
-                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
-                hover: p.grey['100'],
-                active: p.grey['200'],
-                focus: (p.chroma?.blue || {})['400'],
-                success: (p.chroma?.blue || {})['500'],
-                warning: (p.chroma?.yellow || {})['500'],
-                error: (p.chroma?.red || {})['500'],
-                info: (p.chroma?.blue || {})['500'],
-                borderPrimary: p.slate['300'],
-                borderSecondary: p.grey['300'],
-                borderHover: p.slate['350'],
-                backgroundGradientPrimary: p.gradients?.blue,
-                backgroundGradientSecondary: p.gradients?.blueWhite,
-                backgroundGradient4: p.gradients?.black,
-                highlightReceiverId: (p.chroma?.blue || {})['500'],
-                highlightMethodName: (p.chroma?.blue || {})['500'],
-                highlightAmount: (p.chroma?.blue || {})['500'],
-              } as const;
-              const creamVars = {
-                textPrimary: p.grey['900'],
-                textSecondary: p.grey['600'],
-                textMuted: p.grey['450'],
-                textButton: p.grey['75'],
-                colorBackground: p.cream['50'],
-                surface: p.cream['100'],
-                surface2: p.cream['150'],
-                surface3: p.cream['200'],
-                surface4: p.cream['250'],
-                primary: p.grey['700'],
-                primaryHover: p.grey['650'],
-                secondary: (p.chroma?.red || {})['500'],
-                secondaryHover: (p.chroma?.red || {})['400'],
-                accent: (p.chroma?.yellow || {})['550'],
-                buttonBackground: TOKENS.buttonBackground || (p.chroma?.blue || {})['500'],
-                hover: p.cream['75'],
-                active: p.cream['200'],
-                focus: (p.chroma?.yellow || {})['500'],
-                success: (p.chroma?.yellow || {})['400'],
-                warning: (p.chroma?.yellow || {})['600'],
-                error: (p.chroma?.red || {})['500'],
-                info: (p.chroma?.blue || {})['500'],
-                borderPrimary: p.cream['300'],
-                borderSecondary: p.cream['200'],
-                borderHover: p.cream['350'],
-                backgroundGradientPrimary: p.gradients?.black,
-                backgroundGradientSecondary: p.gradients?.blackWhite,
-                backgroundGradient4: p.gradients?.black,
-                highlightReceiverId: (p.chroma?.yellow || {})['400'],
-                highlightMethodName: (p.chroma?.yellow || {})['400'],
-                highlightAmount: (p.chroma?.yellow || {})['400'],
-              } as const;
+              // Token aliases are read from centralized theme maps (darkVars, lightVars, creamVars)
               const emitAliases = (vars: any, indent = '  ') => [
                 `${indent}--w3a-colors-textPrimary: ${vars.textPrimary};`,
                 `${indent}--w3a-colors-textSecondary: ${vars.textSecondary};`,
@@ -682,6 +582,7 @@ const configs = [
                 `${indent}--w3a-colors-secondaryHover: ${vars.secondaryHover};`,
                 `${indent}--w3a-colors-accent: ${vars.accent};`,
                 `${indent}--w3a-colors-buttonBackground: ${vars.buttonBackground};`,
+                `${indent}--w3a-colors-buttonHoverBackground: ${vars.buttonHoverBackground};`,
                 `${indent}--w3a-colors-hover: ${vars.hover};`,
                 `${indent}--w3a-colors-active: ${vars.active};`,
                 `${indent}--w3a-colors-focus: ${vars.focus};`,
@@ -722,6 +623,7 @@ const configs = [
                 'w3a-drawer',
                 'w3a-modal-tx-confirmer',
                 'w3a-drawer-tx-confirmer',
+                'w3a-tx-confirm-content',
                 'w3a-button-with-tooltip',
                 'w3a-halo-border',
                 'w3a-passkey-halo-loading',
@@ -746,7 +648,7 @@ const configs = [
             }
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-tree.css'), path.join(sdkDir, 'tx-tree.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/button-with-tooltip.css'), path.join(sdkDir, 'button-with-tooltip.css'));
-            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/modal-confirmer.css'), path.join(sdkDir, 'modal-confirmer.css'));
+            copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/tx-confirmer.css'), path.join(sdkDir, 'tx-confirmer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/drawer.css'), path.join(sdkDir, 'drawer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/halo-border.css'), path.join(sdkDir, 'halo-border.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/passkey-halo-loading.css'), path.join(sdkDir, 'passkey-halo-loading.css'));

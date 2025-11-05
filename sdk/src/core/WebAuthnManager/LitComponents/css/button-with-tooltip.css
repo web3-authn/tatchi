@@ -1,7 +1,15 @@
 /*
-   Injected via <link rel="stylesheet"> into the iframe document.
-   sets body margins inside the iframe so that the tooltip and button are centered.
-   */
+  Injected via <link rel="stylesheet"> into the iframe document.
+  Centers the tooltip/button area by normalizing iframe body margins.
+
+  Theme tokens origin:
+  - Generated from sdk/src/theme/palette.json by createThemeTokens in
+    sdk/src/theme/base-styles.js, emitted as w3a-components.css by:
+      - node sdk/scripts/generate-w3a-components-css.mjs (dev)
+      - sdk/rolldown.config.ts (build)
+  - Components ensure w3a-components.css is loaded once (see css-loader.ts and usages).
+  - Edit palette.json (scales/gradients) or adjust mappings in base-styles.js for changes.
+*/
 body, body.w3a-transparent {
   margin: 0 !important;
   padding: 0 !important;

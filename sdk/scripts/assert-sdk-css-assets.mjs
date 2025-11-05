@@ -18,7 +18,7 @@ const required = [
   'w3a-components.css',
   'tx-tree.css',
   'drawer.css',
-  'modal-confirmer.css',
+  'tx-confirmer.css',
   'button-with-tooltip.css',
   'halo-border.css',
   'passkey-halo-loading.css',

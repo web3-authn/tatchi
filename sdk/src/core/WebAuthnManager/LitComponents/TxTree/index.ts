@@ -66,7 +66,10 @@ export class TxTree extends LitElementWithProps {
     // Opt-in: render in Shadow DOM for encapsulation; default is light DOM for CSP simplicity
     shadowDom: { type: Boolean, attribute: 'shadow-dom' },
     // Optional: base URL for NEAR explorer links, e.g., https://testnet.nearblocks.io
-    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' }
+    nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
+    // Controls whether the outer tooltip wrapper shows a drop shadow.
+    // Defaults to true to preserve existing tooltip visuals.
+    showShadow: { type: Boolean, attribute: 'show-shadow' }
   } as const;
 
   // Do NOT set class field initializers for reactive props.
@@ -83,6 +86,8 @@ export class TxTree extends LitElementWithProps {
   shadowDom?: boolean;
   // Optional base URL for explorer (e.g., https://testnet.nearblocks.io)
   nearExplorerUrl?: string;
+  // When true (default), render the outer wrapper with drop shadow for tooltip usage
+  showShadow: boolean = true;
 
   // Static styles removed; this component now relies on external tx-tree.css
 
@@ -544,19 +549,21 @@ export class TxTree extends LitElementWithProps {
       const extraClass = this.class ? ` ${this.class}` : '';
       const scrollClass = this.class ? ' scrollable-root' : '';
       // Render only the children as top-level entries
-      content = html`
-        <div class="tooltip-border-outer">
-          <div class="tooltip-tree-root${extraClass}${scrollClass}">
-            <div class="tooltip-tree-children">
-              ${repeat(
-                Array.isArray(this.node.children) ? this.node.children : [],
-                (child) => child.id,
-                (child) => this.renderAnyNode(child, depth + 1)
-              )}
-            </div>
+      // When showShadow=false, skip the outer shadow wrapper to blend into host surfaces
+      const inner = html`
+        <div class="tooltip-tree-root${extraClass}${scrollClass}">
+          <div class="tooltip-tree-children">
+            ${repeat(
+              Array.isArray(this.node.children) ? this.node.children : [],
+              (child) => child.id,
+              (child) => this.renderAnyNode(child, depth + 1)
+            )}
           </div>
         </div>
       `;
+      content = this.showShadow
+        ? html`<div class="tooltip-border-outer">${inner}</div>`
+        : inner;
     } else if (this.node.type === 'folder') {
       content = this.renderFolder(depth, this.node);
     } else if (this.node.type === 'file') {

@@ -16,7 +16,7 @@ The core Lit components are designed to work without any inline `<style>` tags o
 ## What we do
 
 - External CSS only
-  - All static styles live in `/sdk/*.css` (e.g. `tx-tree.css`, `modal-confirmer.css`, `drawer.css`, `halo-border.css`, `passkey-halo-loading.css`).
+  - All static styles live in `/sdk/*.css` (e.g. `tx-tree.css`, `tx-confirmer.css`, `drawer.css`, `halo-border.css`, `passkey-halo-loading.css`).
 - Adopt styles per component
   - Components call `ensureExternalStyles(root, 'file.css', 'data-marker')` to attach the stylesheet into a ShadowRoot (via `adoptedStyleSheets`) or inject one shared `<link rel="stylesheet">` in the document. The function resolves when the sheet is loaded, so components can gate first paint to avoid FOUC.
 - Dynamic values via CSS variables
@@ -58,4 +58,3 @@ The core Lit components are designed to work without any inline `<style>` tags o
 
 - Repo doc: `sdk/src/core/WebAuthnManager/LitComponents/README-CSP.md`
 - CSS asset list is emitted by the SDK build; see `rolldown.config.ts`.
-
