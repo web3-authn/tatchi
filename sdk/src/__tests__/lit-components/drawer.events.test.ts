@@ -35,7 +35,8 @@ test.describe('Lit component – drawer events', () => {
       await new Promise((r) => setTimeout(r, 0));
       const child = wrapper.querySelector('w3a-drawer-tx-confirmer') as HTMLElement | null;
       if (!child) throw new Error('drawer variant element not found');
-      const drawer = child.shadowRoot?.querySelector('w3a-drawer') as HTMLElement | null;
+      const drawerRoot = (child as any).shadowRoot || child;
+      const drawer = drawerRoot.querySelector('w3a-drawer') as HTMLElement | null;
       if (!drawer) throw new Error('w3a-drawer not found');
 
       const counts = { os: 0, oe: 0, cs: 0, ce: 0 };
@@ -55,7 +56,8 @@ test.describe('Lit component – drawer events', () => {
     // Simulate overlay click to close
     await page.evaluate(() => {
       const refs = (window as any).__drawerTestRefs;
-      const overlay = refs.drawer.shadowRoot?.querySelector('.overlay') as HTMLElement | null;
+      const root = refs.drawer.shadowRoot || refs.drawer;
+      const overlay = root.querySelector('.overlay') as HTMLElement | null;
       overlay?.click();
     });
 
@@ -63,4 +65,3 @@ test.describe('Lit component – drawer events', () => {
     await expect.poll(async () => (await page.evaluate(() => (window as any).__drawerTestRefs?.counts?.ce || 0))).toBeGreaterThan(0);
   });
 });
-
