@@ -38,6 +38,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
     tooltipWidth: { type: String, attribute: 'tooltip-width' },
     // Optional: pass explorer base URL down to TxTree
     nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
+    // Forwarded flag to control TxTree's shadow wrapper (drop shadow)
+    showShadow: { type: Boolean, attribute: 'show-shadow' },
   } as const;
 
   declare nearAccountId: string;
@@ -52,6 +54,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   declare cancelText: string;
   declare tooltipWidth?: string | number;
   declare nearExplorerUrl?: string;
+  declare showShadow: boolean;
 
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
@@ -60,7 +63,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
   // Falls back to the embedded tooltip width, and then to 340px.
   private _txTreeWidth: string | number = 'var(--tooltip-width, 100%)';
 
-  // No static styles: structural styles are provided by modal-confirmer.css
+  // No static styles: structural styles are provided by tx-confirmer.css
 
   // Styles gating to avoid first-paint before tx-tree.css is ready
   private _stylesReady = false;
@@ -74,7 +77,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
     if (root) {
       this._stylePromises.push(
         ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-        ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+        ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'),
         ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css'),
       );
     }
@@ -85,6 +88,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
     this.title = 'Review Transaction';
     this.confirmText = 'Confirm';
     this.cancelText = 'Cancel';
+    this.showShadow = false;
     // Leave tooltipWidth undefined by default so CSS responsive var applies.
   }
 
@@ -94,8 +98,8 @@ export class TxConfirmContentElement extends LitElementWithProps {
     const root = (this as unknown) as HTMLElement;
     // Ensure tx-tree.css for nested light-DOM TxTree
     this._stylePromises.push(ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'));
-    // Also ensure modal-confirmer.css for shared confirmer styles
-    this._stylePromises.push(ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'));
+    // Also ensure tx-confirmer.css for shared confirmer styles
+    this._stylePromises.push(ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'));
     return root;
   }
 
@@ -197,6 +201,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
                       .theme=${treeTheme}
                       .width=${this._txTreeWidth}
                       .nearExplorerUrl=${explorerBase}
+                      .showShadow=${this.showShadow}
                     ></w3a-tx-tree>
                   </div>`
             : html`<div class="muted">No actions</div>`;

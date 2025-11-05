@@ -36,7 +36,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare nearAccountId: string;
   declare txSigningRequests: TransactionInputWasm[];
   declare vrfChallenge?: VRFChallenge;
-  // Theme tokens now come from external CSS (modal-confirmer.css)
+  // Theme tokens now come from external CSS (tx-confirmer.css)
   // style injection has been removed to satisfy strict CSP.
   declare theme: ThemeName;
   declare loading: boolean;
@@ -102,11 +102,12 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   protected getComponentPrefix(): string { return 'drawer-tx'; }
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    const root = super.createRenderRoot();
-    // tx-tree.css for nested TxTree visuals inside the drawer variant
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
-    // modal-confirmer.css provides shared tokens/layout for the drawer content
-    ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css').catch(() => {});
+    // Light DOM root so tokens cascade without Shadow DOM boundaries
+    const root = (this as unknown) as HTMLElement;
+    // Preload tokens + styles on host
+    ensureExternalStyles(root, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
+    ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css').catch(() => {});
+    ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css').catch(() => {});
     return root;
   }
 
@@ -122,6 +123,11 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
           (this as any)._ownsThemeAttr = true;
         }
       }
+    } catch {}
+    // Also ensure tokens CSS on document root for host-scoped variables
+    try {
+      const docEl = this.ownerDocument?.documentElement as HTMLElement | undefined;
+      if (docEl) ensureExternalStyles(docEl, 'w3a-components.css', 'data-w3a-components-css').catch(() => {});
     } catch {}
     window.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('message', this._onWindowMessage as EventListener);
@@ -140,7 +146,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
     const root = (this.renderRoot as unknown) as ShadowRoot | DocumentFragment | HTMLElement;
     await Promise.all([
       ensureExternalStyles(root, 'tx-tree.css', 'data-w3a-tx-tree-css'),
-      ensureExternalStyles(root, 'modal-confirmer.css', 'data-w3a-modal-confirmer-css'),
+      ensureExternalStyles(root, 'tx-confirmer.css', 'data-w3a-tx-confirmer-css'),
       // Preload drawer.css so fallback <link> is loaded before opening
       ensureExternalStyles(root, 'drawer.css', 'data-w3a-drawer-css'),
     ]);
@@ -266,6 +272,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               .vrfChallenge=${this.vrfChallenge}
               theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
+              .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}
               .title=${this.title}
