@@ -1,8 +1,7 @@
 import { useCallback, useState } from 'react';
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
-import { chainAdapters, contracts } from 'chainsig.js';
-import * as viem from 'viem';
-import { chooseRpc } from './useEvmRpc';
+import { createEvmAdapter, deriveEvmAddress } from '../helpers/adapters';
+import { ensure0x } from '../helpers/evm';
 
 export function useDerivedEvmAddress() {
   const { passkeyManager } = usePasskeyContext();
@@ -19,12 +18,8 @@ export function useDerivedEvmAddress() {
     const { nearAccountId, chainId, contractId, path, rpcOverride } = params;
     setLoading(true);
     try {
-      const rpcUrl = await chooseRpc(chainId, rpcOverride);
-      const publicClient = viem.createPublicClient({ transport: viem.http(rpcUrl, { timeout: 20000 }) });
-      const contract = new contracts.ChainSignatureContract({ networkId: 'testnet', contractId });
-      const evm = new chainAdapters.evm.EVM({ publicClient, contract });
-      const { address } = await evm.deriveAddressAndPublicKey(nearAccountId, path);
-      const hex = (address.startsWith('0x') ? address : `0x${address}`).toLowerCase();
+      const { evm } = await createEvmAdapter({ chainId, contractId, rpcOverride });
+      const hex = await deriveEvmAddress(evm, nearAccountId, path);
       setAddress(hex);
       try {
         await passkeyManager.setDerivedAddress(nearAccountId, {
@@ -52,7 +47,7 @@ export function useDerivedEvmAddress() {
         path: `evm:${chainId}:${path}`,
       });
       const addr = cached || '';
-      if (addr) setAddress(addr.toLowerCase());
+      if (addr) setAddress(ensure0x(addr).toLowerCase());
       return addr;
     } catch {
       return '';
@@ -61,4 +56,3 @@ export function useDerivedEvmAddress() {
 
   return { address, loading, setAddress, deriveAndCache, loadCached } as const;
 }
-

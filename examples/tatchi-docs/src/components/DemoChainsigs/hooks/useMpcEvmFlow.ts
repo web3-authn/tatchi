@@ -1,26 +1,26 @@
 import React, { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import * as viem from 'viem';
-import type {
-  TransactionSerializableEIP1559,
-  AccessList,
-  TransactionRequest,
-} from 'viem';
-import { chainAdapters, contracts } from 'chainsig.js';
+import type { TransactionSerializableEIP1559 } from 'viem';
 import { usePasskeyContext, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
-import { chooseRpc } from './useEvmRpc';
-import { parseMpcSignature } from '../../../utils/parseMpcSignature';
-import type { RSVSignature } from '../../../utils/parseMpcSignature';
-import { base64ToBytes, explorerTxBaseForChainId } from '../utils';
+import { createEvmAdapter, deriveEvmAddress } from '../helpers/adapters';
+// no direct RSVSignature use here; types handled in helpers
 import { NEAR_EXPLORER_BASE_URL } from '../../../config';
+import {
+  Hex,
+  ensure0x,
+  isValidEvmAddress,
+  coerceTxHash,
+  buildEip1559FromTransaction,
+  extractFirstSigningHash,
+  buildExplorerTxUrl,
+  toFinalizeUnsigned,
+} from '../helpers/evm';
+import { decodeMpcRsvFromSuccessValue, extractNearSuccessValue, extractNearTransactionId, renderExplorerLink } from '../helpers/near';
+import type { EVMUnsignedTransaction } from '../helpers/types';
+import { finalizeViaAdapter, finalizeViaViem } from '../helpers/finalize';
 
-type Hex = `0x${string}`;
-const hex = (s: string) => (s.startsWith('0x') ? s : `0x${s}`) as Hex;
-
-export type EVMUnsignedTransaction = TransactionRequest & {
-    type: 'eip1559';
-    chainId: number;
-};
+export type { EVMUnsignedTransaction };
 
 export function useMpcEvmFlow() {
 
@@ -48,40 +48,24 @@ export function useMpcEvmFlow() {
     setIsWorking(true);
     toast.loading('Preparing MPC signing request…', { id: 'chainsig', description: '' });
     try {
-      const toAddr = hex(to.toLowerCase());
-      if (!/^0x[0-9a-fA-F]{40}$/.test(toAddr)) throw new Error('Invalid recipient address');
+      const toAddr = ensure0x(to.toLowerCase());
+      if (!isValidEvmAddress(toAddr)) throw new Error('Invalid recipient address');
 
       // RPC + adapter
-      const rpcUrl = await chooseRpc(chainId, rpcOverride);
-      const publicClient = viem.createPublicClient({ transport: viem.http(rpcUrl, { timeout: 20000 }) });
-      const contract = new contracts.ChainSignatureContract({ networkId: 'testnet', contractId });
-      const evm = new chainAdapters.evm.EVM({ publicClient, contract });
+      const { evm, publicClient } = await createEvmAdapter({ chainId, contractId, rpcOverride });
 
       // Derive EVM address
-      const { address } = await evm.deriveAddressAndPublicKey(nearAccountId, path);
-      const fromAddr = hex(address.toLowerCase());
+      const fromAddr = await deriveEvmAddress(evm, nearAccountId, path);
       onDerivedAddress?.(fromAddr);
 
       // Prepare unsigned tx + hash (via chainsig.js adapter only)
-      let signingHash: Hex;
       const { transaction, hashesToSign } = await evm.prepareTransactionForSigning({
         from: fromAddr,
         to: toAddr,
         value: viem.parseEther(amountEth || '0'),
       });
       let unsignedTx = transaction;
-
-      const first = hashesToSign?.[0];
-      if (!first) {
-        throw new Error('No payload to sign returned by adapter');
-      }
-      if (first instanceof Uint8Array) {
-        signingHash = viem.bytesToHex(first) as Hex;
-      } else if (Array.isArray(first)) {
-        signingHash = viem.bytesToHex(Uint8Array.from(first as number[])) as Hex;
-      } else {
-        throw new Error('Unsupported hash payload type');
-      }
+      const signingHash: Hex = extractFirstSigningHash(hashesToSign);
 
       toast.message('Prepared EVM payload for MPC signing', {
         description: `chainId=${unsignedTx.chainId} to=${unsignedTx.to}`,
@@ -124,77 +108,21 @@ export function useMpcEvmFlow() {
         }
       });
 
-      const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object';
-      const txId = isObj(result) && typeof (result as Record<string, unknown>).transactionId === 'string'
-        ? (result as Record<string, unknown>).transactionId as string
-        : undefined;
+      const txId = extractNearTransactionId(result);
       if (txId) {
         const showLink = !!args.toastExplorerLink;
         const description = showLink && NEAR_EXPLORER_BASE_URL
-          ? React.createElement('a', { href: `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`, target: '_blank', rel: 'noreferrer' }, 'View on explorer')
-          : '';
+          ? renderExplorerLink(`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`)
+          : '' as any;
         toast.success(`NEAR tx: ${txId}`, { id: 'chainsig:near', description });
       }
 
-      const successValue = (() => {
-        try {
-          if (!isObj(result)) return null;
-          const resObj = result as Record<string, unknown>;
-          const topStatus = isObj(resObj.result) ? (resObj.result as Record<string, unknown>).status : resObj.status;
-          if (isObj(topStatus) && typeof (topStatus as Record<string, unknown>).SuccessValue === 'string') {
-            return (topStatus as Record<string, unknown>).SuccessValue as string;
-          }
-          const receiptsArr = isObj(resObj.result) && Array.isArray((resObj.result as Record<string, unknown>).receipts_outcome)
-            ? (resObj.result as Record<string, unknown>).receipts_outcome as unknown[]
-            : (Array.isArray(resObj.receipts_outcome) ? resObj.receipts_outcome as unknown[] : []);
-          for (const r of receiptsArr) {
-            if (!isObj(r)) continue;
-            const out = (r as Record<string, unknown>).outcome;
-            const st = isObj(out) ? (out as Record<string, unknown>).status : undefined;
-            if (isObj(st) && typeof (st as Record<string, unknown>).SuccessValue === 'string') {
-              return (st as Record<string, unknown>).SuccessValue as string;
-            }
-          }
-        } catch {}
-        return null;
-      })();
+      const successValue = extractNearSuccessValue(result);
 
       if (!successValue) {
         throw new Error('No SuccessValue in result');
       }
-      const decodedBytes = base64ToBytes(successValue);
-      const rsvSignatures = parseMpcSignature(decodedBytes) || [];
-      if (!rsvSignatures.length) throw new Error('Invalid MPC signature');
-
-
-      const toBigInt = (v: unknown, fallback: bigint): bigint => {
-        if (typeof v === 'bigint') return v;
-        if (typeof v === 'number') return BigInt(v);
-        if (typeof v === 'string' && v.trim() !== '') return BigInt(v);
-        return fallback;
-      };
-
-      const coerceTxHash = (x: unknown): string | null => {
-        if (typeof x === 'string') return x;
-        if (x && typeof x === 'object') {
-          const obj = x as Record<string, unknown>;
-          const cand = obj.hash ?? obj.transactionHash ?? obj.txHash ?? obj.result;
-          if (typeof cand === 'string') return cand;
-          const toStr = (obj as { toString?: () => string }).toString;
-          if (typeof toStr === 'function') {
-            const s = toStr.call(obj);
-            if (typeof s === 'string' && s.startsWith('0x') && s.length > 2) return s;
-          }
-        }
-        return null;
-      };
-
-      const toNumber = (v: unknown, fallback: number): number => {
-        if (typeof v === 'number' && Number.isFinite(v)) return v;
-        if (typeof v === 'bigint') return Number(v);
-        if (typeof v === 'string' && v.trim() !== '') return Number(v);
-        return fallback;
-      };
+      const rsvSignatures = decodeMpcRsvFromSuccessValue(successValue);
 
       const announceBroadcast = (
         txHashResp: unknown,
@@ -204,10 +132,8 @@ export function useMpcEvmFlow() {
         const txHash = coerceTxHash(txHashResp) || String(txHashResp);
         onTxHash?.(txHash);
         const showLink = !!args.toastExplorerLink;
-        const base = explorerTxBaseForChainId(chainId);
-        const description = showLink && base && txHash
-          ? React.createElement('a', { href: `${base}${txHash}`, target: '_blank', rel: 'noreferrer' }, 'View on explorer')
-          : '';
+        const url = showLink ? buildExplorerTxUrl(chainId, txHash) : null;
+        const description = url ? renderExplorerLink(url) : '' as any;
         toast.success(`Broadcasted EVM tx: ${txHash}`, { id: 'chainsig:evm', description });
         const verb = source === 'viem' ? 'serialize+send' : 'finalize+broadcast';
         console.info(`[chainsigs] ${source}: ${verb} OK (v=%s, txHash=%s)`, String(v), txHash);
@@ -215,72 +141,15 @@ export function useMpcEvmFlow() {
       };
 
       const tryViemFinalize = async (): Promise<string> => {
-        // viem serialize + send for each v candidate (27/28)
-        const viemUnsigned: TransactionSerializableEIP1559 = {
-          chainId: toNumber(unsignedTx.chainId, chainId),
-          nonce: toNumber(unsignedTx.nonce, 0),
-          to: unsignedTx.to || toAddr,
-          gas: toBigInt(unsignedTx.gas, 21000n),
-          maxFeePerGas: toBigInt(unsignedTx.maxFeePerGas, 0n),
-          maxPriorityFeePerGas: toBigInt(unsignedTx.maxPriorityFeePerGas, 0n),
-          value: toBigInt(unsignedTx.value, 0n),
-          data: unsignedTx.data ?? '0x',
-          accessList: (Array.isArray(unsignedTx.accessList) ? unsignedTx.accessList : []) as AccessList,
-          type: 'eip1559',
-        } as const;
-        let last: unknown = null;
-        for (const cand of rsvSignatures) {
-          try {
-            console.debug('[chainsigs] viem adaptor: serialize+send start (v=%s)', cand.v);
-            const rawSigned = viem.serializeTransaction(viemUnsigned, { r: cand.r, s: cand.s, v: BigInt(cand.v) });
-            const txHashResp = await publicClient.sendRawTransaction({ serializedTransaction: rawSigned });
-            return announceBroadcast(txHashResp, 'viem', cand.v);
-          } catch (e) {
-            last = e;
-            console.warn('[chainsigs] viem: serialize/send failed (v=%s) err=%o', cand.v, e);
-          }
-        }
-        throw last ?? new Error('All viem finalize attempts failed');
+        const viemUnsigned: TransactionSerializableEIP1559 = buildEip1559FromTransaction(unsignedTx, chainId, toAddr);
+        const { txHashResp, v } = await finalizeViaViem(publicClient, viemUnsigned, rsvSignatures);
+        return announceBroadcast(txHashResp, 'viem', v);
       };
 
-      const toAdapterRSV = (sig: RSVSignature) => ({
-        r: sig.r.startsWith('0x') ? sig.r.slice(2) : sig.r,
-        s: sig.s.startsWith('0x') ? sig.s.slice(2) : sig.s,
-        v: sig.v === 0 || sig.v === 1 ? sig.v + 27 : sig.v,
-      });
-
       const tryAdapterFinalize = async (): Promise<string> => {
-        // adapter finalize + broadcast for each v candidate, with normalized RSV
-        let last: unknown = null;
-        for (const cand of rsvSignatures) {
-          try {
-            console.debug('[chainsigs] adapter: finalize start (v=%s)', cand.v);
-            const normalized = toAdapterRSV(cand);
-            const txForFinalize: EVMUnsignedTransaction = {
-              ...unsignedTx,
-              chainId: toNumber(unsignedTx.chainId, chainId),
-              nonce: toNumber(unsignedTx.nonce, 0),
-              to: unsignedTx.to || toAddr,
-              gas: toBigInt(unsignedTx.gas, 21000n),
-              maxFeePerGas: toBigInt(unsignedTx.maxFeePerGas, 0n),
-              maxPriorityFeePerGas: toBigInt(unsignedTx.maxPriorityFeePerGas, 0n),
-              value: toBigInt(unsignedTx.value, 0n),
-              data: unsignedTx.data ?? '0x',
-              accessList: Array.isArray(unsignedTx.accessList) ? unsignedTx.accessList : [],
-              type: 'eip1559',
-            };
-            const raw = await evm.finalizeTransactionSigning({
-              transaction: txForFinalize,
-              rsvSignatures: [normalized],
-            });
-            const txHashResp = await evm.broadcastTx(raw);
-            return announceBroadcast(txHashResp, 'adapter', cand.v);
-          } catch (e) {
-            last = e;
-            console.warn('[chainsigs] adapter: finalize/broadcast failed (v=%s) err=%o', cand.v, e);
-          }
-        }
-        throw last ?? new Error('All adapter finalize attempts failed');
+        const txForFinalize: EVMUnsignedTransaction = toFinalizeUnsigned(unsignedTx, chainId, toAddr);
+        const { txHashResp, v } = await finalizeViaAdapter(evm as any, txForFinalize, rsvSignatures);
+        return announceBroadcast(txHashResp, 'adapter', v);
       };
 
       try {
