@@ -1,7 +1,6 @@
 import React from 'react';
-import { base64ToBytes } from '../../utils';
-import { parseMpcSignature } from '../../../../utils/parseMpcSignature';
-import type { RSVSignature } from '../../../../utils/parseMpcSignature';
+import { parseMpcSignature } from './parseMpcSignature';
+import type { RSVSignature } from './parseMpcSignature';
 
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -35,6 +34,20 @@ export function extractNearSuccessValue(result: unknown): string | null {
     }
   } catch {}
   return null;
+}
+
+export function base64ToBytes(b64: string): Uint8Array {
+  if (typeof atob === 'function') {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  const Buf: any = (globalThis as any).Buffer;
+  if (Buf && typeof Buf.from === 'function') {
+    return new Uint8Array(Buf.from(b64, 'base64'));
+  }
+  throw new Error('No base64 decoder available in this environment');
 }
 
 export function decodeMpcRsvFromSuccessValue(successValueB64: string): RSVSignature[] {

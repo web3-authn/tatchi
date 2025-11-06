@@ -1,14 +1,22 @@
 import React from 'react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../Select';
+// Use public/ assets via BASE_URL-aware paths so dev/prod both work
+const ethIconUrl = `${import.meta.env.BASE_URL}eth.png`;
+const usdcIconUrl = `${import.meta.env.BASE_URL}usdc.png`;
 
 export interface ChainFieldsCardProps {
   to: string;
   onChangeTo: (v: string) => void;
   amountEth: string;
-  onChangeAmountEth: (v: string) => void;
+  onChangeAmount: (v: string) => void;
+  asset: 'ETH' | 'USDC';
+  onChangeAsset: (v: 'ETH' | 'USDC') => void;
   chainId: string;
   onChangeChainId: (v: string) => void;
   rpcOverride: string;
   onChangeRpcOverride: (v: string) => void;
+  tokenAddress?: string;
+  onChangeTokenAddress?: (v: string) => void;
   mpcContractId: string;
   onChangeMpcContractId: (v: string) => void;
   expanded: boolean;
@@ -19,11 +27,15 @@ export const ChainFieldsCard: React.FC<ChainFieldsCardProps> = ({
   to,
   onChangeTo,
   amountEth,
-  onChangeAmountEth,
+  onChangeAmount,
+  asset,
+  onChangeAsset,
   chainId,
   onChangeChainId,
   rpcOverride,
   onChangeRpcOverride,
+  tokenAddress,
+  onChangeTokenAddress,
   mpcContractId,
   onChangeMpcContractId,
   expanded,
@@ -38,22 +50,44 @@ export const ChainFieldsCard: React.FC<ChainFieldsCardProps> = ({
 
       <div id="chain-fields-advanced" className={`chain-fields-advanced ${expanded ? 'expanded' : ''}`}>
         <div className="input-group">
-          <label>Amount (ETH)</label>
-          <input className="multi-tx-input" value={amountEth} onChange={(e) => onChangeAmountEth(e.target.value)} placeholder="0.01" />
+          <label>Asset</label>
+          <Select value={asset} onValueChange={(v) => onChangeAsset(v as 'ETH' | 'USDC')}>
+            <SelectTrigger className="multi-tx-input">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ETH">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <img src={ethIconUrl} alt="ETH" width={16} height={16} />
+                  ETH (native)
+                </span>
+              </SelectItem>
+              <SelectItem value="USDC">
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <img src={usdcIconUrl} alt="USDC" width={16} height={16} />
+                  USDC (ERC‑20)
+                </span>
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="input-group">
+          <label>Amount ({asset})</label>
+          <input className="multi-tx-input" value={amountEth} onChange={(e) => onChangeAmount(e.target.value)} placeholder="0.01" />
         </div>
 
         <div className="input-group">
-          <label>chainId</label>
-          <input className="multi-tx-input" value={chainId} onChange={(e) => onChangeChainId(e.target.value)} placeholder="84532 (Base Sepolia)" />
+          <label className="input-text-secondary">chainId</label>
+          <input className="multi-tx-input" value={chainId} onChange={(e) => onChangeChainId(e.target.value)} placeholder="11155111 (Ethereum Sepolia)" />
         </div>
 
         <div className="input-group">
-          <label>RPC override (optional)</label>
-          <input className="multi-tx-input" value={rpcOverride} onChange={(e) => onChangeRpcOverride(e.target.value)} placeholder="https://sepolia.base.org" />
+          <label className="input-text-secondary">RPC override</label>
+          <input className="multi-tx-input" value={rpcOverride} onChange={(e) => onChangeRpcOverride(e.target.value)} placeholder="https://sepolia.gateway.tenderly.co" />
         </div>
 
         <div className="input-group">
-          <label>MPC Contract ID (NEAR)</label>
+          <label className="input-text-secondary">MPC Contract ID (NEAR)</label>
           <input className="multi-tx-input" value={mpcContractId} onChange={(e) => onChangeMpcContractId(e.target.value)} placeholder="v1.signer-prod.testnet" />
         </div>
       </div>
@@ -75,4 +109,3 @@ export const ChainFieldsCard: React.FC<ChainFieldsCardProps> = ({
 };
 
 export default ChainFieldsCard;
-

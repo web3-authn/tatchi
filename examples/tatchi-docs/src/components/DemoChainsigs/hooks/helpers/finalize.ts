@@ -1,6 +1,6 @@
 import * as viem from 'viem';
 import type { PublicClient, TransactionSerializableEIP1559 } from 'viem';
-import type { RSVSignature } from '../../../utils/parseMpcSignature';
+import type { RSVSignature } from './parseMpcSignature';
 import { normalizeRsvToAdapter } from './evm';
 import type { EVMUnsignedTransaction } from './types';
 

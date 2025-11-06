@@ -14,6 +14,10 @@
   color: var(--fe-text-primary);
 }
 
+.chain-fields-card label.input-text-secondary {
+  color: var(--w3a-colors-textSecondary);
+}
+
 .action-section input {
   width: 100%;
   padding: var(--fe-gap-3) var(--fe-gap-4);
@@ -102,6 +106,17 @@
   font-weight: 700;
   color: var(--fe-text);
   margin: 0 0 var(--fe-gap-2) 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.demo-subtitle {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
 }
 
 .chain-fields-card {
@@ -112,16 +127,46 @@
   padding: 1rem 1rem 0 1rem; /* remove bottom padding so toggle can hug the bottom */
   margin: 0 0 1rem 0;
   overflow: hidden; /* allow full-bleed toggle without overflow */
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .chain-fields-card .multi-tx-input {
   border-radius: 2rem;
   border: none;
-  font-size: 13px;
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  cursor: pointer;
 }
 
 .chain-fields-card .multi-tx-input:focus {
   box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
+}
+
+/* Styled dropdown to match pill inputs */
+.chain-fields-card select.multi-tx-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  cursor: pointer;
+  padding-right: 2rem; /* room for caret */
+  background-color: var(--w3a-colors-surface3);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fe-text-secondary) 50%),
+    linear-gradient(135deg, var(--fe-text-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.chain-fields-card select.multi-tx-input:focus {
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--w3a-colors-primary) 50%),
+    linear-gradient(135deg, var(--w3a-colors-primary) 50%, transparent 50%);
 }
 
 .chain-fields-card label {
@@ -164,6 +209,17 @@
   width: 1em;
 }
 
+/* Constrained variant: disable full-bleed to avoid carousel overflow */
+.chain-fields-card--constrained {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.chain-fields-card--constrained .chain-fields-toggle-row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Expand/collapse animation for advanced fields */
 .chain-fields-advanced {
   overflow: hidden;
@@ -176,4 +232,50 @@
   max-height: 1200px; /* large enough to contain inputs */
   opacity: 1;
   margin-top: 0.25rem;
+}
+
+/* Faucet warning container with CSS grid auto-height animation */
+.faucet-warning-root {
+  background: none;
+  border-radius: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 0;
+  display: grid;
+  grid-template-rows: 0fr; /* collapsed */
+  opacity: 0;
+  transition: grid-template-rows 220ms var(--fe-ease), opacity 220ms var(--fe-ease), margin 220ms var(--fe-ease);
+}
+
+.faucet-warning-root.expanded {
+  grid-template-rows: 1fr; /* expanded to content */
+  opacity: 1;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.faucet-warning-wrapper {
+  overflow: hidden; /* clip content as grid row animates */
+}
+
+.faucet-warning {
+  text-align: center;
+  color: var(--fe-text);
+}
+
+.faucet-links {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.faucet-anim-show {
+  opacity: 0;
+  animation: faucetIn 220ms var(--fe-ease) forwards;
+}
+
+@keyframes faucetIn {
+  to {
+    opacity: 1;
+  }
 }

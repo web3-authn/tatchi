@@ -3,7 +3,7 @@ import * as viem from 'viem'
 export function rpcForChainId(chainId: number): string | null {
   switch (chainId) {
     case 11155111: // Ethereum Sepolia
-      return 'https://rpc.sepolia.org';
+      return 'https://sepolia.gateway.tenderly.co';
     case 84532: // Base Sepolia
       return 'https://sepolia.base.org';
     case 80002: // Polygon Amoy
@@ -23,9 +23,9 @@ export function rpcCandidatesForChainId(chainId: number): string[] {
   switch (chainId) {
     case 11155111: // Ethereum Sepolia
       return [
+        'https://sepolia.gateway.tenderly.co',
         'https://rpc.sepolia.org',
         'https://ethereum-sepolia.publicnode.com',
-        'https://sepolia.gateway.tenderly.co',
         'https://eth-sepolia.g.alchemy.com/v2/demo',
       ];
     case 84532: // Base Sepolia
@@ -65,4 +65,3 @@ export async function chooseRpc(chainId: number, override?: string): Promise<str
   }
   throw new Error('No responsive RPC for selected chain. Provide an override.');
 }
-

@@ -1,11 +1,12 @@
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
-import { ensure0x } from './helpers/evm';
+import { Hex, ensure0x } from './helpers/evm';
 
 export function useDerivedEvmAddress() {
   const { passkeyManager } = usePasskeyContext();
-  const [address, setAddress] = useState<string>('');
+  const [address, setAddress] = useState<Hex>();
   const [loading, setLoading] = useState<boolean>(false);
 
   const deriveAndCache = useCallback(async (params: {
@@ -29,6 +30,12 @@ export function useDerivedEvmAddress() {
         });
       } catch {}
       return hex as string;
+    } catch (e) {
+      const msg = (e instanceof Error ? e.message : String(e)) || 'Failed to derive address';
+      toast.error(`Derive address failed: ${msg}`, {
+        description: 'Try setting an RPC override (e.g. https://ethereum-sepolia.publicnode.com) or check network access.',
+      });
+      throw e;
     } finally {
       setLoading(false);
     }
@@ -47,7 +54,7 @@ export function useDerivedEvmAddress() {
         path: `evm:${chainId}:${path}`,
       });
       const addr = cached || '';
-      if (addr) setAddress(ensure0x(addr).toLowerCase());
+      if (addr) setAddress(ensure0x(addr));
       return addr;
     } catch {
       return '';

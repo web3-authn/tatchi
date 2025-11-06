@@ -1,8 +1,8 @@
 import type { AccessList, TransactionRequest, TransactionSerializableEIP1559 } from 'viem';
 import * as viem from 'viem';
-import { explorerTxBaseForChainId } from '../../utils';
+import { explorerTxBaseForChainId } from './faucetLinks';
 import type { EVMUnsignedTransaction } from './types';
-import type { Hex as HexType, RSVSignature } from '../../../utils/parseMpcSignature';
+import type { Hex as HexType, RSVSignature } from './parseMpcSignature';
 
 export type Hex = HexType;
 
@@ -56,7 +56,7 @@ export function normalizeRsvToAdapter(sig: RSVSignature): { r: string; s: string
 }
 
 export function buildEip1559FromTransaction(
-  unsigned: TransactionRequest,
+  unsigned: EVMUnsignedTransaction,
   chainId: number,
   defaultTo: Hex,
 ): TransactionSerializableEIP1559 {
@@ -89,7 +89,7 @@ export function buildExplorerTxUrl(chainId: number, txHash: string): string | nu
 }
 
 export function toFinalizeUnsigned(
-  unsigned: TransactionRequest,
+  unsigned: EVMUnsignedTransaction,
   chainId: number,
   defaultTo: Hex,
 ): EVMUnsignedTransaction {

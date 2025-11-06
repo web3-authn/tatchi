@@ -1,7 +1,7 @@
 import * as viem from 'viem';
 import { chainAdapters, contracts } from 'chainsig.js';
 import { chooseRpc } from '../useEvmRpc';
-import { ensure0x } from './evm';
+import { Hex, ensure0x } from './evm';
 
 export async function createEvmAdapter(params: {
   chainId: number;
@@ -17,7 +17,7 @@ export async function createEvmAdapter(params: {
   return { rpcUrl, publicClient, contract, evm } as const;
 }
 
-export async function deriveEvmAddress(evm: any, nearAccountId: string, path: string): Promise<string> {
+export async function deriveEvmAddress(evm: any, nearAccountId: string, path: string): Promise<Hex> {
   const { address } = await evm.deriveAddressAndPublicKey(nearAccountId, path);
   return ensure0x(address.toLowerCase());
 }

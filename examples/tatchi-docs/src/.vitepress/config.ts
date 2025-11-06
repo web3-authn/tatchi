@@ -17,18 +17,19 @@ export default defineConfig({
   base: '/',
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
-    // Inter font for headings, subtitles, etc.
+    // Hanken Grotesk for headings and UI; restrict to used weights for perf
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400..900;1,400..900&display=swap' }],
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap' }],
   ],
 
-  title: 'tatchi.xyz',
+  title: 'Tatchi Passkey',
   description: 'A browser based embedded wallet',
   // Use VitePress built-in appearance + nav; hidden on homepage via theme logic
   appearance: true,
 
   themeConfig: {
+    siteTitle: 'Tatchi Passkey',
     // Show right-hand outline with H2/H3
     outline: [2, 3],
     search: { provider: 'local' },
@@ -59,6 +60,7 @@ export default defineConfig({
           { text: 'Core Flows', items: [
             { text: 'Passkeys', link: '/docs/guides/passkeys' },
             { text: 'Secure Tx Confirmation', link: '/docs/guides/tx-confirmation' },
+            { text: 'Chainsigs Swap Demo', link: '/docs/guides/chainsigs-swap-demo' },
           ]},
           { text: 'Integration', items: [
             { text: 'Wallet Iframe', link: '/docs/guides/wallet-iframe' },
@@ -117,6 +119,9 @@ export default defineConfig({
 
   vite: {
     envDir: projectRoot,
+    // Serve static assets from the project-level public/ directory.
+    // Without this, requests like /eth.png 200 with text/html via SPA fallback.
+    publicDir: fileURLToPath(new URL('../../public', import.meta.url)),
     server: {
       host: 'localhost',
       port: 5222,
@@ -156,6 +161,7 @@ export default defineConfig({
     resolve: {
       alias: {
         '@app': appSrc,
+        '@': appSrc,
         process: 'process/browser',
         stream: 'stream-browserify',
         crypto: 'crypto-browserify',
