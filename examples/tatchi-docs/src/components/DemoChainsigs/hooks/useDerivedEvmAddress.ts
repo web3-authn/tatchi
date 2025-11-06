@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
-import { createEvmAdapter, deriveEvmAddress } from '../helpers/adapters';
-import { ensure0x } from '../helpers/evm';
+import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
+import { ensure0x } from './helpers/evm';
 
 export function useDerivedEvmAddress() {
   const { passkeyManager } = usePasskeyContext();

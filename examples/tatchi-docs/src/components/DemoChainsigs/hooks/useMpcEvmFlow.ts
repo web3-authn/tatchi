@@ -3,7 +3,7 @@ import { toast } from 'sonner';
 import * as viem from 'viem';
 import type { TransactionSerializableEIP1559 } from 'viem';
 import { usePasskeyContext, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
-import { createEvmAdapter, deriveEvmAddress } from '../helpers/adapters';
+import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 // no direct RSVSignature use here; types handled in helpers
 import { NEAR_EXPLORER_BASE_URL } from '../../../config';
 import {
@@ -15,10 +15,15 @@ import {
   extractFirstSigningHash,
   buildExplorerTxUrl,
   toFinalizeUnsigned,
-} from '../helpers/evm';
-import { decodeMpcRsvFromSuccessValue, extractNearSuccessValue, extractNearTransactionId, renderExplorerLink } from '../helpers/near';
-import type { EVMUnsignedTransaction } from '../helpers/types';
-import { finalizeViaAdapter, finalizeViaViem } from '../helpers/finalize';
+} from './helpers/evm';
+import {
+  decodeMpcRsvFromSuccessValue,
+  extractNearSuccessValue,
+  extractNearTransactionId,
+  renderExplorerLink
+} from './helpers/near';
+import type { EVMUnsignedTransaction } from './helpers/types';
+import { finalizeViaAdapter, finalizeViaViem } from './helpers/finalize';
 
 export type { EVMUnsignedTransaction };
 

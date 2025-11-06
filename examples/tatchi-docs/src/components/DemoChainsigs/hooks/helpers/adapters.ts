@@ -1,6 +1,6 @@
 import * as viem from 'viem';
 import { chainAdapters, contracts } from 'chainsig.js';
-import { chooseRpc } from '../hooks/useEvmRpc';
+import { chooseRpc } from '../useEvmRpc';
 import { ensure0x } from './evm';
 
 export async function createEvmAdapter(params: {

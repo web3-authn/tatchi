@@ -1,6 +1,6 @@
 import type { AccessList, TransactionRequest, TransactionSerializableEIP1559 } from 'viem';
 import * as viem from 'viem';
-import { explorerTxBaseForChainId } from '../utils';
+import { explorerTxBaseForChainId } from '../../utils';
 import type { EVMUnsignedTransaction } from './types';
 import type { Hex as HexType, RSVSignature } from '../../../utils/parseMpcSignature';
 

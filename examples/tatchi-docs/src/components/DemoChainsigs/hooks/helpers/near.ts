@@ -1,7 +1,7 @@
 import React from 'react';
-import { base64ToBytes } from '../utils';
-import { parseMpcSignature } from '../../../utils/parseMpcSignature';
-import type { RSVSignature } from '../../../utils/parseMpcSignature';
+import { base64ToBytes } from '../../utils';
+import { parseMpcSignature } from '../../../../utils/parseMpcSignature';
+import type { RSVSignature } from '../../../../utils/parseMpcSignature';
 
 export function isRecord(v: unknown): v is Record<string, unknown> {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
