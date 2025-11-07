@@ -24,6 +24,7 @@ import {
 } from './helpers/near';
 import type { EVMUnsignedTransaction } from './helpers/types';
 import { finalizeViaAdapter, finalizeViaViem } from './helpers/finalize';
+import { toUserFriendlyViemError } from './helpers/errors';
 
 export type { EVMUnsignedTransaction };
 
@@ -192,16 +193,12 @@ export function useMpcEvmFlow() {
           await tryViemFinalize();
           return; // success
         } catch (err2) {
-          const err = (err2 ?? err1);
-          const msg = (err instanceof Error ? err.message : String(err)) || 'Finalize/broadcast failed';
-          const insufficient = /insufficient funds|fee|underpriced|base fee/i.test(msg);
-          toast.error(insufficient ? 'Broadcast failed: insufficient funds. Fund the derived address and retry.' : `Broadcast failed: ${msg}`, { id: 'chainsig:erc20', description: '' });
-          throw err instanceof Error ? err : new Error(String(err));
+          throw (err2 ?? err1);
         }
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e);
-      toast.error(msg, { id: 'chainsig:erc20', description: '' });
+      const pretty = toUserFriendlyViemError(e, { chainId, asset: 'USDC' });
+      toast.error(pretty.title, { id: 'chainsig:erc20', description: pretty.description as any });
     } finally {
       setIsWorking(false);
     }
@@ -336,16 +333,12 @@ export function useMpcEvmFlow() {
           await tryViemFinalize();
           return; // success
         } catch (err2) {
-          const err = (err2 ?? err1);
-          const msg = (err instanceof Error ? err.message : String(err)) || 'Finalize/broadcast failed';
-          const insufficient = /insufficient funds|fee|underpriced|base fee/i.test(msg);
-          toast.error(insufficient ? 'Broadcast failed: insufficient funds. Fund the derived address and retry.' : `Broadcast failed: ${msg}`, { id: 'chainsig', description: '' });
-          throw err instanceof Error ? err : new Error(String(err));
+          throw (err2 ?? err1);
         }
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : JSON.stringify(e);
-      toast.error(msg, { id: 'chainsig', description: '' });
+      const pretty = toUserFriendlyViemError(e, { chainId, asset: 'ETH', amountEth });
+      toast.error(pretty.title, { id: 'chainsig', description: pretty.description as any });
     } finally {
       setIsWorking(false);
     }
