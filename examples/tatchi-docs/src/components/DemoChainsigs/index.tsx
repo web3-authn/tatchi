@@ -5,7 +5,7 @@ import { GlassBorder } from '../GlassBorder';
 import '../ActionSection.css';
 import './DemoChainsigs.css';
 
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { usePasskeyContext, useTheme } from '@tatchi-xyz/sdk/react';
 
 import { useMpcEvmFlow } from './hooks/useMpcEvmFlow';
 import DerivedAddressPill from './DerivedAddressPill';
@@ -18,6 +18,8 @@ export const DemoChainsigs: React.FC = () => {
     loginState: { isLoggedIn, nearAccountId },
     passkeyManager,
   } = usePasskeyContext();
+
+  const { theme } = useTheme();
 
   const { isWorking, signAndSendEvmTransfer, signAndSendErc20Transfer } = useMpcEvmFlow();
   const [rpcOverride, setRpcOverride] = useState<string>('');
@@ -121,10 +123,13 @@ export const DemoChainsigs: React.FC = () => {
     return () => { cancelled = true; };
   }, [chainIdNum, deriveAndCache, isLoggedIn, loadCached, mpcContractIdEffective, nearAccountId, path, rpcOverride]);
 
-  // ETH faucet conditional is now handled inside FaucetLinksRow
+  const nearLogo = theme == 'light'
+    ? `${import.meta.env.BASE_URL}near-logo-dark.svg`
+    : `${import.meta.env.BASE_URL}near-logo-light.svg`;
 
-  if (!isLoggedIn || !nearAccountId) return null;
-
+  if (!isLoggedIn || !nearAccountId) {
+    return null;
+  }
   return (
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
       <div className="demo-chainsigs-root">
@@ -132,33 +137,25 @@ export const DemoChainsigs: React.FC = () => {
         <div className="action-section">
           <div className="demo-page-header">
             <h2 className="demo-title">
-              {/* Prefer light icon in dark mode; dark icon in light mode */}
-              {(() => {
-                const darkLogo = `${import.meta.env.BASE_URL}near-logo-dark.svg`;
-                const lightLogo = `${import.meta.env.BASE_URL}near-logo-light.svg`;
-                return (
-                  <picture>
-                    {/* In dark mode, use the light logo; default to dark logo */}
-                    <source srcSet={lightLogo} media="(prefers-color-scheme: dark)" />
-                    <img
-                      src={darkLogo}
-                      alt="NEAR logo"
-                      width={24}
-                      height={24}
-                      style={{ display: 'inline-block' }}
-                    />
-                  </picture>
-                );
-              })()}
+              <picture className="demo-near-logo">
+                <img
+                  src={nearLogo}
+                  alt="NEAR logo"
+                  width={32}
+                  height={32}
+                  style={{ display: 'inline-block' }}
+                />
+              </picture>
               <span>NEAR Intents Demo</span>
             </h2>
           </div>
           <div className="action-text">
             <div className="demo-subtitle">
-              Send EVM transactions using TouchID
+              Send NEAR Intents using TouchID
             </div>
             Request a Chain Signature from NEAR intents contract,
-            then broadcast it to the Ethereum Sepolia network.
+            then broadcast it to the Ethereum Sepolia network,
+            or any network supported by NEAR intents such as Solana, Bitcoin, Zcash, etc.
           </div>
 
           <div className="input-group"

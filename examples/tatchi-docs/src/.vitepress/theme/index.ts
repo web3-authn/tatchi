@@ -72,6 +72,7 @@ function safeLocalStorageSet(key: string, value: string): void {
 function applyAppearance(mode: 'light' | 'dark'): void {
   const html = document.documentElement
   html.classList.toggle('dark', mode === 'dark')
+  html.setAttribute('data-w3a-theme', mode)
   safeLocalStorageSet('vitepress-theme-appearance', mode)
   window.dispatchEvent(new CustomEvent<'light' | 'dark'>('w3a:appearance', { detail: mode }))
 }
@@ -130,6 +131,17 @@ const theme: Theme = {
     attachNavigateBridge(go)
 
     setupThemeToggleBridge()
+
+    // Keep data-w3a-theme on <html> in sync with VitePress root class
+    const syncDataTheme = () => {
+      const mode: 'light' | 'dark' = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+      document.documentElement.setAttribute('data-w3a-theme', mode)
+    }
+    // Initial sync
+    syncDataTheme()
+    // React to class changes from VitePress UI
+    const moTheme = new MutationObserver(syncDataTheme)
+    moTheme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
 
     // Hide VitePress navbar controls on the homepage only
     function isHomePath(): boolean {

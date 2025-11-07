@@ -119,38 +119,44 @@
   margin: 0 0 var(--fe-gap-2) 0;
 }
 
+.demo-near-logo {
+  display: flex;
+  justify-content: center;
+}
+
 .chain-fields-card {
   display: flex;
   flex-direction: column;
   background: var(--w3a-colors-surface2);
   border-radius: 2rem;
-  padding: 1rem 1rem 0 1rem; /* remove bottom padding so toggle can hug the bottom */
+  padding: 1rem;
   margin: 0 0 1rem 0;
-  overflow: hidden; /* allow full-bleed toggle without overflow */
+  overflow: hidden;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
-.chain-fields-card .multi-tx-input {
+.chain-fields-card .multi-tx-input,
+.chain-fields-card {
   border-radius: 2rem;
   border: none;
   display: flex;
   justify-content: center;
-  gap: 1rem;
   cursor: pointer;
 }
 
-.chain-fields-card .multi-tx-input:focus {
+.chain-fields-card .multi-tx-input:focus,
+.chain-fields-card .asset-input:focus {
   box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
 }
 
 /* Styled dropdown to match pill inputs */
-.chain-fields-card select.multi-tx-input {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
+.chain-fields-card .asset-input {
+  width: 100%;
+  height: 44px;
   cursor: pointer;
+  border-radius: 2rem;
   padding-right: 2rem; /* room for caret */
   background-color: var(--w3a-colors-surface3);
   background-image:
@@ -161,12 +167,22 @@
     calc(100% - 12px) 50%;
   background-size: 6px 6px, 6px 6px;
   background-repeat: no-repeat;
+  transition: background-color 160ms var(--fe-ease, ease), background-image 160ms var(--fe-ease, ease);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
-.chain-fields-card select.multi-tx-input:focus {
+.chain-fields-card .asset-input span {
+  display: flex;
+  justify-content: center;
+}
+
+.chain-fields-card .asset-input:hover {
+  background-color: var(--w3a-colors-surface2);
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--w3a-colors-primary) 50%),
-    linear-gradient(135deg, var(--w3a-colors-primary) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--fe-text) 50%),
+    linear-gradient(135deg, var(--fe-text) 50%, transparent 50%);
 }
 
 .chain-fields-card label {
@@ -178,9 +194,10 @@
 .chain-fields-toggle-row {
   align-items: center;
   justify-content: stretch;
-  margin-top: 0; /* eliminate non-clickable dead zone above the toggle */
+  margin-top: 0.5rem; /* eliminate non-clickable dead zone above the toggle */
   margin-left: -1rem;  /* full-bleed horizontally */
   margin-right: -1rem; /* full-bleed horizontally */
+  margin-bottom: 0rem;
 }
 
 .chain-fields-toggle {
@@ -190,7 +207,7 @@
   border: none;
   background: transparent;
   color: var(--fe-text-secondary);
-  padding: 12px 1rem; /* comfortable click area and align with card padding */
+  padding: 0.5rem 1rem; /* comfortable click area and align with card padding */
   line-height: 1.2;
   cursor: pointer;
   display: inline-flex;
@@ -220,8 +237,19 @@
   margin-right: 0;
 }
 
+.chain-fields-asset-input {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
 /* Expand/collapse animation for advanced fields */
 .chain-fields-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
@@ -231,7 +259,7 @@
 .chain-fields-advanced.expanded {
   max-height: 1200px; /* large enough to contain inputs */
   opacity: 1;
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
 }
 
 /* Faucet warning container with CSS grid auto-height animation */

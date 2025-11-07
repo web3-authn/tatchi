@@ -1,0 +1,105 @@
+/* Select component styles using the docs theme variables */
+
+.select-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 1rem;
+  background: var(--fe-input-bg);
+  color: var(--fe-input-text);
+  border: 1px solid var(--fe-border);
+  cursor: pointer;
+  transition: all 160ms var(--fe-ease, ease);
+}
+.select-trigger:hover { box-shadow: 0 2px 8px var(--fe-shadow); border-color: var(--fe-border-strong); }
+html[data-w3a-theme="light"] .select-trigger:hover { background: var(--w3a-colors-surface2); }
+html[data-w3a-theme="dark"] .select-trigger:hover { background: var(--w3a-colors-surface3); }
+
+/* Ensure hover wins when combined with multi-tx-input styling */
+.select-trigger.multi-tx-input:hover,
+.select-trigger.multi-tx-input[data-state="open"],
+.select-trigger.asset-input:hover,
+.select-trigger.asset-input[data-state="open"] {
+  box-shadow: 0 2px 8px var(--fe-shadow);
+}
+html[data-w3a-theme="light"] .select-trigger.multi-tx-input:hover,
+html[data-w3a-theme="light"] .select-trigger.multi-tx-input[data-state="open"],
+html[data-w3a-theme="light"] .select-trigger.asset-input:hover,
+html[data-w3a-theme="light"] .select-trigger.asset-input[data-state="open"] {
+  background: var(--w3a-colors-surface2);
+}
+html[data-w3a-theme="dark"] .select-trigger.multi-tx-input:hover,
+html[data-w3a-theme="dark"] .select-trigger.multi-tx-input[data-state="open"],
+html[data-w3a-theme="dark"] .select-trigger.asset-input:hover,
+html[data-w3a-theme="dark"] .select-trigger.asset-input[data-state="open"] {
+  background: var(--w3a-colors-surface3);
+}
+.select-trigger:focus { outline: none; box-shadow: 0 0 0 3px var(--w3a-shadows-sm); }
+.select-trigger[data-placeholder] { color: var(--fe-text-secondary); }
+
+.select-icon { color: var(--fe-text-secondary); display: inline-flex; }
+
+[data-radix-popper-content-wrapper] {
+}
+
+/* target the Radix portal wrapper explicitly */
+[data-radix-popper-content-wrapper] > .select-content {
+  overflow: hidden;
+  /* Match trigger width; fall back to popper anchor width */
+  width: var(--radix-select-trigger-width, var(--radix-popper-anchor-width));
+  min-width: var(--radix-select-trigger-width, var(--radix-popper-anchor-width));
+  max-width: var(--radix-popper-available-width, 100vw);
+  background: var(--w3a-colors-surface2);
+  color: var(--fe-text);
+  border-radius: 12px;
+  border: 1px solid var(--fe-border);
+  z-index: 1000;
+  opacity: 1 !important;
+  position: relative;
+  isolation: isolate;
+  background-clip: padding-box;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: 0 10px 38px -10px rgba(0,0,0,0.35), 0 10px 20px -15px rgba(0,0,0,0.2);
+}
+
+/* Also apply when content is not wrapped (defensive) */
+.select-content {
+  width: var(--radix-select-trigger-width, var(--radix-popper-anchor-width));
+  min-width: var(--radix-select-trigger-width, var(--radix-popper-anchor-width));
+  max-width: var(--radix-popper-available-width, 100vw);
+}
+
+.select-viewport {
+  padding: 6px;
+  background: var(--w3a-colors-colorBackground);
+}
+
+.select-item {
+  font-size: 14px;
+  line-height: 1;
+  color: var(--fe-text);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 32px 0 28px;
+  position: relative;
+  user-select: none;
+}
+.select-item[data-disabled] { color: var(--fe-text-secondary); opacity: 0.6; pointer-events: none; }
+.select-item[data-highlighted] { outline: none; background: var(--w3a-colors-surface3); color: var(--fe-text); }
+.select-item:hover {
+  background: var(--w3a-colors-surface);
+}
+
+.select-label { padding: 0 10px; font-size: 12px; line-height: 26px; color: var(--w3a-colors-textSecondary, var(--fe-text-secondary)); }
+
+.select-separator { height: 1px; background: var(--fe-border); margin: 6px; }
+
+.select-item-indicator { position: absolute; left: 0; width: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--fe-text-secondary); }
+
+.select-scroll-button { display: flex; align-items: center; justify-content: center; height: 26px; background: var(--w3a-colors-colorBackground, var(--w3a-colors-surface, #0b0c10)) !important; color: var(--fe-text); }

@@ -21,9 +21,12 @@ export function useThemeBridge() {
   const { theme, tokens, setTheme } = useTheme()
   const { loginState, passkeyManager } = usePasskeyContext()
 
-  // Reflect current theme on <body> for global CSS and docs navbar
+  // Reflect current theme on <html> (and <body> for backward-compat) for global CSS
   React.useEffect(() => {
     try {
+      const root = document.documentElement
+      root.setAttribute('data-w3a-theme', theme)
+      // Backward-compat: keep body in sync for existing selectors
       document.body.setAttribute('data-w3a-theme', theme)
       // Let document-level CSS control colors; avoid double-paint
       document.body.style.removeProperty('background')

@@ -1,0 +1,73 @@
+.app-footer {
+  position: relative;
+  color: var(--fe-text-secondary);
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+.app-footer__inner {
+  position: relative;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2.5rem 1rem 4rem 1rem;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 2rem;
+}
+.app-footer__brand { display: flex; align-items: flex-start; }
+.app-footer__logo {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.app-footer__logo svg {
+  width: 60px;
+  height: auto;
+  margin-top: 2px;
+}
+
+.app-footer__nav {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 2rem;
+}
+.app-footer__col { display: flex; flex-direction: column; gap: 0.5rem; }
+.app-footer__heading {
+  color: var(--fe-text-dim);
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.app-footer__col a {
+  color: var(--fe-text);
+  text-decoration: none;
+  line-height: 1.8;
+}
+.app-footer__col a:hover { color: var(--w3a-colors-secondaryHover); }
+/* Keep link text color stable; tint only the SVG on hover */
+.app-footer__logo:hover { color: var(--fe-text); }
+.app-footer__logo:hover svg { color: var(--w3a-colors-secondaryHover); }
+
+.app-footer__built {
+  margin-top: 0.5rem;
+  color: var(--fe-text-dim);
+  font-size: 0.9rem;
+}
+
+.app-footer__brandword {
+  position: absolute;
+  left: 0rem;
+  bottom: 0;
+  text-align: left;
+  font-family: var(--fe-font-display);
+  font-size: clamp(64px, 25vw, 330px);
+  line-height: 0.7;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--fe-text) 6%, transparent);
+  pointer-events: none;
+  user-select: none;
+}
+
+@media (max-width: 800px) {
+  .app-footer__inner { grid-template-columns: 1fr; gap: 1.5rem; padding-bottom: 3.5rem; }
+  .app-footer__nav { grid-template-columns: 1fr 1fr; }
+  .app-footer__brandword { font-size: clamp(48px, 24vw, 160px); }
+}

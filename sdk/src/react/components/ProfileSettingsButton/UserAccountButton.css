@@ -73,8 +73,6 @@
   color: var(--w3a-colors-textSecondary) /* same as other MenuItem svg icons */
 }
 
-/* TouchIcon styles were moved to TouchIcon.css */
-
 /* User Details States */
 .w3a-user-account--user-details .w3a-user-account--account-id.hidden {
   position: absolute;

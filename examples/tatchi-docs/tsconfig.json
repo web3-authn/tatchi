@@ -12,7 +12,8 @@
     "baseUrl": ".",
     "paths": {
       "@tatchi-xyz/sdk/react": ["../../sdk/dist/types/src/react/index.d.ts"],
-      "@tatchi-xyz/sdk/react/*": ["../../sdk/dist/types/src/react/*"]
+      "@tatchi-xyz/sdk/react/*": ["../../sdk/dist/types/src/react/*"],
+      "@/*": ["./src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", "**/*.d.ts", "vite-env.d.ts"]

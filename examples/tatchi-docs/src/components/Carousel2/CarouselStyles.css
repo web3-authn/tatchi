@@ -66,8 +66,15 @@
 .carousel-breadcrumbs ol { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .carousel-breadcrumbs li { display: flex; justify-content: center; align-items: center; }
 .carousel-breadcrumbs .crumb { background: transparent; border: none; color: var(--fe-text-secondary); font: inherit; padding: 0; border-radius: 0; cursor: pointer; }
-.carousel-breadcrumbs .crumb:hover { color: color-mix(in srgb, var(--fe-text) 60%, white); background: transparent; }
-.carousel-breadcrumbs .crumb.is-active { color: color-mix(in srgb, var(--fe-text) 80%, white); background: transparent; }
+.carousel-breadcrumbs .crumb:hover {
+  color: color-mix(in srgb, var(--fe-text) 60%, white);
+  background: transparent;
+}
+.carousel-breadcrumbs .crumb.is-active {
+  color: color-mix(in srgb, var(--fe-text) 80%, white);
+  background: transparent;
+  font-weight: 500;
+}
 .carousel-breadcrumbs .crumb.is-disabled { opacity: 0.6; cursor: not-allowed; }
 .carousel-breadcrumbs .crumb:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--w3a-colors-focus); }
 .carousel-breadcrumbs .crumb-sep {

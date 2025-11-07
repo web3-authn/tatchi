@@ -29,7 +29,7 @@ export default defineConfig({
   appearance: true,
 
   themeConfig: {
-    siteTitle: 'Tatchi Passkey',
+    siteTitle: 'Tatchi.xyz',
     // Show right-hand outline with H2/H3
     outline: [2, 3],
     search: { provider: 'local' },

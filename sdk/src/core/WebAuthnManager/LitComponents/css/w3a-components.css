@@ -40,9 +40,9 @@ w3a-export-key-viewer {
   --w3a-colors-surface4: oklch(0.175 0.015 240);
   --w3a-colors-primary: oklch(0.56 0.158 255);
   --w3a-colors-primaryHover: oklch(0.66 0.180 255);
-  --w3a-colors-secondary: oklch(0.66 0.180 19);
-  --w3a-colors-secondaryHover: oklch(0.74 0.166 19);
-  --w3a-colors-accent: oklch(0.74 0.166 255);
+  --w3a-colors-secondary: oklch(0.6 0.14 295);
+  --w3a-colors-secondaryHover: oklch(0.65 0.15 298);
+  --w3a-colors-accent: oklch(0.70 0.174 255);
   --w3a-colors-buttonBackground: oklch(0.66 0.180 255);
   --w3a-colors-buttonHoverBackground: oklch(0.56 0.158 255);
   --w3a-colors-hover: oklch(0.15 0.008 240);
@@ -83,9 +83,9 @@ w3a-export-key-viewer {
   --w3a-colors-surface4: oklch(0.84 0.0175 240);
   --w3a-colors-primary: oklch(0.56 0.158 255);
   --w3a-colors-primaryHover: oklch(0.66 0.180 255);
-  --w3a-colors-secondary: oklch(0.66 0.180 19);
-  --w3a-colors-secondaryHover: oklch(0.74 0.166 19);
-  --w3a-colors-accent: oklch(0.74 0.166 255);
+  --w3a-colors-secondary: oklch(0.6 0.14 295);
+  --w3a-colors-secondaryHover: oklch(0.65 0.15 298);
+  --w3a-colors-accent: oklch(0.70 0.174 255);
   --w3a-colors-buttonBackground: oklch(0.66 0.180 255);
   --w3a-colors-buttonHoverBackground: oklch(0.56 0.158 255);
   --w3a-colors-hover: oklch(0.95 0.005 240);
@@ -126,8 +126,8 @@ w3a-export-key-viewer {
   --w3a-colors-surface4: oklch(0.85 0.016 95);
   --w3a-colors-primary: oklch(0.3 0.015 240);
   --w3a-colors-primaryHover: oklch(0.35 0.018 240);
-  --w3a-colors-secondary: oklch(0.66 0.180 19);
-  --w3a-colors-secondaryHover: oklch(0.74 0.166 19);
+  --w3a-colors-secondary: oklch(0.6 0.14 295);
+  --w3a-colors-secondaryHover: oklch(0.65 0.15 298);
   --w3a-colors-accent: oklch(0.62 0.182 95);
   --w3a-colors-buttonBackground: oklch(0.66 0.180 255);
   --w3a-colors-buttonHoverBackground: oklch(0.56 0.158 255);

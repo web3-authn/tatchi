@@ -70,8 +70,8 @@ export function AccountRecovery() {
         }}>
           <h2 className="demo-title">Device Linking</h2>
           <div className="action-text">
-            You can also use QR codes to scan and link a new device to your account. This serves as a
-            password-less backup of your wallet.
+            Use QR codes to scan and link a new device to your account.
+            Backup your wallet on multiple devices without remembering keys, or passphrases.
           </div>
           <div
             aria-label="Illustration: iPhone scanning browser QR code"

@@ -39,18 +39,20 @@ html[data-w3a-theme="dark"] {
 /* Ensure VitePress body background color doesn't cover the html gradient */
 html[data-w3a-theme] body {
   background: transparent !important;
-  background-color: transparent !important;
+  /* background-color: transparent !important; */
+  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
 }
 
 /* Remove scrollbar gutters (hide scrollbars, keep scrollable) */
-html, body {
+html {
   margin: 0;
   scrollbar-gutter: auto !important;
-  overflow-y: auto;
+  overflow-y: auto;          /* make only the root scrollable */
   overflow-x: clip;
-  scrollbar-width: none;    /* Firefox */
+  scrollbar-width: none;     /* Firefox */
   background: transparent;
 }
+body { margin: 0; overflow: hidden; }
 html::-webkit-scrollbar,
 body::-webkit-scrollbar {
   width: 0;
@@ -89,4 +91,48 @@ body::-webkit-scrollbar {
 
 .VPFlyout.VPNavBarExtra.extra > div.menu > div.VPMenu > div.group > .item.appearance {
   display: flex;
+}
+
+/* Global docs footer styling (component in layout-bottom slot) */
+.global-footer { font-family: var(--fe-font-sans); }
+
+/*
+  Override VitePress theme color tokens with our SDK theme variables.
+  These feed the default theme components (navbar, sidebar, code blocks, etc.).
+  We reference --w3a-colors-* so values stay in sync with light/dark.
+*/
+:root {
+  /* Colors: Background (light) */
+  --vp-c-bg: oklch(0.98 0 0);            /* grey50 */
+  --vp-c-bg-alt: oklch(0.915 0.0125 240);/* slate150 */
+  --vp-c-bg-elv: oklch(0.95 0.01 240);   /* slate100 */
+  --vp-c-bg-soft: oklch(0.88 0.015 240); /* slate200 */
+
+  /* Colors: Borders (light) */
+  --vp-c-border: oklch(0.8 0.02 240);    /* slate300 */
+  --vp-c-divider: oklch(0.82 0.014 240); /* grey300 */
+  --vp-c-gutter: oklch(0.82 0.014 240);  /* grey300 */
+
+  /* Colors: Text (light) */
+  --vp-c-text-1: oklch(0.025 0.001 240); /* grey975 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.75 0.016 240);  /* grey350 */
+}
+
+.dark {
+  /* Colors: Background (dark) */
+  --vp-c-bg: oklch(0.2 0.01 240);        /* grey800 */
+  --vp-c-bg-alt: oklch(0.175 0.015 240); /* slate825 (darker alt) */
+  --vp-c-bg-elv: oklch(0.3 0.02 240);    /* slate700 (elevated) */
+  --vp-c-bg-soft: oklch(0.2 0.015 240);  /* slate800 */
+
+  /* Colors: Borders (dark) */
+  --vp-c-border: oklch(0.35 0.018 240);  /* grey650 */
+  --vp-c-divider: oklch(0.35 0.0225 240);/* slate650 */
+  --vp-c-gutter: #000000;                /* black */
+
+  /* Colors: Text (dark) */
+  --vp-c-text-1: oklch(0.97 0.002 240);  /* grey75 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.35 0.018 240);  /* grey650 */
 }

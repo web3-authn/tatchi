@@ -33,6 +33,19 @@
   box-shadow: 0 2px 4px var(--fe-shadow);
 }
 
+.button--secondary {
+  background: var(--w3a-colors-secondary);
+  color: white;
+}
+
+.button--secondary:hover:not(:disabled) {
+  background: var(--w3a-colors-secondaryHover);
+  /* Add a subtle primary-colored ring on hover */
+  box-shadow:
+    0 6px 12px var(--fe-shadow),
+    0 0 0 2px var(--w3a-colors-primary);
+}
+
 .button:disabled,
 .button--loading {
   cursor: not-allowed;

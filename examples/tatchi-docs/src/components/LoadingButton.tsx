@@ -7,7 +7,7 @@ interface LoadingButtonProps {
   loading?: boolean;
   loadingText?: string;
   children: React.ReactNode;
-  variant?: 'primary' | 'secondary' | 'danger';
+  variant?: 'primary' | 'secondary';
   size?: 'small' | 'medium' | 'large';
   className?: string;
   style?: React.CSSProperties;
