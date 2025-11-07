@@ -20,7 +20,10 @@ export default defineConfig({
     // Hanken Grotesk for headings and UI; restrict to used weights for perf
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' }],
-    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap' }],
+    // Preload stylesheet to reduce a round‑trip before applying fonts
+    ['link', { rel: 'preload', as: 'style', href: 'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=fallback' }],
+    // Use display=fallback to minimize FOUT/FOUC without delaying first paint
+    ['link', { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=fallback' }],
   ],
 
   title: 'Tatchi Passkey',
@@ -119,9 +122,8 @@ export default defineConfig({
 
   vite: {
     envDir: projectRoot,
-    // Serve static assets from the project-level public/ directory.
-    // Without this, requests like /eth.png 200 with text/html via SPA fallback.
-    publicDir: fileURLToPath(new URL('../../public', import.meta.url)),
+    // Use VitePress default public directory: <docsDir>/public (i.e. src/public)
+    // This keeps assets tracked in git and bundled consistently.
     server: {
       host: 'localhost',
       port: 5222,

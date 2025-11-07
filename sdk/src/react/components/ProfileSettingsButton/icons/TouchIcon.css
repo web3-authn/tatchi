@@ -1,23 +1,25 @@
 /* TouchIcon specific styles and animations */
 
-.w3a-user-account--fingerprint-icon {
+.w3a-fingerprint-icon {
   transition: transform 400ms ease;
 }
 
-.w3a-user-account--fingerprint-icon path {
+.w3a-fingerprint-icon path {
   /* Normalize path length so dash animations are simple */
   stroke: currentColor;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1; /* default empty; draws in on open */
 }
 
-.w3a-user-account--fingerprint-icon.open path {
+.w3a-fingerprint-icon.open path {
   /* Draw the fingerprint when expanding/opening */
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   animation: w3a-fp-open 1.6s ease-out 0.1s both;
 }
 
 /* Animate when closing the menu */
-.w3a-user-account--fingerprint-icon.closed path {
+.w3a-fingerprint-icon.closed path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
   animation: w3a-fp-close 1.6s ease-out 0.1s both;
 }
 
@@ -31,6 +33,6 @@
   to { stroke-dashoffset: 0; }
 }
 
-.w3a-user-account--fingerprint-icon:hover {
+.w3a-fingerprint-icon:hover {
   transform: rotate(180deg) scale(1.2);
 }
