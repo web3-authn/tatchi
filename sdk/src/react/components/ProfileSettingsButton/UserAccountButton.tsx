@@ -41,7 +41,7 @@ export const UserAccountButton: React.FC<UserAccountButtonProps> = ({
         <div className="w3a-user-account--user-content">
           <div className={`w3a-user-account--avatar ${hideWhenClosed ? 'hide-username' : ''} ${isOpen ? 'expanded' : 'shrunk'}`}>
             <TouchIcon
-              className={`w3a-user-account--fingerprint-icon ${isOpen ? 'open' : 'closed'}`}
+              className={`w3a-fingerprint-icon ${isOpen ? 'open' : 'closed'}`}
               strokeWidth={1.4}
             />
           </div>

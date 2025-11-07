@@ -119,9 +119,8 @@ export default defineConfig({
 
   vite: {
     envDir: projectRoot,
-    // Serve static assets from the project-level public/ directory.
-    // Without this, requests like /eth.png 200 with text/html via SPA fallback.
-    publicDir: fileURLToPath(new URL('../../public', import.meta.url)),
+    // Use VitePress default public directory: <docsDir>/public (i.e. src/public)
+    // This keeps assets tracked in git and bundled consistently.
     server: {
       host: 'localhost',
       port: 5222,
