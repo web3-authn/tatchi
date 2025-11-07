@@ -1,0 +1,33 @@
+.navbar-static a { color: var(--w3a-colors-textPrimary); }
+.navbar-static a,
+.navbar-static button {
+  transition: color 0.2s ease;
+}
+.navbar-static a:hover,
+.navbar-static button:hover {
+  color: var(--w3a-colors-secondaryHover);
+}
+
+.navbar-static__near {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+}
+.navbar-static__near svg {
+  width: 48px;
+  height: auto;
+  margin-top: 2px;
+}
+.navbar-static__near:hover {
+  color: var(--fe-text);
+  transition: color 0.2s ease;
+}
+.navbar-static__near:hover svg {
+  color: var(--w3a-colors-secondaryHover);
+  transition: color 0.2s ease;
+}

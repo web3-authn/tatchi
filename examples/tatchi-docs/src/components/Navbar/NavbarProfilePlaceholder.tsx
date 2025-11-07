@@ -17,7 +17,7 @@ export const NavbarProfilePlaceholder: React.FC = () => {
       const w = typeof ce?.detail === 'number' ? ce.detail : 0
       // Add a small gap so links don't touch the button
       if (!loggedIn) return
-      setWidth(Math.max(0, Math.ceil(w + 12)))
+      setWidth(Math.max(0, Math.ceil(w + 4)))
     }
     const onLoginState = (e: Event) => {
       const ce = e as CustomEvent<{ loggedIn?: boolean }>

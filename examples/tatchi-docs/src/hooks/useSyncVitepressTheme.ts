@@ -40,6 +40,7 @@ export function useSyncVitepressTheme() {
       syncingVpFromSdkRef.current = true
       const root = document.documentElement
       root.classList.toggle('dark', mode === 'dark')
+      try { root.setAttribute('data-w3a-theme', mode) } catch {}
       try { localStorage.setItem('vitepress-theme-appearance', mode) } catch (err) {
         console.debug('[useSyncVitepressTheme] setItem failed:', err)
       }

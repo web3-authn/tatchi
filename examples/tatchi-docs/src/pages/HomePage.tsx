@@ -1,9 +1,8 @@
-import Github from "../components/icons/Github";
-import Twitter from "../components/icons/Twitter";
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
 import { CombinedCodeBlock } from '../components/CombinedCodeBlock';
 import { PasskeyColumn } from '../components/PasskeyColumn';
+import { Footer } from '../components/Footer';
 
 export function HomePage() {
   return (
@@ -36,27 +35,8 @@ export function HomePage() {
 
       {/* five */}
       <div className="card five">
-        <div className="constrained-column">
-          <footer className="site-footer" aria-label="Social links">
-            <a
-              className="site-footer-link"
-              href="https://github.com/web3-authn/tatchi"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open the Tatchi GitHub repository"
-            >
-              <Github size={24} aria-hidden />
-            </a>
-            <a
-              className="site-footer-link"
-              href="https://x.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open our X (Twitter) profile"
-            >
-              <Twitter size={24} aria-hidden />
-            </a>
-          </footer>
+        <div className="full-bleed">
+          <Footer />
         </div>
       </div>
     </div>

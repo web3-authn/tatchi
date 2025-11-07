@@ -14,6 +14,10 @@
   color: var(--fe-text-primary);
 }
 
+.chain-fields-card label.input-text-secondary {
+  color: var(--w3a-colors-textSecondary);
+}
+
 .action-section input {
   width: 100%;
   padding: var(--fe-gap-3) var(--fe-gap-4);
@@ -102,6 +106,22 @@
   font-weight: 700;
   color: var(--fe-text);
   margin: 0 0 var(--fe-gap-2) 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.demo-subtitle {
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--fe-text);
+  margin: 0 0 var(--fe-gap-2) 0;
+}
+
+.demo-near-logo {
+  display: flex;
+  justify-content: center;
 }
 
 .chain-fields-card {
@@ -109,19 +129,60 @@
   flex-direction: column;
   background: var(--w3a-colors-surface2);
   border-radius: 2rem;
-  padding: 1rem 1rem 0 1rem; /* remove bottom padding so toggle can hug the bottom */
+  padding: 1rem;
   margin: 0 0 1rem 0;
-  overflow: hidden; /* allow full-bleed toggle without overflow */
+  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
-.chain-fields-card .multi-tx-input {
+.chain-fields-card .multi-tx-input,
+.chain-fields-card {
   border-radius: 2rem;
   border: none;
-  font-size: 13px;
+  display: flex;
+  justify-content: center;
+  cursor: pointer;
 }
 
-.chain-fields-card .multi-tx-input:focus {
+.chain-fields-card .multi-tx-input:focus,
+.chain-fields-card .asset-input:focus {
   box-shadow: 0 0 0 3px var(--w3a-shadows-sm);
+}
+
+/* Styled dropdown to match pill inputs */
+.chain-fields-card .asset-input {
+  width: 100%;
+  height: 44px;
+  cursor: pointer;
+  border-radius: 2rem;
+  padding-right: 2rem; /* room for caret */
+  background-color: var(--w3a-colors-surface3);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fe-text-secondary) 50%),
+    linear-gradient(135deg, var(--fe-text-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  transition: background-color 160ms var(--fe-ease, ease), background-image 160ms var(--fe-ease, ease);
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+.chain-fields-card .asset-input span {
+  display: flex;
+  justify-content: center;
+}
+
+.chain-fields-card .asset-input:hover {
+  background-color: var(--w3a-colors-surface2);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--fe-text) 50%),
+    linear-gradient(135deg, var(--fe-text) 50%, transparent 50%);
 }
 
 .chain-fields-card label {
@@ -133,9 +194,10 @@
 .chain-fields-toggle-row {
   align-items: center;
   justify-content: stretch;
-  margin-top: 0; /* eliminate non-clickable dead zone above the toggle */
+  margin-top: 0.5rem; /* eliminate non-clickable dead zone above the toggle */
   margin-left: -1rem;  /* full-bleed horizontally */
   margin-right: -1rem; /* full-bleed horizontally */
+  margin-bottom: 0rem;
 }
 
 .chain-fields-toggle {
@@ -145,7 +207,7 @@
   border: none;
   background: transparent;
   color: var(--fe-text-secondary);
-  padding: 12px 1rem; /* comfortable click area and align with card padding */
+  padding: 0.5rem 1rem; /* comfortable click area and align with card padding */
   line-height: 1.2;
   cursor: pointer;
   display: inline-flex;
@@ -164,8 +226,30 @@
   width: 1em;
 }
 
+/* Constrained variant: disable full-bleed to avoid carousel overflow */
+.chain-fields-card--constrained {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.chain-fields-card--constrained .chain-fields-toggle-row {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.chain-fields-asset-input {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
 /* Expand/collapse animation for advanced fields */
 .chain-fields-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   overflow: hidden;
   max-height: 0;
   opacity: 0;
@@ -175,5 +259,51 @@
 .chain-fields-advanced.expanded {
   max-height: 1200px; /* large enough to contain inputs */
   opacity: 1;
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
+}
+
+/* Faucet warning container with CSS grid auto-height animation */
+.faucet-warning-root {
+  background: none;
+  border-radius: 1.5rem;
+  margin-top: 0;
+  margin-bottom: 0;
+  display: grid;
+  grid-template-rows: 0fr; /* collapsed */
+  opacity: 0;
+  transition: grid-template-rows 220ms var(--fe-ease), opacity 220ms var(--fe-ease), margin 220ms var(--fe-ease);
+}
+
+.faucet-warning-root.expanded {
+  grid-template-rows: 1fr; /* expanded to content */
+  opacity: 1;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.faucet-warning-wrapper {
+  overflow: hidden; /* clip content as grid row animates */
+}
+
+.faucet-warning {
+  text-align: center;
+  color: var(--fe-text);
+}
+
+.faucet-links {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.faucet-anim-show {
+  opacity: 0;
+  animation: faucetIn 220ms var(--fe-ease) forwards;
+}
+
+@keyframes faucetIn {
+  to {
+    opacity: 1;
+  }
 }

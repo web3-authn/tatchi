@@ -1,4 +1,5 @@
 
+import React from 'react';
 import TouchIcon from './icons/TouchIcon';
 import type { UserAccountButtonProps } from './types';
 

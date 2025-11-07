@@ -7,10 +7,26 @@
     <!-- Match Safari iOS bar fade to app theme -->
     <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
-    <!-- Noto Sans for headings and UI (standalone dev page) -->
+    <!-- Hanken Grotesk for headings and UI (standalone dev page) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet">
+    <script>
+      (function(){
+        try {
+          var ls = (localStorage.getItem('vitepress-theme-appearance') || '').replace(/\"/g,'');
+          var mode = (ls === 'dark' || ls === 'light')
+            ? ls
+            : (document.documentElement.classList.contains('dark')
+                ? 'dark'
+                : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+          document.documentElement.setAttribute('data-w3a-theme', mode);
+          document.addEventListener('DOMContentLoaded', function(){
+            try { document.body.setAttribute('data-w3a-theme', mode) } catch(e){}
+          });
+        } catch(e) {}
+      })();
+    </script>
     <title>Tatchi Passkey Wallet</title>
   </head>
   <body>

@@ -2,12 +2,14 @@ import { useState } from 'react';
 import Github from "./icons/Github";
 import { BookOpenText } from 'lucide-react';
 import CopyButton from './CopyButton';
-import { TouchIcon } from '@tatchi-xyz/sdk/react';
+import { TouchIcon, useTheme } from '@tatchi-xyz/sdk/react';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
 
 export function HomeHero() {
+
   const [pmBlock, setPmBlock] = useState<'npm' | 'pnpm' | 'bun'>('npm');
   const { linkProps } = useVitepressRouter();
+  const { theme } = useTheme();
 
   const installBlockCmd = pmBlock === 'npm'
     ? 'npm install @tatchi-xyz/sdk'
@@ -22,27 +24,33 @@ export function HomeHero() {
   return (
     <>
       <section className="hero" aria-labelledby="hero-title">
-        <h1 id="hero-title" className="hero-title">
-          <span aria-hidden="true" style={{ display: 'inline-flex', marginRight: '0.5rem', verticalAlign: 'middle' }}>
-            <TouchIcon className="w3a-user-account--fingerprint-icon open w3a-touch-icon--hero" width={40} height={40} />
-          </span>
+        <h1 className="hero-title">
           Tatchi Passkey Wallet
+          <span className="touch-icon-pattern-position" aria-hidden="true">
+            <TouchIcon
+              style={{ color: theme == 'dark' ? 'var(--w3a-colors-surface)' : 'var(--w3a-colors-surface2)'}}
+              strokeWidth={11}
+              width={124}
+              height={124}
+            />
+          </span>
         </h1>
-        <p className="hero-subtitle" style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0.5rem 0 0.25rem 0' }}>
+        <p className="hero-subtitle">
           A TouchID based embedded wallet
           <br/>
-          No popups. No keys. Serverless.
+          No popups. No keys. No intermediaries.
         </p>
-        <p className="hero-description" style={{ margin: '0 0 0.75rem 0', color: 'var(--fe-text-dim)' }}>
-          Tatchi is an embedded wallet SDK that brings passwordless authentication and on‑chain
+        <p className="hero-description">
+          Tatchi is an embedded wallet SDK that brings passwordless authentication and onchain
           transactions directly into your app.
-          <br/>
+        </p>
+        <p className="hero-description">
           Keep full control of your UI with zero popups,
-          serverless WebAuthn, and VRF‑backed challenge flows designed for security and speed.
+          serverless WebAuthn, and VRF challenges designed for security and speed.
         </p>
         <div className="hero-ctas">
           <a
-            className="cta-secondary"
+            className="cta-button cta-primary"
             {...linkProps('/docs/getting-started/install-and-configure')}
             aria-label="Read the documentation"
           >
@@ -50,7 +58,7 @@ export function HomeHero() {
             <span>Get Started</span>
             <span className="cta-chevron" aria-hidden>›</span>
           </a>
-          <a className="cta-primary" href="https://github.com/web3-authn/tatchi" target="_blank" rel="noopener noreferrer" aria-label="Open the Tatchi GitHub repository">
+          <a className="cta-button cta-secondary" href="https://github.com/web3-authn/tatchi" target="_blank" rel="noopener noreferrer" aria-label="Open the Tatchi GitHub repository">
             <Github size={16} className="cta-icon" aria-hidden="true" />
             <span>GitHub</span>
           </a>

@@ -2,9 +2,8 @@ export function faucetLinksForChainId(chainId: number): Array<{ label: string; u
   switch (chainId) {
     case 11155111: // Ethereum Sepolia
       return [
-        { label: 'Alchemy Sepolia Faucet', url: 'https://www.alchemy.com/faucets/ethereum-sepolia' },
-        { label: 'DRPC Sepolia Faucet', url: 'https://drpc.org/faucet/ethereum/sepolia' },
-        { label: 'Infura Sepolia Faucet', url: 'https://www.infura.io/faucet/sepolia' },
+        { label: 'Google ETH Faucet', url: 'https://cloud.google.com/application/web3/faucet/ethereum/sepolia' },
+        { label: 'PoW ETH Faucet', url: 'https://sepolia-faucet.pk910.de/' },
       ];
     case 84532: // Base Sepolia
       return [
@@ -52,22 +51,3 @@ export function explorerTxBaseForChainId(chainId: number): string | null {
       return null;
   }
 }
-
-export function base64ToBytes(b64: string): Uint8Array {
-  try {
-    if (typeof atob === 'function') {
-      const bin = atob(b64);
-      const out = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-      return out;
-    }
-  } catch {}
-  // Fallback (Node-style)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const Buf: any = (globalThis as any).Buffer;
-  if (Buf && typeof Buf.from === 'function') {
-    return new Uint8Array(Buf.from(b64, 'base64'));
-  }
-  throw new Error('No base64 decoder available in this environment');
-}
-

@@ -5,12 +5,11 @@ import { GlassBorder } from '../GlassBorder';
 import '../ActionSection.css';
 import './DemoChainsigs.css';
 
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { usePasskeyContext, useTheme } from '@tatchi-xyz/sdk/react';
 
 import { useMpcEvmFlow } from './hooks/useMpcEvmFlow';
 import DerivedAddressPill from './DerivedAddressPill';
 import FaucetLinksRow from './FaucetLinksRow';
-import { explorerTxBaseForChainId } from './utils';
 import { useDerivedEvmAddress } from './hooks/useDerivedEvmAddress';
 import ChainFieldsCard from './ChainFieldsCard';
 
@@ -20,16 +19,26 @@ export const DemoChainsigs: React.FC = () => {
     passkeyManager,
   } = usePasskeyContext();
 
-  const { isWorking, signAndSendEvmTransfer } = useMpcEvmFlow();
+  const { theme } = useTheme();
+
+  const { isWorking, signAndSendEvmTransfer, signAndSendErc20Transfer } = useMpcEvmFlow();
   const [rpcOverride, setRpcOverride] = useState<string>('');
-  const { address: derivedAddress, setAddress: setDerivedAddress, deriveAndCache, loadCached } = useDerivedEvmAddress();
+  const {
+    address: derivedAddress,
+    setAddress: setDerivedAddress,
+    deriveAndCache,
+    loadCached
+  } = useDerivedEvmAddress();
   const [chainFieldsExpanded, setChainFieldsExpanded] = useState<boolean>(false);
 
   // EVM tx inputs (simple EIP-1559 transfer)
   const [chainId, setChainId] = useState<string>('');
   const [to, setTo] = useState<string>('0x8454d149Beb26E3E3FC5eD1C87Fb0B2a1b7B6c2c');
-  const [amountEth, setAmountEth] = useState<string>('0.00123');
-  // simple transfers; gas limit is handled by the adapter
+  const [amountEth, setAmountEth] = useState<string>('0.001');
+  const [asset, setAsset] = useState<'ETH' | 'USDC'>('ETH');
+  const [tokenAddress, setTokenAddress] = useState<string>(
+    '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238' // ETH_SEPOLIA_USDC
+  );
 
   // MPC parameters
   const [mpcContractId, setMpcContractId] = useState<string>('');
@@ -37,10 +46,23 @@ export const DemoChainsigs: React.FC = () => {
   // key version not needed in current adapter calls
 
   const chainIdNum = useMemo(() => {
-    const n = Number((chainId || '').trim() || '84532');
-    return Number.isFinite(n) && n > 0 ? n : 84532;
+    const n = Number((chainId || '').trim() || '11155111');
+    return Number.isFinite(n) && n > 0 ? n : 11155111;
   }, [chainId]);
   const mpcContractIdEffective = useMemo(() => (mpcContractId && mpcContractId.trim()) || 'v1.signer-prod.testnet', [mpcContractId]);
+
+  function toUnitsFromHuman(human: string, decimals: number): string {
+    const s = (human || '').trim();
+    if (!s) return '0';
+    if (!/^\d*(?:\.\d*)?$/.test(s)) throw new Error('Invalid token amount');
+    const [intPart = '0', fracPartRaw = ''] = s.split('.');
+    const fracPart = fracPartRaw.slice(0, decimals);
+    const padded = fracPart.padEnd(decimals, '0');
+    const whole = (intPart.replace(/^0+/, '') || '0');
+    const units = whole + padded;
+    const trimmed = units.replace(/^0+/, '') || '0';
+    return trimmed;
+  }
 
   const handleSignViaMpc = useCallback(async () => {
     if (!isLoggedIn || !nearAccountId) return;
@@ -48,17 +70,43 @@ export const DemoChainsigs: React.FC = () => {
       toast.error('Configure signing parameters');
       return;
     }
-    await signAndSendEvmTransfer({
-      to,
-      amountEth,
-      chainId: chainIdNum,
-      rpcOverride,
-      contractId: mpcContractIdEffective,
-      path,
-      onDerivedAddress: setDerivedAddress,
-      toastExplorerLink: true,
-    });
-  }, [amountEth, chainIdNum, isLoggedIn, mpcContractIdEffective, nearAccountId, path, rpcOverride, setDerivedAddress, signAndSendEvmTransfer, to]);
+    if (asset === 'ETH') {
+      await signAndSendEvmTransfer({
+        to,
+        amountEth,
+        chainId: chainIdNum,
+        rpcOverride,
+        contractId: mpcContractIdEffective,
+        path,
+        onDerivedAddress: setDerivedAddress,
+        toastExplorerLink: true,
+      });
+    } else {
+      const token = (tokenAddress || '').trim();
+      if (!token) {
+        toast.error('Enter USDC token address for Base Sepolia');
+        return;
+      }
+      let amountUnits = '0';
+      try {
+        amountUnits = toUnitsFromHuman(amountEth, 6);
+      } catch (e) {
+        toast.error(String((e as Error)?.message || e));
+        return;
+      }
+      await signAndSendErc20Transfer({
+        tokenAddress: token,
+        to,
+        amountUnits,
+        chainId: chainIdNum,
+        rpcOverride,
+        contractId: mpcContractIdEffective,
+        path,
+        onDerivedAddress: setDerivedAddress,
+        toastExplorerLink: true,
+      });
+    }
+  }, [amountEth, asset, chainIdNum, isLoggedIn, mpcContractIdEffective, nearAccountId, path, rpcOverride, setDerivedAddress, signAndSendErc20Transfer, signAndSendEvmTransfer, to, tokenAddress]);
 
   // Prefetch cached derived address or derive once
   useEffect(() => {
@@ -75,21 +123,39 @@ export const DemoChainsigs: React.FC = () => {
     return () => { cancelled = true; };
   }, [chainIdNum, deriveAndCache, isLoggedIn, loadCached, mpcContractIdEffective, nearAccountId, path, rpcOverride]);
 
-  if (!isLoggedIn || !nearAccountId) return null;
+  const nearLogo = theme == 'light'
+    ? `${import.meta.env.BASE_URL}near-logo-dark.svg`
+    : `${import.meta.env.BASE_URL}near-logo-light.svg`;
 
+  if (!isLoggedIn || !nearAccountId) {
+    return null;
+  }
   return (
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
       <div className="demo-chainsigs-root">
 
         <div className="action-section">
           <div className="demo-page-header">
-            <h2 className="demo-title">NEAR Intents Demo</h2>
+            <h2 className="demo-title">
+              <picture className="demo-near-logo">
+                <img
+                  src={nearLogo}
+                  alt="NEAR logo"
+                  width={32}
+                  height={32}
+                  style={{ display: 'inline-block' }}
+                />
+              </picture>
+              <span>NEAR Intents Demo</span>
+            </h2>
           </div>
           <div className="action-text">
-            Send an EVM transaction on Base using touchID.
-            <br />
-            Request a Chain Signature from the NEAR MPC contract,
-            then broadcast it to the Base Sepolia network.
+            <div className="demo-subtitle">
+              Send NEAR Intents using TouchID
+            </div>
+            Request a Chain Signature from NEAR intents contract,
+            then broadcast it to the Ethereum Sepolia network,
+            or any network supported by NEAR intents such as Solana, Bitcoin, Zcash, etc.
           </div>
 
           <div className="input-group"
@@ -100,27 +166,35 @@ export const DemoChainsigs: React.FC = () => {
             }}
           >
             <label style={{ textAlign: "center", margin: '0rem 0 0.25rem 0' }}>
-              Derived sender address
+              Your derived ETH address is
             </label>
             <DerivedAddressPill address={derivedAddress} />
           </div>
 
           {derivedAddress ? (
-            <div className="action-text" style={{ margin: '0rem 0rem 2rem 0rem' }}>
-              Fund your address with Base Sepolia ETH for this demo
-              <FaucetLinksRow chainId={chainIdNum} />
-            </div>
+            <FaucetLinksRow
+              chainId={chainIdNum}
+              address={derivedAddress}
+              rpcOverride={rpcOverride}
+              asset={asset}
+              amountHuman={amountEth}
+              tokenAddress={tokenAddress}
+            />
           ) : null}
 
           <ChainFieldsCard
             to={to}
             onChangeTo={setTo}
             amountEth={amountEth}
-            onChangeAmountEth={setAmountEth}
+            onChangeAmount={setAmountEth}
+            asset={asset}
+            onChangeAsset={setAsset}
             chainId={chainId}
             onChangeChainId={setChainId}
             rpcOverride={rpcOverride}
             onChangeRpcOverride={setRpcOverride}
+            tokenAddress={tokenAddress}
+            onChangeTokenAddress={setTokenAddress}
             mpcContractId={mpcContractId}
             onChangeMpcContractId={setMpcContractId}
             expanded={chainFieldsExpanded}
@@ -136,7 +210,7 @@ export const DemoChainsigs: React.FC = () => {
             style={{ width: '100%', height: '55px' }}
             textStyles={{ fontSize: '1rem' }}
           >
-            Sign and Send Base Transfer
+            {asset === 'ETH' ? 'Sign and Send ETH Transfer' : 'Sign and Send USDC Transfer'}
           </LoadingButton>
         </div>
       </div>

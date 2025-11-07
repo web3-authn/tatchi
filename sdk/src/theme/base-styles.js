@@ -9,6 +9,8 @@ export function createThemeTokens(palette) {
     ...fromScale('yellow', palette.yellow),
     ...fromScale('blue', palette.blue),
     ...fromScale('red', palette.red),
+    ...fromScale('orange', palette.orange),
+    ...fromScale('violet', palette.violet),
     ...fromScale('green', palette.green),
   };
   const GREY_COLORS = {
@@ -47,9 +49,9 @@ export function createThemeTokens(palette) {
     // Canonical palette aliases
     primary: CHROMA_COLORS.blue600,
     primaryHover: CHROMA_COLORS.blue500,
-    secondary: CHROMA_COLORS.red500,
-    secondaryHover: CHROMA_COLORS.red400,
-    accent: CHROMA_COLORS.blue400,
+    secondary: CHROMA_COLORS.violet600,
+    secondaryHover: CHROMA_COLORS.violet500,
+    accent: CHROMA_COLORS.blue450,
 
     // Buttons
     buttonBackground: CHROMA_COLORS.blue500,
@@ -103,9 +105,9 @@ export function createThemeTokens(palette) {
     // Canonical palette aliases
     primary: CHROMA_COLORS.blue600,
     primaryHover: CHROMA_COLORS.blue500,
-    secondary: CHROMA_COLORS.red500,
-    secondaryHover: CHROMA_COLORS.red400,
-    accent: CHROMA_COLORS.blue400,
+    secondary: CHROMA_COLORS.violet600,
+    secondaryHover: CHROMA_COLORS.violet500,
+    accent: CHROMA_COLORS.blue450,
 
     // Buttons
     buttonBackground: CHROMA_COLORS.blue500,
@@ -161,8 +163,8 @@ export function createThemeTokens(palette) {
     // Brand/accents (neutral primary, warm accent)
     primary: GREY_COLORS.grey700,
     primaryHover: GREY_COLORS.grey650,
-    secondary: CHROMA_COLORS.red500,
-    secondaryHover: CHROMA_COLORS.red400,
+    secondary: CHROMA_COLORS.violet600,
+    secondaryHover: CHROMA_COLORS.violet500,
     accent: CHROMA_COLORS.yellow550,
 
     // Buttons

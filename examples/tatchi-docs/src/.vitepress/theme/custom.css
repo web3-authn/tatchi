@@ -5,14 +5,14 @@ iframe[data-w3a-router-id] {
   color-scheme: normal !important;
 }
 
-/* Headings use Noto Sans across VitePress-rendered docs */
+/* Headings use Hanken Grotesk across VitePress-rendered docs */
 .vp-doc h1,
 .vp-doc h2,
 .vp-doc h3,
 .vp-doc h4,
 .vp-doc h5,
 .vp-doc h6 {
-  font-family: 'Noto Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+  font-family: 'Hanken Grotesk', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
 }
 
 body {
@@ -28,38 +28,31 @@ body {
   margin: 0 !important;
 }
 
-body:has(.VPContent.is-home)[data-w3a-theme="light"] {
-  --w3a-colors-colorBackground: oklch(0.99 0 0);
-  --w3a-colors-colorBackground2: oklch(0.98 0 0);
-  background: linear-gradient(45deg, var(--w3a-colors-colorBackground) 0%, var(--w3a-colors-colorBackground2) 50%);
-  background-attachment: fixed;
-  /* background-image: radial-gradient(#d1d5db 1px, transparent 1px); */
-  /* background-size: 24px 24px; */
-  /* background-size: 32px 32px; */
-  /* background-position: 0 0; */
-  /* background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%23cec4da' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3Cpath d='M6 5V0H5v5H0v1h5v94h1V6h94V5H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); */
+html[data-w3a-theme="light"] {
+  background: linear-gradient(45deg, oklch(0.99 0 0) 0%, oklch(0.98 0 0) 50%);
 }
 
-body:has(.VPContent.is-home)[data-w3a-theme="dark"] {
-  --w3a-colors-colorBackground: oklch(0.1 0.01 240);
-  --w3a-colors-colorBackground2: oklch(0.20 0.01 240);
-  background: linear-gradient(45deg, var(--w3a-colors-colorBackground) 0%, var(--w3a-colors-colorBackground2) 50%);
-  background-attachment: fixed;
-  /* background-image: radial-gradient(#34343a 1px, transparent 1px); */
-  /* background-size: 24px 24px; */
-  /* background-size: 32px 32px; */
-  /* background-position: 0 0; */
-  /* background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Cg fill-rule='evenodd'%3E%3Cg fill='%2335313b' fill-opacity='0.4'%3E%3Cpath opacity='.5' d='M96 95h4v1h-4v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4h-9v4h-1v-4H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15v-9H0v-1h15V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h9V0h1v15h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9h4v1h-4v9zm-1 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm9-10v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-10 0v-9h-9v9h9zm-9-10h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9zm10 0h9v-9h-9v9z'/%3E%3Cpath d='M6 5V0H5v5H0v1h5v94h1V6h94V5H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); */
+html[data-w3a-theme="dark"] {
+  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
 }
 
-/* Option B: remove scrollbar gutters (hide scrollbars, keep scrollable) */
-html, body {
+/* Ensure VitePress body background color doesn't cover the html gradient */
+html[data-w3a-theme] body {
+  background: transparent !important;
+  /* background-color: transparent !important; */
+  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
+}
+
+/* Remove scrollbar gutters (hide scrollbars, keep scrollable) */
+html {
   margin: 0;
   scrollbar-gutter: auto !important;
-  overflow-y: auto;
+  overflow-y: auto;          /* make only the root scrollable */
   overflow-x: clip;
-  scrollbar-width: none;    /* Firefox */
+  scrollbar-width: none;     /* Firefox */
+  background: transparent;
 }
+body { margin: 0; overflow: hidden; }
 html::-webkit-scrollbar,
 body::-webkit-scrollbar {
   width: 0;
@@ -100,4 +93,46 @@ body::-webkit-scrollbar {
   display: flex;
 }
 
-/* (Removed custom TouchIcon stroke/animation overrides to use original styles) */
+/* Global docs footer styling (component in layout-bottom slot) */
+.global-footer { font-family: var(--fe-font-sans); }
+
+/*
+  Override VitePress theme color tokens with our SDK theme variables.
+  These feed the default theme components (navbar, sidebar, code blocks, etc.).
+  We reference --w3a-colors-* so values stay in sync with light/dark.
+*/
+:root {
+  /* Colors: Background (light) */
+  --vp-c-bg: oklch(0.98 0 0);            /* grey50 */
+  --vp-c-bg-alt: oklch(0.915 0.0125 240);/* slate150 */
+  --vp-c-bg-elv: oklch(0.95 0.01 240);   /* slate100 */
+  --vp-c-bg-soft: oklch(0.88 0.015 240); /* slate200 */
+
+  /* Colors: Borders (light) */
+  --vp-c-border: oklch(0.8 0.02 240);    /* slate300 */
+  --vp-c-divider: oklch(0.82 0.014 240); /* grey300 */
+  --vp-c-gutter: oklch(0.82 0.014 240);  /* grey300 */
+
+  /* Colors: Text (light) */
+  --vp-c-text-1: oklch(0.025 0.001 240); /* grey975 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.75 0.016 240);  /* grey350 */
+}
+
+.dark {
+  /* Colors: Background (dark) */
+  --vp-c-bg: oklch(0.2 0.01 240);        /* grey800 */
+  --vp-c-bg-alt: oklch(0.175 0.015 240); /* slate825 (darker alt) */
+  --vp-c-bg-elv: oklch(0.3 0.02 240);    /* slate700 (elevated) */
+  --vp-c-bg-soft: oklch(0.2 0.015 240);  /* slate800 */
+
+  /* Colors: Borders (dark) */
+  --vp-c-border: oklch(0.35 0.018 240);  /* grey650 */
+  --vp-c-divider: oklch(0.35 0.0225 240);/* slate650 */
+  --vp-c-gutter: #000000;                /* black */
+
+  /* Colors: Text (dark) */
+  --vp-c-text-1: oklch(0.97 0.002 240);  /* grey75 */
+  --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
+  --vp-c-text-3: oklch(0.35 0.018 240);  /* grey650 */
+}

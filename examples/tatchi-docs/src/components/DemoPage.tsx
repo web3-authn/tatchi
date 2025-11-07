@@ -491,7 +491,7 @@ export const DemoPage: React.FC = () => {
               loadingText="Signing..."
               variant="primary"
               size="medium"
-              style={{ width: 200 }}
+              style={{ flex: 1 }}
             >
               Show Modal
             </LoadingButton>
@@ -499,9 +499,9 @@ export const DemoPage: React.FC = () => {
               onClick={() => handleExecuteMultiActions('drawer')}
               loading={loadingUi === 'drawer'}
               loadingText="Signing..."
-              variant="primary"
+              variant="secondary"
               size="medium"
-              style={{ width: 200 }}
+              style={{ flex: 1 }}
             >
               Show Drawer
             </LoadingButton>

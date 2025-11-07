@@ -13,6 +13,7 @@
     "preview": "vitepress preview dist/docs --port 5222"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.0.0",
     "@tanstack/react-query": "^5.76.1",
     "@tatchi-xyz/sdk": "workspace:*",
     "borsh": "^2.0.0",

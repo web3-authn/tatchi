@@ -2,6 +2,8 @@ import React from 'react'
 import { useTheme, SunIcon, MoonIcon, usePasskeyContext } from '@tatchi-xyz/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
+import NearLogo from '../icons/NearLogo'
+import './Navbar.css'
 
 function applyVitepressAppearance(mode: 'light' | 'dark') {
   if (typeof document === 'undefined') return
@@ -83,6 +85,15 @@ export const NavbarStatic: React.FC = () => {
           <MoonIcon size={18} strokeWidth={2} aria-hidden />
         )}
       </button>
+      <a
+        href="https://near.org"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="navbar-static__near"
+        aria-label="Built on NEAR"
+      >
+        Built on <NearLogo size={60} />
+      </a>
       <NavbarProfilePlaceholder />
     </nav>
   )

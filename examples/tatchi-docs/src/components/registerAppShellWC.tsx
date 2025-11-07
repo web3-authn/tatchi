@@ -35,9 +35,19 @@ class WalletAppElement extends HTMLElement {
 
     // Optional: HMR for injected CSS in dev
     if ((import.meta as any).hot) {
+      // Accept HMR for both SDK styles and app shell styles injected into the ShadowRoot
       // @ts-ignore - vite hot types
-      import.meta.hot.accept(['../app.css?inline'], (mods: any[]) => {
-        const sheets = [sdkCss, ...(mods.map((m) => m?.default ?? ''))]
+      import.meta.hot.accept([
+        '@tatchi-xyz/sdk/react/styles?inline',
+        '../app.css?inline',
+        '../.vitepress/theme/vendor/sonner-full.css?inline',
+      ], (mods: any[]) => {
+        const [sdkNext, appNext, sonnerNext] = mods
+        const sheets = [
+          sdkNext?.default ?? sdkCss,
+          appNext?.default ?? appShellCss,
+          sonnerNext?.default ?? sonnerCss,
+        ]
         sheetTags.forEach((styleEl, idx) => {
           try { styleEl.textContent = sheets[idx] ?? '' } catch {}
         })
