@@ -13,7 +13,18 @@ export interface ProfileAnimationConfig {
   ease: string;
 }
 
+export const PROFILE_MENU_ITEM_IDS = {
+  EXPORT_KEYS: 'export-keys',
+  SCAN_LINK_DEVICE: 'scan-link-device',
+  LINKED_DEVICES: 'linked-devices',
+  TOGGLE_THEME: 'toggle-theme',
+  TRANSACTION_SETTINGS: 'transaction-settings',
+} as const;
+
+export type ProfileSettingsMenuItemId = typeof PROFILE_MENU_ITEM_IDS[keyof typeof PROFILE_MENU_ITEM_IDS];
+
 export interface MenuItem {
+  id?: ProfileSettingsMenuItemId | (string & {});
   icon: React.ReactNode;
   label: string;
   description: string;
@@ -21,6 +32,14 @@ export interface MenuItem {
   onClick?: () => void;
   // When true, clicking this item will NOT close the dropdown
   keepOpenOnClick?: boolean;
+}
+
+export interface HighlightedProfileMenuItem {
+  id: ProfileSettingsMenuItemId | (string & {});
+  /**
+   * When true (default), focus the highlighted button when the menu opens.
+   */
+  focus?: boolean;
 }
 
 export interface DeviceLinkingScannerParams {
@@ -46,6 +65,10 @@ export interface ProfileSettingsButtonProps {
   // Optional: where to portal overlays (modals)
   // Defaults to the component's ShadowRoot when present, otherwise document.body
   portalTarget?: HTMLElement | ShadowRoot | null;
+  // Programmatic menu control
+  isMenuOpen?: boolean;
+  onMenuOpenChange?: (open: boolean) => void;
+  highlightedMenuItem?: HighlightedProfileMenuItem | null;
 }
 
 export interface UserAccountButtonProps {
@@ -81,14 +104,15 @@ export interface ProfileDropdownProps {
   // Optional ARIA linkage
   menuId?: string;
   triggerId?: string;
+  highlightedMenuItemId?: string;
 }
 
 export interface MenuItemProps {
   item: MenuItem;
-  index: number;
   onClose: () => void;
   className?: string;
   style?: React.CSSProperties;
+  isHighlighted?: boolean;
 }
 
 export interface LogoutMenuItemProps {

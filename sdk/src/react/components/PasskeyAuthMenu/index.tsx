@@ -129,6 +129,9 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
     try {
       if (mode === AuthMenuMode.Recover) {
         await onRecoverAccount?.();
+        // Recovery completes asynchronously; clear waiting and return to Login view
+        setWaiting(false);
+        setMode(AuthMenuMode.Login);
       } else if (mode === AuthMenuMode.Login) {
         await onLogin?.();
         // If login resolves with an explicit failure, return to Login

@@ -8,6 +8,7 @@ import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
 import { usePasskeyContext } from '../../context';
 import type { MenuItem, ProfileSettingsButtonProps } from './types';
+import { PROFILE_MENU_ITEM_IDS } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
 import { LinkedDevicesModal } from './LinkedDevicesModal';
 import './Web3AuthProfileButton.css';
@@ -56,6 +57,9 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   style,
   className,
   portalTarget,
+  isMenuOpen,
+  onMenuOpenChange,
+  highlightedMenuItem,
 }) => {
   // Get values from context if not provided as props
   const {
@@ -81,7 +85,10 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     refs,
     handleToggle,
     handleClose,
-  } = useProfileState();
+  } = useProfileState({
+    open: typeof isMenuOpen === 'boolean' ? isMenuOpen : undefined,
+    onOpenChange: onMenuOpenChange,
+  });
 
   // Read current theme from Theme context (falls back to system preference)
   const { theme } = useTheme();
@@ -175,6 +182,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   // Menu items configuration with context-aware handlers
   const MENU_ITEMS: MenuItem[] = useMemo(() => [
     {
+      id: PROFILE_MENU_ITEM_IDS.EXPORT_KEYS,
       icon: <Key />,
       label: 'Export Keys',
       description: 'View your private keys',
@@ -194,6 +202,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       keepOpenOnClick: true,
     },
     {
+      id: PROFILE_MENU_ITEM_IDS.SCAN_LINK_DEVICE,
       icon: <Scan />,
       label: 'Scan and Link Device',
       description: 'Scan QR to link a device',
@@ -204,6 +213,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       keepOpenOnClick: true,
     },
     {
+      id: PROFILE_MENU_ITEM_IDS.LINKED_DEVICES,
       icon: <Link />,
       label: 'Linked Devices',
       description: 'View linked devices',
@@ -212,6 +222,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       keepOpenOnClick: true,
     },
     {
+      id: PROFILE_MENU_ITEM_IDS.TOGGLE_THEME,
       icon: theme === 'dark' ? <SunIcon /> : <MoonIcon />,
       label: 'Toggle Theme',
       description: theme === 'dark' ? 'Dark Mode' : 'Light Mode',
@@ -220,6 +231,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       keepOpenOnClick: true,
     },
     {
+      id: PROFILE_MENU_ITEM_IDS.TRANSACTION_SETTINGS,
       icon: <Sliders />,
       label: 'Transaction Settings',
       description: 'Customize confirmation behavior',
@@ -228,6 +240,27 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       keepOpenOnClick: true,
     },
   ], [passkeyManager, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
+
+  const highlightedMenuItemId = highlightedMenuItem?.id;
+  const highlightShouldFocus = highlightedMenuItem?.focus ?? true;
+  const highlightedIndex = useMemo(() => {
+    if (!highlightedMenuItemId) return -1;
+    return MENU_ITEMS.findIndex((item) => item.id === highlightedMenuItemId);
+  }, [MENU_ITEMS, highlightedMenuItemId]);
+
+  useEffect(() => {
+    if (!isOpen || highlightedIndex < 0 || !highlightShouldFocus) return;
+    const el = refs.menuItemsRef.current?.[highlightedIndex];
+    if (!el) return;
+    if (typeof window === 'undefined') {
+      try { el.focus(); } catch {}
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      try { el.focus(); } catch {}
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [isOpen, highlightedIndex, highlightShouldFocus, refs.menuItemsRef]);
 
   // Handlers
   const handleLogout = () => {
@@ -269,6 +302,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
         onToggleTheme={handleToggleTheme}
         transactionSettingsOpen={transactionSettingsOpen}
         theme={theme}
+        highlightedMenuItemId={highlightedMenuItemId}
       />
 
       {/* QR Scanner Modal (portaled to nearest root for robustness) */}

@@ -1,6 +1,5 @@
 /* MenuItem Component Styles */
 
-/* Menu items */
 .w3a-dropdown-menu-item {
   display: flex;
   align-items: center;
@@ -73,4 +72,12 @@
 
 .w3a-dropdown-menu-item.disabled .w3a-dropdown-menu-item-description {
   color: var(--w3a-colors-textSecondary);
+}
+
+.w3a-dropdown-menu-item.highlighted {
+  background: color-mix(in srgb, var(--w3a-colors-surface2), transparent 10%);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 55%),
+    0 8px 28px rgba(0, 0, 0, 0.25);
+  transform: translateX(0);
 }
