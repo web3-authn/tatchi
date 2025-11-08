@@ -6,7 +6,7 @@
   min-height: 44px;
   border: none;
   border-radius: 2rem;
-  font-size: var(--fe-text-sm);
+  font-size: 1rem;
   font-weight: var(--fe-font-medium);
   font-family: var(--fe-font-sans);
   cursor: pointer;

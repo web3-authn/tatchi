@@ -75,9 +75,13 @@
 }
 
 .w3a-dropdown-menu-item.highlighted {
-  background: color-mix(in srgb, var(--w3a-colors-surface2), transparent 10%);
+  background: color-mix(in srgb, var(--w3a-colors-focus), transparent 75%);
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--w3a-colors-focus), transparent 55%),
-    0 8px 28px rgba(0, 0, 0, 0.25);
+    0 0 0 1px color-mix(in srgb, var(--w3a-colors-focus), transparent 45%),
+    0 4px 10px color-mix(in srgb, var(--w3a-colors-focus), transparent 70%);
   transform: translateX(0);
+}
+
+.w3a-dropdown-menu-item.highlighted:hover {
+  background: color-mix(in srgb, var(--w3a-colors-focus), transparent 65%);
 }
