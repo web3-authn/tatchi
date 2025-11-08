@@ -72,8 +72,9 @@ export function AccountRecovery() {
             loadingText="Recovering..."
             variant="primary"
             size="medium"
+            style={{ width: 200 }}
           >
-            Start Account Recovery
+            Start Recovery
           </LoadingButton>
         </div>
 
@@ -92,6 +93,7 @@ export function AccountRecovery() {
               onClick={onLinkDevice}
               variant="secondary"
               size="medium"
+              style={{ width: 200 }}
             >
               Link Device
             </LoadingButton>
