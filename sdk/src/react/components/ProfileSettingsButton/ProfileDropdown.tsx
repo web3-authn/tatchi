@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, useMemo } from 'react';
 import { MenuItem } from './MenuItem';
 import { LogoutMenuItem } from './LogoutMenuItem';
 import { TransactionSettingsSection } from './TransactionSettingsSection';
@@ -33,10 +33,17 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
     onToggleTheme,
     transactionSettingsOpen = false,
     theme = 'dark',
+    highlightedMenuItemId,
   }, ref) => {
     // Only count transaction settings if it's actually rendered (when expanded)
     const hasTransactionSettings = transactionSettingsOpen && currentConfirmConfig && onToggleShowDetails && onToggleSkipClick && onSetDelay;
-    const totalItems = menuItems.length + (hasTransactionSettings ? 3 : 2); // menuItems + (transaction settings if expanded) + relayer toggle + logout
+
+    menuItemsRef.current.length = menuItems.length;
+
+    const highlightedIndex = useMemo(() => {
+      if (!highlightedMenuItemId) return -1;
+      return menuItems.findIndex((item) => item.id === highlightedMenuItemId || item.label === highlightedMenuItemId);
+    }, [highlightedMenuItemId, menuItems]);
 
     return (
       <div
@@ -47,22 +54,27 @@ export const ProfileDropdown = forwardRef<HTMLDivElement, ProfileDropdownWithRef
         <div className="w3a-profile-dropdown-menu">
 
           {/* Menu Items */}
-          {menuItems.map((item, index) => (
-            <MenuItem
-              key={index}
-              ref={(el) => {
-                if (menuItemsRef.current) {
-                  menuItemsRef.current[index + 1] = el;
-                }
-              }}
-              item={item}
-              index={index}
-              onClose={onClose}
-              className=""
-              // Set CSS variable to calculate stagger delay in CSS stylesheet
-              style={{ ['--stagger-item-n' as any]: index }}
-            />
-          ))}
+          {menuItems.map((item, index) => {
+            const refCallback = (el: HTMLElement | null) => {
+              if (menuItemsRef.current) {
+                menuItemsRef.current[index] = el;
+              }
+            };
+            const isHighlighted = index === highlightedIndex;
+
+            return (
+              <MenuItem
+                key={item.id ?? index}
+                ref={refCallback}
+                item={item}
+                onClose={onClose}
+                className=""
+                isHighlighted={isHighlighted}
+                // Set CSS variable to calculate stagger delay in CSS stylesheet
+                style={{ ['--stagger-item-n' as any]: index }}
+              />
+            );
+          })}
 
           {/* Transaction Settings Section - Always render with animation */}
           {currentConfirmConfig && (onSetUiMode || onToggleShowDetails) && onToggleSkipClick && onSetDelay && (

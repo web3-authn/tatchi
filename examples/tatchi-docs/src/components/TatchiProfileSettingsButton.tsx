@@ -8,6 +8,7 @@ import {
   useTheme,
   DeviceLinkingSSEEvent,
 } from '@tatchi-xyz/sdk/react';
+import { useProfileMenuControl } from '../contexts/ProfileMenuControl';
 
 export interface TatchiProfileSettingsButtonProps {
   className?: string;
@@ -22,6 +23,12 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
   const { loginState, passkeyManager } = usePasskeyContext();
   const { theme, setTheme } = useTheme();
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
+  const {
+    isMenuOpen,
+    highlightedMenuItem,
+    setMenuOpen,
+    clearHighlight,
+  } = useProfileMenuControl();
 
   const handleDeviceLinkingEvents = (event: DeviceLinkingSSEEvent) => {
     switch (event.phase) {
@@ -97,6 +104,13 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
     } catch {}
   }, [loginState.isLoggedIn, loginState.nearAccountId]);
 
+  React.useEffect(() => {
+    if (!loginState.isLoggedIn) {
+      clearHighlight();
+      setMenuOpen(false);
+    }
+  }, [loginState.isLoggedIn, clearHighlight, setMenuOpen]);
+
   if (!loginState.isLoggedIn) {
     return null;
   } else {
@@ -124,6 +138,9 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
             onClose: () => { toast.dismiss(); },
             onEvent: (event) => handleDeviceLinkingEvents(event),
           }}
+          isMenuOpen={isMenuOpen}
+          onMenuOpenChange={setMenuOpen}
+          highlightedMenuItem={highlightedMenuItem}
         />
       </div>
     );

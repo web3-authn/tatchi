@@ -12,6 +12,7 @@ import { PasskeyLoginMenu } from './PasskeyLoginMenu';
 import { AccountRecovery } from './AccountRecovery';
 import { DemoChainsigs } from './DemoChainsigs';
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
+import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 
 export function PasskeyColumn() {
   const { loginState } = usePasskeyContext()
@@ -121,32 +122,34 @@ export function PasskeyColumn() {
   return (
     <div className="layout-column-right">
       <div className="constrained-column">
-        <NavbarStatic />
-        <NavbarProfileOverlay />
-        <div className="passkey-demo">
-          <AuthMenuControlProvider>
-            <CarouselProvider
-              pages={pages}
-              initialKey="login"
-              showBreadcrumbs
-              currentPage={currentPage}
-              onCurrentPageChange={setCurrentPage}
-              rootStyle={{
-                padding: '0rem 0rem 6rem 0rem',
-                // padding-bottom for tooltip so it's not clipped
-                display: 'grid',
-                placeContent: 'center',
-              }}
-              breadcrumbsStyle={{
-                padding: '2rem 1rem 0rem 1rem',
-                display: 'grid',
-                placeContent: 'center',
-              }}
-            >
-              <Carousel />
-            </CarouselProvider>
-          </AuthMenuControlProvider>
-        </div>
+        <ProfileMenuControlProvider>
+          <NavbarStatic />
+          <NavbarProfileOverlay />
+          <div className="passkey-demo">
+            <AuthMenuControlProvider>
+              <CarouselProvider
+                pages={pages}
+                initialKey="login"
+                showBreadcrumbs
+                currentPage={currentPage}
+                onCurrentPageChange={setCurrentPage}
+                rootStyle={{
+                  padding: '0rem 0rem 6rem 0rem',
+                  // padding-bottom for tooltip so it's not clipped
+                  display: 'grid',
+                  placeContent: 'center',
+                }}
+                breadcrumbsStyle={{
+                  padding: '2rem 1rem 0rem 1rem',
+                  display: 'grid',
+                  placeContent: 'center',
+                }}
+              >
+                <Carousel />
+              </CarouselProvider>
+            </AuthMenuControlProvider>
+          </div>
+        </ProfileMenuControlProvider>
       </div>
     </div>
   );

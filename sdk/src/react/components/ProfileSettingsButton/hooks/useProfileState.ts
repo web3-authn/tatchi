@@ -1,8 +1,16 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { ProfileStateRefs } from '../types';
 
-export const useProfileState = () => {
-  const [isOpen, setIsOpen] = useState(false);
+interface UseProfileStateOptions {
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export const useProfileState = (options?: UseProfileStateOptions) => {
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const isControlled = typeof options?.open === 'boolean';
+  const isOpen = isControlled ? (options?.open as boolean) : uncontrolledOpen;
+  const onOpenChange = options?.onOpenChange;
 
   // Refs
   const buttonRef = useRef<HTMLDivElement>(null);
@@ -46,7 +54,10 @@ export const useProfileState = () => {
       );
       if (inQRScanner) return;
 
-      setIsOpen(false);
+      if (!isControlled) {
+        setUncontrolledOpen(false);
+      }
+      onOpenChange?.(false);
     };
 
     // Attach the listener to the closest root (ShadowRoot or Document)
@@ -55,14 +66,22 @@ export const useProfileState = () => {
     return () => {
       try { root.removeEventListener('click', handleClickOutside as any, true); } catch {}
     };
-  }, []);
+  }, [isControlled, onOpenChange]);
+
+  const setOpen = useCallback((next: boolean | ((prev: boolean) => boolean)) => {
+    const resolved = typeof next === 'function' ? (next as (prev: boolean) => boolean)(isOpen) : next;
+    if (!isControlled) {
+      setUncontrolledOpen(resolved);
+    }
+    onOpenChange?.(resolved);
+  }, [isControlled, isOpen, onOpenChange]);
 
   const handleToggle = () => {
-    setIsOpen(!isOpen);
+    setOpen((prev) => !prev);
   };
 
   const handleClose = () => {
-    setIsOpen(false);
+    setOpen(false);
   };
 
   return {

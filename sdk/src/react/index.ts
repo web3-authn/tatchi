@@ -156,7 +156,10 @@ export type {
   ProfileStateRefs,
   DeviceLinkingScannerParams,
   ToggleColorProps,
+  ProfileSettingsMenuItemId,
+  HighlightedProfileMenuItem,
 } from './components/ProfileSettingsButton/types';
+export { PROFILE_MENU_ITEM_IDS } from './components/ProfileSettingsButton/types';
 
 // === RE-EXPORT CORE ===
 export type { PasskeyManagerConfigs as PasskeyConfigs } from '../core/types/passkeyManager';

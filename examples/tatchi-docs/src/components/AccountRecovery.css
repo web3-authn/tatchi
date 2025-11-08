@@ -1,0 +1,17 @@
+.account-recovery-link-device-button {
+  margin-top: 1.25rem;
+}
+
+.account-recovery-link-device-button .button {
+  min-width: 160px;
+}
+
+@media (max-width: 640px) {
+  .account-recovery-link-device-button {
+    width: 100%;
+  }
+
+  .account-recovery-link-device-button .button {
+    width: 100%;
+  }
+}

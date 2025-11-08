@@ -1,5 +1,5 @@
 import React from 'react'
-import { usePasskeyContext, AuthMenuMode } from '@tatchi-xyz/sdk/react'
+import { usePasskeyContext, AuthMenuMode, PROFILE_MENU_ITEM_IDS } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 import { friendlyWebAuthnMessage } from '../utils/strings'
 import { LoadingButton } from './LoadingButton';
@@ -8,6 +8,8 @@ import { BrowserWithQR } from './icons/BrowserWithQR'
 import { IPhoneQRScanner } from './icons/IPhoneQRScanner'
 import { useCarousel } from './Carousel2/CarouselProvider'
 import { useAuthMenuControl } from '../contexts/AuthMenuControl'
+import { useProfileMenuControl } from '../contexts/ProfileMenuControl'
+import './AccountRecovery.css'
 
 export function AccountRecovery() {
   const { accountInputState, passkeyManager, refreshLoginState, loginState, logout } = usePasskeyContext()
@@ -15,6 +17,7 @@ export function AccountRecovery() {
   const target = accountInputState?.targetAccountId || ''
   const carousel = useCarousel()
   const authMenuControl = useAuthMenuControl()
+  const { requestHighlight: requestProfileHighlight } = useProfileMenuControl()
 
   const onRecover = async () => {
     setBusy(true)
@@ -32,6 +35,17 @@ export function AccountRecovery() {
       setBusy(false)
     }
   }
+
+  const onLinkDevice = React.useCallback(() => {
+    if (!loginState.isLoggedIn) {
+      toast.error('Log in to link another device')
+      return
+    }
+    requestProfileHighlight({
+      id: PROFILE_MENU_ITEM_IDS.SCAN_LINK_DEVICE,
+      focus: true,
+    })
+  }, [loginState.isLoggedIn, requestProfileHighlight])
 
   return (
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
@@ -72,6 +86,15 @@ export function AccountRecovery() {
           <div className="action-text">
             Use QR codes to scan and link a new device to your account.
             Backup your wallet on multiple devices without remembering keys, or passphrases.
+          </div>
+          <div className="account-recovery-link-device-button">
+            <LoadingButton
+              onClick={onLinkDevice}
+              variant="secondary"
+              size="medium"
+            >
+              Link Device
+            </LoadingButton>
           </div>
           <div
             aria-label="Illustration: iPhone scanning browser QR code"

@@ -2,7 +2,7 @@ import { forwardRef, memo } from 'react';
 import type { MenuItemProps } from './types';
 
 export const MenuItem = memo(forwardRef<HTMLButtonElement, MenuItemProps>(
-  ({ item, index, onClose, className, style }, ref) => {
+  ({ item, onClose, className, style, isHighlighted = false }, ref) => {
     const handleClick = (e: React.MouseEvent) => {
       e.stopPropagation();
       if (!item.disabled) {
@@ -16,13 +16,14 @@ export const MenuItem = memo(forwardRef<HTMLButtonElement, MenuItemProps>(
     };
 
     const disabledClass = item.disabled ? ' disabled' : '';
+    const highlightedClass = isHighlighted ? ' highlighted' : '';
     const classNameProps = className ? ` ${className}` : '';
 
     return (
       <button
         ref={ref}
         disabled={item.disabled}
-        className={`w3a-dropdown-menu-item${disabledClass}${classNameProps}`}
+        className={`w3a-dropdown-menu-item${disabledClass}${classNameProps}${highlightedClass}`}
         style={style}
         onClick={handleClick}
       >
