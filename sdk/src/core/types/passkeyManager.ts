@@ -485,6 +485,15 @@ export interface LoginHooksOptions {
   onError?: (error: Error) => void;
   beforeCall?: BeforeCall;
   afterCall?: AfterCall<LoginResult>;
+  // Optional: request a server session (JWT in body or HttpOnly cookie)
+  session?: {
+    // 'jwt' returns the token in the JSON body; 'cookie' sets HttpOnly cookie
+    kind: 'jwt' | 'cookie';
+    // Optional: override relay URL; defaults to PasskeyManagerConfigs.relayer.url
+    relayUrl?: string;
+    // Optional: override route path; defaults to '/verify-authentication-response'
+    route?: string;
+  };
 }
 
 export interface ActionHooksOptions {
@@ -588,6 +597,8 @@ export interface LoginResult {
   loggedInNearAccountId?: string;
   clientNearPublicKey?: string | null;
   nearAccountId?: AccountId;
+  // Present when session.kind === 'jwt' and verification succeeded
+  jwt?: string;
 }
 
 export interface ActionResult {

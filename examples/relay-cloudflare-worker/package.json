@@ -8,9 +8,11 @@
     "dev": "wrangler dev --local"
   },
   "devDependencies": {
-    "wrangler": "^4.40.2"
+    "wrangler": "^4.40.2",
+    "@types/jsonwebtoken": "^9.0.6"
   },
   "dependencies": {
-    "@tatchi-xyz/sdk": "workspace:*"
+    "@tatchi-xyz/sdk": "workspace:*",
+    "jsonwebtoken": "^9.0.2"
   }
 }

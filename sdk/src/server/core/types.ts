@@ -219,6 +219,8 @@ export type { AuthenticatorOptions, UserVerificationPolicy, OriginPolicyInput };
 export interface VerifyAuthenticationRequest {
   vrf_data: ContractVrfData;
   webauthn_authentication: WebAuthnAuthenticationCredential;
+  // Optional: whether to return JWT in JSON or set an HttpOnly cookie
+  sessionKind?: 'jwt' | 'cookie';
 }
 
 export interface WebAuthnAuthenticationCredential {
@@ -240,6 +242,15 @@ export interface VerifyAuthenticationResponse {
   verified?: boolean;
   jwt?: string;
   sessionCredential?: any;
-  error?: string;
+  // Unified error model
+  code?: string;
+  message?: string;
   contractResponse?: any;
+}
+
+export interface RefreshSessionResult {
+  ok: boolean;
+  jwt?: string;
+  code?: string;
+  message?: string;
 }

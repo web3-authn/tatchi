@@ -327,7 +327,7 @@ export class AuthService {
         const module = await WebAssembly.compile(ab as ArrayBuffer);
         await initSignerWasm({ module_or_path: module as any });
         return;
-      } catch (_) { /* try next */ }
+      } catch {} // throw at end of function
     }
 
     // 2) Fallback: pass file path directly (supported in some environments)
@@ -336,7 +336,7 @@ export class AuthService {
         const filePath = fileURLToPath(url);
         await initSignerWasm({ module_or_path: filePath as any });
         return;
-      } catch (_) { /* try next */ }
+      } catch {} // throw at end of function
     }
 
     throw new Error('[AuthService] Failed to initialize signer WASM from filesystem candidates');
@@ -824,8 +824,8 @@ export class AuthService {
   }
 
   /**
-   * Verify authentication response and issue JWT
-   * Calls the web3authn contract's verify_authentication_response method
+   * Verify authentication response and issue JWT (VIEW call)
+   * Calls the web3authn contract's verify_authentication_response method via view
    * and issues a JWT or session credential upon successful verification
    */
   async verifyAuthenticationResponse(
@@ -834,96 +834,50 @@ export class AuthService {
     try {
       await this._ensureSignerAndRelayerAccount();
 
-      // Call the contract's verify_authentication_response via signed FunctionCall
       const args = {
         vrf_data: request.vrf_data,
         webauthn_authentication: request.webauthn_authentication,
       };
-      const actions: ActionArgsWasm[] = [
-        {
-          action_type: ActionType.FunctionCall,
-          method_name: 'verify_authentication_response',
-          args: JSON.stringify(args),
-          gas: '30000000000000',
-          deposit: '0'
-        }
-      ];
-      actions.forEach(validateActionArgsWasm);
 
-      const { nextNonce, blockHash } = await this.fetchTxContext(this.config.relayerAccountId, this.relayerPublicKey);
-      const signed = await this.signWithPrivateKey({
-        nearPrivateKey: this.config.relayerPrivateKey,
-        signerAccountId: this.config.relayerAccountId,
-        receiverId: this.config.webAuthnContractId,
-        nonce: nextNonce,
-        blockHash,
-        actions
+      // Perform a VIEW function call (no gas) and parse the contract response
+      const contractResponse = await this.nearClient.view<typeof args, any>({
+        account: this.config.webAuthnContractId,
+        method: 'verify_authentication_response',
+        args
       });
-      const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
 
-      // Parse the contract response
-      const contractResponse = this.parseContractResponse(result);
-
-      if (contractResponse.verified) {
-        // Generate JWT or session credential
-        const jwt = this.generateJWT(request.vrf_data.user_id);
-
-        return {
-          success: true,
-          verified: true,
-          jwt,
-          sessionCredential: {
-            userId: request.vrf_data.user_id,
-            issuedAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
-          },
-          contractResponse,
-        };
-      } else {
+      const verified = Boolean((contractResponse && (contractResponse.verified === true)));
+      if (!verified) {
         return {
           success: false,
           verified: false,
-          error: 'Authentication verification failed',
+          code: 'not_verified',
+          message: 'Authentication verification failed',
           contractResponse,
         };
       }
+
+      return {
+        success: true,
+        verified: true,
+        sessionCredential: {
+          userId: request.vrf_data.user_id,
+          issuedAt: new Date().toISOString(),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        },
+        contractResponse,
+      };
     } catch (error: any) {
-      const errorMessage = this.parseContractExecutionError(error, 'verification');
       return {
         success: false,
         verified: false,
-        error: errorMessage || error.message || 'Verification failed',
+        code: 'internal',
+        message: error?.message || 'Verification failed',
       };
     }
   }
 
-  /**
-   * Generate a simple JWT token
-   * In production, you'd want to use a proper JWT library with signing
-   */
-  private generateJWT(userId: string): string {
-    const header = {
-      alg: 'HS256',
-      typ: 'JWT',
-    };
-
-    const payload = {
-      sub: userId,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + (24 * 60 * 60), // 24 hours
-      iss: 'web3authn-sdk',
-    };
-
-    // Simple base64 encoding (in production, use proper JWT signing)
-    const encodedHeader = btoa(JSON.stringify(header));
-    const encodedPayload = btoa(JSON.stringify(payload));
-
-    // For demo purposes, using a simple signature
-    // In production, use a proper JWT library with HMAC or RSA signing
-    const signature = btoa(`signature-${userId}-${Date.now()}`);
-
-    return `${encodedHeader}.${encodedPayload}.${signature}`;
-  }
+  // AuthService no longer exposes session helpers; routers should handle sessions via a provided adapter.
 
   /**
    * Parse contract response from execution outcome
@@ -1098,14 +1052,19 @@ export class AuthService {
         }
         const body: VerifyAuthenticationRequest = req.body;
         if (!body.vrf_data || !body.webauthn_authentication) {
-          res.status(400).json({ error: 'vrf_data and webauthn_authentication are required' });
+          res.status(400).json({ code: 'invalid_body', message: 'vrf_data and webauthn_authentication are required' });
           return;
         }
         const result = await this.verifyAuthenticationResponse(body);
-        res.status(result.success ? 200 : 400).json(result);
+        const status = result.success ? 200 : 400;
+        if (status !== 200) {
+          res.status(status).json({ code: 'not_verified', message: result.message || 'Authentication verification failed' });
+        } else {
+          res.status(status).json(result);
+        }
       } catch (error: any) {
         console.error('Error in verify authentication middleware:', error);
-        res.status(500).json({ success: false, error: 'Internal server error', details: error?.message });
+        res.status(500).json({ code: 'internal', message: error?.message || 'Internal server error' });
       }
     };
   }

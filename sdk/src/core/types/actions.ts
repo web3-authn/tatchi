@@ -13,7 +13,6 @@ export interface TransactionInputWasm {
 
 /**
  * Enum for all supported NEAR action types
- * Provides type safety and better developer experience
  */
 export enum ActionType {
   CreateAccount = "CreateAccount",

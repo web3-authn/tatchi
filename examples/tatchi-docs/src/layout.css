@@ -245,6 +245,12 @@
   line-height: 1.25;
 }
 
+/* Tweak hero typography for smaller screens */
+@media (max-width: 768px) {
+  .hero-title { font-size: 2.6rem; }
+  .hero-subtitle { font-size: 1.125rem; }
+}
+
 .hero-description {
   margin: 0;
   color: var(--w3a-colors-textSecondary);
@@ -326,6 +332,11 @@
   margin-top: 1rem;
 }
 
+/* Denser rows on mobile to fit more content above the fold */
+@media (max-width: 768px) {
+  .bento-grid { grid-auto-rows: 120px; }
+}
+
 .bento-card {
   position: relative;
   border-radius: 1rem;
@@ -358,8 +369,8 @@
 
 .bento-icon {
   color: var(--accent, var(--fe-primary));
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   grid-column: 1;
   grid-row: 1;
   align-self: center;
@@ -404,6 +415,7 @@
 .passkey-demo {
   display: grid;
   place-items: center;
+  padding-top: 2rem;
 }
 
 /* Install panel (hero code block) */

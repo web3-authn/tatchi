@@ -503,7 +503,13 @@ export class WalletIframeRouter {
   async loginPasskey(payload: {
     nearAccountId: string;
     options?: {
-      onEvent?: (ev: LoginSSEvent) => void
+      onEvent?: (ev: LoginSSEvent) => void;
+      // Forward session config so host can mint JWT/cookie
+      session?: {
+        kind: 'jwt' | 'cookie';
+        relayUrl?: string;
+        route?: string;
+      };
     }
   }): Promise<LoginResult> {
     this.showFrameForActivation();

@@ -13,28 +13,71 @@
  *
  * function App() {
  *   return (
- *     <PasskeyProvider configs={passkeyConfigs}>
+ *     <TatchiPasskeyProvider configs={passkeyConfigs}>
  *       <div>
  *         <QRCodeScanner onDeviceLinked={(result) => console.log(result)} />
  *         <ProfileSettingsButton username="alice" onLogout={() => console.log('logout')} />
  *       </div>
- *     </PasskeyProvider>
+ *     </TatchiPasskeyProvider>
  *   );
  * }
  * ```
  */
 
-// Context
 export { PasskeyProvider, usePasskeyContext } from './context';
-export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
+export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
 
+// === RE-EXPORT CORE TYPES ===
+export { PasskeyManager } from '../core/PasskeyManager';
+export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
+export type { PasskeyManagerConfigs } from '../core/types/passkeyManager';
+export type { StoreUserDataInput } from '../core/IndexedDBManager/passkeyClientDB';
+
+// === RE-EXPORT ACTION TYPES ===
+// Value export for enum
+export { ActionType } from '../core/types/actions';
+// Type exports for action shapes
+export type {
+  ActionArgs,
+  FunctionCallAction,
+  TransferAction,
+  CreateAccountAction,
+  DeployContractAction,
+  StakeAction,
+  AddKeyAction,
+  DeleteKeyAction,
+  DeleteAccountAction
+} from '../core/types/actions';
+
+// === TYPES ===
+export type {
+  PasskeyContextType,
+  PasskeyContextProviderProps,
+  LoginState,
+  LoginResult,
+  RegistrationResult,
+  // SSE Events
+  RegistrationSSEEvent,
+  LoginSSEvent,
+  ActionSSEEvent,
+  DeviceLinkingSSEEvent,
+  AccountRecoverySSEEvent,
+  // Re-exported from PasskeyManager types
+  RegistrationHooksOptions,
+  LoginHooksOptions,
+  SignNEP413HooksOptions,
+  ActionHooksOptions,
+  // UI State
+  AccountInputState,
+  UseAccountInputReturn,
+} from './types';
+
+////////////////////////////
 // === REACT HOOKS ===
+////////////////////////////
 
 export { useNearClient } from './hooks/useNearClient';
-export type {
-  NearClient,
-  AccessKeyList
-} from '../core/NearClient';
+export type { NearClient, AccessKeyList } from '../core/NearClient';
 export { useAccountInput } from './hooks/useAccountInput';
 export { useQRCamera, QRScanMode } from './hooks/useQRCamera';
 export type { UseQRCameraOptions, UseQRCameraReturn } from './hooks/useQRCamera';
@@ -46,7 +89,10 @@ export { usePostfixPosition } from './components/PasskeyAuthMenu/usePostfixPosit
 export type { UsePostfixPositionOptions, UsePostfixPositionReturn } from './components/PasskeyAuthMenu/usePostfixPosition';
 export { TxExecutionStatus } from '../core/types/actions';
 
+////////////////////////////
 // === REACT COMPONENTS ===
+////////////////////////////
+
 export { ProfileSettingsButton } from './components/ProfileSettingsButton';
 // QR Scanner (jsQR library lazy-loaded in qrScanner.ts utility)
 export { QRCodeScanner } from './components/QRCodeScanner';
@@ -68,60 +114,14 @@ export { AuthMenuMode, AuthMenuModeMap } from './components/PasskeyAuthMenu';
 export type { AuthMenuModeLabel } from './components/PasskeyAuthMenu';
 // Small SVG utility icon used in examples
 export { default as TouchIcon } from './components/ProfileSettingsButton/icons/TouchIcon';
-export { SunIcon } from './components/ProfileSettingsButton/icons/SunIcon';
-export { MoonIcon } from './components/ProfileSettingsButton/icons/MoonIcon';
 export { default as QRCodeIcon } from './components/QRCodeIcon';
-// Lit component wrappers
-export {
-  LitHaloBorder,
-  type LitHaloBorderProps
-} from './components/LitHaloBorder';
-export {
-  LitPasskeyHaloLoading,
-  type LitPasskeyHaloLoadingProps
-} from './components/LitPasskeyHaloLoading';
-export {
-  LitDrawer,
-  type LitDrawerProps
-} from './components/LitDrawer';
+export { default as SunIcon } from './components/ProfileSettingsButton/icons/SunIcon';
+export { default as MoonIcon } from './components/ProfileSettingsButton/icons/MoonIcon';
 
 // Theme components
 export { useTheme, Theme } from './components/theme';
 export type { UseThemeReturn, ThemeProps, ThemeMode } from './components/theme';
 export { LIGHT_TOKENS, DARK_TOKENS } from './components/theme';
-
-// App composition (Theme + PasskeyProvider)
-export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
-
-// === TYPES ===
-export type {
-  PasskeyContextType,
-  PasskeyContextProviderProps,
-  LoginState,
-  LoginResult,
-  RegistrationResult,
-  ActionExecutionResult,
-  ExecuteActionCallbacks,
-  // SSE Events
-  RegistrationSSEEvent,
-  LoginSSEvent,
-  ActionSSEEvent,
-  DeviceLinkingSSEEvent,
-  AccountRecoverySSEEvent,
-  // Re-exported from PasskeyManager types
-  RegistrationHooksOptions,
-  LoginHooksOptions,
-  SignNEP413HooksOptions,
-  ActionHooksOptions,
-
-  // Toasts
-  ToastOptions,
-  ToastStyleOptions,
-  ManagedToast,
-  // UI State
-  AccountInputState,
-  UseAccountInputReturn,
-} from './types';
 
 // === ACCOUNT RECOVERY ENUMS ===
 export {
@@ -143,6 +143,7 @@ export {
 } from '../core/types/passkeyManager';
 
 // === PROFILE BUTTON TYPES ===
+export { PROFILE_MENU_ITEM_IDS } from './components/ProfileSettingsButton/types';
 export type {
   ProfileDimensions,
   ProfileAnimationConfig,
@@ -159,24 +160,3 @@ export type {
   ProfileSettingsMenuItemId,
   HighlightedProfileMenuItem,
 } from './components/ProfileSettingsButton/types';
-export { PROFILE_MENU_ITEM_IDS } from './components/ProfileSettingsButton/types';
-
-// === RE-EXPORT CORE ===
-export type { PasskeyManagerConfigs as PasskeyConfigs } from '../core/types/passkeyManager';
-export type { StoreUserDataInput } from '../core/IndexedDBManager/passkeyClientDB';
-export { PasskeyManager } from '../core/PasskeyManager';
-
-// === RE-EXPORT ACTION TYPES ===
-export type {
-  ActionArgs,
-  FunctionCallAction,
-  TransferAction,
-  CreateAccountAction,
-  DeployContractAction,
-  StakeAction,
-  AddKeyAction,
-  DeleteKeyAction,
-  DeleteAccountAction
-} from '../core/types/actions';
-
-export { ActionType } from '../core/types/actions';

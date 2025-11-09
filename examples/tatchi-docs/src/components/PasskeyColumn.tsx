@@ -25,8 +25,8 @@ export function PasskeyColumn() {
 
   const pages = React.useMemo(() => ([
     {
-      key: 'login',
-      title: 'Login',
+      key: 'demo-auth',
+      title: 'Demo',
       element: ({ nextSlide, canNext, index }: { nextSlide: () => void; canNext: boolean; index: number }) => (
         <>
           <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
@@ -44,8 +44,8 @@ export function PasskeyColumn() {
       ),
     },
     {
-      key: 'demo-page',
-      title: 'Demos',
+      key: 'transactions',
+      title: 'Transactions',
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>

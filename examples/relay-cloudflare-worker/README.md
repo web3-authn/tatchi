@@ -38,6 +38,76 @@ extra requirements and limitations compared to the Express example.
 - If you enable Shamir rotation, configure the cron schedule in `[triggers]`
   and set `ENABLE_ROTATION="1"`.
 
+### Session configuration (optional)
+
+The Worker mints sessions only when you provide a SessionService. No JWT library
+is bundled — you supply minimal sign/verify hooks. Cookies default to
+`HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=24h` and can be customized via
+cookie hooks.
+
+Example hooks used in this example Worker entry:
+
+```ts
+const session = new SessionService({
+  jwt: {
+    signToken: ({ payload }) => jwt.sign(payload as any, env.JWT_SECRET || 'dev-insecure', {
+      algorithm: 'HS256', issuer: 'relay-worker-demo', audience: 'tatchi-app-demo', expiresIn: 86400
+    }),
+    verifyToken: async (token) => { try { return { valid: true, payload: jwt.verify(token, env.JWT_SECRET || 'dev-insecure') }; } catch { return { valid: false }; } }
+  },
+  // Minimal cookie config (defaults are fine for Lax; customize with hooks below if needed)
+  cookie: { name: 'w3a_session' }
+});
+```
+
+Custom cookie headers (optional):
+
+```ts
+const session = new SessionService({
+  jwt: { /* sign/verify as above */ },
+  cookie: {
+    name: 'w3a_session',
+    buildSetHeader: (token) => [
+      `w3a_session=${token}`,
+      'Path=/', 'HttpOnly', 'Secure', 'SameSite=None', 'Max-Age=86400'
+    ].join('; '),
+    buildClearHeader: () => [
+      'w3a_session=', 'Path=/', 'HttpOnly', 'Secure', 'SameSite=None',
+      'Max-Age=0', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    ].join('; ')
+  }
+});
+```
+
+## Session verification (JWT or HttpOnly cookie)
+
+- Endpoint: `POST /verify-authentication-response`
+- Request body:
+  ```json
+  {
+    "sessionKind": "jwt" | "cookie",
+    "vrf_data": { /* ContractVrfData */ },
+    "webauthn_authentication": { /* WebAuthn assertion */ }
+  }
+  ```
+- Behavior:
+  - `sessionKind: "jwt"` → JSON response includes `{ success, verified, jwt }`.
+  - `sessionKind: "cookie"` → sets `Set-Cookie: w3a_session=<jwt>; HttpOnly; Secure; SameSite=Lax; Path=/` and omits `jwt` in body.
+
+Cookie mode and CORS
+- Pass raw env origins to the router: it normalizes CSV/duplicates internally and only
+  advertises `Access-Control-Allow-Credentials: true` when echoing a specific `Origin`.
+- Set `EXPECTED_ORIGIN` (and/or `EXPECTED_WALLET_ORIGIN`) to explicit origins; avoid `*` when using cookies.
+- Your frontend fetch must include credentials in cookie mode:
+  ```ts
+  await fetch(`${relay}/verify-authentication-response`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionKind: 'cookie', vrf_data, webauthn_authentication })
+  });
+  ```
+
 ## Deployment checklist
 
 1. `pnpm install` (once) inside `examples/relay-cloudflare-worker/`.

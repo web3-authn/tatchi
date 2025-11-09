@@ -23,12 +23,12 @@
 
 /* Direction variables for slide */
 .carousel-root[data-dir="forward"] {
-  --slide-distance: var(--carousel-slide-distance, 40%);
+  --slide-distance: var(--carousel-slide-distance, 30%);
   --enter-from: var(--slide-distance);
   --exit-to: calc(-1 * var(--slide-distance));
 }
 .carousel-root[data-dir="backward"] {
-  --slide-distance: var(--carousel-slide-distance, 40%);
+  --slide-distance: var(--carousel-slide-distance, 30%);
   --enter-from: calc(-1 * var(--slide-distance));
   --exit-to: var(--slide-distance);
 }
@@ -46,16 +46,37 @@
 }
 
 /* Slide: use translateX only (avoid parent scaling that can skew child layouts) */
-[data-transition="slide"] .page--enter { transform: translateX(var(--enter-from, 0)); opacity: 0; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms); will-change: transform, opacity; }
+[data-transition="slide"] .page--enter {
+  transform: translateX(var(--enter-from, 0));
+  opacity: 0;
+  transition: transform var(--carousel-slide-duration, 400ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 300ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms);
+  will-change: transform, opacity;
+}
 [data-transition="slide"] .page--enter.page--active { transform: translateX(0); opacity: 1; }
-[data-transition="slide"] .page--exit { transform: translateX(0); opacity: 1; transition: transform var(--carousel-slide-duration, 300ms) var(--fe-ease), opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease); will-change: transform, opacity; }
-[data-transition="slide"] .page--exit.page--leaving { transform: translateX(var(--exit-to, -100%)); opacity: 0; }
+[data-transition="slide"] .page--exit {
+  transform: translateX(0);
+  opacity: 1;
+  transition: transform var(--carousel-slide-duration, 100ms) var(--fe-ease), opacity var(--carousel-fade-out-duration, 100ms) var(--fe-ease);
+  will-change: transform, opacity;
+}
+[data-transition="slide"] .page--exit.page--leaving {
+  transform: translateX(var(--exit-to, -30%));
+  opacity: 0;
+}
 
 /* Fade transition (shorter fadeOut) */
-[data-transition="fade"] .page--enter { opacity: 0; transform: scale(var(--carousel-scale-in-start, 0.985)); transition: transform var(--carousel-fade-in-duration, 240ms) var(--fe-ease), opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms); }
-[data-transition="fade"] .page--enter.page--active { opacity: 1; transform: scale(var(--carousel-scale-in-end, 1)); }
-[data-transition="fade"] .page--exit { opacity: 1; transform: scale(var(--carousel-scale-out-start, 1)); transition: opacity var(--carousel-fade-out-duration, 200ms) var(--fe-ease), transform var(--carousel-fade-out-duration, 200ms) var(--fe-ease); }
-[data-transition="fade"] .page--exit.page--leaving { opacity: 0; transform: scale(var(--carousel-scale-out-end, 0.985)); }
+[data-transition="fade"] .page--enter {
+  opacity: 0;
+  transform: translateZ(0);
+  transition: opacity var(--carousel-fade-in-duration, 240ms) var(--fe-ease) var(--carousel-fade-in-delay, 200ms);
+}
+[data-transition="fade"] .page--enter.page--active { opacity: 1; transform: translateZ(0); }
+[data-transition="fade"] .page--exit {
+  opacity: 1;
+  transform: translateZ(0);
+  transition: opacity var(--carousel-fade-out-duration, 100ms) var(--fe-ease);
+}
+[data-transition="fade"] .page--exit.page--leaving { opacity: 0; transform: translateZ(0); }
 
 @media (prefers-reduced-motion: reduce) {
   .carousel-page, .carousel-root, .carousel-stage { transition: none !important; animation: none !important; }

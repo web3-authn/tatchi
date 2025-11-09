@@ -10,6 +10,19 @@ The Web3 Authn SDK is 'deconstructed' embedded wallet that gives developers more
 - Wallet recovery via TouchID across multiple devices through Chrome and Apple iCloud passkey sync. "Not your passkey, not your key"
 - Serverless WebAuthn: Uses VRF-based challenges for serverless verification - no centralized points of failure like traditional WebAuthn implementations
 
+### Design Strengths
+
+Delivers stateless, phishing‑resistant authentication anchored on WebAuthn and chain freshness, with a practical auto‑unlock path via Shamir 3‑pass.
+
+Strengths
+
+- Strong binding: WebAuthn rpId + user presence combined with VRF proof tied to fresh block height/hash.
+- Stateless freshness: contracts verify VRF input recency as a view; no server nonce DB needed.
+- Secret hygiene: VRF and NEAR keys never leave the client; relay never sees KEK/VRF plaintext.
+- UX: auto‑unlock via Shamir (no TouchID prompt) with graceful TouchID fallback; proactive shard rotation.
+- Cross‑origin safety: challenge and rpId pinning reduce phishing; wallet iframe isolation is consistent with your CSP goals.
+- Operational simplicity: one view to mint a session; avoids signature nonce stores and minimizes server state.
+
 ### Target Users
 
 - **Web2 Developers**: Want to implement WebAuthn TouchID for their app but don't want to set up a server for it

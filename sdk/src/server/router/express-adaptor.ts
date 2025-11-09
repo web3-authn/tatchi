@@ -1,19 +1,26 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import express from 'express';
 import type { AuthService } from '../core/AuthService';
-import type {
-  CreateAccountAndRegisterRequest,
-  CreateAccountAndRegisterResult,
-  ShamirApplyServerLockResponse,
-  ShamirRemoveServerLockResponse,
-} from '../core/types';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
+  sessionRoutes?: { auth?: string; logout?: string };
+  session?: SessionAdapter | null;
+}
+
+// Minimal session adapter interface expected by the routers
+export interface SessionAdapter {
+  signJwt(sub: string, extra?: Record<string, unknown>): Promise<string>;
+  parse(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; claims?: any } | { ok: false }>;
+  buildSetCookie(token: string): string;
+  buildClearCookie(): string;
+  refresh(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; jwt?: string; code?: string; message?: string }>;  
 }
 
 export function createRelayRouter(service: AuthService, opts: RelayRouterOptions = {}): ExpressRouter {
   const router = express.Router();
+  const mePath = opts.sessionRoutes?.auth || '/session/auth';
+  const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
 
   router.post(
     '/create_account_and_register_user',
@@ -75,6 +82,110 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
       res.send(JSON.parse(serverResponse.body));
     } catch (e: any) {
       res.status(500).json({ error: 'internal', details: e?.message });
+    }
+  });
+
+  // VRF + WebAuthn session verification (VIEW call) + optional session issuance
+  router.post('/verify-authentication-response', async (req: any, res: any) => {
+    try {
+      if (!req?.body) {
+        res.status(400).json({ code: 'invalid_body', message: 'Request body is required' });
+        return;
+      }
+      const body = req.body;
+      const valid = body && body.vrf_data && body.webauthn_authentication;
+      if (!valid) {
+        res.status(400).json({ code: 'invalid_body', message: 'vrf_data and webauthn_authentication are required' });
+        return;
+      }
+      const result = await service.verifyAuthenticationResponse(body);
+      const status = result.success ? 200 : 400;
+      if (status !== 200) {
+        res.status(status).json({ code: 'not_verified', message: result.message || 'Authentication verification failed' });
+        return;
+      }
+      const sessionKind = ((body?.sessionKind || body?.session_kind) === 'cookie') ? 'cookie' : 'jwt';
+      const session = opts.session;
+      if (session && result.verified) {
+        try {
+          const sub = String(body.vrf_data.user_id || '');
+          const token = await session.signJwt(sub, { rpId: body.vrf_data.rp_id, blockHeight: body.vrf_data.block_height });
+          try {
+            // Best-effort server log without sensitive data
+            console.log(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, sub);
+          } catch {}
+          if (sessionKind === 'cookie') {
+            res.set('Set-Cookie', session.buildSetCookie(token));
+            const { jwt: _omit, ...rest } = result as any;
+            res.status(200).json(rest);
+            return;
+          }
+          res.status(200).json({ ...result, jwt: token });
+          return;
+        } catch (e: any) {
+          // If session issuance fails, still return verification result
+        }
+      }
+      res.status(200).json(result);
+    } catch (e: any) {
+      res.status(500).json({ code: 'internal', message: e?.message || 'Internal error' });
+    }
+  });
+
+  // Session: read current claims via bearer token or cookie
+  router.get(mePath, async (req: any, res: any) => {
+    try {
+      const session = opts.session;
+      if (!session) {
+        res.status(501).json({ authenticated: false, code: 'sessions_disabled', message: 'Sessions are not configured' });
+        return;
+      }
+      const parsed = await session.parse(req.headers || {});
+      if (!parsed.ok) {
+        res.status(401).json({ authenticated: false, code: 'unauthorized', message: 'No valid session' });
+        return;
+      }
+      res.status(200).json({ authenticated: true, claims: (parsed as any).claims });
+    } catch (e: any) {
+      res.status(500).json({ authenticated: false, code: 'internal', message: e?.message || 'Internal error' });
+    }
+  });
+
+  // Session: logout clears cookie (best-effort)
+  router.post(logoutPath, async (_req: any, res: any) => {
+    try {
+      const session = opts.session;
+      if (session) res.set('Set-Cookie', session.buildClearCookie());
+      res.status(200).json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ success: false, error: 'internal', details: e?.message });
+    }
+  });
+
+  // Session: refresh (sliding expiration)
+  router.post('/session/refresh', async (req: any, res: any) => {
+    try {
+      const sessionKind = ((req.body || {}).sessionKind === 'cookie') ? 'cookie' : ((req.body || {}).session_kind === 'cookie' ? 'cookie' : 'jwt');
+      const session = opts.session;
+      if (!session) {
+        res.status(501).json({ code: 'sessions_disabled', message: 'Sessions are not configured' });
+        return;
+      }
+      const out = await session.refresh(req.headers || {});
+      if (!out.ok || !out.jwt) {
+        const code = out.code || 'not_eligible';
+        const message = out.message || 'Refresh not eligible';
+        res.status(code === 'unauthorized' ? 401 : 400).json({ code, message });
+        return;
+      }
+      if (sessionKind === 'cookie') {
+        res.set('Set-Cookie', session.buildSetCookie(out.jwt));
+        res.status(200).json({ ok: true });
+      } else {
+        res.status(200).json({ ok: true, jwt: out.jwt });
+      }
+    } catch (e: any) {
+      res.status(500).json({ code: 'internal', message: e?.message || 'Internal error' });
     }
   });
 

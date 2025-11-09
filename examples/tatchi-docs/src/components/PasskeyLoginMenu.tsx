@@ -125,10 +125,11 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   };
 
   const onLogin = async () => {
-    // Ensure the waiting screen stays visible at least LOADING_MIN_MS
-    const started = Date.now();
-
     const result = await loginPasskey(targetAccountId, {
+      // Mint a JWT session via the relay server if session.kind is provided
+      // session: {
+      //   kind: 'jwt',
+      // },
       onEvent: (event) => {
         switch (event.phase) {
           case LoginPhase.STEP_1_PREPARATION:
@@ -149,9 +150,11 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       }
     });
     if (result?.success) {
-      const elapsed = Date.now() - started;
-      if (elapsed < LOADING_MIN_MS) {
-        await new Promise((res) => setTimeout(res, LOADING_MIN_MS - elapsed));
+      // Surface the minted JWT via toast (truncate to 8 chars)
+      if (result.jwt) {
+        const short = String(result.jwt).slice(0, 16);
+        toast.success(`Session JWT minted: ${short}…`, { id: 'jwt' });
+        console.log('[tatchi-docs] JWT returned:', result.jwt);
       }
       props.onLoggedIn?.(result?.nearAccountId);
     }
