@@ -16,7 +16,7 @@ import type { PasskeyManagerContext } from './index';
 import type { NearClient, SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus, ActionSSEEvent, onProgressEvents } from '../types/passkeyManager';
-import { toError } from '../../utils/errors';
+import { toError, getNearShortErrorMessage } from '../../utils/errors';
 
 //////////////////////////////
 // === PUBLIC API ===
@@ -253,7 +253,13 @@ export async function sendTransaction({
       message: `Transaction ${txId} completed `
     });
   } catch (error: unknown) {
-    console.error('[sendTransaction] failed:', error);
+    const e = toError(error);
+    console.error('[sendTransaction] failed:', e);
+    const details = (e as { details?: unknown }).details;
+    if (details) {
+      // Surface full details at error level for visibility during debugging
+      console.error('[sendTransaction] RPC error details:', details);
+    }
     // Centralized cleanup: release reserved nonce on failure (idempotent)
     try {
       const nonce = signedTransaction.transaction.nonce;
@@ -261,7 +267,7 @@ export async function sendTransaction({
     } catch (nonceError) {
       console.warn('[sendTransaction]: Failed to release nonce after failure:', nonceError);
     }
-    throw toError(error);
+    throw e;
   }
 
   const actionResult: ActionResult = {
@@ -341,13 +347,14 @@ export async function executeActionInternal({
   } catch (error: unknown) {
     console.error('[executeAction] Error during execution:', error);
     const e = toError(error);
+    const short = (e as { short?: string }).short || getNearShortErrorMessage(e);
     onError?.(e);
     onEvent?.({
       step: 0,
       phase: ActionPhase.ACTION_ERROR,
       status: ActionStatus.ERROR,
-      message: `Action failed: ${e.message}`,
-      error: e.message
+      message: `Action failed: ${short || e.message}`,
+      error: short || e.message
     });
     const result: ActionResult = { success: false, error: e.message, transactionId: undefined };
     afterCall?.(false);
@@ -402,7 +409,17 @@ export async function signAndSendTransactionsInternal({
   } catch (error: unknown) {
     // If signing fails, release all reserved nonces
     context.webAuthnManager.getNonceManager().releaseAllNonces();
-    throw toError(error);
+    const e = toError(error);
+    const short = (e as { short?: string }).short || getNearShortErrorMessage(e) || e.message;
+    options?.onEvent?.({
+      step: 0,
+      phase: ActionPhase.ACTION_ERROR,
+      status: ActionStatus.ERROR,
+      message: `Action failed: ${short}`,
+      error: short
+    });
+    options?.onError?.(e);
+    throw e;
   }
 }
 
@@ -458,15 +475,17 @@ export async function signTransactionsWithActionsInternal({
     return signedTxs;
   } catch (error: any) {
     console.error('[signTransactionsWithActions] Error during execution:', error);
-    onError?.(error);
+    const e = toError(error);
+    const short = (e as { short?: string }).short || getNearShortErrorMessage(e) || e.message;
+    onError?.(e);
     onEvent?.({
       step: 0,
       phase: ActionPhase.ACTION_ERROR,
       status: ActionStatus.ERROR,
-      message: `Action failed: ${error.message}`,
-      error: error.message
+      message: `Action failed: ${short}`,
+      error: short
     });
-    throw error;
+    throw e;
   }
 }
 
