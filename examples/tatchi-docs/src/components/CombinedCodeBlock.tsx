@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import CopyButton from './CopyButton';
 import { useTheme } from '@tatchi-xyz/sdk/react';
+import { mobilePressHandlers } from '../utils/press';
 
 import reactSnippet from '../snippets/react.tsx.txt?raw'
 import coreSnippet from '../snippets/core.ts.txt?raw'
@@ -27,13 +28,13 @@ export function CombinedCodeBlock() {
                 role="tab"
                 aria-selected={tab === 'core'}
                 className={`install-tab${tab === 'core' ? ' active' : ''}`}
-                onClick={() => setTab('core')}
+                {...mobilePressHandlers(() => setTab('core'))}
               >Typescript</button>
               <button
                 role="tab"
                 aria-selected={tab === 'react'}
                 className={`install-tab${tab === 'react' ? ' active' : ''}`}
-                onClick={() => setTab('react')}
+                {...mobilePressHandlers(() => setTab('react'))}
               >React</button>
             </div>
           </div>
@@ -50,4 +51,3 @@ export function CombinedCodeBlock() {
     </section>
   );
 }
-

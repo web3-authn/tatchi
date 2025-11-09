@@ -168,6 +168,29 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
     };
   }, [updateActiveMetrics, items.length, activeIndex]);
 
+  // mobilePressHandlers: reduce mobile press delay by activating on pointerdown
+  // for touch/pen, while preserving click for mouse/keyboard. De-dupes follow-up click.
+  const _pressedTargets = new WeakSet<EventTarget & Element>();
+  function mobilePressHandlers(onActivate: () => void) {
+    return {
+      onPointerDown: (e: React.PointerEvent<HTMLElement>) => {
+        const pt = e.pointerType;
+        if (pt && pt !== 'mouse') {
+          e.preventDefault();
+          _pressedTargets.add(e.currentTarget);
+          onActivate();
+        }
+      },
+      onClick: (e: React.MouseEvent<HTMLElement>) => {
+        if (_pressedTargets.has(e.currentTarget)) {
+          _pressedTargets.delete(e.currentTarget);
+          return;
+        }
+        onActivate();
+      },
+    } as const;
+  }
+
   const hasCustomHeight = height !== undefined;
   const insetCss = toCssDim(inset);
   const rootStyle: React.CSSProperties = {
@@ -211,7 +234,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
               type="button"
               aria-pressed={isActive}
               className={`w3a-seg-btn${isActive ? ' is-active' : ''}${buttonClassName ? ` ${buttonClassName}` : ''}${it.className ? ` ${it.className}` : ''}`}
-              onClick={() => onValueChange(it.value)}
+              {...mobilePressHandlers(() => onValueChange(it.value))}
               disabled={!!it.disabled}
               ref={(node) => {
                 buttonRefs.current[i] = node;

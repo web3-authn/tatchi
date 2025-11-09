@@ -1,6 +1,6 @@
 /* Root container */
 .w3a-signup-menu-root {
-  width: 420px;
+  width: min(100dvw, 420px);
   max-width: 100dvw;
   min-width: 330px;
   min-height: 250px;
@@ -391,6 +391,9 @@
   font-weight: 600;
   cursor: pointer;
   border: none;
+  /* Immediate taps on mobile; opt-out of double-tap zoom heuristics */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   transition: color 200ms ease, transform 120ms ease;
   display: flex;
   align-items: center;

@@ -4,16 +4,17 @@ import { BookOpenText } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { TouchIcon, useTheme } from '@tatchi-xyz/sdk/react';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
+import { mobilePressHandlers } from '../utils/press';
 
 export function HomeHero() {
 
-  const [pmBlock, setPmBlock] = useState<'npm' | 'pnpm' | 'bun'>('npm');
+  const [packageManager, setPackageManager] = useState<'npm' | 'pnpm' | 'bun'>('npm');
   const { linkProps } = useVitepressRouter();
   const { theme } = useTheme();
 
-  const installBlockCmd = pmBlock === 'npm'
+  const installBlockCmd = packageManager === 'npm'
     ? 'npm install @tatchi-xyz/sdk'
-    : pmBlock === 'pnpm'
+    : packageManager === 'pnpm'
     ? 'pnpm add @tatchi-xyz/sdk'
     : 'bun add @tatchi-xyz/sdk';
 
@@ -75,9 +76,9 @@ export function HomeHero() {
                   <button
                     key={k}
                     role="tab"
-                    aria-selected={pmBlock === k}
-                    className={`install-tab${pmBlock === k ? ' active' : ''}`}
-                    onClick={() => setPmBlock(k)}
+                    aria-selected={packageManager === k}
+                    className={`install-tab${packageManager === k ? ' active' : ''}`}
+                    {...mobilePressHandlers(() => setPackageManager(k))}
                   >{k}</button>
                 ))}
               </div>
