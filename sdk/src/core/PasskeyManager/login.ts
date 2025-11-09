@@ -40,7 +40,6 @@ export async function loginPasskey(
 ): Promise<LoginResult> {
 
   const { onEvent, onError, afterCall } = options || {};
-  // Emit started event
   onEvent?.({
     step: 1,
     phase: LoginPhase.STEP_1_PREPARATION,
@@ -49,7 +48,6 @@ export async function loginPasskey(
   });
 
   try {
-
     // Validation
     if (!window.isSecureContext) {
       const errorMessage = 'Passkey operations require a secure context (HTTPS or localhost).';
@@ -476,7 +474,6 @@ export async function verifyAuthenticationResponse(
     // Map VRFChallenge into server ContractVrfData shape (number arrays)
     const toBytes = (b64u: string | undefined): number[] => {
       if (!b64u) return [];
-      // Decode base64url to bytes without relying on Node Buffer
       return Array.from(base64UrlDecode(b64u));
     };
     const vrf_data = {
