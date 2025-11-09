@@ -36,18 +36,28 @@ export function HomeHero() {
             />
           </span>
         </h1>
-        <p className="hero-subtitle">
-          A TouchID based embedded wallet
-          <br/>
-          No popups. No keys. No intermediaries.
-        </p>
+        <h3 className="hero-subtitle">
+          A TouchID native wallet
+        </h3>
         <p className="hero-description">
-          Tatchi is an embedded wallet SDK that brings passwordless authentication and onchain
-          transactions directly into your app.
+          Tatchi is a browser embedded wallet allows users to
+          sign transactions without popups, managing keys, or installing extensions.
         </p>
+        <h3 className="hero-subtitle">
+          No popups. No keys. No passwords.
+        </h3>
         <p className="hero-description">
           Keep full control of your UI with zero popups,
-          serverless WebAuthn, and VRF challenges designed for security and speed.
+          serverless WebAuthn authentication with VRF challenges designed for security and speed.
+        </p>
+        <h3 className="hero-subtitle">
+          Fearless account recovery without servers
+        </h3>
+        <p className="hero-description">
+          Your passkey is your wallet.
+          Tatchi derives and secures wallets from Passkeys and saves authenticator details onchain,
+          meaning your users can recover accounts, and link multiple devices all by themselves without
+          intermediaries.
         </p>
         <div className="hero-ctas">
           <a

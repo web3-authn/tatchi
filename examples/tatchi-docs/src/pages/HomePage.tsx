@@ -1,6 +1,6 @@
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
-import { CombinedCodeBlock } from '../components/CombinedCodeBlock';
+import { GetStartedCodeBlock } from '../components/GetStartedCodeBlock';
 import { PasskeyColumn } from '../components/PasskeyColumn';
 import { Footer } from '../components/Footer';
 
@@ -29,7 +29,7 @@ export function HomePage() {
       {/* four */}
       <div className="card four">
         <div className="constrained-column">
-          <CombinedCodeBlock />
+          <GetStartedCodeBlock />
         </div>
       </div>
 

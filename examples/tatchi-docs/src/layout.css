@@ -116,7 +116,7 @@
 }
 
 .constrained-column {
-  max-width: 600px;
+  max-width: 600px; /* same as layout-root */
   padding: 0rem;
   /* Allow content to shrink and avoid track stretching */
   width: 100%;
@@ -225,7 +225,6 @@
 .hero {
   display: flex;
   flex-direction: column;
-  gap: var(--fe-gap-4);
   padding: 1rem 0;
 }
 
@@ -233,6 +232,7 @@
   position: relative;
   margin: 0;
   margin-top: 2rem;
+  margin-bottom: 1rem;
   font-size: 3rem;
   font-weight: 700;
   color: var(--fe-text-primary);
@@ -241,7 +241,7 @@
 .hero-subtitle {
   font-size: 1.25rem;
   font-weight: 600;
-  margin: 0.5rem 0 0.5rem 0;
+  margin: 1rem 0 0.25rem 0;
   line-height: 1.25;
 }
 
@@ -253,6 +253,7 @@
 
 .hero-description {
   margin: 0;
+  margin-bottom: 1rem;
   color: var(--w3a-colors-textSecondary);
 }
 
@@ -277,10 +278,41 @@
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-top: 0.5rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
 }
 
 .hero-ctas a { text-decoration: none; }
+
+/* Built on NEAR badge under CTAs */
+.hero-built-on {
+  padding: 6rem 0rem 2rem 0rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-top: 0; /* inline with CTA row */
+  margin-left: auto; /* push badge to right */
+  color: #fff; /* match NEAR logo */
+  text-decoration: none;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.hero-built-on__label {
+  color: inherit; /* keep text white by default */
+  font-size: 1.25rem;
+  transition: color var(--fe-fast, 0.2s) var(--fe-ease, ease);
+}
+.hero-built-on svg {
+  font-size: 2rem; /* scale logo relative to text */
+  height: 1em; /* match text size */
+  width: auto;
+  margin-top: 0;
+  vertical-align: middle;
+  transition: color var(--fe-fast, 0.2s) var(--fe-ease, ease);
+}
+.hero-built-on:hover .hero-built-on__label { color: var(--w3a-colors-secondaryHover); }
+.hero-built-on:hover svg { color: var(--w3a-colors-secondaryHover); }
 
 .cta-button {
   display: inline-flex;
@@ -325,8 +357,8 @@
 /* Bento grid */
 .bento-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  grid-auto-rows: 170px;
+  grid-template-columns: repeat(auto-fit, minmax(269px, 1fr));
+  grid-auto-rows: 160px;
   gap: 0.5rem;
   place-content: center;
   margin-top: 1rem;
@@ -334,8 +366,17 @@
 
 /* Denser rows on mobile to fit more content above the fold */
 @media (max-width: 768px) {
-  .bento-grid { grid-auto-rows: 120px; }
+  .bento-grid {
+    grid-auto-rows: 10rem;
+  }
 }
+
+@media (max-width: 576px) {
+  .bento-grid {
+    grid-auto-rows: 7rem;
+  }
+}
+
 
 .bento-card {
   position: relative;
@@ -361,9 +402,9 @@
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: auto auto;
-  gap: 0.5rem;
+  gap: 0.25rem;
   column-gap: 0.5rem;
-  padding: 1.5rem;
+  padding: 1.25rem;
   align-items: start;
 }
 

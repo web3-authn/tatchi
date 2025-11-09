@@ -2,6 +2,7 @@ import { useState } from 'react';
 import CopyButton from './CopyButton';
 import { useTheme } from '@tatchi-xyz/sdk/react';
 import { mobilePressHandlers } from '../utils/press';
+import NearLogo from './icons/NearLogo';
 
 import reactSnippet from '../snippets/react.tsx.txt?raw'
 import coreSnippet from '../snippets/core.ts.txt?raw'
@@ -9,7 +10,7 @@ import { reactHtmlLight, reactHtmlDark, coreHtmlLight, coreHtmlDark } from '../g
 
 type TabKey = 'react' | 'core';
 
-export function CombinedCodeBlock() {
+export function GetStartedCodeBlock() {
   const { theme } = useTheme();
   const [tab, setTab] = useState<TabKey>('core');
 
@@ -48,6 +49,17 @@ export function CombinedCodeBlock() {
           <div dangerouslySetInnerHTML={{ __html: currentHtml }} />
         </div>
       </div>
+
+      <a
+        href="https://near.org"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="hero-built-on"
+        aria-label="Built on NEAR"
+      >
+        <span className="hero-built-on__label">Built on</span>
+        <NearLogo size={72} />
+      </a>
     </section>
   );
 }

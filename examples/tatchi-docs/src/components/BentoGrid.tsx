@@ -7,29 +7,29 @@ export function BentoGrid() {
         <div className="bento-content">
           <PanelsTopLeft className="bento-icon" aria-hidden />
           <h3 className="bento-title" id="bento-dev-title">UX Focused</h3>
-          <p className="bento-desc">No selectors or popups. Embed and keep full UX control.</p>
+          <p className="bento-desc">No popup windows. Keep full UX control over wallet signing</p>
         </div>
       </div>
       <div className="bento-card accent-blue" role="group" aria-labelledby="bento-flex-title">
         <div className="bento-content">
           <Boxes className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-flex-title">Serverless WebAuthn</h3>
-          <p className="bento-desc">VRF‑based challenges with onchain webauthn verification. No centralized verifiers.</p>
+          <h3 className="bento-title" id="bento-flex-title">Serverless Passkeys</h3>
+          <p className="bento-desc">No downtime. Serverless webauthn uses VRF challenges with onchain verification</p>
         </div>
       </div>
 
       <div className="bento-card accent-blue" role="group" aria-labelledby="bento-recovery-title">
         <div className="bento-content">
           <ShieldCheck className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-recovery-title">Serverless Account Recovery</h3>
-          <p className="bento-desc">Onchain account backups without intermediaries.</p>
+          <h3 className="bento-title" id="bento-recovery-title">Account Recovery</h3>
+          <p className="bento-desc">Recover accounts directly from onchain Passkey authenticators with TouchID</p>
         </div>
       </div>
       <div className="bento-card accent-blue" role="group" aria-labelledby="bento-linking-title">
         <div className="bento-content">
           <QrCode className="bento-icon" aria-hidden />
-          <h3 className="bento-title" id="bento-linking-title">Device Linking</h3>
-          <p className="bento-desc">Backup accounts across multiple devices with QR scans. Never lose access to your account.</p>
+          <h3 className="bento-title" id="bento-linking-title">Trustless Device Linking</h3>
+          <p className="bento-desc">Backup accounts across multiple devices with QR scans without intermediaries</p>
         </div>
       </div>
     </section>
