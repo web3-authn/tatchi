@@ -204,10 +204,7 @@
   color: var(--w3a-colors-secondaryHover);
 }
 
-
-
-/* On narrow viewports, remove inner padding/radius so content fits flush */
-@media (max-width: 600px) {
+@media (max-width: 768px) {
   /* Hide the static navbar on small screens */
   .navbar-static { display: none !important; }
 
@@ -246,6 +243,12 @@
   font-weight: 600;
   margin: 0.5rem 0 0.5rem 0;
   line-height: 1.25;
+}
+
+/* Tweak hero typography for smaller screens */
+@media (max-width: 768px) {
+  .hero-title { font-size: 2.6rem; }
+  .hero-subtitle { font-size: 1.125rem; }
 }
 
 .hero-description {
@@ -329,6 +332,11 @@
   margin-top: 1rem;
 }
 
+/* Denser rows on mobile to fit more content above the fold */
+@media (max-width: 768px) {
+  .bento-grid { grid-auto-rows: 120px; }
+}
+
 .bento-card {
   position: relative;
   border-radius: 1rem;
@@ -361,8 +369,8 @@
 
 .bento-icon {
   color: var(--accent, var(--fe-primary));
-  width: 24px;
-  height: 24px;
+  width: 20px;
+  height: 20px;
   grid-column: 1;
   grid-row: 1;
   align-self: center;
@@ -407,6 +415,7 @@
 .passkey-demo {
   display: grid;
   place-items: center;
+  padding-top: 2rem;
 }
 
 /* Install panel (hero code block) */
@@ -448,6 +457,9 @@
   font: inherit;
   padding: 4px 1rem 4px 1rem;
   cursor: pointer;
+  /* Hint to browser that this is a tap target (reduces tap delay) */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
   /* Animate active pill changes */
   transition:
     background var(--fe-fast) var(--fe-ease),
@@ -463,6 +475,10 @@
   background: var(--fe-surface);
   box-shadow: 0 2px 8px var(--fe-shadow);
 }
+/* Subtle press feedback */
+.install-tab:active {
+  transform: scale(0.98);
+}
 .install-copy {
   display: grid;
   place-content: center;
@@ -471,10 +487,15 @@
   color: var(--fe-text-dim);
   padding: 6px;
   cursor: pointer;
+  /* Faster touch activation and cleaner highlight on mobile */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 .install-copy { transition: color var(--fe-fast) var(--fe-ease); }
 .install-copy:hover { color: color-mix(in srgb, var(--fe-text-dim) 70%, var(--fe-bg)); }
 .install-copy.is-copied { color: var(--fe-text); }
+/* Subtle press feedback */
+.install-copy:active { transform: scale(0.98); }
 
 /* Animated icon swap for CopyButton */
 .install-copy-inner {
@@ -550,7 +571,7 @@
   box-sizing: border-box;
   contain: inline-size;
   /* enforce monospace regardless of global font stacks */
-  font-family: var(--fe-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace) !important;
+  font-family: var(--fe-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas) !important;
   line-height: 1; /* compact code lines */
 }
 /* Make Shiki scrollbars as invisible as possible, but usable on hover */
@@ -630,52 +651,6 @@
 [data-w3a-theme="dark"] .shiki .code-kw-pkg-install {
   color: #D2A8FF; /* GitHub dark purple */
 }
-
-
-/* Footer at bottom of left column */
-.site-footer {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center; /* center icons */
-  gap: 12px;
-  padding: 2rem 0; /* 2rem above and below */
-  color: var(--fe-text-dim);
-  flex-direction: column; /* icons row + badge below */
-}
-.site-footer-icons { display: inline-flex; gap: 12px; align-items: center; justify-content: center; }
-.site-footer-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px; /* larger click target around bigger icons */
-  border-radius: 8px;
-  color: var(--fe-text-dim);
-  text-decoration: none;
-  transition: color var(--fe-fast) var(--fe-ease), background var(--fe-fast) var(--fe-ease);
-}
-.site-footer-link:hover { color: var(--w3a-colors-secondaryHover); background: color-mix(in srgb, var(--fe-bg) 70%, transparent); }
-
-/* Built on NEAR badge in home footer */
-.site-footer .built-on-near {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-}
-.site-footer .built-on-near__text {
-  font-size: 18px; /* larger text */
-  font-weight: 600;
-  color: var(--fe-text-secondary);
-}
-.site-footer .built-on-near__logo {
-  height: 28px; /* roughly 2x previous */
-  width: auto;
-}
-.site-footer .built-on-near__logo--dark { display: none; }
-[data-w3a-theme="dark"] .site-footer .built-on-near__logo--dark { display: inline-block; }
-[data-w3a-theme="dark"] .site-footer .built-on-near__logo--light { display: none; }
 
 /* Light mode overrides (VitePress + SDK synced) */
 [data-w3a-theme="light"] .code-block,

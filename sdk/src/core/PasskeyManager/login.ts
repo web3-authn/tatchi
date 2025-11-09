@@ -16,7 +16,22 @@ import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } fro
 import { authenticatorsToAllowCredentials} from '../WebAuthnManager/touchIdPrompt';
 
 /**
- * Core login function that handles passkey authentication without React dependencies
+ * Core login function that handles passkey authentication without React dependencies.
+ *
+ * Behavior
+ * - Unlocks the VRF keypair (Shamir 3‑pass auto‑unlock when possible; falls back to TouchID).
+ * - Updates local login state and returns success with account/public key info.
+ * - Optional: mints a server session when `options.session` is provided.
+ *   - Generates a fresh, chain‑anchored VRF challenge (using latest block).
+ *   - Collects a WebAuthn assertion over the VRF output and posts to the relay route
+ *     (defaults to `/verify-authentication-response`).
+ *   - When `kind: 'jwt'`, returns the token in `result.jwt`.
+ *   - When `kind: 'cookie'`, the server sets an HttpOnly cookie and no JWT is returned.
+ *
+ * Prompts
+ * - If Shamir auto‑unlock succeeds: a single prompt total to mint the session.
+ * - If TouchID was required for VRF unlock: a second prompt is needed for the
+ *   VRF‑anchored verification assertion (or omit `options.session` to defer).
  */
 export async function loginPasskey(
   context: PasskeyManagerContext,
@@ -50,19 +65,105 @@ export async function loginPasskey(
         error: errorMessage
       });
       const result = { success: false, error: errorMessage };
-      afterCall?.(false);
       return result;
     }
 
     // Handle login and unlock VRF keypair in VRF WASM worker for WebAuthn challenge generation
-    return await handleLoginUnlockVRF(
+    const wantsSession = options?.session?.kind == 'jwt' || options?.session?.kind == 'cookie';
+    const baseResult = await handleLoginUnlockVRF(
       context,
       nearAccountId,
       onEvent,
       onError,
       beforeCall,
-      afterCall
+      afterCall,
+      // Defer final 'login-complete' event & afterCall until session is minted
+      wantsSession
     );
+    // If base login failed, just return
+    if (!baseResult.success) return baseResult;
+
+    // Optionally mint a server session (JWT or HttpOnly cookie)
+    if (wantsSession) {
+      const { kind, relayUrl: relayUrlOverride, route: routeOverride } = options!.session!;
+      const relayUrl = (relayUrlOverride || context.configs.relayer?.url || '').trim();
+      const route = (routeOverride || '/verify-authentication-response').trim();
+      if (!relayUrl) {
+        // No relay; return base result without session
+        console.warn("No relayUrl provided for session");
+        // Emit completion now since we deferred it
+        onEvent?.({
+          step: 4,
+          phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
+          status: LoginStatus.SUCCESS,
+          message: 'Login completed successfully',
+          nearAccountId: nearAccountId,
+          clientNearPublicKey: baseResult?.clientNearPublicKey || ''
+        } as unknown as LoginSSEvent);
+        await afterCall?.(true, baseResult);
+        return baseResult;
+      }
+      try {
+        // Build a fresh VRF challenge using current block
+        const blockInfo = await context.nearClient.viewBlock({ finality: 'final' });
+        const txBlockHash = blockInfo?.header?.hash;
+        const txBlockHeight = String(blockInfo.header?.height ?? '');
+        const vrfChallenge = await context.webAuthnManager.generateVrfChallenge({
+          userId: nearAccountId,
+          rpId: context.webAuthnManager.getRpId(),
+          blockHash: txBlockHash,
+          blockHeight: txBlockHeight,
+        });
+        const authenticators = await context.webAuthnManager.getAuthenticatorsByUser(nearAccountId);
+        const credential = await context.webAuthnManager.getAuthenticationCredentialsSerialized({
+          nearAccountId,
+          challenge: vrfChallenge,
+          allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        });
+
+        const v = await verifyAuthenticationResponse(relayUrl, route, kind as 'jwt' | 'cookie', vrfChallenge, credential);
+        if (v.success && v.verified) {
+          const finalResult: LoginResult = { ...baseResult, jwt: v.jwt };
+          // Now fire completion event and afterCall since we deferred them
+          onEvent?.({
+            step: 4,
+            phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
+            status: LoginStatus.SUCCESS,
+            message: 'Login completed successfully',
+            nearAccountId: nearAccountId,
+            clientNearPublicKey: baseResult?.clientNearPublicKey || ''
+          } as unknown as LoginSSEvent);
+          await afterCall?.(true, finalResult);
+          return finalResult;
+        }
+        // Session verification returned an error; surface error and afterCall(false)
+        const errMsg = v.error || 'Session verification failed';
+        onEvent?.({
+          step: 0,
+          phase: LoginPhase.LOGIN_ERROR,
+          status: LoginStatus.ERROR,
+          message: errMsg,
+          error: errMsg
+        } as unknown as LoginSSEvent);
+        await afterCall?.(false as any);
+        return { success: false, error: errMsg };
+      } catch (e: any) {
+        console.error("Failed to start session: ", e);
+        const errMsg = e?.message || 'Session verification failed';
+        onError?.(e);
+        onEvent?.({
+          step: 0,
+          phase: LoginPhase.LOGIN_ERROR,
+          status: LoginStatus.ERROR,
+          message: errMsg,
+          error: errMsg
+        } as unknown as LoginSSEvent);
+        await afterCall?.(false as any);
+        return { success: false, error: errMsg };
+      }
+    }
+
+    return baseResult;
 
   } catch (err: any) {
     onError?.(err);
@@ -108,6 +209,7 @@ async function handleLoginUnlockVRF(
   onError?: (error: Error) => void,
   beforeCall?: BeforeCall,
   afterCall?: AfterCall<any>,
+  deferCompletionHooks?: boolean,
 ): Promise<LoginResult> {
 
   const { webAuthnManager } = context;
@@ -145,7 +247,7 @@ async function handleLoginUnlockVRF(
       step: 2,
       phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
       status: LoginStatus.PROGRESS,
-      message: 'Attempting to unlock VRF keypair...'
+      message: 'Unlocking VRF keys...'
     });
 
     let unlockResult: { success: boolean; error?: string } = { success: false };
@@ -183,14 +285,12 @@ async function handleLoginUnlockVRF(
           throw new Error(`Shamir3Pass auto-unlock failed: ${unlockResult.error}`);
         }
       } catch (error: any) {
-        console.debug('[tatchi]: Shamir3Pass unlock skipped, falling back to TouchID:', error.message);
         unlockResult = { success: false, error: error.message };
       }
     }
 
     // Fallback to TouchID if Shamir3Pass decryption failed
     if (!unlockResult.success) {
-      console.debug('Falling back to TouchID authentication for VRF unlock');
       onEvent?.({
         step: 2,
         phase: LoginPhase.STEP_2_WEBAUTHN_ASSERTION,
@@ -234,7 +334,6 @@ async function handleLoginUnlockVRF(
       if (usedFallbackTouchId && relayerUrl) {
         const refreshed = await webAuthnManager.shamir3PassEncryptCurrentVrfKeypair();
         await webAuthnManager.updateServerEncryptedVrfKeypair(nearAccountId, refreshed);
-        console.debug('Refreshed serverEncryptedVrfKeypair after TouchID fallback');
       }
     } catch (refreshErr: any) {
       console.warn('Non-fatal: Failed to refresh serverEncryptedVrfKeypair:', refreshErr?.message || refreshErr);
@@ -250,16 +349,17 @@ async function handleLoginUnlockVRF(
       nearAccountId: nearAccountId
     };
 
-    onEvent?.({
-      step: 4,
-      phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
-      status: LoginStatus.SUCCESS,
-      message: 'Login completed successfully',
-      nearAccountId: nearAccountId,
-      clientNearPublicKey: userData?.clientNearPublicKey || ''
-    });
-
-    afterCall?.(true, result);
+    if (!deferCompletionHooks) {
+      onEvent?.({
+        step: 4,
+        phase: LoginPhase.STEP_4_LOGIN_COMPLETE,
+        status: LoginStatus.SUCCESS,
+        message: 'Login completed successfully',
+        nearAccountId: nearAccountId,
+        clientNearPublicKey: userData?.clientNearPublicKey || ''
+      });
+      afterCall?.(true, result);
+    }
     return result;
 
   } catch (error: any) {
@@ -364,6 +464,8 @@ export async function logoutAndClearVrfSession(context: PasskeyManagerContext): 
  */
 export async function verifyAuthenticationResponse(
   relayServerUrl: string,
+  routePath: string,
+  sessionKind: 'jwt' | 'cookie',
   vrfChallenge: VRFChallenge,
   webauthnAuthentication: WebAuthnAuthenticationCredential
 ): Promise<{
@@ -375,14 +477,46 @@ export async function verifyAuthenticationResponse(
   contractResponse?: any;
 }> {
   try {
-    const response = await fetch(`${relayServerUrl}/verify-authentication-response`, {
+    // Map VRFChallenge into server ContractVrfData shape (number arrays)
+    const toBytes = (b64u: string | undefined): number[] => {
+      if (!b64u) return [];
+      const bin = (window as any).atob ? (window as any).atob(b64u.replace(/-/g, '+').replace(/_/g, '/')) : Buffer.from(b64u, 'base64').toString('binary');
+      const out: number[] = [];
+      for (let i = 0; i < bin.length; i++) out.push(bin.charCodeAt(i));
+      return out;
+    };
+    const vrf_data = {
+      vrf_input_data: toBytes(vrfChallenge.vrfInput),
+      vrf_output: toBytes(vrfChallenge.vrfOutput),
+      vrf_proof: toBytes(vrfChallenge.vrfProof),
+      public_key: toBytes(vrfChallenge.vrfPublicKey),
+      user_id: vrfChallenge.userId,
+      rp_id: vrfChallenge.rpId,
+      block_height: Number(vrfChallenge.blockHeight || 0),
+      block_hash: toBytes(vrfChallenge.blockHash),
+    };
+
+    // Normalize authenticatorAttachment and userHandle to null for server schema
+    const webauthn_authentication = {
+      ...webauthnAuthentication,
+      authenticatorAttachment: (webauthnAuthentication as any).authenticatorAttachment ?? null,
+      response: {
+        ...webauthnAuthentication.response,
+        userHandle: webauthnAuthentication.response.userHandle ?? null,
+      }
+    } as any;
+
+    const url = `${relayServerUrl.replace(/\/$/, '')}${routePath.startsWith('/') ? routePath : `/${routePath}`}`;
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      credentials: sessionKind === 'cookie' ? 'include' : 'omit',
       body: JSON.stringify({
-        vrfChallenge: vrfChallenge,
-        webauthnAuthentication: webauthnAuthentication,
+        sessionKind: sessionKind,
+        vrf_data,
+        webauthn_authentication,
       }),
     });
 

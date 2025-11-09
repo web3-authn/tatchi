@@ -36,6 +36,7 @@ import type {
   SignAndSendTransactionHooksOptions,
 } from '../core/types/passkeyManager';
 import type { EventCallback, ActionSSEEvent } from '../core/types/passkeyManager';
+import type { RegistrationResult, LoginResult } from '../core/types/passkeyManager';
 import type { AccessKeyList } from '../core/NearClient';
 
 // Type-safe event handler for device linking events
@@ -53,9 +54,8 @@ export {
   ActionStatus
 };
 
-// === CORE STATE TYPES ===
+// === React states types ===
 
-// Actual authentication state - represents what's currently authenticated/registered
 export interface LoginState {
   // Whether a user is currently authenticated
   isLoggedIn: boolean;
@@ -85,74 +85,12 @@ export interface AccountInputState {
   indexDBAccounts: string[];
 }
 
-// === RESULT TYPES ===
-export interface BaseResult {
-  success: boolean;
-  error?: string;
-}
-
-export interface RegistrationResult extends BaseResult {
-  clientNearPublicKey?: string | null;
-  nearAccountId?: string | null;
-  transactionId?: string | null;
-}
-
-export interface LoginResult extends BaseResult {
-  loggedInUsername?: string;
-  clientNearPublicKey?: string | null;
-  nearAccountId?: string;
-}
-
-// === ACTION EXECUTION TYPES ===
-export interface ExecuteActionCallbacks {
-  beforeDispatch?: () => void;
-  afterDispatch?: (success: boolean, data?: ActionExecutionResult) => void;
-}
-
-export interface ActionExecutionResult {
-  transaction_outcome?: {
-    id: string;
-  };
-  error?: string;
-}
-
-// === TOAST TYPES ===
-export interface ToastStyleOptions {
-  background?: string;
-  color?: string;
-}
-
-export interface ToastOptions {
-  id?: string;
-  duration?: number;
-  style?: ToastStyleOptions;
-}
-
-export interface ManagedToast {
-  loading: (message: string, options?: ToastOptions) => string;
-  success: (message: string, options?: ToastOptions) => string;
-  error: (message: string, options?: ToastOptions) => string;
-  dismiss: (id: string) => void;
-}
-
 // Account input hook types
 export interface UseAccountInputReturn extends AccountInputState {
   setInputUsername: (username: string) => void;
   refreshAccountData: () => Promise<void>;
 }
 
-// // Relayer hook types
-// export interface UseRelayerOptions {
-//   initialValue?: boolean;
-// }
-
-// export interface UseRelayerReturn {
-//   useRelayer: boolean;
-//   setUseRelayer: (value: boolean) => void;
-//   toggleRelayer: () => void;
-// }
-
-// === CONTEXT TYPES ===
 export interface PasskeyContextType {
   // Core PasskeyManager instance - provides all user-facing functionality
   passkeyManager: PasskeyManager;
@@ -182,16 +120,24 @@ export interface PasskeyContextType {
   }) => Promise<SignNEP413MessageResult>;
 
   // Account recovery function
-  recoverAccount: (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => Promise<RecoveryResult>;
+  recoverAccount: (args: {
+    accountId?: string;
+    options?: AccountRecoveryHooksOptions
+  }) => Promise<RecoveryResult>;
 
   // Device linking functions
-  startDevice2LinkingFlow: (options?: StartDeviceLinkingOptionsDevice2) => Promise<{ qrData: DeviceLinkingQRData; qrCodeDataURL: string }>;
+  startDevice2LinkingFlow: (options?: StartDeviceLinkingOptionsDevice2) => Promise<{
+    qrData: DeviceLinkingQRData;
+    qrCodeDataURL: string
+  }>;
+
   stopDevice2LinkingFlow: () => Promise<void>;
 
   // Login State
   loginState: LoginState;
   // Wallet iframe connectivity (true when service client handshake completes)
   walletIframeConnected: boolean;
+
   getLoginState: (nearAccountId?: string) => Promise<{
     isLoggedIn: boolean;
     nearAccountId: string | null;
@@ -251,6 +197,9 @@ export type {
   ActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
+  // Results
+  RegistrationResult,
+  LoginResult,
 } from '../core/types/passkeyManager';
 
 export type {

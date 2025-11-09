@@ -4,6 +4,8 @@ export * from './core/config';
 export {
   AuthService
 } from './core/AuthService';
+export { SessionService, parseCsvList, buildCorsOrigins } from './core/SessionService';
+export type { SessionConfig } from './core/SessionService';
 // Note: Express router is exported via a separate subpath to avoid forcing
 // consumers to install Express unless they explicitly opt in.
 export {

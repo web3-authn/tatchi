@@ -161,8 +161,6 @@ const theme: Theme = {
       const sels = [
         '.VPNavBar .content .nav',
         '.VPNavBar .content .menu',
-        '.VPNavBarAppearance',
-        '.VPSwitchAppearance',
         '.VPNavBarExtra',
       ]
       const set = new Set<HTMLElement>()
@@ -191,11 +189,6 @@ const theme: Theme = {
     // Hide/show the default VitePress appearance toggle based on login + viewport
     function findAppearanceEls(): HTMLElement[] {
       const sels = [
-        '.VPSwitchAppearance',
-        '.VPNavBarAppearance',
-        '.VPNavBar button[aria-label="Appearance"]',
-        '.VPNavBar button[title*="Appearance"]',
-        '.VPNavBar .appearance-switch',
         'a[href="#toggle-theme"]',
       ]
       const set = new Set<HTMLElement>()

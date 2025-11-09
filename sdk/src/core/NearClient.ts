@@ -22,6 +22,7 @@ import type {
 } from "@near-js/types";
 import { base64Encode } from "../utils";
 import { errorMessage } from "../utils/errors";
+import { NearRpcError } from "./NearRpcError";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
 import { isFunction } from './WalletIframe/validation';
 import {
@@ -243,15 +244,16 @@ export class MinimalNearClient implements NearClient {
     throw new Error(errorMessage(lastError) || 'RPC request failed');
   }
 
-  /** Validate and unwrap RpcResponse into the typed result. */
+  /** Validate and unwrap RpcResponse into the typed result with rich error forwarding. */
   private unwrapRpcResult<T>(rpc: RpcResponse, operationName: string): T {
     if (rpc.error) {
-      const msg = rpc.error?.data?.message || rpc.error?.message || 'RPC error';
-      throw new Error(msg);
+      throw NearRpcError.fromRpcResponse(operationName, rpc);
     }
     const result = rpc.result as any;
+    // Some providers return a wrapped error in `result.error`
     if (result?.error) {
-      throw new Error(`${operationName} Error: ${result.error}`);
+      const msg = typeof result.error === 'string' ? result.error : JSON.stringify(result.error);
+      throw new NearRpcError({ message: `${operationName} Error: ${msg}`, short: 'RpcError', type: 'RpcError' });
     }
     return rpc.result as T;
   }
@@ -330,7 +332,14 @@ export class MinimalNearClient implements NearClient {
     let lastError: unknown = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        return await this.makeRpcCall<typeof params, FinalExecutionOutcome>(RpcCallType.Send, params, 'Send Transaction');
+        const outcome = await this.makeRpcCall<typeof params, FinalExecutionOutcome>(RpcCallType.Send, params, 'Send Transaction');
+        // near-api-js throws on Failure; replicate that for clearer UX
+        const status = (outcome as any)?.status;
+        if (status && typeof status === 'object' && 'Failure' in status) {
+          const failure = (status as any).Failure;
+          throw NearRpcError.fromOutcome('Send Transaction', outcome, failure);
+        }
+        return outcome;
       } catch (err: unknown) {
         lastError = err;
         const msg = errorMessage(err);
@@ -347,6 +356,8 @@ export class MinimalNearClient implements NearClient {
     // Should be unreachable
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
+
+  // legacy helpers removed in favor of NearRpcError
 
   async callFunction<A, T>(
     contractId: string,

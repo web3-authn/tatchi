@@ -1,12 +1,19 @@
 import type { AuthService } from '../core/AuthService';
+import { buildCorsOrigins } from '../core/SessionService';
+import type { SessionAdapter } from './express-adaptor';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
 import { setShamirWasmModuleOverride } from '../core/shamirWorker';
 import type { InitInput as ShamirInitInput } from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
-  // Optional: CORS allowed origins. If omitted, no CORS headers are added.
-  corsOrigins?: string[] | '*';
+  // Optional list(s) of CORS origins (CSV strings or literal origins).
+  // Pass raw strings; the router normalizes/merges internally.
+  corsOrigins?: Array<string | undefined>;
+  // Optional: customize session route paths
+  sessionRoutes?: { auth?: string; logout?: string };
+  // Optional: pluggable session adapter
+  session?: SessionAdapter | null;
 }
 
 // Minimal Worker runtime types (avoid adding @cloudflare/workers-types dependency here)
@@ -73,22 +80,31 @@ function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, 
 
 function withCors(headers: Headers, opts?: RelayRouterOptions, request?: Request): void {
   if (!opts?.corsOrigins) return;
-  if (opts.corsOrigins === '*') {
+  let allowedOrigin: string | '*' | undefined;
+  const normalized = buildCorsOrigins(...(opts.corsOrigins || []));
+  if (normalized === '*') {
+    allowedOrigin = '*';
     headers.set('Access-Control-Allow-Origin', '*');
-  } else if (Array.isArray(opts.corsOrigins)) {
-    const origin = request?.headers.get('Origin');
-    if (origin && opts.corsOrigins.includes(origin)) {
+  } else if (Array.isArray(normalized)) {
+    const origin = request?.headers.get('Origin') || '';
+    if (origin && normalized.includes(origin)) {
+      allowedOrigin = origin;
       headers.set('Access-Control-Allow-Origin', origin);
       headers.append('Vary', 'Origin');
     }
   }
   headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
-  headers.set('Access-Control-Allow-Credentials', 'true');
+  // Only advertise credentials when we echo back a specific origin (not '*')
+  if (allowedOrigin && allowedOrigin !== '*') {
+    headers.set('Access-Control-Allow-Credentials', 'true');
+  }
 }
 
 export function createCloudflareRouter(service: AuthService, opts: RelayRouterOptions = {}): FetchHandler {
   const notFound = () => new Response('Not Found', { status: 404 });
+  const mePath = opts.sessionRoutes?.auth || '/session/auth';
+  const logoutPath = opts.sessionRoutes?.logout || '/session/logout';
 
   return async function handler(request: Request, env?: CfEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -126,7 +142,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         let body: unknown;
         try { body = await request.json(); } catch { body = null; }
         if (!isObject(body)) {
-          const res = json({ success: false, error: 'invalid_body' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'JSON body required' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -141,22 +157,22 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           : undefined;
 
         if (!new_account_id) {
-          const res = json({ success: false, error: 'Missing or invalid new_account_id' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'Missing or invalid new_account_id' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
         if (!new_public_key) {
-          const res = json({ success: false, error: 'Missing or invalid new_public_key' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'Missing or invalid new_public_key' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
         if (!vrf_data) {
-          const res = json({ success: false, error: 'Missing or invalid vrf_data' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'Missing or invalid vrf_data' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
         if (!webauthn_registration) {
-          const res = json({ success: false, error: 'Missing or invalid webauthn_registration' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'Missing or invalid webauthn_registration' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -178,14 +194,14 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       if (method === 'POST' && pathname === '/vrf/apply-server-lock') {
         if (!(await service.ensureShamirReady())) {
-          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
         }
         let body: unknown; try { body = await request.json(); } catch { body = null; }
         const valid = isObject(body) && typeof body.kek_c_b64u === 'string' && body.kek_c_b64u.length > 0;
         if (!valid) {
-          const res = json({ error: 'invalid_body' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'kek_c_b64u is required' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -193,9 +209,112 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         return toResponse(out);
       }
 
+      if (method === 'POST' && pathname === '/verify-authentication-response') {
+        let body: unknown; try { body = await request.json(); } catch { body = null; }
+        const valid = isObject(body)
+          && isObject((body as any).vrf_data)
+          && isObject((body as any).webauthn_authentication);
+        if (!valid) {
+          const res = json({ code: 'invalid_body', message: 'vrf_data and webauthn_authentication are required' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+        try {
+          const sessionKind = ((body as any)?.sessionKind || (body as any)?.session_kind) === 'cookie' ? 'cookie' : 'jwt';
+          const result = await service.verifyAuthenticationResponse(body as any);
+          const status = result.success ? 200 : 400;
+          if (status !== 200) {
+            const res = json({ code: 'not_verified', message: result.message || 'Authentication verification failed' }, { status });
+            withCors(res.headers, opts, request);
+            return res;
+          }
+          const res = json(result, { status: 200 });
+          const session = opts.session;
+          if (session && result.verified) {
+            try {
+              const userId = String((body as any).vrf_data?.user_id || '');
+              const token = await session.signJwt(userId, { rpId: (body as any).vrf_data?.rp_id, blockHeight: (body as any).vrf_data?.block_height });
+              try {
+                // Cloudflare Workers log to console too
+                console.log(`[relay] creating ${sessionKind === 'cookie' ? 'HttpOnly session' : 'JWT'} for`, userId);
+              } catch {}
+              if (sessionKind === 'cookie') {
+                res.headers.set('Set-Cookie', session.buildSetCookie(token));
+              } else {
+                const payload = await res.clone().json();
+                return new Response(JSON.stringify({ ...payload, jwt: token }), { status: 200, headers: res.headers });
+              }
+            } catch {}
+          }
+          withCors(res.headers, opts, request);
+          return res;
+        } catch (e: any) {
+          const res = json({ code: 'internal', message: e?.message || 'Internal error' }, { status: 500 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+      }
+
+      if (method === 'GET' && pathname === mePath) {
+        try {
+          const headersObj: Record<string, string> = {};
+          request.headers.forEach((v, k) => { headersObj[k] = v; });
+          const session = opts.session;
+          if (!session) {
+            const res = json({ authenticated: false, code: 'sessions_disabled', message: 'Sessions are not configured' }, { status: 501 });
+            withCors(res.headers, opts, request);
+            return res;
+          }
+          const parsed = await session.parse(headersObj);
+          const res = json(parsed.ok ? { authenticated: true, claims: (parsed as any).claims } : { authenticated: false }, { status: parsed.ok ? 200 : 401 });
+          withCors(res.headers, opts, request);
+          return res;
+        } catch (e: any) {
+          const res = json({ authenticated: false, code: 'internal', message: e?.message || 'Internal error' }, { status: 500 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+      }
+
+      if (method === 'POST' && pathname === logoutPath) {
+        const res = json({ success: true }, { status: 200 });
+        const session = opts.session;
+        if (session) {
+          // Clear cookie with Max-Age=0
+          res.headers.set('Set-Cookie', session.buildClearCookie());
+        }
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
+      if (method === 'POST' && pathname === '/session/refresh') {
+        let body: unknown; try { body = await request.json(); } catch { body = null; }
+        const sessionKind = ((body as any)?.sessionKind || (body as any)?.session_kind) === 'cookie' ? 'cookie' : 'jwt';
+        const session = opts.session;
+        if (!session) {
+          const res = json({ code: 'sessions_disabled', message: 'Sessions are not configured' }, { status: 501 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+        const out = await session.refresh(Object.fromEntries(request.headers.entries()));
+        if (!out.ok || !out.jwt) {
+          const res = json({ code: out.code || 'not_eligible', message: out.message || 'Refresh not eligible' }, { status: (out.code === 'unauthorized') ? 401 : 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+        const res = json(sessionKind === 'cookie' ? { ok: true } : { ok: true, jwt: out.jwt }, { status: 200 });
+        if (sessionKind === 'cookie' && out.jwt) {
+          try {
+            res.headers.set('Set-Cookie', session.buildSetCookie(out.jwt));
+          } catch {}
+        }
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
       if (method === 'POST' && pathname === '/vrf/remove-server-lock') {
         if (!(await service.ensureShamirReady())) {
-          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -205,7 +324,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           && typeof (body as Record<string, unknown>).keyId === 'string'
           && String((body as Record<string, unknown>).keyId).length > 0;
         if (!valid) {
-          const res = json({ error: 'invalid_body' }, { status: 400 });
+          const res = json({ code: 'invalid_body', message: 'kek_cs_b64u and keyId are required' }, { status: 400 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -220,7 +339,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       if (method === 'GET' && pathname === '/shamir/key-info') {
         if (!(await service.ensureShamirReady())) {
-          const res = json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
+          const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
         }
@@ -229,10 +348,9 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (opts.healthz && method === 'GET' && pathname === '/healthz') {
-        // Surface simple CORS info for diagnostics
-        const corsAllowed = opts.corsOrigins === '*'
-          ? '*'
-          : (Array.isArray(opts.corsOrigins) ? opts.corsOrigins : []);
+        // Surface simple CORS info for diagnostics (normalized)
+        const allowed = buildCorsOrigins(...(opts.corsOrigins || []));
+        const corsAllowed = allowed === '*' ? '*' : allowed;
         try {
           const { currentKeyId } = JSON.parse((await service.handleGetShamirKeyInfo()).body) as { currentKeyId?: string };
           const res = json({ ok: true, currentKeyId: currentKeyId || null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
@@ -247,7 +365,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
 
       return notFound();
     } catch (e: unknown) {
-      const res = json({ error: 'internal', details: e instanceof Error ? e.message : String(e) }, { status: 500 });
+      const res = json({ code: 'internal', message: e instanceof Error ? e.message : String(e) }, { status: 500 });
       withCors(res.headers, opts, request);
       return res;
     }

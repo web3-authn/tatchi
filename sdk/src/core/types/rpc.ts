@@ -53,10 +53,16 @@ export interface BlockInfo {
   };
 }
 export interface RpcErrorData {
+  // NEAR error payloads vary; keep flexible but preserve common fields
+  // Top-level helper message if present
   message?: string;
+  // Anything else from the node (TxExecutionError, ActionError, etc.)
+  [key: string]: any;
 }
 
 export interface RpcError {
+  code?: number;
+  name?: string;
   data?: RpcErrorData;
   message?: string;
 }

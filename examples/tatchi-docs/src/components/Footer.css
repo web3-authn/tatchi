@@ -58,7 +58,7 @@
   bottom: 0;
   text-align: left;
   font-family: var(--fe-font-display);
-  font-size: clamp(64px, 25vw, 330px);
+  font-size: clamp(148px, 36vw, 300px);
   line-height: 0.7;
   font-weight: 700;
   color: color-mix(in srgb, var(--fe-text) 6%, transparent);
@@ -66,8 +66,8 @@
   user-select: none;
 }
 
-@media (max-width: 800px) {
-  .app-footer__inner { grid-template-columns: 1fr; gap: 1.5rem; padding-bottom: 3.5rem; }
-  .app-footer__nav { grid-template-columns: 1fr 1fr; }
-  .app-footer__brandword { font-size: clamp(48px, 24vw, 160px); }
+@media (max-width: 768px) {
+  .app-footer__brandword {
+    left: -1rem;
+  }
 }

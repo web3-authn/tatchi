@@ -295,7 +295,15 @@ export class PasskeyManager {
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
       await options?.beforeCall?.();
       try {
-        const res = await this.iframeRouter.loginPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
+        // Forward serializable options to wallet host, including session config
+        const res = await this.iframeRouter.loginPasskey({
+          nearAccountId,
+          options: {
+            onEvent: options?.onEvent,
+            // Pass through session so the wallet host calls relay to mint JWT/cookie sessions
+            session: options?.session,
+          }
+        });
         // Best-effort warm-up after successful login (non-blocking)
         void (async () => { try { await this.warmCriticalResources(nearAccountId); } catch {} })();
         await options?.afterCall?.(true, res);

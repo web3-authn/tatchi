@@ -415,7 +415,6 @@ export const usePasskeyContext = () => {
 // Re-export types for convenience
 export type {
   PasskeyContextType,
-  ExecuteActionCallbacks,
   RegistrationResult,
   LoginResult,
 } from '../types';

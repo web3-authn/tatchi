@@ -190,6 +190,49 @@ fn test_get_action_handler_new_types() {
     };
     let handler = get_action_handler(&delete_account_params);
     assert!(handler.is_ok());
+
+    let deploy_params = ActionParams::DeployContract { code: vec![0, 97, 115, 109] }; // minimal wasm magic start
+    let handler = get_action_handler(&deploy_params);
+    assert!(handler.is_ok());
+
+    let stake_params = ActionParams::Stake { stake: "1000000000000000000000000".to_string(), public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string() };
+    let handler = get_action_handler(&stake_params);
+    assert!(handler.is_ok());
+}
+
+#[test]
+fn test_deploy_contract_action_handler() {
+    let handler = DeployContractActionHandler;
+
+    let params = ActionParams::DeployContract { code: vec![0, 97, 115, 109, 1, 0, 0, 0] }; // "\0asm\1\0\0\0"
+    assert!(handler.validate_params(&params).is_ok());
+    let action = handler.build_action(&params).unwrap();
+    match action {
+        Action::DeployContract { code } => {
+            assert!(!code.is_empty());
+        }
+        _ => panic!("Expected DeployContract action"),
+    }
+}
+
+#[test]
+fn test_stake_action_handler() {
+    let handler = StakeActionHandler;
+
+    let params = ActionParams::Stake {
+        stake: "1000000000000000000000000".to_string(),
+        public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string(),
+    };
+    assert!(handler.validate_params(&params).is_ok());
+    let action = handler.build_action(&params).unwrap();
+    match action {
+        Action::Stake { stake, public_key } => {
+            assert!(stake > 0);
+            assert_eq!(public_key.key_type, 0);
+            assert_eq!(public_key.key_data.len(), 32);
+        }
+        _ => panic!("Expected Stake action"),
+    }
 }
 
 #[test]

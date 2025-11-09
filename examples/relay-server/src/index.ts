@@ -1,8 +1,20 @@
 import express, { Express } from 'express';
-import { AuthService } from '@tatchi-xyz/sdk/server';
+import { AuthService, SessionService } from '@tatchi-xyz/sdk/server';
 import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import jwt from 'jsonwebtoken';
+
+// Strongly-typed JWT claims used by this demo
+type DemoJwtClaims = {
+  sub: string;
+  iss?: string;
+  aud?: string;
+  iat?: number;
+  exp?: number;
+  rpId?: string;
+  blockHeight?: number;
+};
 dotenv.config();
 
 const config = {
@@ -30,13 +42,42 @@ const authService = new AuthService({
     shamir_e_s_b64u: process.env.SHAMIR_E_S_B64U!,
     shamir_d_s_b64u: process.env.SHAMIR_D_S_B64U!,
     graceShamirKeysFile: process.env.SHAMIR_GRACE_KEYS_FILE,
+  }
+});
+
+// Option JWT Session service independent from AuthService
+const session = new SessionService<DemoJwtClaims>({
+  jwt: {
+    signToken: ({ payload }: { header: Record<string, unknown>; payload: Record<string, unknown> }) => {
+      const secret = 'demo-secret';
+      return jwt.sign(payload as any, secret, {
+        algorithm: 'HS256',
+        issuer: 'relay-server-demo',
+        audience: 'tatchi-app-demo',
+        expiresIn: 24 * 60 * 60
+      });
+    },
+    verifyToken: async (token: string): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
+      try {
+        const secret = 'demo-secret';
+        const payload = jwt.verify(token, secret, {
+          algorithms: ['HS256'],
+          issuer: 'relay-server-demo',
+          audience: 'tatchi-app-demo'
+        }) as DemoJwtClaims;
+        return { valid: true, payload };
+      } catch {
+        return { valid: false };
+      }
+    }
   },
+  cookie: { name: 'w3a_session' }
 });
 
 const app: Express = express();
 // Middleware
 app.use(express.json());
-const allowedOrigins = [config.expectedOrigin, config.expectedWalletOrigin].filter(Boolean);
+const allowedOrigins = [config.expectedOrigin, config.expectedWalletOrigin];
 app.use(cors({
   origin: allowedOrigins,
   credentials: true,
@@ -45,7 +86,10 @@ app.use(cors({
 }));
 
 // Mount standardized router built from AuthService
-app.use('/', createRelayRouter(authService, { healthz: true }));
+app.use('/', createRelayRouter(authService, {
+  healthz: true,
+  session
+}));
 
 function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) {
   const prefix = '[key-rotation-cron]';

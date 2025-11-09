@@ -19,6 +19,28 @@ Atomically create a NEAR account and register a WebAuthn authenticator with the 
 
 This route is consumed internally by the SDK’s registration flows.
 
+### `POST /verify-authentication-response` (sessions)
+
+Verifies a VRF‑anchored WebAuthn assertion against the contract (VIEW call) and issues a session.
+
+- Request body:
+  ```json
+  {
+    "sessionKind": "jwt" | "cookie",
+    "vrf_data": { /* ContractVrfData */ },
+    "webauthn_authentication": { /* WebAuthn assertion */ }
+  }
+  ```
+- Response:
+  - When `sessionKind` is `jwt`: `{ success, verified, jwt }`.
+  - When `sessionKind` is `cookie`: sets `Set-Cookie: w3a_session=<jwt>; HttpOnly; Secure; SameSite=Lax; Path=/` and omits `jwt` in body.
+
+Notes
+- The sample server mounts this route via the SDK router (`createRelayRouter(authService)`).
+- For cookie sessions, CORS must allow credentials and specify explicit origins.
+  The example config enables CORS with `origin: [EXPECTED_ORIGIN, EXPECTED_WALLET_ORIGIN]` and `credentials: true`.
+  Your frontend must use `credentials: 'include'` with fetch.
+
 ### Shamir 3‑pass (strict keyId mode)
 
 These endpoints implement the commutative VRF key wrap/unwrap. keyId is required to select the correct server key.
@@ -116,6 +138,8 @@ NEAR_NETWORK_ID=testnet
 NEAR_RPC_URL=https://rpc.testnet.near.org
 PORT=3001
 EXPECTED_ORIGIN=http://localhost:3000
+# If you serve from multiple origins, set EXPECTED_WALLET_ORIGIN as well
+# EXPECTED_WALLET_ORIGIN=http://localhost:4173
 
 # Shamir 3-pass parameters
 SHAMIR_P_B64U=<base64url_of_prime_p>

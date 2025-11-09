@@ -1,8 +1,20 @@
-import { AuthService } from '@tatchi-xyz/sdk/server';
+import { AuthService, SessionService } from '@tatchi-xyz/sdk/server';
 import { createCloudflareRouter, createCloudflareCron } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
+import jwt from 'jsonwebtoken';
+
+// Strongly-typed JWT claims used by this demo
+type DemoJwtClaims = {
+  sub: string;
+  iss?: string;
+  aud?: string;
+  iat?: number;
+  exp?: number;
+  rpId?: string;
+  blockHeight?: number;
+};
 
 export interface Env {
   RELAYER_ACCOUNT_ID: string;
@@ -43,43 +55,48 @@ function getService(env: Env) {
       },
       signerWasm: {
         moduleOrPath: signerWasmModule,
-      },
+      }
     });
   }
   return service;
 }
 
-// Helper: parse comma-separated env var into a trimmed non-empty list
-function parseCsvList(input?: string): string[] {
-  const out = new Set<string>();
-  for (const raw of (input || '').split(',')) {
-    const s = raw.trim();
-    if (!s) continue;
-    try {
-      const u = new URL(s);
-      // Canonicalize: lowercase host, drop path/query/hash, normalize trailing slash
-      const host = u.hostname.toLowerCase();
-      const port = u.port ? `:${u.port}` : '';
-      const proto = u.protocol === 'http:' || u.protocol === 'https:' ? u.protocol : 'https:';
-      out.add(`${proto}//${host}${port}`);
-    } catch {
-      // Fallback: strip trailing slash and spaces
-      const stripped = s.replace(/\/$/, '');
-      if (stripped) out.add(stripped);
-    }
-  }
-  return Array.from(out);
-}
-
 export default {
   async fetch(request: Request, env: Env, ctx: CfExecutionContext): Promise<Response> {
     const s = getService(env);
-    // Build an allowlist of origins. Support comma-separated lists in each var.
-    const listA = parseCsvList(env.EXPECTED_ORIGIN);
-    const listB = parseCsvList(env.EXPECTED_WALLET_ORIGIN);
-    const merged = [...listA, ...listB];
-    const corsOrigins: string[] | '*' = merged.length > 0 ? merged : '*';
-    const router = createCloudflareRouter(s, { healthz: true, corsOrigins });
+    const session = new SessionService<DemoJwtClaims>({
+      jwt: {
+        signToken: ({ payload }: { header: Record<string, unknown>; payload: Record<string, unknown> }) => {
+          const secret = 'demo-secret';
+          return jwt.sign(payload as any, secret, {
+            algorithm: 'HS256',
+            issuer: 'relay-worker-demo',
+            audience: 'tatchi-app-demo',
+            expiresIn: 24 * 60 * 60
+          });
+        },
+        verifyToken: async (token: string): Promise<{ valid: boolean; payload?: DemoJwtClaims }> => {
+          try {
+            const secret = 'demo-secret';
+            const payload = jwt.verify(token, secret, {
+              algorithms: ['HS256'],
+              issuer: 'relay-worker-demo',
+              audience: 'tatchi-app-demo'
+            }) as DemoJwtClaims;
+            return { valid: true, payload };
+          } catch {
+            return { valid: false };
+          }
+        }
+      },
+      cookie: { name: 'w3a_session' }
+    });
+    const router = createCloudflareRouter(s, {
+      healthz: true,
+      // Pass raw env strings; router normalizes CSV/duplicates internally
+      corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
+      session
+    });
     return router(request, env as unknown as CfEnv, ctx);
   },
   // Optional cron; defaults to inactive. Enable by setting ENABLE_ROTATION='1' in vars and adding a [triggers] crons schedule.

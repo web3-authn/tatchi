@@ -27,7 +27,7 @@ export default defineConfig({
   ],
 
   title: 'Tatchi Passkey',
-  description: 'A browser based embedded wallet',
+  description: 'A serverless embedded wallet SDK',
   // Use VitePress built-in appearance + nav; hidden on homepage via theme logic
   appearance: true,
 
