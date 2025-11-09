@@ -56,7 +56,6 @@ import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react'
     },
   ]}
   options={{
-    beforeCall: () => {},
     afterCall: (success, result) => {},
     onError: (error: any) => {},
   }}

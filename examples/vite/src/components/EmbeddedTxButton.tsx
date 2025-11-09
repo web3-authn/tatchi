@@ -116,7 +116,6 @@ export const EmbeddedTxButton: React.FC<EmbeddedTxButtonProps> = ({  }) => {
             }
           }}
           options={{
-            beforeCall: () => {},
             waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
             afterCall: (success: boolean, result?: any) => {
               const extractTxId = (res: any): string | undefined => {

@@ -197,7 +197,6 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
       txSigningRequests={txSigningRequests}
       // hooks
       options={{
-        beforeCall: options?.beforeCall,
         afterCall: options?.afterCall,
         onError: options?.onError,
         // Prefer explicit onEvent prop if provided, else fall back to options.onEvent

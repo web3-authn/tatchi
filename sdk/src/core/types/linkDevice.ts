@@ -3,7 +3,6 @@ import {
   EventCallback,
   DeviceLinkingPhase,
   DeviceLinkingSSEEvent,
-  BeforeCall,
   AfterCall
 } from './passkeyManager';
 import { VRFChallenge } from './vrf-worker';
@@ -75,7 +74,6 @@ export interface StartDeviceLinkingOptionsDevice2 {
   cameraId?: string;
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
   afterCall?: AfterCall<any>;
 }
 
@@ -83,6 +81,5 @@ export interface ScanAndLinkDeviceOptionsDevice1 {
   fundingAmount: string;
   onEvent?: EventCallback<DeviceLinkingSSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
   afterCall?: AfterCall<any>;
 }

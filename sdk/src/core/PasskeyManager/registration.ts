@@ -44,7 +44,7 @@ export async function registerPasskeyInternal(
   confirmationConfigOverride?: ConfirmationConfig
 ): Promise<RegistrationResult> {
 
-  const { onEvent, onError, beforeCall, afterCall } = options;
+  const { onEvent, onError, afterCall } = options;
   const { webAuthnManager, configs } = context;
 
   // Track registration progress for rollback
@@ -65,8 +65,6 @@ export async function registerPasskeyInternal(
   } as RegistrationSSEEvent);
 
   try {
-    // Run beforeCall hook
-    await beforeCall?.();
 
     // Validate registration inputs
     await validateRegistrationInputs(context, nearAccountId, onEvent, onError);

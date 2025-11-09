@@ -8,7 +8,7 @@
  * Key Responsibilities:
  * - Acts as a transparent proxy to the real PasskeyManager running in the iframe
  * - Maintains API compatibility with the regular PasskeyManager
- * - Handles hook callbacks (beforeCall, afterCall, onError, onEvent) locally
+ * - Handles hook callbacks (afterCall, onError, onEvent) locally
  * - Provides fallback to local PasskeyManager for operations not yet iframe-enabled
  * - Manages theme preferences and user settings synchronization
  * - Bridges progress events from iframe back to developer callbacks
@@ -160,10 +160,8 @@ export class PasskeyManagerIframe {
   unmountWalletUI(id: string): void { this.router.unmountUiComponent(id); }
 
   async registerPasskey(nearAccountId: string, options: RegistrationHooksOptions = {}): Promise<RegistrationResult> {
-    // Step 1: Call beforeCall hook if provided (allows parent to prepare UI, etc.)
-    await options?.beforeCall?.();
     try {
-      // Step 2: Route the registration request to the iframe via WalletIframeRouter
+      // Route the registration request to the iframe via WalletIframeRouter
       // This will:
       // - Create a unique request ID
       // - Send PM_REGISTER message to iframe
@@ -173,33 +171,9 @@ export class PasskeyManagerIframe {
         nearAccountId,
         options: { onEvent: options?.onEvent } // Bridge progress events from iframe to parent
       });
-      // Step 3: Call afterCall hook with success result
       await options?.afterCall?.(true, res);
       return res;
     } catch (err: unknown) {
-      // Step 4: Handle errors - convert to standard Error and call error hooks
-      const e = toError(err);
-      await options?.onError?.(e);
-      await options?.afterCall?.(false); // Call afterCall with error
-      throw e; // Re-throw for caller
-    }
-  }
-
-  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
-    // Step 1: Call beforeCall hook if provided
-    await options?.beforeCall?.();
-    try {
-      // Step 2: Route login request to iframe - similar flow to registerPasskey
-      // The iframe will handle WebAuthn authentication and VRF session creation
-      const res = await this.router.loginPasskey({
-        nearAccountId,
-        options: { onEvent: options?.onEvent } // Progress events flow back to parent
-      });
-      // Step 3: Call afterCall hook with success result
-      await options?.afterCall?.(true, res);
-      return res;
-    } catch (err: unknown) {
-      // Step 4: Handle errors with same pattern as registerPasskey
       const e = toError(err);
       await options?.onError?.(e);
       await options?.afterCall?.(false);
@@ -207,7 +181,27 @@ export class PasskeyManagerIframe {
     }
   }
 
-  async logoutAndClearVrfSession(): Promise<void> { await this.router.clearVrfSession(); }
+  async loginPasskey(nearAccountId: string, options?: LoginHooksOptions): Promise<LoginResult> {
+    try {
+      // Route login request to iframe - similar flow to registerPasskey
+      // The iframe will handle WebAuthn authentication and VRF session creation
+      const res = await this.router.loginPasskey({
+        nearAccountId,
+        options: { onEvent: options?.onEvent } // Progress events flow back to parent
+      });
+      await options?.afterCall?.(true, res);
+      return res;
+    } catch (err: unknown) {
+      const e = toError(err);
+      await options?.onError?.(e);
+      await options?.afterCall?.(false);
+      throw e;
+    }
+  }
+
+  async logoutAndClearVrfSession(): Promise<void> {
+    await this.router.clearVrfSession();
+  }
 
   async getLoginState(nearAccountId?: string): Promise<LoginState> {
     if (!this.router.isReady()) {
@@ -227,10 +221,8 @@ export class PasskeyManagerIframe {
     transactions: TransactionInput[];
     options?: SignTransactionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
-    // Step 1: Call beforeCall hook if provided
-    await args.options?.beforeCall?.();
     try {
-      // Step 2: Route transaction signing to iframe
+      // Route transaction signing to iframe
       // This will:
       // - Send PM_SIGN_TXS_WITH_ACTIONS message to iframe
       // - Show overlay during user confirmation and WebAuthn phases
@@ -243,11 +235,9 @@ export class PasskeyManagerIframe {
           onEvent: args.options?.onEvent // Progress events: user-confirmation, webauthn-authentication, etc.
         }
       });
-      // Step 3: Call afterCall hook with signed transactions
       await args.options?.afterCall?.(true, res);
       return res;
     } catch (err: unknown) {
-      // Step 4: Handle errors with same pattern
       const e = toError(err);
       await args.options?.onError?.(e);
       await args.options?.afterCall?.(false);
@@ -260,7 +250,6 @@ export class PasskeyManagerIframe {
     params: SignNEP413MessageParams;
     options?: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
-    await args.options?.beforeCall?.();
     try {
       const res = await this.router.signNep413Message({
         nearAccountId: args.nearAccountId,
@@ -298,20 +287,18 @@ export class PasskeyManagerIframe {
     accountId?: string;
     options?: AccountRecoveryHooksOptions
   }): Promise<RecoveryResult> {
-    const options = args.options;
     if (this.router.isReady()) {
-      await options?.beforeCall?.();
       try {
         const res = await this.router.recoverAccountFlow({
           accountId: args.accountId,
-          onEvent: options?.onEvent
+          onEvent: args.options?.onEvent
         });
-        await options?.afterCall?.(true, res);
+        await args.options?.afterCall?.(true, res);
         return res;
       } catch (err: unknown) {
         const e = toError(err);
-        await options?.onError?.(e);
-        await options?.afterCall?.(false);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
         throw e;
       }
     }
@@ -325,13 +312,11 @@ export class PasskeyManagerIframe {
   async startDevice2LinkingFlow({
     ui,
     accountId,
-    beforeCall,
     afterCall,
     onError,
     onEvent,
   }: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
     // If iframe router present, prefer secure host flow; otherwise fallback to local QR generation
-    await beforeCall?.();
     try {
       if (this.router.isReady()) {
         const res = await this.router.startDevice2LinkingFlow({
@@ -370,7 +355,6 @@ export class PasskeyManagerIframe {
     qrData: DeviceLinkingQRData,
     options: ScanAndLinkDeviceOptionsDevice1
   ): Promise<LinkDeviceResult> {
-    await options?.beforeCall?.();
     try {
       if (this.router.isReady()) {
         const res = await this.router.linkDeviceWithScannedQRData({
@@ -453,7 +437,6 @@ export class PasskeyManagerIframe {
     return this.router.viewAccessKeyList(accountId);
   }
   async deleteDeviceKey(accountId: string, publicKeyToDelete: string, options?: ActionHooksOptions): Promise<import('../types/passkeyManager').ActionResult> {
-    await options?.beforeCall?.();
     try {
       const res = await this.router.deleteDeviceKey(
         accountId,
@@ -475,8 +458,6 @@ export class PasskeyManagerIframe {
     actionArgs: ActionArgs | ActionArgs[];
     options?: ActionHooksOptions
   }): Promise<ActionResult> {
-    // Route via iframe router with PROGRESS bridging
-    await args.options?.beforeCall?.();
     try {
       const res = await this.router.executeAction({
         nearAccountId: args.nearAccountId,
@@ -502,7 +483,6 @@ export class PasskeyManagerIframe {
   }): Promise<ActionResult> {
     // Route via iframe router with PROGRESS bridging
     const options = args.options;
-    await options?.beforeCall?.();
     try {
       const res = await this.router.sendTransaction({
         signedTransaction: args.signedTransaction,
@@ -532,7 +512,6 @@ export class PasskeyManagerIframe {
     options?: SignAndSendTransactionHooksOptions;
   }): Promise<ActionResult[]> {
     const options = args.options;
-    await options?.beforeCall?.();
     try {
       const res = await this.router.signAndSendTransactions({
         nearAccountId: args.nearAccountId,

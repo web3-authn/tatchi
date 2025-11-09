@@ -270,13 +270,11 @@ export async function sendTransaction({
     throw e;
   }
 
-  const actionResult: ActionResult = {
+  return {
     success: true,
     transactionId: txId,
     result: transactionResult
   };
-
-  return actionResult;
 }
 
 //////////////////////////////
@@ -310,12 +308,10 @@ export async function executeActionInternal({
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<ActionResult> {
 
-  const { onEvent, onError, beforeCall, afterCall, waitUntil } = options || {};
+  const { onEvent, onError, afterCall, waitUntil } = options || {};
   const actions = Array.isArray(actionArgs) ? actionArgs : [actionArgs];
 
   try {
-    await beforeCall?.();
-
     // Pre-warm NonceManager with fresh transaction context data without blocking UI feedback
     void context.webAuthnManager
       .getNonceManager()
@@ -332,7 +328,7 @@ export async function executeActionInternal({
         receiverId: receiverId,
         actions: actions,
       }],
-      options: { onEvent, onError, beforeCall, waitUntil },
+      options: { onEvent, onError, waitUntil },
       confirmationConfigOverride
     });
 
@@ -447,10 +443,9 @@ export async function signTransactionsWithActionsInternal({
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
 }): Promise<VerifyAndSignTransactionResult[]> {
 
-  const { onEvent, onError, beforeCall, waitUntil } = options || {};
+  const { onEvent, onError, waitUntil } = options || {};
 
   try {
-    await beforeCall?.();
     // Emit started event
     onEvent?.({
       step: 1,

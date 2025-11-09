@@ -1,12 +1,8 @@
-Hooks contract (beforeCall, afterCall, onError)
-
-- beforeCall
-  - Type: `() => void | Promise<void>`
-  - The SDK does not wrap this in try/catch. If it throws/rejects, the error bubbles to the caller and no `onError` or `afterCall(false, …)` is invoked by the SDK.
+Hooks contract (afterCall, onError)
 
 - onError
   - Type: `(error: Error) => void | Promise<void>`
-  - Single channel for errors produced during the main operation (not `beforeCall`).
+  - Single channel for errors produced during the main operation.
 
 - afterCall
   - Type: `(success: boolean, result?: T) => void | Promise<void>`
@@ -16,17 +12,15 @@ Hooks contract (beforeCall, afterCall, onError)
 Rationale
 
 - Predictable and ergonomic: success carries a result; failures do not. Error details are delivered through `onError` only.
-- No silent swallowing: user-provided `beforeCall`/`onError`/`afterCall` are not wrapped by the SDK; any thrown error in `afterCall` or `onError` bubbles.
+- No silent swallowing: user-provided `onError`/`afterCall` are not wrapped by the SDK; any thrown error in these bubbles.
 
 Example
 
 ```ts
 const hooks = {
-  beforeCall: () => ui.start(),
   onError: (e: Error) => ui.error(e.message),
   afterCall: (success: boolean, result?: MyResult) => {
     if (success) ui.done(result!); else ui.done();
   }
 };
 ```
-

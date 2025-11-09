@@ -1,4 +1,4 @@
-import type { EventCallback, AccountRecoverySSEEvent, BeforeCall, AfterCall } from '../types/passkeyManager';
+import type { EventCallback, AccountRecoverySSEEvent, AfterCall } from '../types/passkeyManager';
 import { AccountRecoveryPhase, AccountRecoveryStatus, AccountRecoveryHooksOptions } from '../types/passkeyManager';
 import type { PasskeyManagerContext } from './index';
 import type {
@@ -321,10 +321,10 @@ export async function recoverAccount(
   reuseCredential?: WebAuthnAuthenticationCredential,
   allowedCredentialIds?: string[]
 ): Promise<RecoveryResult> {
-  const { onEvent, onError, beforeCall, afterCall } = options || {};
+  const { onEvent, onError, afterCall } = options || {};
   const { webAuthnManager, nearClient, configs } = context;
 
-  await beforeCall?.();
+  
 
   onEvent?.({
     step: 1,
@@ -336,7 +336,7 @@ export async function recoverAccount(
   try {
     const validation = validateNearAccountId(accountId);
     if (!validation.valid) {
-  return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, beforeCall, afterCall);
+  return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, afterCall);
     }
 
     onEvent?.({
@@ -363,7 +363,6 @@ export async function recoverAccount(
           accountId,
           `Selected passkey belongs to ${passkeyAccount}, not ${accountId}`,
           onError,
-          beforeCall,
           afterCall
         );
       }
@@ -385,7 +384,7 @@ export async function recoverAccount(
     });
 
     if (!hasAccess) {
-  return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, beforeCall, afterCall);
+  return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, afterCall);
     }
 
     const vrfInputData: VRFInputData = {
@@ -441,7 +440,7 @@ export async function recoverAccount(
     }
 
     onError?.(error);
-    return handleRecoveryError(accountId, error.message, onError, beforeCall, afterCall);
+    return handleRecoveryError(accountId, error.message, onError, afterCall);
   }
 }
 
@@ -479,7 +478,6 @@ function handleRecoveryError(
   accountId: AccountId,
   errorMessage: string,
   onError?: (error: Error) => void,
-  beforeCall?: BeforeCall,
   afterCall?: AfterCall<any>
 ): RecoveryResult {
   console.error('[recoverAccount] Error:', errorMessage);

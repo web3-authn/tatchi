@@ -214,7 +214,6 @@ export class PasskeyManager {
   ): Promise<RegistrationResult> {
     // Route via wallet iframe when available so WebAuthn ceremony runs inside host
     if (this.iframeRouter) {
-      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.registerPasskey({ nearAccountId, options: { onEvent: options?.onEvent }});
         // Mirror wallet-host initialization locally so preferences (theme, confirm config)
@@ -251,7 +250,6 @@ export class PasskeyManager {
     confirmationConfigOverride?: ConfirmationConfig
   ): Promise<RegistrationResult> {
     if (this.iframeRouter) {
-      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.registerPasskey({
           nearAccountId,
@@ -293,7 +291,6 @@ export class PasskeyManager {
     if (this.iframeRouter) {
       // Keep local preferences in sync
       try { await this.webAuthnManager.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient); } catch {}
-      await options?.beforeCall?.();
       try {
         // Forward serializable options to wallet host, including session config
         const res = await this.iframeRouter.loginPasskey({
@@ -451,7 +448,6 @@ export class PasskeyManager {
    * @param options - Action options for event handling
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - beforeCall: BeforeCall - Optional before call hooks
    * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * @returns Promise resolving to action result
@@ -501,7 +497,7 @@ export class PasskeyManager {
   }): Promise<ActionResult> {
     // cross-origin iframe mode
     if (this.iframeRouter) {
-      await args.options?.beforeCall?.();
+      
       try {
         const res = await this.iframeRouter.executeAction({
           nearAccountId: args.nearAccountId,
@@ -541,7 +537,6 @@ export class PasskeyManager {
    * @param options - Sign and send transaction options
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - beforeCall: BeforeCall - Optional before call hooks
    * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * - executeSequentially: boolean - Wait for each transaction to finish before sending the next (default: true)
@@ -587,7 +582,7 @@ export class PasskeyManager {
     options?: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
     if (this.iframeRouter) {
-      await options?.beforeCall?.();
+      
       try {
         const res = await this.iframeRouter.signAndSendTransactions({
           nearAccountId,
@@ -686,7 +681,7 @@ export class PasskeyManager {
   }): Promise<VerifyAndSignTransactionResult[]> {
     // If a service iframe is initialized, route signing via wallet origin
     if (this.iframeRouter) {
-      await options?.beforeCall?.();
+      
       try {
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
         const result = await this.iframeRouter.signTransactionsWithActions({
@@ -748,7 +743,6 @@ export class PasskeyManager {
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
     if (this.iframeRouter) {
-      await options?.beforeCall?.();
       try {
         const res = await this.iframeRouter.sendTransaction({
           signedTransaction,
@@ -797,7 +791,6 @@ export class PasskeyManager {
    * @param options - Action options for event handling
    * - onEvent: EventCallback<ActionSSEEvent> - Optional event callback
    * - onError: (error: Error) => void - Optional error callback
-   * - beforeCall: BeforeCall - Optional before call hooks
    * - afterCall: AfterCall - Optional after call hooks
    * - waitUntil: TxExecutionStatus - Optional waitUntil status
    * @returns Promise resolving to signing result
@@ -824,7 +817,7 @@ export class PasskeyManager {
         recipient: args.params.recipient,
         state: args.params.state,
       };
-      await args.options?.beforeCall?.();
+      
       const result = await this.iframeRouter.signNep413Message({
         ...payload,
         options: { onEvent: args.options?.onEvent }
@@ -915,7 +908,7 @@ export class PasskeyManager {
       console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
     }
     // Local orchestration using AccountRecoveryFlow for a single-call UX
-    await options?.beforeCall?.();
+      
     try {
       const flow = new AccountRecoveryFlow(this.getContext(), options);
       // Phase 1: Discover available accounts
@@ -1059,7 +1052,6 @@ export type {
   ActionHooksOptions,
   ActionResult,
   EventCallback,
-  BeforeCall,
   AfterCall,
 } from '../types/passkeyManager';
 
