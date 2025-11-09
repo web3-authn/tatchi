@@ -392,9 +392,106 @@ pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler
         ActionParams::FunctionCall { .. } => Ok(Box::new(FunctionCallActionHandler)),
         ActionParams::Transfer { .. } => Ok(Box::new(TransferActionHandler)),
         ActionParams::CreateAccount => Ok(Box::new(CreateAccountActionHandler)),
+        ActionParams::DeployContract { .. } => Ok(Box::new(DeployContractActionHandler)),
+        ActionParams::Stake { .. } => Ok(Box::new(StakeActionHandler)),
         ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
         ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
         ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
         _ => Err("Unsupported action type".to_string()),
+    }
+}
+
+// === NEW: DeployContract and Stake action handlers ===
+
+pub struct DeployContractActionHandler;
+
+impl ActionHandler for DeployContractActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::DeployContract { code } => {
+                if code.is_empty() {
+                    return Err("Contract code cannot be empty".to_string());
+                }
+                Ok(())
+            }
+            _ => Err("Invalid params for DeployContract action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::DeployContract { code } => {
+                Ok(Action::DeployContract { code: code.clone() })
+            }
+            _ => Err("Invalid params for DeployContract action".to_string()),
+        }
+    }
+
+    fn get_action_type(&self) -> ActionType {
+        ActionType::DeployContract
+    }
+}
+
+pub struct StakeActionHandler;
+
+impl ActionHandler for StakeActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::Stake { stake, public_key } => {
+                if stake.is_empty() {
+                    return Err("Stake amount cannot be empty".to_string());
+                }
+                stake
+                    .parse::<Balance>()
+                    .map_err(|_| "Invalid stake amount".to_string())?;
+
+                if public_key.is_empty() {
+                    return Err("Public key cannot be empty".to_string());
+                }
+                if !public_key.starts_with("ed25519:") && public_key.len() < 32 {
+                    return Err("Invalid public key format".to_string());
+                }
+                Ok(())
+            }
+            _ => Err("Invalid params for Stake action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::Stake { stake, public_key } => {
+                let stake_amount = stake
+                    .parse::<Balance>()
+                    .map_err(|e| format!("Failed to parse stake amount: {}", e))?;
+
+                // Parse the public key (expecting ed25519:<base58>)
+                let parsed_public_key = if public_key.starts_with("ed25519:") {
+                    let key_str = &public_key[8..];
+                    let key_bytes = bs58::decode(key_str)
+                        .into_vec()
+                        .map_err(|e| format!("Failed to decode public key: {}", e))?;
+
+                    if key_bytes.len() != 32 {
+                        return Err("Public key must be 32 bytes".to_string());
+                    }
+
+                    let mut key_array = [0u8; 32];
+                    key_array.copy_from_slice(&key_bytes);
+                    crate::types::PublicKey::from_ed25519_bytes(&key_array)
+                } else {
+                    return Err("Public key must start with 'ed25519:'".to_string());
+                };
+
+                Ok(Action::Stake {
+                    stake: stake_amount,
+                    public_key: parsed_public_key,
+                })
+            }
+            _ => Err("Invalid params for Stake action".to_string()),
+        }
+    }
+
+    fn get_action_type(&self) -> ActionType {
+        ActionType::Stake
     }
 }
