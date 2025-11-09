@@ -35,7 +35,6 @@ export type {
   RegistrationHooksOptions,
   ActionHooksOptions,
   SignNEP413HooksOptions,
-  BeforeCall,
   AfterCall,
   EventCallback,
 } from './core/types/passkeyManager';
@@ -87,4 +86,3 @@ export type {
   ConfirmationUIMode,
   ConfirmationBehavior,
 } from './core/types/signer-worker';
-

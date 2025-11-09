@@ -403,9 +403,6 @@ export const DemoPage: React.FC = () => {
                   // Force the confirmer to use the drawer UI for this flow
                   confirmationConfig: { uiMode: 'drawer' },
                   waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-                  beforeCall: () => {
-                    toast.loading('Preparing embedded transaction...', { id: 'embedded' });
-                  },
                   afterCall: (success: boolean, result?: ActionResult[]) => {
                     if (success && result) {
                       const last = result[result.length - 1] ?? result[0];

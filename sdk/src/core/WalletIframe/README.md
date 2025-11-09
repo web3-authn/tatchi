@@ -115,7 +115,7 @@ The callback chain follows this flow:
 
 ### 1. **PasskeyManagerIframe** (Entry Point)
 - Acts as a proxy/wrapper around the WalletIframeRouter
-- Handles hook callbacks (`beforeCall`, `afterCall`, `onError`, `onEvent`)
+- Handles hook callbacks (`afterCall`, `onError`, `onEvent`)
 - For example, in `registerPasskey()`:
   ```typescript
   const res = await this.client.registerPasskey({

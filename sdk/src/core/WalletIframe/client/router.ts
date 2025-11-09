@@ -46,7 +46,6 @@ import type {
   LoginSSEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
-  BeforeCall,
   AfterCall,
   SignAndSendTransactionHooksOptions,
   SendTransactionHooksOptions,
@@ -427,7 +426,6 @@ export class WalletIframeRouter {
     options?: {
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
-      beforeCall?: BeforeCall;
       afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
       // Allow minimal overrides (e.g., { uiMode: 'drawer' })
       confirmationConfig?: Partial<ConfirmationConfig>;

@@ -102,8 +102,6 @@ export enum DeviceLinkingStatus {
 // Base event callback type
 export type EventCallback<T> = (event: T) => void;
 
-export type BeforeCall = () => void | Promise<void>;
-// afterCall overload: success requires a result; failure has no result.
 // Users can still supply a single implementation: (success: boolean, result?: T) => ...
 export interface AfterCall<T> {
   (success: true, result: T): void | Promise<void>;
@@ -476,14 +474,12 @@ export type AccountRecoverySSEEvent =
 export interface RegistrationHooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
   afterCall?: AfterCall<RegistrationResult>;
 }
 
 export interface LoginHooksOptions {
   onEvent?: EventCallback<LoginSSEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
   afterCall?: AfterCall<LoginResult>;
   // Optional: request a server session (JWT in body or HttpOnly cookie)
   session?: {
@@ -500,7 +496,7 @@ export interface ActionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<ActionResult>;
   // Per-call confirmation configuration. When provided, overrides user preferences
   // for this request only (not persisted).
@@ -520,7 +516,7 @@ export interface SignAndSendTransactionHooksOptions {
   // - { mode: 'sequential', waitUntil?: TxExecutionStatus }
   // - { mode: 'parallelStaggered', staggerMs: number }
   executionWait?: ExecutionWaitOption;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<ActionResult[]>;
   // Per-call confirmation configuration. When provided, overrides user preferences
   // for this request only (not persisted).
@@ -531,7 +527,7 @@ export interface SignAndSendTransactionHooksOptions {
 export interface SignTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
   // Per-call confirmation configuration (non-persistent)
@@ -542,7 +538,7 @@ export interface SignTransactionHooksOptions {
 export interface SendTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<ActionResult>;
   waitUntil?: TxExecutionStatus;
 }
@@ -551,14 +547,14 @@ export interface AccountRecoveryHooksOptions {
   onEvent?: EventCallback<AccountRecoverySSEEvent>;
   onError?: (error: Error) => void;
   waitUntil?: TxExecutionStatus;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<RecoveryResult>;
 }
 
 export interface SignNEP413HooksOptions {
   onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent>;
   onError?: (error: Error) => void;
-  beforeCall?: BeforeCall;
+
   afterCall?: AfterCall<SignNEP413MessageResult>;
 }
 

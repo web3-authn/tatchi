@@ -4,7 +4,6 @@ import type {
   LoginState,
   LoginSSEvent,
   AfterCall,
-  BeforeCall,
   GetRecentLoginsResult,
 } from '../types/passkeyManager';
 import { LoginPhase, LoginStatus } from '../types/passkeyManager';
@@ -12,6 +11,7 @@ import type { PasskeyManagerContext } from './index';
 import type { AccountId } from '../types/accountIds';
 import type { WebAuthnAuthenticationCredential } from '../types/webauthn';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
+import { base64UrlDecode } from '../../utils/base64';
 import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
 import { authenticatorsToAllowCredentials} from '../WebAuthnManager/touchIdPrompt';
 
@@ -39,8 +39,7 @@ export async function loginPasskey(
   options?: LoginHooksOptions
 ): Promise<LoginResult> {
 
-  const { onEvent, onError, beforeCall, afterCall } = options || {};
-  // Emit started event
+  const { onEvent, onError, afterCall } = options || {};
   onEvent?.({
     step: 1,
     phase: LoginPhase.STEP_1_PREPARATION,
@@ -49,9 +48,6 @@ export async function loginPasskey(
   });
 
   try {
-    // Run beforeCall hook
-    await beforeCall?.();
-
     // Validation
     if (!window.isSecureContext) {
       const errorMessage = 'Passkey operations require a secure context (HTTPS or localhost).';
@@ -75,7 +71,6 @@ export async function loginPasskey(
       nearAccountId,
       onEvent,
       onError,
-      beforeCall,
       afterCall,
       // Defer final 'login-complete' event & afterCall until session is minted
       wantsSession
@@ -207,7 +202,6 @@ async function handleLoginUnlockVRF(
   nearAccountId: AccountId,
   onEvent?: (event: LoginSSEvent) => void,
   onError?: (error: Error) => void,
-  beforeCall?: BeforeCall,
   afterCall?: AfterCall<any>,
   deferCompletionHooks?: boolean,
 ): Promise<LoginResult> {
@@ -480,10 +474,7 @@ export async function verifyAuthenticationResponse(
     // Map VRFChallenge into server ContractVrfData shape (number arrays)
     const toBytes = (b64u: string | undefined): number[] => {
       if (!b64u) return [];
-      const bin = (window as any).atob ? (window as any).atob(b64u.replace(/-/g, '+').replace(/_/g, '/')) : Buffer.from(b64u, 'base64').toString('binary');
-      const out: number[] = [];
-      for (let i = 0; i < bin.length; i++) out.push(bin.charCodeAt(i));
-      return out;
+      return Array.from(base64UrlDecode(b64u));
     };
     const vrf_data = {
       vrf_input_data: toBytes(vrfChallenge.vrfInput),
