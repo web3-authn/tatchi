@@ -65,6 +65,12 @@ body::-webkit-scrollbar {
   padding: 0;
 }
 
+@media (min-width: 1280px) {
+  .VPNavBarAppearance.appearance {
+    display: none;
+  }
+}
+
 /* Override Sonner toast close button styles */
 /* Vendor sets padding with !important; match with !important and ensure this loads after vendor CSS. */
 :root [data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
