@@ -5,7 +5,7 @@
 // ******************************************************************************
 
 use bs58;
-use log::info;
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;
@@ -113,7 +113,7 @@ impl DeriveNearKeypairAndEncryptResult {
 pub async fn handle_derive_near_keypair_and_encrypt(
     request: DeriveNearKeypairAndEncryptRequest,
 ) -> Result<DeriveNearKeypairAndEncryptResult, String> {
-    info!("RUST: WASM binding - starting structured dual PRF keypair derivation with optional transaction signing");
+    debug!("[rust wasm]: starting dual PRF keypair derivation with optional transaction signing");
     // Convert wasm-bindgen types to internal types
     let internal_dual_prf_outputs = crate::types::DualPrfOutputs {
         chacha20_prf_output_base64: request.dual_prf_outputs.chacha20_prf_output,
@@ -200,12 +200,12 @@ pub async fn handle_derive_near_keypair_and_encrypt(
                 }
             }
             Err(e) => {
-                info!("RUST: Transaction signing failed: {}", e);
+                warn!("RUST: Transaction signing failed: {}", e);
                 None
             }
         }
     } else {
-        info!("RUST: No transaction signing requested - optional parameters not provided");
+        debug!("[rust wasm]: No transaction signing requested: parameters not provided");
         None
     };
 

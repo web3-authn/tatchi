@@ -5,7 +5,6 @@
 // ******************************************************************************
 use crate::handlers::confirm_tx_details::{generate_request_id, ConfirmationResult};
 use bs58;
-use log::info;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsValue;
@@ -104,8 +103,6 @@ pub async fn handle_decrypt_private_key_with_prf(
 
     let private_key_near_format =
         format!("ed25519:{}", bs58::encode(&full_private_key).into_string());
-
-    info!("RUST: Private key decrypted successfully with structured types");
 
     let result =
         DecryptPrivateKeyResult::new(private_key_near_format, request.near_account_id.clone());

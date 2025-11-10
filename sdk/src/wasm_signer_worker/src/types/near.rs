@@ -6,7 +6,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use serde_bytes;
 use sha2::{Digest, Sha256};
-use wasm_bindgen::prelude::*;
 
 // === CORE NEAR TYPES ===
 

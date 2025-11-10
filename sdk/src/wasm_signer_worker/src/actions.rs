@@ -397,7 +397,6 @@ pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler
         ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
         ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
         ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
-        _ => Err("Unsupported action type".to_string()),
     }
 }
 

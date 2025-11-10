@@ -485,11 +485,10 @@ export const DemoPage: React.FC = () => {
         </div>
 
         <div className="action-section" style={{ marginTop: '1rem' }}>
-          <h2 className="demo-subtitle">Choose between Modal or Drawer</h2>
+          <h2 className="demo-subtitle">Configure Transaction UX Options</h2>
           <div className="action-text">
             Choose between Modal or Drawer for the tx confirmer menus.
-            <br/>
-            You can also skip the confirmation menu (on desktop).
+            You can also skip the confirmation menu.
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <LoadingButton

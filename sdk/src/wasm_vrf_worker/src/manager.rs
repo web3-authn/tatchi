@@ -3,7 +3,7 @@ use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use getrandom::getrandom;
 use hkdf::Hkdf;
 use js_sys::Date;
-use log::{debug, info, warn};
+use log::{debug, warn};
 use rand_core::SeedableRng;
 use sha2::{Digest, Sha256};
 // VRF and crypto imports
@@ -97,7 +97,7 @@ impl VRFKeyManager {
         &mut self,
         vrf_input_data: Option<VRFInputData>,
     ) -> VrfResult<GenerateVrfKeypairBootstrapResponse> {
-        info!("Generating VRF keypair for bootstrapping");
+        debug!("Generating VRF keypair for bootstrapping");
         debug!("VRF keypair will be stored in memory unencrypted until PRF encryption");
 
         // Clear any existing keypair (zeroization via ZeroizeOnDrop)
@@ -133,7 +133,7 @@ impl VRFKeyManager {
             result.vrf_challenge_data = Some(challenge_result);
         }
 
-        info!("VRF challenge generated successfully");
+        debug!("VRF challenge generated successfully");
         Ok(result)
     }
 
@@ -208,7 +208,7 @@ impl VRFKeyManager {
         near_account_id: String,
         keypair_data: VRFKeypairData,
     ) -> VrfResult<()> {
-        info!("Loading VRF keypair for {}", near_account_id);
+        debug!("Loading VRF keypair for {}", near_account_id);
         // Clear any existing keypair
         self.vrf_keypair.take();
         // Reconstruct ECVRFKeyPair from stored bytes

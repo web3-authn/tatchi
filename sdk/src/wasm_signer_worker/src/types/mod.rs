@@ -15,4 +15,3 @@ pub use near::*;
 pub use progress::*;
 pub use wasm_to_json::*;
 pub use webauthn::*;
-pub use worker_messages::*;

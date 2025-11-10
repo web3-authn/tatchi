@@ -26,25 +26,12 @@ pub use handle_check_can_register_user::{
     CheckCanRegisterUserRequest, RegistrationCheckRequest, RegistrationCheckResult,
     RegistrationInfoStruct,
 };
-pub use handle_decrypt_private_key_with_prf::{
-    ExportNearKeypairUiRequest, ExportNearKeypairUiResult,
-};
+pub use handle_decrypt_private_key_with_prf::ExportNearKeypairUiRequest;
 pub use handle_extract_cose_public_key::{CoseExtractionResult, ExtractCoseRequest};
 pub use handle_recover_keypair_from_passkey::{RecoverKeypairRequest, RecoverKeypairResult};
-pub use handle_request_registration_credential_confirmation::{
-    RegistrationCredentialConfirmationRequest, RegistrationCredentialConfirmationResult,
-};
+pub use handle_request_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
 pub use handle_sign_nep413_message::{SignNep413Request, SignNep413Result};
 pub use handle_sign_transaction_with_keypair::SignTransactionWithKeyPairRequest;
 pub use handle_sign_transactions_with_actions::{
     KeyActionResult, SignTransactionsWithActionsRequest, TransactionPayload,
 };
-
-// Transaction confirmation utilities
-pub use confirm_tx_details::{
-    compute_intent_digest_from_js_inputs, create_transaction_summary, generate_request_id,
-    request_user_confirmation, request_user_confirmation_with_config, ConfirmationResult,
-};
-
-// Confirmation configuration types (from types module)
-pub use crate::types::handlers::{ConfirmationBehavior, ConfirmationConfig, ConfirmationUIMode};

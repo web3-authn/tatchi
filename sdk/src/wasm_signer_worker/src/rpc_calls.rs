@@ -1,4 +1,4 @@
-use log::{debug, error, info, warn};
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::prelude::*;
@@ -8,8 +8,7 @@ use web_sys::{Headers, Request, RequestInit, RequestMode, Response};
 use crate::encoders::{base64_standard_encode, base64_url_decode};
 use crate::types::VrfChallenge;
 use crate::types::{
-    WebAuthnAuthenticationCredential, WebAuthnAuthenticationResponse,
-    WebAuthnRegistrationCredential, WebAuthnRegistrationResponse,
+    WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential,
 };
 
 pub const VERIFY_AUTHENTICATION_RESPONSE_METHOD: &str = "verify_authentication_response";
@@ -35,7 +34,6 @@ pub struct ContractRegistrationResult {
     pub logs: Vec<String>,
     pub registration_info: Option<RegistrationInfo>,
     pub signed_transaction_borsh: Option<Vec<u8>>,
-    pub pre_signed_delete_transaction: Option<Vec<u8>>,
 }
 
 impl ContractRegistrationResult {
@@ -61,10 +59,6 @@ impl ContractRegistrationResult {
         Self::unwrap_signed_transaction_from_bytes(self.signed_transaction_borsh.as_ref())
     }
 
-    /// Convert pre-signed delete transaction borsh bytes to JSON
-    pub fn unwrap_pre_signed_delete_transaction(&self) -> Option<serde_json::Value> {
-        Self::unwrap_signed_transaction_from_bytes(self.pre_signed_delete_transaction.as_ref())
-    }
 }
 
 /// Registration info returned from contract
@@ -123,16 +117,12 @@ pub async fn verify_authentication_response_rpc_call(
     vrf_data: VrfData,
     webauthn_authentication_credential: WebAuthnAuthenticationCredential,
 ) -> Result<ContractVerificationResult, String> {
-    info!("RUST: Performing contract verification via WASM HTTP");
-
     // Perform contract verification; VRF height freshness is validated by the contract logic.
-
     // Build contract arguments
     let contract_args = serde_json::json!({
         "vrf_data": vrf_data,
         "webauthn_authentication": webauthn_authentication_credential
     });
-
     // Build RPC request body
     let rpc_body = serde_json::json!({
         "jsonrpc": "2.0",
@@ -150,7 +140,7 @@ pub async fn verify_authentication_response_rpc_call(
         }
     });
 
-    info!("RUST: Making RPC call to: {}", rpc_url);
+    debug!("[rust wasm]: Making RPC call to: {}", rpc_url);
     // Execute the request using shared helper
     let result = execute_rpc_request(rpc_url, &rpc_body).await?;
 
@@ -224,10 +214,7 @@ pub async fn verify_authentication_response_rpc_call(
         })
         .unwrap_or_default();
 
-    info!(
-        "RUST: Contract verification result: verified={}, logs={:?}",
-        verified, logs
-    );
+    debug!("RUST: Contract verification result: verified={}, logs={:?}", verified, logs);
 
     Ok(ContractVerificationResult {
         success: true,
@@ -250,22 +237,12 @@ pub async fn check_can_register_user_rpc_call(
     rpc_url: &str,
     authenticator_options: Option<crate::types::handlers::AuthenticatorOptions>,
 ) -> Result<ContractRegistrationResult, String> {
-    info!("RUST: Checking if user can register (view function)");
-
     // Build contract arguments
     let contract_args = serde_json::json!({
         "vrf_data": vrf_data,
         "webauthn_registration": webauthn_registration_credential,
         "authenticator_options": authenticator_options
     });
-
-    // Add logging to see what's being sent to the contract
-    info!(
-        "RUST: Contract args being sent: {}",
-        serde_json::to_string_pretty(&contract_args)
-            .unwrap_or_else(|_| "Failed to serialize".to_string())
-    );
-
     // Build RPC request body for VIEW function
     let rpc_body = serde_json::json!({
         "jsonrpc": "2.0",
@@ -280,8 +257,7 @@ pub async fn check_can_register_user_rpc_call(
         }
     });
 
-    info!("RUST: Making registration check RPC call to: {}", rpc_url);
-
+    debug!("[rust wasm]: registration check RPC call to: {}", rpc_url);
     // Execute the request (reuse the same HTTP logic)
     let response_result = execute_rpc_request(rpc_url, &rpc_body).await?;
 
@@ -437,8 +413,6 @@ async fn execute_rpc_request(
 pub fn parse_check_can_register_response(
     result: serde_json::Value,
 ) -> Result<ContractRegistrationResult, String> {
-    info!("RUST: Received registration check RPC response");
-
     // Parse RPC response
     if let Some(error) = result.get("error") {
         let error_msg = error
@@ -453,7 +427,6 @@ pub fn parse_check_can_register_response(
             logs: vec![],
             registration_info: None,
             signed_transaction_borsh: None,
-            pre_signed_delete_transaction: None,
         });
     }
 
@@ -483,7 +456,6 @@ pub fn parse_check_can_register_response(
             logs: vec![],
             registration_info: None,
             signed_transaction_borsh: None,
-            pre_signed_delete_transaction: None,
         });
     }
 
@@ -501,13 +473,13 @@ pub fn parse_check_can_register_response(
     let result_string = String::from_utf8(result_u8)
         .map_err(|e| format!("Failed to decode result string: {}", e))?;
 
-    info!("RUST: Contract response string: {}", result_string);
+    debug!("RUST: Contract response: {}", result_string);
 
     // Parse contract response
     let contract_response: Value = serde_json::from_str(&result_string)
         .map_err(|e| format!("Failed to parse contract response: {}", e))?;
 
-    info!(
+    debug!(
         "RUST: Parsed contract response: {}",
         serde_json::to_string_pretty(&contract_response).unwrap_or_default()
     );
@@ -523,7 +495,7 @@ pub fn parse_check_can_register_response(
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
-    info!(
+    debug!(
         "RUST: Contract verification result: verified={}, user_exists={}",
         verified, user_exists
     );
@@ -551,7 +523,7 @@ pub fn parse_check_can_register_response(
         })
         .unwrap_or_default();
 
-    info!(
+    debug!(
         "RUST: Contract registration check result: verified={}, user_exists={}, logs={:?}",
         verified, user_exists, logs
     );
@@ -567,6 +539,5 @@ pub fn parse_check_can_register_response(
         logs,
         registration_info: registration_info,
         signed_transaction_borsh: None, // View functions don't have transactions
-        pre_signed_delete_transaction: None, // View functions don't have transactions
     })
 }

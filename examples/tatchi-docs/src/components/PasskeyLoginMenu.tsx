@@ -213,6 +213,12 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
         defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
         onLogin={onLogin}
         loadingScreenDelayMs={0}
+        headings={{
+          registration: {
+            title: 'Register Account',
+            subtitle: 'Demo: Create a wallet with Passkey',
+          },
+        }}
         onRegister={onRegister}
         onRecoverAccount={onRecover}
         linkDeviceOptions={{

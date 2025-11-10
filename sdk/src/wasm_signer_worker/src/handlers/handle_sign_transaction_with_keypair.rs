@@ -11,7 +11,6 @@ use crate::transaction::{
 };
 use crate::types::wasm_to_json::WasmSignedTransaction;
 use bs58;
-use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;
@@ -50,9 +49,8 @@ pub struct SignTransactionWithKeyPairRequest {
 pub async fn handle_sign_transaction_with_keypair(
     request: SignTransactionWithKeyPairRequest,
 ) -> Result<TransactionSignResult, String> {
-    let mut logs: Vec<String> = Vec::new();
-    info!("RUST: WASM binding - starting transaction signing with provided private key");
 
+    let mut logs: Vec<String> = Vec::new();
     // Parse the private key from NEAR format (ed25519:base58_encoded_64_bytes)
     let private_key_str = if request.near_private_key.starts_with("ed25519:") {
         &request.near_private_key[8..] // Remove "ed25519:" prefix

@@ -616,6 +616,8 @@ export interface LoginResult {
 export interface ActionResult {
   success: boolean;
   error?: string;
+  // Optional structured error details when available (e.g., NEAR RPC error payload)
+  errorDetails?: unknown;
   transactionId?: string;
   result?: FinalExecutionOutcome;
 }

@@ -4,7 +4,7 @@
 // *                                                                            *
 // ******************************************************************************
 use crate::encoders::base64_standard_encode;
-use log::info;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -75,7 +75,7 @@ impl SignNep413Result {
 pub async fn handle_sign_nep413_message(
     request: SignNep413Request,
 ) -> Result<SignNep413Result, String> {
-    info!("RUST: Starting NEP-413 message signing");
+    debug!("RUST: Starting NEP-413 message signing");
 
     // Decode and validate nonce is exactly 32 bytes
     let nonce_bytes = crate::encoders::base64_standard_decode(&request.nonce)
@@ -121,7 +121,7 @@ pub async fn handle_sign_nep413_message(
     let serialized =
         borsh::to_vec(&payload).map_err(|e| format!("Borsh serialization failed: {}", e))?;
 
-    info!(
+    debug!(
         "RUST: NEP-413 payload serialized with Borsh ({} bytes)",
         serialized.len()
     );
@@ -131,7 +131,7 @@ pub async fn handle_sign_nep413_message(
     let mut prefixed_data = prefix.to_le_bytes().to_vec();
     prefixed_data.extend_from_slice(&serialized);
 
-    info!(
+    debug!(
         "RUST: NEP-413 prefix added, total data size: {} bytes",
         prefixed_data.len()
     );
@@ -142,7 +142,7 @@ pub async fn handle_sign_nep413_message(
     hasher.update(&prefixed_data);
     let hash = hasher.finalize();
 
-    info!("RUST: SHA-256 hash computed");
+    debug!("RUST: SHA-256 hash computed");
 
     // Sign the hash using the Ed25519 private key
     use ed25519_dalek::Signer;
@@ -156,7 +156,7 @@ pub async fn handle_sign_nep413_message(
     // Encode signature as base64
     let signature_b64 = base64_standard_encode(&signature.to_bytes());
 
-    info!("RUST: NEP-413 message signed successfully");
+    debug!("RUST: NEP-413 message signed successfully");
 
     Ok(SignNep413Result::new(
         request.account_id,

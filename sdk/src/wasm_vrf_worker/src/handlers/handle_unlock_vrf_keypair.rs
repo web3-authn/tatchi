@@ -1,7 +1,7 @@
 use crate::manager::VRFKeyManager;
 use crate::types::EncryptedVRFKeypair;
 use crate::types::VrfWorkerResponse;
-use log::{error, info};
+use log::error;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -46,7 +46,6 @@ pub fn handle_unlock_vrf_keypair(
         prf_key,
     ) {
         Ok(_) => {
-            info!("VRF keypair unlock successful");
             VrfWorkerResponse::success(message_id, None)
         }
         Err(e) => {

@@ -10,8 +10,10 @@ use serde::{Deserialize, Serialize};
 use serde_json;
 use serde_wasm_bindgen;
 use sha2::{Sha256, Digest};
+use serde_json::Value;
 use log::debug;
-use super::handle_sign_transactions_with_actions::{TransactionPayload, SignTransactionsWithActionsRequest};
+
+use super::handle_sign_transactions_with_actions::SignTransactionsWithActionsRequest;
 use crate::types::handlers::{
     ConfirmationConfig,
     ConfirmationUIMode,
@@ -19,7 +21,6 @@ use crate::types::handlers::{
 };
 use crate::encoders::base64_url_encode;
 use crate::actions::ActionParams;
-use serde_json::Value;
 
 // External JS function for secure confirmation (V2 typed API)
 //
@@ -104,65 +105,25 @@ pub fn validate_and_normalize_confirmation_config(
 }
 
 /// Generates a unique request ID for confirmation requests using timestamp and random value
+#[cfg(target_arch = "wasm32")]
 pub fn generate_request_id() -> String {
     format!("{}-{}", js_sys::Date::now(), js_sys::Math::random())
 }
 
-/// Creates a transaction summary for user confirmation based on all transactions
-pub fn create_transaction_summary(
-    tx_requests: &[TransactionPayload],
-) -> Result<serde_json::Value, String> {
+#[cfg(not(target_arch = "wasm32"))]
+pub fn generate_request_id() -> String {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::{SystemTime, UNIX_EPOCH};
 
-    if tx_requests.is_empty() {
-        return Err("No transactions provided for summary".to_string());
-    }
-
-    let mut total_deposit = 0u128;
-    let mut unique_receivers = std::collections::HashSet::new();
-
-    // Process all transactions to calculate totals
-    for tx_request in tx_requests {
-        unique_receivers.insert(tx_request.receiver_id.clone());
-
-        // Parse actions to extract deposits
-        let actions: Vec<ActionParams> = tx_request.parsed_actions()
-            .map_err(|e| format!("Failed to parse actions JSON: {}", e))?;
-
-        for action in actions {
-            match action {
-                ActionParams::CreateAccount => {}
-                ActionParams::DeployContract { .. } => {}
-                ActionParams::FunctionCall { deposit, .. } => {
-                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
-                }
-                ActionParams::Transfer { deposit } => {
-                    total_deposit += deposit.parse::<u128>().unwrap_or(0);
-                }
-                ActionParams::Stake { stake, .. } => {
-                    total_deposit += stake.parse::<u128>().unwrap_or(0);
-                }
-                ActionParams::AddKey { .. } => {}
-                ActionParams::DeleteKey { .. } => {}
-                ActionParams::DeleteAccount { .. } => {}
-            }
-        }
-    }
-
-    // Format the summary
-    let summary = ConfirmationSummaryAction {
-        to: match unique_receivers.len() {
-            1 => unique_receivers.iter().next().unwrap().to_string(),
-            _ => format!("{} recipients", unique_receivers.len()),
-        },
-        total_amount: match total_deposit {
-            0 => "0".to_string(),
-            _ => format!("{}", total_deposit),
-        },
-    };
-
-    serde_json::to_value(&summary)
-        .map_err(|e| format!("Failed to serialize transaction summary: {}", e))
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let millis = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or(0);
+    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!("{}-{}", millis, n)
 }
+
 
 /// Creates a transaction summary from pre-parsed actions to avoid double parsing
 pub fn create_transaction_summary_from_parsed(
@@ -321,7 +282,7 @@ pub async fn request_user_confirmation_with_config(
             let summary = create_transaction_summary_from_parsed(&parsed_receivers_and_actions)
                 .map_err(|e| format!("Failed to create transaction summary: {}", e))?;
 
-            let confirmation_data = serde_json::json!({
+            let _confirmation_data = serde_json::json!({
                 "intentDigest": intent_digest,
                 "nearAccountId": near_account_id,
                 "rpcCall": tx_batch_request.rpc_call,
@@ -417,7 +378,7 @@ pub async fn request_user_confirmation_with_config(
         None
     };
 
-    let confirmation_data = serde_json::json!({
+    let _confirmation_data = serde_json::json!({
         "intentDigest": intent_digest,
         "nearAccountId": near_account_id,
         "rpcCall": tx_batch_request.rpc_call,
@@ -578,8 +539,8 @@ mod tests {
 
     #[test]
     fn test_compute_intent_digest_empty() {
-        let empty_requests: Vec<TransactionPayload> = vec![];
-        let result = compute_intent_digest(&empty_requests);
+        let empty_requests: Vec<(String, Vec<ActionParams>)> = vec![];
+        let result = compute_intent_digest_from_js_inputs(&empty_requests);
         assert!(result.is_ok());
         assert!(!result.unwrap().is_empty());
     }

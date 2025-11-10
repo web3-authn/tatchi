@@ -5,7 +5,7 @@
 // ******************************************************************************
 
 use crate::types::SerializedCredential;
-use log::info;
+use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
@@ -73,20 +73,16 @@ pub async fn handle_recover_keypair_from_passkey(
         .prf
         .results
         .first
-        .ok_or_else(|| "Missing AES PRF output (first) in credential".to_string())?;
+        .ok_or_else(|| "Missing PRF output (first) in credential".to_string())?;
     let ed25519_prf_output = request
         .credential
         .client_extension_results
         .prf
         .results
         .second
-        .ok_or_else(|| "Missing Ed25519 PRF output (second) in credential".to_string())?;
+        .ok_or_else(|| "Missing PRF output (second) in credential".to_string())?;
 
-    info!(
-        "RUST: Parsed authentication credential with ID: {}",
-        request.credential.id
-    );
-
+    debug!("RUST: Parsed authentication credential with ID: {}", request.credential.id);
     // Use account hint if provided, otherwise generate placeholder
     let account_id = request
         .account_id_hint
@@ -97,15 +93,15 @@ pub async fn handle_recover_keypair_from_passkey(
     // public_key already contains the ed25519: prefix from the crypto function
     let (private_key, public_key) =
         crate::crypto::derive_ed25519_key_from_prf_output(&ed25519_prf_output, account_id)
-            .map_err(|e| format!("Failed to derive Ed25519 key from PRF: {}", e))?;
+            .map_err(|e| format!("Failed to derive Ed25519 key: {}", e))?;
 
     // Encrypt the private key with the AES PRF output (correct usage)
     let encryption_result =
         crate::crypto::encrypt_private_key_with_prf(&private_key, &chacha20_prf_output, account_id)
-            .map_err(|e| format!("Failed to encrypt private key with AES PRF: {}", e))?;
+            .map_err(|e| format!("Failed to encrypt private key: {}", e))?;
 
-    info!("RUST: Successfully derived NEAR keypair from Ed25519 PRF and encrypted with AES PRF");
-    info!("RUST: PRF-based keypair recovery from authentication credential successful");
+    debug!("[rust wasm]: Successfully derived NEAR keypair and encrypted with ChaCha20Poly1305");
+    debug!("[rust wasm]: Key recovery from authentication credential successful");
 
     Ok(RecoverKeypairResult::new(
         public_key,
