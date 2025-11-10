@@ -43,8 +43,8 @@
 // Import iframe tooltip confirmer button and keep reference
 import { IframeButtonHost as __IframeButtonKeep } from '../../WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer/iframe-host';
 // Import arrow register button so it's defined and not tree-shaken in wallet origin
-import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
-import { PasskeyManager } from '../../PasskeyManager';
+import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
+import { TatchiPasskey } from '../../TatchiPasskey';
 import { SignAndSendTransactionHooksOptions } from '../../types/passkeyManager';
 import { BaseSSEEvent, TransactionInput, TransactionInputWasm } from '../../types';
 import { uiBuiltinRegistry, type WalletUIRegistry } from './iframe-lit-element-registry';
@@ -62,18 +62,18 @@ import { ensureHostBaseStyles, markContainer, setContainerAnchored } from './mou
 
 defineTag('txButton', __IframeButtonKeep as unknown as CustomElementConstructor);
 
-export type EnsurePasskeyManager = () => void;
-export type GetPasskeyManager = () => PasskeyManager | PasskeyManagerIframe | null; // Avoid tight coupling to class type
+export type EnsureTatchiPasskey = () => void;
+export type GetPasskeyManager = () => TatchiPasskey | TatchiPasskeyIframe | null; // Avoid tight coupling to class type
 export type UpdateWalletConfigs = (patch: Record<string, unknown>) => void;
 
 export function setupLitElemMounter(opts: {
-  ensurePasskeyManager: EnsurePasskeyManager;
-  getPasskeyManager: GetPasskeyManager;
+  ensureTatchiPasskey: EnsureTatchiPasskey;
+  getTatchiPasskey: GetPasskeyManager;
   updateWalletConfigs: UpdateWalletConfigs;
   postToParent: (message: unknown) => void;
 }) {
   // Message API: register-button overlay deprecated – only tx button APIs remain
-  const { ensurePasskeyManager, getPasskeyManager, updateWalletConfigs } = opts;
+  const { ensureTatchiPasskey, getTatchiPasskey, updateWalletConfigs } = opts;
 
   // Generic registry for mountable components
   let uiRegistry: WalletUIRegistry = { ...uiBuiltinRegistry };
@@ -102,8 +102,8 @@ export function setupLitElemMounter(opts: {
   };
 
   const runPmAction = async (action: string, args: Record<string, unknown>): Promise<unknown> => {
-    const pm = getPasskeyManager();
-    ensurePasskeyManager();
+    const pm = getTatchiPasskey();
+    ensureTatchiPasskey();
     switch (action) {
       case 'signAndSendTransactions': {
         const nearAccountId = String((args as { nearAccountId?: unknown })?.nearAccountId || '').trim();

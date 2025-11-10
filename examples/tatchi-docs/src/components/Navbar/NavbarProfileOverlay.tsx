@@ -1,4 +1,5 @@
 import React from 'react'
+import { createPortal } from 'react-dom'
 import TatchiProfileSettingsButton from '../TatchiProfileSettingsButton'
 
 /**
@@ -67,10 +68,10 @@ export const NavbarProfileOverlay: React.FC = () => {
     }
   }, [])
 
-  return (
+  const overlay = (
     <div
       ref={btnRef}
-      style={{ position: 'fixed', top: '0.5rem', right: '0.5rem', zIndex: 102 }}
+      style={{ position: 'fixed', top: '0.5rem', right: '0.5rem', zIndex: 2147483647, pointerEvents: 'auto' }}
       aria-hidden={false}
     >
       <TatchiProfileSettingsButton
@@ -81,6 +82,9 @@ export const NavbarProfileOverlay: React.FC = () => {
       />
     </div>
   )
+
+  if (typeof document === 'undefined') return null
+  return createPortal(overlay, document.body)
 }
 
 export default NavbarProfileOverlay

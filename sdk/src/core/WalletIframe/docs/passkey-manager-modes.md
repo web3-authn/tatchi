@@ -4,8 +4,8 @@
 
 The Web3Authn SDK supports two runtime modes for passkey management:
 
-- **Same-origin mode**: `PasskeyManager` runs all flows directly in the app origin (`example.localhost`). This remains available for quick starts and legacy integrations, but the parent page can fully compromise secret state. The SDK emits console warnings when you rely on this mode.
-- **Cross-origin mode**: `PasskeyManager` proxies flows via a dedicated wallet host iframe (`wallet.example.localhost`). This boundary is strongly recommended for production deployments.
+- **Same-origin mode**: `TatchiPasskey` runs all flows directly in the app origin (`example.localhost`). This remains available for quick starts and legacy integrations, but the parent page can fully compromise secret state. The SDK emits console warnings when you rely on this mode.
+- **Cross-origin mode**: `TatchiPasskey` proxies flows via a dedicated wallet host iframe (`wallet.example.localhost`). This boundary is strongly recommended for production deployments.
 
 The configuration surface remains unified via `iframeWallet.walletOrigin`: add it to opt into cross-origin isolation, or omit it to stay same-origin.
 
@@ -109,7 +109,7 @@ Consumers instantiate a single client (or use `PasskeyProvider`) and set `iframe
 ### Same-Origin Mode (fallback)
 
 ```typescript
-const passkey = new PasskeyManager({
+const passkey = new TatchiPasskey({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
@@ -121,7 +121,7 @@ const passkey = new PasskeyManager({
 ### Cross-Origin Mode
 
 ```typescript
-const passkey = new PasskeyManager({
+const passkey = new TatchiPasskey({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',

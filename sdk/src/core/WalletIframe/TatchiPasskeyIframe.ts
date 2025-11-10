@@ -1,5 +1,5 @@
 /**
- * PasskeyManagerIframe - Entry Point Layer
+ * TatchiPasskeyIframe - Entry Point Layer
  *
  * This is the main API that developers interact with when using the WalletIframe system.
  * It provides the same interface as the regular PasskeyManager but routes all calls to
@@ -21,11 +21,11 @@
  */
 
 import { WalletIframeRouter } from './client/router';
-import { PasskeyManager } from '../PasskeyManager';
+import { TatchiPasskey } from '../TatchiPasskey';
 import { MinimalNearClient } from '../NearClient';
 import type { NearClient, SignedTransaction, AccessKeyList } from '../NearClient';
 import type {
-  PasskeyManagerConfigs,
+  TatchiPasskeyConfigs,
   RegistrationResult,
   LoginResult,
   VerifyAndSignTransactionResult,
@@ -44,16 +44,16 @@ import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
-import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
-import type { RecoveryResult } from '../PasskeyManager';
+import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
+import type { RecoveryResult } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 
 
-export class PasskeyManagerIframe {
-  readonly configs: PasskeyManagerConfigs;
+export class TatchiPasskeyIframe {
+  readonly configs: TatchiPasskeyConfigs;
   private router: WalletIframeRouter;
-  private fallbackLocal: PasskeyManager | null = null;
+  private fallbackLocal: TatchiPasskey | null = null;
   private lastConfirmationConfig: ConfirmationConfig = DEFAULT_CONFIRMATION_CONFIG;
   private themeListeners: Set<(t: 'light' | 'dark') => void> = new Set();
   private themePollTimer: number | null = null;
@@ -83,25 +83,25 @@ export class PasskeyManagerIframe {
     };
   }
 
-  constructor(configs: PasskeyManagerConfigs) {
+  constructor(configs: TatchiPasskeyConfigs) {
     this.configs = configs;
 
     const walletOrigin = configs.iframeWallet?.walletOrigin;
     if (!walletOrigin) {
-      throw new Error('[PasskeyManagerIframe] iframeWallet.walletOrigin is required to enable the wallet iframe. Configure it to a dedicated origin.');
+      throw new Error('[TatchiPasskeyIframe] iframeWallet.walletOrigin is required to enable the wallet iframe. Configure it to a dedicated origin.');
     }
 
     let parsedWalletOrigin: URL;
     try {
       parsedWalletOrigin = new URL(walletOrigin);
     } catch (err) {
-      throw new Error(`[PasskeyManagerIframe] Invalid iframeWallet.walletOrigin (${walletOrigin}). Provide an absolute URL.`);
+      throw new Error(`[TatchiPasskeyIframe] Invalid iframeWallet.walletOrigin (${walletOrigin}). Provide an absolute URL.`);
     }
 
     if (typeof window !== 'undefined') {
       const parentOrigin = window.location.origin;
       if (parsedWalletOrigin.origin === parentOrigin) {
-        console.warn('[PasskeyManagerIframe] iframeWallet.walletOrigin matches the host origin. Isolation is reduced; consider serving the wallet from a dedicated origin.');
+        console.warn('[TatchiPasskeyIframe] iframeWallet.walletOrigin matches the host origin. Isolation is reduced; consider serving the wallet from a dedicated origin.');
       }
     }
 
@@ -269,10 +269,10 @@ export class PasskeyManagerIframe {
   }
 
   // Flows not yet proxied: fall back to local manager with identical APIs
-  private ensureFallbackLocal(): PasskeyManager {
+  private ensureFallbackLocal(): TatchiPasskey {
     if (!this.fallbackLocal) {
       const near = new MinimalNearClient(this.configs.nearRpcUrl);
-      this.fallbackLocal = new PasskeyManager(this.configs, near);
+      this.fallbackLocal = new TatchiPasskey(this.configs, near);
     }
     return this.fallbackLocal;
   }

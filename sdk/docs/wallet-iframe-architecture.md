@@ -4,7 +4,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 
 ## Goals
 
-- Keep `PasskeyManager` as the parent‑side SDK facade (API‑first).
+- Keep `TatchiPasskey` as the parent‑side SDK facade (API‑first).
 - Mount a hidden, cross‑origin “wallet” iframe on `init()`.
 - Run all sensitive components in the iframe: `WebAuthnManager`, `SignerWorkerManager` + `web3authn-signer.worker`, `VrfWorkerManager` + `web3authn-vrf.worker`, and `IndexedDBManager`.
 - Forward API calls from parent → iframe via a typed RPC bridge; iframe performs WebAuthn/PRF/signing and returns only signed results.
@@ -12,7 +12,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 
 ## High‑Level Design
 
-- Parent SDK (`PasskeyManager`):
+- Parent SDK (`TatchiPasskey`):
   - Public APIs unchanged: `register`, `login`, `signTransactionsWithActions`, `signAndSendTransactions`, `sendTransaction`, etc.
   - On init (via router/provider), mounts an invisible iframe to `walletOrigin` (or same‑origin in dev via Vite plugin) and performs a CONNECT→READY handshake using a `MessageChannel`.
   - Each API call sends a typed RPC request to the iframe and awaits a typed response with `requestId` correlation, progress events, timeouts, and cancellation.
@@ -26,7 +26,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 ## Components & Ownership
 
 - Parent (integrator origin):
-  - `PasskeyManager/index.ts` facade.
+  - `TatchiPasskey/index.ts` facade.
   - Small, non‑secret helpers are allowed (e.g., digest formatting). Do not handle PRF/credentials/decrypted keys here.
 
 - WalletIframe (wallet origin):
@@ -42,7 +42,7 @@ This document outlines how to run all sensitive Web3Authn logic inside a cross�
 
 ## Boot Sequence
 
-1. Parent constructs `PasskeyManager` with `iframeWallet.walletOrigin` (recommended) and optional `walletServicePath` (defaults: SDK transport uses `wallet-service`; dev plugin + examples use `/wallet-service`).
+1. Parent constructs `TatchiPasskey` with `iframeWallet.walletOrigin` (recommended) and optional `walletServicePath` (defaults: SDK transport uses `wallet-service`; dev plugin + examples use `/wallet-service`).
 2. Parent mounts a hidden service iframe pointed at `${walletOrigin}${walletServicePath}` and opens a `MessageChannel`.
 3. Parent posts `CONNECT` (window.postMessage with transferable port). Wallet host adopts the port and replies with `READY { protocolVersion }`.
 4. Parent sends `PING` for liveness or `PM_SET_CONFIG` to configure RPC URL, contractId, theme, assets base; wallet replies with `PONG`.
@@ -98,7 +98,7 @@ Notes:
 
 ## IndexedDB Placement & Parent API Surface
 
-- API stability: keep the `PasskeyManager` → `WebAuthnManager` surface similar (e.g., `storeAuthenticator`, `getConfirmationConfig`, `getTheme`). Under the hood, these calls are forwarded over RPC to the wallet iframe.
+- API stability: keep the `TatchiPasskey` → `WebAuthnManager` surface similar (e.g., `storeAuthenticator`, `getConfirmationConfig`, `getTheme`). Under the hood, these calls are forwarded over RPC to the wallet iframe.
 - Suggested RPC methods (parent → wallet):
   - User/account: `getUser(accountId)`, `getLastUser()`, `setLastUser(accountId, deviceNumber)`, `hasPasskeyCredential(accountId)`
   - Preferences: `getPreferences(accountId)`, `updatePreferences(accountId, partial)`, `getConfirmationConfig(accountId)`, `getTheme(accountId)`, `setTheme(accountId)`, `toggleTheme(accountId)`
@@ -141,7 +141,7 @@ Notes:
 
 - Parent SDK
   - Add `WalletIframeRouter` (mount iframe, handshake, MessageChannel, request/response).
-  - Wire `PasskeyManager` APIs to forward to the client.
+  - Wire `TatchiPasskey` APIs to forward to the client.
   - Add configuration for `walletOrigin` and theme.
 
 - WalletIframe (wallet)

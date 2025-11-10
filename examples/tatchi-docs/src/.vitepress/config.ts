@@ -52,7 +52,6 @@ export default defineConfig({
           { text: 'Overview', link: '/docs/getting-started/overview' },
           { text: 'Install & Configure', link: '/docs/getting-started/install-and-configure' },
           { text: 'Quickstart', link: '/docs/getting-started/quickstart' },
-          { text: 'First Flow', link: '/docs/getting-started/first-flow' },
           { text: 'Framework by Framework', link: '/docs/getting-started/frameworks' },
         ],
       },

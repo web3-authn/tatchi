@@ -5,7 +5,7 @@ import { GlassBorder } from '../GlassBorder';
 import '../ActionSection.css';
 import './DemoChainsigs.css';
 
-import { usePasskeyContext, useTheme } from '@tatchi-xyz/sdk/react';
+import { useTatchiContext, useTheme } from '@tatchi-xyz/sdk/react';
 
 import { useMpcEvmFlow } from './hooks/useMpcEvmFlow';
 import DerivedAddressPill from './DerivedAddressPill';
@@ -16,8 +16,8 @@ import ChainFieldsCard from './ChainFieldsCard';
 export const DemoChainsigs: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
-    passkeyManager,
-  } = usePasskeyContext();
+    tatchi,
+  } = useTatchiContext();
 
   const { theme } = useTheme();
 

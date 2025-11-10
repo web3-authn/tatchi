@@ -1,5 +1,5 @@
 import React from 'react';
-import { usePasskeyContext } from '../../context';
+import { useTatchiContext } from '../../context';
 import type { DesignTokens, UseThemeReturn } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
@@ -158,7 +158,9 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   let passkeyManager: any;
   let loginState: { isLoggedIn?: boolean } | null = null;
   try {
-    ({ passkeyManager, loginState } = usePasskeyContext() as any);
+    const ctx = useTatchiContext() as any;
+    passkeyManager = ctx?.tatchi;
+    loginState = ctx?.loginState;
   } catch {
     // ThemeProvider can work without PasskeyProvider
     passkeyManager = null;

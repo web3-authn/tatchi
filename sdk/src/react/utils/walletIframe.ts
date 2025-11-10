@@ -1,7 +1,7 @@
-// Utilities for coordinating with the wallet iframe (PasskeyManagerIframe)
+// Utilities for coordinating with the wallet iframe (TatchiPasskeyIframe)
 
 /**
- * Await wallet iframe readiness when using PasskeyManagerIframe.
+ * Await wallet iframe readiness when using TatchiPasskeyIframe.
  * - If the passed manager is not iframe-capable, resolves immediately (returns false).
  * - If iframe is already ready, resolves immediately (returns true).
  * - Otherwise waits for onReady/polling up to timeoutMs, then resolves (returns whether it became ready).

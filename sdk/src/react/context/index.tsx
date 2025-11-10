@@ -8,7 +8,7 @@ import {
   useRef,
 } from 'react';
 import {
-  PasskeyManager,
+  TatchiPasskey,
   DeviceLinkingPhase,
   type SignNEP413MessageParams,
   type SignNEP413MessageResult,
@@ -18,7 +18,7 @@ import type { WalletIframeRouter } from '@/core/WalletIframe/client/router';
 import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
 import type {
-  PasskeyContextType,
+  TatchiContextType,
   PasskeyContextProviderProps,
   LoginState,
   AccountInputState,
@@ -33,16 +33,16 @@ import type {
   DeviceLinkingSSEEvent,
 } from '../types';
 import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
-import { PasskeyManagerConfigs } from '@/core/types/passkeyManager';
+import { TatchiPasskeyConfigs } from '@/core/types/passkeyManager';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
 import { Sign } from 'crypto';
 
-const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
+const PasskeyContext = createContext<TatchiContextType | undefined>(undefined);
 
 // Global singleton to prevent multiple manager instances in StrictMode
-let globalPasskeyManager: PasskeyManager | null = null;
-let globalConfig: PasskeyManagerConfigs | null = null;
+let globalPasskeyManager: TatchiPasskey | null = null;
+let globalConfig: TatchiPasskeyConfigs | null = null;
 
 // Note: defaults moved to core/defaultConfigs to avoid coupling top-level SDK
 // consumers to React bundles.
@@ -77,41 +77,41 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Get the minimal NEAR RPC provider
   const nearClient = useNearClient();
 
-  // Initialize manager (PasskeyManager or PasskeyManagerIframe) with singleton pattern
-  const passkeyManager = useMemo<PasskeyManager>(() => {
+  // Initialize manager (TatchiPasskey or TatchiPasskeyIframe) with singleton pattern
+  const tatchi = useMemo<TatchiPasskey>(() => {
     // Resolve full configs from env + optional overrides. This also validates relayer etc.
-    const finalConfig: PasskeyManagerConfigs = buildConfigsFromEnv(config);
+    const finalConfig: TatchiPasskeyConfigs = buildConfigsFromEnv(config);
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
       console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
-      globalPasskeyManager = new PasskeyManager(finalConfig, nearClient);
+      globalPasskeyManager = new TatchiPasskey(finalConfig, nearClient);
       globalConfig = finalConfig;
     }
-    return globalPasskeyManager as PasskeyManager;
+    return globalPasskeyManager as TatchiPasskey;
   }, [config, nearClient]);
 
   const pmIframeRef = useRef<WalletIframeRouter | null>(null);
 
   // Initialize and warm via consolidated initWalletIframe()
   useEffect(() => {
-    try { void passkeyManager.initWalletIframe(); } catch {}
-  }, [passkeyManager]);
+    try { void tatchi.initWalletIframe(); } catch {}
+  }, [tatchi]);
 
-  // Initialize wallet service via PasskeyManagerIframe when walletOrigin is provided
+  // Initialize wallet service via TatchiPasskeyIframe when walletOrigin is provided
   useEffect(() => {
     let offReady: (() => void) | undefined;
     let offVrf: (() => void) | undefined;
     let cancelled = false;
     (async () => {
       try {
-        const useIframe = !!passkeyManager.configs.iframeWallet?.walletOrigin;
+        const useIframe = !!tatchi.configs.iframeWallet?.walletOrigin;
         if (!useIframe) {
           setWalletIframeConnected(false);
           return;
         }
 
-        await passkeyManager.initWalletIframe();
-        const client = (passkeyManager as any).getWalletIframeClient?.() || (passkeyManager as any).getServiceClient?.();
+        await tatchi.initWalletIframe();
+        const client = (tatchi as any).getWalletIframeClient?.() || (tatchi as any).getServiceClient?.();
         if (!client) { setWalletIframeConnected(false); return; }
         if (cancelled) return;
         setWalletIframeConnected(client.isReady());
@@ -123,7 +123,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
           if (status?.active && status?.nearAccountId) {
             const state = await client.getLoginState(status.nearAccountId);
             // Ensure local preferences are scoped to this user
-            try { passkeyManager.userPreferences.setCurrentUser(toAccountId(status.nearAccountId)); } catch {}
+            try { tatchi.userPreferences.setCurrentUser(toAccountId(status.nearAccountId)); } catch {}
             setLoginState(prev => ({
               ...prev,
               isLoggedIn: true,
@@ -164,12 +164,12 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       offVrf && offVrf();
       pmIframeRef.current = null;
     };
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   // Use account input hook
   const accountInputHook = useAccountInput({
-    passkeyManager: passkeyManager,
-    contractId: passkeyManager.configs.contractId,
+    tatchi,
+    contractId: tatchi.configs.contractId,
     currentNearAccountId: loginState.nearAccountId,
     isLoggedIn: loginState.isLoggedIn
   });
@@ -201,7 +201,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   const logout = useCallback(async () => {
     try {
       // Clear VRF session when user logs out (also clears wallet-origin session if active)
-      await passkeyManager.logoutAndClearVrfSession();
+      await tatchi.logoutAndClearVrfSession();
     } catch (error) {
       console.warn('VRF logout warning:', error);
     }
@@ -212,14 +212,14 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       nearAccountId: null,
       nearPublicKey: null,
     }));
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   const loginPasskey = async (nearAccountId: string, options?: LoginHooksOptions) => {
-    const result: LoginResult = await passkeyManager.loginPasskey(nearAccountId, {
+    const result: LoginResult = await tatchi.loginPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
         if (event.phase === 'login-complete' && event.status === 'success') {
-          const currentLoginState = await passkeyManager.getLoginState(nearAccountId);
+          const currentLoginState = await tatchi.getLoginState(nearAccountId);
           const isVRFLoggedIn = currentLoginState.vrfActive;
           setLoginState(prevState => ({
             ...prevState,
@@ -240,7 +240,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }
 
   const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
-    const result: RegistrationResult = await passkeyManager.registerPasskey(nearAccountId, {
+    const result: RegistrationResult = await tatchi.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
         // Let caller observe progress; we reflect final state after the call returns
@@ -260,12 +260,12 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   }
 
   const recoverAccount = async (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => {
-    return await passkeyManager.recoverAccountFlow({ accountId: args.accountId, options: args.options });
+    return await tatchi.recoverAccountFlow({ accountId: args.accountId, options: args.options });
   }
 
   // Device2: Start device linking flow (returns QR payload)
   const startDevice2LinkingFlow = async (options?: StartDeviceLinkingOptionsDevice2) => {
-    const res = await passkeyManager.startDevice2LinkingFlow({
+    const res = await tatchi.startDevice2LinkingFlow({
       ...options,
       onEvent: (event: DeviceLinkingSSEEvent) => {
         options?.onEvent?.(event);
@@ -278,7 +278,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   };
 
   const stopDevice2LinkingFlow = async () => {
-    await passkeyManager.stopDevice2LinkingFlow();
+    await tatchi.stopDevice2LinkingFlow();
   };
 
   const executeAction = async (args: {
@@ -287,7 +287,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     actionArgs: ActionArgs,
     options?: ActionHooksOptions
   }) => {
-    return await passkeyManager.executeAction({
+    return await tatchi.executeAction({
       nearAccountId: args.nearAccountId,
       receiverId: args.receiverId,
       actionArgs: args.actionArgs,
@@ -300,7 +300,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     params: SignNEP413MessageParams,
     options?: SignNEP413HooksOptions,
   }) => {
-    return await passkeyManager.signNEP413Message({
+    return await tatchi.signNEP413Message({
       nearAccountId: args.nearAccountId,
       params: args.params,
       options: args.options
@@ -310,7 +310,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
   // Function to manually refresh login state
   const refreshLoginState = useCallback(async (nearAccountId?: string) => {
     try {
-      // Prefer wallet-origin VRF status if available via PasskeyManagerIframe
+      // Prefer wallet-origin VRF status if available via TatchiPasskeyIframe
       const pmClient = pmIframeRef.current;
       if (walletIframeConnected && pmClient) {
         try {
@@ -328,11 +328,11 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
       }
 
       // Fallback: reflect local VRF status
-      const ls = await passkeyManager.getLoginState(nearAccountId);
+      const ls = await tatchi.getLoginState(nearAccountId);
       // Only retain account id when VRF session is active; otherwise clear it to avoid
       // stale "logged in" indicators in host UI that rely solely on account id.
       if (ls.nearAccountId && ls.vrfActive) {
-        try { passkeyManager.userPreferences.setCurrentUser(toAccountId(ls.nearAccountId)); } catch {}
+        try { tatchi.userPreferences.setCurrentUser(toAccountId(ls.nearAccountId)); } catch {}
         setLoginState(prevState => ({
           ...prevState,
           nearAccountId: ls.nearAccountId,
@@ -350,7 +350,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     } catch (error) {
       console.error('Error refreshing login state:', error);
     }
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   // Load user data on mount
   useEffect(() => {
@@ -359,9 +359,9 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
 
   // No direct window bridging needed: router emits onVrfStatusChanged after overlay registration
 
-  const value: PasskeyContextType = {
-    // Core PasskeyManager instance - provides ALL functionality
-    passkeyManager,
+  const value: TatchiContextType = {
+    // Core TatchiPasskey instance - provides ALL functionality
+    tatchi,
 
     // Simple login/register functions
     registerPasskey,
@@ -380,7 +380,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     stopDevice2LinkingFlow,      // Stop device linking flow
 
     // Login state
-    getLoginState: (nearAccountId?: string) => passkeyManager.getLoginState(nearAccountId),
+    getLoginState: (nearAccountId?: string) => tatchi.getLoginState(nearAccountId),
     refreshLoginState,           // Manually refresh login state
     loginState,
     walletIframeConnected,
@@ -392,29 +392,29 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     refreshAccountData: accountInputHook.refreshAccountData,
 
     // Confirmation configuration functions
-    setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => passkeyManager.setConfirmBehavior(behavior),
-    setConfirmationConfig: (config) => passkeyManager.setConfirmationConfig(config),
-    setUserTheme: (theme: 'dark' | 'light') => passkeyManager.setUserTheme(theme),
-    getConfirmationConfig: () => passkeyManager.getConfirmationConfig(),
+    setConfirmBehavior: (behavior: 'requireClick' | 'autoProceed') => tatchi.setConfirmBehavior(behavior),
+    setConfirmationConfig: (config) => tatchi.setConfirmationConfig(config),
+    setUserTheme: (theme: 'dark' | 'light') => tatchi.setUserTheme(theme),
+    getConfirmationConfig: () => tatchi.getConfirmationConfig(),
 
     // Account management functions
-    viewAccessKeyList: (accountId: string) => passkeyManager.viewAccessKeyList(accountId),
+    viewAccessKeyList: (accountId: string) => tatchi.viewAccessKeyList(accountId),
   };
 
   return <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>;
 };
 
-export const usePasskeyContext = () => {
+export const useTatchiContext = () => {
   const context = useContext(PasskeyContext);
   if (context === undefined) {
-    throw new Error('usePasskeyContext must be used within a PasskeyContextProvider');
+    throw new Error('useTatchiContext must be used within a PasskeyContextProvider');
   }
   return context;
 };
 
 // Re-export types for convenience
 export type {
-  PasskeyContextType,
+  TatchiContextType,
   RegistrationResult,
   LoginResult,
 } from '../types';

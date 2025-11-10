@@ -77,7 +77,7 @@ pnpm -C sdk run type-check # TypeScript type checking
 
 ```
 src/
-├── core/                         # Framework-agnostic core (PasskeyManager, WebAuthnManager)
+├── core/                         # Framework-agnostic core (TatchiPasskey, WebAuthnManager)
 │   └── WalletIframe/             # Iframe host/client, messaging, handlers
 ├── react/                        # React components and provider
 ├── wasm_signer_worker/           # Rust WASM (signer)
@@ -104,7 +104,7 @@ rolldown.config.ts   # Rolldown bundler configuration
 The SDK runs sensitive logic in a hidden wallet iframe on a dedicated origin. Parent ↔ wallet communicate via a typed MessagePort.
 This SDK mounts a hidden, sandboxed “service iframe” that orchestrates WebAuthn, PRF storage, and signing flows. Running the wallet on a dedicated origin gives you strong isolation, but the SDK continues to support same-origin hosting with console warnings for legacy setups.
 
-- **Dedicated wallet origin (recommended)**: Configure `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `PasskeyManager` configs. When the wallet origin differs from the host, the parent cannot script the wallet iframe.
+- **Dedicated wallet origin (recommended)**: Configure `iframeWallet.walletOrigin` (and optionally `iframeWallet.walletServicePath`) in `TatchiPasskey` configs. When the wallet origin differs from the host, the parent cannot script the wallet iframe.
 - **Same-origin fallback**: If you omit `iframeWallet.walletOrigin`, or set it to the host origin, the wallet runs inline with the parent app. This is convenient for quick starts but the parent can observe all secrets. The SDK emits `console.warn` messages in this mode.
 - **Static asset delegation**: The wallet origin serves `/wallet-service` and `/sdk/*` (including `/sdk/workers/*`). Dev: use `tatchiDev` Vite plugin. Prod: deploy with your wallet site or use the provided `_headers` emitter.
 - **Gesture routing**: Visible iframes (Modal/Button) capture the user gesture and run WebAuthn flows; the service iframe stays headless.
@@ -136,9 +136,9 @@ function App() {
 ### Vanilla TypeScript usage
 
 ```ts
-import { PasskeyManager } from '@tatchi-xyz/sdk';
+import { TatchiPasskey } from '@tatchi-xyz/sdk';
 
-const pm = new PasskeyManager({
+const tatchi = new TatchiPasskey({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
@@ -151,9 +151,9 @@ const pm = new PasskeyManager({
   // To run inline without a dedicated origin, omit iframeWallet entirely.
 });
 
-await pm.initWalletIframe();
+await tatchi.initWalletIframe();
 
-const signed = await pm.signTransactionsWithActions({
+const signed = await tatchi.signTransactionsWithActions({
   nearAccountId: 'alice.testnet',
   transactions: [/* ... */],
 });
@@ -204,7 +204,7 @@ See also:
 Then configure the SDK to use this wallet origin:
 
 ```ts
-const pm = new PasskeyManager({
+const tatchi = new TatchiPasskey({
   nearRpcUrl: 'https://rpc.testnet.near.org',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
@@ -214,7 +214,7 @@ const pm = new PasskeyManager({
     // rpIdOverride: 'example.localhost',  // optional
   }
 });
-await pm.initWalletIframe();
+await tatchi.initWalletIframe();
 ```
 
 With this approach, you don’t copy HTML into the integrator’s app and you don’t rely on any external vendor servers. You either:

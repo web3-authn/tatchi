@@ -1,6 +1,6 @@
 import React from 'react'
 import './Footer.css'
-import NearLogo from './icons/NearLogo'
+import NearLogo from './icons/NearLogoWithText'
 
 export const Footer: React.FC = () => {
   return (

@@ -207,10 +207,10 @@ class SecureKeyDisposal {
 
 The import functionality will be implemented across these key modules:
 
-#### 1. **PasskeyManager Extension** (`packages/passkey/src/core/PasskeyManager/index.ts`)
+#### 1. **TatchiPasskey Extension** (`packages/passkey/src/core/TatchiPasskey/index.ts`)
 
 ```typescript
-export class PasskeyManager {
+export class TatchiPasskey {
   // Existing methods...
 
   /**
@@ -256,7 +256,7 @@ export class PasskeyManager {
 }
 ```
 
-#### 2. **Account Verification Service** (`packages/passkey/src/core/PasskeyManager/account-verifier.ts`)
+#### 2. **Account Verification Service** (`packages/passkey/src/core/TatchiPasskey/account-verifier.ts`)
 
 ```typescript
 // New file for account verification logic
@@ -346,7 +346,7 @@ export class SecureKeyManager {
 }
 ```
 
-#### 4. **Transaction Builder** (`packages/passkey/src/core/PasskeyManager/transaction-builder.ts`)
+#### 4. **Transaction Builder** (`packages/passkey/src/core/TatchiPasskey/transaction-builder.ts`)
 
 ```typescript
 // Extend existing transaction builder
@@ -396,7 +396,7 @@ export class TransactionBuilder {
 
 ## Key Integration Points
 
-- **PasskeyManager**: Add `importAccountWithPrivateKey()` method
+- **TatchiPasskey**: Add `importAccountWithPrivateKey()` method
 - **WebAuthnManager**: Use existing credential creation and encryption
 - **NearClient**: Leverage existing transaction submission
 - **IndexedDBManager**: Use existing encrypted key storage
@@ -415,7 +415,6 @@ export class TransactionBuilder {
 - Private key never touches parent DOM
 - Iframe has restricted permissions (`sandbox`, `credentialless`)
 - Automatic cleanup on iframe destruction
-
 
 
 

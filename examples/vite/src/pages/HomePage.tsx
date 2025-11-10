@@ -1,4 +1,4 @@
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { useTatchiContext } from '@tatchi-xyz/sdk/react';
 
 import { PasskeyLoginMenu } from '../components/PasskeyLoginMenu';
 import { GreetingMenu } from '../components/GreetingMenu';
@@ -7,7 +7,7 @@ import { DemoMultiTx } from '../components/DemoMultiTx';
 import { Navbar } from '../components/Navbar';
 
 export function HomePage() {
-  const { loginState } = usePasskeyContext();
+  const { loginState } = useTatchiContext();
   return (
     <div className="layout-root">
       <Navbar />

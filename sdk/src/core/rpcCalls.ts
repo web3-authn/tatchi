@@ -10,8 +10,8 @@
 import type { FinalExecutionOutcome } from '@near-js/types';
 import type { NearClient, SignedTransaction } from './NearClient';
 import type { AccountId } from './types/accountIds';
-import type { ContractStoredAuthenticator } from './PasskeyManager/recoverAccount';
-import type { PasskeyManagerContext } from './PasskeyManager';
+import type { ContractStoredAuthenticator } from './TatchiPasskey/recoverAccount';
+import type { PasskeyManagerContext } from './TatchiPasskey';
 import type { DeviceLinkingSSEEvent } from './types/passkeyManager';
 
 import { StoredAuthenticator } from './types/webauthn';
@@ -114,8 +114,8 @@ export async function executeDeviceLinkingContractCalls({
   // Sign three transactions with one PRF authentication
   const signedTransactions = await context.webAuthnManager.signTransactionsWithActions({
     rpcCall: {
-      contractId: context.webAuthnManager.passkeyManagerConfigs.contractId,
-      nearRpcUrl: context.webAuthnManager.passkeyManagerConfigs.nearRpcUrl,
+      contractId: context.webAuthnManager.tatchiPasskeyConfigs.contractId,
+      nearRpcUrl: context.webAuthnManager.tatchiPasskeyConfigs.nearRpcUrl,
       nearAccountId: device1AccountId
     },
     transactions: [
@@ -134,7 +134,7 @@ export async function executeDeviceLinkingContractCalls({
       },
       // Transaction 2: Store temporary mapping in contract so Device2 can lookup Device1's accountID.
       {
-        receiverId: context.webAuthnManager.passkeyManagerConfigs.contractId,
+        receiverId: context.webAuthnManager.tatchiPasskeyConfigs.contractId,
         actions: [{
           action_type: ActionType.FunctionCall,
           method_name: 'store_device_linking_mapping',

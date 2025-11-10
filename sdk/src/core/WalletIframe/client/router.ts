@@ -17,7 +17,7 @@
  * - Uses IframeTransport for low-level iframe management
  * - Uses ProgressBus for overlay visibility control
  * - Maintains pending request registry for correlation
- * - Provides typed RPC methods for all PasskeyManager operations
+ * - Provides typed RPC methods for all TatchiPasskey operations
  *
  * Communication Flow:
  * 1. Parent calls RPC method (e.g., registerPasskey)
@@ -78,8 +78,8 @@ import {
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
-import type { SignNEP413MessageResult } from '../../PasskeyManager/signNEP413';
-import type { RecoveryResult } from '../../PasskeyManager';
+import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
+import type { RecoveryResult } from '../../TatchiPasskey';
 
 // Simple, framework-agnostic service iframe client.
 //
@@ -418,7 +418,7 @@ export class WalletIframeRouter {
     return () => { this.registerOverlaySubmitListeners.delete(listener); };
   }
 
-  // ===== PasskeyManager-first RPCs =====
+  // ===== TatchiPasskey RPCs =====
 
   async signTransactionsWithActions(payload: {
     nearAccountId: string;

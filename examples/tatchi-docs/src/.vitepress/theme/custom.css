@@ -29,18 +29,88 @@ body {
 }
 
 html[data-w3a-theme="light"] {
-  background: linear-gradient(45deg, oklch(0.99 0 0) 0%, oklch(0.98 0 0) 50%);
+  /* Mostly white base with soft pastel fringes (pink, cream, blue) */
+  background:
+    radial-gradient(120% 95% at 0% 10%,   rgba(178, 229, 248, 0.24) 0%, transparent 55%), /* blue #b2e5f8 */
+    radial-gradient(110% 85% at 100% 0%,  rgba(244, 179, 239, 0.20) 0%, transparent 52%), /* pink #f4b3ef */
+    radial-gradient(140% 100% at 50% 100%, rgba(242, 243, 226, 0.18) 0%, transparent 60%), /* cream #f2f3e2 */
+    linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+  background-repeat: no-repeat, no-repeat, no-repeat, no-repeat;
+  background-size: 130% 130%, 120% 120%, 160% 160%, 100% 100%;
+  background-position: 0% 12%, 100% -4%, 50% 104%, center;
+  animation: pastel-flow 24s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+/* Force enable motion for debugging/demo even if user prefers reduced motion */
+html[data-w3a-theme="light"][data-allow-motion] { animation: pastel-flow 24s ease-in-out infinite alternate !important; }
+
+@keyframes pastel-flow {
+  0% {
+    background-position: 0% 12%, 100% -4%, 50% 104%, center;
+  }
+  50% {
+    /* drift inward a bit for a soft parallax */
+    background-position: 16% -6%, 86% 10%, 56% 92%, center;
+  }
+  100% {
+    background-position: 0% 12%, 100% -4%, 50% 104%, center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-w3a-theme="light"] { animation: none !important; }
+  /* Opt-in escape hatch: set data-allow-motion on <html> to force animation */
+  html[data-w3a-theme="light"][data-allow-motion] { animation: pastel-flow 24s ease-in-out infinite alternate !important; }
 }
 
 html[data-w3a-theme="dark"] {
   background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
 }
 
-/* Ensure VitePress body background color doesn't cover the html gradient */
 html[data-w3a-theme] body {
   background: transparent !important;
-  /* background-color: transparent !important; */
-  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
+  background-color: transparent !important;
+}
+
+/* VitePress sidebar: hide scrollbar but keep scrolling (show thin on hover) */
+.VPSidebar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar:hover { scrollbar-width: thin; }
+.VPSidebar::-webkit-scrollbar { width: 0; height: 0; }
+.VPSidebar:hover::-webkit-scrollbar { width: 4px; height: 4px; }
+.VPSidebar::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 8px; }
+.VPSidebar:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
+}
+
+.VPSidebar .nav {
+  /* Firefox/Edge legacy */
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar .nav:hover {
+  scrollbar-width: thin;    /* Firefox: show a thin bar on hover */
+}
+/* WebKit-based browsers */
+.VPSidebar .nav::-webkit-scrollbar {
+  width: 0;
+  height: 0; /* hide by default */
+}
+.VPSidebar .nav:hover::-webkit-scrollbar {
+  width: 4px;
+  height: 4px; /* show thin bar on hover */
+}
+.VPSidebar .nav::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar .nav::-webkit-scrollbar-thumb {
+  background-color: transparent; /* invisible until hover */
+  border-radius: 8px;
+}
+.VPSidebar .nav:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
 }
 
 /* Remove scrollbar gutters (hide scrollbars, keep scrollable) */

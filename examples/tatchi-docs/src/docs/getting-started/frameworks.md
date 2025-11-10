@@ -52,7 +52,7 @@ onMount(async () => {
 })
 ```
 
-Next: [First Flow](./first-flow) or explore [Passkeys](/docs/guides/passkeys)
+Next: [Quickstart](./quickstart) or explore [Passkeys](/docs/guides/passkeys)
 
 ## Plugin Choices
 - App‑only (cross‑origin wallet): use `tatchiAppServer({ walletOrigin })` in dev and `tatchiBuildHeaders({ walletOrigin })` at build.

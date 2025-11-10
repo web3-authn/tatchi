@@ -1,9 +1,9 @@
 
-export { PasskeyManager } from './core/PasskeyManager';
+export { TatchiPasskey } from './core/TatchiPasskey';
 export { WebAuthnManager } from './core/WebAuthnManager';
-export { AccountRecoveryFlow } from './core/PasskeyManager';
+export { AccountRecoveryFlow } from './core/TatchiPasskey';
 export { type NearClient, MinimalNearClient } from './core/NearClient';
-export { verifyAuthenticationResponse } from './core/PasskeyManager/login';
+export { verifyAuthenticationResponse } from './core/TatchiPasskey/login';
 
 export * from './config';
 export { base64UrlEncode, base64UrlDecode } from './utils/encoders';
@@ -15,7 +15,7 @@ export { buildConfigsFromEnv } from './core/defaultConfigs';
 ///////////////////////////////////////////////////////////////
 
 export type {
-  PasskeyManagerConfigs,
+  TatchiPasskeyConfigs,
   // Registration
   RegistrationResult,
   RegistrationSSEEvent,
@@ -61,7 +61,7 @@ export { toAccountId } from './core/types/accountIds';
 export type {
   SignNEP413MessageParams,
   SignNEP413MessageResult
-} from './core/PasskeyManager/signNEP413';
+} from './core/TatchiPasskey/signNEP413';
 
 // === Action Types ===
 export { ActionType } from './core/types/actions';

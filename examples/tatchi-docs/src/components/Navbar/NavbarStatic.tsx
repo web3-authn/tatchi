@@ -1,8 +1,8 @@
 import React from 'react'
-import { useTheme, SunIcon, MoonIcon, usePasskeyContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, SunIcon, MoonIcon, useTatchiContext } from '@tatchi-xyz/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
-import NearLogo from '../icons/NearLogo'
+import NearLogo from '../icons/NearLogoWithText'
 import './Navbar.css'
 
 function applyVitepressAppearance(mode: 'light' | 'dark') {
@@ -15,7 +15,7 @@ function applyVitepressAppearance(mode: 'light' | 'dark') {
 
 export const NavbarStatic: React.FC = () => {
   const { isDark, toggleTheme, theme } = useTheme()
-  const { passkeyManager } = usePasskeyContext();
+  const { tatchi } = useTatchiContext();
   const { linkProps } = useVitepressRouter()
 
   const onToggle = React.useCallback(() => {
@@ -23,7 +23,7 @@ export const NavbarStatic: React.FC = () => {
     // Toggle React SDK theme
     toggleTheme()
     // Toggle user preferences theme
-    passkeyManager.setUserTheme(next);
+    tatchi.setUserTheme(next);
     // Also sync VitePress <html> and storage so logged-out state updates correctly
     applyVitepressAppearance(next)
   }, [isDark, toggleTheme])
@@ -36,7 +36,9 @@ export const NavbarStatic: React.FC = () => {
         position: 'fixed',
         top: '0rem',
         right: '0rem',
-        zIndex: 100,
+        // Keep above VitePress navbar and most overlays; below wallet overlay
+        zIndex: 2147483645,
+        pointerEvents: 'auto',
         display: 'flex',
         gap: '0.5rem',
         alignItems: 'center',
@@ -92,7 +94,7 @@ export const NavbarStatic: React.FC = () => {
         className="navbar-static__near"
         aria-label="Built on NEAR"
       >
-        Built on <NearLogo size={60} />
+        Built on <NearLogo size={64} />
       </a>
       <NavbarProfilePlaceholder />
     </nav>

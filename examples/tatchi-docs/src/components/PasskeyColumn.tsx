@@ -2,7 +2,7 @@ import React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react'
+import { useTatchiContext } from '@tatchi-xyz/sdk/react'
 
 import { CarouselProvider } from './Carousel2/CarouselProvider'
 import { Carousel } from './Carousel2/Carousel'
@@ -13,9 +13,10 @@ import { AccountRecovery } from './AccountRecovery';
 import { DemoChainsigs } from './DemoChainsigs';
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
+import NearLogoBg from './NearLogoBg'
 
 export function PasskeyColumn() {
-  const { loginState } = usePasskeyContext()
+  const { loginState } = useTatchiContext()
   const [currentPage, setCurrentPage] = React.useState(0)
 
   // After login, jump to Demo Tx page (index 1). On logout, go back to Login (index 0).
@@ -121,6 +122,7 @@ export function PasskeyColumn() {
 
   return (
     <div className="layout-column-right">
+      <NearLogoBg />
       <div className="constrained-column">
         <ProfileMenuControlProvider>
           <NavbarStatic />

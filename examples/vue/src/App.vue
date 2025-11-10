@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, toRefs, onMounted, nextTick } from 'vue'
-import { PasskeyManager, type PasskeyManagerConfigs } from '@tatchi-xyz/sdk'
+import { TatchiPasskey, type TatchiPasskeyConfigs } from '@tatchi-xyz/sdk'
 import { usePostfixPosition } from './composables/usePostfixPosition'
 import AccountDetails from './components/AccountDetails.vue'
 import Toast, { notify as notifyToast } from './components/Toast.vue'
@@ -10,7 +10,7 @@ const walletOrigin = import.meta.env.VITE_WALLET_ORIGIN || 'https://wallet.examp
 
 const ACCOUNT_DOMAIN = 'w3a-v1.testnet'
 
-const config: PasskeyManagerConfigs = {
+const config: TatchiPasskeyConfigs = {
   nearNetwork: 'testnet',
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   contractId: ACCOUNT_DOMAIN,
@@ -18,7 +18,7 @@ const config: PasskeyManagerConfigs = {
   iframeWallet: { walletOrigin, sdkBasePath: '/sdk' },
 }
 
-const pm = new PasskeyManager(config)
+const pm = new TatchiPasskey(config)
 
 // Group UI state into a single reactive object to reduce boilerplate
 const state = reactive<{

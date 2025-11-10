@@ -13,18 +13,18 @@ The WalletIframe isolates sensitive wallet operations (passkey authentication an
 
 The system consists of three layers:
 
-1. **PasskeyManagerIframe** - A proxy that provides the same API as the regular PasskeyManager but routes calls to the iframe
+1. **TatchiPasskeyIframe** - A proxy that provides the same API as the regular TatchiPasskey but routes calls to the iframe
 2. **WalletIframeRouter** - Handles communication between the main app and the iframe using MessagePort
-3. **Wallet Host** - The actual PasskeyManager running inside the iframe, executing the real operations
+3. **Wallet Host** - The actual TatchiPasskey running inside the iframe, executing the real operations
 
-When you call methods like `registerPasskey()` or `signTransaction()`, the request flows through these layers. The iframe temporarily expands to capture user activation (TouchID) when needed, then shrinks back to invisible once authentication is complete: it is triggered by progress events emitted from PasskeyManager calls.
+When you call methods like `registerPasskey()` or `signTransaction()`, the request flows through these layers. The iframe temporarily expands to capture user activation (TouchID) when needed, then shrinks back to invisible once authentication is complete: it is triggered by progress events emitted from TatchiPasskey calls.
 
 ## Architecture Overview
 
 ### Core Components
 
 #### 1. **Entry Point Layer**
-- **`PasskeyManagerIframe.ts`** - The main API that developers interact with. It provides the same interface as the regular PasskeyManager but routes all calls to the iframe.
+- **`TatchiPasskeyIframe.ts`** - The main API that developers interact with. It provides the same interface as the regular TatchiPasskey but routes all calls to the iframe.
 - **`index.ts`** - Exports all public APIs and types for the WalletIframe system.
 
 #### 2. **Client-Side Communication Layer** (Runs in Parent App)
@@ -52,11 +52,11 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
   - Handles UI component mounting requests
 - **`host/iframe-lit-elem-mounter.ts`** - Manages Lit-based UI components inside the iframe:
   - Mounts transaction buttons and other UI elements
-  - Wires UI interactions to PasskeyManager methods
+  - Wires UI interactions to TatchiPasskey methods
   - Handles component lifecycle (mount/unmount/update)
 - **`host/iframe-lit-element-registry.ts`** - Declarative registry of available UI components:
   - Defines which Lit components can be mounted
-  - Maps UI events to PasskeyManager actions
+  - Maps UI events to TatchiPasskey actions
   - Provides type-safe component definitions
 
 #### 4. **Shared Communication Protocol**
@@ -78,7 +78,7 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   Your App      │    │  WalletIframe    │    │  Wallet Host    │
 │                 │    │                  │    │                 │
-│ PasskeyManager  │───▶│ PasskeyManager   │───▶│ PasskeyManager  │
+│ TatchiPasskey   │───▶│ TatchiPasskey    │───▶│ TatchiPasskey   │
 │ Iframe          │    │ Router           │    │ (real instance) │
 │                 │    │                  │    │                 │
 │                 │    │ IframeTransport  │    │                 │
@@ -95,7 +95,7 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
 
 ### Key Design Patterns
 
-1. **Proxy Pattern**: `PasskeyManagerIframe` acts as a transparent proxy to the real PasskeyManager
+1. **Proxy Pattern**: `TatchiPasskeyIframe` acts as a transparent proxy to the real TatchiPasskey
 2. **Message Passing**: All communication uses typed messages over MessagePort
 3. **Event Bridging**: Progress events flow from iframe back to parent callbacks
 4. **Overlay Management**: Smart show/hide logic based on operation phases
@@ -109,11 +109,11 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
 - **Capability Delegation**: The iframe grants WebAuthn and clipboard access via explicit `allow` attributes. Sandboxing is intentionally omitted for cross-origin deployments because Chromium drops transferred `MessagePort`s from sandboxed iframes, which would break the CONNECT → READY handshake.
 - **No Function Transfer**: Functions never cross the iframe boundary
 
-## Callback Chain for PasskeyManagerIframe Calls
+## Callback Chain for TatchiPasskeyIframe Calls
 
 The callback chain follows this flow:
 
-### 1. **PasskeyManagerIframe** (Entry Point)
+### 1. **TatchiPasskeyIframe** (Entry Point)
 - Acts as a proxy/wrapper around the WalletIframeRouter
 - Handles hook callbacks (`afterCall`, `onError`, `onEvent`)
 - For example, in `registerPasskey()`:

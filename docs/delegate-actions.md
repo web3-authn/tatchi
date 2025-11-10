@@ -1,6 +1,6 @@
 **Delegate Actions (NEP‑461) — Implementation Plan**
 
-- Goal: Add first‑class support for NEAR delegate actions (NEP‑461) end‑to‑end: encode and sign in the WASM signer worker, wire orchestration in the PasskeyManager SDK with typed progress events, and expose the flow through the wallet iframe with confirmation UI and routing.
+- Goal: Add first‑class support for NEAR delegate actions (NEP‑461) end‑to‑end: encode and sign in the WASM signer worker, wire orchestration in the TatchiPasskey SDK with typed progress events, and expose the flow through the wallet iframe with confirmation UI and routing.
 - Non‑goals: Building a relayer service. We return a `SignedDelegate` to the caller and optionally submit via an existing relayer integration when configured.
 
 **References**
@@ -10,7 +10,7 @@
 
 **Deliverables**
 - New worker request/response for signing delegate actions, schema + Borsh encoding, and integration with the existing confirm‑tx flow.
-- New PasskeyManager surface: `signDelegateAction` with progress events and unit tests for encoding/compat.
+- New TatchiPasskey method: `signDelegateAction` with progress events and unit tests for encoding/compat.
 - Wallet iframe routing, host handler, and confirm UI plumbing for delegate actions.
 
 **Stage 1 — WASM Signer Worker**
@@ -60,18 +60,18 @@
   - Exports (wasm_bindgen):
     - Re‑export new types for TS: `DelegateAction`, `SignedDelegate`, `WasmSignedDelegate` (TS‑friendly wrapper), and request/response classes.
 
-**Stage 2 — PasskeyManager SDK**
+**Stage 2 — TatchiPasskey SDK**
 - Implement the JS/TS orchestration and types, bridging to the new worker request.
   - Files to add/update:
-    - `sdk/src/core/PasskeyManager/delegateAction.ts` — new orchestration entry point
+    - `sdk/src/core/TatchiPasskey/delegateAction.ts` — new orchestration entry point
     - `sdk/src/core/WebAuthnManager/SignerWorkerManager/handlers/signDelegateAction.ts` — worker call wrapper
     - `sdk/src/core/WebAuthnManager/SignerWorkerManager/index.ts` — expose `signDelegateAction`
-    - `sdk/src/core/PasskeyManager/index.ts` — public API surface `signDelegateAction`
+    - `sdk/src/core/TatchiPasskey/index.ts` — public API surface `signDelegateAction`
     - `sdk/src/core/types/delegate.ts` — TS types for `DelegateAction`, `SignedDelegate`, `Signature`, `PublicKey`
     - `sdk/src/core/types/signer-worker.ts` — map new worker req/resp and type guards
     - `sdk/src/core/types/passkeyManager.ts` — optionally add `DelegateActionPhase` or reuse `ActionPhase`
   - API surface:
-    - `passkeyManager.signDelegateAction({ nearAccountId, delegate, options })`
+    - `tatchi.signDelegateAction({ nearAccountId, delegate, options })`
       - `delegate: { senderId, receiverId, actions: Action[], nonce: string | bigint, maxBlockHeight: string | bigint, publicKey: string | PublicKey }`
       - `options?: { onEvent?: (ev: DelegateSSEvent | ActionSSEvent) => void }`
       - Returns: `{ hash: Uint8Array, signedDelegate: SignedDelegate, nearAccountId }`
@@ -148,7 +148,7 @@
   - Implement NEP‑461 prefix encoding helpers and delegate Borsh schema.
   - Re‑export new types for TS and add wasm_bindgen wrappers.
 - SDK
-  - Implement `sdk/src/core/PasskeyManager/delegateAction.ts` and public API in `PasskeyManager/index.ts`.
+  - Implement `sdk/src/core/TatchiPasskey/delegateAction.ts` and public API in `TatchiPasskey/index.ts`.
   - Add `signDelegateAction` handler under `SignerWorkerManager/handlers/` and wire in the manager index.
   - Add TS types in `sdk/src/core/types/delegate.ts` and map worker req/resp in `types/signer-worker.ts`.
   - Add unit tests for encoding compatibility and key mismatch guard.

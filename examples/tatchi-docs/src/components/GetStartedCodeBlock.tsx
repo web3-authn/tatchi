@@ -2,7 +2,7 @@ import { useState } from 'react';
 import CopyButton from './CopyButton';
 import { useTheme } from '@tatchi-xyz/sdk/react';
 import { mobilePressHandlers } from '../utils/press';
-import NearLogo from './icons/NearLogo';
+import NearLogo from './icons/NearLogoWithText';
 
 import reactSnippet from '../snippets/react.tsx.txt?raw'
 import coreSnippet from '../snippets/core.ts.txt?raw'
@@ -57,7 +57,7 @@ export function GetStartedCodeBlock() {
         className="hero-built-on"
         aria-label="Built on NEAR"
       >
-        <span className="hero-built-on__label">Built on</span>
+        <span className="hero-built-on__label">built on</span>
         <NearLogo size={72} />
       </a>
     </section>

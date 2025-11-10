@@ -33,7 +33,7 @@ export function BrowserWithQR(props: {
       aria-label="Desktop browser showing QR code"
     >
       {/* Window background */}
-      <rect x={0.5} y={0.5} width={vbW - 1} height={vbH - 1} rx={16} fill={windowFill} stroke={border} />
+      <rect x={0.5} y={0.5} width={vbW - 1} height={vbH - 1} rx={16} fill={windowFill} stroke={'none'} />
       {/* Title / address bar */}
       <rect x={16} y={16} width={vbW - 32} height={44} rx={10} fill={barFill} />
       {/* Window controls */}

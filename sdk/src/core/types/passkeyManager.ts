@@ -5,8 +5,8 @@ import { AccountId } from "./accountIds";
 import { SignedTransaction } from "../NearClient";
 import type { AuthenticatorOptions } from './authenticatorOptions';
 import { ClientUserData } from ".";
-import { RecoveryResult } from '../PasskeyManager';
-import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
+import { RecoveryResult } from '../TatchiPasskey';
+import type { SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
 
 //////////////////////////
 // Progress Events Enums
@@ -501,7 +501,7 @@ export interface LoginHooksOptions {
   session?: {
     // 'jwt' returns the token in the JSON body; 'cookie' sets HttpOnly cookie
     kind: 'jwt' | 'cookie';
-    // Optional: override relay URL; defaults to PasskeyManagerConfigs.relayer.url
+    // Optional: override relay URL; defaults to TatchiPasskeyConfigs.relayer.url
     relayUrl?: string;
     // Optional: override route path; defaults to '/verify-authentication-response'
     route?: string;
@@ -636,8 +636,8 @@ export interface GetRecentLoginsResult {
   } | null
 }
 
-// PasskeyManager Configuration
-export interface PasskeyManagerConfigs {
+// TatchiPasskey Configuration
+export interface TatchiPasskeyConfigs {
   nearRpcUrl: string;
   nearNetwork: 'testnet' | 'mainnet';
   contractId: 'w3a-v1.testnet' | 'tatchi-v1.near' | string;

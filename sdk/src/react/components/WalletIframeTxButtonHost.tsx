@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { usePasskeyContext } from '@/react/context';
+import { useTatchiContext } from '@/react/context';
 import { TransactionInput } from '../../core/types';
-import type { PasskeyManagerConfigs, ActionResult } from '@/core/types/passkeyManager';
+import type { TatchiPasskeyConfigs, ActionResult } from '@/core/types/passkeyManager';
 import { isObject, isString, isFiniteNumber } from '@/core/WalletIframe/validation';
 
 export interface WalletIframeTxButtonHostProps {
@@ -43,8 +43,8 @@ export function WalletIframeTxButtonHost({
   onError,
 }: WalletIframeTxButtonHostProps) {
 
-  const ctx = usePasskeyContext();
-  const pmConfigs: PasskeyManagerConfigs | undefined = ctx?.passkeyManager?.configs;
+  const ctx = useTatchiContext();
+  const pmConfigs: TatchiPasskeyConfigs | undefined = (ctx as any)?.tatchi?.configs;
   const walletOrigin = pmConfigs?.iframeWallet?.walletOrigin;
   const walletServicePath = pmConfigs?.iframeWallet?.walletServicePath;
 

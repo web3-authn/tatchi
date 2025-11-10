@@ -11,11 +11,11 @@ This document explains how progress events drive the invisible wallet‑iframe o
 The wallet iframe mounts as a hidden 0×0 element in the parent document. When a signing flow reaches phases that need user activation (e.g., TouchID / WebAuthn), we temporarily expand the wallet iframe to a full‑screen, invisible overlay so the WebAuthn call occurs in the wallet document (the correct browsing context). As soon as activation completes, we hide the iframe again to avoid blocking the app.
 
 - Overlay control lives in the wallet iframe client router and its `ProgressBus`:
-  - `passkey-sdk/src/core/WalletIframe/client/progress-bus.ts`
-  - `passkey-sdk/src/core/WalletIframe/client/router.ts`
-- Progress events are emitted by PasskeyManager flows and the WASM worker handshake:
-  - `passkey-sdk/src/core/PasskeyManager/actions.ts`
-  - `passkey-sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/*`
+  - `sdk/src/core/WalletIframe/client/progress-bus.ts`
+  - `sdk/src/core/WalletIframe/client/router.ts`
+- Progress events are emitted by TatchiPasskey flows and the WASM worker handshake:
+  - `sdk/src/core/TatchiPasskey/actions.ts`
+  - `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/*`
 
 
 ## Progress → Overlay behavior
@@ -27,7 +27,7 @@ The `ProgressBus` class receives typed progress payloads and applies a phase heu
   - `ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION`
   - Device linking and login/recovery phases that gather WebAuthn credentials
     (see the source for the up‑to‑date list)
-  - Source: `passkey-sdk/src/core/WalletIframe/client/progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/progress-bus.ts`
 
 - Hide phases (post‑activation, non‑interactive work):
   - `ActionPhase.STEP_5_AUTHENTICATION_COMPLETE`
@@ -37,7 +37,7 @@ The `ProgressBus` class receives typed progress payloads and applies a phase heu
   - `ActionPhase.STEP_8_BROADCASTING`
   - `ActionPhase.STEP_9_ACTION_COMPLETE`
   - Device linking/registration completion/error phases
-  - Source: `passkey-sdk/src/core/WalletIframe/client/progress-bus.ts`
+  - Source: `sdk/src/core/WalletIframe/client/progress-bus.ts`
 
 When the heuristic returns:
 
@@ -52,12 +52,12 @@ Key points:
 
 - Step 2 (“Requesting user confirmation…”) is emitted as early as possible to get the overlay up before any slow RPC/IO, so activation is not lost to latency.
   - IMPORTANT: Step 2 must expand the overlay. If removed, the modal rendered inside the wallet iframe won’t be visible when `behavior: 'requireClick'`, and user confirmation will never happen.
-  - Source: `passkey-sdk/src/core/PasskeyManager/actions.ts` (emits `STEP_2_USER_CONFIRMATION` before signing)
+  - Source: `sdk/src/core/TatchiPasskey/actions.ts` (emits `STEP_2_USER_CONFIRMATION` before signing)
 
 
 ## What `showFrameForActivation()` actually does
 
-File: `passkey-sdk/src/core/WalletIframe/client/router.ts`
+File: `sdk/src/core/WalletIframe/client/router.ts`
 
 `showFrameForActivation()` ensures the service iframe is mounted, then delegates to the OverlayController to expand to fullscreen. Effective styles are:
 
@@ -72,7 +72,7 @@ This makes the wallet iframe cover the viewport so clicks and the WebAuthn trans
 
 This minimizes any interaction blocking of the parent app and keeps the iframe invisible when not needed.
 
-See: `passkey-sdk/src/core/WalletIframe/client/overlay-controller.ts` for the single source of truth that applies these CSS mutations and manages sticky mode.
+See: `sdk/src/core/WalletIframe/client/overlay-controller.ts` for the single source of truth that applies these CSS mutations and manages sticky mode.
 
 
 ## Concurrency: multiple in‑flight requests
@@ -161,18 +161,18 @@ Before merging changes to the progress bus or overlay logic, verify:
 ## When an extra click is required (and for registrations)
 
 - If you run `executeAction` without a recent user gesture (e.g., on page load, or after a long async chain with no new click), browsers may reject WebAuthn with `NotAllowedError` due to missing activation. In such cases:
-  - Switch to `requireClick` behavior: `passkeyManager.setConfirmationConfig({ uiMode: 'modal', behavior: 'requireClick' })`.
+  - Switch to `requireClick` behavior: `tatchi.setConfirmationConfig({ uiMode: 'modal', behavior: 'requireClick' })`.
   - Or use a UI element inside the wallet iframe (e.g., `SecureSignTxButton`) so the click lands in the wallet context.
 
 - For registration/link‑device in the wallet‑iframe host context, we enforce explicit click (no auto‑proceed) to guarantee a clean activation for `create()`:
-  - See: `passkey-sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClick' }` in that runtime).
+  - See: `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClick' }` in that runtime).
 
 
 ## Developer tips
 
 - Pre‑warm to reduce perceived latency before the overlay appears:
-  - `passkeyManager.prefetchBlockheight()` → caches/refreshes block height/hash/nonce ahead of time.
-  - Sources: `passkey-sdk/src/core/PasskeyManager/index.ts` and `passkey-sdk/src/core/nonceManager.ts`.
+  - `tatchi.prefetchBlockheight()` → caches/refreshes block height/hash/nonce ahead of time.
+  - Sources: `sdk/src/core/TatchiPasskey/index.ts` and `sdk/src/core/nonceManager.ts`.
 
 - Overlay is intentionally invisible but intercepts clicks while active. Keep the overlay up for the minimum time by limiting “show” to the phases that truly need activation (as implemented in `progress-bus.ts`).
 

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { usePasskeyContext } from '../../context';
+import { useTatchiContext } from '../../context';
 import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
 import { getAuthenticatorsByUser } from '@/core/rpcCalls';
-import type { ContractStoredAuthenticator } from '@/core/PasskeyManager/recoverAccount';
+import type { ContractStoredAuthenticator } from '@/core/TatchiPasskey/recoverAccount';
 import { toAccountId } from '@/core/types/accountIds';
 
 interface LinkedDevicesModalProps {
@@ -17,7 +17,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { passkeyManager, loginState } = usePasskeyContext();
+  const { tatchi, loginState } = useTatchiContext();
   const { theme } = useTheme();
   // Authenticators list: credentialId + registered timestamp + device number
   const [authRows, setAuthRows] = useState<Array<{ credentialId: string; registered: string; deviceNumber: number }>>([
@@ -40,8 +40,8 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
       // Also resolve current device number for highlighting
       (async () => {
         try {
-          if (!passkeyManager) return;
-          const st = await passkeyManager.getLoginState(nearAccountId);
+          if (!tatchi) return;
+          const st = await tatchi.getLoginState(nearAccountId);
           const dn = (st as any)?.userData?.deviceNumber;
           if (typeof dn === 'number' && Number.isFinite(dn)) {
             setCurrentDeviceNumber(dn);
@@ -69,14 +69,14 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   }, [isOpen, onClose]);
 
   const loadAuthenticators = async () => {
-    if (!passkeyManager) return;
+    if (!tatchi) return;
 
     setIsLoading(true);
     setError(null);
 
     try {
-      const nearClient = passkeyManager.getNearClient();
-      const contractId = passkeyManager.configs.contractId;
+      const nearClient = tatchi.getNearClient();
+      const contractId = tatchi.configs.contractId;
       const tuples = await getAuthenticatorsByUser(nearClient, contractId, toAccountId(nearAccountId));
 
       // Map each authenticator to a single row with credentialId and registered timestamp

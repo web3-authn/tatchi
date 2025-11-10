@@ -16,7 +16,7 @@ import {
   type AccessKeyList,
 } from '../NearClient';
 import type {
-  PasskeyManagerConfigs,
+  TatchiPasskeyConfigs,
   RegistrationResult,
   LoginResult,
   SignNEP413HooksOptions,
@@ -71,24 +71,24 @@ let warnedAboutSameOriginWallet = false;
 export interface PasskeyManagerContext {
   webAuthnManager: WebAuthnManager;
   nearClient: NearClient;
-  configs: PasskeyManagerConfigs;
+  configs: TatchiPasskeyConfigs;
 }
 
 /**
- * Main PasskeyManager class that provides framework-agnostic passkey operations
+ * Main TatchiPasskey class that provides framework-agnostic passkey operations
  * with flexible event-based callbacks for custom UX implementation
  */
-export class PasskeyManager {
+export class TatchiPasskey {
   private readonly webAuthnManager: WebAuthnManager;
   private readonly nearClient: NearClient;
-  readonly configs: PasskeyManagerConfigs;
+  readonly configs: TatchiPasskeyConfigs;
   private iframeRouter: WalletIframeRouter | null = null;
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
   private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
 
   constructor(
-    configs: PasskeyManagerConfigs,
+    configs: TatchiPasskeyConfigs,
     nearClient?: NearClient
   ) {
     this.configs = configs;
@@ -131,7 +131,7 @@ export class PasskeyManager {
         const parsed = new URL(walletOrigin);
         if (typeof window !== 'undefined' && parsed.origin === window.location.origin && !isWalletIframeHost) {
           warnedAboutSameOriginWallet = true;
-          console.warn('[PasskeyManager] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
+          console.warn('[TatchiPasskey] iframeWallet.walletOrigin matches the host origin. Consider moving the wallet to a dedicated origin for stronger isolation.');
         }
       } catch {
         // ignore invalid URL here; constructor downstream will surface an error
@@ -406,7 +406,7 @@ export class PasskeyManager {
   getConfirmationConfig(): ConfirmationConfig {
     // Prefer wallet host value when available
     // Note: synchronous signature; returns last-known local value if iframe reply is async
-    // Callers needing fresh remote value should use PasskeyManagerIframe directly.
+    // Callers needing fresh remote value should use TatchiPasskeyIframe directly.
     return this.webAuthnManager.getUserPreferences().getConfirmationConfig();
   }
 
@@ -908,7 +908,7 @@ export class PasskeyManager {
     }
     // If walletOrigin is configured but iframe is not ready, warn: recovery should run under wallet.*
     if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
-      console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
+      console.warn('[TatchiPasskey] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
     }
     // Local orchestration using AccountRecoveryFlow for a single-call UX
 
@@ -1044,7 +1044,7 @@ export class PasskeyManager {
 
 // Re-export types for convenience
 export type {
-  PasskeyManagerConfigs,
+  TatchiPasskeyConfigs,
   RegistrationHooksOptions,
   RegistrationResult,
   RegistrationSSEEvent,
@@ -1057,6 +1057,8 @@ export type {
   EventCallback,
   AfterCall,
 } from '../types/passkeyManager';
+// Context alias (optional convenience)
+export type TatchiPasskeyContext = PasskeyManagerContext;
 
 export type {
   DeviceLinkingQRData,
