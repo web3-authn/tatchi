@@ -45,10 +45,10 @@ Notes
 - Client → relay body matches server types in `sdk/src/server/core/types.ts`:
   - `vrf_data: { vrf_input_data, vrf_output, vrf_proof, public_key, user_id, rp_id, block_height, block_hash }` (number[])
   - `webauthn_authentication: { id, rawId, type, authenticatorAttachment, response: { clientDataJSON, authenticatorData, signature, userHandle }, clientExtensionResults }`
-- Use the same marshaling logic as registration (see `sdk/src/core/PasskeyManager/faucets/createAccountRelayServer.ts`) to convert base64url → number[].
+- Use the same marshaling logic as registration (see `sdk/src/core/TatchiPasskey/faucets/createAccountRelayServer.ts`) to convert base64url → number[].
 
 ## Client Implementation Notes
-- `sdk/src/core/PasskeyManager/login.ts`
+- `sdk/src/core/TatchiPasskey/login.ts`
   - Accepts optional `session` config and executes the session call after VRF unlock.
   - Shamir branch: single WebAuthn assertion for session verification.
   - Fallback branch: one assertion to unlock, and when `session` is provided, a second assertion to verify the session; or defer by omitting `session`.

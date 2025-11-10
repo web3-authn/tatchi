@@ -1,5 +1,5 @@
 import {
-  usePasskeyContext,
+  useTatchiContext,
   RegistrationPhase,
   RegistrationStatus,
   LoginPhase,
@@ -24,8 +24,8 @@ export function PasskeyLoginMenu() {
     loginPasskey,
     registerPasskey,
     refreshLoginState,
-    passkeyManager,
-  } = usePasskeyContext();
+    tatchi,
+  } = useTatchiContext();
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {
@@ -76,7 +76,7 @@ export function PasskeyLoginMenu() {
 
   const onRecover = async () => {
     try {
-      const result = await passkeyManager.recoverAccountFlow({
+      const result = await tatchi.recoverAccountFlow({
         accountId: targetAccountId,
         options: {
           onEvent: async (event: any) => {

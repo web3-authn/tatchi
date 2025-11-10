@@ -51,7 +51,7 @@ How to implement (Option A)
 
 Config snippet (Option A)
 ```ts
-const passkey = new PasskeyManager({
+const passkey = new TatchiPasskey({
   ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
   relayer: { url: '…', accountId: '…' },
   iframeWallet: {
@@ -92,7 +92,7 @@ How to implement (Option B)
 
 Config snippet (Option B)
 ```ts
-const passkey = new PasskeyManager({
+const passkey = new TatchiPasskey({
   ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
   relayer: { url: '…', accountId: '…' },
   iframeWallet: {

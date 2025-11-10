@@ -5,7 +5,7 @@
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
-test.describe('Example PasskeyManager Usage', () => {
+test.describe('Example TatchiPasskey Usage', () => {
 
   test.beforeEach(async ({ page }) => {
     await setupBasicPasskeyTest(page);
@@ -16,16 +16,16 @@ test.describe('Example PasskeyManager Usage', () => {
     // });
   });
 
-  // showcases how setup wires PasskeyManager/test utils into the page context
-  test('should demonstrate PasskeyManager access in different test file', async ({ page }) => {
+  // showcases how setup wires TatchiPasskey/test utils into the page context
+  test('should demonstrate TatchiPasskey access in different test file', async ({ page }) => {
     const result = await page.evaluate(async () => {
-      // Access the pre-configured PasskeyManager and utilities (safe pattern)
+      // Access the pre-configured TatchiPasskey and utilities (safe pattern)
       const { passkeyManager, generateTestAccountId, verifyAccountExists } = (window as any).testUtils;
 
       const testAccountId = generateTestAccountId();
       console.log('Generated test account ID:', testAccountId);
 
-      // Example: Test some PasskeyManager functionality
+      // Example: Test some TatchiPasskey functionality
       // You could test login state, configuration, etc.
       try {
         const loginState = await passkeyManager.getLoginState();

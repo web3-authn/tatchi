@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTheme, usePasskeyContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
 
 /**
  * useThemeBridge
@@ -19,7 +19,7 @@ import { useTheme, usePasskeyContext } from '@tatchi-xyz/sdk/react'
  */
 export function useThemeBridge() {
   const { theme, tokens, setTheme } = useTheme()
-  const { loginState, passkeyManager } = usePasskeyContext()
+  const { loginState, tatchi } = useTatchiContext()
 
   // Reflect current theme on <html> (and <body> for backward-compat) for global CSS
   React.useEffect(() => {
@@ -42,8 +42,8 @@ export function useThemeBridge() {
         const ce = e as CustomEvent<'light' | 'dark'>
         const next = ce?.detail
         if (next === 'light' || next === 'dark') {
-          if (loginState?.isLoggedIn && passkeyManager?.setUserTheme) {
-            passkeyManager.setUserTheme(next)
+          if (loginState?.isLoggedIn && tatchi?.setUserTheme) {
+            tatchi.setUserTheme(next)
           } else {
             setTheme(next)
           }
@@ -52,5 +52,5 @@ export function useThemeBridge() {
     }
     try { window.addEventListener('w3a:set-theme', onSetTheme as any) } catch {}
     return () => { try { window.removeEventListener('w3a:set-theme', onSetTheme as any) } catch {} }
-  }, [setTheme, loginState?.isLoggedIn, passkeyManager])
+  }, [setTheme, loginState?.isLoggedIn, tatchi])
 }

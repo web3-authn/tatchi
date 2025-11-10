@@ -4,14 +4,13 @@ import type {
   RegistrationHooksOptions,
   ActionHooksOptions,
   SignNEP413HooksOptions,
-  PasskeyManager,
-  PasskeyManagerConfigs,
+  TatchiPasskey,
+  TatchiPasskeyConfigs,
   RecoveryResult,
   LinkDeviceResult,
   SignNEP413MessageParams,
   SignNEP413MessageResult,
-  PasskeyManagerContext,
-} from '../core/PasskeyManager';
+} from '../core/TatchiPasskey';
 import { TransactionInput } from '../core/types/actions';
 import type { ConfirmationConfig, ConfirmationBehavior } from '../core/types/signer-worker';
 import type { ClientUserData } from '../core/IndexedDBManager/passkeyClientDB';
@@ -91,12 +90,12 @@ export interface UseAccountInputReturn extends AccountInputState {
   refreshAccountData: () => Promise<void>;
 }
 
-export interface PasskeyContextType {
-  // Core PasskeyManager instance - provides all user-facing functionality
-  passkeyManager: PasskeyManager;
+export interface TatchiContextType {
+  // Core TatchiPasskey instance - provides all user-facing functionality
+  tatchi: TatchiPasskey;
 
   ////////////////////////////
-  // PasskeyManager functions
+  // TatchiPasskey functions
   ////////////////////////////
 
   // Registration and login functions
@@ -166,7 +165,7 @@ export interface PasskeyContextType {
 
 /** Config options for PasskeyContextProvider
  * @param children - ReactNode to render inside the provider
- * @param config - PasskeyManagerConfigs
+ * @param config - TatchiPasskeyConfigs
  * @example
  * config: {
  *   nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -181,7 +180,7 @@ export interface PasskeyContextType {
 export interface PasskeyContextProviderProps {
   children: ReactNode;
   // Allow passing only overrides; provider will resolve full config from env + defaults
-  config: Partial<PasskeyManagerConfigs>;
+  config: Partial<TatchiPasskeyConfigs>;
 }
 
 // === CONVENIENCE RE-EXPORTS ===

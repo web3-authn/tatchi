@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  type PasskeyManager,
+  type TatchiPasskey,
   toAccountId
 } from '@/index';
 import { awaitWalletIframeReady } from '../utils/walletIframe';
@@ -17,7 +17,7 @@ export interface AccountInputState {
 }
 
 export interface UseAccountInputOptions {
-  passkeyManager: PasskeyManager;
+  tatchi: TatchiPasskey;
   contractId: string;
   currentNearAccountId?: string | null;
   isLoggedIn: boolean;
@@ -29,7 +29,7 @@ export interface UseAccountInputReturn extends AccountInputState {
 }
 
 export function useAccountInput({
-  passkeyManager,
+  tatchi,
   contractId,
   currentNearAccountId,
   isLoggedIn
@@ -47,14 +47,14 @@ export function useAccountInput({
 
   // Await wallet iframe readiness when needed
   const awaitWalletIframeIfNeeded = useCallback(async () => {
-    await awaitWalletIframeReady(passkeyManager);
-  }, [passkeyManager]);
+    await awaitWalletIframeReady(tatchi);
+  }, [tatchi]);
 
   // Load recent accounts and determine account info
   const refreshAccountData = useCallback(async () => {
     try {
       await awaitWalletIframeIfNeeded();
-      const { accountIds, lastUsedAccountId } = await passkeyManager.getRecentLogins();
+      const { accountIds, lastUsedAccountId } = await tatchi.getRecentLogins();
 
       let lastUsername = '';
       let lastDomain = '';
@@ -76,7 +76,7 @@ export function useAccountInput({
     } catch (error) {
       console.warn('Error loading account data:', error);
     }
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   // Update derived state when inputs change
   const updateDerivedState = useCallback((username: string, accounts: string[]) => {
@@ -124,7 +124,7 @@ export function useAccountInput({
 
     // Check if account has credentials
     checkAccountExists(targetAccountId);
-  }, [contractId, passkeyManager]);
+  }, [contractId, tatchi]);
 
   // Check if account has passkey credentials
   const checkAccountExists = useCallback(async (accountId: string) => {
@@ -135,13 +135,13 @@ export function useAccountInput({
 
     try {
       await awaitWalletIframeIfNeeded();
-      const hasCredential = await passkeyManager.hasPasskeyCredential(toAccountId(accountId));
+      const hasCredential = await tatchi.hasPasskeyCredential(toAccountId(accountId));
       setState(prevState => ({ ...prevState, accountExists: hasCredential }));
     } catch (error) {
       console.warn('Error checking credentials:', error);
       setState(prevState => ({ ...prevState, accountExists: false }));
     }
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   // Handle username input changes
   const setInputUsername = useCallback((username: string) => {
@@ -162,7 +162,7 @@ export function useAccountInput({
       } else {
         // No logged-in user, try to get last used account
         await awaitWalletIframeIfNeeded();
-        const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
+        const { lastUsedAccountId } = await tatchi.getRecentLogins();
         if (lastUsedAccountId) {
           const username = lastUsedAccountId.nearAccountId.split('.')[0];
           setState(prevState => ({ ...prevState, inputUsername: username }));
@@ -171,7 +171,7 @@ export function useAccountInput({
     };
 
     initializeAccountInput();
-  }, [passkeyManager, isLoggedIn, currentNearAccountId, passkeyManager]);
+  }, [tatchi, isLoggedIn, currentNearAccountId, tatchi]);
 
   // onLogout: Reset to last used account
   useEffect(() => {
@@ -180,7 +180,7 @@ export function useAccountInput({
       if (!isLoggedIn && !currentNearAccountId) {
         try {
           await awaitWalletIframeIfNeeded();
-          const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
+          const { lastUsedAccountId } = await tatchi.getRecentLogins();
           if (lastUsedAccountId) {
             const username = lastUsedAccountId.nearAccountId.split('.')[0];
             setState(prevState => ({ ...prevState, inputUsername: username }));
@@ -192,7 +192,7 @@ export function useAccountInput({
     };
 
     handleLogoutReset();
-  }, [isLoggedIn, currentNearAccountId, passkeyManager]);
+  }, [isLoggedIn, currentNearAccountId, tatchi]);
 
   // Update derived state when dependencies change
   useEffect(() => {

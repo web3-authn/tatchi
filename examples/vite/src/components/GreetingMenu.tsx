@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-import { ActionPhase, usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { ActionPhase, useTatchiContext } from '@tatchi-xyz/sdk/react';
 import type { FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import { ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 
@@ -16,8 +16,8 @@ interface GreetingMenuProps {}
 export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
-    passkeyManager,
-  } = usePasskeyContext();
+    tatchi,
+  } = useTatchiContext();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
 
@@ -47,7 +47,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
       deposit: "0",
     };
 
-    await passkeyManager.executeAction({
+    await tatchi.executeAction({
       nearAccountId: nearAccountId!,
       receiverId: WEBAUTHN_CONTRACT_ID,
       actionArgs: actionToExecute,
@@ -89,7 +89,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
         }
       }
     });
-  }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting]);
+  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, fetchGreeting]);
 
   if (!isLoggedIn) {
     return null;

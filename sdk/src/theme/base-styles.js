@@ -90,7 +90,7 @@ export function createThemeTokens(palette) {
     ...CHROMA_COLORS,
 
     // Text
-    textPrimary: GREY_COLORS.grey975,
+    textPrimary: GREY_COLORS.grey650,
     textSecondary: GREY_COLORS.grey500,
     textMuted: GREY_COLORS.grey350,
     textButton: GREY_COLORS.grey75,
@@ -148,7 +148,7 @@ export function createThemeTokens(palette) {
     ...CHROMA_COLORS,
 
     // Text
-    textPrimary: GREY_COLORS.grey900,
+    textPrimary: GREY_COLORS.grey650,
     textSecondary: GREY_COLORS.grey600,
     textMuted: GREY_COLORS.grey450,
     textButton: GREY_COLORS.grey75,

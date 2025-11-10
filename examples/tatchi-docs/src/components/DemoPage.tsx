@@ -7,7 +7,7 @@ import {
   ActionResult,
   TouchIdWithText,
   TxExecutionStatus,
-  usePasskeyContext,
+  useTatchiContext,
 } from '@tatchi-xyz/sdk/react';
 import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
@@ -86,8 +86,8 @@ export const DemoPage: React.FC = () => {
   }, [isSlideActive, hasArmedHeavy]);
   const {
     loginState: { isLoggedIn, nearAccountId },
-    passkeyManager,
-  } = usePasskeyContext();
+    tatchi,
+  } = useTatchiContext();
 
   const {
     onchainGreeting,
@@ -96,7 +96,7 @@ export const DemoPage: React.FC = () => {
     error,
   } = useSetGreeting();
 
-  const networkPostfix = passkeyManager.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
+  const networkPostfix = tatchi.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
   const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
@@ -132,7 +132,7 @@ export const DemoPage: React.FC = () => {
 
     setTxLoading(true);
     try {
-      await passkeyManager.executeAction({
+      await tatchi.executeAction({
       nearAccountId: nearAccountId!,
       receiverId: WEBAUTHN_CONTRACT_ID,
       actionArgs: actionToExecute,
@@ -185,7 +185,7 @@ export const DemoPage: React.FC = () => {
     } catch (e) {
       setTxLoading(false);
     }
-  }, [greetingInput, isLoggedIn, nearAccountId, passkeyManager, fetchGreeting]);
+  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, fetchGreeting]);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -210,7 +210,7 @@ export const DemoPage: React.FC = () => {
     const DEMO_PUBLIC_KEY = 'ed25519:7PFkxo1jSCrxqN2jKVt5vXmQ9K1rs7JukqV4hdRzVPbd';
     const DEMO_BENEFICIARY = 'w3a-v1.testnet';
 
-    await passkeyManager.executeAction({
+    await tatchi.executeAction({
       nearAccountId,
       receiverId: WEBAUTHN_CONTRACT_ID,
       actionArgs: [
@@ -284,7 +284,7 @@ export const DemoPage: React.FC = () => {
         },
       },
     });
-  }, [isLoggedIn, nearAccountId, passkeyManager]);
+  }, [isLoggedIn, nearAccountId, tatchi]);
 
   if (!isLoggedIn || !nearAccountId) {
     return null;

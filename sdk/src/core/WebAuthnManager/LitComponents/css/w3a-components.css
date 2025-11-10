@@ -72,7 +72,7 @@ w3a-button-with-tooltip,
 w3a-halo-border,
 w3a-passkey-halo-loading,
 w3a-export-key-viewer {
-  --w3a-colors-textPrimary: oklch(0.025 0.001 240);
+  --w3a-colors-textPrimary: oklch(0.35 0.018 240);
   --w3a-colors-textSecondary: oklch(0.53 0.02 240);
   --w3a-colors-textMuted: oklch(0.75 0.016 240);
   --w3a-colors-textButton: oklch(0.97 0.002 240);
@@ -115,7 +115,7 @@ w3a-button-with-tooltip,
 w3a-halo-border,
 w3a-passkey-halo-loading,
 w3a-export-key-viewer {
-  --w3a-colors-textPrimary: oklch(0.1 0.005 240);
+  --w3a-colors-textPrimary: oklch(0.35 0.018 240);
   --w3a-colors-textSecondary: oklch(0.4 0.02 240);
   --w3a-colors-textMuted: oklch(0.6 0.021 240);
   --w3a-colors-textButton: oklch(0.97 0.002 240);

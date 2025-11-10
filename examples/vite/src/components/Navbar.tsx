@@ -2,7 +2,7 @@ import React from 'react';
 import toast from 'react-hot-toast';
 
 import {
-  usePasskeyContext,
+  useTatchiContext,
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
@@ -13,7 +13,7 @@ import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
 
-  const { loginState, passkeyManager } = usePasskeyContext();
+  const { loginState, tatchi } = useTatchiContext();
   const { setTheme } = useTheme();
 
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
@@ -33,7 +33,7 @@ export const Navbar: React.FC = () => {
 
   // Keep Theme synchronized with user preference (per-component)
   React.useEffect(() => {
-    const up = passkeyManager?.userPreferences;
+    const up = tatchi?.userPreferences;
     if (!up) return;
 
     try {
@@ -44,7 +44,7 @@ export const Navbar: React.FC = () => {
     let unsub: (() => void) | undefined;
     try { unsub = up.onThemeChange?.((t: 'light' | 'dark') => setTheme(t)); } catch {}
     return () => { try { unsub?.(); } catch {} };
-  }, [passkeyManager, setTheme]);
+  }, [tatchi, setTheme]);
 
   return (
     <nav className="navbar-container">

@@ -357,9 +357,9 @@ Instantiate and use the corresponding adapter for chains such as Bitcoin, Solana
 - Multiple EVM Networks: Switch networks by changing the RPC URL used to build the `publicClient`.
 
 
-## Using Tatchi PasskeyManager instead of Wallet Selector
+## Using TatchiPasskey instead of Wallet Selector
 
-If you’re not using the `chainsig.js` wrapper and want to call the MPC contract directly through Tatchi’s PasskeyManager, send a NEAR FunctionCall with JSON args matching the contract schema:
+If you’re not using the `chainsig.js` wrapper and want to call the MPC contract directly through TatchiPasskey, send a NEAR FunctionCall with JSON args matching the contract schema:
 
 ```ts
 await passkeyManager.executeAction({

@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import * as viem from 'viem';
 import type { TransactionSerializableEIP1559 } from 'viem';
-import { usePasskeyContext, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
+import { useTatchiContext, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 // no direct RSVSignature use here; types handled in helpers
 import { NEAR_EXPLORER_BASE_URL } from '../../../config';
@@ -33,8 +33,8 @@ export function useMpcEvmFlow() {
 
   const {
     loginState: { isLoggedIn, nearAccountId },
-    passkeyManager
-  } = usePasskeyContext();
+    tatchi
+  } = useTatchiContext();
 
   const [isWorking, setIsWorking] = useState(false);
 
@@ -118,7 +118,7 @@ export function useMpcEvmFlow() {
 
       toast.loading('Sending request to NEAR…', { id: 'chainsig:erc20', description: '' });
       const payloadHexNo0x = signingHash.slice(2);
-      const result = await passkeyManager.executeAction({
+      const result = await tatchi.executeAction({
         nearAccountId,
         receiverId: contractId,
         actionArgs: {
@@ -219,7 +219,7 @@ export function useMpcEvmFlow() {
     } finally {
       setIsWorking(false);
     }
-  }, [isLoggedIn, nearAccountId, passkeyManager]);
+  }, [isLoggedIn, nearAccountId, tatchi]);
 
   const signAndSendEvmTransfer = useCallback(async (args: {
     to: string;
@@ -263,7 +263,7 @@ export function useMpcEvmFlow() {
 
       toast.loading('Sending request to NEAR…', { id: 'chainsig', description: '' });
       const payloadHexNo0x = signingHash.slice(2);
-      const result = await passkeyManager.executeAction({
+      const result = await tatchi.executeAction({
         nearAccountId,
         receiverId: contractId,
         actionArgs: {
@@ -364,7 +364,7 @@ export function useMpcEvmFlow() {
     } finally {
       setIsWorking(false);
     }
-  }, [isLoggedIn, nearAccountId, passkeyManager]);
+  }, [isLoggedIn, nearAccountId, tatchi]);
 
   return { isWorking, signAndSendEvmTransfer, signAndSendErc20Transfer } as const;
 }

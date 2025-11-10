@@ -34,8 +34,8 @@ export default function App({ Component, pageProps }) {
 ```ts
 // components/LoginButtons.vue (script setup)
 import { onMounted } from 'vue'
-import { PasskeyManager } from '@tatchi-xyz/sdk'
-const manager = new PasskeyManager({ iframeWallet: { walletOrigin: import.meta.env.VITE_WALLET_ORIGIN, walletServicePath: '/wallet-service' } })
+import { TatchiPasskey } from '@tatchi-xyz/sdk'
+const manager = new TatchiPasskey({ iframeWallet: { walletOrigin: import.meta.env.VITE_WALLET_ORIGIN, walletServicePath: '/wallet-service' } })
 onMounted(() => manager.initWalletIframe())
 ```
 
@@ -44,15 +44,15 @@ onMounted(() => manager.initWalletIframe())
 ```ts
 // src/components/LoginButtons.svelte
 import { onMount } from 'svelte'
-import { PasskeyManager } from '@tatchi-xyz/sdk'
-let manager: PasskeyManager
+import { TatchiPasskey } from '@tatchi-xyz/sdk'
+let manager: TatchiPasskey
 onMount(async () => {
-  manager = new PasskeyManager({ iframeWallet: { walletOrigin: import.meta.env.VITE_WALLET_ORIGIN, walletServicePath: '/wallet-service' } })
+  manager = new TatchiPasskey({ iframeWallet: { walletOrigin: import.meta.env.VITE_WALLET_ORIGIN, walletServicePath: '/wallet-service' } })
   await manager.initWalletIframe()
 })
 ```
 
-Next: [First Flow](./first-flow) or explore [Passkeys](/docs/guides/passkeys)
+Next: [Quickstart](./quickstart) or explore [Passkeys](/docs/guides/passkeys)
 
 ## Plugin Choices
 - App‑only (cross‑origin wallet): use `tatchiAppServer({ walletOrigin })` in dev and `tatchiBuildHeaders({ walletOrigin })` at build.

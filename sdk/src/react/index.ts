@@ -4,7 +4,7 @@
  * This package provides React components and hooks for integrating Web3Authn Passkey
  * functionality into React applications.
  *
- * **Important:** All React components and hooks must be used inside a PasskeyManager context.
+ * **Important:** All React components and hooks must be used inside a TatchiPasskey context.
  * Wrap your app with PasskeyProvider to provide the required context.
  *
  * @example
@@ -24,13 +24,13 @@
  * ```
  */
 
-export { PasskeyProvider, usePasskeyContext } from './context';
+export { PasskeyProvider, useTatchiContext } from './context';
 export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
 
 // === RE-EXPORT CORE TYPES ===
-export { PasskeyManager } from '../core/PasskeyManager';
+export { TatchiPasskey } from '../core/TatchiPasskey';
 export { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../core/defaultConfigs';
-export type { PasskeyManagerConfigs } from '../core/types/passkeyManager';
+export type { TatchiPasskeyConfigs } from '../core/types/passkeyManager';
 export type { StoreUserDataInput } from '../core/IndexedDBManager/passkeyClientDB';
 
 // === RE-EXPORT ACTION TYPES ===
@@ -51,7 +51,7 @@ export type {
 
 // === TYPES ===
 export type {
-  PasskeyContextType,
+  TatchiContextType,
   PasskeyContextProviderProps,
   LoginState,
   LoginResult,
@@ -62,7 +62,7 @@ export type {
   ActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
-  // Re-exported from PasskeyManager types
+  // Re-exported from TatchiPasskey types
   RegistrationHooksOptions,
   LoginHooksOptions,
   SignNEP413HooksOptions,

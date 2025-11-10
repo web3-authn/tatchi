@@ -1,7 +1,7 @@
 Vue (Vite) cross‑origin example
 
 - Wallet origin (dev): https://wallet.example.localhost (local wallet server)
-- Purpose: minimal host app using PasskeyManager; served via TLS proxy with proper headers
+- Purpose: minimal host app using TatchiPasskey; served via TLS proxy with proper headers
 
 Quick start
 
@@ -15,5 +15,5 @@ Quick start
 Notes
 
 - Headers: vite.config.ts uses `tatchiServeSdk` + `tatchiHeaders` (app) and `tatchiWalletServer` (wallet).
-- UI: Input with username postfix + Register/Login using PasskeyManager.
+- UI: Input with username postfix + Register/Login using TatchiPasskey.
 - No manual `_headers` setup needed in dev; Caddy proxies TLS hosts to local Vite servers.

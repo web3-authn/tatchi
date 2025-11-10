@@ -52,7 +52,6 @@ export default defineConfig({
           { text: 'Overview', link: '/docs/getting-started/overview' },
           { text: 'Install & Configure', link: '/docs/getting-started/install-and-configure' },
           { text: 'Quickstart', link: '/docs/getting-started/quickstart' },
-          { text: 'First Flow', link: '/docs/getting-started/first-flow' },
           { text: 'Framework by Framework', link: '/docs/getting-started/frameworks' },
         ],
       },
@@ -61,6 +60,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Core Flows', items: [
+            { text: 'Registration Flow', link: '/docs/guides/registration-flow' },
             { text: 'Passkeys', link: '/docs/guides/passkeys' },
             { text: 'Secure Tx Confirmation', link: '/docs/guides/tx-confirmation' },
             { text: 'Chainsigs Swap Demo', link: '/docs/guides/chainsigs-swap-demo' },
@@ -85,9 +85,11 @@ export default defineConfig({
           { text: 'Overview', link: '/docs/concepts/' },
           { text: 'Goals of the Wallet', link: '/docs/concepts/goals' },
           { text: 'Architecture Overview', link: '/docs/concepts/wallet-iframe-architecture' },
+          { text: 'Iframe-Isolated Signing', link: '/docs/concepts/iframe-isolated-signing' },
           { text: 'Security Model', link: '/docs/concepts/security-model' },
           { text: 'Credential Scope (rpId)', link: '/docs/concepts/wallet-scoped-credentials' },
           { text: 'VRF & PRF', link: '/docs/concepts/vrf-and-prf' },
+          { text: 'VRF Challenges', link: '/docs/concepts/vrf-challenges' },
           { text: 'Shamir 3‑pass', link: '/docs/concepts/shamir3pass' },
           { text: 'Server key rotation', link: '/docs/concepts/shamir3pass-rotate-keys' },
           { text: 'Nonce manager', link: '/docs/concepts/nonce-manager' },

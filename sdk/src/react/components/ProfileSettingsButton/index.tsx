@@ -6,7 +6,7 @@ import { MoonIcon } from './icons/MoonIcon';
 import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
-import { usePasskeyContext } from '../../context';
+import { useTatchiContext } from '../../context';
 import type { MenuItem, ProfileSettingsButtonProps } from './types';
 import { PROFILE_MENU_ITEM_IDS } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
@@ -19,8 +19,8 @@ import { IndexedDBManager } from '../../../core/IndexedDBManager';
 /**
  * Profile Settings Button Component
  * Provides user settings, account management, and device linking.
- * **Important:** This component must be used inside a PasskeyManager context.
- * Wrap your app with PasskeyProvider or ensure PasskeyManager is available in context.
+ * **Important:** This component should be used inside a TatchiPasskey context.
+ * Wrap your app with PasskeyProvider or ensure TatchiPasskey is available in context via useTatchiContext.
  *
  * @example
  * ```tsx
@@ -64,9 +64,9 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   // Get values from context if not provided as props
   const {
     loginState,
-    passkeyManager,
+    tatchi,
     logout,
-  } = usePasskeyContext();
+  } = useTatchiContext();
 
   // Use props if provided, otherwise fall back to context
   const accountName = usernameProp || nearAccountIdProp?.split('.')?.[0] || loginState.nearAccountId?.split('.')?.[0] || 'User';
@@ -98,7 +98,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     let isActive = true;
 
     const syncConfirmationConfig = async () => {
-      if (!passkeyManager) return;
+      if (!tatchi) return;
 
       if (!loginState.isLoggedIn || !loggedInAccountId) {
         if (isActive) {
@@ -108,14 +108,14 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       }
 
       try {
-        passkeyManager.userPreferences.setCurrentUser(toAccountId(loggedInAccountId));
+        tatchi.userPreferences.setCurrentUser(toAccountId(loggedInAccountId));
       } catch (_) {}
 
       // Always try to hydrate from source of truth, then mirror locally
       let fetched: any | null = null;
       // 1) Wallet iframe (wallet origin) if available
       try {
-        const client = (passkeyManager as any).getWalletIframeClient?.() || (passkeyManager as any).getServiceClient?.();
+        const client = tatchi.getWalletIframeClient?.() || (tatchi as any).getServiceClient?.();
         if (client && client.isReady()) {
           fetched = await client.getConfirmationConfig();
         }
@@ -128,12 +128,12 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       }
       // 3) Fallback: current in-memory cache
       if (!fetched) {
-        try { fetched = passkeyManager.getConfirmationConfig(); } catch (_) {}
+        try { fetched = tatchi.getConfirmationConfig(); } catch (_) {}
       }
 
       if (fetched) {
         // Mirror into local cache for immediate reads and future sessions
-        try { passkeyManager.userPreferences.setConfirmationConfig(fetched); } catch (_) {}
+        try { tatchi.userPreferences.setConfirmationConfig(fetched); } catch (_) {}
         if (isActive) setCurrentConfirmConfig(fetched);
       } else {
         if (isActive) setCurrentConfirmConfig(null);
@@ -145,32 +145,32 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     return () => {
       isActive = false;
     };
-  }, [passkeyManager, loginState.isLoggedIn, loggedInAccountId]);
+  }, [tatchi, loginState.isLoggedIn, loggedInAccountId]);
 
   // Handlers for transaction settings
   const handleSetUiMode = (mode: 'skip' | 'modal' | 'drawer') => {
     // Only patch the field we intend to change to avoid overwriting theme or other values
-    passkeyManager.setConfirmationConfig({ uiMode: mode } as any);
+    tatchi.setConfirmationConfig({ uiMode: mode } as any);
     setCurrentConfirmConfig((prev: any) => prev ? { ...prev, uiMode: mode } : { uiMode: mode });
   };
 
   const handleToggleSkipClick = () => {
     if (!currentConfirmConfig) return;
     const newBehavior = currentConfirmConfig.behavior === 'requireClick' ? 'autoProceed' : 'requireClick';
-    passkeyManager.setConfirmBehavior(newBehavior);
+    tatchi.setConfirmBehavior(newBehavior);
     setCurrentConfirmConfig((prev: any) => prev ? { ...prev, behavior: newBehavior } : prev);
   };
 
   const handleSetDelay = (delay: number) => {
     // Only patch delay; avoid passing a stale theme from local state
-    passkeyManager.setConfirmationConfig({ autoProceedDelay: delay } as any);
+    tatchi.setConfirmationConfig({ autoProceedDelay: delay } as any);
     setCurrentConfirmConfig((prev: any) => prev ? { ...prev, autoProceedDelay: delay } : { autoProceedDelay: delay });
   };
 
   const handleToggleTheme = () => {
     // Determine next theme from current visible theme when possible
     const newTheme = (theme === 'dark' ? 'light' : (theme === 'light' ? 'dark' : (currentConfirmConfig?.theme === 'dark' ? 'light' : 'dark')));
-    try { passkeyManager.setUserTheme(newTheme); } catch {}
+    try { tatchi.setUserTheme(newTheme); } catch {}
     setCurrentConfirmConfig((prev: any) => (prev ? { ...prev, theme: newTheme } : prev));
     // Always show a quick pulse to acknowledge the press
     try {
@@ -189,7 +189,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       disabled: !loginState.isLoggedIn,
       onClick: async () => {
         try {
-          await passkeyManager.exportNearKeypairWithUI(nearAccountId!);
+          await tatchi.exportNearKeypairWithUI(nearAccountId!);
         } catch (error: any) {
           console.error('Key export failed:', error);
           const msg = String(error?.message || 'Unknown error');
@@ -239,7 +239,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       onClick: () => setTransactionSettingsOpen((v) => !v),
       keepOpenOnClick: true,
     },
-  ], [passkeyManager, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
+  ], [tatchi, nearAccountId, loginState.isLoggedIn, theme, handleToggleTheme]);
 
   const highlightedMenuItemId = highlightedMenuItem?.id;
   const highlightShouldFocus = highlightedMenuItem?.focus ?? true;

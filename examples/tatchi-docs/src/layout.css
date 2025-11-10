@@ -75,9 +75,47 @@
   border-left: none;
 }
 
+/* Giant NEAR logo background overlay */
+.near-logo-bg {
+  position: absolute;
+  inset: 0;
+  top: 4rem; /* push the logo down below the carousel navbar */
+  transform: translateX(-5rem);
+  display: grid;
+  place-items: center;
+  pointer-events: none; /* do not block interactions */
+  z-index: -1; /* sit behind all content in column */
+}
+.near-logo-bg__img,
+.near-logo-bg__svg {
+  width: min(1600px, 95vw);
+  max-width: 70vw;
+  height: auto;
+  opacity: 1; /* semi‑transparent */
+  transform: rotate(30deg);
+  transform-origin: center;
+  pointer-events: none; /* ensure clicks pass through */
+}
+/* Toggle image by theme */
+[data-w3a-theme="light"] .near-logo-bg__img--dark {
+  display: none;
+}
+[data-w3a-theme="dark"] .near-logo-bg__img--light {
+  display: none;
+}
+[data-w3a-theme="light"] .near-logo-bg__svg {
+  color: var(--w3a-colors-slate100);
+  opacity: 0.4;
+}
+[data-w3a-theme="dark"] .near-logo-bg__svg {
+  color: var(--w3a-colors-grey900);
+  opacity: 0.1;
+}
+
 @media (max-width: 1024px) {
   /* Disable full-bleed extension on stacked layout */
   .layout-column-right::before { display: none; }
+  .near-logo-bg { display: none; }
 }
 
 /* Mobile/tablet breakpoint: stack areas and normalize right column visuals */
@@ -286,28 +324,27 @@
 
 /* Built on NEAR badge under CTAs */
 .hero-built-on {
-  padding: 6rem 0rem 2rem 0rem;
+  margin: 6rem 0rem 2rem 0rem;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
-  margin-top: 0; /* inline with CTA row */
-  margin-left: auto; /* push badge to right */
   color: #fff; /* match NEAR logo */
   text-decoration: none;
   font-size: 1.1rem;
   font-weight: 600;
 }
 .hero-built-on__label {
-  color: inherit; /* keep text white by default */
-  font-size: 1.25rem;
+  color: var(--w3a-colors-textSecondary);
+  font-size: 1.5rem;
   transition: color var(--fe-fast, 0.2s) var(--fe-ease, ease);
 }
 .hero-built-on svg {
+  color: var(--w3a-colors-textSecondary);
   font-size: 2rem; /* scale logo relative to text */
   height: 1em; /* match text size */
   width: auto;
-  margin-top: 0;
+  margin-top: 0.4rem;
   vertical-align: middle;
   transition: color var(--fe-fast, 0.2s) var(--fe-ease, ease);
 }
@@ -469,7 +506,7 @@
 .install-panel {
   margin-top: 1rem;
   border: none;
-  border-radius: 14px;
+  border-radius: 1rem;
   background: color-mix(in srgb, var(--fe-bg) 80%, transparent);
   box-shadow: 0 2px 10px var(--fe-shadow);
   /* Avoid clipping internal scrollbars and allow responsive shrink */
@@ -478,6 +515,9 @@
   width: 100%;
   box-sizing: border-box;
 }
+[data-w3a-theme="light"] .install-panel {
+}
+
 .install-header {
   display: flex;
   align-items: center;
@@ -485,10 +525,14 @@
   padding: 0.35rem 0.35rem 0.25rem 0.25rem;
   font-size: 0.875rem;
   font-weight: 500;
-  background: var(--w3a-colors-surface2);
+  background: var(--w3a-colors-surface);
   border-bottom: 2px solid var(--w3a-colors-surface3);
   border-radius: 1rem 1rem 0 0;
 }
+[data-w3a-theme="light"] .install-header {
+  border-bottom: 2px solid var(--w3a-colors-colorBackground);
+}
+
 .install-header-left { display: flex; align-items: center; gap: 12px; }
 .install-term {
   margin-top: 2px;
@@ -512,15 +556,12 @@
     background var(--fe-fast) var(--fe-ease),
     border-color var(--fe-fast) var(--fe-ease),
     color var(--fe-fast) var(--fe-ease),
-    box-shadow var(--fe-fast) var(--fe-ease),
     transform var(--fe-fast) var(--fe-ease);
 }
 .install-tab.active {
   color: var(--fe-text);
-  /* border-color: var(--fe-border); */
   border-color: transparent;
-  background: var(--fe-surface);
-  box-shadow: 0 2px 8px var(--fe-shadow);
+  background: var(--w3a-colors-surface2);
 }
 /* Subtle press feedback */
 .install-tab:active {
@@ -583,8 +624,6 @@
 }
 .install-body {
   padding: 0;
-  background: color-mix(in srgb, var(--fe-bg) 60%, transparent);
-  /* Ensure long code lines never force the grid track to grow */
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
@@ -609,8 +648,6 @@
   margin: 0; /* remove margin on .shiki */
   padding: 1rem; /* unified padding */
   border-radius: 0 0 1rem 1rem;
-  /* remove border per request */
-  border: none;
   overflow-x: auto;
   overflow-y: hidden;
   max-width: 100%;
@@ -703,9 +740,4 @@
 [data-w3a-theme="light"] .code-block,
 [data-w3a-theme="light"] .shiki {
   background: var(--w3a-colors-surface) !important;
-}
-
-[data-w3a-theme="light"] .install-header {
-  background: var(--w3a-colors-surface);
-  border-bottom: 2px solid var(--w3a-colors-colorBackground);
 }

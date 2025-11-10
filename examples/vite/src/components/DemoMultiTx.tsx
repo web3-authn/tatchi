@@ -5,7 +5,7 @@ import {
   ActionStatus,
   ActionType,
   TxExecutionStatus,
-  usePasskeyContext,
+  useTatchiContext,
 } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs } from '@tatchi-xyz/sdk/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
@@ -24,8 +24,8 @@ export const DemoMultiTx: React.FC = () => {
 
   const {
     loginState: { isLoggedIn, nearAccountId },
-    passkeyManager,
-  } = usePasskeyContext();
+    tatchi,
+  } = useTatchiContext();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Multi Tx Confirm!');
   const [transferRecipient, setTransferRecipient] = useState('w3a-v1.testnet');
@@ -136,7 +136,7 @@ export const DemoMultiTx: React.FC = () => {
       }
 
       // Execute all actions in a single transaction
-      await passkeyManager.executeAction({
+      await tatchi.executeAction({
         nearAccountId: nearAccountId!,
         receiverId: WEBAUTHN_CONTRACT_ID,
         actionArgs: actions,
@@ -172,7 +172,7 @@ export const DemoMultiTx: React.FC = () => {
   }, [
     isLoggedIn,
     nearAccountId,
-    passkeyManager,
+    tatchi,
     greetingInput,
     transferRecipient,
     transferAmount,

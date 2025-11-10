@@ -3,21 +3,21 @@
  * Wallet Iframe Host - Host-Side Execution Layer
  *
  * This is the main service host that runs inside the wallet iframe. It receives
- * messages from the parent application and executes the actual PasskeyManager
+ * messages from the parent application and executes the actual TatchiPasskey
  * operations in a secure, isolated environment.
  *
  * Key Responsibilities:
  * - Message Handling: Receives and processes messages from parent via MessagePort
- * - PasskeyManager Management: Creates and manages the real PasskeyManager instance
+ * - TatchiPasskey Management: Creates and manages the real TatchiPasskey instance
  * - Operation Execution: Executes wallet operations (register, login, sign, etc.)
  * - Progress Broadcasting: Sends progress events back to parent during operations
  * - UI Component Management: Handles mounting/unmounting of Lit-based UI components
- * - Configuration Management: Applies configuration from parent to PasskeyManager
+ * - Configuration Management: Applies configuration from parent to TatchiPasskey
  * - Error Handling: Converts errors to appropriate message format for parent
  *
  * Architecture:
  * - Uses MessagePort for bidirectional communication with parent
- * - Maintains PasskeyManager instance with iframe-specific configuration
+ * - Maintains TatchiPasskey instance with iframe-specific configuration
  * - Integrates with LitElemMounter for UI component management
  * - Handles request cancellation and cleanup
  *
@@ -26,7 +26,7 @@
  * - Prevents nested iframe mode to avoid security issues
  *
  * Message Protocol:
- * - Handles PM_* message types for PasskeyManager operations
+ * - Handles PM_* message types for TatchiPasskey operations
  * - Sends PROGRESS messages for real-time updates
  * - Sends PM_RESULT for successful completions
  * - Sends ERROR messages for failures
@@ -44,12 +44,12 @@ import type {
 import { CONFIRM_UI_ELEMENT_SELECTORS } from '../../WebAuthnManager/LitComponents/tags';
 import { MinimalNearClient } from '../../NearClient';
 import { setupLitElemMounter } from './iframe-lit-elem-mounter';
-import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
+import type { TatchiPasskeyConfigs } from '../../types/passkeyManager';
 import { isObject, isString } from '../validation';
 import { errorMessage } from '../../../utils/errors';
-import { PasskeyManager } from '../../PasskeyManager';
+import { TatchiPasskey } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
-import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
+import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
 import type { ProgressPayload } from '../shared/messages';
 import { WalletIframeDomEvents } from '../events';
 // handlers moved to dedicated module; host no longer imports per-call hook types
@@ -63,9 +63,9 @@ bootstrapTransparentHost();
 
 let parentOrigin: string | null = null;
 let port: MessagePort | null = null;
-let walletConfigs: PasskeyManagerConfigs | null = null;
+let walletConfigs: TatchiPasskeyConfigs | null = null;
 let nearClient: MinimalNearClient | null = null;
-let passkeyManager: PasskeyManagerIframe | PasskeyManager | null = null;
+let tatchiPasskey: TatchiPasskeyIframe | TatchiPasskey | null = null;
 let themeUnsubscribe: (() => void) | null = null;
 
 // Track request-level cancellations
@@ -92,7 +92,7 @@ function respondIfCancelled(requestId: string | undefined): boolean {
   return true;
 }
 
-function ensurePasskeyManager(): void {
+function ensureTatchiPasskey(): void {
   if (!walletConfigs || !walletConfigs.nearRpcUrl) {
     throw new Error('Wallet service not configured. Call PM_SET_CONFIG first.');
   }
@@ -102,7 +102,7 @@ function ensurePasskeyManager(): void {
   if (!nearClient) {
     nearClient = new MinimalNearClient(walletConfigs.nearRpcUrl);
   }
-  if (!passkeyManager) {
+  if (!tatchiPasskey) {
     const cfg = {
       ...walletConfigs,
       iframeWallet: {
@@ -114,18 +114,18 @@ function ensurePasskeyManager(): void {
         // Rely on rpIdOverride provided by the parent (if any).
         rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
       },
-    } as PasskeyManagerConfigs;
+    } as TatchiPasskeyConfigs;
     // Mark runtime as wallet iframe host (internal flag)
     __setWalletIframeHostMode(true);
-    passkeyManager = new PasskeyManager(cfg, nearClient);
+    tatchiPasskey = new TatchiPasskey(cfg, nearClient);
     // Warm critical resources (Signer/VRF workers, IndexedDB) on the wallet origin.
     // Non-blocking and safe to call without account context.
     try {
-      const pmAny = passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
+      const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
       if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
     } catch {}
     // Bridge theme changes to the host document so embedded UIs can react via CSS
-    const up = passkeyManager.userPreferences;
+    const up = tatchiPasskey.userPreferences;
     // Set initial theme attribute
     document.documentElement.setAttribute('data-w3a-theme', up.getUserTheme());
     // Deduplicate subscription on reconfigurations
@@ -136,15 +136,15 @@ function ensurePasskeyManager(): void {
   }
 }
 
-function getPasskeyManager(): PasskeyManager | PasskeyManagerIframe {
-  ensurePasskeyManager();
-  return passkeyManager!;
+function getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe {
+  ensureTatchiPasskey();
+  return tatchiPasskey!;
 }
 
 // Unified handler map wired with minimal deps from this host
 const handlers = createWalletIframeHandlers({
-  getPasskeyManager,
-  ensurePasskeyManager,
+  getTatchiPasskey: getTatchiPasskey,
+  ensureTatchiPasskey: ensureTatchiPasskey,
   post,
   postProgress,
   postToParent,
@@ -186,10 +186,10 @@ function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boo
 // operations within the same browsing context (satisfying user activation requirements).
 (() => {
   setupLitElemMounter({
-    ensurePasskeyManager,
-    getPasskeyManager: () => passkeyManager,
+    ensureTatchiPasskey: ensureTatchiPasskey,
+    getTatchiPasskey: () => tatchiPasskey,
     updateWalletConfigs: (patch) => {
-      walletConfigs = { ...walletConfigs, ...patch } as PasskeyManagerConfigs;
+      walletConfigs = { ...walletConfigs, ...patch } as TatchiPasskeyConfigs;
     },
     postToParent,
   });
@@ -198,7 +198,7 @@ function shouldAcceptConnectEvent(e: MessageEvent, hasAdoptedPort: boolean): boo
 /**
  * Main message handler for iframe communication
  * This function receives all messages from the parent application and routes them
- * to the appropriate PasskeyManager operations.
+ * to the appropriate TatchiPasskey operations.
  */
 async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
   const req = e.data as ParentToChildEnvelope;
@@ -207,10 +207,10 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
 
   // Handle ping/pong for connection health checks
   if (req.type === 'PING') {
-    // Initialize PasskeyManager and prewarm workers on wallet origin (non-blocking)
+    // Initialize TatchiPasskey and prewarm workers on wallet origin (non-blocking)
     try {
-      ensurePasskeyManager();
-      const pmAny = passkeyManager as unknown as { warmCriticalResources?: () => Promise<void> };
+      ensureTatchiPasskey();
+      const pmAny = tatchiPasskey as unknown as { warmCriticalResources?: () => Promise<void> };
       if (pmAny?.warmCriticalResources) void pmAny.warmCriticalResources();
     } catch {}
     post({ type: 'PONG', requestId });
@@ -239,7 +239,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
         walletServicePath: undefined,
         rpIdOverride: payload?.rpIdOverride || walletConfigs?.iframeWallet?.rpIdOverride,
       },
-    } as PasskeyManagerConfigs;
+    } as TatchiPasskeyConfigs;
     // Configure SDK embedded asset base for Lit modal/embedded components
     const assetsBaseUrl = payload?.assetsBaseUrl as string | undefined;
     // Default to serving embedded assets from this wallet origin under /sdk/
@@ -261,7 +261,7 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       } catch {}
     }
     setEmbeddedBase(resolvedBase);
-    nearClient = null; passkeyManager = null;
+    nearClient = null; tatchiPasskey = null;
     // Forward UI registry to iframe-lit-elem-mounter if provided
     const uiRegistry = payload?.uiRegistry;
     if (uiRegistry && isObject(uiRegistry)) {
@@ -284,8 +284,8 @@ async function onPortMessage(e: MessageEvent<ParentToChildEnvelope>) {
       } catch {}
     }
     // Also cancel any device linking flow
-    ensurePasskeyManager();
-    await passkeyManager!.stopDevice2LinkingFlow();
+    ensureTatchiPasskey();
+    await tatchiPasskey!.stopDevice2LinkingFlow();
     if (rid) {
       // Immediately emit a terminal cancellation for the original request.
       // Handlers may also emit their own CANCELLED error; router tolerates duplicates.

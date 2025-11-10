@@ -26,7 +26,7 @@ No functions cross `postMessage`; the SDK handles bridging for you.
 - Parent sends `PM_*` envelope; functions in `options` are stripped. Only serializable fields (e.g., `sticky`) are posted.
 
 2) Child emits PROGRESS from its `onEvent`
-- The wallet host wraps `PasskeyManager` calls and translates `onEvent(ev)` into:
+- The wallet host wraps `TatchiPasskey` calls and translates `onEvent(ev)` into:
   `post({ type: 'PROGRESS', requestId, payload: ev })`.
 - Payloads reuse existing event shapes: `RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent`.
 
@@ -67,4 +67,3 @@ Ordering is FIFO per `requestId`.
 - Timeouts are refreshed on each `PROGRESS` received.
 - Type guards (`isRegistrationSSEEvent`, `isLoginSSEvent`, `isActionSSEEvent`, etc.) ensure your `onEvent` only receives the expected shape.
 - Use `sticky` when a flow should keep receiving status after the main result (e.g., certain device‑linking screens).
-

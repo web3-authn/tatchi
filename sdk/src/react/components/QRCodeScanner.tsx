@@ -14,8 +14,8 @@ import { Theme } from './theme';
  * This component provides a complete QR code scanning interface for device linking.
  * It supports both camera-based scanning and file upload scanning.
  *
- * **Important:** This component must be used inside a PasskeyManager context.
- * Wrap your app with PasskeyProvider or ensure PasskeyManager is available in context.
+ * **Important:** This component should be used inside a TatchiPasskey context.
+ * Wrap your app with PasskeyProvider (useTatchiContext available) for full functionality.
  *
  * @example
  * ```tsx

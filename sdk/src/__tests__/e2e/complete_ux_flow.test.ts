@@ -1,7 +1,7 @@
 /**
- * PasskeyManager Complete E2E Test Suite
+ * TatchiPasskey Complete E2E Test Suite
  *
- * Runs the full PasskeyManager lifecycle in a single browser session:
+ * Runs the full TatchiPasskey lifecycle in a single browser session:
  * 1. Registration flow
  * 2. Login flow
  * 3. Transfer action flow
@@ -24,14 +24,14 @@ interface VrfDiagnostics {
   loginState: any;
 }
 
-test.describe('PasskeyManager Complete E2E Test Suite', () => {
+test.describe('TatchiPasskey Complete E2E Test Suite', () => {
   test.beforeEach(async ({ passkey, page }) => {
     await passkey.setup();
     // Allow relay/testnet services to stabilize between tests
     await page.waitForTimeout(3000);
   });
 
-  test('Complete PasskeyManager Lifecycle - Registration → Login → Actions → Recovery', async ({ passkey, consoleCapture, page }) => {
+  test('Complete TatchiPasskey Lifecycle - Registration → Login → Actions → Recovery', async ({ passkey, consoleCapture, page }) => {
     test.setTimeout(70000);
 
     console.log('');

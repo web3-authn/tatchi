@@ -45,7 +45,7 @@ export interface SignNEP413MessageResult {
  * - Signs with Ed25519
  * - Returns base64-encoded signature
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign with
  * @param params - NEP-413 signing parameters
  * @param options - Action options for event handling

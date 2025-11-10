@@ -20,7 +20,7 @@ import {
   VRFChallenge
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
-import type { PasskeyManagerConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
+import type { TatchiPasskeyConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
@@ -48,7 +48,7 @@ export class WebAuthnManager {
   private readonly nonceManager: NonceManager;
   private workerBaseOrigin: string = '';
 
-  readonly passkeyManagerConfigs: PasskeyManagerConfigs;
+  readonly tatchiPasskeyConfigs: TatchiPasskeyConfigs;
 
   /**
    * Public getter for NonceManager instance
@@ -58,10 +58,10 @@ export class WebAuthnManager {
   }
 
   constructor(
-    passkeyManagerConfigs: PasskeyManagerConfigs,
+    tatchiPasskeyConfigs: TatchiPasskeyConfigs,
     nearClient: NearClient
   ) {
-    const { vrfWorkerConfigs } = passkeyManagerConfigs;
+    const { vrfWorkerConfigs } = tatchiPasskeyConfigs;
     // Group VRF worker configuration into a single object
     this.vrfWorkerManager = new VrfWorkerManager({
       shamirPB64u: vrfWorkerConfigs?.shamir3pass?.p,
@@ -71,7 +71,7 @@ export class WebAuthnManager {
     });
     // Respect rpIdOverride. Safari get() bridge fallback is always enabled.
     this.touchIdPrompt = new TouchIdPrompt(
-      passkeyManagerConfigs.iframeWallet?.rpIdOverride,
+      tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
       true,
     );
     this.userPreferencesManager = UserPreferencesInstance;
@@ -82,10 +82,10 @@ export class WebAuthnManager {
       nearClient,
       UserPreferencesInstance,
       NonceManagerInstance,
-      passkeyManagerConfigs.iframeWallet?.rpIdOverride,
+      tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
       true,
     );
-    this.passkeyManagerConfigs = passkeyManagerConfigs;
+    this.tatchiPasskeyConfigs = tatchiPasskeyConfigs;
     // VRF worker initializes on-demand with proper error propagation
 
     // Compute initial worker base origin once
@@ -475,7 +475,7 @@ export class WebAuthnManager {
     graceKeyIds?: string[]
   } | null> {
     try {
-      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      const relayUrl = this.tatchiPasskeyConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
       if (!relayUrl) return null;
       const res = await fetch(`${relayUrl}/shamir/key-info`, { method: 'GET' });
       if (!res.ok) return null;
@@ -496,7 +496,7 @@ export class WebAuthnManager {
    */
   async maybeProactiveShamirRefresh(nearAccountId: AccountId): Promise<boolean> {
     try {
-      const relayUrl = this.passkeyManagerConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
+      const relayUrl = this.tatchiPasskeyConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
       if (!relayUrl) return false;
       const userData = await this.getUser(nearAccountId);
       const stored = userData?.serverEncryptedVrfKeypair;
@@ -849,7 +849,7 @@ export class WebAuthnManager {
       vrfChallenge,
       authenticatorOptions,
       onEvent,
-      nearRpcUrl: this.passkeyManagerConfigs.nearRpcUrl,
+      nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
     });
   }
 

@@ -2,7 +2,7 @@
  * NonceManager Pure Unit Tests
  *
  * Tests the robust nonce management functionality for batch transactions
- * Uses mocked data and does not require full PasskeyManager setup
+ * Uses mocked data and does not require full TatchiPasskey setup
  */
 
 import { test, expect } from '@playwright/test';
@@ -244,7 +244,7 @@ test.describe('NonceManager Pure Unit Tests', () => {
         const nonceManager = (await import(paths.nonceManager)).default;
         nonceManager.clear();
 
-        // Test consecutive transaction simulation without requiring full PasskeyManager setup
+        // Test consecutive transaction simulation without requiring full TatchiPasskey setup
         nonceManager.initializeUser('test-account', 'test-public-key');
 
         // Mock transaction context for consecutive transaction testing

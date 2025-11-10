@@ -10,7 +10,7 @@ import { RegistrationPhase, RegistrationStatus } from '../types/passkeyManager';
 import {
   createAccountAndRegisterWithRelayServer
 } from './faucets/createAccountRelayServer';
-import { PasskeyManagerConfigs } from '../types/passkeyManager';
+import { TatchiPasskeyConfigs } from '../types/passkeyManager';
 import { PasskeyManagerContext } from './index';
 import { WebAuthnManager } from '../WebAuthnManager';
 import { VRFChallenge } from '../types/vrf-worker';
@@ -414,7 +414,7 @@ export async function generateBootstrapVrfChallenge(
  */
 const validateRegistrationInputs = async (
   context: {
-    configs: PasskeyManagerConfigs,
+    configs: TatchiPasskeyConfigs,
     webAuthnManager: WebAuthnManager,
     nearClient: NearClient,
   },

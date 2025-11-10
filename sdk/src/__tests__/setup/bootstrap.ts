@@ -98,7 +98,7 @@ async function waitForEnvironmentStabilization(page: Page): Promise<void> {
 
 /**
  * Step 4: DYNAMIC IMPORTS
- * Load PasskeyManager only after environment is ready
+ * Load TatchiPasskey only after environment is ready
  */
 async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestConfig): Promise<void> {
   // Wait for page to be completely stable before attempting imports
@@ -111,17 +111,17 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
-      printStepLine(5, `importing PasskeyManager: attempt ${attempt}/${maxRetries}`, 1);
+      printStepLine(5, `importing TatchiPasskey: attempt ${attempt}/${maxRetries}`, 1);
 
       const loadHandle = await page.waitForFunction(async (setupOptions) => {
         try {
-          console.log('[setup:browser - step 4] importing PasskeyManager from built SDK...');
-          const { PasskeyManager } = await import('/sdk/esm/core/PasskeyManager/index.js');
+          console.log('[setup:browser - step 4] importing TatchiPasskey from built SDK...');
+          const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
 
-          if (!PasskeyManager) {
-            throw new Error('PasskeyManager not found in SDK module');
+          if (!TatchiPasskey) {
+            throw new Error('TatchiPasskey not found in SDK module');
           }
-          console.log('[setup:browser - step 4] PasskeyManager imported successfully:', typeof PasskeyManager);
+          console.log('[setup:browser - step 4] TatchiPasskey imported successfully:', typeof TatchiPasskey);
 
           // Create and validate configuration
           const runtimeConfigs = {
@@ -151,9 +151,9 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
           if (!runtimeConfigs.contractId) throw new Error('contractId is required but not provided');
           if (!runtimeConfigs.relayerAccount) throw new Error('relayerAccount is required but not provided');
 
-          // Create PasskeyManager instance
-          const passkeyManager = new PasskeyManager(runtimeConfigs);
-          console.log('[setup:browser - step 4] PasskeyManager instance created');
+          // Create TatchiPasskey instance
+          const passkeyManager = new TatchiPasskey(runtimeConfigs);
+          console.log('[setup:browser - step 4] TatchiPasskey instance created');
 
           // Test basic functionality
           try {
@@ -164,13 +164,13 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
           }
 
           // Store in window for test access
-          (window as any).PasskeyManager = PasskeyManager;
+          (window as any).TatchiPasskey = TatchiPasskey;
           (window as any).passkeyManager = passkeyManager;
           (window as any).configs = runtimeConfigs;
 
-          return { success: true, message: 'PasskeyManager loaded successfully' };
+          return { success: true, message: 'TatchiPasskey loaded successfully' };
         } catch (error: any) {
-          console.error('Failed to load PasskeyManager:', error);
+          console.error('Failed to load TatchiPasskey:', error);
           throw error;
         }
       }, configs, {
@@ -184,11 +184,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
       if (!loadResult?.success) {
         const message = (loadResult && typeof loadResult === 'object' && 'error' in loadResult && typeof (loadResult as { error?: unknown }).error === 'string')
           ? (loadResult as { error: string }).error
-          : 'Unknown error loading PasskeyManager';
+          : 'Unknown error loading TatchiPasskey';
         throw new Error(message);
       }
 
-      printStepLine(5, `PasskeyManager ready (attempt ${attempt})`, 2);
+      printStepLine(5, `TatchiPasskey ready (attempt ${attempt})`, 2);
       return;
 
     } catch (error: any) {
@@ -205,7 +205,7 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
   }
 
   // All retries failed
-  throw new Error(`Failed to load PasskeyManager after ${maxRetries} attempts. Last error: ${lastError?.message}`);
+  throw new Error(`Failed to load TatchiPasskey after ${maxRetries} attempts. Last error: ${lastError?.message}`);
 }
 
 /**

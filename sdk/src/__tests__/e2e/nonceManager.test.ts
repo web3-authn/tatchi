@@ -2,7 +2,7 @@
  * NonceManager Integration Tests
  *
  * Tests the robust nonce management functionality for batch transactions
- * Uses real PasskeyManager and requires full registration/login setup
+ * Uses real TatchiPasskey and requires full registration/login setup
  */
 
 import { test, expect } from '@playwright/test';
@@ -16,8 +16,8 @@ test.describe('NonceManager Integration Tests', () => {
     await page.waitForTimeout(300);
   });
 
-  // validates remote nonce fetch + caching via PasskeyManager integration helpers
-  test('NonceManager - Integration with PasskeyManager', async ({ page }) => {
+  // validates remote nonce fetch + caching via TatchiPasskey integration helpers
+  test('NonceManager - Integration with TatchiPasskey', async ({ page }) => {
     const result = await page.evaluate(async () => {
       try {
         const { passkeyManager, generateTestAccountId } = (window as any).testUtils;
@@ -120,7 +120,7 @@ test.describe('NonceManager Integration Tests', () => {
 
         const nonceManager = passkeyManager.webAuthnManager.getNonceManager();
 
-        // Simulate consecutive transactions with real PasskeyManager
+        // Simulate consecutive transactions with real TatchiPasskey
         const transactionResults = [];
 
         for (let i = 0; i < 3; i++) {

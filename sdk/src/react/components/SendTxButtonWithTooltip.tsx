@@ -15,7 +15,7 @@ import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SendTxButtonWithTooltipBaseProps } from '../types';
-import { usePasskeyContext } from '../context';
+import { useTatchiContext } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
@@ -106,22 +106,22 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
 
   useWarnDuplicateHooks({ onEventProp: onEvent, optionsOnEvent: options?.onEvent });
 
-  const { passkeyManager } = usePasskeyContext();
-  // Provide external confirm handler when using PasskeyManagerIframe (no local context)
+  const { tatchi } = useTatchiContext();
+  // Provide external confirm handler when using TatchiPasskeyIframe (no local context)
   const externalConfirm = useMemo(() => {
-    // Always route via the manager's API; PasskeyManagerIframe proxies to wallet-origin.
+    // Always route via the manager's API; TatchiPasskeyIframe proxies to wallet-origin.
     return async ({ nearAccountId, txSigningRequests, options }: {
       nearAccountId: string;
       txSigningRequests: TransactionInput[];
       options?: any;
     }) => {
-      return await passkeyManager.signAndSendTransactions({
+      return await tatchi.signAndSendTransactions({
         nearAccountId,
         transactions: txSigningRequests,
         options,
       });
     };
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   const [currentTheme, setCurrentTheme] = useState<ThemeName>(txTreeTheme);
   const [loadingTouchIdPrompt, setLoadingTouchIdPrompt] = useState(false);
@@ -186,11 +186,11 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
       onMouseEnter={() => {
         // Warm up block height/hash (and nonce if missing) on hover
         // Fire-and-forget to avoid blocking UI thread
-        try { void passkeyManager.prefetchBlockheight(); } catch {}
+        try { void tatchi.prefetchBlockheight(); } catch {}
       }}
       onFocus={() => {
         // Also prefetch on keyboard focus
-        try { void passkeyManager.prefetchBlockheight(); } catch {}
+        try { void tatchi.prefetchBlockheight(); } catch {}
       }}
       // sendAndSignTransaction args
       nearAccountId={nearAccountId}

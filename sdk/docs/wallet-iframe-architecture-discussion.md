@@ -5,7 +5,7 @@ This document captures design decisions and trade‑offs discussed while plannin
 ## 1) Goals & Non‑Goals
 
 - Goals:
-  - Keep `PasskeyManager` as the parent‑side SDK facade (API‑first) — integrators call JS functions, not embed UI.
+  - Keep `TatchiPasskey` as the parent‑side SDK facade (API‑first) — integrators call JS functions, not embed UI.
   - Mount a hidden, cross‑origin “wallet” iframe on `init()` and keep it READY for requests.
   - Run all sensitive operations in the wallet origin: WebAuthn + PRF, signer/VRF workers, and IndexedDB.
   - Use existing visible iframes (Modal / Embedded Button) to capture user gestures (no popup windows).
@@ -90,7 +90,7 @@ The main point of this SDK is no reliance on external servers. Hosting the servi
 
 ## 12) Integrator Experience (API‑First)
 
-- Parent keeps calling `PasskeyManager` APIs (e.g., `signTransactions`, `register`, `webauthnManager.storeAuthenticator()` semantics preserved).
+- Parent keeps calling `TatchiPasskey` APIs (e.g., `signTransactions`, `register`, `webauthnManager.storeAuthenticator()` semantics preserved).
 - Under the hood, calls forward to the wallet via RPC. The wallet controls UI momentarily for activation and signs inside its origin.
 - No popup windows are used.
 
@@ -136,7 +136,7 @@ Thanks — changes landed to simplify the default same‑origin flow and clarify
     - “Optional: hosting on a separate wallet origin” — includes an Express example that:
       - Serves SDK assets from `node_modules` under `/sdk` (including workers/WASM).
       - Serves `/service` by returning the HTML from `getWalletServiceHtml('/sdk')`.
-      - Configures `PasskeyManager` with `walletOrigin` and `walletServicePath`.
+      - Configures `TatchiPasskey` with `walletOrigin` and `walletServicePath`.
 
 - Summary of options
   - Self‑contained dev (recommended):
@@ -152,7 +152,7 @@ If helpful, we can add small Vite/Next.js dev examples showing how to proxy `/sd
 
 ### SDK Principles (Reiterated)
 
-- No manual file copying: This is a library/SDK. We cannot expect integrators to place HTML into app‑specific `public/` paths or mirror our folder structure. All required assets must be bundled and resolved automatically so that after `npm install` and `import { PasskeyManager } from '@tatchi-xyz/sdk'`, the service iframe can load without any manual copying. The default same‑origin `srcdoc` + `wallet-iframe-host.ts?url` approach satisfies this.
+- No manual file copying: This is a library/SDK. We cannot expect integrators to place HTML into app‑specific `public/` paths or mirror our folder structure. All required assets must be bundled and resolved automatically so that after `npm install` and `import { TatchiPasskey } from '@tatchi-xyz/sdk'`, the service iframe can load without any manual copying. The default same‑origin `srcdoc` + `wallet-iframe-host.ts?url` approach satisfies this.
 
 - No external vendor servers: A core objective is avoiding reliance on external servers controlled by the SDK vendor. Hosting the service page at a vendor domain (e.g., ~https://wallet.web3authn.xyz/service~) violates this principle. The default remains zero external hosting requirements. The optional separate‑origin mode is for integrators to host on their own wallet origin under their control, not ours.
 

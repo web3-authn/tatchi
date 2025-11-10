@@ -1,8 +1,8 @@
 import { MinimalNearClient } from '../../NearClient';
-import { PasskeyManager } from '../../PasskeyManager';
+import { TatchiPasskey as PasskeyManager } from '../../TatchiPasskey';
 import { __setWalletIframeHostMode } from '../host-mode';
-import { PasskeyManagerIframe } from '../PasskeyManagerIframe';
-import type { PasskeyManagerConfigs } from '../../types/passkeyManager';
+import { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
+import type { TatchiPasskeyConfigs } from '../../types/passkeyManager';
 import type { PMSetConfigPayload } from '../shared/messages';
 import { isString } from '../validation';
 import { setEmbeddedBase } from '../../sdkPaths';
@@ -10,9 +10,9 @@ import { setEmbeddedBase } from '../../sdkPaths';
 export interface HostContext {
   parentOrigin: string | null;
   port: MessagePort | null;
-  walletConfigs: PasskeyManagerConfigs | null;
+  walletConfigs: TatchiPasskeyConfigs | null;
   nearClient: MinimalNearClient | null;
-  passkeyManager: PasskeyManager | PasskeyManagerIframe | null;
+  passkeyManager: PasskeyManager | TatchiPasskeyIframe | null;
   themeUnsubscribe?: () => void;
   onWindowMessage?: (e: MessageEvent) => void;
 }
@@ -51,7 +51,7 @@ export function ensurePasskeyManager(ctx: HostContext): void {
         walletServicePath: undefined,
         rpIdOverride: walletConfigs?.iframeWallet?.rpIdOverride,
       },
-    } as PasskeyManagerConfigs;
+    } as TatchiPasskeyConfigs;
     __setWalletIframeHostMode(true);
     ctx.passkeyManager = new PasskeyManager(cfg, ctx.nearClient);
     try {
@@ -81,7 +81,7 @@ export function updateThemeBridge(ctx: HostContext): void {
 }
 
 export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload): void {
-  const prev = ctx.walletConfigs || ({} as PasskeyManagerConfigs);
+  const prev = ctx.walletConfigs || ({} as TatchiPasskeyConfigs);
   ctx.walletConfigs = {
     nearRpcUrl: payload?.nearRpcUrl || prev.nearRpcUrl || '',
     nearNetwork: payload?.nearNetwork || prev.nearNetwork || 'testnet',
@@ -97,7 +97,7 @@ export function applyWalletConfig(ctx: HostContext, payload: PMSetConfigPayload)
       walletServicePath: undefined,
       rpIdOverride: payload?.rpIdOverride || prev.iframeWallet?.rpIdOverride,
     },
-  } as PasskeyManagerConfigs;
+  } as TatchiPasskeyConfigs;
 
   // Configure SDK embedded asset base for Lit modal/embedded components
   try {

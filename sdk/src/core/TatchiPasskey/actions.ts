@@ -28,7 +28,7 @@ import { toError, getNearShortErrorMessage } from '../../utils/errors';
  * If you want to sign multiple transactions to different receivers,
  * use signTransactionsWithActions() instead.
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign transactions with
  * @param actionArgs - Action arguments to sign transactions with
  * @param options - Options for the action
@@ -116,7 +116,7 @@ function parseExecutionWait(options?: SignAndSendTransactionHooksOptions): Execu
 /**
  * Signs multiple transactions with actions, and broadcasts them
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign transactions with
  * @param transactionInput - Transaction input to sign
  * @param options - Options for the action
@@ -140,7 +140,7 @@ export async function signAndSendTransactions(args: {
 /**
  * Signs transactions with actions, without broadcasting them
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign transactions with
  * @param actionArgs - Action arguments to sign transactions with
  * @param options - Options for the action
@@ -170,7 +170,7 @@ export async function signTransactionsWithActions(args: {
  * 3. Transaction Broadcasting - Broadcasts the signed transaction to NEAR network
  * This method broadcasts a previously signed transaction and waits for execution
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param signedTransaction - The signed transaction to broadcast
  * @param waitUntil - The execution status to wait for (defaults to FINAL)
  * @returns Promise resolving to the transaction execution outcome
@@ -285,7 +285,7 @@ export async function sendTransaction({
  * Internal API for executing actions with optional confirmation override
  * @internal - Only used by internal SDK components like SecureTxConfirmButton
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign transactions with
  * @param actionArgs - Action arguments to sign transactions with
  * @param options - Options for the action
@@ -429,7 +429,7 @@ export async function signAndSendTransactionsInternal({
  * Internal API for signing transactions with actions
  * @internal - Only used by internal SDK components with confirmationConfigOverride
  *
- * @param context - PasskeyManager context
+ * @param context - TatchiPasskey context
  * @param nearAccountId - NEAR account ID to sign transactions with
  * @param actionArgs - Action arguments to sign transactions with
  * @param options - Options for the action

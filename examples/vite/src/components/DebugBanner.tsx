@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { useTatchiContext } from '@tatchi-xyz/sdk/react';
 
 export const DebugBanner: React.FC = () => {
   // Hide on mobile devices (coarse pointers / typical UA tokens)
@@ -10,7 +10,7 @@ export const DebugBanner: React.FC = () => {
     if (coarse || mobileUA) return null;
   } catch {}
 
-  const { walletIframeConnected, accountInputState, passkeyManager } = usePasskeyContext();
+  const { walletIframeConnected, accountInputState, tatchi } = useTatchiContext();
   const [recentCount, setRecentCount] = useState<number>(accountInputState.indexDBAccounts?.length || 0);
   const [connecting, setConnecting] = useState<boolean>(false);
 
@@ -24,12 +24,12 @@ export const DebugBanner: React.FC = () => {
       try {
         setConnecting(true);
         // Force-init wallet iframe if configured to surface READY state quickly
-        await passkeyManager.initWalletIframe?.();
+        await tatchi.initWalletIframe?.();
       } catch {}
       finally { if (mounted) setConnecting(false); }
     })();
     return () => { mounted = false; };
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   const status = walletIframeConnected
     ? 'connected'

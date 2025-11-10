@@ -1,5 +1,5 @@
 /**
- * Debug test to capture PasskeyManager setup errors
+ * Debug test to capture TatchiPasskey setup errors
  */
 
 import { test, expect } from '@playwright/test';
@@ -8,7 +8,7 @@ import { setupBasicPasskeyTest } from '../setup';
 test.describe('Debug Setup Errors', () => {
 
   // intentionally walks the setup sequence to surface any missing globals/modules
-  test('Debug PasskeyManager setup error', async ({ page }) => {
+  test('Debug TatchiPasskey setup error', async ({ page }) => {
 
     await setupBasicPasskeyTest(page);
 
@@ -40,22 +40,22 @@ test.describe('Debug Setup Errors', () => {
         await new Promise(resolve => setTimeout(resolve, 200));
         console.log('Waited for import map to be processed');
 
-        // Step 2: Try to create PasskeyManager directly and catch the error
-        console.log('Step 2: Attempting PasskeyManager creation...');
+        // Step 2: Try to create TatchiPasskey directly and catch the error
+        console.log('Step 2: Attempting TatchiPasskey creation...');
         try {
           // @ts-ignore
-          const { PasskeyManager } = await import('/sdk/esm/core/PasskeyManager/index.js');
-          console.log('PasskeyManager class imported successfully');
+          const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
+          console.log('TatchiPasskey class imported successfully');
 
           // Use centralized configuration from testUtils
           const { configs } = (window as any).testUtils;
           console.log('Configs prepared:', configs);
 
-          console.log('Creating PasskeyManager instance...');
-          const passkeyManager = new PasskeyManager(configs);
-          console.log('PasskeyManager created successfully!');
-          console.log('PasskeyManager type:', typeof passkeyManager);
-          console.log('PasskeyManager methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(passkeyManager)));
+          console.log('Creating TatchiPasskey instance...');
+          const passkeyManager = new TatchiPasskey(configs);
+          console.log('TatchiPasskey created successfully!');
+          console.log('TatchiPasskey type:', typeof passkeyManager);
+          console.log('TatchiPasskey methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(passkeyManager)));
           console.log('Has getLoginState:', typeof passkeyManager.getLoginState === 'function');
 
           return {
@@ -66,7 +66,7 @@ test.describe('Debug Setup Errors', () => {
           };
 
         } catch (passkeyManagerError: any) {
-          console.error('PasskeyManager creation failed with error:', passkeyManagerError);
+          console.error('TatchiPasskey creation failed with error:', passkeyManagerError);
           console.error('Error message:', passkeyManagerError.message);
           console.error('Error stack:', passkeyManagerError.stack);
           console.error('Error name:', passkeyManagerError.name);
@@ -91,10 +91,10 @@ test.describe('Debug Setup Errors', () => {
       }
     });
 
-    console.log('PasskeyManager setup debug result:', result);
+    console.log('TatchiPasskey setup debug result:', result);
 
     if (!result.success) {
-      console.log('PasskeyManager setup failed');
+      console.log('TatchiPasskey setup failed');
       console.log('Error:', result.error);
       console.log('Error name:', result.errorName);
       if (result.errorStack) {
@@ -102,8 +102,8 @@ test.describe('Debug Setup Errors', () => {
       }
 
     } else {
-      console.log('PasskeyManager setup successful!');
-      console.log('PasskeyManager created:', result.passkeyManagerCreated);
+      console.log('TatchiPasskey setup successful!');
+      console.log('TatchiPasskey created:', result.passkeyManagerCreated);
       console.log('Has getLoginState:', result.hasGetLoginState);
     }
 

@@ -1,9 +1,9 @@
-import type { PasskeyManagerConfigs } from './types/passkeyManager';
+import type { TatchiPasskeyConfigs } from './types/passkeyManager';
 
 // Default SDK configs suitable for local dev.
 // Cross-origin wallet isolation is recommended; set iframeWallet in your app config when you have a dedicated origin.
 // Consumers can shallow-merge overrides by field.
-export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
+export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
   // You can provide a single URL or a comma-separated list for failover.
   // First URL is treated as primary, subsequent URLs are fallbacks.
   // nearRpcUrl: 'https://rpc.testnet.near.org',
@@ -39,13 +39,13 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: PasskeyManagerConfigs = {
 };
 
 // Minimal builder: merge defaults with overrides
-export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = {}): PasskeyManagerConfigs {
+export function buildConfigsFromEnv(overrides: Partial<TatchiPasskeyConfigs> = {}): TatchiPasskeyConfigs {
   const shamir3passDefaults = PASSKEY_MANAGER_DEFAULT_CONFIGS?.vrfWorkerConfigs?.shamir3pass;
   // Prefer explicit override for relayer URL; fall back to default preset.
   // Used below to default VRF relayServerUrl when it is undefined.
   const overrideRelayerUrl = overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url;
 
-  const merged: PasskeyManagerConfigs = {
+  const merged: TatchiPasskeyConfigs = {
     ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     ...overrides,
     contractId: overrides.contractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
@@ -67,7 +67,7 @@ export function buildConfigsFromEnv(overrides: Partial<PasskeyManagerConfigs> = 
       }
     },
     ...(overrides.iframeWallet ? { iframeWallet: overrides.iframeWallet } : {}),
-  } as PasskeyManagerConfigs;
+  } as TatchiPasskeyConfigs;
 
   // Normalize iframeWallet defaults when iframe mode is configured
   if (merged.iframeWallet) {

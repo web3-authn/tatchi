@@ -158,14 +158,14 @@ Verify commutative exponentiation over a prime field (Shamir 3-pass) recovers a 
   - `kek_s_b64u: string` (base64url BigInt)
   - `p_version?: number`
 
-### Registration Wiring (`core/PasskeyManager/registration.ts`)
+### Registration Wiring (`core/TatchiPasskey/registration.ts`)
 - After VRF derivation:
   - Generate K, AEAD-encrypt VRF → `ciphertextVrfB64u`.
   - Pick e_c, compute d_c.
   - Compute `M1 = K^{e_c} mod p`; POST to `/vrf/apply-server-lock` → `M2`.
   - Compute `kek_s = M2^{d_c} mod p` and store with `ciphertextVrfB64u` and `p_version`.
 
-### Login Wiring (`core/PasskeyManager/login.ts`)
+### Login Wiring (`core/TatchiPasskey/login.ts`)
 - If `{ciphertextVrfB64u, kek_s_b64u}` present and relayer URL provided:
   - Pick fresh `e_c'`, `d_c'`.
   - `Y1 = kek_s^{e_c'} mod p`; POST to `/lock/remove-server-lock` → `Y2`.

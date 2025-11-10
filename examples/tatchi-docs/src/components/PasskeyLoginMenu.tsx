@@ -1,5 +1,5 @@
 import {
-  usePasskeyContext,
+  useTatchiContext,
   RegistrationPhase,
   RegistrationStatus,
   LoginPhase,
@@ -30,10 +30,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     loginPasskey,
     registerPasskey,
     refreshLoginState,
-    passkeyManager,
+    tatchi,
     loginState,
     logout,
-  } = usePasskeyContext();
+  } = useTatchiContext();
 
   // Allow external control of initial mode and remounting the menu
   const authMenuControl = useAuthMenuControl();
@@ -95,7 +95,7 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   const onRecover = async () => {
     try {
       const startedLoggedIn = !!loginState?.isLoggedIn;
-      const result = await passkeyManager.recoverAccountFlow({
+      const result = await tatchi.recoverAccountFlow({
         accountId: targetAccountId,
         options: {
           onEvent: async (event: any) => {

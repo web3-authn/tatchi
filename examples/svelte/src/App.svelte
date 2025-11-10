@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte'
-  import { PasskeyManager, type PasskeyManagerConfigs } from '@tatchi-xyz/sdk'
+  import { TatchiPasskey, type TatchiPasskeyConfigs } from '@tatchi-xyz/sdk'
   import AccountDetails from './components/AccountDetails.svelte'
   import Toast from './components/Toast.svelte'
 
@@ -9,7 +9,7 @@
 
   const ACCOUNT_DOMAIN = 'w3a-v1.testnet'
 
-  const config: PasskeyManagerConfigs = {
+  const config: TatchiPasskeyConfigs = {
     nearNetwork: 'testnet',
     nearRpcUrl: 'https://test.rpc.fastnear.com',
     contractId: ACCOUNT_DOMAIN,
@@ -17,7 +17,7 @@
     iframeWallet: { walletOrigin, sdkBasePath: '/sdk' },
   }
 
-  const pm = new PasskeyManager(config)
+  const pm = new TatchiPasskey(config)
   let username = ''
   let waiting = false
   let lastEvent = ''

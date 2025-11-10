@@ -29,18 +29,83 @@ body {
 }
 
 html[data-w3a-theme="light"] {
-  background: linear-gradient(45deg, oklch(0.99 0 0) 0%, oklch(0.98 0 0) 50%);
+  /* Mostly white base with soft pastel fringes (pink, cream, blue) */
+  background:
+    radial-gradient(120% 95% at 0% 10%,   rgba(178, 229, 248, 0.24) 0%, transparent 55%), /* blue #b2e5f8 */
+    radial-gradient(110% 85% at 100% 0%,  rgba(244, 179, 239, 0.20) 0%, transparent 52%), /* pink #f4b3ef */
+    radial-gradient(140% 100% at 50% 100%, rgba(242, 243, 226, 0.18) 0%, transparent 60%), /* cream #f2f3e2 */
+    linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x;
+  background-size: 140% 140%, 130% 130%, 170% 170%, 100% 100%;
+  /* Static placement: soft fringes left/right/bottom, white center */
+  background-position: 0% 10%, 100% 0%, 50% 100%, center;
 }
+
+/* Ensure visibility even if containers paint over the root background */
+html[data-w3a-theme="light"]::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1; /* sit behind all content */
+  background:
+    radial-gradient(120% 95% at 0% 10%,   rgba(178, 229, 248, 0.24) 0%, transparent 55%),
+    radial-gradient(110% 85% at 100% 0%,  rgba(244, 179, 239, 0.20) 0%, transparent 52%),
+    radial-gradient(140% 100% at 50% 100%, rgba(242, 243, 226, 0.18) 0%, transparent 60%),
+    linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
+  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x;
+  background-size: 140% 140%, 130% 130%, 170% 170%, 100% 100%;
+  background-position: 0% 10%, 100% 0%, 50% 100%, center;
+}
+
 
 html[data-w3a-theme="dark"] {
   background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
 }
 
-/* Ensure VitePress body background color doesn't cover the html gradient */
 html[data-w3a-theme] body {
   background: transparent !important;
-  /* background-color: transparent !important; */
-  background: linear-gradient(45deg, oklch(0.1 0.01 240) 0%, oklch(0.2 0.01 240) 50%);
+  background-color: transparent !important;
+}
+
+/* VitePress sidebar: hide scrollbar but keep scrolling (show thin on hover) */
+.VPSidebar {
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar:hover { scrollbar-width: thin; }
+.VPSidebar::-webkit-scrollbar { width: 0; height: 0; }
+.VPSidebar:hover::-webkit-scrollbar { width: 4px; height: 4px; }
+.VPSidebar::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar::-webkit-scrollbar-thumb { background-color: transparent; border-radius: 8px; }
+.VPSidebar:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
+}
+
+.VPSidebar .nav {
+  /* Firefox/Edge legacy */
+  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none;    /* Firefox: hide by default */
+}
+.VPSidebar .nav:hover {
+  scrollbar-width: thin;    /* Firefox: show a thin bar on hover */
+}
+/* WebKit-based browsers */
+.VPSidebar .nav::-webkit-scrollbar {
+  width: 0;
+  height: 0; /* hide by default */
+}
+.VPSidebar .nav:hover::-webkit-scrollbar {
+  width: 4px;
+  height: 4px; /* show thin bar on hover */
+}
+.VPSidebar .nav::-webkit-scrollbar-track { background: transparent; }
+.VPSidebar .nav::-webkit-scrollbar-thumb {
+  background-color: transparent; /* invisible until hover */
+  border-radius: 8px;
+}
+.VPSidebar .nav:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--vp-c-text-2, #888) 15%, transparent);
 }
 
 /* Remove scrollbar gutters (hide scrollbars, keep scrollable) */

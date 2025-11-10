@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { usePasskeyContext } from '@tatchi-xyz/sdk/react';
+import { useTatchiContext } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 import { Hex, ensure0x } from './helpers/evm';
 
 export function useDerivedEvmAddress() {
-  const { passkeyManager } = usePasskeyContext();
+  const { tatchi } = useTatchiContext();
   const [address, setAddress] = useState<Hex>();
   const [loading, setLoading] = useState<boolean>(false);
 
@@ -23,7 +23,7 @@ export function useDerivedEvmAddress() {
       const hex = await deriveEvmAddress(evm, nearAccountId, path);
       setAddress(hex);
       try {
-        await passkeyManager.setDerivedAddress(nearAccountId, {
+        await tatchi.setDerivedAddress(nearAccountId, {
           contractId,
           path: `evm:${chainId}:${path}`,
           address: hex,
@@ -39,7 +39,7 @@ export function useDerivedEvmAddress() {
     } finally {
       setLoading(false);
     }
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   const loadCached = useCallback(async (params: {
     nearAccountId: string;
@@ -49,7 +49,7 @@ export function useDerivedEvmAddress() {
   }) => {
     const { nearAccountId, chainId, contractId, path } = params;
     try {
-      const cached = await passkeyManager.getDerivedAddress(nearAccountId, {
+      const cached = await tatchi.getDerivedAddress(nearAccountId, {
         contractId,
         path: `evm:${chainId}:${path}`,
       });
@@ -59,7 +59,7 @@ export function useDerivedEvmAddress() {
     } catch {
       return '';
     }
-  }, [passkeyManager]);
+  }, [tatchi]);
 
   return { address, loading, setAddress, deriveAndCache, loadCached } as const;
 }

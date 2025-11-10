@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useTheme, usePasskeyContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
 
 /**
  * useSyncVitepressTheme
@@ -23,7 +23,7 @@ import { useTheme, usePasskeyContext } from '@tatchi-xyz/sdk/react'
  */
 export function useSyncVitepressTheme() {
   const { theme, setTheme } = useTheme()
-  const { loginState, passkeyManager } = usePasskeyContext()
+  const { loginState, tatchi } = useTatchiContext()
   const prevLoggedInRef = React.useRef<boolean | null>(null)
   // Guard to prevent feedback when we intentionally push SDK → VitePress
   const syncingVpFromSdkRef = React.useRef<boolean>(false)
@@ -67,7 +67,7 @@ export function useSyncVitepressTheme() {
       // Transitioned to logged-in: ONE-TIME sync SDK to current VitePress (persist to user prefs)
       if (prevLoggedIn === false || prevLoggedIn === null) {
         if (vpMode !== theme) {
-          if (passkeyManager?.setUserTheme) passkeyManager.setUserTheme(vpMode)
+          if (tatchi?.setUserTheme) tatchi.setUserTheme(vpMode)
           else setTheme(vpMode)
         }
       } else {
@@ -84,7 +84,7 @@ export function useSyncVitepressTheme() {
       if (syncingVpFromSdkRef.current) return
       // Propagate VitePress → SDK when user toggles
       if (vpMode !== theme) {
-        if (isLoggedInNow && passkeyManager?.setUserTheme) passkeyManager.setUserTheme(vpMode)
+        if (isLoggedInNow && tatchi?.setUserTheme) tatchi.setUserTheme(vpMode)
         else setTheme(vpMode)
       }
     })
