@@ -73,9 +73,16 @@ export class DrawerElement extends LitElementWithProps {
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
   private _stylesAwaiting: Promise<void> | null = null;
+  // Observe and adopt any children appended after mount (e.g., viewer injected later)
+  private _childObserver: MutationObserver | null = null;
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    // Light DOM render: return host to avoid Shadow DOM
+    // Light DOM render by design (no Shadow DOM):
+    // - Strict CSP: avoid inline <style> and nonces; rely on external <link> or constructable stylesheets.
+    // - Compatibility: adoptedStyleSheets is not universally available (iOS Safari/WebViews).
+    // - Composition: sharing CSS variables across LitElements is simpler in light DOM; Shadow DOM would
+    //   require pushing CSS vars into every component boundary. We therefore expose a stable `contentRoot`
+    //   and use a slot-like adoption helper instead of <slot> in Shadow DOM.
     const root = (this as unknown) as HTMLElement;
     // Ensure drawer structural styles are available on the host/document
     const p = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css');
@@ -131,6 +138,7 @@ export class DrawerElement extends LitElementWithProps {
     this.drawerResizeObserver?.disconnect();
     if (this.detachViewportSync) { this.detachViewportSync(); this.detachViewportSync = undefined; }
     if (this.detachContentAnimSync) { this.detachContentAnimSync(); this.detachContentAnimSync = undefined; }
+    if (this._childObserver) { this._childObserver.disconnect(); this._childObserver = null; }
   }
 
   // Ensure visual state resets immediately when `open` attribute flips
@@ -174,6 +182,16 @@ export class DrawerElement extends LitElementWithProps {
       this.drawerResizeObserver.observe(this.drawerElement);
     }
     this.setupDragListeners();
+
+    // Slot-like adoption: move any host children appended after mount into the drawer's content area.
+    // We intentionally do not use Shadow DOM + <slot> here because we want to:
+    //  - stay CSP-compatible without nonces (no inline <style>),
+    //  - work on platforms without adoptedStyleSheets (e.g., iOS Safari/WebViews), and
+    //  - make cross-component CSS variable sharing straightforward without punching vars through
+    //    multiple ShadowRoot boundaries.
+    this.adoptContentIntoSlot();
+    this._childObserver = new MutationObserver(() => this.adoptContentIntoSlot());
+    this._childObserver.observe(this as unknown as Node, { childList: true });
   }
 
   updated(changedProperties: Map<string | number | symbol, unknown>) {
@@ -202,6 +220,39 @@ export class DrawerElement extends LitElementWithProps {
       // Defer to ensure DOM paints before measuring
       setTimeout(() => this.syncCssVarsForOpenTranslate(), 0);
     }
+  }
+
+  // Slot-like adoption helper
+  // Moves any host children not part of the drawer shell into the drawer's content slot (`.above-fold`).
+  // Rationale: prefer light DOM composition over Shadow DOM slots so we can keep strict CSP compliance,
+  // support environments without adoptedStyleSheets, and share CSS variables across LitElements without
+  // duplicating style plumbing per component.
+  private adoptContentIntoSlot(): void {
+    const root = this.renderRoot as unknown as ParentNode;
+    const above = root.querySelector('.above-fold') as HTMLElement | null;
+    if (!above) return;
+    const host = this as unknown as HTMLElement;
+    const toMove: Node[] = [];
+    host.childNodes.forEach((n) => {
+      if (n.nodeType !== Node.ELEMENT_NODE) return;
+      const el = n as Element;
+      // Skip elements that are part of the drawer shell
+      if ((el as HTMLElement).classList?.contains('overlay')) return;
+      if ((el as HTMLElement).classList?.contains('drawer')) return;
+      toMove.push(n);
+    });
+    toMove.forEach((n) => above.appendChild(n));
+    // After moving, recompute open translate to fit content
+    this.syncCssVarsForOpenTranslate();
+  }
+
+  // Public: stable container where consumers should append their content.
+  // This plays the role of a "slot" in our light-DOM composition model, avoiding Shadow DOM so
+  // we can keep CSP strict and share CSS variables across components without duplicating styles.
+  // When null, the drawer has not mounted yet.
+  public get contentRoot(): HTMLElement | null {
+    const root = this.renderRoot as unknown as ParentNode;
+    return (root && (root.querySelector('.above-fold') as HTMLElement | null)) || null;
   }
 
   // ---- Helpers for visible height ↔ translateY% ----

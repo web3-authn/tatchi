@@ -6,7 +6,8 @@
   left: 0;
   height: 100%;
   width: 100%;
-  z-index: 1000;
+  /* Ensure this modal sits above high z-index overlays (wallet iframe, profile overlay) */
+  z-index: 2147483648;
   background: oklch(0.2 0.01 240 / 0.8);
   backdrop-filter: blur(8px);
   display: flex;
@@ -18,7 +19,7 @@
 
 .w3a-access-keys-modal-inner {
   position: relative;
-  z-index: 1001;
+  z-index: 2147483649;
   display: grid;
   place-items: center;
   height: 100%;

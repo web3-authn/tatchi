@@ -16,14 +16,17 @@
       (function(){
         try {
           var ls = (localStorage.getItem('vitepress-theme-appearance') || '').replace(/\"/g,'');
-          var mode = (ls === 'dark' || ls === 'light')
-            ? ls
-            : (document.documentElement.classList.contains('dark')
-                ? 'dark'
-                : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+          // Default to dark when no preference is stored yet
+          var hasStored = (ls === 'dark' || ls === 'light');
+          var mode = hasStored ? ls : 'dark';
+          if (!hasStored) {
+            localStorage.setItem('vitepress-theme-appearance', mode)
+          }
+          // Keep SDK/theme hooks in sync with environment by reflecting on <html>
+          document.documentElement.classList.toggle('dark', mode === 'dark');
           document.documentElement.setAttribute('data-w3a-theme', mode);
           document.addEventListener('DOMContentLoaded', function(){
-            try { document.body.setAttribute('data-w3a-theme', mode) } catch(e){}
+            document.body.setAttribute('data-w3a-theme', mode)
           });
         } catch(e) {}
       })();

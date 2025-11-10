@@ -37,25 +37,7 @@ export class LitElementWithProps extends LitElement {
   // Fallback sheet attached to the Document (constructable stylesheet) + a per-instance class
   private _varsDocSheet: CSSStyleSheet | null = null;
   private _varsClassName: string | null = null;
-  // Detect whether inline style application is allowed under current CSP.
-  // If style-src forbids inline styles, setting element.style will be ignored
-  // and trigger console violations in production. We degrade gracefully by
-  // skipping dynamic inline styling in that case and relying on CSS fallbacks.
-  private static readonly inlineStyleAllowed: boolean = (() => {
-    try {
-      if (typeof document === 'undefined') return true;
-      const probe = document.createElement('div');
-      probe.style.color = 'rgb(1, 2, 3)';
-      // Append to DOM to ensure computed styles reflect policy
-      (document.body || document.documentElement).appendChild(probe);
-      const applied = getComputedStyle(probe).color.includes('1, 2, 3');
-      probe.remove();
-      return applied;
-    } catch {
-      // Default to allowed in non-browser contexts
-      return true;
-    }
-  })();
+  // No inline style capability check: components never write inline styles.
 
   /**
    * Optional: Subclasses can provide a list of imported custom element classes they rely on
