@@ -324,10 +324,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
             setShowQRScanner(false);
           }}
           onEvent={(event) => deviceLinkingScannerParams?.onEvent?.(event)}
-        />, (portalTarget
-          || ((refs.buttonRef.current?.getRootNode?.() instanceof ShadowRoot)
-              ? (refs.buttonRef.current!.getRootNode() as ShadowRoot)
-              : document.body)))}
+        />, (portalTarget || document.body))}
 
       {/* Linked Devices Modal (portaled to nearest root for robustness) */}
       {createPortal(
@@ -335,10 +332,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
           nearAccountId={nearAccountId!}
           isOpen={showLinkedDevices}
           onClose={() => setShowLinkedDevices(false)}
-        />, (portalTarget
-          || ((refs.buttonRef.current?.getRootNode?.() instanceof ShadowRoot)
-              ? (refs.buttonRef.current!.getRootNode() as ShadowRoot)
-              : document.body)))}
+        />, (portalTarget || document.body))}
     </div>
   );
 };

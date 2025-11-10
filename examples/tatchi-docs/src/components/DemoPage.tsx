@@ -507,7 +507,7 @@ export const DemoPage: React.FC = () => {
               loadingText="Signing..."
               variant="secondary"
               size="medium"
-              style={{ flex: 1 }}
+              style={{ flex: 1, minWidth: 200 }}
             >
               Drawer + Skip Confirm
             </LoadingButton>

@@ -157,9 +157,9 @@ export class IframeExportHost extends LitElementWithProps {
           <link rel="stylesheet" href="${base}wallet-service.css" />
           <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
           ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}w3a-components.css" />` : ''}
-          <!-- Preload component styles to avoid first-open FOUC when base is absolute -->
-          ${isAbsoluteBase ? `<link rel="preload" as="style" href="${base}drawer.css" />` : ''}
-          ${isAbsoluteBase ? `<link rel="preload" as="style" href="${base}export-viewer.css" />` : ''}
+          <!-- Ensure critical component styles (strict CSP: external only, no inline) -->
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}drawer.css" data-w3a-drawer-css />` : ''}
+          ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}export-viewer.css" data-w3a-export-viewer-css />` : ''}
           <script type="module" crossorigin="anonymous" src="${base}${viewerBundle}"></script>
           <script type="module" crossorigin="anonymous" src="${base}${bootstrap}"></script>
         </head>

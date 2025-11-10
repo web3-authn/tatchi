@@ -135,17 +135,19 @@ export async function ensureExternalStyles(
     }
 
     if (isShadow) {
-      // 1) Try constructable stylesheets
+      // 1) Try constructable stylesheets (CSP-safe)
       if (await adoptConstructable(root as ShadowRoot, assetName)) return;
-      // 2) If inside srcdoc, use scoped @import (no HTTP CSP applies)
-      if (isSrcdoc) { ensureScopedImport(root, assetName, markerAttr); return; }
-      // 3) Strict‑CSP compatible fallback: document‑level link
+      // 2) Strict‑CSP compatible fallback: never inject inline <style>.
+      //    Use a document‑level <link rel="stylesheet"> so style-src 'self' and
+      //    style-src-attr 'none' policies are respected, even inside about:srcdoc.
       if (doc) { await ensureDocumentLink(doc, assetName, markerAttr); }
       return;
     }
 
-    // Non‑shadow target: document‑level link only
-    if (doc) await ensureDocumentLink(doc, assetName, markerAttr);
+    // Non‑shadow target: ensure a single document‑level link in <head> (strict CSP friendly)
+    if (doc) {
+      await ensureDocumentLink(doc, assetName, markerAttr);
+    }
   } catch (err) {
     console.warn('[W3A][css-loader] Failed to ensure stylesheet:', assetName, err);
   }

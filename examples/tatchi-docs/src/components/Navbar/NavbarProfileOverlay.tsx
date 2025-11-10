@@ -71,7 +71,8 @@ export const NavbarProfileOverlay: React.FC = () => {
   const overlay = (
     <div
       ref={btnRef}
-      style={{ position: 'fixed', top: '0.5rem', right: '0.5rem', zIndex: 2147483647, pointerEvents: 'auto' }}
+      // Keep this overlay above site content, but below wallet/SDK modals
+      style={{ position: 'fixed', top: '0.5rem', right: '0.5rem', zIndex: 2147483646, pointerEvents: 'auto' }}
       aria-hidden={false}
     >
       <TatchiProfileSettingsButton

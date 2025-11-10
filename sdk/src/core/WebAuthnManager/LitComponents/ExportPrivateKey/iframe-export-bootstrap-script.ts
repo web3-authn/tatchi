@@ -68,7 +68,9 @@ function getViewer(): HTMLElement & { theme?: string; variant?: string; accountI
   let viewer = drawer.querySelector(W3A_EXPORT_KEY_VIEWER_ID) as any;
   if (!viewer) {
     viewer = document.createElement(W3A_EXPORT_KEY_VIEWER_ID);
-    drawer.appendChild(viewer);
+    // Prefer appending directly into the drawer's declared content root when present
+    const target = (drawer as any).contentRoot || drawer.querySelector('.above-fold') || drawer.querySelector('.body') || drawer;
+    target.appendChild(viewer);
   }
   return viewer;
 }

@@ -52,7 +52,13 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
   protected getComponentPrefix(): string { return 'export'; }
 
   protected createRenderRoot(): HTMLElement | DocumentFragment {
-    const root = super.createRenderRoot();
+    // Prefer Shadow DOM to scope styles when constructable stylesheets are supported.
+    // Fallback to light DOM for strict-CSP + legacy engines (document-level <link> will style it).
+    const supportsConstructable =
+      typeof ShadowRoot !== 'undefined'
+      && 'adoptedStyleSheets' in ShadowRoot.prototype
+      && 'replaceSync' in (CSSStyleSheet.prototype as any);
+    const root = supportsConstructable ? super.createRenderRoot() : (this as unknown as HTMLElement);
     // Adopt export-viewer.css for structural + visual styles
     const p1 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'export-viewer.css', 'data-w3a-export-viewer-css');
     this._stylePromises.push(p1);
@@ -61,6 +67,10 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     const p2 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'w3a-components.css', 'data-w3a-components-css');
     this._stylePromises.push(p2);
     p2.catch(() => {});
+    // Ensure drawer structural styles are available before first paint to prevent transparent background
+    const p3 = ensureExternalStyles(root as ShadowRoot | DocumentFragment | HTMLElement, 'drawer.css', 'data-w3a-drawer-css');
+    this._stylePromises.push(p3);
+    p3.catch(() => {});
     return root;
   }
 
