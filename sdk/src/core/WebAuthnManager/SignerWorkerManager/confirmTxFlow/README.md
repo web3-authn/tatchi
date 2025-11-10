@@ -63,7 +63,7 @@ This section documents how a ConfirmationConfig is chosen for each confirmation,
   - The core registration path forces a per-call override so there is a consistent UX with no prior user prefs:
     - Desktop: `uiMode: 'modal', behavior: 'requireClick'`
     - Mobile/iOS: `uiMode: 'modal', behavior: 'requireClick'`
-  - This override is set in `registerPasskeyInternal` before requesting credentials: `sdk/src/core/PasskeyManager/registration.ts:86` and passed to `requestRegistrationCredentialConfirmation`.
+  - This override is set in `registerPasskeyInternal` before requesting credentials: `sdk/src/core/TatchiPasskey/registration.ts:86` and passed to `requestRegistrationCredentialConfirmation`.
   - The override flows through to the worker request in `sdk/src/core/WebAuthnManager/SignerWorkerManager/handlers/requestRegistrationCredentialConfirmation.ts:25` as `confirmationConfig` on the payload.
 
 - Transactions / NEP‑413 signing (with a user):
@@ -97,7 +97,7 @@ Applied in `determineConfirmationConfig` after merging override + prefs:
 ### Preference Storage and Theme
 
 - Preferences are per‑user and persisted in IndexedDB. `UserPreferencesManager` loads last user settings on startup and updates when the current user changes. See `sdk/src/core/WebAuthnManager/userPreferences.ts:126` and `sdk/src/core/WebAuthnManager/userPreferences.ts:209`.
-- Theme comes from the confirmation config and defaults to `dark` if unset. During registration, the theme is set from `walletTheme` for a consistent look. See `sdk/src/core/PasskeyManager/registration.ts:82`.
+- Theme comes from the confirmation config and defaults to `dark` if unset. During registration, the theme is set from `walletTheme` for a consistent look. See `sdk/src/core/TatchiPasskey/registration.ts:82`.
 
 ## VRF + NEAR Context
 

@@ -2,14 +2,14 @@
  * TatchiPasskeyIframe - Entry Point Layer
  *
  * This is the main API that developers interact with when using the WalletIframe system.
- * It provides the same interface as the regular PasskeyManager but routes all calls to
+ * It provides the same interface as the regular TatchiPasskey but routes all calls to
  * a secure iframe for enhanced security and WebAuthn compatibility.
  *
  * Key Responsibilities:
- * - Acts as a transparent proxy to the real PasskeyManager running in the iframe
- * - Maintains API compatibility with the regular PasskeyManager
+ * - Acts as a transparent proxy to the real TatchiPasskey running in the iframe
+ * - Maintains API compatibility with the regular TatchiPasskey
  * - Handles hook callbacks (afterCall, onError, onEvent) locally
- * - Provides fallback to local PasskeyManager for operations not yet iframe-enabled
+ * - Provides fallback to local TatchiPasskey for operations not yet iframe-enabled
  * - Manages theme preferences and user settings synchronization
  * - Bridges progress events from iframe back to developer callbacks
  *
@@ -59,7 +59,7 @@ export class TatchiPasskeyIframe {
   private themePollTimer: number | null = null;
   private readonly themePollMs = 1500;
 
-  // Expose a userPreferences shim so API matches PasskeyManager
+  // Expose a userPreferences shim so API matches TatchiPasskey
   get userPreferences() {
     return {
       onThemeChange: (cb: (t: 'light' | 'dark') => void) => {

@@ -21,7 +21,7 @@ title: Shamir3Pass Server Key Rotation
   - `serverKeyId`: ID of the server key that applied the lock (sha256 of `e_s_b64u`, base64url).
   - `updatedAt`: milliseconds since epoch (added by migration v13 on write).
 
-Types: see `passkey-sdk/src/core/types/vrf-worker.ts:132` and `passkey-sdk/src/core/IndexedDBManager/passkeyClientDB.ts:33`.
+Types: see `sdk/src/core/types/vrf-worker.ts:132` and `sdk/src/core/IndexedDBManager/passkeyClientDB.ts:33`.
 
 ## Client Behavior
 
@@ -29,33 +29,33 @@ Types: see `passkey-sdk/src/core/types/vrf-worker.ts:132` and `passkey-sdk/src/c
   - Worker derives a deterministic VRF keypair from PRF and optionally generates a VRF challenge.
   - If a relay server is configured, the worker performs Shamir client encrypt and calls the relay `/vrf/apply-server-lock`.
   - Result includes `{ ciphertextVrfB64u, kek_s_b64u, serverKeyId }` which is persisted to IndexedDB.
-  - Code: `passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_derive_vrf_keypair_from_prf.rs:84`.
+  - Code: `sdk/src/wasm_vrf_worker/src/handlers/handle_derive_vrf_keypair_from_prf.rs:84`.
 
 - Login Path
   - Attempt Shamir unlock first (no TouchID): uses stored `ciphertextVrfB64u`, `kek_s_b64u`, and `serverKeyId`.
   - On success, ensure VRF session active and run `maybeProactiveShamirRefresh` to migrate to the current server key if needed.
   - On failure, fall back to TouchID unlock of the encrypted VRF keypair (PRF‑based decrypt), then immediately re‑encrypt under the current server key and persist.
-  - Code: `passkey-sdk/src/core/PasskeyManager/login.ts:155` and `:240`.
+  - Code: `sdk/src/core/TatchiPasskey/login.ts:155` and `:240`.
 
 - Proactive Refresh
   - After a successful Shamir unlock, the manager fetches `GET /shamir/key-info` and compares `currentKeyId` to stored `serverKeyId`.
   - If different and the VRF session is active, it re‑encrypts the in‑memory VRF keypair under the new key and updates IndexedDB.
-  - Code: `passkey-sdk/src/core/WebAuthnManager/index.ts:459`.
+  - Code: `sdk/src/core/WebAuthnManager/index.ts:459`.
 
 ## WASM VRF Worker (Client)
 
 - Handlers
   - `DERIVE_VRF_KEYPAIR_FROM_PRF`: derives VRF; when server URLs are configured, performs Shamir client encrypt and returns `serverEncryptedVrfKeypair`.
-    - Code: `passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_derive_vrf_keypair_from_prf.rs:84`.
+    - Code: `sdk/src/wasm_vrf_worker/src/handlers/handle_derive_vrf_keypair_from_prf.rs:84`.
   - `SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR`: encrypts the currently unlocked VRF keypair and returns `{ ciphertextVrfB64u, kek_s_b64u, serverKeyId }`.
-    - Code: `passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:18` and `:77`.
+    - Code: `sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:18` and `:77`.
   - `SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR`: Shamir unlock + decrypt; requires `keyId` (strict) to select the correct server key.
-    - Code: `passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:25` and `:151`.
+    - Code: `sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:25` and `:151`.
 
 - HTTP Types (strict keyId mode)
   - `POST /vrf/apply-server-lock` response: `{ kek_cs_b64u, keyId?: string }` (keyId propagated to result if provided).
   - `POST /vrf/remove-server-lock` request: `{ kek_cs_b64u, keyId: string }` (required).
-  - Code: `passkey-sdk/src/wasm_vrf_worker/src/http.rs` and `passkey-sdk/src/wasm_vrf_worker/src/types/http.rs`.
+  - Code: `sdk/src/wasm_vrf_worker/src/http.rs` and `sdk/src/wasm_vrf_worker/src/types/http.rs`.
 
 ## Relay Server API (Strict keyId)
 
@@ -70,7 +70,7 @@ Types: see `passkey-sdk/src/core/types/vrf-worker.ts:132` and `passkey-sdk/src/c
 - `GET /shamir/key-info`
   - Response: `{ currentKeyId, p_b64u, graceKeyIds }` for proactive refresh and diagnostics.
 
-References: `examples/relay-server/src/index.ts:84` and `passkey-sdk/src/server/core/AuthService.ts:954`.
+References: `examples/relay-server/src/index.ts:84` and `sdk/src/server/core/AuthService.ts:954`.
 
 ## Server Key Rotation (Relay)
 
@@ -102,12 +102,12 @@ References: `examples/relay-server/src/index.ts:84` and `passkey-sdk/src/server/
 
 ## File References
 
-- Client flows: passkey-sdk/src/core/PasskeyManager/login.ts:155
-- Proactive refresh: passkey-sdk/src/core/WebAuthnManager/index.ts:459
-- WASM handlers: passkey-sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:18
-- HTTP types: passkey-sdk/src/wasm_vrf_worker/src/types/http.rs:1
-- Relay endpoints: examples/relay-server/src/index.ts:84
-- Rotation: passkey-sdk/src/server/core/AuthService.ts:416
+ - Client flows: sdk/src/core/TatchiPasskey/login.ts:155
+ - Proactive refresh: sdk/src/core/WebAuthnManager/index.ts:459
+ - WASM handlers: sdk/src/wasm_vrf_worker/src/handlers/handle_shamir3pass_client.rs:18
+ - HTTP types: sdk/src/wasm_vrf_worker/src/types/http.rs:1
+ - Relay endpoints: examples/relay-server/src/index.ts:84
+ - Rotation: sdk/src/server/core/AuthService.ts:416
 
 ## Rotating In Production - Checklist
 
@@ -135,4 +135,3 @@ References: `examples/relay-server/src/index.ts:84` and `passkey-sdk/src/server/
 - Automate (optional)
   - Use the example server’s scheduler (see `startKeyRotationCronjob`) via `ROTATE_EVERY` minutes.
   - Or run your own cron calling `rotateShamirServerKeypair` and persisting new exponents.
-

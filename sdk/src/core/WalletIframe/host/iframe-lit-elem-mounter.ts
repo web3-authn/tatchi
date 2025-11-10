@@ -8,16 +8,16 @@
  *
  * Key Responsibilities:
  * - Component Mounting: Creates and mounts Lit UI components on demand
- * - Event Wiring: Connects UI interactions to PasskeyManager methods
+ * - Event Wiring: Connects UI interactions to TatchiPasskey methods
  * - Lifecycle Management: Handles mount/unmount/update operations
  * - Message API: Exposes window.postMessage interface for parent communication
  * - Component Registry: Uses declarative registry for component definitions
- * - PasskeyManager Integration: Wires UI actions to actual wallet operations
+ * - TatchiPasskey Integration: Wires UI actions to actual wallet operations
  *
  * Architecture:
  * - Uses iframe-lit-element-registry.ts for component definitions
  * - Maintains mounted component instances by ID
- * - Provides typed prop/event bindings for PasskeyManager actions
+ * - Provides typed prop/event bindings for TatchiPasskey actions
  * - Handles both direct component mounting and registry-based mounting
  * - Supports component updates and cleanup
  *
@@ -35,7 +35,7 @@
  * Security Considerations:
  * - All UI components run in the wallet origin for proper WebAuthn context
  * - Components are isolated from parent application code
- * - Event handlers are properly bound to PasskeyManager methods
+ * - Event handlers are properly bound to TatchiPasskey methods
  * - No functions are transferred across the iframe boundary
  */
 

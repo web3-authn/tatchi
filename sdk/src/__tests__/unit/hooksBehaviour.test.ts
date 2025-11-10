@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import type { AfterCall } from '../../core/types/passkeyManager';
 
-// Simulates the SDK hook semantics used across PasskeyManager and the Iframe proxy.
+// Simulates the SDK hook semantics used across TatchiPasskey and the Iframe proxy.
 async function simulateOperation<T>({
   op,
   afterCall,

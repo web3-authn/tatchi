@@ -46,7 +46,7 @@ When you call methods like `registerPasskey()` or `signTransaction()`, the reque
 #### 3. **Host-Side Execution Layer** (Runs in Iframe)
 - **`host/wallet-iframe-host.ts`** - The main service host that:
   - Receives messages from the parent via MessagePort
-  - Creates and manages the actual PasskeyManager instance
+  - Creates and manages the actual TatchiPasskey instance
   - Executes wallet operations (register, login, sign, etc.)
   - Sends progress events back to the parent
   - Handles UI component mounting requests
@@ -138,21 +138,21 @@ The callback chain follows this flow:
 
 ### 3. **wallet-iframe-host.ts** (Service Host)
 - Receives messages via MessagePort in `onPortMessage()`
-- Creates and manages the actual PasskeyManager instance
+- Creates and manages the actual TatchiPasskey instance
 - Executes the requested operations (like `passkeyManager!.registerPasskey()`)
 - Sends progress events back via `post({ type: 'PROGRESS', requestId, payload: ev })`
 - Returns results via `post({ type: 'PM_RESULT', requestId, payload: { ok: true, result } })`
 
 ## Key Communication Flow:
 
-1. **PasskeyManagerIframe** → calls **WalletIframeRouter** method
+1. **TatchiPasskeyIframe** → calls **WalletIframeRouter** method
 2. **WalletIframeRouter** → posts message to iframe via MessagePort
-3. **wallet-iframe-host.ts** → receives message, executes PasskeyManager operation
+3. **wallet-iframe-host.ts** → receives message, executes TatchiPasskey operation
 4. **wallet-iframe-host.ts** → sends PROGRESS events during operation
 5. **WalletIframeRouter** → bridges PROGRESS events to caller's `onEvent` callback
 6. **wallet-iframe-host.ts** → sends final result
 7. **WalletIframeRouter** → resolves promise with result
-8. **PasskeyManagerIframe** → calls `afterCall` hook and returns result
+8. **TatchiPasskeyIframe** → calls `afterCall` hook and returns result
 
 ## Progress Event Bridging:
 
@@ -161,7 +161,7 @@ The key insight is that progress events are bridged through the MessagePort:
 - Client receives and calls: `pend?.onProgress?.(msg.payload)`
 - This allows the original `onEvent` callback to receive real-time progress updates
 
-So yes, your understanding is correct: **PasskeyManagerIframe → WalletIframeRouter → posts to wallet-iframe-host.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
+So yes, your understanding is correct: **TatchiPasskeyIframe → WalletIframeRouter → posts to wallet-iframe-host.ts**, with the additional detail that progress events flow back through the same channel to provide real-time updates to the caller.
 
 ## Activation Overlay (iframe sizing behavior)
 

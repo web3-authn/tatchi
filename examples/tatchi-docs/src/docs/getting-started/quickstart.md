@@ -51,9 +51,9 @@ export function LoginButton() {
 ## 3) Vanilla TypeScript
 
 ```ts
-import { PasskeyManager } from '@tatchi-xyz/sdk'
+import { TatchiPasskey } from '@tatchi-xyz/sdk'
 
-const manager = new PasskeyManager({
+const manager = new TatchiPasskey({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',

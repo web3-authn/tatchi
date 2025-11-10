@@ -1,8 +1,8 @@
-import { PasskeyManager } from '@tatchi-xyz/sdk/core'
+import { TatchiPasskey } from '@tatchi-xyz/sdk/core'
 
-const passkeyManager = new PasskeyManager({
+const tatchi = new TatchiPasskey({
     walletOrigin,
     ...configs
 })
 
-await passkeyManager.registerPasskey({ username: 'alice' })
+await tatchi.registerPasskey({ username: 'alice' })

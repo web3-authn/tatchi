@@ -1,5 +1,5 @@
 
-// Typed RPC messages for the wallet service iframe channel (PasskeyManager-first)
+// Typed RPC messages for the wallet service iframe channel (TatchiPasskey-first)
 import { AuthenticatorOptions } from '@/server';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
 import { ActionArgs, TransactionInput } from '../../types';
@@ -18,7 +18,7 @@ export type ParentToChildType =
   | 'PING'
   | 'PM_SET_CONFIG'
   | 'PM_CANCEL'
-  // PasskeyManager API surface
+  // TatchiPasskey API surface
   | 'PM_REGISTER'
   | 'PM_LOGIN'
   | 'PM_LOGOUT'
@@ -71,7 +71,7 @@ export interface ReadyPayload {
 
 export interface PMSetConfigPayload {
   theme?: 'dark' | 'light';
-  // PasskeyManagerConfigs subset for wallet host
+  // TatchiPasskeyConfigs subset for wallet host
   nearRpcUrl?: string;
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;

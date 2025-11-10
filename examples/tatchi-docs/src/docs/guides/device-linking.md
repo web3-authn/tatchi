@@ -34,9 +34,9 @@ import { QRCodeScanner } from '@tatchi-xyz/sdk/react'
 Device 2 — generate QR:
 
 ```ts
-import { PasskeyManager } from '@tatchi-xyz/sdk'
+import { TatchiPasskey } from '@tatchi-xyz/sdk'
 
-const manager = new PasskeyManager({ /* … your config … */ })
+const manager = new TatchiPasskey({ /* … your config … */ })
 const flow = new manager.LinkDeviceFlow(manager.getContext(), {
   onEvent: (e) => console.log(e),
 })
@@ -78,4 +78,3 @@ The flow can optionally fund the Device 2 temporary account to cover on‑chain 
 
 - Device 2 requires only the QR; no secrets are shared between devices
 - All sensitive steps happen in the wallet origin; WebAuthn never runs in the app frame when the wallet is configured
-
