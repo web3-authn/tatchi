@@ -166,8 +166,8 @@ export const LIGHT_TOKENS: DesignTokens = {
     // Primary brand colors
     primary: LIGHT_THEME.primary,
     primaryHover: LIGHT_THEME.primaryHover,
-    secondary: (LIGHT_THEME as any).secondary ?? CHROMA_COLORS.violet600 ?? CHROMA_COLORS.green500,
-    secondaryHover: (LIGHT_THEME as any).secondaryHover ?? CHROMA_COLORS.violet500 ?? CHROMA_COLORS.green400,
+    secondary: LIGHT_THEME.secondary ?? CHROMA_COLORS.violet600,
+    secondaryHover: LIGHT_THEME.secondaryHover ?? CHROMA_COLORS.violet500,
     accent: LIGHT_THEME.accent,
 
     // Text hierarchy
@@ -175,10 +175,10 @@ export const LIGHT_TOKENS: DesignTokens = {
     textSecondary: LIGHT_THEME.textSecondary,
     textMuted: LIGHT_THEME.textMuted,
     // Button text
-    textButton: (LIGHT_THEME as any).textButton || '#ffffff',
+    textButton: LIGHT_THEME.textButton,
     // Button background
-    buttonBackground: (LIGHT_THEME as any).buttonBackground || LIGHT_THEME.accent,
-    buttonHoverBackground: (LIGHT_THEME as any).buttonHoverBackground || LIGHT_THEME.primaryHover,
+    buttonBackground: LIGHT_THEME.buttonBackground,
+    buttonHoverBackground: LIGHT_THEME.buttonHoverBackground,
 
     // Core colors
     colorBackground: LIGHT_THEME.colorBackground,
@@ -207,8 +207,8 @@ export const LIGHT_TOKENS: DesignTokens = {
     // Background Gradients
     backgroundGradientPrimary: LIGHT_THEME.backgroundGradientPrimary,
     backgroundGradientSecondary: LIGHT_THEME.backgroundGradientSecondary,
-    backgroundGradient3: (LIGHT_THEME as any).backgroundGradient3 || LIGHT_THEME.backgroundGradientSecondary,
-    backgroundGradient4: (LIGHT_THEME as any).backgroundGradient4 || LIGHT_THEME.backgroundGradientPrimary,
+    backgroundGradient3: LIGHT_THEME.backgroundGradient3,
+    backgroundGradient4: LIGHT_THEME.backgroundGradient4,
 
     // Grey variations
     grey25: LIGHT_THEME.grey25,
@@ -282,8 +282,8 @@ export const DARK_TOKENS: DesignTokens = {
     // Primary brand colors (keep consistent with light)
     primary: DARK_THEME.primary,
     primaryHover: DARK_THEME.primaryHover,
-    secondary: (DARK_THEME as any).secondary ?? CHROMA_COLORS.violet600 ?? CHROMA_COLORS.green500,
-    secondaryHover: (DARK_THEME as any).secondaryHover ?? CHROMA_COLORS.violet500 ?? CHROMA_COLORS.green400,
+    secondary: DARK_THEME.secondary ?? CHROMA_COLORS.violet600,
+    secondaryHover: DARK_THEME.secondaryHover ?? CHROMA_COLORS.violet500,
     accent: DARK_THEME.accent,
 
     // Text hierarchy (dark palette)
@@ -291,10 +291,10 @@ export const DARK_TOKENS: DesignTokens = {
     textSecondary: DARK_THEME.textSecondary,
     textMuted: DARK_THEME.textMuted,
     // Button text
-    textButton: (DARK_THEME as any).textButton || '#ffffff',
+    textButton: DARK_THEME.textButton,
     // Button background
-    buttonBackground: (DARK_THEME as any).buttonBackground || DARK_THEME.accent,
-    buttonHoverBackground: (DARK_THEME as any).buttonHoverBackground || DARK_THEME.primaryHover,
+    buttonBackground: DARK_THEME.buttonBackground,
+    buttonHoverBackground: DARK_THEME.buttonHoverBackground,
 
     colorBackground: DARK_THEME.colorBackground,
     surface: DARK_THEME.surface,
@@ -322,8 +322,8 @@ export const DARK_TOKENS: DesignTokens = {
     // Background Gradients
     backgroundGradientPrimary: DARK_THEME.backgroundGradientPrimary,
     backgroundGradientSecondary: DARK_THEME.backgroundGradientSecondary,
-    backgroundGradient3: (DARK_THEME as any).backgroundGradient3 || DARK_THEME.backgroundGradientSecondary,
-    backgroundGradient4: (DARK_THEME as any).backgroundGradient4 || DARK_THEME.backgroundGradientPrimary,
+    backgroundGradient3: DARK_THEME.backgroundGradient3,
+    backgroundGradient4: DARK_THEME.backgroundGradient4,
 
     // Grey variations
     grey25: DARK_THEME.grey25,

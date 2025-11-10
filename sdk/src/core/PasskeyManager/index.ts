@@ -497,7 +497,6 @@ export class PasskeyManager {
   }): Promise<ActionResult> {
     // cross-origin iframe mode
     if (this.iframeRouter) {
-      
       try {
         const res = await this.iframeRouter.executeAction({
           nearAccountId: args.nearAccountId,
@@ -581,8 +580,8 @@ export class PasskeyManager {
     transactions: TransactionInput[],
     options?: SignAndSendTransactionHooksOptions,
   }): Promise<ActionResult[]> {
+
     if (this.iframeRouter) {
-      
       try {
         const res = await this.iframeRouter.signAndSendTransactions({
           nearAccountId,
@@ -605,6 +604,7 @@ export class PasskeyManager {
         throw e;
       }
     }
+
     return signAndSendTransactions({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -679,9 +679,8 @@ export class PasskeyManager {
     transactions: TransactionInput[],
     options?: SignTransactionHooksOptions
   }): Promise<VerifyAndSignTransactionResult[]> {
-    // If a service iframe is initialized, route signing via wallet origin
+    // route signing via wallet origin
     if (this.iframeRouter) {
-      
       try {
         const txs = transactions.map((t) => ({ receiverId: t.receiverId, actions: t.actions }));
         const result = await this.iframeRouter.signTransactionsWithActions({
@@ -702,6 +701,7 @@ export class PasskeyManager {
         throw e;
       }
     }
+
     return signTransactionsWithActions({
       context: this.getContext(),
       nearAccountId: toAccountId(nearAccountId),
@@ -742,6 +742,7 @@ export class PasskeyManager {
     signedTransaction: SignedTransaction,
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
+
     if (this.iframeRouter) {
       try {
         const res = await this.iframeRouter.sendTransaction({
@@ -763,6 +764,7 @@ export class PasskeyManager {
         throw e;
       }
     }
+
     return sendTransaction({ context: this.getContext(), signedTransaction, options })
       .then(txResult => {
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${txResult.transactionId} broadcasted` });
@@ -809,7 +811,7 @@ export class PasskeyManager {
     params: SignNEP413MessageParams,
     options?: SignNEP413HooksOptions
   }): Promise<SignNEP413MessageResult> {
-    // Route via wallet service if available for stronger isolation
+    // Route via wallet service for isolation
     if (this.iframeRouter) {
       const payload = {
         nearAccountId: args.nearAccountId,
@@ -817,7 +819,7 @@ export class PasskeyManager {
         recipient: args.params.recipient,
         state: args.params.state,
       };
-      
+
       const result = await this.iframeRouter.signNep413Message({
         ...payload,
         options: { onEvent: args.options?.onEvent }
@@ -826,6 +828,7 @@ export class PasskeyManager {
       // Expect wallet to return the same shape as WebAuthnManager.signNEP413Message
       return result as SignNEP413MessageResult;
     }
+
     return signNEP413Message({
       context: this.getContext(),
       nearAccountId: toAccountId(args.nearAccountId),
@@ -842,7 +845,7 @@ export class PasskeyManager {
    * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
    */
   async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
-    // Prefer wallet-origin flow when iframe router is available for stronger isolation
+    // use iframe router is available for stronger isolation
     if (this.iframeRouter?.isReady?.()) {
       await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
       return;
@@ -908,7 +911,7 @@ export class PasskeyManager {
       console.warn('[PasskeyManager] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
     }
     // Local orchestration using AccountRecoveryFlow for a single-call UX
-      
+
     try {
       const flow = new AccountRecoveryFlow(this.getContext(), options);
       // Phase 1: Discover available accounts

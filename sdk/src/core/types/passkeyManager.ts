@@ -16,11 +16,12 @@ import type { SignNEP413MessageResult } from '../PasskeyManager/signNEP413';
 export enum RegistrationPhase {
   STEP_1_WEBAUTHN_VERIFICATION = 'webauthn-verification',
   STEP_2_KEY_GENERATION = 'key-generation',
-  STEP_3_ACCESS_KEY_ADDITION = 'access-key-addition',
-  STEP_4_ACCOUNT_VERIFICATION = 'account-verification',
-  STEP_5_DATABASE_STORAGE = 'database-storage',
-  STEP_6_CONTRACT_REGISTRATION = 'contract-registration',
-  STEP_7_REGISTRATION_COMPLETE = 'registration-complete',
+  STEP_3_CONTRACT_PRE_CHECK = 'contract-pre-check',
+  STEP_4_ACCESS_KEY_ADDITION = 'access-key-addition',
+  STEP_5_CONTRACT_REGISTRATION = 'contract-registration',
+  STEP_6_ACCOUNT_VERIFICATION = 'account-verification',
+  STEP_7_DATABASE_STORAGE = 'database-storage',
+  STEP_8_REGISTRATION_COMPLETE = 'registration-complete',
   REGISTRATION_ERROR = 'error',
 }
 export enum RegistrationStatus {
@@ -179,33 +180,46 @@ export interface RegistrationEventStep2 extends BaseRegistrationSSEEvent {
   vrfPublicKey: string | null | undefined;
 }
 
+// Optional progress emission during step 2 (e.g., concurrent contract pre-checks)
+export interface RegistrationEventStep2Progress extends BaseRegistrationSSEEvent {
+  step: 2;
+  phase: RegistrationPhase.STEP_2_KEY_GENERATION;
+  status: RegistrationStatus.PROGRESS;
+}
+
 export interface RegistrationEventStep3 extends BaseRegistrationSSEEvent {
   step: 3;
-  phase: RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION;
+  phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK;
   error?: string;
 }
 
 export interface RegistrationEventStep4 extends BaseRegistrationSSEEvent {
   step: 4;
-  phase: RegistrationPhase.STEP_4_ACCOUNT_VERIFICATION;
+  phase: RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION;
   error?: string;
 }
 
 export interface RegistrationEventStep5 extends BaseRegistrationSSEEvent {
   step: 5;
-  phase: RegistrationPhase.STEP_5_DATABASE_STORAGE;
+  phase: RegistrationPhase.STEP_5_CONTRACT_REGISTRATION;
   error?: string;
 }
 
 export interface RegistrationEventStep6 extends BaseRegistrationSSEEvent {
   step: 6;
-  phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION;
+  phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION;
   error?: string;
 }
 
 export interface RegistrationEventStep7 extends BaseRegistrationSSEEvent {
   step: 7;
-  phase: RegistrationPhase.STEP_7_REGISTRATION_COMPLETE;
+  phase: RegistrationPhase.STEP_7_DATABASE_STORAGE;
+  error?: string;
+}
+
+export interface RegistrationEventStep8 extends BaseRegistrationSSEEvent {
+  step: 8;
+  phase: RegistrationPhase.STEP_8_REGISTRATION_COMPLETE;
   status: RegistrationStatus.SUCCESS;
 }
 
@@ -218,12 +232,14 @@ export interface RegistrationEventStep0 extends BaseRegistrationSSEEvent {
 
 export type RegistrationSSEEvent =
   | RegistrationEventStep1
+  | RegistrationEventStep2Progress
   | RegistrationEventStep2
   | RegistrationEventStep3
   | RegistrationEventStep4
   | RegistrationEventStep5
   | RegistrationEventStep6
   | RegistrationEventStep7
+  | RegistrationEventStep8
   | RegistrationEventStep0;
 
 /////////////////////////////////////////////

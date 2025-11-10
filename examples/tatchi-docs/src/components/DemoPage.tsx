@@ -11,6 +11,7 @@ import {
 } from '@tatchi-xyz/sdk/react';
 import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
+import type { ConfirmationUIMode, ConfirmationBehavior } from '@tatchi-xyz/sdk/core';
 
 import { GlassBorder } from './GlassBorder';
 import { LoadingButton } from './LoadingButton';
@@ -98,7 +99,7 @@ export const DemoPage: React.FC = () => {
   const networkPostfix = passkeyManager.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
-  const [loadingUi, setLoadingUi] = useState<null | 'modal' | 'drawer'>(null);
+  const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
 
   const canExecuteGreeting = useCallback(
     (val: string, loggedIn: boolean, accountId?: string | null) =>
@@ -146,8 +147,7 @@ export const DemoPage: React.FC = () => {
               toast.loading(event.message, { id: 'greeting' });
               break;
             case ActionPhase.STEP_8_BROADCASTING:
-            case ActionPhase.STEP_9_ACTION_COMPLETE:
-              toast.success(event.message, { id: 'greeting' });
+              toast.loading(event.message, { id: 'greeting' });
               break;
             case ActionPhase.ACTION_ERROR:
             case ActionPhase.WASM_ERROR:
@@ -157,11 +157,11 @@ export const DemoPage: React.FC = () => {
         },
         waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
         afterCall: (success: boolean, result?: any) => {
+          try { toast.dismiss('greeting'); } catch {}
           if (success && result?.transactionId) {
             const txId = result.transactionId;
             const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
             toast.success('Greeting updated on-chain', {
-              id: 'greeting',
               description: (
                 <a href={txLink} target="_blank" rel="noopener noreferrer">
                   View transaction on NearBlocks
@@ -197,7 +197,10 @@ export const DemoPage: React.FC = () => {
     return wholePart + fracPart;
   };
 
-  const handleExecuteMultiActions = useCallback(async (uiMode: 'modal' | 'drawer') => {
+  const handleExecuteMultiActions = useCallback(async (
+    uiMode: ConfirmationUIMode,
+    behavior?: ConfirmationBehavior
+  ) => {
     if (!isLoggedIn || !nearAccountId) return;
     setLoadingUi(uiMode);
 
@@ -249,14 +252,11 @@ export const DemoPage: React.FC = () => {
         },
       ],
       options: {
-        confirmationConfig: { uiMode },
+        confirmationConfig: { uiMode, behavior },
         onEvent: (event) => {
           switch (event.phase) {
             case ActionPhase.STEP_1_PREPARATION:
               toast.loading('Processing transaction...', { id: 'combinedTx' });
-              break;
-            case ActionPhase.STEP_9_ACTION_COMPLETE:
-              toast.success('Transaction completed successfully!', { id: 'combinedTx' });
               break;
             case ActionPhase.ACTION_ERROR:
               toast.error(`Transaction failed: ${event.error}`, { id: 'combinedTx' });
@@ -265,9 +265,19 @@ export const DemoPage: React.FC = () => {
         },
         waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
         afterCall: (success: boolean, result?: any) => {
+          try { toast.dismiss('combinedTx'); } catch {}
           if (success && result?.transactionId) {
-            console.log('Combined transaction success:', result.transactionId);
-          } else if (!success) {
+            const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${result.transactionId}`;
+            toast.success('Transaction completed successfully!', {
+              description: (
+                <a href={txLink} target="_blank" rel="noopener noreferrer">
+                  View transaction on NearBlocks
+                </a>
+              ),
+            });
+          } else if (success) {
+            toast.success('Transaction completed successfully!');
+          } else {
             toast.error('Failed to execute transaction');
           }
           setLoadingUi(null);
@@ -342,7 +352,6 @@ export const DemoPage: React.FC = () => {
           <h2 className="demo-subtitle">Batch Sign Transactions</h2>
           <div className="action-text">
             Sign multiple transactions securely in an cross-origin iframe.
-            Tx data in the tooltip is validated before signing.
             What you see is what you sign.
           </div>
 
@@ -390,9 +399,6 @@ export const DemoPage: React.FC = () => {
                     case ActionPhase.STEP_8_BROADCASTING:
                       toast.loading(event.message, { id: 'embedded' });
                       break;
-                    case ActionPhase.STEP_9_ACTION_COMPLETE:
-                      toast.success(event.message, { id: 'embedded' });
-                      break;
                     case ActionPhase.ACTION_ERROR:
                     case ActionPhase.WASM_ERROR:
                       toast.error(`Transaction failed: ${event.error}`, { id: 'embedded' });
@@ -408,8 +414,8 @@ export const DemoPage: React.FC = () => {
                       const last = result[result.length - 1] ?? result[0];
                       let txId = last?.transactionId;
                       if (txId) {
+                        try { toast.dismiss('embedded'); } catch {}
                         toast.success('Embedded flow complete', {
-                          id: 'embedded',
                           description: (
                             <a href={`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`}
                               target="_blank" rel="noopener noreferrer"
@@ -419,6 +425,7 @@ export const DemoPage: React.FC = () => {
                           ),
                         });
                       } else {
+                        try { toast.dismiss('embedded'); } catch {}
                         toast.success('Embedded flow complete');
                       }
                       setTimeout(() => { void fetchGreeting(); }, 1000);
@@ -453,8 +460,8 @@ export const DemoPage: React.FC = () => {
                     let txId = last?.transactionId;
                     if (txId) {
                       const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+                      try { toast.dismiss('embedded'); } catch {}
                       toast.success('Tx Success', {
-                        id: 'embedded',
                         description: (
                           <a href={txLink} target="_blank" rel="noopener noreferrer">
                             View transaction on NearBlocks ({txId})
@@ -462,10 +469,12 @@ export const DemoPage: React.FC = () => {
                         ),
                       });
                     } else {
-                      toast.success('Tx Success', { id: 'embedded' });
+                      try { toast.dismiss('embedded'); } catch {}
+                      toast.success('Tx Success');
                     }
                   } catch {
-                    toast.success('Tx Success', { id: 'embedded' });
+                    try { toast.dismiss('embedded'); } catch {}
+                    toast.success('Tx Success');
                   }
                   // Refresh the greeting after success
                   setTimeout(() => { void fetchGreeting(); }, 1000);
@@ -479,11 +488,12 @@ export const DemoPage: React.FC = () => {
           <h2 className="demo-subtitle">Choose between Modal or Drawer</h2>
           <div className="action-text">
             Choose between Modal or Drawer for the tx confirmer menus.
-            You can also skip the confirmation menu (only on desktop).
+            <br/>
+            You can also skip the confirmation menu (on desktop).
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <LoadingButton
-              onClick={() => handleExecuteMultiActions('modal')}
+              onClick={() => handleExecuteMultiActions('modal', 'requireClick')}
               loading={loadingUi === 'modal'}
               loadingText="Signing..."
               variant="primary"
@@ -493,14 +503,14 @@ export const DemoPage: React.FC = () => {
               Show Modal
             </LoadingButton>
             <LoadingButton
-              onClick={() => handleExecuteMultiActions('drawer')}
+              onClick={() => handleExecuteMultiActions('drawer', 'autoProceed')}
               loading={loadingUi === 'drawer'}
               loadingText="Signing..."
               variant="secondary"
               size="medium"
               style={{ flex: 1 }}
             >
-              Show Drawer
+              Drawer + Skip Confirm
             </LoadingButton>
           </div>
         </div>

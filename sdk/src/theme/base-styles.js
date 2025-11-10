@@ -51,11 +51,11 @@ export function createThemeTokens(palette) {
     primaryHover: CHROMA_COLORS.blue500,
     secondary: CHROMA_COLORS.violet600,
     secondaryHover: CHROMA_COLORS.violet500,
-    accent: CHROMA_COLORS.blue450,
+    accent: CHROMA_COLORS.green400,
 
     // Buttons
     buttonBackground: CHROMA_COLORS.blue500,
-    buttonHoverBackground: CHROMA_COLORS.blue600,
+    buttonHoverBackground: CHROMA_COLORS.blue450,
 
     // Interactive
     hover: GREY_COLORS.grey850,
@@ -107,11 +107,11 @@ export function createThemeTokens(palette) {
     primaryHover: CHROMA_COLORS.blue500,
     secondary: CHROMA_COLORS.violet600,
     secondaryHover: CHROMA_COLORS.violet500,
-    accent: CHROMA_COLORS.blue450,
+    accent: CHROMA_COLORS.green400,
 
     // Buttons
     buttonBackground: CHROMA_COLORS.blue500,
-    buttonHoverBackground: CHROMA_COLORS.blue600,
+    buttonHoverBackground: CHROMA_COLORS.blue450,
 
     // Interactive
     hover: GREY_COLORS.grey100,
@@ -165,11 +165,11 @@ export function createThemeTokens(palette) {
     primaryHover: GREY_COLORS.grey650,
     secondary: CHROMA_COLORS.violet600,
     secondaryHover: CHROMA_COLORS.violet500,
-    accent: CHROMA_COLORS.yellow550,
+    accent: CHROMA_COLORS.green400,
 
     // Buttons
     buttonBackground: CHROMA_COLORS.blue500,
-    buttonHoverBackground: CHROMA_COLORS.blue600,
+    buttonHoverBackground: CHROMA_COLORS.blue450,
 
     // Interactive
     hover: CREAM_COLORS.cream75,
@@ -177,7 +177,7 @@ export function createThemeTokens(palette) {
     focus: CHROMA_COLORS.yellow500,
 
     // Status
-    success: CHROMA_COLORS.yellow400,
+    success: CHROMA_COLORS.yellow300,
     warning: CHROMA_COLORS.yellow600,
     error: CHROMA_COLORS.red500,
     info: CHROMA_COLORS.blue500,
@@ -190,6 +190,7 @@ export function createThemeTokens(palette) {
     // Background Gradients
     backgroundGradientPrimary: GRADIENTS.black,
     backgroundGradientSecondary: GRADIENTS.blackWhite,
+    backgroundGradient3: GRADIENTS.blackWhite,
     backgroundGradient4: GRADIENTS.black,
 
     // Highlights

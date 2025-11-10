@@ -3,8 +3,7 @@ import { Toaster } from 'sonner';
 import { useTheme } from '@tatchi-xyz/sdk/react';
 
 export const ToasterThemed: React.FC = () => {
-  const { tokens, isDark } = useTheme();
-
+  const { isDark } = useTheme();
   return (
     <Toaster
       position="bottom-right"

@@ -130,10 +130,10 @@ export async function registerPasskeyInternal(
         onEvent: (progress) => {
           console.debug(`Registration progress: ${progress.step} - ${progress.message}`);
           onEvent?.({
-            step: 4,
-            phase: RegistrationPhase.STEP_4_ACCOUNT_VERIFICATION,
+            step: 3,
+            phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK,
             status: RegistrationStatus.PROGRESS,
-            message: `Checking registration: ${progress.message}`
+            message: `Pre-check: ${progress.message}`
           });
         },
       }),
@@ -158,7 +158,7 @@ export async function registerPasskeyInternal(
       };
     });
 
-    // Step 5: Create account and register with contract using appropriate flow
+    // Step 4-5: Create account and register with contract using the relay (atomic)
     onEvent?.({
       step: 2,
       phase: RegistrationPhase.STEP_2_KEY_GENERATION,
@@ -191,10 +191,35 @@ export async function registerPasskeyInternal(
     registrationState.contractRegistered = true;
     registrationState.contractTransactionId = accountAndRegistrationResult.transactionId || null;
 
-    // Step 6: Store user data with VRF credentials atomically
+    // Step 6: Post-commit verification: ensure on-chain access key matches expected public key
     onEvent?.({
-      step: 5,
-      phase: RegistrationPhase.STEP_5_DATABASE_STORAGE,
+      step: 6,
+      phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+      status: RegistrationStatus.PROGRESS,
+      message: 'Verifying on-chain access key matches expected public key...'
+    });
+
+    const accessKeyVerified = await verifyAccountAccessKeyMatches(
+      context.nearClient,
+      nearAccountId,
+      nearKeyResult.publicKey
+    );
+
+    if (!accessKeyVerified) {
+      throw new Error('On-chain access key mismatch or not found after registration');
+    }
+
+    onEvent?.({
+      step: 6,
+      phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION,
+      status: RegistrationStatus.SUCCESS,
+      message: 'Access key verified on-chain'
+    });
+
+    // Step 7: Store user data with VRF credentials atomically
+    onEvent?.({
+      step: 7,
+      phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
       status: RegistrationStatus.PROGRESS,
       message: 'Storing VRF registration data'
     });
@@ -212,8 +237,8 @@ export async function registerPasskeyInternal(
     registrationState.databaseStored = true;
 
     onEvent?.({
-      step: 5,
-      phase: RegistrationPhase.STEP_5_DATABASE_STORAGE,
+      step: 7,
+      phase: RegistrationPhase.STEP_7_DATABASE_STORAGE,
       status: RegistrationStatus.SUCCESS,
       message: 'VRF registration data stored successfully'
     });
@@ -270,8 +295,8 @@ export async function registerPasskeyInternal(
     }
 
     onEvent?.({
-      step: 7,
-      phase: RegistrationPhase.STEP_7_REGISTRATION_COMPLETE,
+      step: 8,
+      phase: RegistrationPhase.STEP_8_REGISTRATION_COMPLETE,
       status: RegistrationStatus.SUCCESS,
       message: 'Registration completed!'
     });
@@ -513,4 +538,31 @@ async function performRegistrationRollback(
       error: 'Both registration and rollback failed'
     } as RegistrationSSEEvent);
   }
+}
+
+/**
+ * Poll the NEAR RPC to verify the newly created account exposes the expected public key
+ * Retries a few times to tolerate RPC indexing delays after transaction finalization.
+ */
+async function verifyAccountAccessKeyMatches(
+  nearClient: NearClient,
+  nearAccountId: string,
+  expectedPublicKey: string,
+  opts?: { attempts?: number; delayMs?: number }
+): Promise<boolean> {
+  const attempts = Math.max(1, Math.floor(opts?.attempts ?? 5));
+  const delayMs = Math.max(50, Math.floor(opts?.delayMs ?? 750));
+
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const { fullAccessKeys, functionCallAccessKeys } = await nearClient.getAccessKeys({ account: nearAccountId });
+      const keys = [...fullAccessKeys, ...functionCallAccessKeys];
+      const found = keys.some(k => String((k as any)?.public_key || '') === expectedPublicKey);
+      if (found) return true;
+    } catch (e) {
+      // Tolerate transient view errors during propagation; retry
+    }
+    await new Promise(res => setTimeout(res, delayMs));
+  }
+  return false;
 }

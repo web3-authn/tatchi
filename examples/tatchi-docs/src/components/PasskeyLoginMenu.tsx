@@ -47,20 +47,26 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
       onEvent: (event: RegistrationSSEEvent) => {
         switch (event.phase) {
           case RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION:
-            toast.loading('Starting registration...', { id: 'registration' });
+            toast.loading("Starting registration...", { id: 'registration' });
             break;
           case RegistrationPhase.STEP_2_KEY_GENERATION:
             if (event.status === RegistrationStatus.SUCCESS) {
-              toast.success(`Keys generated...`, { id: 'registration' });
+              toast.success("Keys generated...", { id: 'registration' });
             }
             break;
-          case RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION:
-            toast.loading(`Creating account...`, { id: 'registration' });
+          case RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK:
+            toast.loading("Pre-checking contract and account state...", { id: 'registration' });
             break;
-          case RegistrationPhase.STEP_6_CONTRACT_REGISTRATION:
-            toast.loading(`Registering with Web3Authn contract...`, { id: 'registration' });
+          case RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION:
+            toast.loading("Creating account...", { id: 'registration' });
             break;
-          case RegistrationPhase.STEP_7_REGISTRATION_COMPLETE:
+          case RegistrationPhase.STEP_5_CONTRACT_REGISTRATION:
+            toast.loading("Registering with Web3Authn contract...", { id: 'registration' });
+            break;
+          case RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION:
+            toast.loading(event.message, { id: 'registration' });
+            break;
+          case RegistrationPhase.STEP_8_REGISTRATION_COMPLETE:
             if (event.status === RegistrationStatus.SUCCESS) {
               // Final toast with tx hash will be shown after the promise resolves
               toast.success('Registration completed successfully!', { id: 'registration' });

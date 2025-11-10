@@ -1282,7 +1282,17 @@ export class AuthService {
       } catch (error: any) {
         lastErr = error;
         const msg = String(error?.message || '');
-        if (isNotFound(msg)) return false;
+        // Some providers embed the useful string only inside a nested JSON `details` object.
+        // Normalize both message and details (if available) into one searchable blob.
+        const detailsBlob = (() => {
+          try {
+            const d = (error && typeof error === 'object' && 'details' in error) ? (error as any).details : undefined;
+            if (!d) return '';
+            return typeof d === 'string' ? d : JSON.stringify(d);
+          } catch { return ''; }
+        })();
+        const combined = `${msg}\n${detailsBlob}`;
+        if (isNotFound(combined)) return false;
         if (isRetryable(msg) && i < attempts) {
           const backoff = 150 * Math.pow(2, i - 1);
           await new Promise((r) => setTimeout(r, backoff));

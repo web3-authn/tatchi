@@ -76,8 +76,8 @@ const HIDE_PHASES = new Set<string>([
   DeviceLinkingPhase.LOGIN_ERROR,
   DeviceLinkingPhase.DEVICE_LINKING_ERROR,
   // Registration: hide once contract work starts or flow completes/errors
-  RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
-  RegistrationPhase.STEP_7_REGISTRATION_COMPLETE,
+  RegistrationPhase.STEP_5_CONTRACT_REGISTRATION,
+  RegistrationPhase.STEP_8_REGISTRATION_COMPLETE,
   RegistrationPhase.REGISTRATION_ERROR,
   // Login: hide after assertion leads to VRF unlock or completion/errors
   LoginPhase.STEP_3_VRF_UNLOCK,
