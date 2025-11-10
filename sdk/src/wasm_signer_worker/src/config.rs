@@ -25,6 +25,7 @@ pub const ED25519_HKDF_KEY_INFO: &str = "ed25519-signing-key-dual-prf-v1";
 // === GAS CONSTANTS ===
 
 /// Standard gas amount for contract verification calls (30 TGas)
+#[allow(dead_code)]
 pub const VERIFY_REGISTRATION_GAS: &str = "30000000000000";
 
 /// Higher gas amount for device linking registration calls (30 TGas)

@@ -34,8 +34,8 @@ const authService = new AuthService({
   // Prefer env override; default to FastNEAR which is often more reliable for tests
   nearRpcUrl: process.env.NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
   networkId: 'testnet',
-  accountInitialBalance: '30000000000000000000000', // 0.03 NEAR
-  createAccountAndRegisterGas: '85000000000000', // 80 TGas (tested)
+  accountInitialBalance: '40000000000000000000000', // 0.04 NEAR
+  createAccountAndRegisterGas: '85000000000000', // 85 TGas (tested)
   // Shamir 3-pass params (base64url bigints)
   shamir: {
     shamir_p_b64u: process.env.SHAMIR_P_B64U!,

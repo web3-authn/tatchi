@@ -43,7 +43,6 @@ export const DemoChainsigs: React.FC = () => {
   // MPC parameters
   const [mpcContractId, setMpcContractId] = useState<string>('');
   const [path] = useState<string>('ethereum-1');
-  // key version not needed in current adapter calls
 
   const chainIdNum = useMemo(() => {
     const n = Number((chainId || '').trim() || '11155111');
@@ -153,9 +152,9 @@ export const DemoChainsigs: React.FC = () => {
             <div className="demo-subtitle">
               Send NEAR Intents using TouchID
             </div>
-            Request a Chain Signature from NEAR intents contract,
-            then broadcast it to the Ethereum Sepolia network,
-            or any network supported by NEAR intents such as Solana, Bitcoin, Zcash, etc.
+            Request a Chain Signature from the NEAR intents contract.
+            Then send it to Ethereum, or any network supported by NEAR intents
+            such as Solana, Bitcoin, Zcash, etc.
           </div>
 
           <div className="input-group"

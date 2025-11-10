@@ -1,7 +1,7 @@
 use crate::manager::VRFKeyManager;
 use crate::types::VRFInputData;
 use crate::types::VrfWorkerResponse;
-use log::{error, info};
+use log::{error, debug};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -22,11 +22,11 @@ pub fn handle_generate_vrf_keypair_bootstrap(
     payload: GenerateVrfKeypairBootstrapRequest,
 ) -> VrfWorkerResponse {
     let mut manager_mut = manager.borrow_mut();
-    info!("Generating bootstrap VRF keypair");
+    debug!("Generating bootstrap VRF keypair");
 
     match manager_mut.generate_vrf_keypair_bootstrap(payload.vrf_input_data) {
         Ok(bootstrap_data) => {
-            info!("VRF keypair bootstrap completed successfully");
+            debug!("VRF keypair bootstrap completed successfully");
             // Structure response to match expected format
             let response_data = serde_json::json!({
                 "vrf_public_key": bootstrap_data.vrf_public_key,

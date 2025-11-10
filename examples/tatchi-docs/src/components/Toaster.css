@@ -73,16 +73,14 @@
 }
 
 [data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
-  /* Neutralize default absolute placement and make it a flex item at the end */
-  position: static !important;
-  top: auto !important;
-  right: auto !important;
+  /* Position the close button at the toast's top-right corner */
+  position: absolute !important;
+  top: -0.25rem !important;
+  right: -0.25rem !important;
   left: auto !important;
   transform: none !important;
-  order: 999 !important;              /* ensure it renders after content */
-  margin-inline-start: auto !important;/* push to end in LTR/RTL */
 
-  /* Center the icon and remove global padding */
+  /* Tight icon button without extra padding */
   padding: 0 !important;
   width: 20px;
   height: 20px;

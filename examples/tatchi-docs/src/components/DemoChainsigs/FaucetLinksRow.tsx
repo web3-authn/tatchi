@@ -170,7 +170,7 @@ export const FaucetLinksRow: React.FC<FaucetLinksRowProps> = ({ chainId, address
           <div className={`faucet-warning ${wantsUsdc ? 'faucet-anim-show' : ''}`} style={{ marginTop: '0.5rem' }}>
             Fund your address with test USDC
             <br/>
-            <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer noopener">Circle USDC faucet</a>
+            <a href="https://faucet.circle.com/" target="_blank" rel="noreferrer noopener">Circle USDC faucet (choose Eth Sepolia)</a>
           </div>
         )}
       </div>

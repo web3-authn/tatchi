@@ -144,7 +144,6 @@ fn test_contract_registration_result() {
             credential_public_key: vec![0x04, 0x05, 0x06],
         }),
         signed_transaction_borsh: Some(vec![0x0a, 0x0b, 0x0c]),
-        pre_signed_delete_transaction: Some(vec![0x0d, 0x0e, 0x0f]),
     };
 
     assert_eq!(result.success, true);

@@ -1,5 +1,5 @@
 use crate::types::wasm_to_json::ToJson;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json;
 use serde_wasm_bindgen;
 use wasm_bindgen::prelude::*;

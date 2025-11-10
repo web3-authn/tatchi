@@ -20,7 +20,8 @@ import {
   decodeMpcRsvFromSuccessValue,
   extractNearSuccessValue,
   extractNearTransactionId,
-  renderExplorerLink
+  renderExplorerLink,
+  toUserFriendlyNearErrorFromOutcome,
 } from './helpers/near';
 import type { EVMUnsignedTransaction } from './helpers/types';
 import { finalizeViaAdapter, finalizeViaViem } from './helpers/finalize';
@@ -130,7 +131,7 @@ export function useMpcEvmFlow() {
               domain_id: 0,
             },
           },
-          gas: '300000000000000',
+          gas: '100000000000000',
           deposit: '1',
         },
         options: {
@@ -152,9 +153,25 @@ export function useMpcEvmFlow() {
         }
       });
 
+      // Announce NEAR transaction id (contract call) if available
+      const txIdErc20 = extractNearTransactionId(result);
+      if (txIdErc20) {
+        const showLink = !!args.toastExplorerLink;
+        const description = showLink && NEAR_EXPLORER_BASE_URL
+          ? renderExplorerLink(`${NEAR_EXPLORER_BASE_URL}/transactions/${txIdErc20}`)
+          : '' as any;
+        toast.success(`NEAR tx: ${txIdErc20}`, { id: 'chainsig:erc20:near', description });
+      }
+
       const successValue = extractNearSuccessValue(result);
       if (!successValue) {
-        throw new Error('No SuccessValue in result');
+        const nearPretty = toUserFriendlyNearErrorFromOutcome(result);
+        if (nearPretty) {
+          toast.error(nearPretty.title, { id: 'chainsig:erc20', description: nearPretty.description as any });
+          return;
+        }
+        const fallbackMsg = (result && typeof (result as any).error === 'string') ? (result as any).error : 'NEAR transaction did not return a SuccessValue.';
+        throw new Error(fallbackMsg);
       }
       const rsvSignatures = decodeMpcRsvFromSuccessValue(successValue);
 
@@ -291,9 +308,14 @@ export function useMpcEvmFlow() {
       }
 
       const successValue = extractNearSuccessValue(result);
-
       if (!successValue) {
-        throw new Error('No SuccessValue in result');
+        const nearPretty = toUserFriendlyNearErrorFromOutcome(result);
+        if (nearPretty) {
+          toast.error(nearPretty.title, { id: 'chainsig', description: nearPretty.description as any });
+          return;
+        }
+        const fallbackMsg = (result && typeof (result as any).error === 'string') ? (result as any).error : 'NEAR transaction did not return a SuccessValue.';
+        throw new Error(fallbackMsg);
       }
       const rsvSignatures = decodeMpcRsvFromSuccessValue(successValue);
 

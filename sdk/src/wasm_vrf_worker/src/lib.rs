@@ -1,4 +1,4 @@
-use log::{debug, info};
+use log::debug;
 use std::cell::RefCell;
 use std::rc::Rc;
 use wasm_bindgen::prelude::*;
@@ -10,9 +10,11 @@ mod handlers;
 mod http;
 mod manager;
 mod shamir3pass;
-mod tests;
 mod types;
 mod utils;
+
+#[cfg(test)]
+mod tests;
 
 // Re-export important types and functions
 pub use config::*;

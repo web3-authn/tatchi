@@ -16,10 +16,11 @@ import {
   AuthMenuMode,
   AuthMenuModeMap,
   type AuthMenuModeLabel,
+  type AuthMenuHeadings,
 } from './types';
 
 export { AuthMenuMode, AuthMenuModeMap };
-export type { AuthMenuModeLabel };
+export type { AuthMenuModeLabel, AuthMenuHeadings };
 
 export interface PasskeyAuthMenuProps {
   onLogin?: () => void;
@@ -43,6 +44,8 @@ export interface PasskeyAuthMenuProps {
   defaultMode?: AuthMenuMode;
   style?: React.CSSProperties;
   className?: string;
+  /** Optional custom headings for each mode */
+  headings?: AuthMenuHeadings;
   /**
    * Optional social login hooks. Provide a function per provider that returns
    * the derived username (e.g., email/handle) after the external auth flow.
@@ -78,6 +81,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   // login options
   socialLogin,
   loadingScreenDelayMs,
+  headings,
 }) => {
 
   const { tokens, isDark } = useTheme();
@@ -110,6 +114,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
     passkeyManager,
     currentValue,
     setCurrentValue,
+    headings,
   });
 
   const { canShowContinue, canSubmit } = useProceedEligibility({

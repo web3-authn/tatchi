@@ -215,6 +215,7 @@ pub fn progress_step_name(step: ProgressStep) -> &'static str {
 }
 
 /// Convert ProgressStatus enum to readable string for debugging
+#[allow(dead_code)]
 pub fn progress_status_name(status: ProgressStatus) -> &'static str {
     match status {
         ProgressStatus::Progress => "progress",
@@ -225,6 +226,7 @@ pub fn progress_status_name(status: ProgressStatus) -> &'static str {
 }
 
 /// Enhanced logging helper that includes enum names for better debugging
+#[allow(dead_code)]
 pub fn log_progress_message(message_type: ProgressMessageType, step: ProgressStep, message: &str) {
     crate::log(&format!(
         "Progress: {} ({}) - {} ({}) - {}",

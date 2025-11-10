@@ -352,7 +352,13 @@ export async function executeActionInternal({
       message: `Action failed: ${short || e.message}`,
       error: short || e.message
     });
-    const result: ActionResult = { success: false, error: e.message, transactionId: undefined };
+    const result: ActionResult = {
+      success: false,
+      error: e.message,
+      // propagate structured RPC details when present so UIs can render helpful errors
+      errorDetails: (e as any)?.details,
+      transactionId: undefined,
+    };
     afterCall?.(false);
     return result;
   }

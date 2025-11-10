@@ -3,7 +3,7 @@ use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{ChaCha20Poly1305, Nonce};
 use getrandom::getrandom;
 use hkdf::Hkdf;
-use log::{debug, info};
+use log::debug;
 use sha2::Sha256;
 
 use crate::config::{
@@ -24,8 +24,6 @@ pub(crate) fn derive_chacha20_key_from_prf(
     prf_output_base64: &str,
     near_account_id: &str,
 ) -> Result<Vec<u8>, KdfError> {
-    info!("Deriving account-specific ChaCha20 key from PRF output using HKDF");
-
     // 1. Decode PRF output from base64
     let prf_output = base64_url_decode(prf_output_base64)?;
 
@@ -45,11 +43,6 @@ pub(crate) fn derive_chacha20_key_from_prf(
     hk.expand(info, &mut chacha20_key)
         .map_err(|_| KdfError::HkdfError)?;
 
-    info!(
-        "Successfully derived account-specific ChaCha20 key ({} bytes) for {}",
-        chacha20_key.len(),
-        near_account_id
-    );
     Ok(chacha20_key)
 }
 
@@ -116,14 +109,12 @@ pub(crate) fn decrypt_data_chacha20(
 
 // === KEY GENERATION ===
 
-/// NEW: Secure Ed25519 key derivation from PRF output (prf.results.second)
+/// Secure Ed25519 key derivation from PRF output (prf.results.second)
 /// Pure PRF-based Ed25519 key derivation for signing purposes only
 pub(crate) fn derive_ed25519_key_from_prf_output(
     prf_output_base64: &str,
     account_id: &str,
 ) -> Result<(String, String), KdfError> {
-    info!("Deriving Ed25519 key from PRF output (dual PRF workflow)");
-
     // Decode PRF output from base64
     let prf_output = base64_url_decode(prf_output_base64)?;
 
@@ -162,10 +153,7 @@ pub(crate) fn derive_ed25519_key_from_prf_output(
     let near_private_key = format!("ed25519:{}", private_key_b58);
     let near_public_key = format!("ed25519:{}", public_key_b58);
 
-    info!(
-        "Successfully derived Ed25519 key for account: {}",
-        account_id
-    );
+    debug!("Successfully derived Ed25519 key for account: {}", account_id);
     Ok((near_private_key, near_public_key))
 }
 
@@ -175,26 +163,21 @@ pub(crate) fn derive_and_encrypt_keypair_from_dual_prf(
     dual_prf_outputs: &crate::types::DualPrfOutputs,
     account_id: &str,
 ) -> Result<(String, EncryptedDataChaCha20Response), KdfError> {
-    info!("Starting complete dual PRF workflow");
-
     // 1. Derive account-specific ChaCha20 key from first PRF output (prf.results.first)
     // Use same account-specific method as decryption for consistency
     let chacha20_key =
         derive_chacha20_key_from_prf(&dual_prf_outputs.chacha20_prf_output_base64, account_id)?;
-    info!("Derived account-specific ChaCha20 key from first PRF output");
 
     // 2. Derive Ed25519 key from second PRF output (prf.results.second)
     let (near_private_key, near_public_key) = derive_ed25519_key_from_prf_output(
         &dual_prf_outputs.ed25519_prf_output_base64,
         account_id,
     )?;
-    info!("Derived Ed25519 key from second PRF output");
 
     // 3. Encrypt the Ed25519 private key using the account-specific ChaCha20 key
     let encrypted_response = encrypt_data_chacha20(&near_private_key, &chacha20_key)
         .map_err(|e| KdfError::EncryptionError(e))?;
 
-    info!("Dual PRF workflow completed successfully");
     Ok((near_public_key, encrypted_response))
 }
 
@@ -206,38 +189,34 @@ pub fn decrypt_private_key_with_prf(
     encrypted_private_key_data: &str,
     encrypted_private_key_iv: &str,
 ) -> Result<ed25519_dalek::SigningKey, String> {
-    info!("Decrypting private key with PRF using account-specific HKDF");
-
     let chacha20_key = derive_chacha20_key_from_prf(chacha20_prf_output, near_account_id)
         .map_err(|e| format!("Account-specific key derivation failed: {}", e))?;
 
-    // 2. Decrypt private key using ChaCha20Poly1305
+    // Decrypt private key using ChaCha20Poly1305
     let decrypted_private_key_str = decrypt_data_chacha20(
         encrypted_private_key_data,
         encrypted_private_key_iv,
         &chacha20_key,
     )?;
 
-    // 3. Parse private key (remove ed25519: prefix if present)
+    // Parse private key (remove ed25519: prefix if present)
     let private_key_b58 = if decrypted_private_key_str.starts_with("ed25519:") {
         &decrypted_private_key_str[8..]
     } else {
         &decrypted_private_key_str
     };
 
-    // 4. Decode private key from base58
+    // Decode private key from base58
     let private_key_bytes = bs58::decode(private_key_b58)
         .into_vec()
         .map_err(|e| format!("Failed to decode private key: {}", e))?;
 
-    // 5. Handle both 32-byte (seed only) and 64-byte (seed + public key) formats
+    // Handle both 32-byte (seed only) and 64-byte (seed + public key) formats
     let seed_bytes = if private_key_bytes.len() == 32 {
         // Legacy 32-byte format (seed only)
-        debug!("Using 32-byte private key format (seed only)");
         private_key_bytes
     } else if private_key_bytes.len() == 64 {
         // New 64-byte format (seed + public key) - extract first 32 bytes (seed)
-        debug!("Using 64-byte private key format (seed + public key)");
         private_key_bytes[0..32].to_vec()
     } else {
         return Err(format!(
@@ -246,12 +225,11 @@ pub fn decrypt_private_key_with_prf(
         ));
     };
 
-    // 6. Create SigningKey from the 32-byte seed
+    // Create SigningKey from the 32-byte seed
     let mut key_array = [0u8; 32];
     key_array.copy_from_slice(&seed_bytes);
     let signing_key = ed25519_dalek::SigningKey::from_bytes(&key_array);
 
-    info!("Successfully decrypted private key");
     Ok(signing_key)
 }
 
@@ -262,11 +240,6 @@ pub fn encrypt_private_key_with_prf(
     prf_output_base64: &str,
     near_account_id: &str,
 ) -> Result<EncryptedDataChaCha20Response, String> {
-    info!(
-        "Encrypting private key with PRF output for account: {}",
-        near_account_id
-    );
-
     // Derive ChaCha20 key from PRF output using account-specific HKDF
     let chacha20_key_bytes = derive_chacha20_key_from_prf(prf_output_base64, near_account_id)
         .map_err(|e| format!("Failed to derive ChaCha20 key from PRF: {}", e))?;
@@ -275,6 +248,5 @@ pub fn encrypt_private_key_with_prf(
     let encrypted_result = encrypt_data_chacha20(private_key_bytes, &chacha20_key_bytes)
         .map_err(|e| format!("Failed to encrypt private key: {}", e))?;
 
-    info!("Private key encrypted successfully");
     Ok(encrypted_result)
 }

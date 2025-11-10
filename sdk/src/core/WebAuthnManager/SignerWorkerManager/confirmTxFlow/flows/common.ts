@@ -143,6 +143,7 @@ export async function maybeRefreshVrfChallenge(
   const vrfWorkerManager = ctx.vrfWorkerManager;
   if (!vrfWorkerManager) throw new Error('VrfWorkerManager not available');
 
+  const attempts = 3;
   return await retryWithBackoff(async (attempt) => {
     const latestCtx = await ctx.nonceManager.getNonceBlockHashAndHeight(ctx.nearClient, { force: true });
     console.debug('[SecureConfirm] Refreshed VRF block height', latestCtx?.txBlockHeight, 'hash', latestCtx?.txBlockHash);
@@ -166,9 +167,17 @@ export async function maybeRefreshVrfChallenge(
 
     return { vrfChallenge, transactionContext: latestCtx };
   }, {
-    attempts: 3,
+    attempts,
     baseDelayMs: 150,
-    onError: (err, attempt) => console.warn(`[SecureConfirm] VRF refresh attempt ${attempt} failed`, err),
+    onError: (err, attempt) => {
+      const msg = errorMessage(err);
+      const isFinal = attempt >= attempts;
+      if (isFinal) {
+        console.warn(`[SecureConfirm] VRF refresh failed: ${msg}`);
+      } else {
+        console.debug(`[SecureConfirm] VRF refresh attempt ${attempt} failed: ${msg}`);
+      }
+    },
     errorFactory: () => new Error('VRF refresh failed'),
   });
 }

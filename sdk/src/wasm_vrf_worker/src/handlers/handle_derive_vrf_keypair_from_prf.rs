@@ -1,5 +1,5 @@
 use wasm_bindgen::prelude::*;
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;

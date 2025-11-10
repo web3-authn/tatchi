@@ -12,7 +12,7 @@ use crate::transaction::{
     sign_transaction,
 };
 use crate::types::{
-    handlers::{ConfirmationConfig, RpcCallPayload, TransactionContext},
+    handlers::{ConfirmationConfig, RpcCallPayload},
     progress::{
         send_completion_message, send_error_message, send_progress_message, ProgressMessageType,
         ProgressStep,
@@ -22,7 +22,6 @@ use crate::types::{
     WebAuthnAuthenticationCredentialStruct,
 };
 use bs58;
-use log::info;
 use serde::{Deserialize, Serialize};
 use serde_json;
 use wasm_bindgen::prelude::*;
@@ -206,8 +205,6 @@ pub async fn handle_sign_transactions_with_actions(
     ));
 
     // Step 1: Request user confirmation and credential collection
-    let mut confirmation_result_opt: Option<ConfirmationResult> = None;
-
     // Log transaction details for validation
     for (i, tx) in tx_batch_request.tx_signing_requests.iter().enumerate() {
         logs.push(format!(
@@ -222,22 +219,16 @@ pub async fn handle_sign_transactions_with_actions(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
         "Requesting user confirmation...",
-        Some(
-            &serde_json::json!({
-                "step": 1,
-                "total": 4,
-                "transaction_count": tx_batch_request.tx_signing_requests.len()
-            })
-            .to_string(),
-        ),
+        Some(&serde_json::json!({
+            "step": 1,
+            "total": 4,
+            "transaction_count": tx_batch_request.tx_signing_requests.len()
+        }).to_string()),
     );
 
     // Use the confirmation configuration if provided, otherwise use default
     let confirmation_config = tx_batch_request.confirmation_config.as_ref();
-    logs.push(format!(
-        "Using confirmation config: {:?}",
-        confirmation_config
-    ));
+    logs.push(format!("Using confirmation config: {:?}", confirmation_config));
 
     let c = request_user_confirmation(&tx_batch_request, &mut logs)
         .await
@@ -259,8 +250,6 @@ pub async fn handle_sign_transactions_with_actions(
         logs.push("[WASM] User has confirmed transaction details".to_string());
     }
 
-    confirmation_result_opt = Some(c);
-
     // Step 2: Extract credentials for verification
     logs.push("Extracting credentials for contract verification...".to_string());
     send_progress_message(
@@ -272,17 +261,17 @@ pub async fn handle_sign_transactions_with_actions(
 
     // VRF challenge is now generated in the main thread confirmation flow
     // and passed via the confirmation result
-    let vrf_challenge = confirmation_result_opt
-        .as_ref()
-        .and_then(|r| r.vrf_challenge.clone())
+    let vrf_challenge = c
+        .vrf_challenge
+        .clone()
         .ok_or_else(|| "Missing VRF challenge from confirmation result".to_string())?;
 
     // VRF challenge is passed to contract verification below; block height freshness is enforced there.
 
     // Get credential from confirmation result (mandatory now)
-    let credential_json_value = confirmation_result_opt
-        .as_ref()
-        .and_then(|r| r.credential.clone())
+    let credential_json_value = c
+        .credential
+        .clone()
         .ok_or_else(|| "Missing authentication credential from confirmation".to_string())?;
 
     // If credential is serde_json::Value, convert; else assume structured already
@@ -404,9 +393,9 @@ pub async fn handle_sign_transactions_with_actions(
     );
 
     // Get PRF output from confirmation result (mandatory now)
-    let chacha20_prf_output = confirmation_result_opt
-        .as_ref()
-        .and_then(|r| r.prf_output.clone())
+    let chacha20_prf_output = c
+        .prf_output
+        .clone()
         .ok_or_else(|| "Missing PRF output from confirmation".to_string())?;
 
     let decryption = Decryption::new(
@@ -420,9 +409,7 @@ pub async fn handle_sign_transactions_with_actions(
 
     // Process all transactions using the shared verification and decryption
     let tx_count = tx_batch_request.tx_signing_requests.len();
-    let confirmation_result = confirmation_result_opt
-        .as_ref()
-        .ok_or_else(|| "Confirmation result not available".to_string())?;
+    let confirmation_result = &c;
     let result = sign_near_transactions_with_actions_impl(
         tx_batch_request.tx_signing_requests,
         &decryption,
@@ -632,7 +619,6 @@ async fn sign_near_transactions_with_actions_impl(
         "All {} transactions signed successfully",
         signed_transactions_wasm.len()
     ));
-    info!("RUST: Batch signing completed successfully");
 
     Ok(TransactionSignResult::new(
         true,

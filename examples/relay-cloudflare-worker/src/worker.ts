@@ -44,8 +44,8 @@ function getService(env: Env) {
       webAuthnContractId: env.WEBAUTHN_CONTRACT_ID,
       nearRpcUrl: env.NEAR_RPC_URL,
       networkId: env.NETWORK_ID || 'testnet',
-      accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE || '30000000000000000000000',
-      createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS || '85000000000000',
+      accountInitialBalance: env.ACCOUNT_INITIAL_BALANCE || '40000000000000000000000', // 0.04 NEAR
+      createAccountAndRegisterGas: env.CREATE_ACCOUNT_AND_REGISTER_GAS || '85000000000000', // 85 TGas (tested)
       shamir: {
         shamir_p_b64u: env.SHAMIR_P_B64U,
         shamir_e_s_b64u: env.SHAMIR_E_S_B64U,

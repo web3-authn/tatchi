@@ -466,7 +466,7 @@ const validateRegistrationInputs = async (
   } catch (viewError: any) {
     // If viewAccount throws any error, assume the account doesn't exist
     // This is more reliable than parsing specific error formats that vary between RPC servers
-    console.log(`Account ${nearAccountId} is available for registration (${viewError.message})`);
+    console.debug(`Account ${nearAccountId} is available for registration (${viewError.message})`);
     onEvent?.({
       step: 1,
       phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
