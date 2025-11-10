@@ -4,8 +4,8 @@
 - Non‑goals: Building a relayer service. We return a `SignedDelegate` to the caller and optionally submit via an existing relayer integration when configured.
 
 **References**
-- DelegateAction encoding, prefix and schema (near-api-js): c4c312ff
-- Prefix constant: `1073742190` = `2^30 + 366`
+- DelegateAction encoding, prefix and schema match @near-js/transactions (e.g., v2.4.0)
+- DelegateActionPrefix: `1073742190` = `2^30 + 366` (NEP‑461 actionable message base is `2^30`)
 - Example meta‑transaction wrapping by relayer: meta-transaction.ts
 
 **Deliverables**
@@ -45,8 +45,9 @@
     - Sign: Build the delegate action struct, check `publicKey` matches the decrypted keypair public key, encode with NEP‑461 prefix (`1073742190`), SHA‑256 the message, and Ed25519‑sign the hash.
       - Return `{ hash, signed_delegate }` where `signed_delegate` contains `{ delegateAction, signature { keyType, data } }`.
   - Encoding and schema:
-    - Implement `encode_delegate_action(delegate: DelegateAction) -> Vec<u8>` that prepends the NEP‑461 prefix before Borsh serializing the `DelegateAction` (mirror near-api-js schema).
-    - Implement `encode_signed_delegate(sd: SignedDelegate) -> Vec<u8>` for completeness/testing.
+    - Implement `encode_delegate_action(delegate: DelegateAction) -> Vec<u8>` that prepends the NEP‑461 prefix before Borsh serializing the `DelegateAction` (mirror @near-js/transactions `encodeDelegateAction`). The prefix is a Borsh struct `{ prefix: u32 }` with value `2^30 + 366`.
+    - Hashing/signing: compute `sha256(encode_delegate_action(delegate))` and Ed25519‑sign that hash. Do not include the signature during hashing.
+    - Implement `encode_signed_delegate(sd: SignedDelegate) -> Vec<u8>` for completeness/testing. This is a plain Borsh serialization of `{ delegateAction, signature }` and does not include the prefix (matches @near-js/transactions `encodeSignedDelegate`).
   - Progress events:
     - Reuse the existing action progress mapping for now to avoid new plumbing:
       - `Preparation` → build inputs
@@ -159,4 +160,3 @@
 **Open Questions**
 - Do we need a dedicated progress phase set (e.g., `delegate-signing-progress`) or is reusing action phases sufficient for v1?
 - Should the SDK offer a convenience `sendViaRelayer()` with retry/backoff and RPC status normalization now, or keep the scope to signing only?
-

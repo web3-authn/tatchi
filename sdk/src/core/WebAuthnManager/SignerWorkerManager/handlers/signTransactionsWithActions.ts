@@ -74,10 +74,17 @@ export async function signTransactionsWithActions({
       actions: JSON.stringify(tx.actions)
     }));
 
-    // Merge partial override over the user's persisted preferences to form a complete config
-    const confirmationConfig: ConfirmationConfig = confirmationConfigOverride
-      ? { ...ctx.userPreferencesManager.getConfirmationConfig(), ...confirmationConfigOverride }
-      : ctx.userPreferencesManager.getConfirmationConfig();
+  // Merge partial override over the user's persisted preferences to form a complete config
+  // Important: strip undefined keys from the override so they don't clobber
+  // required fields (e.g., behavior) and break WASM deserialization.
+  const cleanedOverride = confirmationConfigOverride
+    ? (Object.fromEntries(
+        Object.entries(confirmationConfigOverride).filter(([, v]) => v !== undefined)
+      ) as Partial<ConfirmationConfig>)
+    : undefined;
+  const confirmationConfig: ConfirmationConfig = cleanedOverride
+    ? { ...ctx.userPreferencesManager.getConfirmationConfig(), ...cleanedOverride }
+    : ctx.userPreferencesManager.getConfirmationConfig();
 
     // Send batch signing request to WASM worker
     // Normalize rpcCall to ensure required fields are present

@@ -7,6 +7,8 @@ import { removePrfOutputGuard, serializeRegistrationCredential, normalizeRegistr
 import type { WebAuthnRegistrationCredential } from '../../types/webauthn';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import type { CreateAccountAndRegisterResult } from '../../../server/core/types';
+import { isObject } from '../../WalletIframe/validation';
+import { errorMessage } from '../../../utils/errors';
 
 /**
  * HTTP Request body for the relay server's /create_account_and_register_user endpoint
@@ -57,10 +59,10 @@ export async function createAccountAndRegisterWithRelayServer(
 
   try {
     onEvent?.({
-      step: 3,
-      phase: RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION,
+      step: 4,
+      phase: RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION,
       status: RegistrationStatus.PROGRESS,
-      message: 'Adding access key to account...',
+      message: 'Creating account and adding access key...',
     });
 
     // Serialize the WebAuthn credential properly for the contract.
@@ -101,8 +103,8 @@ export async function createAccountAndRegisterWithRelayServer(
     };
 
     onEvent?.({
-      step: 6,
-      phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
+      step: 5,
+      phase: RegistrationPhase.STEP_5_CONTRACT_REGISTRATION,
       status: RegistrationStatus.PROGRESS,
       message: 'Registering user with Web3Authn contract...',
     });
@@ -128,8 +130,8 @@ export async function createAccountAndRegisterWithRelayServer(
     }
 
     onEvent?.({
-      step: 6,
-      phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION,
+      step: 5,
+      phase: RegistrationPhase.STEP_5_CONTRACT_REGISTRATION,
       status: RegistrationStatus.SUCCESS,
       message: 'User registered with Web3Authn contract successfully',
     });
@@ -179,5 +181,3 @@ function generateTransactionHash(signedTransaction: SignedTransaction): string {
     return 'hash-generation-failed';
   }
 }
-import { isObject } from '../../WalletIframe/validation';
-import { errorMessage } from '../../../utils/errors';

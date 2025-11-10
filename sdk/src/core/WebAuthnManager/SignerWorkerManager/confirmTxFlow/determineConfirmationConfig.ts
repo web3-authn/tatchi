@@ -34,9 +34,14 @@ export function determineConfirmationConfig(
 ): ConfirmationConfig {
 
   // Merge request‑level override over user preferences
+  // Important: drop undefined/null fields from the override so they don't clobber
+  // persisted preferences (e.g., behavior) with an undefined value.
   const configBase = ctx.userPreferencesManager.getConfirmationConfig();
-  const configOverride = (request?.confirmationConfig || {}) as Partial<ConfirmationConfig>;
-  let cfg: ConfirmationConfig = { ...configBase, ...configOverride } as ConfirmationConfig;
+  const rawOverride = (request?.confirmationConfig || {}) as Partial<ConfirmationConfig>;
+  const cleanedOverride = Object.fromEntries(
+    Object.entries(rawOverride).filter(([, v]) => v !== undefined && v !== null)
+  ) as Partial<ConfirmationConfig>;
+  let cfg: ConfirmationConfig = { ...configBase, ...cleanedOverride } as ConfirmationConfig;
 
   // Normalize theme default
   cfg = { ...cfg, theme: cfg.theme || 'dark' } as ConfirmationConfig;

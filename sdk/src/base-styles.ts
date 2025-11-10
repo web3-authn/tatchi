@@ -39,7 +39,7 @@ type ThemeAliases = {
   borderHover: string;
   backgroundGradientPrimary: string;
   backgroundGradientSecondary: string;
-  backgroundGradient3?: string;
+  backgroundGradient3: string;
   backgroundGradient4: string;
   highlightReceiverId: string;
   highlightMethodName: string;

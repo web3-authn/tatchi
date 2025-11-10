@@ -2,7 +2,7 @@
 
 ## Overview
 
-The passkey registration process follows a structured 7-step flow with SDK-Sent Events (SSE) providing real-time progress updates. Users can log in immediately after step 2, while remaining steps complete in the background.
+The passkey registration process follows a structured 8-step flow with SDK-Sent Events (SSE) providing real-time progress updates. Users can log in immediately after step 2, while remaining steps complete in the background.
 
 ## Event Interface
 
@@ -19,11 +19,12 @@ interface BaseRegistrationSSEEvent {
 type RegistrationSSEEvent =
   | RegistrationEventStep1    // Step 1: WebAuthn Verification
   | RegistrationEventStep2    // Step 2: Key Generation
-  | RegistrationEventStep3    // Step 3: Access Key Addition
-  | RegistrationEventStep4    // Step 4: Account Verification
-  | RegistrationEventStep5    // Step 5: Database Storage
-  | RegistrationEventStep6    // Step 6: Contract Registration
-  | RegistrationEventStep7    // Step 7: Registration Complete
+  | RegistrationEventStep3    // Step 3: Contract Pre-check
+  | RegistrationEventStep4    // Step 4: Access Key Addition (relay)
+  | RegistrationEventStep5    // Step 5: Contract Registration (relay)
+  | RegistrationEventStep6    // Step 6: Post-registration Account Verification
+  | RegistrationEventStep7    // Step 7: Database Storage
+  | RegistrationEventStep8    // Step 8: Registration Complete
   | RegistrationEventStep0;   // Step 0: Error
 ```
 
@@ -35,11 +36,12 @@ The registration process uses these phases defined in `RegistrationPhase`:
 export enum RegistrationPhase {
   STEP_1_WEBAUTHN_VERIFICATION = 'webauthn-verification',
   STEP_2_KEY_GENERATION = 'key-generation',
-  STEP_3_ACCESS_KEY_ADDITION = 'access-key-addition',
-  STEP_4_ACCOUNT_VERIFICATION = 'account-verification',
-  STEP_5_DATABASE_STORAGE = 'database-storage',
-  STEP_6_CONTRACT_REGISTRATION = 'contract-registration',
-  STEP_7_REGISTRATION_COMPLETE = 'registration-complete',
+  STEP_3_CONTRACT_PRE_CHECK = 'contract-pre-check',
+  STEP_4_ACCESS_KEY_ADDITION = 'access-key-addition',
+  STEP_5_CONTRACT_REGISTRATION = 'contract-registration',
+  STEP_6_ACCOUNT_VERIFICATION = 'account-verification',
+  STEP_7_DATABASE_STORAGE = 'database-storage',
+  STEP_8_REGISTRATION_COMPLETE = 'registration-complete',
   REGISTRATION_ERROR = 'error',
 }
 ```
@@ -50,11 +52,12 @@ export enum RegistrationPhase {
 |------|-------|----------|----------|------------|-------------|
 | 1 | `webauthn-verification` | 100-500ms | Yes | No | WebAuthn credential verification |
 | 2 | `key-generation` | Instant | Yes | No | NEAR and VRF key generation |
-| 3 | `access-key-addition` | 1-2s | Yes | No | Create NEAR account and add access key |
-| 4 | `account-verification` | 50-200ms | No | Yes | Verify account creation on-chain |
-| 5 | `database-storage` | 50-200ms | No | Yes | Store authenticator data locally |
-| 6 | `contract-registration` | 1-2s | No | Yes | Register user in smart contract |
-| 7 | `registration-complete` | Instant | No | No | Final confirmation |
+| 3 | `contract-pre-check` | 50-200ms | No | Yes | Validate contract availability and account feasibility |
+| 4 | `access-key-addition` | 1-2s | Yes | No | Create NEAR account and add access key (relay) |
+| 5 | `contract-registration` | 1-2s | Yes | No | Register user in smart contract (relay) |
+| 6 | `account-verification` | 50-200ms | No | Yes | Verify on-chain access key post-commit |
+| 7 | `database-storage` | 50-200ms | No | Yes | Store authenticator data locally |
+| 8 | `registration-complete` | Instant | No | No | Final confirmation |
 | 0 | `registration-error` | Instant | Fatal | No | Error state |
 
 ### Step 1: WebAuthn Verification
@@ -82,57 +85,67 @@ interface RegistrationEventStep2 extends BaseRegistrationSSEEvent {
 }
 ```
 
-### Step 3: Access Key Addition (Critical)
-Creates NEAR account and adds access key. **If this fails, remaining steps abort.**
+### Step 3: Contract Pre-check
+Performs lightweight checks (contract reachable, account available). May run concurrently with key generation progress.
 
 ```typescript
 interface RegistrationEventStep3 extends BaseRegistrationSSEEvent {
   step: 3;
-  phase: RegistrationPhase.STEP_3_ACCESS_KEY_ADDITION;
-  error?: string;
+  phase: RegistrationPhase.STEP_3_CONTRACT_PRE_CHECK;
 }
 ```
 
-### Step 4: Account Verification
-Verifies the account was created successfully on-chain:
+### Step 4: Access Key Addition (Critical, relay)
+Creates NEAR account and adds access key via the relay. **If this fails, remaining steps abort.**
 
 ```typescript
 interface RegistrationEventStep4 extends BaseRegistrationSSEEvent {
   step: 4;
-  phase: RegistrationPhase.STEP_4_ACCOUNT_VERIFICATION;
+  phase: RegistrationPhase.STEP_4_ACCESS_KEY_ADDITION;
   error?: string;
 }
 ```
 
-### Step 5: Database Storage
-Stores authenticator data in local IndexedDB:
+### Step 5: Contract Registration (relay)
+Registers user in the smart contract via the same relay operation:
 
 ```typescript
 interface RegistrationEventStep5 extends BaseRegistrationSSEEvent {
   step: 5;
-  phase: RegistrationPhase.STEP_5_DATABASE_STORAGE;
+  phase: RegistrationPhase.STEP_5_CONTRACT_REGISTRATION;
   error?: string;
 }
 ```
 
-### Step 6: Contract Registration
-Registers user in the smart contract (for optimistic mode):
+### Step 6: Account Verification
+SDK polls access keys and asserts the expected public key is present before persisting anything or auto-login:
 
 ```typescript
 interface RegistrationEventStep6 extends BaseRegistrationSSEEvent {
   step: 6;
-  phase: RegistrationPhase.STEP_6_CONTRACT_REGISTRATION;
+  phase: RegistrationPhase.STEP_6_ACCOUNT_VERIFICATION;
   error?: string;
 }
 ```
 
-### Step 7: Registration Complete
-Final confirmation that all operations completed successfully:
+### Step 7: Database Storage
+Stores authenticator data in local IndexedDB:
 
 ```typescript
 interface RegistrationEventStep7 extends BaseRegistrationSSEEvent {
   step: 7;
-  phase: RegistrationPhase.STEP_7_REGISTRATION_COMPLETE;
+  phase: RegistrationPhase.STEP_7_DATABASE_STORAGE;
+  error?: string;
+}
+```
+
+### Step 8: Registration Complete
+Final confirmation that all operations completed successfully:
+
+```typescript
+interface RegistrationEventStep8 extends BaseRegistrationSSEEvent {
+  step: 8;
+  phase: RegistrationPhase.STEP_8_REGISTRATION_COMPLETE;
   status: RegistrationStatus.SUCCESS;
 }
 ```
@@ -158,15 +171,17 @@ Start Registration
        ↓
    [2] Key Generation ← LOGIN ENABLED HERE
        ↓
-   [3] Access Key Addition (Critical)
+   [3] Contract Pre-check (may be concurrent)
        ↓
-   ┌─ [4] Account Verification ─┐
-   │                            │ (Concurrent)
-   └─ [5] Database Storage ─────┘
+   [4] Access Key Addition (relay)
        ↓
-   [6] Contract Registration
+   [5] Contract Registration (relay)
        ↓
-   [7] Registration Complete
+   [6] Account Verification (post-commit)
+       ↓
+   [7] Database Storage
+       ↓
+   [8] Registration Complete
 ```
 
 ## Implementation Example
@@ -187,32 +202,38 @@ function handleRegistrationEvent(event: RegistrationSSEEvent) {
       break;
 
     case 3:
-      if (event.status === RegistrationStatus.ERROR) {
-        showFatalError(`Account creation failed: ${event.error}`);
-        return; // Registration aborted
-      }
-      showProgress('Adding access key...');
+      showProgress('Pre-checking contract and account…');
       break;
 
     case 4:
       if (event.status === RegistrationStatus.ERROR) {
-        showWarning(`Account verification failed: ${event.error}`);
+        showFatalError(`Account creation failed: ${event.error}`);
+        return; // Registration aborted
       }
+      showProgress('Adding access key…');
       break;
 
     case 5:
       if (event.status === RegistrationStatus.ERROR) {
-        showWarning(`Database storage failed: ${event.error}`);
+        showWarning(`Contract registration failed: ${event.error}`);
+      } else {
+        showProgress('Contract registration submitted…');
       }
       break;
 
     case 6:
       if (event.status === RegistrationStatus.ERROR) {
-        showWarning(`Contract registration failed: ${event.error}`);
+        showWarning(`On-chain key verification failed: ${event.error}`);
       }
       break;
 
     case 7:
+      if (event.status === RegistrationStatus.ERROR) {
+        showWarning(`Database storage failed: ${event.error}`);
+      }
+      break;
+
+    case 8:
       showSuccess('Registration complete!');
       break;
 

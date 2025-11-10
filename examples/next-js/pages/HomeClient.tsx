@@ -38,7 +38,7 @@ export default function HomeClient() {
     if (!targetAccountId) return
     const result = await registerPasskey(targetAccountId, {
       onEvent: (event: any) => {
-        if (event.phase === RegistrationPhase.STEP_7_REGISTRATION_COMPLETE && event.status === RegistrationStatus.SUCCESS) {
+        if (event.phase === RegistrationPhase.STEP_8_REGISTRATION_COMPLETE && event.status === RegistrationStatus.SUCCESS) {
           console.log('Registration completed successfully')
         }
         if (event.error) console.error('Registration error:', event.error)

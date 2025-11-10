@@ -35,11 +35,13 @@ export function Register({ accountId }: { accountId: string }) {
 Key steps emitted by the SDK (abridged):
 
 - 1 `webauthn-verification`: Verify WebAuthn attestation/PRF
-- 2 `user-ready`: User verified, can login
-- 3 `access-key-addition`: Create NEAR account / add key
-- 4 `database-storage`: Store authenticator metadata
-- 5 `contract-registration`: Register on contract
-- 6 `registration-complete`: Done
+- 2 `key-generation`: Keys derived; login can be enabled
+- 3 `contract-pre-check`: Lightweight contract/account checks
+- 4 `access-key-addition`: Create NEAR account / add key (relay)
+- 5 `contract-registration`: Register on contract (relay)
+- 6 `account-verification`: Post-commit on-chain key check
+- 7 `database-storage`: Store authenticator metadata
+- 8 `registration-complete`: Done
 
 ## Login
 

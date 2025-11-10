@@ -311,8 +311,14 @@
   vertical-align: middle;
   transition: color var(--fe-fast, 0.2s) var(--fe-ease, ease);
 }
-.hero-built-on:hover .hero-built-on__label { color: var(--w3a-colors-secondaryHover); }
-.hero-built-on:hover svg { color: var(--w3a-colors-secondaryHover); }
+.hero-built-on:hover .hero-built-on__label {
+  /* color: var(--w3a-colors-secondaryHover);  */
+  color: #00ec97; /* NEAR green */
+}
+.hero-built-on:hover svg {
+  /* color: var(--w3a-colors-secondaryHover);  */
+  color: #00ec97; /* NEAR green */
+}
 
 .cta-button {
   display: inline-flex;
