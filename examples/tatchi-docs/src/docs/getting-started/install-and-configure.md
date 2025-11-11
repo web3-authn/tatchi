@@ -25,14 +25,9 @@ yarn add @tatchi-xyz/sdk
 React quick installs (recommended)
 
 ```bash
-pnpm add @tatchi-xyz/sdk react react-dom lucide-react
+pnpm add @tatchi-xyz/sdk react react-dom
 pnpm add -D vite @vitejs/plugin-react
 ```
-
-Optional peer deps (only if you use these features)
-- React UI: `react`, `react-dom`
-- QR Scanning: `qrcode`, `jsqr`
-- Relay Server: `express`
 
 ## 2) Configure Vite (dev/build)
 
@@ -81,26 +76,61 @@ example.localhost {
 ```
 
 
-## 4) React provider
+## 4) React Setup
 
+Setup the React provider:
 ```tsx
-import { PasskeyProvider } from '@tatchi-xyz/sdk/react'
+import React from 'react'
+import ReactDOM from 'react-dom/client'
+import App from './App.jsx'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
 
-<PasskeyProvider
-  config={{
-    iframeWallet: {
-      walletOrigin: "https://wallet.tatchi.xyz",
-      walletServicePath: '/wallet-service',
-    },
-    relayer: {
-      url: "https://relayer.tatchi.xyz",
-      accountId: "w3a-relayer.testnet",
-    },
-  }}
->
-  <App />
-</PasskeyProvider>
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <TatchiPasskeyProvider
+      config={{
+        iframeWallet: {
+          walletOrigin: "https://wallet.tatchi.xyz",
+        },
+        relayer: {
+          url: "https://relay.tatchi.xyz",
+          accountId: "w3a-relayer.testnet",
+        },
+      }}
+    >
+      <App />
+    </TatchiPasskeyProvider>
+  </React.StrictMode>,
+)
 ```
+
+Then in your `App.tsx`:
+```tsx
+import { useTatchi } from '@tatchi-xyz/sdk/react';
+
+function App() {
+  const { tatchi } = useTatchi();
+  const { configs } = tatchi;
+  return (
+    <main>
+      <h1>Tatchi Example</h1>
+      <button onClick={() => {
+        const id = Date.now();
+        tatchi.registerPasskey(`tatchi-test-${id}.${configs.contractId}`, {
+          onEvent: (event) => {
+            console.log('registration event: ', event)
+          }
+        });
+      }}>
+        Register Tatchi Account
+      </button>
+    </main>
+  )
+}
+
+export default App
+```
+
 
 ## 5) Your first run
 
