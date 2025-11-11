@@ -449,32 +449,14 @@ const validateRegistrationInputs = async (
     throw error;
   }
 
-  // Check if account already exists on-chain
+  // on-chain account existence check is performed later via signer worker (checkCanRegisterUser),
   onEvent?.({
     step: 1,
     phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
     status: RegistrationStatus.PROGRESS,
-    message: `Checking if account ${nearAccountId} is available...`
+    message: `Account format validated, preparing confirmation`
   } as RegistrationSSEEvent);
-
-  try {
-    const accountInfo = await context.nearClient.viewAccount(nearAccountId);
-    // If we get here without an error, the account already exists
-    const error = new Error(`Account ${nearAccountId} already exists. Please choose a different account ID.`);
-    onError?.(error);
-    throw error;
-  } catch (viewError: any) {
-    // If viewAccount throws any error, assume the account doesn't exist
-    // This is more reliable than parsing specific error formats that vary between RPC servers
-    console.debug(`Account ${nearAccountId} is available for registration (${viewError.message})`);
-    onEvent?.({
-      step: 1,
-      phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
-      status: RegistrationStatus.PROGRESS,
-      message: `Account ${nearAccountId} is available for registration`
-    } as RegistrationSSEEvent);
-    return; // Continue with registration
-  }
+  return;
 }
 
 /**
