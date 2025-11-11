@@ -15,7 +15,7 @@ import { Theme } from './theme';
  * It supports both camera-based scanning and file upload scanning.
  *
  * **Important:** This component should be used inside a TatchiPasskey context.
- * Wrap your app with PasskeyProvider (useTatchiContext available) for full functionality.
+ * Wrap your app with PasskeyProvider (useTatchi available) for full functionality.
  *
  * @example
  * ```tsx

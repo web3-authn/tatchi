@@ -1,7 +1,7 @@
 import React from 'react';
 import { toast } from 'sonner';
 import {
-  useTatchiContext,
+  useTatchi,
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
@@ -20,7 +20,7 @@ export const TatchiProfileSettingsButton: React.FC<TatchiProfileSettingsButtonPr
   style
 }) => {
 
-  const { loginState, tatchi } = useTatchiContext();
+  const { loginState, tatchi } = useTatchi();
   const { theme, setTheme } = useTheme();
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
   const {

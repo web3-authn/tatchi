@@ -19,7 +19,7 @@ import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
 import type {
   TatchiContextType,
-  PasskeyContextProviderProps,
+  TatchiContextProviderProps,
   LoginState,
   AccountInputState,
   RegistrationResult,
@@ -36,22 +36,19 @@ import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { TatchiPasskeyConfigs } from '@/core/types/passkeyManager';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
-import { Sign } from 'crypto';
-
-const PasskeyContext = createContext<TatchiContextType | undefined>(undefined);
 
 // Global singleton to prevent multiple manager instances in StrictMode
 let globalPasskeyManager: TatchiPasskey | null = null;
 let globalConfig: TatchiPasskeyConfigs | null = null;
 
-// Note: defaults moved to core/defaultConfigs to avoid coupling top-level SDK
-// consumers to React bundles.
+const TatchiContext = createContext<TatchiContextType | undefined>(undefined);
 
-export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
+export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   children,
   config,
 }) => {
-  // Authentication state (actual login status)
+
+  // Authentication state
   // Note: isLoggedIn is true ONLY when VRF worker has private key in memory (vrfActive = true)
   // This means the user can generate VRF challenges without additional TouchID prompts
   const [loginState, setLoginState] = useState<LoginState>({
@@ -83,7 +80,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     const finalConfig: TatchiPasskeyConfigs = buildConfigsFromEnv(config);
     const configChanged = JSON.stringify(globalConfig) !== JSON.stringify(finalConfig);
     if (!globalPasskeyManager || configChanged) {
-      console.debug('PasskeyProvider: Creating manager with config:', finalConfig);
+      console.debug('TatchiContextProvider: Creating manager with config:', finalConfig);
       globalPasskeyManager = new TatchiPasskey(finalConfig, nearClient);
       globalConfig = finalConfig;
     }
@@ -155,7 +152,7 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
         } catch {}
         pmIframeRef.current = client;
       } catch (err) {
-        console.warn('[PasskeyProvider] WalletIframe init failed:', err);
+        console.warn('[TatchiContextProvider] WalletIframe init failed:', err);
       }
     })();
     return () => {
@@ -401,13 +398,13 @@ export const PasskeyProvider: React.FC<PasskeyContextProviderProps> = ({
     viewAccessKeyList: (accountId: string) => tatchi.viewAccessKeyList(accountId),
   };
 
-  return <PasskeyContext.Provider value={value}>{children}</PasskeyContext.Provider>;
+  return <TatchiContext.Provider value={value}>{children}</TatchiContext.Provider>;
 };
 
-export const useTatchiContext = () => {
-  const context = useContext(PasskeyContext);
+export const useTatchi = () => {
+  const context = useContext(TatchiContext);
   if (context === undefined) {
-    throw new Error('useTatchiContext must be used within a PasskeyContextProvider');
+    throw new Error('useTatchi must be used within a TatchiContextProvider');
   }
   return context;
 };

@@ -1,13 +1,13 @@
 import React from 'react';
-import { PasskeyProvider } from '.';
+import { TatchiContextProvider } from '.';
 import { Theme } from '../components/theme';
 import type { ThemeProps } from '../components/theme';
 import { usePreconnectWalletAssets } from '../hooks/usePreconnectWalletAssets';
-import type { PasskeyContextProviderProps } from '../types';
+import type { TatchiContextProviderProps } from '../types';
 
 export interface TatchiPasskeyProviderProps {
-  /** PasskeyProvider configuration (same as PasskeyProvider) */
-  config: PasskeyContextProviderProps['config'];
+  /** TatchiContextProvider configuration */
+  config: TatchiContextProviderProps['config'];
   /** Theme props for the boundary (defaults to provider+scope) */
   theme?: Omit<ThemeProps, 'children'>;
   children: React.ReactNode;
@@ -23,9 +23,9 @@ export const TatchiPasskeyProvider: React.FC<TatchiPasskeyProviderProps> = ({ co
 
   const themeProps: ThemeProps = { mode: 'provider+scope', ...(theme as any) };
   return (
-    <PasskeyProvider config={config}>
+    <TatchiContextProvider config={config}>
       <Theme {...themeProps}>{children}</Theme>
-    </PasskeyProvider>
+    </TatchiContextProvider>
   );
 };
 

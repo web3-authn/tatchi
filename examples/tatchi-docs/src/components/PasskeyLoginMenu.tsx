@@ -1,5 +1,5 @@
 import {
-  useTatchiContext,
+  useTatchi,
   RegistrationPhase,
   RegistrationStatus,
   LoginPhase,
@@ -33,14 +33,10 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
     tatchi,
     loginState,
     logout,
-  } = useTatchiContext();
+  } = useTatchi();
 
-  // Allow external control of initial mode and remounting the menu
+  // let tutorial control the menu (programmatically open/close menus)
   const authMenuControl = useAuthMenuControl();
-
-  // Minimum time to keep the PasskeyAuthMenu in the "waiting" state
-  // to avoid jarring flashes on very fast logins.
-  const LOADING_MIN_MS = 500;
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {

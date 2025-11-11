@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { toast } from 'sonner';
 import * as viem from 'viem';
 import type { TransactionSerializableEIP1559 } from 'viem';
-import { useTatchiContext, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
+import { useTatchi, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 // no direct RSVSignature use here; types handled in helpers
 import { NEAR_EXPLORER_BASE_URL } from '../../../config';
@@ -34,7 +34,7 @@ export function useMpcEvmFlow() {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi
-  } = useTatchiContext();
+  } = useTatchi();
 
   const [isWorking, setIsWorking] = useState(false);
 

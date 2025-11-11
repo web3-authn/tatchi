@@ -1,5 +1,5 @@
 import React from 'react';
-import type { PasskeyContextProviderProps } from '../types';
+import type { TatchiContextProviderProps } from '../types';
 import { setEmbeddedBase } from '../../core/sdkPaths';
 
 // Internal: Add preconnect/prefetch hints for wallet service + relayer and
@@ -24,7 +24,7 @@ import { setEmbeddedBase } from '../../core/sdkPaths';
 //   `/sdk/*` and `/sdk/workers/*` (e.g. `Access-Control-Allow-Origin: *`) and `.wasm` has
 //   `Content-Type: application/wasm`.
 // - `/wallet-service` may 308 → `/wallet-service/` on Pages; both are fine.
-export function usePreconnectWalletAssets(config: PasskeyContextProviderProps['config']): void {
+export function usePreconnectWalletAssets(config: TatchiContextProviderProps['config']): void {
   // Derive stable primitives to avoid re-running the effect on object identity changes.
   const walletOrigin = config?.iframeWallet?.walletOrigin as string | undefined;
   const servicePath = config?.iframeWallet?.walletServicePath || '/wallet-service';

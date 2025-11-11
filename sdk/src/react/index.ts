@@ -5,11 +5,11 @@
  * functionality into React applications.
  *
  * **Important:** All React components and hooks must be used inside a TatchiPasskey context.
- * Wrap your app with PasskeyProvider to provide the required context.
+ * Wrap your app with TatchiPasskeyProvider to provide the required context.
  *
  * @example
  * ```tsx
- * import { PasskeyProvider, QRCodeScanner, ProfileSettingsButton } from '@tatchi-xyz/sdk/react';
+ * import { TatchiPasskeyProvider, QRCodeScanner, ProfileSettingsButton } from '@tatchi-xyz/sdk/react';
  *
  * function App() {
  *   return (
@@ -24,7 +24,7 @@
  * ```
  */
 
-export { PasskeyProvider, useTatchiContext } from './context';
+export { TatchiContextProvider, useTatchi } from './context';
 export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
 
 // === RE-EXPORT CORE TYPES ===
@@ -52,7 +52,7 @@ export type {
 // === TYPES ===
 export type {
   TatchiContextType,
-  PasskeyContextProviderProps,
+  TatchiContextProviderProps,
   LoginState,
   LoginResult,
   RegistrationResult,

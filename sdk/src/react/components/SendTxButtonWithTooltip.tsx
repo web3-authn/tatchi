@@ -15,7 +15,7 @@ import type { ThemeName } from '@/core/WebAuthnManager/LitComponents/confirm-ui-
 import { IframeButtonHost } from '@/core/WebAuthnManager/LitComponents/IframeButtonWithTooltipConfirmer';
 import { W3A_TX_BUTTON_ID } from '@/core/WebAuthnManager/LitComponents/tags';
 import type { SendTxButtonWithTooltipBaseProps } from '../types';
-import { useTatchiContext } from '../context';
+import { useTatchi } from '../context';
 import { useTheme } from './theme';
 import TouchIcon from './ProfileSettingsButton/icons/TouchIcon';
 import { TransactionInput } from '@/core/types/actions';
@@ -106,7 +106,7 @@ export const SendTxButtonWithTooltip: React.FC<SendTxButtonWithTooltipProps> = (
 
   useWarnDuplicateHooks({ onEventProp: onEvent, optionsOnEvent: options?.onEvent });
 
-  const { tatchi } = useTatchiContext();
+  const { tatchi } = useTatchi();
   // Provide external confirm handler when using TatchiPasskeyIframe (no local context)
   const externalConfirm = useMemo(() => {
     // Always route via the manager's API; TatchiPasskeyIframe proxies to wallet-origin.

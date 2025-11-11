@@ -22,116 +22,79 @@ yarn add @tatchi-xyz/sdk
 ```
 :::
 
+React quick installs (recommended)
+
+```bash
+pnpm add @tatchi-xyz/sdk react react-dom lucide-react
+pnpm add -D vite @vitejs/plugin-react
+```
+
 Optional peer deps (only if you use these features)
 - React UI: `react`, `react-dom`
-- Icons/QR: `lucide-react`, `qrcode`, `jsqr`
-- Node router: `express`
+- QR Scanning: `qrcode`, `jsqr`
+- Relay Server: `express`
 
 ## 2) Configure Vite (dev/build)
 
-Choose one of the two integration modes below.
-
-### App‑only (cross‑origin wallet)
-
-Your app delegates to a remote wallet origin in dev and prod. The app dev server only sets headers; it does not host wallet pages or SDK assets.
-
-```ts
-// vite.config.ts
-import { defineConfig, loadEnv } from 'vite'
+Add the following plugins to your `vite.config.ts` file:
+```typescript
+import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
+  const walletOrigin = 'https://wallet.tatchi.xyz'
   return {
     plugins: [
       react(),
-      // Dev: headers only, wallet pages/assets are remote
       tatchiAppServer({ walletOrigin }),
-      // Build: emit COOP/COEP/CORP + Permissions‑Policy (+ strict CSP on wallet HTML)
       tatchiBuildHeaders({ walletOrigin }),
     ],
   }
 })
 ```
 
-Notes
-- The app does not mount `/wallet-service` or `/sdk/*` in dev.
-- In production, deploy your app normally; the wallet origin serves wallet pages and SDK.
+Your app delegates to a remote wallet origin which serves the wallet SDK from a secure iframe.
 
-### Self‑hosted (same domain wallet)
+You may also choose to self-host the wallet SDK in your origin origin (more on this later).  See: /docs/guides/self-hosted-wallet
 
-You operate the wallet origin yourself (e.g., `app.example.com` and `wallet.example.com`). In dev you can:
 
-- Run two servers (recommended):
-  - App dev server: headers only
-  - Wallet dev server: serves `/wallet-service` and `/sdk/*`
+## 3) Enable HTTPS (Caddy minimal setup)
 
-App (headers only):
+Passkeys require a secure context (HTTPS). The simplest local setup is Caddy with its internal CA.
 
-```ts
-// app/vite.config.ts
-import { defineConfig, loadEnv } from 'vite'
-import react from '@vitejs/plugin-react'
-import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
-
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  const walletOrigin = env.VITE_WALLET_ORIGIN
-  return {
-    plugins: [react(), tatchiAppServer({ walletOrigin }), tatchiBuildHeaders({ walletOrigin })],
-  }
-})
-```
-
-Wallet (serve wallet pages + SDK):
-
-```ts
-// wallet/vite.config.ts
-import { defineConfig, loadEnv } from 'vite'
-import { tatchiWalletServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
-
-export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd(), '')
-  return {
-    plugins: [
-      tatchiWalletServer({
-        walletOrigin: env.VITE_WALLET_ORIGIN,
-        walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        sdkBasePath: env.VITE_SDK_BASE_PATH || '/sdk',
-      }),
-      tatchiBuildHeaders({ walletOrigin: env.VITE_WALLET_ORIGIN }),
-    ],
-  }
-})
-```
-
-Single‑server dev (optional):
-- If you prefer one dev server, mount `tatchiWalletServer({ ... })` on your app’s dev server. This serves `/wallet-service` and `/sdk/*` from the same origin in dev only.
-- For production, deploy the wallet pages and SDK under the wallet origin.
-
-## 3) Env vars
+Install and trust the local CA:
 
 ```bash
-VITE_WALLET_ORIGIN=https://wallet.example.localhost
-VITE_WALLET_SERVICE_PATH=/wallet-service
-VITE_SDK_BASE_PATH=/sdk
+brew install caddy           # macOS (see caddyserver.com for other OSes)
+caddy trust                  # trust local CA so browsers accept TLS
 ```
+
+Add a `Caddyfile` next to `package.json`:
+
+```caddyfile
+example.localhost {
+  tls internal
+  encode gzip
+  reverse_proxy localhost:5173  # Vite default port
+}
+```
+
 
 ## 4) React provider
 
 ```tsx
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
+import { PasskeyProvider } from '@tatchi-xyz/sdk/react'
 
 <PasskeyProvider
   config={{
-    ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
     iframeWallet: {
-      walletOrigin: import.meta.env.VITE_WALLET_ORIGIN,       // e.g. https://wallet.example.localhost
-      walletServicePath: import.meta.env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-      // Optional: choose rpId base for credential scope (see Concepts → Credential Scope)
-      // rpIdOverride: import.meta.env.VITE_RP_ID_BASE,
+      walletOrigin: "https://wallet.tatchi.xyz",
+      walletServicePath: '/wallet-service',
+    },
+    relayer: {
+      url: "https://relayer.tatchi.xyz",
+      accountId: "w3a-relayer.testnet",
     },
   }}
 >
@@ -139,21 +102,35 @@ import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sd
 </PasskeyProvider>
 ```
 
+## 5) Your first run
+
+Open two separate tabs and run the Caddy and Vite servers:
+
+Caddy:
+```bash
+caddy run --config Caddyfile --adapter caddyfile
+```
+
+Vite
+```bash
+pnpm dev
+```
+
+Then navigate to:
+```
+https://example.localhost:
+```
+
+
 More: [Wallet Iframe guide](/docs/guides/wallet-iframe) and [Credential Scope](/docs/concepts/wallet-scoped-credentials).
 
 Next: [Quickstart](./quickstart)
 
-## Self‑hosted vs App‑only
 
-- App‑only (cross‑origin wallet)
-  - Dev: `tatchiAppServer({ walletOrigin })`
-  - Build: `tatchiBuildHeaders({ walletOrigin })`
-  - Do not serve `/wallet-service` or `/sdk/*` on the app.
+## Self‑hosting the Wallet SDK
 
-- Self‑hosted (same domain wallet)
-  - Dev (two servers): app → `tatchiAppServer`, wallet → `tatchiWalletServer`
-  - Dev (single server, optional): `tatchiWalletServer` on the app dev server
-  - Build: `tatchiBuildHeaders` on both app and wallet deployments as needed
+If you need to operate your own wallet origin, follow the dedicated self‑hosting guide:
+See: /docs/guides/self-hosted-wallet
 
 ## Troubleshooting
 

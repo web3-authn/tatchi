@@ -2,7 +2,7 @@ import React from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 import { CarouselProvider } from './Carousel2/CarouselProvider'
 import { Carousel } from './Carousel2/Carousel'
@@ -16,7 +16,7 @@ import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 import NearLogoBg from './NearLogoBg'
 
 export function PasskeyColumn() {
-  const { loginState } = useTatchiContext()
+  const { loginState } = useTatchi()
   const [currentPage, setCurrentPage] = React.useState(0)
 
   // After login, jump to Demo Tx page (index 1). On logout, go back to Login (index 0).

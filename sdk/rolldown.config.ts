@@ -64,7 +64,6 @@ const external = [
   // Other common packages
   'tslib',
   // UI libs used by React components should be provided by the app bundler
-  'lucide-react',
 
   // WASM modules - externalize so bundlers handle them correctly
   /\.wasm$/,

@@ -38,10 +38,10 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 ## 2) Use it in a component
 
 ```tsx
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 export function LoginButton() {
-  const { loginPasskey } = useTatchiContext()
+  const { loginPasskey } = useTatchi()
   return (
     <button onClick={() => loginPasskey('alice.testnet')}>Login</button>
   )
@@ -80,10 +80,10 @@ Get a working passkey and send your first transaction.
 ### 1) Register a passkey
 
 ```tsx
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 export function Register({ accountId }: { accountId: string }) {
-  const { registerPasskey } = useTatchiContext()
+  const { registerPasskey } = useTatchi()
   return (
     <button
       onClick={() =>
@@ -105,10 +105,10 @@ export function Register({ accountId }: { accountId: string }) {
 ### 2) Login
 
 ```tsx
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 export function Login({ accountId }: { accountId: string }) {
-  const { loginPasskey } = useTatchiContext()
+  const { loginPasskey } = useTatchi()
   return <button onClick={() => loginPasskey(accountId)}>Login</button>
 }
 ```

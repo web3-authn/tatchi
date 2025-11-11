@@ -1,11 +1,11 @@
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import { useTatchiContext } from '@tatchi-xyz/sdk/react';
+import { useTatchi } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 import { Hex, ensure0x } from './helpers/evm';
 
 export function useDerivedEvmAddress() {
-  const { tatchi } = useTatchiContext();
+  const { tatchi } = useTatchi();
   const [address, setAddress] = useState<Hex>();
   const [loading, setLoading] = useState<boolean>(false);
 

@@ -9,10 +9,10 @@ Register and authenticate users with platform passkeys. The SDK unifies WebAuthn
 ## Register
 
 ```tsx
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 export function Register({ accountId }: { accountId: string }) {
-  const { registerPasskey } = useTatchiContext()
+  const { registerPasskey } = useTatchi()
   return (
     <button
       onClick={() =>
@@ -46,10 +46,10 @@ Key steps emitted by the SDK (abridged):
 ## Login
 
 ```tsx
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 export function Login({ accountId }: { accountId: string }) {
-  const { loginPasskey } = useTatchiContext()
+  const { loginPasskey } = useTatchi()
   return <button onClick={() => loginPasskey(accountId)}>Login</button>
 }
 ```

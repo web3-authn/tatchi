@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, useTatchi } from '@tatchi-xyz/sdk/react'
 
 /**
  * useThemeBridge
@@ -19,7 +19,7 @@ import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
  */
 export function useThemeBridge() {
   const { theme, tokens, setTheme } = useTheme()
-  const { loginState, tatchi } = useTatchiContext()
+  const { loginState, tatchi } = useTatchi()
 
   // Reflect current theme on <html> (and <body> for backward-compat) for global CSS
   React.useEffect(() => {

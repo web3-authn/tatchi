@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useTatchiContext } from '@tatchi-xyz/sdk/react';
+import { useTatchi } from '@tatchi-xyz/sdk/react';
 
 export const DebugBanner: React.FC = () => {
   // Hide on mobile devices (coarse pointers / typical UA tokens)
@@ -10,7 +10,7 @@ export const DebugBanner: React.FC = () => {
     if (coarse || mobileUA) return null;
   } catch {}
 
-  const { walletIframeConnected, accountInputState, tatchi } = useTatchiContext();
+  const { walletIframeConnected, accountInputState, tatchi } = useTatchi();
   const [recentCount, setRecentCount] = useState<number>(accountInputState.indexDBAccounts?.length || 0);
   const [connecting, setConnecting] = useState<boolean>(false);
 

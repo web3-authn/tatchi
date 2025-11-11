@@ -7,7 +7,7 @@ import {
   ActionResult,
   TouchIdWithText,
   TxExecutionStatus,
-  useTatchiContext,
+  useTatchi,
 } from '@tatchi-xyz/sdk/react';
 import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
@@ -87,7 +87,7 @@ export const DemoPage: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const {
     onchainGreeting,

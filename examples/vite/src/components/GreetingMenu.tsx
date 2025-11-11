@@ -1,7 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import toast from 'react-hot-toast';
 
-import { ActionPhase, useTatchiContext } from '@tatchi-xyz/sdk/react';
+import { ActionPhase, useTatchi } from '@tatchi-xyz/sdk/react';
 import type { FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import { ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 
@@ -17,7 +17,7 @@ export const GreetingMenu: React.FC<GreetingMenuProps> = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Passkey App!');
 

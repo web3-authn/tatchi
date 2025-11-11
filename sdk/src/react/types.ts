@@ -163,7 +163,7 @@ export interface TatchiContextType {
   viewAccessKeyList: (accountId: string) => Promise<AccessKeyList>;
 }
 
-/** Config options for PasskeyContextProvider
+/** Config options for TatchiContextProvider
  * @param children - ReactNode to render inside the provider
  * @param config - TatchiPasskeyConfigs
  * @example
@@ -177,7 +177,7 @@ export interface TatchiContextType {
  *   nearExplorerBaseUrl: 'https://testnet.nearblocks.io',
  * }
  */
-export interface PasskeyContextProviderProps {
+export interface TatchiContextProviderProps {
   children: ReactNode;
   // Allow passing only overrides; provider will resolve full config from env + defaults
   config: Partial<TatchiPasskeyConfigs>;

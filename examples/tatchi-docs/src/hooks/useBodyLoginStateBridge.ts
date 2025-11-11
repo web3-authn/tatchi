@@ -1,9 +1,9 @@
 import React from 'react'
-import { useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react'
 
 // Reflects auth state to <body> dataset and emits a window event for external consumers.
 export function useBodyLoginStateBridge() {
-  const { loginState } = useTatchiContext()
+  const { loginState } = useTatchi()
   React.useEffect(() => {
     try {
       const loggedIn = !!loginState?.isLoggedIn
