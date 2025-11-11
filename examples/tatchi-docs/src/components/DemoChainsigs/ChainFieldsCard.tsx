@@ -48,9 +48,11 @@ export const ChainFieldsCard: React.FC<ChainFieldsCardProps> = ({
         <input className="multi-tx-input" value={to} onChange={(e) => onChangeTo(e.target.value)} placeholder="0x…" />
       </div>
 
+      <div className="input-group" style={{ flex: 0.33 }}>
+        <label>Amount ({asset})</label>
+      </div>
       <div className="chain-fields-asset-input">
         <div className="input-group" style={{ flex: 0.33 }}>
-          <label>Amount ({asset})</label>
           <input className="multi-tx-input" value={amountEth} onChange={(e) => onChangeAmount(e.target.value)} placeholder="0.01" />
         </div>
         <div className="input-group" style={{ flex: 0.66 }}>

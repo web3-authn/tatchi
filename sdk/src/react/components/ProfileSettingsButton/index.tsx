@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Key, Scan, Link, Sliders } from 'lucide-react';
+import { KeyIcon } from './icons/KeyIcon';
+import { ScanIcon } from './icons/ScanIcon';
+import { LinkIcon } from './icons/LinkIcon';
+import { SlidersIcon } from './icons/SlidersIcon';
 import { SunIcon } from './icons/SunIcon';
 import { MoonIcon } from './icons/MoonIcon';
 import { UserAccountButton } from './UserAccountButton';
 import { ProfileDropdown } from './ProfileDropdown';
 import { useProfileState } from './hooks/useProfileState';
-import { useTatchiContext } from '../../context';
+import { useTatchi } from '../../context';
 import type { MenuItem, ProfileSettingsButtonProps } from './types';
 import { PROFILE_MENU_ITEM_IDS } from './types';
 import { QRCodeScanner } from '../QRCodeScanner';
@@ -20,7 +23,7 @@ import { IndexedDBManager } from '../../../core/IndexedDBManager';
  * Profile Settings Button Component
  * Provides user settings, account management, and device linking.
  * **Important:** This component should be used inside a TatchiPasskey context.
- * Wrap your app with PasskeyProvider or ensure TatchiPasskey is available in context via useTatchiContext.
+ * Wrap your app with PasskeyProvider or ensure TatchiPasskey is available in context via useTatchi.
  *
  * @example
  * ```tsx
@@ -66,7 +69,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     loginState,
     tatchi,
     logout,
-  } = useTatchiContext();
+  } = useTatchi();
 
   // Use props if provided, otherwise fall back to context
   const accountName = usernameProp || nearAccountIdProp?.split('.')?.[0] || loginState.nearAccountId?.split('.')?.[0] || 'User';
@@ -183,7 +186,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
   const MENU_ITEMS: MenuItem[] = useMemo(() => [
     {
       id: PROFILE_MENU_ITEM_IDS.EXPORT_KEYS,
-      icon: <Key />,
+      icon: <KeyIcon />,
       label: 'Export Keys',
       description: 'View your private keys',
       disabled: !loginState.isLoggedIn,
@@ -203,7 +206,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     },
     {
       id: PROFILE_MENU_ITEM_IDS.SCAN_LINK_DEVICE,
-      icon: <Scan />,
+      icon: <ScanIcon />,
       label: 'Scan and Link Device',
       description: 'Scan QR to link a device',
       disabled: !loginState.isLoggedIn,
@@ -214,7 +217,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     },
     {
       id: PROFILE_MENU_ITEM_IDS.LINKED_DEVICES,
-      icon: <Link />,
+      icon: <LinkIcon />,
       label: 'Linked Devices',
       description: 'View linked devices',
       disabled: !loginState.isLoggedIn,
@@ -232,7 +235,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
     },
     {
       id: PROFILE_MENU_ITEM_IDS.TRANSACTION_SETTINGS,
-      icon: <Sliders />,
+      icon: <SlidersIcon />,
       label: 'Transaction Settings',
       description: 'Customize confirmation behavior',
       disabled: !loginState.isLoggedIn,

@@ -5,7 +5,7 @@ import {
   ActionType,
   TouchIdWithText,
   TxExecutionStatus,
-  useTatchiContext,
+  useTatchi,
 } from '@tatchi-xyz/sdk/react';
 import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs } from '@tatchi-xyz/sdk/react';
@@ -20,7 +20,7 @@ export const EmbeddedTxButton: React.FC<EmbeddedTxButtonProps> = ({  }) => {
 
   const {
     loginState: { isLoggedIn, nearAccountId },
-  } = useTatchiContext();
+  } = useTatchi();
 
   const [embeddedGreetingInput, setEmbeddedGreetingInput] = useState('Hello from Embedded Component!');
 

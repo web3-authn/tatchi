@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTheme, SunIcon, MoonIcon, useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, SunIcon, MoonIcon, useTatchi } from '@tatchi-xyz/sdk/react'
 import NavbarProfilePlaceholder from './NavbarProfilePlaceholder'
 import { useVitepressRouter } from '../../hooks/useVitepressRouter'
 import NearLogo from '../icons/NearLogoWithText'
@@ -15,7 +15,7 @@ function applyVitepressAppearance(mode: 'light' | 'dark') {
 
 export const NavbarStatic: React.FC = () => {
   const { isDark, toggleTheme, theme } = useTheme()
-  const { tatchi } = useTatchiContext();
+  const { tatchi } = useTatchi();
   const { linkProps } = useVitepressRouter()
 
   const onToggle = React.useCallback(() => {

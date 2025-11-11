@@ -172,11 +172,6 @@
   margin-bottom: 1rem;
 }
 
-@media (max-width: 768px) {
-  .action-section { padding: var(--fe-gap-3); }
-  .action-section h2 { font-size: var(--fe-text-base); }
-}
-
 /* Fade-in helper for embedded button */
 .button-with-tooltip-container {
   position: relative;

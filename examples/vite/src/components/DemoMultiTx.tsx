@@ -5,7 +5,7 @@ import {
   ActionStatus,
   ActionType,
   TxExecutionStatus,
-  useTatchiContext,
+  useTatchi,
 } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs } from '@tatchi-xyz/sdk/react';
 import { WEBAUTHN_CONTRACT_ID } from '../config';
@@ -25,7 +25,7 @@ export const DemoMultiTx: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const [greetingInput, setGreetingInput] = useState('Hello from Multi Tx Confirm!');
   const [transferRecipient, setTransferRecipient] = useState('w3a-v1.testnet');

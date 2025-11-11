@@ -1,7 +1,7 @@
 import React from 'react';
 import './PasskeyAuthMenu.css';
 import { Theme, useTheme } from '../theme';
-import { useTatchiContext } from '../../context';
+import { useTatchi } from '../../context';
 import { ArrowLeftIcon } from './icons';
 import { SocialProviders } from './SocialProviders';
 import { SegmentedControl } from './SegmentedControl';
@@ -85,7 +85,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
 }) => {
 
   const { tokens, isDark } = useTheme();
-  const ctx = useTatchiContext();
+  const ctx = useTatchi();
   const passkeyManager = (ctx as any)?.tatchi;
 
   const accountExistsResolved = ctx?.accountInputState?.accountExists;

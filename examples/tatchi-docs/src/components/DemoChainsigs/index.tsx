@@ -5,7 +5,7 @@ import { GlassBorder } from '../GlassBorder';
 import '../ActionSection.css';
 import './DemoChainsigs.css';
 
-import { useTatchiContext, useTheme } from '@tatchi-xyz/sdk/react';
+import { useTatchi, useTheme } from '@tatchi-xyz/sdk/react';
 
 import { useMpcEvmFlow } from './hooks/useMpcEvmFlow';
 import DerivedAddressPill from './DerivedAddressPill';
@@ -17,7 +17,7 @@ export const DemoChainsigs: React.FC = () => {
   const {
     loginState: { isLoggedIn, nearAccountId },
     tatchi,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const { theme } = useTheme();
 

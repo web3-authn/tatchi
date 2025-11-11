@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTatchiContext, LoginPhase, RegistrationPhase, RegistrationStatus } from '@tatchi-xyz/sdk/react'
+import { useTatchi, LoginPhase, RegistrationPhase, RegistrationStatus } from '@tatchi-xyz/sdk/react'
 import dynamic from 'next/dynamic'
 
 const ProfileSettingsButton = dynamic(() =>
@@ -17,7 +17,7 @@ export default function HomeClient() {
     loginPasskey,
     registerPasskey,
     refreshLoginState,
-  } = useTatchiContext()
+  } = useTatchi()
   const isLoggedIn = !!loginState?.isLoggedIn
   const targetAccountId = accountInputState?.targetAccountId
 

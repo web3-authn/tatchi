@@ -1,5 +1,5 @@
 import React from 'react'
-import { useTatchiContext, AuthMenuMode, PROFILE_MENU_ITEM_IDS } from '@tatchi-xyz/sdk/react'
+import { useTatchi, AuthMenuMode, PROFILE_MENU_ITEM_IDS } from '@tatchi-xyz/sdk/react'
 import { toast } from 'sonner'
 import { friendlyWebAuthnMessage } from '../utils/strings'
 import { LoadingButton } from './LoadingButton';
@@ -12,7 +12,7 @@ import { useProfileMenuControl } from '../contexts/ProfileMenuControl'
 import './AccountRecovery.css'
 
 export function AccountRecovery() {
-  const { accountInputState, tatchi, refreshLoginState, loginState, logout } = useTatchiContext()
+  const { accountInputState, tatchi, refreshLoginState, loginState, logout } = useTatchi()
   const [busy, setBusy] = React.useState(false)
   const target = accountInputState?.targetAccountId || ''
   const carousel = useCarousel()

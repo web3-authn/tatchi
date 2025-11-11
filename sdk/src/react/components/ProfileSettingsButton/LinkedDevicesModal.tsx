@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useTatchiContext } from '../../context';
+import { useTatchi } from '../../context';
 import './LinkedDevicesModal.css';
 import { useTheme, Theme } from '../theme';
+
 import { getAuthenticatorsByUser } from '@/core/rpcCalls';
 import type { ContractStoredAuthenticator } from '@/core/TatchiPasskey/recoverAccount';
 import { toAccountId } from '@/core/types/accountIds';
@@ -17,7 +18,7 @@ export const LinkedDevicesModal: React.FC<LinkedDevicesModalProps> = ({
   isOpen,
   onClose
 }) => {
-  const { tatchi, loginState } = useTatchiContext();
+  const { tatchi, loginState } = useTatchi();
   const { theme } = useTheme();
   // Authenticators list: credentialId + registered timestamp + device number
   const [authRows, setAuthRows] = useState<Array<{ credentialId: string; registered: string; deviceNumber: number }>>([

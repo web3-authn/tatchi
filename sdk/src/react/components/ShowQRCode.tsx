@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 
-import { useTatchiContext } from '../context'
+import { useTatchi } from '../context'
 import { DeviceLinkingSSEEvent, DeviceLinkingStatus, DeviceLinkingPhase } from '../../core/types/passkeyManager'
 import './ShowQRCode.css'
 
@@ -21,7 +21,7 @@ export function ShowQRCode({
   const {
     startDevice2LinkingFlow,
     stopDevice2LinkingFlow,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const [deviceLinkingState, setDeviceLinkingState] = useState<{
     mode: 'idle' | 'device1' | 'device2';

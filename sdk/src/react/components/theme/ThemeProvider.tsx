@@ -1,5 +1,5 @@
 import React from 'react';
-import { useTatchiContext } from '../../context';
+import { useTatchi } from '../../context';
 import type { DesignTokens, UseThemeReturn } from './design-tokens';
 import { LIGHT_TOKENS, DARK_TOKENS } from './design-tokens';
 import { createCSSVariables, mergeTokens, PartialDeep } from './utils';
@@ -158,11 +158,11 @@ const ThemeProvider: React.FC<ThemeProviderProps> = ({
   let passkeyManager: any;
   let loginState: { isLoggedIn?: boolean } | null = null;
   try {
-    const ctx = useTatchiContext() as any;
+    const ctx = useTatchi() as any;
     passkeyManager = ctx?.tatchi;
     loginState = ctx?.loginState;
   } catch {
-    // ThemeProvider can work without PasskeyProvider
+    // ThemeProvider can work without TatchiContextProvider
     passkeyManager = null;
     loginState = null;
   }

@@ -1,5 +1,5 @@
 import {
-  useTatchiContext,
+  useTatchi,
   RegistrationPhase,
   RegistrationStatus,
   LoginPhase,
@@ -25,7 +25,7 @@ export function PasskeyLoginMenu() {
     registerPasskey,
     refreshLoginState,
     tatchi,
-  } = useTatchiContext();
+  } = useTatchi();
 
   const onRegister = async () => {
     const result = await registerPasskey(targetAccountId, {

@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
+import { useTheme, useTatchi } from '@tatchi-xyz/sdk/react'
 
 /**
  * useSyncVitepressTheme
@@ -23,7 +23,7 @@ import { useTheme, useTatchiContext } from '@tatchi-xyz/sdk/react'
  */
 export function useSyncVitepressTheme() {
   const { theme, setTheme } = useTheme()
-  const { loginState, tatchi } = useTatchiContext()
+  const { loginState, tatchi } = useTatchi()
   const prevLoggedInRef = React.useRef<boolean | null>(null)
   // Guard to prevent feedback when we intentionally push SDK → VitePress
   const syncingVpFromSdkRef = React.useRef<boolean>(false)

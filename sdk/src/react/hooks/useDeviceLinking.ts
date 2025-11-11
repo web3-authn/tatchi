@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react';
-import { useTatchiContext } from '../context';
+import { useTatchi } from '../context';
 import {
   DeviceLinkingPhase,
   DeviceLinkingStatus,
@@ -15,11 +15,11 @@ import { QRScanMode } from '@/react/hooks/useQRCamera';
  * Provides device linking functionality with QR code scanning and transaction management.
  *
  * **Important:** This hook must be used inside a TatchiPasskey context.
- * Wrap your app with PasskeyProvider or ensure TatchiPasskey is available in context via useTatchiContext.
+ * Wrap your app with TatchiPasskeyProvider or ensure TatchiPasskey is available in context via useTatchi.
  *
  * @example
  * ```tsx
- * import { PasskeyProvider } from '@tatchi-xyz/sdk/react';
+ * import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react';
  * import { useDeviceLinking } from '@tatchi-xyz/sdk/react';
  *
  * function DeviceLinker() {
@@ -47,7 +47,7 @@ export interface UseDeviceLinkingReturn {
 }
 
 export const useDeviceLinking = (options: UseDeviceLinkingOptions): UseDeviceLinkingReturn => {
-  const { tatchi } = useTatchiContext();
+  const { tatchi } = useTatchi();
   const {
     onDeviceLinked,
     onError,

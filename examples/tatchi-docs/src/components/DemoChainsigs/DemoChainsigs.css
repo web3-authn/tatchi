@@ -80,11 +80,15 @@
   justify-content: space-between;
   gap: 0.5rem;
   width: 100%;
+  max-width: 100%;
+  min-width: 0; /* allow children to shrink (enables ellipsis) */
   box-sizing: border-box;
   padding: 10px 10px 10px 14px;
   border-radius: 2rem;
   background: var(--w3a-colors-surface2);
   margin-bottom: 0.5rem;
+  overflow: hidden; /* prevent overflow on narrow screens */
+  text-overflow: ellipsis; /* hint for truncation in flex contexts */
 }
 
 .derived-address-text {
@@ -94,6 +98,26 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1 1 auto; /* take remaining space and allow shrink */
+  min-width: 0;   /* required for ellipsis inside flex item */
+}
+
+@media (max-width: 520px) {
+  .derived-address-pill {
+    /* Tighter spacing on small screens */
+    padding: 8px 8px 8px 12px;
+    gap: 0.4rem;
+    /* Switch to grid so text column (1fr) shrinks and ellipsizes */
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    justify-content: initial;
+  }
+  .derived-address-pill .derived-address-text {
+    font-size: var(--fe-text-xs);
+    max-width: 100%;
+    width: 100%;
+  }
 }
 
 .demo-page-header {

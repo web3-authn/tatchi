@@ -9,7 +9,7 @@ import { ScanQRCodeFlow, enumerateVideoDevices, detectFrontCamera } from '../../
  * Provides camera-based QR code scanning functionality for device linking.
  *
  * **Important:** This hook should be used with the TatchiPasskey provider.
- * Wrap your app with PasskeyProvider so useTatchiContext is available when needed.
+ * Wrap your app with PasskeyProvider so useTatchi is available when needed.
  *
  * @example
  * ```tsx

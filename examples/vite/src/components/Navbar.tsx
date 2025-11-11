@@ -2,7 +2,7 @@ import React from 'react';
 import toast from 'react-hot-toast';
 
 import {
-  useTatchiContext,
+  useTatchi,
   ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
@@ -13,7 +13,7 @@ import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {
 
-  const { loginState, tatchi } = useTatchiContext();
+  const { loginState, tatchi } = useTatchi();
   const { setTheme } = useTheme();
 
   const [isMobile, setIsMobile] = React.useState<boolean>(false);
