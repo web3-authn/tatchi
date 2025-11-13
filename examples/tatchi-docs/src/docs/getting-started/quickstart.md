@@ -2,152 +2,184 @@
 title: Quickstart
 ---
 
-# Quickstart
+# Installation
 
-Follow these steps to get a working login in minutes.
+Install the SDK and configure the wallet iframe (origin, service path, headers) so sensitive flows run in an isolated wallet origin.
 
-## 1) React (recommended)
+## 1. Install the SDK
 
+::: code-group
+```bash [pnpm]
+pnpm add @tatchi-xyz/sdk
+```
+
+```bash [npm]
+npm i @tatchi-xyz/sdk
+```
+
+```bash [yarn]
+yarn add @tatchi-xyz/sdk
+```
+:::
+
+
+## 2. Configure Vite
+
+Install framework packages. We'll be using Vite.
+
+::: code-group
+```bash [pnpm]
+pnpm add react react-dom
+pnpm add -D vite @vitejs/plugin-react
+```
+
+```bash [npm]
+npm add react react-dom
+npm add -D vite @vitejs/plugin-react
+```
+
+```bash [yarn]
+yarn add react react-dom
+yarn add -D vite @vitejs/plugin-react
+```
+:::
+
+Then add the following Tatchi plugins to your `vite.config.ts` file:
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { tatchiAppServer, tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
+
+export default defineConfig(({ mode }) => {
+  const walletOrigin = 'https://wallet.tatchi.xyz'
+  return {
+    plugins: [
+      react(),
+      tatchiAppServer({ walletOrigin }),
+      tatchiBuildHeaders({ walletOrigin }),
+    ],
+  }
+})
+```
+
+These plugins add the right headers that allow your app to access
+the wallet origin which serves the wallet SDK from a secure iframe.
+
+You may also choose to self-host the wallet SDK (more on this later in the  [selfhosting](../guides/selfhosting.md) section).
+
+
+## 3. Enable HTTPS (Caddy setup)
+
+Passkeys require a secure context (HTTPS). You can use [Caddy](https://caddyserver.com/docs/install) for local development:
+```bash
+brew install caddy           # macOS (see caddyserver.com for other OSes)
+caddy trust                  # trust local CA so browsers accept TLS
+```
+
+Add a `Caddyfile` in the root directory:
+```caddy
+example.localhost {
+  tls internal
+  encode gzip
+  reverse_proxy localhost:5173  # Vite default port
+}
+```
+
+
+## 4. React Setup
+
+Setup the React provider:
 ```tsx
-// main.tsx
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
+import App from './App.jsx'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
 
-function App() {
-  return <YourApp />
-}
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <PasskeyProvider
-    config={{
-      ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-      iframeWallet: {
-        walletOrigin: import.meta.env.VITE_WALLET_ORIGIN,       // e.g. https://wallet.example.localhost
-        walletServicePath: import.meta.env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
-        // Optional: choose RP base for passkey scope (see Concepts → Wallet‑Scoped Credentials)
-        // rpIdOverride: import.meta.env.VITE_RP_ID_BASE,
-      },
-    }}
-  >
-    <App />
-  </PasskeyProvider>
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <TatchiPasskeyProvider
+      config={{
+        iframeWallet: {
+          walletOrigin: "https://wallet.tatchi.xyz",
+        },
+        relayer: {
+          url: "https://relay.tatchi.xyz",
+          accountId: "w3a-relayer.testnet",
+        },
+      }}
+    >
+      <App />
+    </TatchiPasskeyProvider>
+  </React.StrictMode>,
 )
 ```
 
-## 2) Use it in a component
-
+Then in your `App.tsx`:
 ```tsx
-import { useTatchi } from '@tatchi-xyz/sdk/react'
+import { useTatchi } from '@tatchi-xyz/sdk/react';
 
-export function LoginButton() {
-  const { loginPasskey } = useTatchi()
+function App() {
+  const { tatchi } = useTatchi();
+  const { configs } = tatchi;
   return (
-    <button onClick={() => loginPasskey('alice.testnet')}>Login</button>
+    <main>
+      <h1>Tatchi Example</h1>
+      <button onClick={() => {
+        const id = Date.now();
+        tatchi.registerPasskey(`tatchi-test-${id}.${configs.contractId}`, {
+          onEvent: (event) => console.log('registration event: ', event)
+        });
+      }}>
+        Register Tatchi Account
+      </button>
+    </main>
   )
 }
+
+export default App
 ```
 
-## 3) Vanilla TypeScript
 
-```ts
-import { TatchiPasskey } from '@tatchi-xyz/sdk'
+## 5. Your first run
 
-const manager = new TatchiPasskey({
-  nearRpcUrl: 'https://test.rpc.fastnear.com',
-  nearNetwork: 'testnet',
-  contractId: 'w3a-v1.testnet',
-  iframeWallet: {
-    walletOrigin: 'https://wallet.example.localhost',
-    walletServicePath: '/wallet-service',
-  },
-})
+Open two separate tabs and run the Caddy and Vite servers:
 
-await manager.initWalletIframe() // no-op if walletOrigin omitted
-await manager.loginPasskey('alice.testnet')
+Caddy:
+```bash
+caddy run --config Caddyfile --adapter caddyfile
 ```
 
-## 4) Next steps
-
-- Do [Install & Configure](./install-and-configure)
-- Explore [Passkeys](../guides/passkeys)
-- Try [Secure Tx Confirmation](../guides/tx-confirmation)
-
-## First Flow — Register, Login, Send
-
-Get a working passkey and send your first transaction.
-
-### 1) Register a passkey
-
-```tsx
-import { useTatchi } from '@tatchi-xyz/sdk/react'
-
-export function Register({ accountId }: { accountId: string }) {
-  const { registerPasskey } = useTatchi()
-  return (
-    <button
-      onClick={() =>
-        registerPasskey(accountId, {
-          onEvent: (e) => {
-            if (e.step === 2 && e.status === 'success') {
-              console.info('Login is now enabled')
-            }
-          },
-        })
-      }
-    >
-      Register Passkey
-    </button>
-  )
-}
+Vite:
+```bash
+pnpm dev
 ```
 
-### 2) Login
-
-```tsx
-import { useTatchi } from '@tatchi-xyz/sdk/react'
-
-export function Login({ accountId }: { accountId: string }) {
-  const { loginPasskey } = useTatchi()
-  return <button onClick={() => loginPasskey(accountId)}>Login</button>
-}
+Then navigate to:
+```
+https://example.localhost
 ```
 
-Notes
-- With a relay configured, login can unlock the VRF key via Shamir 3‑pass without TouchID; falls back automatically when needed.
+You should see a registration button, which registers passkey derived wallets onchain.
 
-### 3) Send a transaction
 
-API‑driven
+### Next Steps
 
-```ts
-const result = await passkeyManager.executeAction('alice.testnet', {
-  type: 'FunctionCall',
-  receiverId: 'contract.testnet',
-  methodName: 'set_greeting',
-  args: { message: 'hello' },
-  gas: '50000000000000',
-  deposit: '0',
-})
-```
+After you've got the SDK installed, we will walk through login, and sending your first transaction.
 
-React button (optional)
+[Next Steps](./next-steps)
 
-```tsx
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react'
 
-<SendTxButtonWithTooltip
-  nearAccountId="alice.testnet"
-  txSigningRequests={[
-    { receiverId: 'contract.testnet', actions: [{ type: 'FunctionCall', methodName: 'set_greeting', args: { message: 'hi' }, gas: '50000000000000', deposit: '0' }] },
-  ]}
-/>
-```
+### Troubleshooting (new users)
 
-Next steps
-- [Passkeys guide](/docs/guides/passkeys)
-- [Secure Transaction Confirmation](/docs/guides/tx-confirmation)
-- [Credential Scope (rpId)](/docs/concepts/wallet-scoped-credentials)
+- WebAuthn requires HTTPS
+  - Symptom: no TouchID/biometric prompt or errors like “Operation is insecure”.
+  - Fix: use Caddy and open `https://example.localhost` (not `http://localhost`). If the browser warns about certs, run `caddy trust` and try again.
 
-## Self‑hosted note
-If you operate the wallet origin yourself (e.g., `wallet.example.com`), see the self‑hosted options in [Install & Configure](./install-and-configure#self-hosted-vs-app-only) for which dev/build plugins to use.
+- Wallet iframe not connecting
+  - Symptom: actions hang; no network requests to the wallet origin.
+  - Fix: ensure `walletOrigin` is set and uses `https` (Quickstart uses `https://wallet.tatchi.xyz`). If you changed it, verify the URL is reachable from the browser.
+
+- Buttons do nothing (no prompt)
+  - Symptom: calling register/login from effects or timers does nothing.
+  - Fix: WebAuthn must run from a user gesture. Trigger flows from `onClick` handlers as shown.
+

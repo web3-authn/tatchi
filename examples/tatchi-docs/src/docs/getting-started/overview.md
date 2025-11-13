@@ -4,17 +4,33 @@ title: Overview
 
 # Overview
 
-Tatchi’s Web3‑Authn SDK lets you build a wallet experience where private keys never leave a dedicated wallet origin. The app embeds a wallet iframe, and all sensitive operations run there in WASM workers with strict CSP.
+Tatchi is an embedded, serverless wallet SDK built on top of Passkeys. Wallet keys are deterministically derived from passkeys, and users use biometric signing to sign transaction in an isolated, cross‑origin wallet iframe.
 
-What you’ll do next:
-- Install the SDK and plugin
-- Configure the wallet iframe (wallet origin, service path)
-- Register your first passkey and log in
-- Send your first transaction with secure confirmation
+## Why Tatchi?
 
-## Self‑Hosted vs App‑Only
-- App‑only (cross‑origin wallet): your app talks to a remote wallet origin; use `tatchiAppServer` in dev and `tatchiBuildHeaders` for prod.
-- Self‑hosted (same domain wallet): you run the wallet origin (e.g., `wallet.example.com`); use `tatchiWalletServer` in dev and `tatchiBuildHeaders` on deploy.
-See details in [Install & Configure](./install-and-configure#self-hosted-vs-app-only).
+### Serverless and trustless by design.
+  - No auth/wallet backend to maintain for developers. WebAuthn and signing run in a hardened cross‑origin iframe which talks directly to the NEAR blockchain where the WebAuthn contract lives. No intermediaries or custodians  No MPC wallet‑as‑a‑service (e.g., Coinbase, Privy).
 
-Next: [Install & Configure](./install-and-configure)
+### Self‑custody via passkeys
+  - Keys are derived from WebAuthn registrations. Users never need to handle private keys or mnemonics. If you hold the passkey, you have the wallet.
+
+### Permissionless recovery and portability
+  - Authenticator state is on‑chain. Users can re‑derive keys from on‑chain authenticators, enabling permissionless recovery with high availability.
+  - Multi‑device sync that "just works": passkeys sync via iCloud/Google so wallets can also be synced across devices for users. Prefer no cloud? Link devices via QR codes for a simple and familiar UX (NEAR accounts let you add or revoke multiple keys).
+
+
+### Wallet isolation by default
+  - Sensitive flows (WebAuthn/PRF/VRF, key handling, signing) run inside a cross‑origin iframe with strict headers and isolated WASM workers. Even if the developer's app is compromised, Tatchi passkey wallet remains safe.
+
+### Developer first
+  - 100% open source. Self‑host and deploy your own WebAuthn contracts, or get started quickly by pointing to the hosted wallet SDK at https://wallet.tatchi.xyz (use the same account to log into multiple apps).
+  - App‑controlled UX. Your app owns wallet surfaces and can set transaction confirmation policies (require click vs auto‑proceed), themes, ui modes.
+
+
+## Next: Quickstart Installation
+
+- Register a passkey wallet onchain
+- Log in with a single biometric gesture
+- Send transactions and configure transaction confirmation UI
+
+Next: [Quickstart](./quickstart)

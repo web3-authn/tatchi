@@ -50,8 +50,8 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Overview', link: '/docs/getting-started/overview' },
-          { text: 'Install & Configure', link: '/docs/getting-started/install-and-configure' },
           { text: 'Quickstart', link: '/docs/getting-started/quickstart' },
+          { text: 'Next Steps', link: '/docs/getting-started/next-steps' },
           { text: 'Framework by Framework', link: '/docs/getting-started/frameworks' },
         ],
       },
