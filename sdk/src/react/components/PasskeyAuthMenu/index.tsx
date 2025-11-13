@@ -86,9 +86,9 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
 
   const { tokens, isDark } = useTheme();
   const ctx = useTatchi();
-  const passkeyManager = (ctx as any)?.tatchi;
+  const tatchiPasskey = ctx.tatchi;
 
-  const accountExistsResolved = ctx?.accountInputState?.accountExists;
+  const accountExistsResolved = ctx.accountInputState?.accountExists;
   const preferredDefaultMode: AuthMenuMode = (defaultMode ?? (accountExistsResolved ? AuthMenuMode.Login : AuthMenuMode.Register)) as AuthMenuMode;
 
   const [waiting, setWaiting] = React.useState(false);
@@ -111,7 +111,7 @@ const PasskeyAuthMenuInner: React.FC<PasskeyAuthMenuProps> = ({
   } = useAuthMenuMode({
     defaultMode: preferredDefaultMode,
     accountExists: accountExistsResolved,
-    passkeyManager,
+    tatchiPasskey,
     currentValue,
     setCurrentValue,
     headings,

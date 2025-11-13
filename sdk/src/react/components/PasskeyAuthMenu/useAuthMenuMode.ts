@@ -1,5 +1,6 @@
 import React from 'react';
 import { awaitWalletIframeReady } from '../../utils/walletIframe';
+import type { TatchiPasskey } from '@/core/TatchiPasskey';
 import { AuthMenuMode, type AuthMenuTitle, type AuthMenuHeadings } from './types';
 
 export function resolveDefaultMode(
@@ -48,11 +49,7 @@ export function getModeTitle(mode: AuthMenuMode, headings?: AuthMenuHeadings | n
 export interface UseAuthMenuModeArgs {
   defaultMode?: AuthMenuMode;
   accountExists: boolean;
-  passkeyManager?: {
-    getRecentLogins: () => Promise<{
-      lastUsedAccountId?: { nearAccountId?: string } | null;
-    }>;
-  } | null;
+  tatchiPasskey?: TatchiPasskey | null;
   currentValue: string;
   setCurrentValue: (v: string) => void;
   headings?: AuthMenuHeadings | null;
@@ -70,7 +67,7 @@ export interface UseAuthMenuModeResult {
 export function useAuthMenuMode({
   defaultMode,
   accountExists,
-  passkeyManager,
+  tatchiPasskey,
   currentValue,
   setCurrentValue,
   headings,
@@ -89,14 +86,14 @@ export function useAuthMenuMode({
   React.useEffect(() => {
     let cancelled = false;
     const enteringLogin = mode === AuthMenuMode.Login && prevModeRef.current !== AuthMenuMode.Login;
-    if (enteringLogin && passkeyManager) {
+    if (enteringLogin && tatchiPasskey) {
       (async () => {
         try {
           // Await wallet iframe readiness when applicable
-          await awaitWalletIframeReady(passkeyManager);
-          const { lastUsedAccountId } = await passkeyManager.getRecentLogins();
-          if (!cancelled && lastUsedAccountId) {
-            const username = (lastUsedAccountId.nearAccountId || '').split('.')[0] || '';
+          await awaitWalletIframeReady(tatchiPasskey);
+          const { lastUsedAccount } = await tatchiPasskey.getRecentLogins();
+          if (!cancelled && lastUsedAccount) {
+            const username = (lastUsedAccount.nearAccountId || '').split('.')[0] || '';
             // Only populate if empty on entry to login segment
             if (!currentValue || currentValue.trim().length === 0) {
               setCurrentValue(username);
@@ -111,7 +108,7 @@ export function useAuthMenuMode({
     }
     prevModeRef.current = mode;
     return () => { cancelled = true; };
-  }, [mode, passkeyManager, currentValue, setCurrentValue]);
+  }, [mode, tatchiPasskey, currentValue, setCurrentValue]);
 
   React.useEffect(() => {
     setTitle(getModeTitle(mode, headings));

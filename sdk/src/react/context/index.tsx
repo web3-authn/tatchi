@@ -108,7 +108,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
         }
 
         await tatchi.initWalletIframe();
-        const client = (tatchi as any).getWalletIframeClient?.() || (tatchi as any).getServiceClient?.();
+        const client = tatchi.getWalletIframeClient?.();
         if (!client) { setWalletIframeConnected(false); return; }
         if (cancelled) return;
         setWalletIframeConnected(client.isReady());

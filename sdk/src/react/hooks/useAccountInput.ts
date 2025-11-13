@@ -54,14 +54,13 @@ export function useAccountInput({
   const refreshAccountData = useCallback(async () => {
     try {
       await awaitWalletIframeIfNeeded();
-      const { accountIds, lastUsedAccountId } = await tatchi.getRecentLogins();
+      const { accountIds, lastUsedAccount } = await tatchi.getRecentLogins();
 
       let lastUsername = '';
       let lastDomain = '';
 
-      if (lastUsedAccountId) {
-
-        const parts = lastUsedAccountId.nearAccountId.split('.');
+      if (lastUsedAccount) {
+        const parts = lastUsedAccount.nearAccountId.split('.');
         lastUsername = parts[0];
         lastDomain = `.${parts.slice(1).join('.')}`;
       }
@@ -162,9 +161,9 @@ export function useAccountInput({
       } else {
         // No logged-in user, try to get last used account
         await awaitWalletIframeIfNeeded();
-        const { lastUsedAccountId } = await tatchi.getRecentLogins();
-        if (lastUsedAccountId) {
-          const username = lastUsedAccountId.nearAccountId.split('.')[0];
+        const { lastUsedAccount } = await tatchi.getRecentLogins();
+        if (lastUsedAccount) {
+          const username = lastUsedAccount.nearAccountId.split('.')[0];
           setState(prevState => ({ ...prevState, inputUsername: username }));
         }
       }
@@ -180,9 +179,9 @@ export function useAccountInput({
       if (!isLoggedIn && !currentNearAccountId) {
         try {
           await awaitWalletIframeIfNeeded();
-          const { lastUsedAccountId } = await tatchi.getRecentLogins();
-          if (lastUsedAccountId) {
-            const username = lastUsedAccountId.nearAccountId.split('.')[0];
+          const { lastUsedAccount } = await tatchi.getRecentLogins();
+          if (lastUsedAccount) {
+            const username = lastUsedAccount.nearAccountId.split('.')[0];
             setState(prevState => ({ ...prevState, inputUsername: username }));
           }
         } catch (error) {

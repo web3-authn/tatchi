@@ -166,7 +166,9 @@ export class TatchiPasskey {
   }
 
   /** Get the wallet iframe client if initialized. */
-  getWalletIframeClient(): WalletIframeRouter | null { return this.iframeRouter; }
+  getWalletIframeClient(): WalletIframeRouter | null {
+    return this.iframeRouter;
+  }
 
   getContext(): PasskeyManagerContext {
     return {

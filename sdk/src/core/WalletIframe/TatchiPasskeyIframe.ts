@@ -420,12 +420,12 @@ export class TatchiPasskeyIframe {
       throw toError(err);
     }
     // If wallet-origin has no last user yet (common in first-run dev),
-    // fall back to local IndexedDB for lastUsedAccountId so the UI can prefill.
-    if (!remote?.lastUsedAccountId) {
+    // fall back to local IndexedDB for lastUsedAccount so the UI can prefill.
+    if (!remote?.lastUsedAccount) {
       const local = this.ensureFallbackLocal();
       const loc = await local.getRecentLogins();
-      if (loc?.lastUsedAccountId) {
-        remote = { accountIds: remote?.accountIds || [], lastUsedAccountId: loc.lastUsedAccountId };
+      if (loc?.lastUsedAccount) {
+        remote = { accountIds: remote?.accountIds || [], lastUsedAccount: loc.lastUsedAccount };
       }
     }
     return remote as GetRecentLoginsResult;
