@@ -1,4 +1,16 @@
 // Utilities for coordinating with the wallet iframe (TatchiPasskeyIframe)
+import type { WalletIframeRouter } from '@/core/WalletIframe/client/router';
+import type { TatchiPasskey } from '@/core/TatchiPasskey';
+
+// Minimal shape for a manager that can initialize and expose a wallet iframe client
+// Matches the surface provided by TatchiPasskey when iframe mode is configured
+export interface WalletIframeCapableManagerLike {
+  initWalletIframe?: (nearAccountId?: string) => Promise<void>;
+  getWalletIframeClient?: () => WalletIframeRouter | null | undefined;
+  // Some managers (e.g., TatchiPasskeyIframe) expose readiness hooks directly
+  isReady?: () => boolean;
+  onReady?: (cb: () => void) => () => void;
+}
 
 /**
  * Await wallet iframe readiness when using TatchiPasskeyIframe.
@@ -7,23 +19,22 @@
  * - Otherwise waits for onReady/polling up to timeoutMs, then resolves (returns whether it became ready).
  */
 export async function awaitWalletIframeReady(
-  manager: any,
+  manager: TatchiPasskey,
   opts?: { timeoutMs?: number }
 ): Promise<boolean> {
   const timeoutMs = Math.max(500, Math.min(15_000, opts?.timeoutMs ?? 4000));
 
   if (!manager || (typeof manager !== 'object' && typeof manager !== 'function')) return false;
 
-  const getClient = (): any => {
+  const getClient = (): WalletIframeRouter | null => {
     try {
-      if (typeof manager.getWalletIframeClient === 'function') return manager.getWalletIframeClient();
-      if (typeof (manager as any).getServiceClient === 'function') return (manager as any).getServiceClient();
-      return null;
-    } catch { return null; }
+      const c = manager.getWalletIframeClient?.();
+      return c || null;
+    } catch {}
+    return null;
   };
 
   const isReadyNow = (): boolean => {
-    try { if (typeof manager.isReady === 'function' && manager.isReady()) return true; } catch {}
     try {
       const c = getClient();
       if (c && typeof c.isReady === 'function' && c.isReady()) return true;
@@ -32,9 +43,7 @@ export async function awaitWalletIframeReady(
   };
 
   // Only wait if the manager looks iframe-capable
-  const iframeCapable = (typeof manager.initWalletIframe === 'function') ||
-    (typeof manager.getWalletIframeClient === 'function') ||
-    (typeof manager.getServiceClient === 'function');
+  const iframeCapable = typeof manager.initWalletIframe === 'function' || typeof manager.getWalletIframeClient === 'function';
   if (!iframeCapable) return false;
 
   // Kick init (idempotent in implementations)
@@ -55,11 +64,6 @@ export async function awaitWalletIframeReady(
     // Subscribe to onReady hooks if available
     let offMgr: (() => void) | undefined;
     let offCli: (() => void) | undefined;
-    try {
-      if (typeof manager.onReady === 'function') {
-        offMgr = manager.onReady(() => finish(true));
-      }
-    } catch {}
     try {
       const c = getClient();
       if (c && typeof c.onReady === 'function') {

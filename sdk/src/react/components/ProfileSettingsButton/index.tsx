@@ -118,7 +118,7 @@ const ProfileSettingsButtonInner: React.FC<ProfileSettingsButtonProps> = ({
       let fetched: any | null = null;
       // 1) Wallet iframe (wallet origin) if available
       try {
-        const client = tatchi.getWalletIframeClient?.() || (tatchi as any).getServiceClient?.();
+        const client = tatchi.getWalletIframeClient?.();
         if (client && client.isReady()) {
           fetched = await client.getConfirmationConfig();
         }

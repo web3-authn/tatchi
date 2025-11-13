@@ -384,8 +384,8 @@ export async function getLoginState(
     // Determine target account ID
     let targetAccountId = nearAccountId;
     if (!targetAccountId) {
-      const lastUsedAccountId = await webAuthnManager.getLastUsedNearAccountId() || undefined;
-      targetAccountId = lastUsedAccountId?.nearAccountId || undefined;
+      const lastUsedAccount = await webAuthnManager.getLastUsedNearAccountId() || undefined;
+      targetAccountId = lastUsedAccount?.nearAccountId || undefined;
     }
     if (!targetAccountId) {
       return {
@@ -438,10 +438,10 @@ export async function getRecentLogins(
   const allUsersData = await webAuthnManager.getAllUserData();
   const accountIds = allUsersData.map(user => user.nearAccountId);
   // Get last used account for initial state
-  const lastUsedAccountId = await webAuthnManager.getLastUsedNearAccountId();
+  const lastUsedAccount = await webAuthnManager.getLastUsedNearAccountId();
   return {
     accountIds,
-    lastUsedAccountId,
+    lastUsedAccount,
   }
 }
 

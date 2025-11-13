@@ -63,6 +63,37 @@ const passkey = new TatchiPasskey({
 });
 ```
 
+### Shared wallet across many apps (no ROR)
+
+You can run truly “shared” credentials across unrelated apps without using `/.well-known/webauthn`, as long as WebAuthn runs inside the wallet iframe:
+
+- Where it runs: the wallet iframe on `https://<wallet-domain>` calls `navigator.credentials.create/get()` with `rpId = <wallet-domain>`.
+- Browser check: rpId is compared to the calling document’s effective host. Because the call originates from the wallet iframe, they match (for example: `claimed='wallet.tatchi.xyz', origin_host='wallet.tatchi.xyz', matches=true`). No ROR is consulted.
+- Multiple apps: any origin (e.g., `https://app1.com`, `https://app2.com`, `https://hosted.tatchi.xyz`) can embed the wallet iframe and reuse the same wallet‑scoped credential.
+- Required delegation on the parent page:
+  - Response header must delegate WebAuthn to the wallet origin, for example:
+    `Permissions-Policy: publickey-credentials-get=(self "https://wallet.tatchi.xyz"), publickey-credentials-create=(self "https://wallet.tatchi.xyz")`
+  - The SDK sets the iframe `allow` attribute accordingly; ensure your CSP does not block it.
+- Server verification (defense in depth): verify `clientDataJSON.origin === https://<wallet-domain>` and rpId hash; only accept assertions for challenges minted by your wallet service.
+
+This pattern is “permissionless” in practice: you do not keep an allowlist, and any site can integrate by embedding the wallet iframe. Security stays bound to the wallet origin.
+
+### When ROR is actually needed
+
+`/.well-known/webauthn` (Related Origin Requests) is only required when a top‑level page needs to run WebAuthn with `rpId = <wallet-domain>`:
+
+- Safari often blocks cross‑origin WebAuthn in iframes. The SDK includes a top‑level bridge fallback. If that path executes and the top‑level origin is different from the wallet rpId, the browser requires the wallet’s ROR manifest to include that top‑level origin.
+- Chromium/WebKit honor ROR; Firefox support is limited. Plan a fallback (or keep flows in‑iframe) on Firefox.
+- If you want to avoid ROR entirely, either:
+  - Keep flows strictly in‑iframe and accept that Safari users may need a different fallback (e.g., device linking/QR), or
+  - Use app‑scoped rpId (Option B) so top‑level calls naturally match the app’s base domain.
+
+### Hardening tips for shared‑wallet mode
+
+- Show the embedding site inside wallet UI (via a handshake or `document.referrer`) to keep users oriented.
+- Require user activation for prompts; rate‑limit repeated attempts to reduce drive‑by prompts from hostile pages.
+- Keep strict server checks: rpId hash, `clientDataJSON.origin`, signed challenge freshness.
+
 ## Option B — App‑Scoped Credentials
 - `rpId = <app base domain>` (e.g., `example.com` or `example.localhost`).
 - Passkeys are bound to the app’s base domain and work across its subdomains (e.g., `app.example.com`, `wallet.example.com`).

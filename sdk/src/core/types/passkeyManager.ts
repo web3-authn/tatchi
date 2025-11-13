@@ -630,7 +630,7 @@ export interface VerifyAndSignTransactionResult {
 
 export interface GetRecentLoginsResult {
   accountIds: string[],
-  lastUsedAccountId: {
+  lastUsedAccount: {
     nearAccountId: AccountId,
     deviceNumber: number,
   } | null
