@@ -1,5 +1,5 @@
 ---
-title: Next Steps (Getting Started continued)
+title: Next Steps
 ---
 
 # Next Steps: Register, Login, Send
@@ -13,21 +13,26 @@ The simplest way to get started is with a single component that registers a pass
 ```tsx
 import { useTatchi } from '@tatchi-xyz/sdk/react'
 
-export function Register({ accountId }: { accountId: string }) {
+export default function App() {
+  return (
+    <main>
+      <Registration/>
+    </main>
+  )
+}
+
+function Registration() {
   const { registerPasskey } = useTatchi()
   return (
-    <button
-      onClick={() =>
-        registerPasskey(accountId, {
-          onEvent: (e) => {
-            if (e.step === 2 && e.status === 'success') {
-              console.info('Login is now enabled')
-            }
-          },
-        })
-      }
-    >
-      Register Passkey
+    <button onClick={() => {
+      const id = Date.now();
+      registerPasskey(`tatchi-test-${id}.${tatchi.configs.contractId}`, {
+        onEvent: (event) => {
+          console.log('registration event: ', event)
+        }
+      });
+    }}>
+      Register Account
     </button>
   )
 }
@@ -43,52 +48,29 @@ Once you've registered at least one account, you can retrieve recent logins and 
 import { useState, useEffect } from 'react'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
 
-function App() {
-  const { tatchi, loginState } = useTatchi()
-
-  const [registrationState, setRegistrationState] = useState(null)
-  const [account, setAccount] = useState(null)
-
-  useEffect(() => {
-    (async () => {
-      const users = await tatchi.getRecentLogins()
-      setAccount(users.lastUsedAccount)
-    })()
-  }, [tatchi])
-
+function Login() {
+  const { tatchi, loginState, loginPasskey } = useTatchi()
   return (
-    <main>
-      <h1>Tatchi Example</h1>
-      <button
-        onClick={() => {
-          const id = Date.now()
-          tatchi.registerPasskey(`tatchi-test-${id}.${tatchi.configs.contractId}`, {
-            onEvent: (event) => setRegistrationState(event)
-          })
+    <>
+      <button onClick={async () => {
+          const { lastUsedAccount } = await tatchi.getRecentLogins();
+          if (!account?.nearAccountId) { return null; }
+          loginPasskey(account.nearAccountId)
         }}
       >
-        Register Tatchi Account
+        Log In
       </button>
-      <p>{registrationState && JSON.stringify(registrationState)}</p>
-
-      <button
-        onClick={() => {
-          if (account?.nearAccountId) {
-            tatchi.loginPasskey(account.nearAccountId)
-          }
-        }}
-      >
-        Login
-      </button>
-      <p>
-        {JSON.stringify(account)}
-        {loginState.isLoggedIn && JSON.stringify(loginState)}
-      </p>
-    </main>
+      {loginState.isLoggedIn && (
+        <>
+          <button onClick={() => tatchi.logoutAndClearVrfSession()}>
+            Logout
+          </button>
+          <p>{JSON.stringify(loginState)}</p>
+        </>
+      )}
+    </>
   )
 }
-
-export default App
 ```
 
 When you call `loginPasskey()`, the SDK establishes a VRF session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
@@ -96,92 +78,49 @@ When you call `loginPasskey()`, the SDK establishes a VRF session. If you've con
 ## 3. Send a transaction
 
 ```tsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
 import { ActionType } from '@tatchi-xyz/sdk/core'
 
-function App() {
+function Transactions() {
   const { tatchi, loginState } = useTatchi()
+  const [tx, setTx] = useState(null);
 
-  const [registrationState, setRegistrationState] = useState(null)
-  const [account, setAccount] = useState(null)
-  const [tx, setTx] = useState(null)
-
-  useEffect(() => {
-    (async () => {
-      const users = await tatchi.getRecentLogins()
-      setAccount(users.lastUsedAccount)
-    })()
-  }, [tatchi])
+  if (!loginState.isLoggedIn) return null;
 
   return (
-    <main>
-      <h1>Tatchi Demo</h1>
-      <button
-        onClick={() => {
-          const id = Date.now()
-          tatchi.registerPasskey(`tatchi-test-${id}.${tatchi.configs.contractId}`, {
-            onEvent: (event) => setRegistrationState(event)
-          })
-        }}
-      >
-        Register Tatchi Account
+    <>
+      <button onClick={async () => {
+        const result = await tatchi.executeAction({
+          nearAccountId: loginState.nearAccountId,
+          receiverId: tatchi.configs.contractId,
+          actionArgs: [
+            {
+              type: ActionType.FunctionCall,
+              methodName: 'set_greeting',
+              args: { greeting: 'hello test tachi!' },
+              gas: '30000000000000',
+              deposit: '0',
+            },
+          ],
+          options: {
+            confirmationConfig: { behavior: 'requireClick' },
+            onEvent: (event) => console.log(event),
+            afterCall: (success, result) => {
+              if (success) {
+                setTx(result.result)
+              }
+            }
+          },
+        })
+        setTx(result)
+      }}>
+        Send Transaction
       </button>
-      <p>{registrationState && JSON.stringify(registrationState)}</p>
-
-      <button
-        onClick={() => {
-          if (account?.nearAccountId) {
-            tatchi.loginPasskey(account.nearAccountId)
-          }
-        }}
-      >
-        Login
-      </button>
-      <p>
-        {JSON.stringify(account)}
-        {loginState.isLoggedIn && JSON.stringify(loginState)}
-      </p>
-
-      {loginState.isLoggedIn && (
-        <>
-          <button
-            onClick={async () => {
-              const result = await tatchi.executeAction({
-                nearAccountId: account.nearAccountId,
-                receiverId: tatchi.configs.contractId,
-                actionArgs: [
-                  {
-                    type: ActionType.FunctionCall,
-                    methodName: 'set_greeting',
-                    args: { greeting: 'hello test tachi!' },
-                    gas: '30000000000000',
-                    deposit: '0',
-                  },
-                ],
-                options: {
-                  confirmationConfig: { behavior: 'requireClick' },
-                  onEvent: (event) => {
-                    console.log(event)
-                  },
-                },
-              })
-              setTx(result)
-            }}
-          >
-            Send Transaction
-          </button>
-          <button onClick={() => tatchi.logoutAndClearVrfSession()}>
-            Logout
-          </button>
-          {tx && JSON.stringify(tx)}
-        </>
-      )}
-    </main>
+      {tx && <p>{JSON.stringify(tx)}</p>}
+    </>
   )
 }
-
-export default App
 ```
 
 The `executeAction()` call takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
@@ -194,19 +133,20 @@ When you're done, call `logoutAndClearVrfSession()` to clear the in-memory VRF k
 
 ## Recap
 
-*Registration*: registerPasskey() triggers WebAuthn registration, derives a deterministic NEAR keypair, and persists everything in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
+**Registration**: registerPasskey() triggers WebAuthn registration, derives a deterministic NEAR keypair, and persists everything in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
 
-*Login*: getRecentLogins() reads from IndexedDB and tracks the last-used account.  loginPasskey() establishes a VRF session. With a relay, Shamir 3-pass unlocks the VRF keypair without biometrics; otherwise it uses TouchID to unlock.
-
-*Transactions*: executeAction() constructs, signs, and broadcasts to NEAR. Progress events stream back for UI updates.
+**Login**: getRecentLogins() reads from IndexedDB and tracks the last-used account.  loginPasskey() unlocks a VRF key needed for Passkey authentication. With a relay server configured, you can unlock the VRF key automatically without biometrics; otherwise it uses TouchID to unlock (serverless). The VRF key is used to create verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
 
 *Logout*: logoutAndClearVrfSession() clears the in-memory VRF key and updates loginState.
 
+**Transactions**: executeAction() constructs, signs, and broadcasts to NEAR. Progress events stream back for UI updates.
+
+
 ## Next steps
 
-- Other frameworks (Next.js, Vue, Svelte, Express): ./other-frameworks
-- API Reference (export keys, recover accounts, link devices, batch sign/send): ../api/index
-  - Passkey Manager details: ../api/passkey-manager
-- Concepts (security model, VRF/PRF, wallet iframe architecture): ../concepts/index
-  - VRF challenges: ../concepts/vrf-challenges
-  - Wallet iframe architecture: ../concepts/wallet-iframe-architecture
+- Setting up other frameworks (Next.js, Vue, Svelte, Express): [Using other frameworks](./other-frameworks.md)
+- API Reference (export keys, recover accounts, link devices, batch sign/send): [API Reference](../api/index.md)
+  - [Passkey Manager details](../api/passkey-manager.md)
+- [Concepts](../concepts/index.md): security model, VRF/PRF, wallet iframe architecture
+  - [VRF challenges](../concepts/vrf-challenges)
+  - [Wallet iframe architecture](../concepts/wallet-iframe-architecture)

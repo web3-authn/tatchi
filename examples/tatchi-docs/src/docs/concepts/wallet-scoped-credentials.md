@@ -127,7 +127,10 @@ const passkey = new TatchiPasskey({
     enableSafariGetWebauthnRegistrationFallback: true,
   },
 });
+
 ```
+
+
 
 Choosing at build/runtime
 - Build‑time: hardcode `rpIdOverride` to the mode you want in your prod env.
@@ -136,3 +139,62 @@ Choosing at build/runtime
 ### Related Origin Requests (ROR) details
 - See the iPhone dev guide for Safari behavior and setup.
 - Serve `/.well-known/webauthn` as noted above when crossing registrable sites.
+
+## Migrating Wallet Origins (redundancy/failover)
+
+Goal: move operationally from `https://web3authn.org` to `https://wallet.tatchi.xyz` (or vice‑versa) without losing access to existing passkeys, and be able to fail over when a host goes down.
+
+Recommended approach: keep the rpId stable and switch only the wallet host. Passkeys are bound to `rpId`, not the iframe host, so keeping `rpId = web3authn.org` preserves discoverability while you change the iframe’s origin.
+
+Plan A: Keep rpId, switch wallet host
+- Keep rpId set to the original wallet domain (e.g., `rpIdOverride: 'web3authn.org'`).
+- Switch the iframe host to the backup domain (e.g., `walletOrigin: 'https://wallet.tatchi.xyz'`).
+- Ensure ROR allowlist on the rpId domain includes both the new wallet host and the top‑level app:
+  - `https://web3authn.org/.well-known/webauthn` → `{ origins: ["https://wallet.tatchi.xyz", "https://hosted.tatchi.xyz"] }`
+- Update the app’s Permissions‑Policy to delegate WebAuthn to both hosts during the transition:
+  - `Permissions-Policy: publickey-credentials-get=(self "https://web3authn.org" "https://wallet.tatchi.xyz"), publickey-credentials-create=(self "https://web3authn.org" "https://wallet.tatchi.xyz")`
+- Result: existing `rpId=web3authn.org` passkeys remain discoverable even though the iframe now comes from `wallet.tatchi.xyz`.
+
+Config example (keep rpId, switch host)
+```ts
+const passkey = new TatchiPasskey({
+  ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
+  iframeWallet: {
+    walletOrigin: 'https://wallet.tatchi.xyz',
+    walletServicePath: 'wallet-service',
+    rpIdOverride: 'web3authn.org', // keep original rpId
+    enableSafariGetWebauthnRegistrationFallback: true,
+  },
+});
+```
+
+Dynamic ROR from chain (operational flexibility)
+- The wallet’s `/.well-known/webauthn` endpoint can be served dynamically and fetch its allowlist from a NEAR contract (default view: `get_allowed_origins`).
+- This repo provides dev and Next.js helpers that resolve env (contract ID, RPC URL), sanitize, cache, and serve `{ origins: [...] }`:
+- Operationally: if a wallet host goes down, deploy the same wallet SDK to a backup origin, update the contract allowlist to include the new origin, and traffic resumes without redeploying the app. Governance can update the NEAR webauthn contract (e.g., DAO‑controlled) to add/remove allowed origins.
+
+Checklist
+- App (hosted.tatchi.xyz)
+  - Update `walletOrigin` to the active wallet host.
+  - Keep `rpIdOverride` stable for zero‑migration; or run dual‑rpId fallback if changing rpId.
+  - Permissions‑Policy delegates WebAuthn to all wallet hosts you may use during transition.
+- Wallet (web3authn.org and/or wallet.tatchi.xyz)
+  - Serve `/.well-known/webauthn` with a manifest that includes the top‑level app and any peer wallet hosts that might perform top‑level bridging.
+  - Ensure `/sdk/*` and workers are served with correct MIME/CORS; keep CDN/DNS highly available.
+
+Notes
+- ROR is only consulted for top‑level calls using an rpId different from the top‑level origin. In‑iframe calls on the wallet origin do not require ROR.
+- Firefox support for ROR is limited; prefer in‑iframe WebAuthn on that browser or use app‑scoped credentials.
+
+
+### Troubleshooting Safari
+
+Safari often requires the top‑level bridge (e.g hosted.tatchi.xyz); ensure the top‑level app origin is in the rpId’s allowlist. Firefox support for ROR is limited; prefer in‑iframe calls or provide an app‑scoped fallback there.
+
+## Decentralization and robustness
+
+- Serverless by default: Passkeys live on the user’s device and WebAuthn verification is scoped by rpId. The SDK runs in the browser (wallet iframe), so the core flow does not rely on proprietary backend servers. A relay is optional for UX (VRF unlock), not required for security.
+- Multi‑origin wallet hosting: The hosted Wallet SDK can be deployed on multiple domains and swapped at runtime via `walletOrigin`, while keeping `rpIdOverride` stable to preserve existing credentials.
+- On‑chain allowlist: The `/.well-known/webauthn` manifest can be driven from a NEAR contract. Governance (e.g., a DAO) can add/remove trusted app and wallet origins without redeploying apps, enabling resilient failover and progressive decentralization.
+
+In short: a decentralized passkey setup with no required servers, plus a robust Wallet SDK hosting model that can be updated to multiple domains as your infrastructure evolves.

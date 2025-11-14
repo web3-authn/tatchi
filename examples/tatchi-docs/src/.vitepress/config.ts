@@ -11,6 +11,10 @@ const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url))
 // VitePress defineConfig expects a plain object. Resolve env statically here.
 const resolvedMode = (process.env.NODE_ENV === 'production' ? 'production' : 'development') as 'production' | 'development'
 const env = loadEnv(resolvedMode, projectRoot, '')
+// Forward VITE_* to process.env so Node-side plugins can read them
+if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
+if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
+if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
 
 export default defineConfig({
   // Hosted at the site root
@@ -50,9 +54,18 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Overview', link: '/docs/getting-started/overview' },
-          { text: 'Quickstart', link: '/docs/getting-started/quickstart' },
+          { text: 'Installation', link: '/docs/getting-started/installation' },
           { text: 'Next Steps', link: '/docs/getting-started/next-steps' },
-          { text: 'Framework by Framework', link: '/docs/getting-started/frameworks' },
+          {
+            text: 'Other Frameworks',
+            collapsed: true,
+            items: [
+              { text: 'Vue', link: '/docs/getting-started/other-frameworks#vue-3-vanilla-sdk' },
+              { text: 'Next.js', link: '/docs/getting-started/other-frameworks#next-js' },
+              { text: 'Vanilla JS', link: '/docs/getting-started/other-frameworks#vanilla-js-expressjs-or-similar' },
+              { text: 'Svelte', link: '/docs/getting-started/other-frameworks#svelte-vanilla-sdk' },
+            ],
+          },
         ],
       },
       {
@@ -71,6 +84,7 @@ export default defineConfig({
             { text: 'Device Linking', link: '/docs/guides/device-linking' },
           ]},
           { text: 'Deployment', items: [
+            { text: 'Self-hosting the Wallet SDK', link: '/docs/guides/selfhosting' },
             { text: 'Cloudflare Worker', link: '/docs/guides/cloudflare-worker' },
             { text: 'Cloudflare WASM Imports', link: '/docs/guides/cloudflare-wasm-imports' },
             { text: 'Cloudflare + GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
@@ -123,6 +137,8 @@ export default defineConfig({
   },
 
   vite: {
+    clearScreen: false,
+    logLevel: 'info',
     envDir: projectRoot,
     // Use VitePress default public directory: <docsDir>/public (i.e. src/public)
     // This keeps assets tracked in git and bundled consistently.

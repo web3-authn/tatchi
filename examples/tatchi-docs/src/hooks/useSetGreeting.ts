@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import { WEBAUTHN_CONTRACT_ID } from '../config';
+import { WEBAUTHN_CONTRACT_ID } from '../types';
 import { useNearClient } from '@tatchi-xyz/sdk/react';
 
 export interface GreetingResult {

@@ -1,12 +1,10 @@
 ---
-title: Quickstart
+title: Installation
 ---
 
 # Installation
 
 Install the SDK and configure the wallet iframe (origin, service path, headers) so sensitive flows run in an isolated wallet origin.
-
-## 1. Install the SDK
 
 ::: code-group
 ```bash [pnpm]
@@ -23,9 +21,9 @@ yarn add @tatchi-xyz/sdk
 :::
 
 
-## 2. Configure Vite
+## Configure Vite
 
-Install framework packages. We'll be using Vite.
+Install framework packages. We'll be using Vite. If you're using another framework, checkout the [other frameworks](./other-frameworks.md) section.
 
 ::: code-group
 ```bash [pnpm]
@@ -68,7 +66,7 @@ the wallet origin which serves the wallet SDK from a secure iframe.
 You may also choose to self-host the wallet SDK (more on this later in the  [selfhosting](../guides/selfhosting.md) section).
 
 
-## 3. Enable HTTPS (Caddy setup)
+## Enable HTTPS (Caddy setup)
 
 Passkeys require a secure context (HTTPS). You can use [Caddy](https://caddyserver.com/docs/install) for local development:
 ```bash
@@ -86,7 +84,7 @@ example.localhost {
 ```
 
 
-## 4. React Setup
+## React Setup
 
 Setup the React provider:
 ```tsx
@@ -140,18 +138,16 @@ export default App
 ```
 
 
-## 5. Your first run
+## Your first run
 
-Open two separate tabs and run the Caddy and Vite servers:
+Open **two separate tabs** and run the Vite server and Caddy:
 
-Caddy:
 ```bash
-caddy run --config Caddyfile --adapter caddyfile
+pnpm dev # vite
 ```
 
-Vite:
 ```bash
-pnpm dev
+caddy run --config Caddyfile --adapter caddyfile
 ```
 
 Then navigate to:
@@ -161,23 +157,30 @@ https://example.localhost
 
 You should see a registration button, which registers passkey derived wallets onchain.
 
+:::info
+Safari users will need to have their domains allow-listed for the wallet.tatchi.xyz  because safari does not allow cross-origin webauthn registrations.
 
-### Next Steps
+Contact us and we can add your domain to the [webauthn contract](https://testnet.nearblocks.io/address/w3a-v1.testnet?tab=contract), or selfhost the wallet origin (more on this later).
+:::
+
+
+## Next Steps
 
 After you've got the SDK installed, we will walk through login, and sending your first transaction in [next Steps](./next-steps).
 
 
-### Troubleshooting (new users)
+::: details Troubleshooting Setup Issues
 
-- WebAuthn requires HTTPS
+**WebAuthn requires HTTPS**
   - Symptom: no TouchID/biometric prompt or errors like “Operation is insecure”.
   - Fix: use Caddy and open `https://example.localhost` (not `http://localhost`). If the browser warns about certs, run `caddy trust` and try again.
 
-- Wallet iframe not connecting
+**Wallet iframe not connecting**
   - Symptom: actions hang; no network requests to the wallet origin.
-  - Fix: ensure `walletOrigin` is set and uses `https` (Quickstart uses `https://wallet.tatchi.xyz`). If you changed it, verify the URL is reachable from the browser.
+  - Fix: ensure `walletOrigin` is set and uses `https` (this guide uses `https://wallet.tatchi.xyz`). If you changed it, verify the URL is reachable from the browser.
 
-- Buttons do nothing (no prompt)
+**Buttons do nothing**
   - Symptom: calling register/login from effects or timers does nothing.
   - Fix: WebAuthn must run from a user gesture. Trigger flows from `onClick` handlers as shown.
 
+:::
