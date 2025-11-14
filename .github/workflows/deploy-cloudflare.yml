@@ -276,6 +276,7 @@ jobs:
           echo "VITE_NEAR_RPC_URL=${{ vars.VITE_NEAR_RPC_URL }}"
           echo "VITE_NEAR_EXPLORER=${{ vars.VITE_NEAR_EXPLORER }}"
           echo "VITE_SDK_BASE_PATH=${{ vars.VITE_SDK_BASE_PATH }}"
+          echo "VITE_WEBAUTHN_CONTRACT_ID=${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}"
 
       - name: Build site with VitePress
         env:
@@ -382,6 +383,7 @@ jobs:
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
         run: pnpm -C examples/vite build
 
       - name: Debug – print built _headers (wallet)

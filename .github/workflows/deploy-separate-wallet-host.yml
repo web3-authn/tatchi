@@ -64,6 +64,7 @@ jobs:
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
         run: pnpm -C examples/vite build
 
       - name: Copy SDK assets into Pages output (example)
@@ -147,6 +148,7 @@ jobs:
           VITE_NEAR_NETWORK: ${{ vars.VITE_NEAR_NETWORK }}
           VITE_NEAR_RPC_URL: ${{ vars.VITE_NEAR_RPC_URL }}
           VITE_NEAR_EXPLORER: ${{ vars.VITE_NEAR_EXPLORER }}
+          VITE_WEBAUTHN_CONTRACT_ID: ${{ vars.VITE_WEBAUTHN_CONTRACT_ID }}
         run: pnpm -C examples/vite build
 
       - name: Deploy hosted app to Cloudflare Pages

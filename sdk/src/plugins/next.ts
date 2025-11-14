@@ -7,6 +7,7 @@
 // - In PRODUCTION you should keep a strict CSP (no 'unsafe-eval', no inline styles, and include "style-src-attr 'none'").
 
 import { buildPermissionsPolicy, buildWalletCsp, type CspMode } from './headers'
+import { fetchRorOriginsFromNear } from './plugin-utils'
 
 export type NextHeader = { key: string; value: string }
 export type NextHeaderEntry = { source: string; headers: NextHeader[] }
@@ -94,6 +95,80 @@ export function tatchiNextWallet(opts: {
         const user = typeof existing === 'function' ? await existing() : []
         return [...(user || []), ...tatchiNextHeaders(opts)]
       },
-    }
+}
+  }
+}
+
+// === Well-known (/.well-known/webauthn) helpers for Next.js ===
+// These helpers mirror the Vite dev server behavior and let Next apps expose
+// a dynamic allowlist fetched from chain without a relay in development.
+
+type RorOpts = {
+  rpcUrl?: string
+  contractId?: string
+  method?: string
+  cacheTtlMs?: number
+}
+
+function resolveRorParams(opts: RorOpts) {
+  const rpcUrl = (opts.rpcUrl || process.env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com').toString().trim()
+  const contractId = (opts.contractId || process.env.VITE_WEBAUTHN_CONTRACT_ID || '').toString().trim()
+  const method = (opts.method || process.env.VITE_ROR_METHOD || 'get_allowed_origins').toString().trim()
+  const cacheTtlMs = Number(opts.cacheTtlMs ?? process.env.VITE_ROR_CACHE_TTL_MS ?? 60000)
+  return { rpcUrl, contractId, method, cacheTtlMs }
+}
+
+/**
+ * Pages Router compatible handler (Node runtime).
+ * Usage (pages/api/.well-known/webauthn.ts):
+ *   export default (req, res) => handleWellKnownRorNode(req, res)
+ */
+export async function handleWellKnownRorNode(req: any, res: any, opts: RorOpts = {}) {
+  try {
+    const params = resolveRorParams(opts)
+    const origins = params.contractId
+      ? await fetchRorOriginsFromNear(params)
+      : []
+    res.statusCode = 200
+    res.setHeader?.('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader?.('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+    res.end?.(JSON.stringify({ origins }))
+  } catch (e) {
+    console.warn('[tatchi][next] ROR fetch failed:', e)
+    res.statusCode = 200
+    res.setHeader?.('Content-Type', 'application/json; charset=utf-8')
+    res.setHeader?.('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+    res.end?.(JSON.stringify({ origins: [] }))
+  }
+}
+
+/**
+ * App Router compatible handler (Edge/Route Handler style).
+ * Usage (app/.well-known/webauthn/route.ts):
+ *   export async function GET(req: Request) { return handleWellKnownRorEdge(req) }
+ */
+export async function handleWellKnownRorEdge(_request: Request, opts: RorOpts = {}): Promise<Response> {
+  try {
+    const params = resolveRorParams(opts)
+    const origins = params.contractId
+      ? await fetchRorOriginsFromNear(params)
+      : []
+    return new Response(JSON.stringify({ origins }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'max-age=60, stale-while-revalidate=600',
+      },
+    })
+  } catch (e) {
+    console.warn('[tatchi][next] ROR fetch failed:', e)
+    const origins: string[] = []
+    return new Response(JSON.stringify({ origins }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'max-age=60, stale-while-revalidate=600',
+      },
+    })
   }
 }

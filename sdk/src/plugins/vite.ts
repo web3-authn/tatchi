@@ -11,7 +11,14 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
 import { buildPermissionsPolicy, buildWalletCsp } from './headers'
-import { addPreconnectLink, buildWalletServiceHtml, buildExportViewerHtml, applyCoepCorp, echoCorsFromRequest, logRorConfig } from './plugin-utils'
+import {
+  addPreconnectLink,
+  buildWalletServiceHtml,
+  buildExportViewerHtml,
+  applyCoepCorp,
+  echoCorsFromRequest,
+  fetchRorOriginsFromNear
+} from './plugin-utils'
 
 // Avoid importing 'vite' types to keep this package light. Define a minimal shape.
 export type VitePlugin = {
@@ -137,6 +144,8 @@ function tryFile(...candidates: string[]): string | undefined {
   }
   return undefined
 }
+
+// RPC helpers are provided by plugin-utils to share logic across frameworks.
 
 // Shared assets emitted/served for the wallet service bootstrap.
 const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n"
@@ -330,20 +339,26 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   // Build headers via shared helpers to avoid drift.
   const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
 
-  // Optional: Related Origin Requests (ROR) dev endpoint support
-  const rorEnv = process.env.VITE_ROR_ALLOWED_ORIGINS
-  const rorAllowedOrigins = (rorEnv || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+  // Dev convenience: dynamic ROR from NEAR RPC (no relay dependency)
+  // The dev server will fetch the allowlist from chain on demand when a contract id is provided.
+  const rorContractId = (process.env.VITE_WEBAUTHN_CONTRACT_ID || '').toString().trim()
+  const rorMethod = (process.env.VITE_ROR_METHOD || 'get_allowed_origins').toString().trim()
+  const nearRpcUrl = (process.env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com').toString().trim()
+  // Caching is handled inside fetchRorOriginsFromNear via TTL
 
   return {
     name: 'tatchi:dev-headers',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
-      // Log ROR endpoint info when configured, and validate origins
-      if (rorAllowedOrigins.length > 0) logRorConfig(rorAllowedOrigins, '/.well-known/webauthn')
+
+      console.log('[tatchi] headers enabled', {
+        walletServicePath,
+        sdkBasePath,
+        rorContractId: rorContractId || '(none)',
+        nearRpcUrl
+      })
+
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0] || ''
         const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
@@ -360,11 +375,38 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         // Resource hints: help parent pages preconnect to the wallet origin early in dev
         addPreconnectLink(res, walletOrigin)
 
-        // Serve /.well-known/webauthn for ROR when configured
-        if (url === '/.well-known/webauthn' && rorAllowedOrigins.length > 0) {
+        // Serve /.well-known/webauthn for ROR using chain state in dev
+        const isWellKnown = url === '/.well-known/webauthn' || url === '/.well-known/webauthn/'
+        if (isWellKnown) {
+          // Direct fetch from NEAR RPC (no relay). Caching handled inside helper.
+          // Requires contract id; RPC URL falls back to a reliable public endpoint.
+          if (rorContractId) {
+            ;(async () => {
+              try {
+                const origins = await fetchRorOriginsFromNear({
+                  rpcUrl: nearRpcUrl,
+                  contractId: rorContractId,
+                  method: rorMethod,
+                })
+                res.statusCode = 200
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+                res.end(JSON.stringify({ origins }))
+              } catch (e) {
+                console.warn('[tatchi] ROR dynamic fetch failed:', e)
+                res.statusCode = 200
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+                res.end(JSON.stringify({ origins: [] }))
+              }
+            })()
+            return
+          }
+          // No configuration; respond with empty allowlist to avoid hard 404 in dev
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.end(JSON.stringify({ origins: rorAllowedOrigins }))
+          res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+          res.end(JSON.stringify({ origins: [] }))
           return
         }
 
