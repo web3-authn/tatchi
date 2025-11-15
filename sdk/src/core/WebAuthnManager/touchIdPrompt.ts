@@ -6,7 +6,7 @@ import type {
   WebAuthnAuthenticationCredential,
   WebAuthnRegistrationCredential
 } from '../types/webauthn';
-import { executeWithFallbacks } from './WebAuthnFallbacks';
+import { executeWebAuthnWithParentFallbacksSafari } from './WebAuthnFallbacks';
 // Local rpId policy helpers (moved back from WebAuthnFallbacks)
 function isRegistrableSuffix(host: string, cand: string): boolean {
   if (!host || !cand) return false;
@@ -112,6 +112,10 @@ export function generateEd25519Salt(nearAccountId: string): Uint8Array {
 export class TouchIdPrompt {
   private rpIdOverride?: string;
   private safariGetWebauthnRegistrationFallback: boolean;
+  // create() only: internal abort controller + cleanup hooks
+  private abortController?: AbortController;
+  private removePageAbortHandlers?: () => void;
+  private removeExternalAbortListener?: () => void;
 
   constructor(rpIdOverride?: string, safariGetWebauthnRegistrationFallback = false) {
     this.rpIdOverride = rpIdOverride;
@@ -208,6 +212,9 @@ export class TouchIdPrompt {
     challenge,
     deviceNumber,
   }: RegisterCredentialsArgs): Promise<PublicKeyCredential> {
+    // New controller per create() call
+    this.abortController = new AbortController();
+    this.removePageAbortHandlers = TouchIdPrompt.attachPageAbortHandlers(this.abortController);
     // Single source of truth for rpId: use getRpId().
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialCreationOptions = {
@@ -221,8 +228,14 @@ export class TouchIdPrompt {
         name: generateDeviceSpecificUserId(nearAccountId, deviceNumber),
         displayName: generateUserFriendlyDisplayName(nearAccountId, deviceNumber)
       },
-      pubKeyCredParams: [ { alg: -7, type: 'public-key' }, { alg: -257, type: 'public-key' } ],
-      authenticatorSelection: { residentKey: 'required', userVerification: 'preferred' },
+      pubKeyCredParams: [
+        { alg: -7, type: 'public-key' },
+        { alg: -257, type: 'public-key' }
+      ],
+      authenticatorSelection: {
+        residentKey: 'required',
+        userVerification: 'preferred'
+      },
       timeout: 60000,
       attestation: 'none',
       extensions: {
@@ -235,12 +248,22 @@ export class TouchIdPrompt {
         }
       },
     };
-    const result = await executeWithFallbacks('create', publicKey, {
-      rpId,
-      inIframe: TouchIdPrompt._inIframe(),
-      timeoutMs: publicKey.timeout as number | undefined,
-    });
-    return result as PublicKeyCredential;
+    try {
+      const result = await executeWebAuthnWithParentFallbacksSafari('create', publicKey, {
+        rpId,
+        inIframe: TouchIdPrompt._inIframe(),
+        timeoutMs: publicKey.timeout as number | undefined,
+        // Pass AbortSignal through when supported; Safari bridge path may ignore it.
+        abortSignal: this.abortController.signal,
+      });
+      return result as PublicKeyCredential;
+    } finally {
+      this.removePageAbortHandlers?.();
+      this.removePageAbortHandlers = undefined;
+      this.removeExternalAbortListener?.();
+      this.removeExternalAbortListener = undefined;
+      this.abortController = undefined;
+    }
   }
 
   /**
@@ -262,6 +285,9 @@ export class TouchIdPrompt {
     challenge,
     allowCredentials,
   }: AuthenticateCredentialsArgs): Promise<PublicKeyCredential> {
+    // New controller per get() call
+    this.abortController = new AbortController();
+    this.removePageAbortHandlers = TouchIdPrompt.attachPageAbortHandlers(this.abortController);
     // Single source of truth for rpId: use getRpId().
     const rpId = this.getRpId();
     const publicKey: PublicKeyCredentialRequestOptions = {
@@ -284,13 +310,22 @@ export class TouchIdPrompt {
         }
       }
     };
-    const result = await executeWithFallbacks('get', publicKey, {
-      rpId,
-      inIframe: TouchIdPrompt._inIframe(),
-      timeoutMs: publicKey.timeout as number | undefined,
-      permitGetBridgeOnAncestorError: this.safariGetWebauthnRegistrationFallback,
-    });
-    return result as PublicKeyCredential;
+    try {
+      const result = await executeWebAuthnWithParentFallbacksSafari('get', publicKey, {
+        rpId,
+        inIframe: TouchIdPrompt._inIframe(),
+        timeoutMs: publicKey.timeout as number | undefined,
+        permitGetBridgeOnAncestorError: this.safariGetWebauthnRegistrationFallback,
+        abortSignal: this.abortController.signal,
+      });
+      return result as PublicKeyCredential;
+    } finally {
+      this.removePageAbortHandlers?.();
+      this.removePageAbortHandlers = undefined;
+      this.removeExternalAbortListener?.();
+      this.removeExternalAbortListener = undefined;
+      this.abortController = undefined;
+    }
   }
 }
 
@@ -342,4 +377,22 @@ function generateUserFriendlyDisplayName(nearAccountId: string, deviceNumber?: n
   }
   // For additional devices, add device number with friendly label
   return `${baseUsername} (device ${deviceNumber})`;
+}
+
+// Abort native WebAuthn when page is being hidden or unloaded
+// Centralized here to keep WebAuthn lifecycle concerns alongside native calls.
+export namespace TouchIdPrompt {
+  export function attachPageAbortHandlers(controller: AbortController): () => void {
+    const onVisibility = () => { if (document.hidden) controller.abort(); };
+    const onPageHide = () => { controller.abort(); };
+    const onBeforeUnload = () => { controller.abort(); };
+    document.addEventListener('visibilitychange', onVisibility, { passive: true });
+    window.addEventListener('pagehide', onPageHide, { passive: true });
+    window.addEventListener('beforeunload', onBeforeUnload, { passive: true });
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }
 }

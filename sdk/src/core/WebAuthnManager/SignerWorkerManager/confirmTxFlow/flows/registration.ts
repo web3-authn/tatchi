@@ -20,8 +20,10 @@ export async function handleRegistrationFlow(
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
 ): Promise<void> {
+
   const { confirmationConfig, transactionSummary } = opts;
   const nearAccountId = getNearAccountId(request);
+
   console.debug('[RegistrationFlow] start', {
     nearAccountId,
     uiMode: confirmationConfig?.uiMode,
@@ -50,7 +52,6 @@ export async function handleRegistrationFlow(
   // 2) Initial VRF challenge via bootstrap
   if (!ctx.vrfWorkerManager) throw new Error('VrfWorkerManager not available');
   const rpId = ctx.touchIdPrompt.getRpId();
-  console.debug('[RegistrationFlow] VRF bootstrap start', { rpId, txBlockHeight: transactionContext.txBlockHeight });
   const bootstrap = await ctx.vrfWorkerManager.generateVrfKeypairBootstrap({
     vrfInputData: {
       userId: nearAccountId,
@@ -64,7 +65,6 @@ export async function handleRegistrationFlow(
   console.debug('[RegistrationFlow] VRF bootstrap ok', { blockHeight: uiVrfChallenge.blockHeight });
 
   // 3) UI confirm
-  console.debug('[RegistrationFlow] renderConfirmUI');
   const { confirmed, confirmHandle, error: uiError } = await renderConfirmUI({
     ctx,
     request,
@@ -87,7 +87,6 @@ export async function handleRegistrationFlow(
 
   // 4) JIT refresh VRF (best-effort)
   try {
-    console.debug('[RegistrationFlow] VRF JIT refresh start');
     const refreshed = await maybeRefreshVrfChallenge(ctx, request, nearAccountId);
     uiVrfChallenge = refreshed.vrfChallenge;
     confirmHandle?.update?.({ vrfChallenge: uiVrfChallenge });
@@ -99,6 +98,7 @@ export async function handleRegistrationFlow(
   // 5) Collect registration credentials (with duplicate retry)
   let credential: PublicKeyCredential | undefined;
   let deviceNumber = request.payload?.deviceNumber;
+
   const tryCreate = async (dn?: number): Promise<PublicKeyCredential> => {
     console.debug('[RegistrationFlow] navigator.credentials.create start', { deviceNumber: dn });
     return await ctx.touchIdPrompt.generateRegistrationCredentialsInternal({
@@ -107,6 +107,7 @@ export async function handleRegistrationFlow(
       deviceNumber: dn,
     });
   };
+
   try {
     try {
       credential = await tryCreate(deviceNumber);
@@ -144,6 +145,7 @@ export async function handleRegistrationFlow(
       transactionContext,
     });
     closeModalSafely(true, confirmHandle);
+
   } catch (err: unknown) {
     const cancelled = isTouchIdCancellationError(err) || (() => {
       const e = toError(err);
@@ -162,6 +164,7 @@ export async function handleRegistrationFlow(
     // Release any reserved nonces on failure (best-effort)
     nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     closeModalSafely(false, confirmHandle);
+
     return send(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
