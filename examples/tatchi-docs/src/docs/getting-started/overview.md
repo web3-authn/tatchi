@@ -17,18 +17,19 @@ Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [N
 
 ### Permissionless recovery and portability
   - Passkey authenticators are stored on‑chain. Users can re‑derive keys from on‑chain authenticators, enabling permissionless recovery with high availability.
-  - Multi‑device sync that "just works": passkeys sync via iCloud/Google so wallets can also be synced across devices for users. Prefer no cloud? Link devices via QR codes for a simple and familiar UX (NEAR accounts let you add or revoke multiple keys).
+  - Multi‑device sync: passkeys wallets can be synced across devices via iCloud, Google Password Manager, or password managers like Bitwarden.
+  - Prefer no cloud? Paranoid about Passkey lock-in? Link devices with different passkeys to the same wallet account via QR codes (NEAR accounts can add or revoke multiple keys). Multi-device backups help address current issues with Passkey portability ([still in progress](https://fidoalliance.org/specifications-credential-exchange-specifications/)).
 
 ### Wallet isolation by default
   - Sensitive flows (WebAuthn/PRF/VRF, key handling, signing) run inside a cross‑origin iframe with strict headers and isolated WASM workers. Even if the developer's app is compromised, Tatchi passkey wallet remains safe.
 
 ### Developer first
   - 100% open source. Self‑host and deploy your own WebAuthn contracts, or get started quickly by pointing to the hosted wallet SDK at https://wallet.tatchi.xyz (use the same account to log into multiple apps).
-  - App‑controlled UX. Your app owns wallet surfaces and can set transaction confirmation policies (require click vs auto‑proceed), themes, ui modes.
+  - App‑controlled UX. Your app owns the wallet UX and can set transaction confirmation UX policies (require click vs auto‑proceed), themes (dark vs light), ui modes (modal vs drawer).
 
 ### Minimal centralization:
-  - Wallet‑scoped rpId lets one passkey work across many apps without an identity silo per app.
-  - Resilience by design: Wallet origin is swappable, and ROR allowlists are on‑chain and DAO‑governable for fast failover without app redeploys.
+  - Wallet origin is swappable, and ROR allowlists are on‑chain and DAO‑governable for fast failover without app redeploys.
+  - One passkey can work across many apps without an identity silo per app.
 
 
 ## Next: Installation

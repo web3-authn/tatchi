@@ -60,6 +60,9 @@ const { handle_signer_message } = wasmModule;
 import { awaitSecureConfirmationV2 } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
 import { SecureConfirmMessageType } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/types';
 
+// Expose the confirmation bridge under the JS name expected by wasm-bindgen (js_name = awaitSecureConfirmationV2)
+(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
+
 let messageProcessed = false;
 
 /**
@@ -128,7 +131,7 @@ function sendProgressMessage(
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
 // Expose the worker bridge for WASM to call (V2 only)
-(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
+// already assigned above
 
 /**
  * Initialize WASM module
@@ -288,6 +291,4 @@ function safeJsonParse(jsonString: string, fallback: any = {}): any {
 
 // Error string extraction handled by errorMessage() in utils/errors
 
-// Expose the V2 confirmation bridge function globally for WASM glue to call
-// Rust side binds to js_name = awaitSecureConfirmationV2
-(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
+// (bridge assigned above)

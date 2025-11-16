@@ -4,7 +4,7 @@ import { ClientAuthenticatorData, UnifiedIndexedDBManager } from '../../IndexedD
 import { IndexedDBManager } from '../../IndexedDBManager';
 import { TouchIdPrompt } from "../touchIdPrompt";
 import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../config";
-import { resolveWorkerScriptUrl } from '../../sdkPaths';
+import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
   WorkerResponseForRequest,
@@ -122,10 +122,10 @@ export class SignerWorkerManager {
   }
 
   createSecureWorker(): Worker {
-    // Prefer precomputed base origin when provided by WebAuthnManager
-    const workerUrlStr = this.workerBaseOrigin
-      ? new URL(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL, this.workerBaseOrigin).toString()
-      : resolveWorkerScriptUrl(SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL);
+    const workerUrlStr = resolveWorkerUrl(
+      SIGNER_WORKER_MANAGER_CONFIG.WORKER.URL,
+      { worker: 'signer', baseOrigin: this.workerBaseOrigin }
+    )
     try {
       const worker = new Worker(workerUrlStr, {
         type: SIGNER_WORKER_MANAGER_CONFIG.WORKER.TYPE,
@@ -243,7 +243,7 @@ export class SignerWorkerManager {
             setTimeout(() => {
               worker.removeEventListener('message', onReady);
               // Pre-warm timeouts are benign; workers will be created on-demand later.
-              console.debug(`WebAuthnManager: Worker ${i + 1} pre-warm timeout`);
+              // console.debug(`WebAuthnManager: Worker ${i + 1} pre-warm timeout`);
               reject(new Error('Pre-warm timeout'));
             }, 5000);
 
@@ -340,10 +340,6 @@ export class SignerWorkerManager {
           // If we reach here, the response doesn't match any expected type
           console.error('Unexpected worker response format:', {
             response,
-            responseType: typeof response,
-            isObject: isObject(response),
-            hasType: isObject(response) && 'type' in response,
-            type: (isObject(response) && 'type' in response) ? (response as { type?: unknown }).type : undefined
           });
 
           // Check if it's a generic Error object
@@ -563,7 +559,15 @@ export class SignerWorkerManager {
     ]);
     const publicKey = user?.clientNearPublicKey || '';
     if (!keyData || !publicKey) {
-      throw new Error('Missing local key material for export');
+      try {
+        // Suggest offline export route on the wallet domain when local material is absent
+        const { resolveWorkerBaseOrigin } = await import('../../sdkPaths/workers');
+        const origin = resolveWorkerBaseOrigin();
+        const hint = origin ? `No internet connection: for offline export go to ${origin}/offline-export/` : '';
+        throw new Error('Missing local key material for export.' + hint);
+      } catch {
+        throw new Error('Missing local key material for export. Offline: for offline export go to /offline-export/');
+      }
     }
     await (ctx as any).sendMessage({
       message: {

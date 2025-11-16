@@ -72,6 +72,7 @@
     "./worker": "./dist/web3authn-signer.worker.js",
     "./wasm": "./dist/wasm_signer_worker_bg.wasm",
     "./wasm-js": "./dist/wasm_signer_worker.js",
+    "./offline-export-sw": "./dist/workers/offline-export-sw.js",
     "./components/modal": {
       "import": "./dist/esm/core/WebAuthnManager/Components/modal.js",
       "require": "./dist/cjs/core/WebAuthnManager/Components/modal.js",

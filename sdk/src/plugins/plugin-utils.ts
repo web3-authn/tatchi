@@ -1,4 +1,7 @@
 // Small shared helpers for Vite/Next plugins
+import * as path from 'node:path'
+import * as fs from 'node:fs'
+import { createRequire } from 'node:module'
 
 export function addPreconnectLink(res: any, origin?: string) {
   if (!origin) return
@@ -145,12 +148,7 @@ export function logRorConfig(origins: string[], endpoint = '/.well-known/webauth
   }
 }
 
-/**
- * Sanitize a dynamic allowlist into a normalized set of absolute origins.
- * - Allows https:// and http://localhost only
- * - Drops any path/query/hash
- * - Lowercases host and preserves explicit port
- */
+// Sanitize a dynamic allowlist into a normalized set of absolute origins.
 export function sanitizeOrigins(values: unknown): string[] {
   const out = new Set<string>()
   if (Array.isArray(values)) {
@@ -235,4 +233,57 @@ export async function fetchRorOriginsFromNear(opts: {
   }
 
   return __rorInflight.get(key) as Promise<string[]>
+}
+
+/**
+ * Infer and set a proper Content-Type header for a given file path.
+ * Shared by both app and wallet-iframe dev servers.
+ */
+export function setContentType(res: any, filePath: string) {
+  const ext = path.extname(filePath)
+  switch (ext) {
+    case '.js':
+      res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
+      break
+    case '.css':
+      res.setHeader('Content-Type', 'text/css; charset=utf-8')
+      break
+    case '.map':
+    case '.json':
+      res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      break
+    case '.wasm':
+      res.setHeader('Content-Type', 'application/wasm')
+      break
+    case '.html':
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      break
+    default:
+      res.setHeader('Content-Type', 'application/octet-stream')
+  }
+}
+
+// === Shared path helpers across Vite/Next plugins ===
+
+const requireCjs = createRequire(import.meta.url)
+
+export function normalizeBase(p?: string, fallback = '/sdk'): string {
+  let out = (p || fallback).trim()
+  if (!out.startsWith('/')) out = '/' + out
+  if (out.length > 1 && out.endsWith('/')) out = out.slice(0, -1)
+  return out
+}
+
+export function resolveSdkDistRoot(explicit?: string): string {
+  if (explicit) return path.resolve(explicit)
+  const pkgPath = requireCjs.resolve('@tatchi-xyz/sdk/package.json')
+  const pkgDir = path.dirname(pkgPath)
+  try {
+    const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { module?: string }
+    const esmEntry = pkgJson.module || 'dist/esm/index.js'
+    const esmAbs = path.resolve(pkgDir, esmEntry)
+    return path.resolve(path.dirname(esmAbs), '..')
+  } catch {
+    return path.join(pkgDir, 'dist')
+  }
 }

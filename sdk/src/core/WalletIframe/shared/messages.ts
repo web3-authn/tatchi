@@ -2,8 +2,10 @@
 // Typed RPC messages for the wallet service iframe channel (TatchiPasskey-first)
 import { AuthenticatorOptions } from '@/server';
 import type { WalletUIRegistry } from '../host/iframe-lit-element-registry';
-import { ActionArgs, TransactionInput } from '../../types';
+import { SignedTransaction } from '../../NearClient';
 import {
+  ActionArgs,
+  TransactionInput,
   LoginHooksOptions,
   ActionHooksOptions,
   RegistrationHooksOptions,
@@ -11,6 +13,7 @@ import {
   ScanAndLinkDeviceOptionsDevice1,
   StartDeviceLinkingOptionsDevice2
 } from '../../types';
+import { type DeviceLinkingQRData } from '../../types/linkDevice';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -28,7 +31,6 @@ export type ParentToChildType =
   | 'PM_SEND_TRANSACTION'
   | 'PM_EXECUTE_ACTION'
   | 'PM_SIGN_NEP413'
-  | 'PM_EXPORT_NEAR_KEYPAIR'
   | 'PM_EXPORT_NEAR_KEYPAIR_UI'
   | 'PM_GET_RECENT_LOGINS'
   | 'PM_PREFETCH_BLOCKHEIGHT'
@@ -125,7 +127,7 @@ export interface PMSignAndSendTxsPayload {
 }
 
 export interface PMSendTxPayload {
-  signedTransaction: unknown; // SignedTransaction-like
+  signedTransaction: SignedTransaction; // SignedTransaction-like
   options?: Record<string, unknown>;
 }
 
@@ -192,7 +194,6 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SEND_TRANSACTION', PMSendTxPayload>
   | RpcEnvelope<'PM_EXECUTE_ACTION', PMExecuteActionPayload>
   | RpcEnvelope<'PM_SIGN_NEP413', PMSignNep413Payload>
-  | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR', PMExportNearKeypairPayload>
   | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR_UI', PMExportNearKeypairUiPayload>
   | RpcEnvelope<'PM_GET_RECENT_LOGINS'>
   | RpcEnvelope<'PM_PREFETCH_BLOCKHEIGHT'>
@@ -205,7 +206,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_DELETE_DEVICE_KEY', PMDeleteDeviceKeyPayload>
   // Device linking
   | RpcEnvelope<'PM_LINK_DEVICE_WITH_SCANNED_QR_DATA', {
-      qrData: import('../../types/linkDevice').DeviceLinkingQRData;
+      qrData: DeviceLinkingQRData;
       fundingAmount: string;
     }>
   | RpcEnvelope<'PM_START_DEVICE2_LINKING_FLOW', {

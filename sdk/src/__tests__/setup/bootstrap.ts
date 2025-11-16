@@ -115,13 +115,11 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
       const loadHandle = await page.waitForFunction(async (setupOptions) => {
         try {
-          console.log('[setup:browser - step 4] importing TatchiPasskey from built SDK...');
           const { TatchiPasskey } = await import('/sdk/esm/core/TatchiPasskey/index.js');
 
           if (!TatchiPasskey) {
             throw new Error('TatchiPasskey not found in SDK module');
           }
-          console.log('[setup:browser - step 4] TatchiPasskey imported successfully:', typeof TatchiPasskey);
 
           // Create and validate configuration
           const runtimeConfigs = {
@@ -153,14 +151,12 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
           // Create TatchiPasskey instance
           const passkeyManager = new TatchiPasskey(runtimeConfigs);
-          console.log('[setup:browser - step 4] TatchiPasskey instance created');
-
           // Test basic functionality
           try {
             const loginState = await passkeyManager.getLoginState();
-            console.log('[setup:browser - step 4]   -> getLoginState test successful:', loginState);
+            console.log('[setup:browser]   -> getLoginState test successful:', loginState);
           } catch (testError: any) {
-            console.warn('[setup:browser - step 4]   -> getLoginState test failed:', testError.message);
+            console.warn('[setup:browser]   -> getLoginState test failed:', testError.message);
           }
 
           // Store in window for test access
@@ -170,7 +166,6 @@ async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestCon
 
           return { success: true, message: 'TatchiPasskey loaded successfully' };
         } catch (error: any) {
-          console.error('Failed to load TatchiPasskey:', error);
           throw error;
         }
       }, configs, {
@@ -221,9 +216,9 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
         try {
           const { base64UrlEncode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlEncode = base64UrlEncode;
-          console.log('[setup:browser - step 5] base64UrlEncode made available globally as fallback');
+          console.log('[setup:browser] base64UrlEncode made available globally as fallback');
         } catch (encoderError) {
-          console.error('[setup:browser - step 5] Failed to import base64UrlEncode fallback:', encoderError);
+          console.error('[setup:browser] Failed to import base64UrlEncode fallback:', encoderError);
         }
       }
 
@@ -232,7 +227,6 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
         try {
           const { base64UrlDecode } = await import('/sdk/esm/utils/base64.js');
           (window as any).base64UrlDecode = base64UrlDecode;
-          console.log('[setup:browser - step 5] base64UrlDecode made available globally');
         } catch (encoderError) {
           console.error('[setup:browser - step 5] Failed to import base64UrlDecode fallback:', encoderError);
         }
@@ -243,7 +237,6 @@ async function ensureGlobalFallbacks(page: Page): Promise<void> {
         try {
           const { toAccountId } = await import('/sdk/esm/core/types/accountIds.js');
           (window as any).toAccountId = toAccountId;
-          console.log('[setup:browser - step 5] toAccountId made available globally');
         } catch (accountIdError) {
           console.error('[setup:browser - step 5] Failed to import toAccountId fallback:', accountIdError);
         }
@@ -287,7 +280,6 @@ export async function executeSequentialSetup(page: Page, configs: PasskeyTestCon
   // Step 6: GLOBAL FALLBACK
   await ensureGlobalFallbacks(page);
 
-  console.log('[setup] finished');
-  console.log('========================================');
+  // finished
   return authenticatorId;
 }

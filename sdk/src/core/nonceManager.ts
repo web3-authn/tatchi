@@ -108,7 +108,6 @@ export class NonceManager {
    * Returns cached data if fresh, otherwise fetches synchronously
    */
   public async getNonceBlockHashAndHeight(nearClient: NearClient, opts?: { force?: boolean }): Promise<TransactionContext> {
-    console.debug('[NonceManager]: getNonceBlockHashAndHeight called', { force: !!opts?.force });
     // Always prefer a fresh fetch for critical paths; coalesced by fetchFreshData.
     // This minimizes subtle cache bugs after key rotations/linking and across devices.
     if (!this.nearAccountId || !this.nearPublicKeyStr) {
@@ -138,7 +137,6 @@ export class NonceManager {
       this.clearRefreshTimer();
       // Fire-and-forget refresh to keep cache warm
       void this.fetchFreshData(nearClient)
-        .then(() => console.debug('[NonceManager]: Background refresh completed'))
         .catch((error) => console.warn('[NonceManager]: Background refresh failed:', error));
       return;
     }
@@ -154,7 +152,6 @@ export class NonceManager {
       this.refreshTimer = null;
       if (this.inflightFetch) return;
       void this.fetchFreshData(nearClient)
-        .then(() => console.debug('[NonceManager]: Background refresh completed'))
         .catch((error) => console.warn('[NonceManager]: Background refresh failed:', error));
     }, delay);
   }
@@ -179,13 +176,6 @@ export class NonceManager {
         const now = Date.now();
         const isNonceStale = force || !this.lastNonceUpdate || (now - this.lastNonceUpdate) >= this.NONCE_FRESHNESS_THRESHOLD;
         const isBlockStale = force || !this.lastBlockHeightUpdate || (now - this.lastBlockHeightUpdate) >= this.BLOCK_FRESHNESS_THRESHOLD;
-        console.debug('[NonceManager]: freshness check', {
-          force,
-          isNonceStale,
-          isBlockStale,
-          lastNonceAgeMs: this.lastNonceUpdate ? (now - this.lastNonceUpdate) : null,
-          lastBlockAgeMs: this.lastBlockHeightUpdate ? (now - this.lastBlockHeightUpdate) : null,
-        });
 
         let accessKeyInfo = this.transactionContext?.accessKeyInfo;
         let txBlockHeight = this.transactionContext?.txBlockHeight;
@@ -262,7 +252,6 @@ export class NonceManager {
           }
           txBlockHeight = String(maybeBlock.header.height);
           txBlockHash = maybeBlock.header.hash;
-          console.debug('[NonceManager]: fetched block', { txBlockHeight, txBlockHash });
         }
 
         // Derive nextNonce from access key info + current context + reservations

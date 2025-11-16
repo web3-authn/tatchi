@@ -78,17 +78,26 @@ export async function handlePromptUserConfirmInJsMainThread(
   const flowKind = classifyFlow(request);
   switch (flowKind) {
     case 'LocalOnly': {
-      const { handleLocalOnlyFlow } = await import('./flows/localOnly');
+      const { handleLocalOnlyFlow } = await import('./flows/localOnly').catch((e) => {
+        console.error('[SecureConfirm][Host] failed to import localOnly flow module', e);
+        throw e;
+      });
       await handleLocalOnlyFlow(ctx, request as LocalOnlySecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
       return;
     }
     case 'Registration': {
-      const { handleRegistrationFlow } = await import('./flows/registration');
+      const { handleRegistrationFlow } = await import('./flows/registration').catch((e) => {
+        console.error('[SecureConfirm][Host] failed to import registration flow module', e);
+        throw e;
+      });
       await handleRegistrationFlow(ctx, request as RegistrationSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
       return;
     }
     case 'Signing': {
-      const { handleTransactionSigningFlow } = await import('./flows/transactions');
+      const { handleTransactionSigningFlow } = await import('./flows/transactions').catch((e) => {
+        console.error('[SecureConfirm][Host] failed to import transactions flow module', e);
+        throw e;
+      });
       await handleTransactionSigningFlow(ctx, request as SigningSecureConfirmRequest, worker, { confirmationConfig, transactionSummary });
       return;
     }
@@ -144,6 +153,5 @@ function sendWorkerResponse(worker: Worker, responseData: SecureConfirmDecision)
     type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE,
     data: sanitized
   });
-  const bh = (sanitized as any)?.vrfChallenge?.blockHeight;
-  if (bh) console.debug('[SecureConfirm] Sent VRF challenge block height', bh);
+  // response posted to worker
 }

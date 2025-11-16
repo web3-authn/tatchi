@@ -22,7 +22,7 @@ import type {
 } from '../../types/vrf-worker';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
-import { resolveWorkerScriptUrl } from '../../sdkPaths';
+import { resolveWorkerUrl } from '../../sdkPaths';
 import { AccountId, toAccountId } from '../../types/accountIds';
 import { extractPrfFromCredential } from '../credentialsHelpers';
 
@@ -129,9 +129,7 @@ export class VrfWorkerManager {
   private async createVrfWorker(): Promise<void> {
     try {
       const relativePath = this.config.vrfWorkerUrl || BUILD_PATHS.RUNTIME.VRF_WORKER;
-      const vrfUrlStr = this.workerBaseOrigin
-        ? new URL(relativePath, this.workerBaseOrigin).toString()
-        : resolveWorkerScriptUrl(relativePath);
+      const vrfUrlStr = resolveWorkerUrl(relativePath, { worker: 'vrf', baseOrigin: this.workerBaseOrigin })
       console.debug('VRF Manager: Worker URL:', vrfUrlStr);
       // Create Web Worker from resolved URL
       this.vrfWorker = new Worker(vrfUrlStr, {

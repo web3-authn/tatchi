@@ -1,0 +1,306 @@
+/**
+ * Offline Export App (minimal, zero-config)
+ *
+ * Runs under `/offline-export/` on the wallet origin and reuses the existing
+ * SignerWorkerManager.exportNearKeypairUi() flow to decrypt and display the
+ * private key export viewer. No network requests are made.
+ */
+import { IndexedDBManager } from '../IndexedDBManager';
+import { VrfWorkerManager } from '../WebAuthnManager/VrfWorkerManager';
+import { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
+import { NonceManager } from '../nonceManager';
+import { MinimalNearClient } from '../NearClient';
+import { SignerWorkerManager } from '../WebAuthnManager/SignerWorkerManager';
+import { toAccountId } from '../types/accountIds';
+import { OFFLINE_EXPORT_DONE, OFFLINE_EXPORT_ERROR } from './messages';
+import { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
+import { createRandomVRFChallenge, type VRFChallenge } from '../types/vrf-worker';
+import { recoverKeypairFromPasskey } from '../WebAuthnManager/SignerWorkerManager/handlers/recoverKeypairFromPasskey';
+import { getDeviceNumberForAccount } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
+import type { SignerWorkerManagerContext } from '../WebAuthnManager/SignerWorkerManager';
+
+async function registerServiceWorker(): Promise<void> {
+  if (!('serviceWorker' in navigator)) return;
+  // Register and await ready() only in this route; SW is in-scope here
+  await navigator.serviceWorker
+    .register('/offline-export/sw.js', { scope: '/offline-export/' })
+    .catch(() => {});
+  await navigator.serviceWorker.ready.catch(() => {});
+}
+
+async function prewarmSdkAssets(): Promise<void> {
+  // Only attempt network warm-up when online; SW will cache responses
+  if (!navigator.onLine) return
+  try {
+    const resp = await fetch('/offline-export/precache.manifest.json', { cache: 'no-cache' })
+    const all: string[] = resp.ok ? (await resp.json()) : []
+    const priority = new Set<string>([
+      '/offline-export/offline-export-app.js',
+      '/sdk/offline-export-app.js',
+      '/sdk/offline-export.css',
+      '/sdk/export-private-key-viewer.js',
+      '/sdk/iframe-export-bootstrap.js',
+      '/sdk/export-viewer.css',
+      '/sdk/export-iframe.css',
+      '/offline-export/workers/web3authn-signer.worker.js',
+      '/offline-export/workers/web3authn-vrf.worker.js',
+      '/offline-export/workers/wasm_signer_worker_bg.wasm',
+      '/offline-export/workers/wasm_vrf_worker_bg.wasm',
+      '/sdk/workers/web3authn-signer.worker.js',
+      '/sdk/workers/web3authn-vrf.worker.js',
+      '/sdk/workers/wasm_signer_worker_bg.wasm',
+      '/sdk/workers/wasm_vrf_worker_bg.wasm',
+    ])
+    const pri = Array.from(priority)
+    const rest = all.filter((u) => !priority.has(u))
+    await Promise.allSettled(pri.map((u) => fetch(u).then(() => void 0)))
+    // Warm the remaining entries opportunistically
+    const schedule = () => void Promise.allSettled(rest.map((u) => fetch(u).then(() => void 0)))
+    try { (window as any).requestIdleCallback ? (window as any).requestIdleCallback(schedule, { timeout: 8000 }) : setTimeout(schedule, 800) } catch { setTimeout(schedule, 800) }
+  } catch {}
+}
+
+function autoStartIfSingleUser(users: any[], selectedAccount: string, startExport: (acc: string) => Promise<void>): void {
+  if (Array.isArray(users) && users.length === 1 && typeof selectedAccount === 'string' && selectedAccount) {
+    setTimeout(() => { void startExport(selectedAccount) }, 0)
+  }
+}
+
+function renderShell(message: string, canExport = false): HTMLButtonElement | null {
+  document.documentElement.classList.add('w3a-transparent');
+  document.body.classList.add('w3a-transparent');
+  const root = document.createElement('div');
+  root.className = 'offline-root'
+  const h = document.createElement('h1');
+  h.textContent = 'Offline NEAR Key Export';
+  h.className = 'offline-title'
+  const p = document.createElement('p');
+  p.textContent = message;
+  p.className = 'offline-desc'
+  const info = document.createElement('div');
+  info.className = 'offline-info';
+  try {
+    const tick = document.createElement('span');
+    tick.className = 'offline-info-tick';
+    tick.textContent = '✓';
+    const label = document.createElement('span');
+    label.textContent = ' Wallet origin: ';
+    const url = document.createElement('a');
+    url.className = 'offline-info-url';
+    const origin = window.location.origin;
+    url.href = origin;
+    url.textContent = origin;
+    url.target = '_blank';
+    url.rel = 'noopener noreferrer';
+    info.appendChild(tick);
+    info.appendChild(label);
+    info.appendChild(url);
+  } catch {
+    info.textContent = '✓ Wallet origin: (unknown)';
+  }
+  const btn = document.createElement('button');
+  btn.textContent = 'Export Key';
+  btn.className = 'offline-btn'
+  btn.disabled = !canExport;
+  root.appendChild(h);
+  root.appendChild(p);
+  root.appendChild(info);
+  root.appendChild(btn);
+  document.body.appendChild(root);
+  return canExport ? btn : null;
+}
+
+async function main(): Promise<void> {
+  await registerServiceWorker();
+  // Best-effort: warm critical SDK assets so offline flow is reliable.
+  // Do not block first paint — fire-and-forget.
+  void prewarmSdkAssets();
+  try {
+    // Ensure worker scripts resolve under SW scope so their subresource fetches (WASM) are controlled
+    (window as any).__W3A_SIGNER_WORKER_URL__ = '/offline-export/workers/web3authn-signer.worker.js'
+    ;(window as any).__W3A_VRF_WORKER_URL__ = '/offline-export/workers/web3authn-vrf.worker.js'
+    const rpOverrideFromMeta = (() => {
+      const m = document.querySelector('meta[name="tatchi-rpid-base"]') as HTMLMetaElement | null;
+      const v = (m?.content || '').trim();
+      return v || undefined;
+    })();
+    const deriveBaseDomain = (host: string): string | undefined => {
+      const parts = (host || '').split('.');
+      // Heuristic: use registrable suffix for dev hosts like wallet.example.localhost
+      return parts.length >= 3 ? parts.slice(1).join('.') : undefined;
+    };
+    const inferredBase = deriveBaseDomain(window.location.hostname);
+    const effectiveRpIdOverride = rpOverrideFromMeta || inferredBase;
+    // Detect last user (same origin IndexedDB)
+    const last = await IndexedDBManager.clientDB.getLastUser();
+    const users = await IndexedDBManager.clientDB.getAllUsers().catch(() => []);
+
+    // Optional preselected account via query string
+    const qs = new URLSearchParams((window.location && window.location.search) || '')
+    const qsAccountRaw = (qs.get('accountId') || '').trim()
+    const qsAccount = qsAccountRaw ? String(toAccountId(qsAccountRaw)) : ''
+
+    // Container: message + optional account selector + button + status line
+    const defaultAccount = qsAccount || (last?.nearAccountId || '')
+    if (!defaultAccount) {
+      renderShell('No local account found on this device. Open the wallet once online on this device to prime offline export.');
+      return;
+    }
+    const btn = renderShell('Authenticate with Touch ID/biometrics to export keys offline.', true);
+    if (!btn) return;
+    const container = btn.parentElement as HTMLDivElement;
+
+    // Optional account selector when multiple local users exist
+    let selectedAccount = defaultAccount as string;
+    if (Array.isArray(users) && users.length > 1) {
+      const label = document.createElement('label');
+      label.textContent = 'Choose account:';
+      label.className = 'offline-label'
+      const sel = document.createElement('select');
+      sel.className = 'offline-select'
+      for (const u of users) {
+        const opt = document.createElement('option');
+        opt.value = (u as any).nearAccountId;
+        opt.textContent = (u as any).nearAccountId;
+        if ((u as any).nearAccountId === selectedAccount) opt.selected = true;
+        sel.appendChild(opt);
+      }
+      sel.addEventListener('change', () => { selectedAccount = sel.value; statusEl.textContent = ''; });
+      container.insertBefore(sel, btn);
+      container.insertBefore(label, sel);
+    }
+
+    // Status line for inline errors/info
+    const statusEl = document.createElement('div');
+    statusEl.className = 'offline-status'
+    container.appendChild(statusEl);
+
+    // Pre-flight: soft-check for local authenticators (do not block)
+    async function ensureLocalAuthenticators(acc: string): Promise<any[]> {
+      try {
+        const authenticators = await IndexedDBManager.clientDB.getAuthenticatorsByUser(acc as any);
+        if (!Array.isArray(authenticators) || authenticators.length === 0) {
+          console.warn('[offline-export] No local passkeys in IndexedDB; proceeding (resident credentials may still be available)');
+          statusEl.textContent = 'Tip: open the wallet on this device once online to prime offline export. If a passkey exists on this device, you can still proceed.';
+          return [];
+        }
+        return authenticators;
+      } catch (e) {
+        console.warn('[offline-export] Failed to read authenticators; proceeding anyway', e);
+        return [];
+      }
+    }
+
+    let started = false;
+    const defaultBtnLabel = btn.textContent || 'Export My Key';
+    const startExport = async (account: string) => {
+      if (started) return;
+      started = true;
+      btn.disabled = true;
+      btn.classList.add('loading');
+      try { btn.textContent = 'Exporting…'; btn.setAttribute('aria-busy', 'true'); } catch {}
+      statusEl.textContent = '';
+      try {
+        // Soft-check (non-blocking) — we may still have resident credentials
+        const authenticators = await ensureLocalAuthenticators(account);
+
+        // Instantiate managers with defaults. No network RPC is used in export flow.
+        const vrf = new VrfWorkerManager();
+        const near = new MinimalNearClient('https://rpc.invalid.local');
+        const userPrefs = new UserPreferencesManager();
+        const nonce = NonceManager.getInstance();
+        const swm = new SignerWorkerManager(vrf, near, userPrefs, nonce, effectiveRpIdOverride);
+        swm.setWorkerBaseOrigin(window.location.origin);
+        console.debug('[offline-export] rpId (hostname):', window.location.hostname);
+        if (effectiveRpIdOverride) {
+          console.debug('[offline-export] rpIdOverride:', effectiveRpIdOverride);
+        }
+        try {
+          await swm.exportNearKeypairUi({ nearAccountId: toAccountId(account), variant: 'drawer', theme: 'dark' });
+        } catch (err: any) {
+          const msg = String(err?.message || err || '');
+          if (msg.includes('Missing local key material for export')) {
+            // Attempt local recovery of key material from passkey, then retry
+            statusEl.textContent = 'Missing local key material. Attempting recovery with your passkey…';
+            const tip = new TouchIdPrompt(effectiveRpIdOverride);
+            const challenge = createRandomVRFChallenge() as VRFChallenge;
+            const allowCredentials = Array.isArray(authenticators) && authenticators.length > 0
+              ? authenticators.map((a: any) => ({ id: a.credentialId, type: 'public-key', transports: a.transports as any }))
+              : [];
+            const authCred = await tip.getAuthenticationCredentialsForRecovery({
+              nearAccountId: account,
+              challenge,
+              allowCredentials,
+            });
+            const ctx: SignerWorkerManagerContext = {
+              // Delegate worker messaging to swm internals
+              sendMessage: (args) => (swm as any).sendMessage(args),
+              indexedDB: IndexedDBManager as any,
+              touchIdPrompt: tip,
+              vrfWorkerManager: vrf,
+              nearClient: near,
+              userPreferencesManager: userPrefs,
+              nonceManager: nonce,
+              rpIdOverride: effectiveRpIdOverride,
+              nearExplorerUrl: undefined,
+            };
+            const rec = await recoverKeypairFromPasskey({ ctx, credential: authCred, accountIdHint: account });
+            // Store encrypted key locally for this device
+            const deviceNumber = await getDeviceNumberForAccount(ctx, toAccountId(account));
+            await IndexedDBManager.nearKeysDB.storeEncryptedKey({
+              nearAccountId: account,
+              deviceNumber,
+              encryptedData: rec.encryptedPrivateKey,
+              iv: rec.iv,
+              timestamp: Date.now(),
+            });
+            // Upsert public key if missing
+            const existing = await IndexedDBManager.clientDB.getUser(toAccountId(account));
+            if (!existing?.clientNearPublicKey) {
+              try { await IndexedDBManager.clientDB.updateUser(toAccountId(account), { clientNearPublicKey: rec.publicKey }); } catch {}
+            }
+            statusEl.textContent = 'Recovered local key material. Opening export viewer…';
+            await swm.exportNearKeypairUi({ nearAccountId: toAccountId(account), variant: 'drawer', theme: 'dark' });
+          } else {
+            throw err;
+          }
+        }
+        // Notify parent (overlay controllers) that the export UI has been shown
+        window.parent?.postMessage?.({ type: OFFLINE_EXPORT_DONE, nearAccountId: account }, '*');
+      } catch (e: any) {
+        console.error('[offline-export] export failed', e);
+        const msg = String(e?.message || e || '');
+        if (msg.includes('User cancelled secure confirm request')) {
+          // Differentiate common NotAllowedError path vs explicit cancel
+          statusEl.textContent = `No matching passkeys for this origin or the prompt was cancelled. Ensure this device has a passkey for '${account}' on ${window.location.hostname}, then try again.`;
+        } else if (msg.includes('NotAllowedError')) {
+          statusEl.textContent = `No matching passkeys available for '${account}' on this device.`;
+        } else if (msg.includes('Missing local key material')) {
+          statusEl.textContent = 'Missing local key material for export. Open the wallet on this device once online to prime offline export.';
+        } else {
+          statusEl.textContent = 'Export failed: ' + msg;
+        }
+        window.parent?.postMessage?.({ type: OFFLINE_EXPORT_ERROR, error: msg }, '*');
+      } finally {
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        try { btn.textContent = defaultBtnLabel; btn.removeAttribute('aria-busy'); } catch {}
+        started = false;
+      }
+    };
+
+    // Click handler uses current selected account
+    btn.addEventListener('click', async () => { await startExport(selectedAccount); });
+  } catch (e) {
+    console.error('[offline-export] bootstrap failed', e);
+    renderShell('Failed to initialize offline export on this device.');
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => void main());
+} else {
+  void main();
+}
+
+export {}

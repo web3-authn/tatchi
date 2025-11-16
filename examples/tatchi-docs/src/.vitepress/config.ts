@@ -15,6 +15,8 @@ const env = loadEnv(resolvedMode, projectRoot, '')
 if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
 if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
 if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
+// Ensure rpId base is visible to Node-side SDK dev plugins (offline-export HTML)
+if (env.VITE_RP_ID_BASE) process.env.VITE_RP_ID_BASE = env.VITE_RP_ID_BASE
 
 export default defineConfig({
   // Hosted at the site root

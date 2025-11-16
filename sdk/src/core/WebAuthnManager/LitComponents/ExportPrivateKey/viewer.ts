@@ -74,7 +74,7 @@ export class ExportPrivateKeyViewer extends LitElementWithProps {
     return root;
   }
 
-  // Defer initial render until external styles are adopted to prevent FOUC
+  // Avoid FOUC: block first paint until external styles are applied
   protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {

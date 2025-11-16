@@ -144,7 +144,6 @@ function getTatchiPasskey(): TatchiPasskey | TatchiPasskeyIframe {
 // Unified handler map wired with minimal deps from this host
 const handlers = createWalletIframeHandlers({
   getTatchiPasskey: getTatchiPasskey,
-  ensureTatchiPasskey: ensureTatchiPasskey,
   post,
   postProgress,
   postToParent,

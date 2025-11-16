@@ -224,17 +224,10 @@ export async function renderConfirmUI({
   vrfChallenge: VRFChallenge;
 }): Promise<{ confirmed: boolean; confirmHandle?: ConfirmUIHandle; error?: string }> {
   const nearAccountIdForUi = getNearAccountId(request);
-  console.debug('[RenderConfirmUI] start', {
-    type: request?.type,
-    uiMode: confirmationConfig?.uiMode,
-    behavior: confirmationConfig?.behavior,
-    theme: confirmationConfig?.theme,
-    nearAccountIdForUi,
-    intentDigest: transactionSummary?.intentDigest,
-  });
+
   // Show-only export viewer: mount with provided key and return immediately
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
-    console.debug('[RenderConfirmUI] SHOW_SECURE_PRIVATE_KEY_UI');
+
     // Ensure the defining module runs in this runtime before creating the element.
     await ensureDefined(W3A_EXPORT_VIEWER_IFRAME_ID, () => import('../../../LitComponents/ExportPrivateKey/iframe-host'));
     const host = document.createElement(W3A_EXPORT_VIEWER_IFRAME_ID) as ExportViewerIframeElement;
@@ -264,12 +257,10 @@ export async function renderConfirmUI({
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
   switch (uiMode) {
     case 'skip': {
-      console.debug('[RenderConfirmUI] uiMode=skip');
       return { confirmed: true, confirmHandle: undefined };
     }
     case 'drawer': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        console.debug('[RenderConfirmUI] drawer + autoProceed');
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -286,7 +277,7 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        console.debug('[RenderConfirmUI] drawer + requireClick');
+
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -298,13 +289,12 @@ export async function renderConfirmUI({
           uiMode: 'drawer',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        console.debug('[RenderConfirmUI] drawer decision', { confirmed });
+
         return { confirmed, confirmHandle: handle, error };
       }
     }
     case 'modal': {
       if (confirmationConfig.behavior === 'autoProceed') {
-        console.debug('[RenderConfirmUI] modal + autoProceed');
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
@@ -321,7 +311,6 @@ export async function renderConfirmUI({
         await new Promise((r) => setTimeout(r, delay));
         return { confirmed: true, confirmHandle: handle };
       } else {
-        console.debug('[RenderConfirmUI] modal + requireClick');
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
@@ -333,12 +322,10 @@ export async function renderConfirmUI({
           uiMode: 'modal',
           nearAccountIdOverride: nearAccountIdForUi,
         });
-        console.debug('[RenderConfirmUI] modal decision', { confirmed });
         return { confirmed, confirmHandle: handle, error };
       }
     }
     default: {
-      console.debug('[RenderConfirmUI] default branch → mount modal loading');
       const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,
