@@ -14,6 +14,8 @@ import type { Root } from 'react-dom/client'
 class WalletAppElement extends HTMLElement {
   private root: Root | null = null
   private shadow: ShadowRoot | null = null
+  private isMounting: boolean = false
+  private mountScheduled: boolean = false
 
   async connectedCallback() {
     if (this.shadow) return
@@ -21,7 +23,8 @@ class WalletAppElement extends HTMLElement {
 
     const mount = async () => {
       // Prevent double-mount if both IO and idle fire
-      if (this.root) return
+      if (this.root || this.isMounting) return
+      this.isMounting = true
       const shadow = this.shadow
       if (!shadow) return
       // Lazily import React + app + styles when we’re ready to mount
@@ -86,6 +89,8 @@ class WalletAppElement extends HTMLElement {
           })
         })
       }
+      // Clear mounting flag after render tick
+      try { /* no-op */ } finally { this.isMounting = false }
     }
 
     // Mount strategy
@@ -95,11 +100,16 @@ class WalletAppElement extends HTMLElement {
     // 2) As a safety net, also schedule an idle mount so background tabs or
     //    non-observable environments still initialize eventually.
 
-    const scheduleIdle = () => (
-      (window as any).requestIdleCallback
-        ? (window as any).requestIdleCallback(mount, { timeout: 1500 })
-        : setTimeout(mount, 800)
-    )
+    const scheduleIdle = () => {
+      if (this.mountScheduled) return
+      this.mountScheduled = true
+      const cb = () => mount()
+      if ((window as any).requestIdleCallback) {
+        (window as any).requestIdleCallback(cb, { timeout: 1500 })
+      } else {
+        setTimeout(cb, 800)
+      }
+    }
 
     if ('IntersectionObserver' in window) {
       const io = new IntersectionObserver((entries) => {
