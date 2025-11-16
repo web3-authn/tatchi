@@ -73,6 +73,8 @@ function prefetchWalletAppOnIdle(): void {
       // Warm the chunk; this only defines the element. Heavy bits mount later.
       // @ts-ignore - app-relative alias
       import('@app/components/registerAppShellWC').catch(() => {})
+      // Also warm global CSS for portaled UI (Profile menu, Sonner) so first interaction is styled
+      import('@tatchi-xyz/sdk/react/styles').catch(() => {})
     }
 
     const idle = (cb: () => void, timeout = 2000) =>

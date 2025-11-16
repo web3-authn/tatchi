@@ -1,3 +1,14 @@
+/*
+  wallet-app custom element
+
+  What this does and why:
+  - Creates a ShadowRoot and mounts the React docs app (<App />) inside it.
+  - Injects SDK + app + sonner CSS into the ShadowRoot so styles are scoped.
+  - Also injects critical SDK/Sonner CSS into document.head for portaled UI
+    (e.g., ProfileSettings menu, toasts) that render into document.body.
+  - Defers mounting until the element is near the viewport (IntersectionObserver)
+    to keep first paint light, with a requestIdleCallback fallback.
+*/
 import type { Root } from 'react-dom/client'
 
 class WalletAppElement extends HTMLElement {
@@ -9,6 +20,8 @@ class WalletAppElement extends HTMLElement {
     this.shadow = this.attachShadow({ mode: 'open' })
 
     const mount = async () => {
+      // Prevent double-mount if both IO and idle fire
+      if (this.root) return
       const shadow = this.shadow
       if (!shadow) return
       // Lazily import React + app + styles when we’re ready to mount
@@ -29,6 +42,22 @@ class WalletAppElement extends HTMLElement {
         shadow.appendChild(styleTag)
         return styleTag
       })
+
+      // Ensure styles for any portaled UI (e.g., ProfileSettingsMenu, Sonner) exist in the main document as well.
+      // This covers components that render into document.body via React portals and therefore
+      // cannot see ShadowRoot-scoped CSS.
+      try {
+        const ensureGlobalStyle = (id: string, css: string | undefined) => {
+          if (!css) return
+          if (document.getElementById(id)) return
+          const tag = document.createElement('style')
+          tag.id = id
+          tag.textContent = css
+          document.head.appendChild(tag)
+        }
+        ensureGlobalStyle('w3a-sdk-react-styles-global', sdkCssMod.default as string)
+        ensureGlobalStyle('w3a-sonner-styles-global', sonnerCssMod.default as string)
+      } catch {}
 
       const container = document.createElement('app')
       container.className = "app-shell"
@@ -59,18 +88,31 @@ class WalletAppElement extends HTMLElement {
       }
     }
 
-    // Defer mounting until the element is near/within viewport for faster FCP
-    const scheduleMount = () => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(mount) : setTimeout(mount, 0))
+    // Mount strategy
+    // 1) If supported, use IntersectionObserver to mount when the element is
+    //    close to or within the viewport. This avoids loading the React bundle
+    //    if the user never scrolls to the demo on the homepage.
+    // 2) As a safety net, also schedule an idle mount so background tabs or
+    //    non-observable environments still initialize eventually.
+
+    const scheduleIdle = () => (
+      (window as any).requestIdleCallback
+        ? (window as any).requestIdleCallback(mount, { timeout: 1500 })
+        : setTimeout(mount, 800)
+    )
+
     if ('IntersectionObserver' in window) {
       const io = new IntersectionObserver((entries) => {
         if (entries.some((e) => e.isIntersecting)) {
           io.disconnect()
-          scheduleMount()
+          scheduleIdle()
         }
       }, { rootMargin: '200px' })
       io.observe(this)
+      // Fallback: if IO never fires (e.g., background tab), still mount on idle
+      scheduleIdle()
     } else {
-      scheduleMount()
+      scheduleIdle()
     }
   }
 

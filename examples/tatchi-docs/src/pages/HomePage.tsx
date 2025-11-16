@@ -1,8 +1,43 @@
+import React from 'react'
 import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
 import { GetStartedCodeBlock } from '../components/GetStartedCodeBlock';
-import { PasskeyColumn } from '../components/PasskeyColumn';
 import { Footer } from '../components/Footer';
+
+// Defer loading the PasskeyColumn until after first paint/idle
+const PasskeyColumnLazy = React.lazy(() => import('../components/PasskeyColumn').then(m => ({ default: m.PasskeyColumn })))
+
+function useRevealOnIdle(delayMs = 200, idleTimeoutMs = 1500): boolean {
+  const [ready, setReady] = React.useState(false)
+  React.useEffect(() => {
+    const onIdle = (cb: () => void) =>
+      (window as any).requestIdleCallback
+        ? (window as any).requestIdleCallback(cb, { timeout: idleTimeoutMs })
+        : setTimeout(cb, Math.min(idleTimeoutMs, 600))
+    const t = setTimeout(() => onIdle(() => setReady(true)), delayMs)
+    return () => { clearTimeout(t as any) }
+  }, [delayMs, idleTimeoutMs])
+  return ready
+}
+
+const SectionPlaceholder: React.FC = () => (
+  <div style={{ minHeight: 360 }} />
+)
+
+const LazyPasskeySection: React.FC = () => {
+  const show = useRevealOnIdle()
+  return (
+    <div className="card two">
+      {show ? (
+        <React.Suspense fallback={<SectionPlaceholder />}> 
+          <PasskeyColumnLazy />
+        </React.Suspense>
+      ) : (
+        <SectionPlaceholder />
+      )}
+    </div>
+  )
+}
 
 export function HomePage() {
   return (
@@ -15,9 +50,7 @@ export function HomePage() {
       </div>
 
       {/* two */}
-      <div className="card two">
-        <PasskeyColumn />
-      </div>
+      <LazyPasskeySection />
 
       {/* three */}
       <div className="card three">
