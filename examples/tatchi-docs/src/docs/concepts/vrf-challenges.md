@@ -4,11 +4,12 @@ The SDK uses a VRF (in WASM) to construct WebAuthn challenges bound to user, ori
 
 ## Inputs (domain‑separated)
 
-- Domain separator: `web3_authn_vrf_challenge_v1`
-- User id and session id
-- Relying party id (origin)
-- Latest NEAR block height + hash
-- Optional timestamp
+- Domain separator: `web3_authn_vrf_challenge_v1` (prevents cross‑protocol collisions)
+- User id: binds to a specific user
+- Session id: uniqueness per browser session
+- Relying party id (origin): rpId pinning
+- NEAR block height + hash: freshness and fork protection
+- Optional timestamp: auditability and expiry
 
 The VRF output becomes the WebAuthn challenge; the proof is verified alongside the WebAuthn response.
 
@@ -18,15 +19,17 @@ The VRF output becomes the WebAuthn challenge; the proof is verified alongside t
 - Login: unlock VRF keypair in worker memory via PRF or Shamir 3‑pass
 - Auth: generate VRF challenge (no extra TouchID) → run WebAuthn ceremony
 
-## Security Properties
+## Security properties
 
-- Challenge uniqueness via domain separation and session binding
-- Origin binding via rpId
-- Freshness and fork protection via block height/hash
-- VRF private key isolated in WASM worker memory
+- Domain separation and user/session binding ensure uniqueness
+- Origin binding via rpId prevents cross‑origin reuse
+- Freshness and fork protection via latest block height/hash
+- VRF proof verified on‑chain alongside WebAuthn response
+- VRF private key stays in WASM worker memory
 
 ## Notes
 
 - Session ends when the tab/window closes; re‑authenticate to unlock VRF again
-- See also: VRF & PRF (high‑level), Shamir 3‑pass (optional unlock optimization)
+- See also: VRF & PRF (overview), Shamir 3‑pass (optional unlock optimization)
 
+Read next: [Shamir3Pass](/docs/concepts/shamir3pass)

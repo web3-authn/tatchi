@@ -26,16 +26,63 @@ function isServerRender(): boolean {
   return !!(import.meta as any)?.env?.SSR
 }
 
-async function ensureSdkStylesLoaded(): Promise<void> {
-  // @ts-ignore - bundled CSS side-effect import
-  await import('@tatchi-xyz/sdk/react/styles')
+function registerWalletAppElementLazy(): void {
+  // Already registered
+  if (customElements.get('wallet-app')) return
+
+  // If the element is already present in DOM, load immediately after a tick
+  const load = () => {
+    if (customElements.get('wallet-app')) return
+    // @ts-ignore - app-relative alias
+    import('@app/components/registerAppShellWC')
+  }
+
+  const hasEl = !!document.querySelector('wallet-app')
+  if (hasEl) {
+    // Defer to yield to first paint
+    (window as any).requestIdleCallback ? (window as any).requestIdleCallback(load) : setTimeout(load, 0)
+    return
+  }
+
+  // Observe for the element being added, then register
+  const mo = new MutationObserver(() => {
+    if (document.querySelector('wallet-app')) {
+      mo.disconnect()
+      load()
+    }
+  })
+  mo.observe(document.body, { subtree: true, childList: true })
 }
 
-async function registerWalletAppElement(): Promise<void> {
-  if (!customElements.get('wallet-app')) {
-    // @ts-ignore - app-relative alias
-    await import('@app/components/registerAppShellWC')
-  }
+function prefetchWalletAppOnIdle(): void {
+  try {
+    // Skip on SSR or if already defined
+    if ((import.meta as any)?.env?.SSR) return
+    if (customElements.get('wallet-app')) return
+
+    // Respect Data Saver and very slow connections
+    const nav: any = (navigator as any)
+    const saveData = !!nav?.connection?.saveData
+    const effectiveType = String(nav?.connection?.effectiveType || '')
+    const isSlow = /(^|\b)(slow-2g|2g)\b/i.test(effectiveType)
+    if (saveData || isSlow) return
+
+    const doPrefetch = () => {
+      // If element already defined due to other path, skip
+      if (customElements.get('wallet-app')) return
+      // Warm the chunk; this only defines the element. Heavy bits mount later.
+      // @ts-ignore - app-relative alias
+      import('@app/components/registerAppShellWC').catch(() => {})
+    }
+
+    const idle = (cb: () => void, timeout = 2000) =>
+      (window as any).requestIdleCallback
+        ? (window as any).requestIdleCallback(cb, { timeout })
+        : setTimeout(cb, 1500)
+
+    // Give the page a beat to paint, then idle-prefetch
+    setTimeout(() => idle(doPrefetch), 700)
+  } catch {}
 }
 
 function createRouterBridge(ctx: unknown) {
@@ -124,8 +171,10 @@ const theme: Theme = {
 
     if (isServerRender()) return
 
-    await ensureSdkStylesLoaded()
-    await registerWalletAppElement()
+    // Defer registering the wallet app custom element until needed
+    registerWalletAppElementLazy()
+    // Also warm the wallet-app chunk shortly after FCP on capable networks
+    prefetchWalletAppOnIdle()
 
     const { go } = createRouterBridge(ctx)
     attachNavigateBridge(go)

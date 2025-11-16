@@ -14,6 +14,11 @@ Link a second device (Device 2) to an existing account (Device 1) without sharin
 
 The SDK provides both a React component and a framework‑agnostic API.
 
+## Options
+
+- Option E (faster): user provides the account id → Device 2 generates the proper keypair up front; Device 1 scans and adds it.
+- Option F (seamless): no account id → Device 2 generates a temporary keypair → Device 1 links it → Device 2 discovers the account and replaces the temp key with a proper account‑salted key (AddKey + DeleteKey).
+
 ## React: QR scanner
 
 ```tsx
@@ -78,3 +83,4 @@ The flow can optionally fund the Device 2 temporary account to cover on‑chain 
 
 - Device 2 requires only the QR; no secrets are shared between devices
 - All sensitive steps happen in the wallet origin; WebAuthn never runs in the app frame when the wallet is configured
+ - For Option F, the SDK performs a key replacement (AddKey new + DeleteKey temp) after discovering the account id
