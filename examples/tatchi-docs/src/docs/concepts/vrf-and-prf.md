@@ -30,3 +30,4 @@ See also:
 - [VRF challenges deep dive (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/vrf_challenges.md)
 - [Shamir3Pass login flow (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/shamir3pass-login.md)
 
+Read next: [VRF‑Backed WebAuthn Challenges](/docs/concepts/vrf-challenges)

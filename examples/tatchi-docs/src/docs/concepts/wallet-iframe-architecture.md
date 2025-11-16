@@ -26,3 +26,39 @@ The SDK mounts a hidden “service iframe” on a dedicated wallet origin. Sensi
 - Optionally serve `/.well-known/webauthn` with allowed top‑level origins for Related Origin Requests
 
 See full discussion in [Wallet iframe architecture plan (SDK docs)](https://github.com/web3-authn/sdk/blob/main/sdk/docs/wallet-iframe-architecture.md)
+
+## Isolated Signing
+
+Sensitive operations (WebAuthn, PRF/VRF, key handling, signing) run inside the wallet iframe. The parent app never sees credentials or keys; only typed requests and signed results cross the boundary via MessageChannel.
+
+- Cross‑origin wallet iframe with strict `sandbox` and `allow` attributes
+- RPC surface: `REQUEST_registerPasskey`, `REQUEST_signTransactionsWithActions`, `REQUEST_signNep413Message`, …
+- WASM workers inside the iframe isolate VRF and signing memory
+- Strict headers (COOP/COEP/CORP, Permissions‑Policy, CSP) on the wallet origin
+
+Threat model highlights
+- Supply‑chain or XSS in parent cannot read iframe memory/IndexedDB
+- Biometric prompts are scoped to the iframe origin
+- Inputs are sanitized; only final signed artifacts are returned
+
+Security guarantees
+- WebAuthn credentials, PRF outputs, decrypted private keys stay in the iframe
+- Only signed transactions/messages and minimal metadata leave the iframe
+
+## Confirmation UX
+
+How the wallet ensures user‑presence and integrity during transaction approval.
+
+- Modal inside wallet origin
+  - The confirmation UI renders inside the wallet iframe to capture the gesture in the correct origin.
+- Progress heuristics
+  - During `STEP_2_USER_CONFIRMATION`, keep the overlay visible so the modal can receive the click.
+- API‑driven and embedded flows
+  - Use `executeAction` for automatic confirmation, or a React component (
+    `SendTxButtonWithTooltip`) for embedded UI.
+- After confirmation
+  - Signing happens in the signer worker; the parent receives signed results via the message channel.
+
+See also: Guide — [Secure Transaction Confirmation](/docs/guides/tx-confirmation)
+
+Read next: [Security Model](/docs/concepts/security-model)

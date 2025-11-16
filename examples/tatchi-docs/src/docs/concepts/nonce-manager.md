@@ -31,3 +31,4 @@ Notes:
 - The manager is reset on logout and re‑initialized on login
 - All signing helpers in the SDK use it under the hood; advanced apps can integrate directly
 
+Read next: [CSP for Lit Components](/docs/concepts/csp-lit-components)

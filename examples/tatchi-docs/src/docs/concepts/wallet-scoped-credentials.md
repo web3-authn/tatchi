@@ -167,7 +167,7 @@ const passkey = new TatchiPasskey({
   },
 });
 ```
-
+Read next: [VRF & PRF](/docs/concepts/vrf-and-prf)
 Dynamic ROR from chain (operational flexibility)
 - The wallet’s `/.well-known/webauthn` endpoint can be served dynamically and fetch its allowlist from a NEAR contract (default view: `get_allowed_origins`).
 - This repo provides dev and Next.js helpers that resolve env (contract ID, RPC URL), sanitize, cache, and serve `{ origins: [...] }`:

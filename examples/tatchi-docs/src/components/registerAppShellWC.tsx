@@ -1,57 +1,76 @@
-import React from 'react'
-import { createRoot, type Root } from 'react-dom/client'
-import '@tatchi-xyz/sdk/react/styles'
-import { App } from '../App'
-// treat compiled CSS bundle as inline string
-import sdkCss from '@tatchi-xyz/sdk/react/styles?inline'
-// import app stylesheet as inline text
-import appShellCss from '../app.css?inline'
-// vendor sonner CSS into the ShadowRoot to ensure fixed positioning
-import sonnerCss from '../.vitepress/theme/vendor/sonner-full.css?inline'
+import type { Root } from 'react-dom/client'
 
 class WalletAppElement extends HTMLElement {
   private root: Root | null = null
   private shadow: ShadowRoot | null = null
 
-  connectedCallback() {
+  async connectedCallback() {
     if (this.shadow) return
     this.shadow = this.attachShadow({ mode: 'open' })
 
-    // Inject SDK + app styles into the shadow root
-    const styleSheets = [sdkCss, appShellCss, sonnerCss]
-    const sheetTags = styleSheets.map((sheet) => {
-      const styleTag = document.createElement('style')
-      styleTag.textContent = (sheet as string) ?? ''
-      this.shadow!.appendChild(styleTag)
-      return styleTag
-    })
+    const mount = async () => {
+      const shadow = this.shadow
+      if (!shadow) return
+      // Lazily import React + app + styles when we’re ready to mount
+      const [React, { createRoot }, appMod, sdkCssMod, appShellCssMod, sonnerCssMod] = await Promise.all([
+        import('react'),
+        import('react-dom/client'),
+        import('../App'),
+        import('@tatchi-xyz/sdk/react/styles?inline'),
+        import('../app.css?inline'),
+        import('../.vitepress/theme/vendor/sonner-full.css?inline'),
+      ])
 
-    const container = document.createElement('app')
-    container.className = "app-shell"
-    this.shadow.appendChild(container)
-
-    this.root = createRoot(container)
-    this.root.render(<App />)
-
-    // Optional: HMR for injected CSS in dev
-    if ((import.meta as any).hot) {
-      // Accept HMR for both SDK styles and app shell styles injected into the ShadowRoot
-      // @ts-ignore - vite hot types
-      import.meta.hot.accept([
-        '@tatchi-xyz/sdk/react/styles?inline',
-        '../app.css?inline',
-        '../.vitepress/theme/vendor/sonner-full.css?inline',
-      ], (mods: any[]) => {
-        const [sdkNext, appNext, sonnerNext] = mods
-        const sheets = [
-          sdkNext?.default ?? sdkCss,
-          appNext?.default ?? appShellCss,
-          sonnerNext?.default ?? sonnerCss,
-        ]
-        sheetTags.forEach((styleEl, idx) => {
-          try { styleEl.textContent = sheets[idx] ?? '' } catch {}
-        })
+      // Inject SDK + app styles into the shadow root
+      const styleSheets = [sdkCssMod.default, appShellCssMod.default, sonnerCssMod.default]
+      const sheetTags = styleSheets.map((sheet) => {
+        const styleTag = document.createElement('style')
+        styleTag.textContent = (sheet as string) ?? ''
+        shadow.appendChild(styleTag)
+        return styleTag
       })
+
+      const container = document.createElement('app')
+      container.className = "app-shell"
+      shadow.appendChild(container)
+
+      this.root = createRoot(container)
+      this.root.render(React.createElement(appMod.App))
+
+      // Optional: HMR for injected CSS in dev
+      if ((import.meta as any).hot) {
+        // Accept HMR for both SDK styles and app shell styles injected into the ShadowRoot
+        // @ts-ignore - vite hot types
+        import.meta.hot.accept([
+          '@tatchi-xyz/sdk/react/styles?inline',
+          '../app.css?inline',
+          '../.vitepress/theme/vendor/sonner-full.css?inline',
+        ], (mods: any[]) => {
+          const [sdkNext, appNext, sonnerNext] = mods
+          const sheets = [
+            sdkNext?.default,
+            appNext?.default,
+            sonnerNext?.default,
+          ]
+          sheetTags.forEach((styleEl, idx) => {
+            try { styleEl.textContent = sheets[idx] ?? '' } catch {}
+          })
+        })
+      }
+    }
+
+    // Defer mounting until the element is near/within viewport for faster FCP
+    const scheduleMount = () => ((window as any).requestIdleCallback ? (window as any).requestIdleCallback(mount) : setTimeout(mount, 0))
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect()
+          scheduleMount()
+        }
+      }, { rootMargin: '200px' })
+      io.observe(this)
+    } else {
+      scheduleMount()
     }
   }
 
