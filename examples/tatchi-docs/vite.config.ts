@@ -15,7 +15,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appSrc = fileURLToPath(new URL('./src', import.meta.url))
   const workspaceRoot = fileURLToPath(new URL('../..', import.meta.url))
+  // Make VITE_* visible to Node-side dev plugins
+  if (env.VITE_WEBAUTHN_CONTRACT_ID) process.env.VITE_WEBAUTHN_CONTRACT_ID = env.VITE_WEBAUTHN_CONTRACT_ID
+  if (env.VITE_NEAR_RPC_URL) process.env.VITE_NEAR_RPC_URL = env.VITE_NEAR_RPC_URL
+  if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
   return {
+    clearScreen: false,
+    logLevel: 'info',
     server: {
       port: 5174,
       host: 'localhost',

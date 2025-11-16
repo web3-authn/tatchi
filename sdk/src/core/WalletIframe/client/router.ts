@@ -80,9 +80,9 @@ import type { ConfirmationConfig } from '../../types/signer-worker';
 import type { AccessKeyList } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import type { RecoveryResult } from '../../TatchiPasskey';
+import { openOfflineExportWindow } from '../../OfflineExport/index.js';
 
 // Simple, framework-agnostic service iframe client.
-//
 // Responsibilities split:
 // - IframeTransport: low-level mount + load + CONNECT/READY handshake (MessagePort)
 // - WalletIframeRouter (this): request/response correlation, progress events,
@@ -233,50 +233,75 @@ export class WalletIframeRouter {
 
     // Bridge wallet-host overlay UI messages into router callbacks
     this.windowMsgHandlerBound = (ev: MessageEvent) => {
-      try {
-        if (ev.origin !== this.walletOriginOrigin) return;
-        const data = ev.data as unknown;
-        if (!data || typeof data !== 'object') return;
-        const type = (data as { type?: unknown }).type;
-        if (type === 'REGISTER_BUTTON_SUBMIT') {
-          // User clicked the register arrow inside the wallet-anchored UI
-          // Force the overlay to fullscreen immediately so the TxConfirmer
-          // can mount and capture activation in Safari/iOS/mobile.
-          this.overlayForceFullscreen = true;
-          this.overlay.setSticky(true);
-          this.overlay.showFullscreen();
-          for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
-            try { cb(); } catch {}
-          }
-          return;
+      if (ev.origin !== this.walletOriginOrigin) return;
+      const data = ev.data as unknown;
+      if (!data || typeof data !== 'object') return;
+      const type = (data as { type?: unknown }).type;
+      if (type === 'REGISTER_BUTTON_SUBMIT') {
+        // User clicked the register arrow inside the wallet-anchored UI
+        // Force the overlay to fullscreen immediately so the TxConfirmer
+        // can mount and capture activation in Safari/iOS/mobile.
+        this.overlayForceFullscreen = true;
+        this.overlay.setSticky(true);
+        this.overlay.showFullscreen();
+        for (const cb of Array.from(this.registerOverlaySubmitListeners)) {
+          try { cb(); } catch {}
         }
-        if (type === 'REGISTER_BUTTON_RESULT') {
-          const payload = (data as { payload?: unknown }).payload as
-            | { ok?: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
-            | undefined;
-          const ok = !!payload?.ok;
-          for (const cb of Array.from(this.registerOverlayResultListeners)) {
-            cb({ ok, result: payload?.result, cancelled: payload?.cancelled, error: payload?.error });
-          }
-          // Release overlay lock after result
-          this.overlayForceFullscreen = false;
-          this.overlay.setSticky(false);
-          // Progress bus will hide after completion; hide defensively here
-          this.hideFrameForActivation();
-          if (ok) {
-            const acct = payload?.result?.nearAccountId;
-            Promise.resolve().then(async () => {
-              try {
-                const st = await this.getLoginState(acct);
-                this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
-              } catch {}
-            }).catch(() => {});
-          }
-          return;
+        return;
+      }
+      if (type === 'REGISTER_BUTTON_RESULT') {
+        const payload = (data as { payload?: unknown }).payload as
+          | { ok?: boolean; result?: RegistrationResult; cancelled?: boolean; error?: string }
+          | undefined;
+        const ok = !!payload?.ok;
+        for (const cb of Array.from(this.registerOverlayResultListeners)) {
+          cb({ ok, result: payload?.result, cancelled: payload?.cancelled, error: payload?.error });
         }
-      } catch {}
+        // Release overlay lock after result
+        this.overlayForceFullscreen = false;
+        this.overlay.setSticky(false);
+        // Progress bus will hide after completion; hide defensively here
+        this.hideFrameForActivation();
+        if (ok) {
+          const acct = payload?.result?.nearAccountId;
+          Promise.resolve().then(async () => {
+            try {
+              const st = await this.getLoginState(acct);
+              this.emitVrfStatusChanged({ active: !!st.vrfActive, nearAccountId: st.nearAccountId, sessionDuration: st.vrfSessionDuration });
+            } catch {}
+          }).catch(() => {});
+        }
+        return;
+      }
     };
-    window.addEventListener('message', this.windowMsgHandlerBound);
+    globalThis.addEventListener?.('message', this.windowMsgHandlerBound);
+  }
+
+  private attachExportUiClosedListener = (walletOrigin: string): (() => void) => {
+    const onUiClosed = (ev: MessageEvent) => {
+      if (ev.origin !== walletOrigin) return;
+      const data = ev.data as unknown;
+      if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
+      this.overlay.setSticky(false);
+      this.hideFrameForActivation();
+      globalThis.removeEventListener?.('message', onUiClosed);
+    };
+    globalThis.addEventListener?.('message', onUiClosed);
+    return () => { globalThis.removeEventListener?.('message', onUiClosed) };
+  }
+
+  private attachExportUiFallbackListener = (walletOrigin: string, accountId: string): (() => void) => {
+    const onFallback = async (ev: MessageEvent) => {
+      if (ev.origin !== walletOrigin) return;
+      const data = ev.data as any;
+      if (!data || data.type !== 'OFFLINE_EXPORT_FALLBACK') return;
+      globalThis.removeEventListener?.('message', onFallback);
+      this.overlay.setSticky(false);
+      this.hideFrameForActivation();
+      await this.openOfflineExport({ accountId });
+    };
+    globalThis.addEventListener?.('message', onFallback);
+    return () => { globalThis.removeEventListener?.('message', onFallback) };
   }
 
   /**
@@ -343,6 +368,7 @@ export class WalletIframeRouter {
       });
       this.emitReady();
     })();
+
     try {
       await this.initInFlight;
     } finally {
@@ -753,29 +779,42 @@ export class WalletIframeRouter {
     return res.result
   }
 
-  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
-    // Make the wallet iframe visible while the export viewer is open.
-    // Unlike request/response flows, the wallet host renders UI and manages
-    // its own lifecycle; it will notify us when to hide via window message.
-    this.showFrameForActivation();
-    const onUiClosed = (ev: MessageEvent) => {
-      const origin = this.opts.walletOrigin || window.location.origin;
-      if (ev.origin !== origin) return;
-      const data = ev.data as unknown;
-      if (!data || (data as any).type !== 'WALLET_UI_CLOSED') return;
-      this.overlay.setSticky(false);
-      this.hideFrameForActivation();
-      window.removeEventListener('message', onUiClosed);
-    };
-    window.addEventListener('message', onUiClosed);
+  async exportNearKeypairWithUI(
+    nearAccountId: string,
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+  ): Promise<void> {
+    try {
+      // Make the wallet iframe visible while the export viewer is open.
+      // Unlike request/response flows, the wallet host renders UI and manages
+      // its own lifecycle; it will notify us when to hide via window message.
+      this.showFrameForActivation();
+      const walletOrigin = this.walletOriginOrigin;
+      const detachClosed = this.attachExportUiClosedListener(walletOrigin);
+      const detachFallback = this.attachExportUiFallbackListener(walletOrigin, nearAccountId);
+      await this.post<void>({
+        type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
+        payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
+        options: { sticky: true }
+      });
+      // Cleanup once posted (handlers will remove themselves on events)
+      void detachClosed;
+      void detachFallback;
+      return;
+    } catch (e) {
+      // Fallback to offline-export route (new tab) if wallet host is unreachable or errors out
+      await this.openOfflineExport({ accountId: nearAccountId });
+    }
+  }
 
-    await this.post<void>({
-      type: 'PM_EXPORT_NEAR_KEYPAIR_UI',
-      payload: { nearAccountId, variant: options?.variant, theme: options?.theme },
-      // Keep the iframe visible after this request resolves; the wallet host
-      // will drive the UI lifecycle and send WALLET_UI_CLOSED when done.
-      options: { sticky: true }
-    });
+  /**
+   * Open the offline-export route as a full-screen overlay iframe and instruct it via postMessage
+   * to begin the export flow for the given account. Cleans up when the viewer closes or on error.
+   */
+  async openOfflineExport({ accountId, timeoutMs = 20000 }: { accountId: string; timeoutMs?: number }): Promise<void> {
+    const walletOrigin = this.opts.walletOrigin || window.location.origin;
+    // Default: open a new tab/window for clarity
+    openOfflineExportWindow({ walletOrigin, target: '_blank', accountId });
+    return Promise.resolve();
   }
 
   // ===== Account Recovery (single-endpoint flow) =====

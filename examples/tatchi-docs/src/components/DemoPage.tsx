@@ -17,7 +17,7 @@ import { GlassBorder } from './GlassBorder';
 import { LoadingButton } from './LoadingButton';
 import Refresh from './icons/Refresh';
 import { useSetGreeting } from '../hooks/useSetGreeting';
-import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
+import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../types';
 import './DemoPage.css';
 
 

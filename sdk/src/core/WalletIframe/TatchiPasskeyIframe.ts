@@ -45,7 +45,7 @@ import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
 import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../TatchiPasskey/signNEP413';
-import type { RecoveryResult } from '../TatchiPasskey';
+import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
 
@@ -281,6 +281,43 @@ export class TatchiPasskeyIframe {
     // The fallback PasskeyManager holds a fully-implemented NearClient (MinimalNearClient).
     // Returning it directly avoids API drift and stays aligned with core behavior.
     return this.ensureFallbackLocal().getNearClient();
+  }
+
+  /**
+   * Provide a PasskeyManager-like context. For the iframe proxy, this delegates
+   * to the local fallback instance which holds concrete WebAuthn/NearClient state.
+   */
+  getContext(): PasskeyManagerContext {
+    return this.ensureFallbackLocal().getContext();
+  }
+
+  /**
+   * Internal registration with confirmation config override, for parity with
+   * the host-side TatchiPasskey. Routes to the wallet iframe router when ready,
+   * otherwise falls back to the local manager.
+   */
+  async registerPasskeyInternal(
+    nearAccountId: string,
+    options: RegistrationHooksOptions = {},
+    confirmationConfigOverride?: ConfirmationConfig
+  ): Promise<RegistrationResult> {
+    if (this.router.isReady()) {
+      try {
+        const res = await this.router.registerPasskey({
+          nearAccountId,
+          confirmationConfig: confirmationConfigOverride,
+          options: { onEvent: options?.onEvent }
+        });
+        await options?.afterCall?.(true, res);
+        return res;
+      } catch (err: unknown) {
+        const e = toError(err);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
+    }
+    return this.ensureFallbackLocal().registerPasskeyInternal(nearAccountId, options, confirmationConfigOverride);
   }
 
   async recoverAccountFlow(args: {

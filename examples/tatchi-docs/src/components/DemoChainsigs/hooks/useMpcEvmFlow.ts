@@ -5,7 +5,7 @@ import type { TransactionSerializableEIP1559 } from 'viem';
 import { useTatchi, ActionPhase, ActionType, TxExecutionStatus } from '@tatchi-xyz/sdk/react';
 import { createEvmAdapter, deriveEvmAddress } from './helpers/adapters';
 // no direct RSVSignature use here; types handled in helpers
-import { NEAR_EXPLORER_BASE_URL } from '../../../config';
+import { NEAR_EXPLORER_BASE_URL } from '../../../types';
 import {
   Hex,
   ensure0x,

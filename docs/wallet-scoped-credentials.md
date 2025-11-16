@@ -159,7 +159,7 @@ The manifest endpoint is implemented on the relay server and should be exposed o
   - Implement the same endpoint with optional env overrides: `ROR_CONTRACT_ID` (defaults to `WEBAUTHN_CONTRACT_ID`) and `ROR_METHOD` (defaults to `get_allowed_origins`). Bind this Worker route under your wallet domain so it is reachable at `https://<wallet-domain>/.well-known/webauthn`. Use the same JSON and cache headers; existing CORS behavior applies.
 -
 - Dev convenience
-  - For local development, the Vite dev plugin can serve a static manifest when `VITE_ROR_ALLOWED_ORIGINS` is set.
+  - For local development, the wallet dev server serves the manifest by querying the chain when `VITE_WEBAUTHN_CONTRACT_ID` is set (optionally `VITE_NEAR_RPC_URL`, `VITE_ROR_METHOD`).
 
 ## Deployment Plan: Wallet Host on web3authn.org
 
@@ -219,7 +219,7 @@ The canonical production endpoint lives on the relay server and is exposed on th
   - Same endpoint with env overrides (`ROR_CONTRACT_ID`, `ROR_METHOD`), bound as a route on the wallet domain so it is reachable at `https://<wallet-domain>/.well-known/webauthn`. Use identical JSON and cache headers; existing CORS behavior applies.
 -
 - Dev convenience
-  - In dev, the Vite plugin can serve a static manifest when `VITE_ROR_ALLOWED_ORIGINS` is provided.
+- In dev, the wallet dev server serves the manifest dynamically from chain when `VITE_WEBAUTHN_CONTRACT_ID` is provided.
 
 ## Reference Deployment: web3authn.org + hosted.tatchi.xyz
 

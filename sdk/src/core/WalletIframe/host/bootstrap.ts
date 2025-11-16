@@ -1,5 +1,11 @@
 import { getEmbeddedBase, setEmbeddedBase } from '../../sdkPaths';
 import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensure-defined';
+import { scheduleOfflineExportSwPriming } from '../../OfflineExport/priming';
+
+interface GlobalThis {
+ global?: unknown;
+ process?: { env?: Record<string, string | undefined> }
+}
 
 /**
  * Bootstrap tasks for the wallet iframe host.
@@ -8,11 +14,21 @@ import { ensureKnownW3aElement } from '../../WebAuthnManager/LitComponents/ensur
  * - Emits early diagnostics to the parent window
  * - Establishes a default embedded asset base (if not already set)
  */
+function ensureNodeLikeGlobals(): void {
+  const g = globalThis as GlobalThis;
+  if (g.global === undefined) {
+    g.global = globalThis as unknown;
+  }
+  if (!g.process || typeof g.process !== 'object') {
+    g.process = { env: {} };
+  } else if (!g.process.env || typeof g.process.env !== 'object') {
+    g.process.env = {};
+  }
+}
+
 export function bootstrapTransparentHost(): void {
-  (globalThis as unknown as { global?: unknown }).global =
-    (globalThis as unknown as { global?: unknown }).global || (globalThis as unknown);
-  (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process =
-    (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process || { env: {} };
+  // Some third‑party libs expect Node-ish globals. Provide minimal, safe shims.
+  ensureNodeLikeGlobals();
 
   if (window.location.origin === 'null') {
     // Helpful in misconfigured cross-origin or COOP/COEP situations
@@ -43,20 +59,11 @@ export function bootstrapTransparentHost(): void {
   const norm = here.endsWith('/') ? here : here + '/';
   if (!getEmbeddedBase()) setEmbeddedBase(norm);
 
-  // Lightweight click telemetry for debugging embedded UI interactions
-  window.addEventListener(
-    'click',
-    (e) => {
-      const t = e.target as HTMLElement;
-      const name = t?.tagName?.toLowerCase() || 'unknown';
-      const cls = (t as any)?.className || '';
-      window.parent?.postMessage({ type: 'SERVICE_HOST_CLICK', name, cls }, '*');
-    },
-    true
-  );
-
   // Dev-only: warn when w3a-* custom elements remain un-upgraded
   setupDevUnupgradedObserver();
+
+  // Defer offline-export Service Worker priming until after the wallet host is up.
+  scheduleOfflineExportSwPriming();
 }
 
 /**

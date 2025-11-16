@@ -15,7 +15,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
   test('create(): native fails then bridge cancel → NotAllowedError', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {
-        const { executeWithFallbacks } = await import(paths.fallbacks);
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
 
         const rpId = 'example.com';
         const publicKey = {
@@ -28,7 +28,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         // Bridge returns an explicit cancellation (not a timeout)
         const bridgeClient = { request: async () => ({ ok: false, error: 'User cancelled' }) };
         try {
-          await executeWithFallbacks('create', publicKey, { rpId, inIframe: true, timeoutMs: 500, bridgeClient });
+          await executeWebAuthnWithParentFallbacksSafari('create', publicKey, { rpId, inIframe: true, timeoutMs: 500, bridgeClient });
           return { success: false, error: 'Expected rejection' };
         } catch (e: any) {
           // Clear test flag
@@ -56,7 +56,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
   test('create(): native fails then bridge timeout (no second native attempt)', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {
-        const { executeWithFallbacks } = await import(paths.fallbacks);
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
 
         const rpId = 'example.com';
         const publicKey = {
@@ -70,7 +70,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         const bridgeClient = { request: async () => ({ ok: false, timeout: true }) };
         let threw = false;
         try {
-          await executeWithFallbacks('create', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWebAuthnWithParentFallbacksSafari('create', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
         } catch {
           threw = true;
         }
@@ -96,7 +96,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
   test('get(): native ancestor error then bridge cancel → NotAllowedError', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {
-        const { executeWithFallbacks } = await import(paths.fallbacks);
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
         const rpId = window.location.hostname;
         const publicKey = { rpId, challenge: new Uint8Array([1]) };
         // Force native to fail
@@ -106,7 +106,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
           request: async () => ({ ok: false, error: 'User cancelled' })
         };
         try {
-          await executeWithFallbacks('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWebAuthnWithParentFallbacksSafari('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
           return { success: false, error: 'Expected rejection' };
         } catch (e: any) {
           try { delete (window as any).__W3A_TEST_FORCE_NATIVE_FAIL; } catch {}
@@ -129,7 +129,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
   test('get(): native NotAllowedError cancel should not trigger bridge', async ({ page }) => {
     const res = await page.evaluate(async ({ paths }) => {
       try {
-        const { executeWithFallbacks } = await import(paths.fallbacks);
+        const { executeWebAuthnWithParentFallbacksSafari } = await import(paths.fallbacks);
         const rpId = window.location.hostname;
         const publicKey = { rpId, challenge: new Uint8Array([1]) };
 
@@ -150,7 +150,7 @@ test.describe('Safari WebAuthn fallbacks - cancellation and timeout behavior', (
         };
 
         try {
-          await executeWithFallbacks('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
+          await executeWebAuthnWithParentFallbacksSafari('get', publicKey, { rpId, inIframe: true, timeoutMs: 200, bridgeClient });
           return { success: false, error: 'Expected NotAllowedError' };
         } catch (e: any) {
           // restore

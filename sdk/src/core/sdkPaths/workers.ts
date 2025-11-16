@@ -32,16 +32,34 @@ export function resolveWorkerBaseOrigin(): string {
  *          otherwise against the current window origin.
  */
 export function resolveWorkerScriptUrl(input: string): string {
+  return resolveWorkerUrl(input, { worker: detectWorkerFromPath(input) })
+}
+
+export function resolveWorkerUrl(
+  input: string | undefined,
+  opts: { worker: 'signer' | 'vrf'; baseOrigin?: string }
+): string {
+  const worker = opts.worker
+  const baseOrigin = opts.baseOrigin || resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '') || 'https://invalid.local'
   try {
-    // Absolute URL string stays as-is (normalized by URL constructor)
-    if (/^https?:\/\//i.test(input)) {
-      return new URL(input).toString()
+    // Prefer explicit per-worker URL override
+    const ovAny = (typeof window !== 'undefined' ? (window as any) : {}) as any
+    const override = worker === 'signer' ? ovAny.__W3A_SIGNER_WORKER_URL__ : ovAny.__W3A_VRF_WORKER_URL__
+    const candidate = (typeof override === 'string' && override) ? override : (input || defaultWorkerPath(worker))
+    if (/^https?:\/\//i.test(candidate)) {
+      return new URL(candidate).toString()
     }
-    const baseOrigin = resolveWorkerBaseOrigin() || (typeof window !== 'undefined' ? window.location.origin : '') || 'https://invalid.local'
-    return new URL(input, baseOrigin).toString()
+    return new URL(candidate, baseOrigin).toString()
   } catch {
-    // Best-effort fallback
-    try { return new URL(input, (typeof window !== 'undefined' ? window.location.origin : 'https://invalid.local')).toString() } catch {}
-    return input
+    try { return new URL(input || defaultWorkerPath(worker), baseOrigin).toString() } catch {}
+    return input || defaultWorkerPath(worker)
   }
+}
+
+function detectWorkerFromPath(p: string): 'signer' | 'vrf' {
+  return /web3authn-signer\.worker\.js(?:$|\?)/.test(p) ? 'signer' : 'vrf'
+}
+
+function defaultWorkerPath(worker: 'signer' | 'vrf'): string {
+  return worker === 'signer' ? '/sdk/workers/web3authn-signer.worker.js' : '/sdk/workers/web3authn-vrf.worker.js'
 }

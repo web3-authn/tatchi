@@ -4,6 +4,7 @@ import { ref, createRef, Ref } from 'lit/directives/ref.js';
 import { LitElementWithProps } from '../LitElementWithProps';
 import { IFRAME_EXPORT_BOOTSTRAP_MODULE, EXPORT_VIEWER_BUNDLE } from '../tags';
 import { resolveEmbeddedBase } from '../asset-base';
+import { OFFLINE_EXPORT_FALLBACK } from '../../../OfflineExport/messages';
 import type { ExportViewerVariant, ExportViewerTheme } from './viewer';
 import { isObject, isString, isBoolean } from '../../../WalletIframe/validation';
 import { dispatchLitCancel, dispatchLitConfirm, dispatchLitCopy } from '../lit-events';
@@ -65,6 +66,7 @@ export class IframeExportHost extends LitElementWithProps {
   private iframeRef: Ref<HTMLIFrameElement> = createRef();
   private messageHandler?: (event: MessageEvent) => void | Promise<void>;
   private iframeInitialized = false;
+  private _bootstrapTimer: number | null = null;
   // Styles gating to avoid FOUC: wait for export-iframe.css before first render
   private _stylesReady = false;
   private _stylePromises: Promise<void>[] = [];
@@ -90,7 +92,7 @@ export class IframeExportHost extends LitElementWithProps {
 
   protected getComponentPrefix(): string { return 'export-iframe'; }
 
-  // Defer initial render until external styles are adopted to prevent FOUC
+  // Avoid FOUC: block first paint until external styles are applied
   protected shouldUpdate(_changed: Map<string | number | symbol, unknown>): boolean {
     if (this._stylesReady) return true;
     if (!this._stylesAwaiting) {
@@ -154,6 +156,8 @@ export class IframeExportHost extends LitElementWithProps {
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+          ${isAbsoluteBase ? `<link rel="preload" href="${base}export-viewer.css" as="style" />` : ''}
+          ${isAbsoluteBase ? `<link rel="preload" href="${base}export-iframe.css" as="style" />` : ''}
           <link rel="stylesheet" href="${base}wallet-service.css" />
           <!-- Component palette/tokens for host elements (e.g., <w3a-drawer>) -->
           ${isAbsoluteBase ? `<link rel="stylesheet" href="${base}w3a-components.css" />` : ''}

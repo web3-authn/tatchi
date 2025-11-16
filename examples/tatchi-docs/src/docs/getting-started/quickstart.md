@@ -164,9 +164,7 @@ You should see a registration button, which registers passkey derived wallets on
 
 ### Next Steps
 
-After you've got the SDK installed, we will walk through login, and sending your first transaction.
-
-[Next Steps](./next-steps)
+After you've got the SDK installed, we will walk through login, and sending your first transaction in [next Steps](./next-steps).
 
 
 ### Troubleshooting (new users)

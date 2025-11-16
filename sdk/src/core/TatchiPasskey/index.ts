@@ -62,6 +62,7 @@ import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences'
 import { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
+import { isOffline, openOfflineExport } from '../OfflineExport';
 let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
@@ -846,13 +847,35 @@ export class TatchiPasskey {
   /**
    * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
    */
-  async exportNearKeypairWithUI(nearAccountId: string, options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }): Promise<void> {
-    // use iframe router is available for stronger isolation
-    if (this.iframeRouter?.isReady?.()) {
-      await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
-      return;
+  async exportNearKeypairWithUI(
+    nearAccountId: string,
+    options?: { variant?: 'drawer' | 'modal'; theme?: 'dark' | 'light' }
+  ): Promise<void> {
+    if (isOffline()) {
+      // If offline, open the offline-export route
+      await openOfflineExport({
+        accountId: nearAccountId,
+        routerOpen: this.iframeRouter?.openOfflineExport?.bind(this.iframeRouter),
+        walletOrigin: this.configs?.iframeWallet?.walletOrigin,
+        target: '_blank',
+      });
+    } else {
+      // Prefer wallet iframe when ready
+      if (this.iframeRouter?.isReady?.()) {
+        await this.iframeRouter.exportNearKeypairWithUI(nearAccountId, options);
+        return;
+      }
+      // Online but router not ready: prefer offline-export route via router (or new tab)
+      // Only do this when we have a wallet origin configured or router API is available
+      const routerOpen = this.iframeRouter?.openOfflineExport?.bind(this.iframeRouter);
+      const walletOrigin = this.configs?.iframeWallet?.walletOrigin;
+      if (routerOpen || walletOrigin) {
+        await openOfflineExport({ accountId: nearAccountId, routerOpen, walletOrigin, target: '_blank' });
+        return;
+      }
+      // Final fallback: local worker-driven UI
+      await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
     }
-    await this.webAuthnManager.exportNearKeypairWithUI(toAccountId(nearAccountId), options);
   }
 
   ///////////////////////////////////////
@@ -912,8 +935,8 @@ export class TatchiPasskey {
     if (this.configs.iframeWallet?.walletOrigin && !(this.iframeRouter?.isReady?.())) {
       console.warn('[TatchiPasskey] recoverAccountFlow running outside wallet origin; expected to run within wallet iframe context.');
     }
-    // Local orchestration using AccountRecoveryFlow for a single-call UX
 
+    // Local orchestration using AccountRecoveryFlow for a single-call UX
     try {
       const flow = new AccountRecoveryFlow(this.getContext(), options);
       // Phase 1: Discover available accounts

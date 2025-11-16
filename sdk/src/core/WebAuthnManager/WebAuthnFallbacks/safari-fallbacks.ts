@@ -47,6 +47,9 @@ export interface OrchestratorDeps {
   bridgeClient?: ParentDomainWebAuthnClient;
   // Gate for ancestor-error on GET; bridges for focus errors are always allowed when in iframe.
   permitGetBridgeOnAncestorError?: boolean;
+  // Optional AbortSignal to cancel native navigator.credentials operations.
+  // Note: parent-bridge path may not be abortable.
+  abortSignal?: AbortSignal;
 }
 
 /**
@@ -69,17 +72,24 @@ export async function executeWebAuthnWithParentFallbacksSafari(
   publicKey: PublicKeyCredentialCreationOptions | PublicKeyCredentialRequestOptions,
   deps: OrchestratorDeps,
 ): Promise<PublicKeyCredential | unknown> {
-  const { rpId, inIframe, timeoutMs = 60000, permitGetBridgeOnAncestorError = true } = deps;
+
+  const {
+    rpId,
+    inIframe,
+    timeoutMs = 60000,
+    permitGetBridgeOnAncestorError = true
+  } = deps;
   const bridgeClient = deps.bridgeClient || new WindowParentDomainWebAuthnClient();
 
   const isTestForceNativeFail = (): boolean => {
-    try {
-      const g = (globalThis as any);
-      const w = (typeof window !== 'undefined' ? (window as any) : undefined);
-      return !!(g && g.__W3A_TEST_FORCE_NATIVE_FAIL) || !!(w && w.__W3A_TEST_FORCE_NATIVE_FAIL);
-    } catch { return false; }
+    const g = (globalThis as any);
+    const w = (typeof window !== 'undefined' ? (window as any) : undefined);
+    return !!(g && g.__W3A_TEST_FORCE_NATIVE_FAIL) || !!(w && w.__W3A_TEST_FORCE_NATIVE_FAIL);
   };
-  const bumpCounter = (key: string) => { try { const g = (globalThis as any); g[key] = (g[key] || 0) + 1; } catch {} };
+  const bumpCounter = (key: string) => {
+    const g = (globalThis as any);
+    g[key] = (g[key] || 0) + 1;
+  };
 
   // Test harness fast-path: when explicitly forcing native fail, skip native and go straight to bridge.
   // Still bump native attempt counters for determinism in tests.
@@ -103,11 +113,18 @@ export async function executeWebAuthnWithParentFallbacksSafari(
     if (kind === 'create') {
       bumpCounter('__W3A_TEST_NATIVE_CREATE_ATTEMPTS');
       if (isTestForceNativeFail()) throw notAllowedError('Forced native fail (create)');
-      return await navigator.credentials.create({ publicKey: publicKey as PublicKeyCredentialCreationOptions });
+      // Build options with optional AbortSignal
+      return await navigator.credentials.create({
+        publicKey: publicKey as PublicKeyCredentialCreationOptions,
+        ...(deps.abortSignal ? { signal: deps.abortSignal } : {}),
+      });
     } else {
       bumpCounter('__W3A_TEST_NATIVE_GET_ATTEMPTS');
       if (isTestForceNativeFail()) throw notAllowedError('Forced native fail (get)');
-      return await navigator.credentials.get({ publicKey: publicKey as PublicKeyCredentialRequestOptions });
+      return await navigator.credentials.get({
+        publicKey: publicKey as PublicKeyCredentialRequestOptions,
+        ...(deps.abortSignal ? { signal: deps.abortSignal } : {}),
+      });
     }
   };
 
@@ -212,7 +229,7 @@ export class WindowParentDomainWebAuthnClient implements ParentDomainWebAuthnCli
         if (t !== resultType) return;
         const rid = (payload as { requestId?: unknown }).requestId;
         if (rid !== requestId) return;
-        try { window.removeEventListener('message', onMessage); } catch {}
+        window.removeEventListener('message', onMessage);
         const ok = !!(payload as { ok?: unknown }).ok;
         const cred = (payload as { credential?: unknown }).credential;
         const err = (payload as { error?: unknown }).error;
@@ -220,29 +237,16 @@ export class WindowParentDomainWebAuthnClient implements ParentDomainWebAuthnCli
         return finish({ ok: false, error: typeof err === 'string' ? err : undefined });
       };
       window.addEventListener('message', onMessage);
-      try {
-        window.parent?.postMessage({ type: kind, requestId, publicKey } as { type: K; requestId: string; publicKey: any }, '*');
-      } catch {}
-      setTimeout(() => { try { window.removeEventListener('message', onMessage); } catch {}; finish({ ok: false, timeout: true }); }, timeoutMs);
+      window.parent?.postMessage({ type: kind, requestId, publicKey } as { type: K; requestId: string; publicKey: any }, '*');
+      setTimeout(() => { window.removeEventListener('message', onMessage); finish({ ok: false, timeout: true }); }, timeoutMs);
     });
   }
 }
 
-// Backwards-compatible aliases (do not remove without updating import sites)
-export const executeWithFallbacks = executeWebAuthnWithParentFallbacksSafari;
-export { executeWebAuthnWithParentFallbacksSafari as executeWebAuthnWithSafariParentFallbacks };
-export { executeWebAuthnWithParentFallbacksSafari as executeWebAuthnFallbackSafari };
-export { WindowParentDomainWebAuthnClient as ParentBridgeClient };
-export type BridgeClient = ParentDomainWebAuthnClient;
-
 function notAllowedError(message: string): Error {
-  try {
-    const e = new Error(message);
-    (e as any).name = 'NotAllowedError';
-    return e;
-  } catch {
-    return new Error(message);
-  }
+  const e = new Error(message);
+  (e as any).name = 'NotAllowedError';
+  return e;
 }
 
 // Private: error classification helpers
@@ -270,16 +274,16 @@ function safeName(err: unknown): string {
 
 // Private: focus utility to mitigate Safari focus issues
 async function attemptRefocus(maxRetries = 2, delays: number[] = [50, 120]): Promise<boolean> {
-  try { (window as any).focus?.(); } catch {}
-  try { (document?.body as any)?.focus?.(); } catch {}
+  (window as any).focus?.();
+  (document?.body as any)?.focus?.();
 
   const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
   const total = Math.max(0, maxRetries);
   for (let i = 0; i <= total; i++) {
     const d = delays[i] ?? delays[delays.length - 1] ?? 80;
     await wait(d);
-    try { if (document.hasFocus()) return true; } catch {}
-    try { (window as any).focus?.(); } catch {}
+    if (document.hasFocus()) return true;
+    (window as any).focus?.();
   }
-  try { return document.hasFocus(); } catch { return false; }
+  return document.hasFocus();
 }

@@ -1,0 +1,116 @@
+/* Minimal styles for the offline export page (no inline styles to satisfy strict CSP) */
+html.w3a-transparent, body.w3a-transparent {
+  background: #0b0d10 !important;
+  margin: 0;
+  padding: 0;
+  color-scheme: dark;
+}
+
+.offline-root {
+  max-width: 400px;
+  margin: 6rem auto;
+  padding: 2rem 1rem 1rem 1rem;
+  color: #e5e7eb;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 1rem;
+  font-family: Arial, Helvetica, sans-serif;
+  text-align: center;
+  font-size: 1rem;
+}
+
+.offline-title {
+  font-size: 1.25rem;
+  margin: 1rem 0 1rem 0;
+}
+
+.offline-desc {
+  font-size: 1rem;
+  margin: 0 0 16px 0;
+  white-space: pre-line;
+}
+
+.offline-label {
+  display: block;
+  margin: 0 0 8px 0;
+  font-size: 1rem;
+  color: #e5e7eb;
+}
+
+.offline-select {
+  margin: 0 0 12px 0;
+  padding: 8px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 2rem;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e5e7eb;
+  appearance: base-select;
+}
+
+.offline-btn {
+  padding: 10px 16px;
+  margin: 0 0 0 8px;
+  border-radius: 2rem;
+  min-width: 120px;
+  border: 1px solid rgba(59, 130, 246, 0.6); /* blue-500 */
+  background: #2563eb; /* blue-600: medium blue */
+  color: #ffffff;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.offline-btn:hover {
+  background: #1d4ed8; /* blue-700 */
+}
+
+.offline-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.offline-status {
+  margin-top: 10px;
+  font-size: 1rem;
+  color: #e5e7eb;
+}
+
+.offline-info {
+  margin: 6px 0 12px 0;
+  font-size: 0.9rem;
+  color: #9ca3af;
+}
+
+.offline-info-tick {
+  color: #3b82f6; /* blue */
+}
+
+.offline-info-url {
+  color: #3b82f6;
+  text-decoration: none;
+}
+.offline-info-url:hover {
+  text-decoration: underline;
+}
+
+/* Simple inline spinner when the button is loading */
+.offline-btn.loading {
+  opacity: 0.95;
+  pointer-events: none;
+}
+.offline-btn.loading::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-left: 8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  animation: w3a-spin 0.8s linear infinite;
+  vertical-align: -2px;
+}
+
+@keyframes w3a-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

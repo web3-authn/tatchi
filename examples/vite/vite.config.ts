@@ -14,6 +14,8 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const walletOrigin = env.VITE_WALLET_ORIGIN || 'https://wallet.tatchi.xyz'
   return {
+    clearScreen: false,
+    logLevel: 'info',
     server: {
       port: 5174,
       // Allow access via reverse-proxied hosts (Caddy) and Bonjour (.local)
@@ -23,7 +25,7 @@ export default defineConfig(({ mode }) => {
       react(),
       // Cross‑origin dev (serve): headers only. Build (emitHeaders=true): emit _headers
       // for COOP/COEP/CORP + Permissions‑Policy; wallet HTML gets strict CSP.
-      tatchiApp({ walletOrigin, emitHeaders: true }),
+      tatchiApp({ walletOrigin, enableDebugRoutes: true, emitHeaders: true }),
     ],
   }
 })

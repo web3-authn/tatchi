@@ -83,7 +83,7 @@ Enables top-level page on Origin A to create credentials for RP ID B if B opts-i
 - Example: `{ "origins": ["https://www.example.com"] }`
 - Parent executes `navigator.credentials.create()` with `rp.id = "wallet-provider.com"`
 - Keeps credentials bound to wallet domain while executing at top-level
-- **Dev support:** Vite plugin serves endpoint when `VITE_ROR_ALLOWED_ORIGINS` set
+- **Dev support:** Wallet dev server serves endpoint by reading chain when `VITE_WEBAUTHN_CONTRACT_ID` is set (optional: `VITE_NEAR_RPC_URL`, `VITE_ROR_METHOD`)
 
 ### Permissions Policy
 **Parent response header:**
@@ -133,4 +133,3 @@ Implemented in `touchIdPrompt.ts` focus handling before WebAuthn calls.
 - **Error classification:** Detects ancestor-origin vs focus errors with specific handling
 - **Idempotent behavior:** Exactly one resolution path per call, deterministic cleanup of listeners/timers
 - **Progressive enhancement:** Direct WebAuthn preferred, fallbacks only when necessary
-

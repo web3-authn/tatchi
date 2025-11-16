@@ -657,6 +657,8 @@ const configs = [
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-viewer.css'), path.join(sdkDir, 'export-viewer.css'));
             copyIf(path.join(process.cwd(), 'src/core/WebAuthnManager/LitComponents/css/export-iframe.css'), path.join(sdkDir, 'export-iframe.css'));
             copyIf(path.join(process.cwd(), 'src/core/WalletIframe/client/overlay.css'), path.join(sdkDir, 'overlay.css'));
+            // Offline Export route shell stylesheet
+            copyIf(path.join(process.cwd(), 'src/core/OfflineExport/offline-export.css'), path.join(sdkDir, 'offline-export.css'));
             console.log('✅ Emitted /sdk wallet-shims.js and wallet-service.css');
           } catch (err) {
             console.warn('⚠️  Unable to emit wallet static assets:', err);
@@ -699,6 +701,21 @@ const configs = [
     plugins: prodPlugins,
   }
   ,
+  // Offline Export App (minimal PWA route bootstrap)
+  {
+    input: 'src/core/OfflineExport/offline-export-app.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/sdk`,
+      format: 'esm',
+      entryFileNames: 'offline-export-app.js',
+      sourcemap: true,
+    },
+    external: embeddedExternal,
+    resolve: {
+      alias: aliasConfig,
+    },
+    plugins: prodPlugins,
+  },
   // Vite plugin ESM build (source moved to src/plugins)
   {
     input: 'src/plugins/vite.ts',

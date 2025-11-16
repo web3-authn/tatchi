@@ -43,6 +43,7 @@ export const BUILD_PATHS = {
   WORKERS: {
     VRF: 'web3authn-vrf.worker.js',
     SIGNER: 'web3authn-signer.worker.js',
+    OFFLINE_SW: 'offline-export-sw.js',
     WASM_VRF_JS: 'wasm_vrf_worker.js',
     WASM_VRF_WASM: 'wasm_vrf_worker_bg.wasm',
     WASM_SIGNER_JS: 'wasm_signer_worker.js',

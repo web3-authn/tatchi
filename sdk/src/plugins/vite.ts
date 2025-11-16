@@ -11,16 +11,25 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { createRequire } from 'node:module'
 import { buildPermissionsPolicy, buildWalletCsp } from './headers'
-import { addPreconnectLink, buildWalletServiceHtml, buildExportViewerHtml, applyCoepCorp, echoCorsFromRequest, logRorConfig } from './plugin-utils'
+import {
+  addPreconnectLink,
+  buildWalletServiceHtml,
+  buildExportViewerHtml,
+  applyCoepCorp,
+  echoCorsFromRequest,
+  fetchRorOriginsFromNear,
+  normalizeBase,
+  resolveSdkDistRoot,
+} from './plugin-utils'
+import { addOfflineExportDevRoutes, buildOfflineExportHtml, emitOfflineExportAssets } from './offline'
+import { setContentType } from './plugin-utils'
 
-// Avoid importing 'vite' types to keep this package light. Define a minimal shape.
 export type VitePlugin = {
   name: string
   apply?: 'serve' | 'build'
   enforce?: 'pre' | 'post'
   configureServer?: (server: any) => void | Promise<void>
 }
-// For consumers that prefer a neutral name without importing Vite types
 export type ViteLikePlugin = VitePlugin
 
 export type Web3AuthnDevOptions = {
@@ -56,74 +65,6 @@ export type DevHeadersOptions = {
   devCSP?: 'strict' | 'compatible'
 }
 
-const requireCjs = createRequire(import.meta.url)
-
-/**
- * Normalize a path base used to mount SDK assets or routes.
- * - Ensures a single leading slash
- * - Removes trailing slash (except for root)
- * Used by both app and wallet-iframe dev servers when composing routes.
- */
-function normalizeBase(p?: string, fallback = '/sdk'): string {
-  let out = (p || fallback).trim()
-  if (!out.startsWith('/')) out = '/' + out
-  // keep trailing slash off for consistent join logic
-  if (out.length > 1 && out.endsWith('/')) out = out.slice(0, -1)
-  return out
-}
-
-/**
- * Resolve the absolute filesystem directory that contains the built SDK ESM files.
- * Falls back to @tatchi-xyz/sdk/dist when resolution fails.
- * Used by both app and wallet-iframe dev servers for serving /sdk/*.
- */
-function resolveSdkDistRoot(explicit?: string): string {
-  if (explicit) return path.resolve(explicit)
-  // Resolve the installed package (works with workspace + node_modules)
-  const pkgPath = requireCjs.resolve('@tatchi-xyz/sdk/package.json')
-  const pkgDir = path.dirname(pkgPath)
-  try {
-    const pkgJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { module?: string }
-    const esmEntry = pkgJson.module || 'dist/esm/index.js'
-    const esmAbs = path.resolve(pkgDir, esmEntry)
-    // dist root is one level above the esm folder
-    return path.resolve(path.dirname(esmAbs), '..')
-  } catch {
-    // Best effort: assume conventional dist layout
-    return path.join(pkgDir, 'dist')
-  }
-}
-
-/**
- * Infer and set a proper Content-Type header for a given file path.
- * Used by both app and wallet-iframe dev servers while streaming assets.
- */
-function setContentType(res: any, filePath: string) {
-  const ext = path.extname(filePath)
-  switch (ext) {
-    case '.js':
-      res.setHeader('Content-Type', 'application/javascript; charset=utf-8')
-      break
-    case '.css':
-      res.setHeader('Content-Type', 'text/css; charset=utf-8')
-      break
-    case '.map':
-      res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      break
-    case '.json':
-      res.setHeader('Content-Type', 'application/json; charset=utf-8')
-      break
-    case '.wasm':
-      res.setHeader('Content-Type', 'application/wasm')
-      break
-    case '.html':
-      res.setHeader('Content-Type', 'text/html; charset=utf-8')
-      break
-    default:
-      res.setHeader('Content-Type', 'application/octet-stream')
-  }
-}
-
 /**
  * Return the first candidate path that exists and is a file.
  * Helper for robust /sdk/* asset resolution on dev servers (app and wallet).
@@ -137,6 +78,8 @@ function tryFile(...candidates: string[]): string | undefined {
   }
   return undefined
 }
+
+// RPC helpers are provided by plugin-utils to share logic across frameworks.
 
 // Shared assets emitted/served for the wallet service bootstrap.
 const WALLET_SHIM_SOURCE = "window.global ||= window; window.process ||= { env: {} };\n"
@@ -180,17 +123,25 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
   const configuredBase = normalizeBase(opts.sdkBasePath, '/sdk')
   const sdkDistRoot = resolveSdkDistRoot(opts.sdkDistRoot)
   const enableDebugRoutes = opts.enableDebugRoutes === true
+  const offlineHtml = buildOfflineExportHtml(configuredBase)
 
   // In dev we want both '/sdk' and a custom base to work.
   const bases = Array.from(new Set([configuredBase, normalizeBase('/sdk')]))
-    // Prefer longest base match first (e.g., '/sdk/esm/react' before '/sdk')
     .sort((a, b) => b.length - a.length)
+    // Prefer longest base match first (e.g., '/sdk/esm/react' before '/sdk')
 
   return {
     name: 'tatchi:serve-sdk',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
+      // Mount Offline Export dev routes once here (includes app module + chunks)
+      addOfflineExportDevRoutes(server, {
+        sdkDistRoot,
+        sdkBasePath: configuredBase,
+        offlineHtml,
+        includeAppModule: true,
+      })
       // Serve a tiny shim as a virtual asset to enable strict CSP (no inline scripts)
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0]
@@ -216,6 +167,7 @@ export function tatchiServeSdk(opts: ServeSdkOptions = {}): VitePlugin {
         }
         next()
       })
+
       // Optional debug route to confirm resolution
       if (enableDebugRoutes) {
         server.middlewares.use('/__sdk-root', (req: any, res: any) => {
@@ -269,6 +221,8 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
   const sdkBasePath = normalizeBase(opts.sdkBasePath, '/sdk')
 
   const html = buildWalletServiceHtml(sdkBasePath)
+  const offlineHtml = buildOfflineExportHtml(sdkBasePath)
+  const sdkDistRoot = resolveSdkDistRoot()
 
   return {
     name: 'tatchi:wallet-service',
@@ -278,14 +232,22 @@ export function tatchiWalletService(opts: WalletServiceOptions = {}): VitePlugin
       server.middlewares.use((req: any, res: any, next: any) => {
         if (!req.url) return next()
         const url = req.url.split('?')[0]
-        if (url !== walletServicePath) return next()
-        res.statusCode = 200
-        res.setHeader('Content-Type', 'text/html; charset=utf-8')
-        // Headers for cross-origin reliability are set by tatchiHeaders; avoid overriding COOP here.
-        applyCoepCorp(res)
-        // Allow SDK assets to load across origins when needed
-        // Do not override Permissions-Policy here; tatchiHeaders sets it consistently
-        res.end(html)
+        if (url === walletServicePath) {
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'text/html; charset=utf-8')
+          applyCoepCorp(res)
+          res.end(html)
+          return
+        }
+        next()
+      })
+
+      // Mount Offline Export routes here as well (no app module duplication)
+      addOfflineExportDevRoutes(server, {
+        sdkDistRoot,
+        sdkBasePath,
+        offlineHtml,
+        includeAppModule: false,
       })
     },
   }
@@ -330,20 +292,26 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
   // Build headers via shared helpers to avoid drift.
   const permissionsPolicy = buildPermissionsPolicy(walletOrigin)
 
-  // Optional: Related Origin Requests (ROR) dev endpoint support
-  const rorEnv = process.env.VITE_ROR_ALLOWED_ORIGINS
-  const rorAllowedOrigins = (rorEnv || '')
-    .split(',')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0)
+  // Dev convenience: dynamic ROR from NEAR RPC (no relay dependency)
+  // The dev server will fetch the allowlist from chain on demand when a contract id is provided.
+  const rorContractId = (process.env.VITE_WEBAUTHN_CONTRACT_ID || '').toString().trim()
+  const rorMethod = (process.env.VITE_ROR_METHOD || 'get_allowed_origins').toString().trim()
+  const nearRpcUrl = (process.env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com').toString().trim()
+  // Caching is handled inside fetchRorOriginsFromNear via TTL
 
   return {
     name: 'tatchi:dev-headers',
     apply: 'serve',
     enforce: 'pre',
     configureServer(server) {
-      // Log ROR endpoint info when configured, and validate origins
-      if (rorAllowedOrigins.length > 0) logRorConfig(rorAllowedOrigins, '/.well-known/webauthn')
+
+      console.log('[tatchi] headers enabled', {
+        walletServicePath,
+        sdkBasePath,
+        rorContractId: rorContractId || '(none)',
+        nearRpcUrl
+      })
+
       server.middlewares.use((req: any, res: any, next: any) => {
         const url = (req.url || '').split('?')[0] || ''
         const isWalletRoute = url === walletServicePath || url === `${walletServicePath}/` || url === `${walletServicePath}//`
@@ -360,11 +328,38 @@ export function tatchiHeaders(opts: DevHeadersOptions = {}): VitePlugin {
         // Resource hints: help parent pages preconnect to the wallet origin early in dev
         addPreconnectLink(res, walletOrigin)
 
-        // Serve /.well-known/webauthn for ROR when configured
-        if (url === '/.well-known/webauthn' && rorAllowedOrigins.length > 0) {
+        // Serve /.well-known/webauthn for ROR using chain state in dev
+        const isWellKnown = url === '/.well-known/webauthn' || url === '/.well-known/webauthn/'
+        if (isWellKnown) {
+          // Direct fetch from NEAR RPC (no relay). Caching handled inside helper.
+          // Requires contract id; RPC URL falls back to a reliable public endpoint.
+          if (rorContractId) {
+            ;(async () => {
+              try {
+                const origins = await fetchRorOriginsFromNear({
+                  rpcUrl: nearRpcUrl,
+                  contractId: rorContractId,
+                  method: rorMethod,
+                })
+                res.statusCode = 200
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+                res.end(JSON.stringify({ origins }))
+              } catch (e) {
+                console.warn('[tatchi] ROR dynamic fetch failed:', e)
+                res.statusCode = 200
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+                res.end(JSON.stringify({ origins: [] }))
+              }
+            })()
+            return
+          }
+          // No configuration; respond with empty allowlist to avoid hard 404 in dev
           res.statusCode = 200
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          res.end(JSON.stringify({ origins: rorAllowedOrigins }))
+          res.setHeader('Cache-Control', 'max-age=60, stale-while-revalidate=600')
+          res.end(JSON.stringify({ origins: [] }))
           return
         }
 
@@ -489,6 +484,17 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
             '/export-viewer/',
             '  Cross-Origin-Opener-Policy: unsafe-none',
             `  Permissions-Policy: ${permissionsPolicy}`,
+            // Offline export cache policy (no-cache for HTML/SW; immutable for other assets)
+            '/offline-export',
+            '  Cache-Control: no-cache',
+            '/offline-export/',
+            '  Cache-Control: no-cache',
+            '/offline-export/index.html',
+            '  Cache-Control: no-cache',
+            '/offline-export/sw.js',
+            '  Cache-Control: no-cache',
+            '/offline-export/*',
+            '  Cache-Control: public, max-age=31536000, immutable',
           ]
           // Optional: emit CORS headers when explicitly configured via plugin option.
           // Prefer a single source of truth (platform or plugin), not both.
@@ -524,29 +530,6 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
         const wsHtml = path.join(wsDir, 'index.html')
         if (!fs.existsSync(wsHtml)) {
           fs.mkdirSync(wsDir, { recursive: true })
-          const html = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Web3Authn Wallet Service</title>
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/tx-tree.css\">
-    <link rel="prefetch" as="style" href="${sdkBasePath}/drawer.css">
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/halo-border.css\">
-    <link rel=\"prefetch\" as=\"style\" href=\"${sdkBasePath}/passkey-halo-loading.css\">
-    <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
-    <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
-    <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
-    <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
-    <link rel="stylesheet" href="${sdkBasePath}/tx-confirmer.css">
-    <script src="${sdkBasePath}/wallet-shims.js"></script>
-    <link rel="modulepreload" href="${sdkBasePath}/wallet-iframe-host.js" crossorigin>
-  </head>
-  <body>
-    <script type="module" src="${sdkBasePath}/wallet-iframe-host.js"></script>
-  </body>
-</html>
-`
           fs.writeFileSync(wsHtml, buildWalletServiceHtml(sdkBasePath), 'utf-8')
           console.log(`[tatchi] emitted ${path.posix.join('/', walletRel, 'index.html')} (minimal wallet service)`)
         }
@@ -556,29 +539,16 @@ export function tatchiBuildHeaders(opts: { walletOrigin?: string, cors?: { acces
         const evHtml = path.join(evDir, 'index.html')
         if (!fs.existsSync(evHtml)) {
           fs.mkdirSync(evDir, { recursive: true })
-          const ev = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <link rel="stylesheet" href="${sdkBasePath}/wallet-service.css">
-    <link rel="stylesheet" href="${sdkBasePath}/w3a-components.css">
-    <link rel="stylesheet" href="${sdkBasePath}/drawer.css">
-    <link rel="stylesheet" href="${sdkBasePath}/tx-tree.css">
-    <link rel="stylesheet" href="${sdkBasePath}/tx-confirmer.css">
-    <script src="${sdkBasePath}/wallet-shims.js"></script>
-    <link rel="modulepreload" href="${sdkBasePath}/export-private-key-viewer.js" crossorigin>
-    <link rel="modulepreload" href="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin>
-  </head>
-  <body>
-    <w3a-drawer id="exp" theme="dark"></w3a-drawer>
-    <script type="module" src="${sdkBasePath}/export-private-key-viewer.js" crossorigin></script>
-    <script type="module" src="${sdkBasePath}/iframe-export-bootstrap.js" crossorigin></script>
-  </body>
-</html>
-`
           fs.writeFileSync(evHtml, buildExportViewerHtml(sdkBasePath), 'utf-8')
           console.log('[tatchi] emitted /export-viewer/index.html (minimal export viewer)')
+        }
+
+        // Emit offline-export assets (SW, workers, app, HTML, manifest, precache) via helper
+        try {
+          const sdkDistRoot = resolveSdkDistRoot()
+          emitOfflineExportAssets({ outDir, sdkBasePath, sdkDistRoot })
+        } catch (e) {
+          console.warn('[tatchi] failed to emit offline-export assets:', e)
         }
       } catch (e) {
         console.warn('[tatchi] failed to emit _headers:', e)

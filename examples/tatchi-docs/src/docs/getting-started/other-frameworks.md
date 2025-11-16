@@ -4,13 +4,11 @@ title: Other Frameworks
 
 # Other Frameworks
 
-Short starter patterns per framework. Do [Quickstart](./quickstart) first so the wallet iframe works.
-
 ## React (Vite)
 
-See [Quickstart](./quickstart) for a full example with `TatchiPasskeyProvider`.
+See [Installation](./installation) for a full example with `vite` framework.
 
-Example project: https://github.com/web3-authn/tatchi/tree/main/examples/vite
+See [example project here](https://github.com/web3-authn/tatchi/tree/main/examples/vite)
 
 ## Next.js
 
@@ -31,7 +29,7 @@ export default function App({ Component, pageProps }) {
 }
 ```
 
-Example project: https://github.com/web3-authn/tatchi/tree/main/examples/next-js
+See example project: https://github.com/web3-authn/tatchi/tree/main/examples/next-js
 
 next.config.js
 
@@ -84,7 +82,7 @@ export default defineConfig(({ mode }) => {
 })
 ```
 
-Example project: https://github.com/web3-authn/tatchi/tree/main/examples/vue
+See example project: https://github.com/web3-authn/tatchi/tree/main/examples/vue
 
 ## Svelte (vanilla SDK)
 
@@ -94,12 +92,16 @@ import { onMount } from 'svelte'
 import { TatchiPasskey } from '@tatchi-xyz/sdk'
 let manager: TatchiPasskey
 onMount(async () => {
-  manager = new TatchiPasskey({ iframeWallet: { walletOrigin: import.meta.env.VITE_WALLET_ORIGIN, walletServicePath: '/wallet-service' } })
-  await manager.initWalletIframe()
+  tatchi = new TatchiPasskey({
+    iframeWallet: {
+      walletOrigin: import.meta.env.VITE_WALLET_ORIGIN,
+    }
+  })
+  await tatchi.initWalletIframe()
 })
 ```
 
-Example project: https://github.com/web3-authn/tatchi/tree/main/examples/svelte
+See Vue example project: https://github.com/web3-authn/tatchi/tree/main/examples/svelte
 
 ## Vanilla JS (Express.js or similar)
 
@@ -136,11 +138,11 @@ app.get('/wallet-service', (req, res) => {
 app.listen(3000, () => console.log('App on https://example.localhost'))
 ```
 
-Next: [Quickstart](./quickstart) or explore [Passkeys](/docs/guides/passkeys)
+Next: [Installation](./installation) or explore [Passkeys](/docs/guides/passkeys)
 
 ## Plugin Choices
 - App‑only (cross‑origin wallet): use `tatchiAppServer({ walletOrigin })` in dev and `tatchiBuildHeaders({ walletOrigin })` at build.
 - Self‑hosted (same domain wallet):
   - Two servers in dev → app: `tatchiAppServer`, wallet: `tatchiWalletServer`
   - One server in dev (optional) → `tatchiWalletServer` on the app dev server
-See full details in [Quickstart](./quickstart#3-enable-https-caddy-minimal-setup).
+See full details in [Installation](./installation#3-enable-https-caddy-setup).

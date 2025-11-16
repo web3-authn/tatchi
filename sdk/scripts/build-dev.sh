@@ -52,7 +52,8 @@ if npx rolldown -c rolldown.config.ts; then print_success "Rolldown bundling com
 print_step "Bundling workers with Bun (dev, no minify)..."
 if [ -z "$BUN_BIN" ]; then print_error "Bun not found. Install Bun or ensure it is on PATH."; exit 1; fi
 if "$BUN_BIN" build "$SOURCE_CORE/web3authn-signer.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
-  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
+  && "$BUN_BIN" build "$SOURCE_CORE/web3authn-vrf.worker.ts" --outdir "$BUILD_WORKERS" --format esm --target browser \
+  && "$BUN_BIN" build "$SOURCE_CORE/OfflineExport/offline-export-sw.ts" --outdir "$BUILD_WORKERS" --format esm --target browser; then
   print_success "Bun worker bundling completed"
 else
   print_error "Bun worker bundling failed"; exit 1
