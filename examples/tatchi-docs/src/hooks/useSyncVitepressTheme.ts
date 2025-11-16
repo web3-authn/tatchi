@@ -82,10 +82,13 @@ export function useSyncVitepressTheme() {
       const isLoggedInNow = !!loginState?.isLoggedIn
       // Ignore mutations we just caused while syncing SDK → VitePress
       if (syncingVpFromSdkRef.current) return
-      // Propagate VitePress → SDK when user toggles
+      // While logged in, the SDK is source‑of‑truth and VitePress toggles
+      // dispatch w3a:set-theme instead of mutating html.class directly. Avoid
+      // reading class changes back into SDK to prevent feedback loops.
+      if (isLoggedInNow) return
+      // Logged out: propagate VitePress → SDK when user toggles
       if (vpMode !== theme) {
-        if (isLoggedInNow && tatchi?.setUserTheme) tatchi.setUserTheme(vpMode)
-        else setTheme(vpMode)
+        setTheme(vpMode)
       }
     })
 
