@@ -27,8 +27,8 @@ NEAR_RPC_URL = "https://test.rpc.fastnear.com"
 NETWORK_ID = "testnet"
 # Align with src/worker.ts Env: WEBAUTHN_CONTRACT_ID
 WEBAUTHN_CONTRACT_ID = "w3a-v1.testnet"
-ACCOUNT_INITIAL_BALANCE = "30000000000000000000000"
-CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"
+ACCOUNT_INITIAL_BALANCE = "40000000000000000000000" # 0.04 NEAR
+CREATE_ACCOUNT_AND_REGISTER_GAS = "85000000000000"  # 85 TGas
 
 # Secrets are NOT defined here. Set them via Wrangler secrets (they persist across deploys):
 #   wrangler secret put RELAYER_PRIVATE_KEY

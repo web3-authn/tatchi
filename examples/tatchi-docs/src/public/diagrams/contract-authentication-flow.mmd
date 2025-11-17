@@ -1,0 +1,21 @@
+sequenceDiagram
+    participant Client
+    participant WebWorker as VRF Web Worker
+    participant NEAR as NEAR RPC
+    participant Contract as Web3Authn Contract
+
+    Note over Client: Authentication Flow (e.g. signing transactions)
+    Client->>NEAR: 1. Get latest block (height + hash)
+    Note over Client: 2. Construct VRF input with domain separator
+    Client->>WebWorker: 3. Send challenge generation request
+    WebWorker->>WebWorker: 4. Generate VRF proof + output (no TouchID needed)
+    WebWorker->>Client: 5. VRF challenge (bincode serialized) + proof
+    Note over Client: 6. Use VRF output as WebAuthn challenge
+    Note over Client: 7. WebAuthn authentication ceremony (TouchID #1)
+    Client->>Contract: 8. verify_authentication_response(authentication, vrf_proof, vrf_pubkey, vrf_input)
+    Contract->>Contract: 9. Verify VRF proof ✓
+    Contract->>Contract: 10. Extract challenge from VRF output
+    Contract->>Contract: 11. Read stored VRF pubkey + authenticator
+    Contract->>Contract: 12. Verify VRF pubkey matches stored ✓
+    Contract->>Contract: 13. Verify WebAuthn authentication ✓
+    Contract->>Client: 14. Authentication complete ✓

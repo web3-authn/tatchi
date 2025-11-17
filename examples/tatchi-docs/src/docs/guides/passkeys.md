@@ -4,7 +4,11 @@ title: Passkeys (WebAuthn)
 
 # Passkeys (WebAuthn)
 
-Register and authenticate users with platform passkeys. The SDK unifies WebAuthn + NEAR flows and runs sensitive crypto in workers.
+Register and authenticate users with platform passkeys (TouchID, FaceID, Windows Hello). The SDK handles the complete flow from WebAuthn credential creation to NEAR account setup, with all cryptographic operations isolated in Web Workers for security.
+
+## What Are Passkeys?
+
+Passkeys are the industry-standard replacement for passwords, built on the WebAuthn specification. Instead of typing a password, users authenticate with biometrics or device PINs. Passkeys sync across devices through iCloud Keychain (Safari) and Google Password Manager (Chrome), providing automatic backup and recovery.
 
 ## Register
 
@@ -18,9 +22,10 @@ export function Register({ accountId }: { accountId: string }) {
       onClick={() =>
         registerPasskey(accountId, {
           onEvent: (e) => {
-            // Step 2 = user-ready → account can login
+            // After step 2, keys are generated and user can login immediately
+            // (remaining steps complete in the background)
             if (e.step === 2 && e.status === 'success') {
-              console.info('Login is now enabled')
+              console.info('Login is now enabled - user can sign in')
             }
           },
         })
@@ -43,9 +48,9 @@ Key steps emitted by the SDK (abridged):
 - 7 `database-storage`: Store authenticator metadata
 - 8 `registration-complete`: Done
 
-### Registration steps and events
+### Handling Registration Events
 
-These map to the SDK's event stream so you can drive precise UI updates. Users can sign in after step 2 while remaining work finishes in the background.
+The SDK emits events for each step, allowing you to provide real-time progress feedback to users. Importantly, **users can log in after step 2 completes**, even while remaining steps (account creation, contract registration) finish in the background.
 
 ```ts
 type RegistrationStatus = 'progress' | 'success' | 'error'
@@ -65,10 +70,10 @@ function onRegistrationEvent(e: { step: number; status: RegistrationStatus; mess
 }
 ```
 
-Notes
-- Treat steps 4–5 as critical: abort remaining work on failure
-- Persist only after step 6 confirms the expected access key is live
-- Keep UI responsive: enable login after step 2; continue progress in background
+**Important considerations**:
+- **Steps 4-5 are critical**: If account creation or contract registration fails, abort the entire registration flow
+- **Wait for step 6 before persisting**: Only save registration data after on-chain verification confirms the access key is active
+- **Keep UI responsive**: Enable the login button after step 2, but show background progress for remaining steps
 
 ## Login
 
@@ -81,7 +86,17 @@ export function Login({ accountId }: { accountId: string }) {
 }
 ```
 
-When a relay server is configured, login can auto‑unlock the VRF keypair via the Shamir 3‑pass flow (no TouchID) and refresh to the current server key in the background. If it fails, the SDK falls back to TouchID and refreshes the stored blob.
+### Smooth Login With Shamir 3-Pass
+
+If you've configured a relay server, the SDK can unlock the VRF keypair without prompting for TouchID/FaceID on repeat logins. This uses the Shamir 3-pass protocol, where the client and relay server cooperate to decrypt keys without either party seeing the plaintext.
+
+**What happens during login**:
+1. SDK attempts to unlock using cached Shamir-encrypted data
+2. If successful, user logs in without biometric prompt
+3. If Shamir unlock fails (expired session, rotated keys), SDK falls back to TouchID/FaceID
+4. Background key rotation happens automatically if the server has rotated its Shamir keypair
+
+This provides a session-like experience while maintaining security—the relay server never has access to your private keys or key-encryption keys.
 
 ## Use the Credential (transactions)
 
@@ -96,13 +111,18 @@ const result = await passkeyManager.executeAction('alice.testnet', {
 })
 ```
 
-## Notes
+## How It Works Under The Hood
 
-- PRF outputs are used to deterministically derive NEAR keys and encrypt private keys in IndexedDB.
-- All signing happens in a WASM worker; private keys never touch the main thread.
-- For cross‑origin embedding and consistent credential lists across subdomains, see [Wallet‑Scoped vs App‑Scoped](../concepts/wallet-scoped-credentials).
+**PRF Extension**: The SDK uses WebAuthn's PRF (Pseudorandom Function) extension to deterministically derive NEAR keys from your passkey. The same passkey always produces the same blockchain keys, enabling key recovery when you sign in on a new device.
 
-Related reading:
-- [Transaction Confirmation](./tx-confirmation)
-- [Wallet Iframe](./wallet-iframe)
-- Registration steps consolidated from “Registration Flow”
+**Worker-Based Signing**: All cryptographic operations happen in isolated Web Workers. Private keys are decrypted, used to sign transactions, and immediately cleared from memory—all without ever entering the main JavaScript thread where your application code and third-party libraries run.
+
+**IndexedDB Storage**: Encrypted private keys are stored locally in IndexedDB. The encryption key is derived from PRF outputs, so only someone with access to your passkey can decrypt the keys.
+
+## Additional Resources
+
+For more details on passkey behavior and credential scoping:
+- [Wallet-Scoped vs App-Scoped Credentials](../concepts/wallet-scoped-credentials.md) - Choose the right rpId strategy
+- [Transaction Confirmation](./tx-confirmation.md) - Secure transaction signing flows
+- [Wallet Iframe Architecture](./wallet-iframe.md) - How origin isolation protects keys
+- [Device Linking](./device-linking.md) - Cross-device passkey sync and recovery

@@ -12,6 +12,7 @@
   display: grid;
   grid-template-columns: 1fr 2fr;
   gap: 2rem;
+  margin-top: 2rem;
 }
 .app-footer__brand { display: flex; align-items: flex-start; }
 .app-footer__logo {

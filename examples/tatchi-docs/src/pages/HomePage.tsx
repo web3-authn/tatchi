@@ -29,7 +29,7 @@ const LazyPasskeySection: React.FC = () => {
   return (
     <div className="card two">
       {show ? (
-        <React.Suspense fallback={<SectionPlaceholder />}> 
+        <React.Suspense fallback={<SectionPlaceholder />}>
           <PasskeyColumnLazy />
         </React.Suspense>
       ) : (
