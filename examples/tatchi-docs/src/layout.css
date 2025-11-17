@@ -105,11 +105,11 @@
 }
 [data-w3a-theme="light"] .near-logo-bg__svg {
   color: var(--w3a-colors-slate100);
-  opacity: 0.4;
+  opacity: 0.5;
 }
 [data-w3a-theme="dark"] .near-logo-bg__svg {
   color: var(--w3a-colors-grey900);
-  opacity: 0.1;
+  opacity: 0.15;
 }
 
 @media (max-width: 1024px) {
@@ -295,6 +295,26 @@
   color: var(--w3a-colors-textSecondary);
 }
 
+.hero-intro-title {
+  display: grid;
+  grid-template-columns: 2fr 1fr 2fr;
+  gap: 0rem;
+  margin: 4rem 0 4rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--fe-text-primary);
+  line-height: 1.5;
+  text-align: center;
+  font-family: var(--fe-font-display);
+}
+
+.hero-intro-title span:nth-of-type(1) {
+  justify-self: end;
+}
+.hero-intro-title span:nth-of-type(3) {
+  justify-self: start;
+}
+
 .touch-icon-pattern-position {
   position: absolute;
   top: -2rem;
@@ -322,9 +342,34 @@
 
 .hero-ctas a { text-decoration: none; }
 
+.hero-ctas-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-auto-rows: auto;
+  align-items: center;
+  margin-top: 6rem;
+  margin-bottom: 0rem;
+  gap: 1rem;
+}
+
+.hero-ctas-bottom-grid a {
+  text-decoration: none;
+}
+
+.hero-ctas-bottom-grid a:nth-of-type(1) {
+  justify-self: end;
+  width: 150px;
+}
+.hero-ctas-bottom-grid a:nth-of-type(2) {
+  width: 150px;
+}
+.hero-ctas-bottom-grid a:nth-of-type(3) {
+  grid-column: 1 / -1;
+}
+
 /* Built on NEAR badge under CTAs */
 .hero-built-on {
-  margin: 6rem 0rem 2rem 0rem;
+  margin: 0rem 0rem 2rem 0rem;
   display: flex;
   align-items: center;
   justify-content: center;

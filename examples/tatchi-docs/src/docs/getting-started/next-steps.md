@@ -133,20 +133,20 @@ When you're done, call `logoutAndClearVrfSession()` to clear the in-memory VRF k
 
 ## Recap
 
-**Registration**: registerPasskey() triggers WebAuthn registration, derives a deterministic NEAR keypair, and persists everything in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
+**Registration**: `registerPasskey()` triggers WebAuthn registration, derives a deterministic NEAR keypair, encrypts and persists the data in IndexedDB. In iframe mode, this happens in the wallet origin for isolation.
 
-**Login**: getRecentLogins() reads from IndexedDB and tracks the last-used account.  loginPasskey() unlocks a VRF key needed for Passkey authentication. With a relay server configured, you can unlock the VRF key automatically without biometrics; otherwise it uses TouchID to unlock (serverless). The VRF key is used to create verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
+**Login**: `getRecentLogins()` reads from IndexedDB and tracks the last-used account.  `loginPasskey()` unlocks a VRF key needed for Passkey authentication. With a relay server configured, you can unlock the VRF key automatically without biometrics, otherwise it uses TouchID to unlock (serverless). The VRF key is used to generate verifiable challenges for stateless Passkey authentication with the onchain webauthn contract.
 
-*Logout*: logoutAndClearVrfSession() clears the in-memory VRF key and updates loginState.
+*Logout*: `logoutAndClearVrfSession()` clears the in-memory VRF key and updates loginState.
 
-**Transactions**: executeAction() constructs, signs, and broadcasts to NEAR. Progress events stream back for UI updates.
+**Transactions**: `executeAction()` builds, signs, and broadcasts transactions to the NEAR blockchain. `onEvent` handlers stream progress events back for UI updates.
 
 
 ## Next steps
 
 - Setting up other frameworks (Next.js, Vue, Svelte, Express): [Using other frameworks](./other-frameworks.md)
-- API Reference (export keys, recover accounts, link devices, batch sign/send): [API Reference](../api/index.md)
-  - [Passkey Manager details](../api/passkey-manager.md)
+- [React Recipes](../guides/react-recipes.md): convenience components for registration, login, and managing accounts.
+- [API Reference](../api/index.md): export keys, recover accounts, link devices, batch sign/send
 - [Concepts](../concepts/index.md): security model, VRF/PRF, wallet iframe architecture
-  - [VRF challenges](../concepts/vrf-challenges)
   - [Wallet iframe architecture](../concepts/wallet-iframe-architecture)
+  - [VRF challenges](../concepts/vrf-challenges)

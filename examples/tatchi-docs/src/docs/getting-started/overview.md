@@ -4,7 +4,9 @@ title: Overview
 
 # Overview
 
-Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [NEAR blockchain](https://github.com/near). Wallet keys are deterministically derived from passkeys, and users use biometric signing to sign transaction in an isolated, cross‑origin wallet iframe. The Passkey (webauthn) authentications are performed directly with an onchain smart contract without the need for hosting a server.
+Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [NEAR blockchain](https://github.com/near). Wallet keys are deterministically derived from passkeys, and users use biometrics to sign transaction in an isolated, cross‑origin wallet iframe.
+
+Passkey (webauthn) authentications are performed directly with an onchain smart contract without the need for backend servers.
 
 ## Why Tatchi?
 
@@ -18,7 +20,7 @@ Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [N
 ### Permissionless recovery and portability
   - Passkey authenticators are stored on‑chain. Users can re‑derive keys from on‑chain authenticators, enabling permissionless recovery with high availability.
   - Multi‑device sync: passkeys wallets can be synced across devices via iCloud, Google Password Manager, or password managers like Bitwarden.
-  - Prefer no cloud? Paranoid about Passkey lock-in? Link devices with different passkeys to the same wallet account via QR codes (NEAR accounts can add or revoke multiple keys). Multi-device backups help address current issues with Passkey portability ([still in progress](https://fidoalliance.org/specifications-credential-exchange-specifications/)).
+  - Prefer no cloud? Paranoid about Passkey lock-in? Link devices with different passkeys to the same wallet account via QR codes (NEAR accounts can add or revoke multiple keys). Multi-device backups help address current [issues with Passkey portability](https://fidoalliance.org/specifications-credential-exchange-specifications/).
 
 ### Wallet isolation by default
   - Sensitive flows (WebAuthn/PRF/VRF, key handling, signing) run inside a cross‑origin iframe with strict headers and isolated WASM workers. Even if the developer's app is compromised, Tatchi passkey wallet remains safe.

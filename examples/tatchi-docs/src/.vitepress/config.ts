@@ -37,6 +37,12 @@ export default defineConfig({
   // Use VitePress built-in appearance + nav; hidden on homepage via theme logic
   appearance: true,
 
+  markdown: {
+    languageAlias: {
+      caddy: 'nginx',
+    },
+  },
+
   themeConfig: {
     siteTitle: 'Tatchi.xyz',
     // Show right-hand outline with H2/H3
@@ -62,12 +68,31 @@ export default defineConfig({
             text: 'Other Frameworks',
             collapsed: true,
             items: [
-              { text: 'Vue', link: '/docs/getting-started/other-frameworks#vue-3-vanilla-sdk' },
               { text: 'Next.js', link: '/docs/getting-started/other-frameworks#next-js' },
-              { text: 'Vanilla JS', link: '/docs/getting-started/other-frameworks#vanilla-js-expressjs-or-similar' },
-              { text: 'Svelte', link: '/docs/getting-started/other-frameworks#svelte-vanilla-sdk' },
+              { text: 'Vue 3', link: '/docs/getting-started/other-frameworks#vue-3' },
+              { text: 'Svelte', link: '/docs/getting-started/other-frameworks#svelte' },
+              { text: 'Vanilla JS / Express', link: '/docs/getting-started/other-frameworks#vanilla-js-express' },
             ],
           },
+        ],
+      },
+      {
+        text: 'Concepts',
+        collapsed: false,
+        items: [
+          {
+            text: 'Overview',
+            link: '/docs/concepts/',
+            items: [
+              { text: 'Design Goals', link: '/docs/concepts/#design-goals' },
+              { text: 'Architecture', link: '/docs/concepts/#architecture' },
+              { text: 'Deep Dive Topics', link: '/docs/concepts/#deep-dive-topics' },
+            ],
+          },
+          { text: 'Security Model', link: '/docs/concepts/security-model' },
+          { text: 'VRF Webauthn Challenges', link: '/docs/concepts/vrf-challenges' },
+          { text: 'Shamir 3-Pass Protocol', link: '/docs/concepts/shamir-3pass' },
+          { text: 'Credential Scope (rpId)', link: '/docs/concepts/wallet-scoped-credentials' },
         ],
       },
       {
@@ -78,6 +103,8 @@ export default defineConfig({
             { text: 'Passkeys (WebAuthn)', link: '/docs/guides/passkeys' },
             { text: 'Wallet Iframe Integration', link: '/docs/guides/wallet-iframe' },
             { text: 'Transaction Confirmation', link: '/docs/guides/tx-confirmation' },
+            { text: 'React Recipes', link: '/docs/guides/react-recipes' },
+            { text: 'Nonce Manager', link: '/docs/guides/nonce-manager' },
           ]},
           { text: 'Advanced Features', items: [
             { text: 'Device Linking', link: '/docs/guides/device-linking' },
@@ -89,19 +116,6 @@ export default defineConfig({
             { text: 'Self-Hosting the Wallet SDK', link: '/docs/guides/selfhosting' },
             { text: 'Cloudflare GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
           ]},
-        ],
-      },
-      {
-        text: 'Concepts',
-        collapsed: false,
-        items: [
-          { text: 'Overview', link: '/docs/concepts/' },
-          { text: 'Goals of the Wallet', link: '/docs/concepts/goals' },
-          { text: 'Architecture Overview', link: '/docs/concepts/wallet-iframe-architecture' },
-          { text: 'Security Model', link: '/docs/concepts/security-model' },
-          { text: 'Credential Scope (rpId)', link: '/docs/concepts/wallet-scoped-credentials' },
-          { text: 'VRF Webauthn Challenges', link: '/docs/concepts/vrf-challenges' },
-          { text: 'Nonce manager', link: '/docs/concepts/nonce-manager' },
         ],
       },
       {

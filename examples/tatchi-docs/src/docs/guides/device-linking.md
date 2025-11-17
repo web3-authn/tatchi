@@ -4,20 +4,42 @@ title: Device Linking
 
 # Device Linking
 
-Link a second device (Device 2) to an existing account (Device 1) without sharing secrets. The flow uses a QR code, WebAuthn on Device 1 for authorization, and a pair of on‑chain transactions to add the new key.
+Link a new device to an existing NEAR account without manually sharing secrets or seed phrases. The SDK uses QR codes and on-chain transactions to securely authorize the new device.
 
-## Overview
+## How It Works
 
-- Device 2: generates a QR that encodes a public key for Device 2 and metadata
-- Device 1: scans the QR, authenticates via WebAuthn, and signs AddKey + store metadata transactions
-- Device 2: observes AddKey and completes the local setup automatically
+The device linking flow involves three steps:
 
-The SDK provides both a React component and a framework‑agnostic API.
+1. **Device 2 (new device)**: Generates a QR code containing a public key and metadata
+2. **Device 1 (existing device)**: Scans the QR code, authenticates with WebAuthn (TouchID/FaceID), and submits AddKey + metadata transactions to the blockchain
+3. **Device 2**: Detects the AddKey transaction on-chain and completes local setup automatically
 
-## Options
+No private keys or secrets are ever transmitted between devices. Device 2 generates its own keypair, and Device 1 only authorizes adding that public key to the account.
 
-- Option E (faster): user provides the account id → Device 2 generates the proper keypair up front; Device 1 scans and adds it.
-- Option F (seamless): no account id → Device 2 generates a temporary keypair → Device 1 links it → Device 2 discovers the account and replaces the temp key with a proper account‑salted key (AddKey + DeleteKey).
+The SDK provides both a React component and a framework-agnostic API.
+
+## Linking Strategies
+
+The SDK supports two approaches depending on whether the user knows their account ID:
+
+### With Account ID (Faster)
+
+If Device 2 knows the account ID upfront:
+1. Device 2 generates the final keypair immediately
+2. Device 1 scans and adds it directly
+3. Device 2 is ready to use immediately after AddKey completes
+
+**Use this when**: You have a UI where users can type or paste their account ID.
+
+### Without Account ID (Seamless)
+
+If Device 2 doesn't know the account ID:
+1. Device 2 generates a temporary keypair
+2. Device 1 links the temporary key to the account
+3. Device 2 discovers the account ID from the blockchain
+4. Device 2 generates the proper account-salted keypair and submits AddKey + DeleteKey transactions to replace the temporary key
+
+**Use this when**: You want a completely scan-only flow with no manual input.
 
 ## React: QR scanner
 
@@ -79,8 +101,10 @@ The flow can optionally fund the Device 2 temporary account to cover on‑chain 
 - Authorization timeout: retry WebAuthn on Device 1
 - AddKey conflict: the flow retries and re‑computes nonces; ensure the app doesn’t submit concurrent txs for the same account
 
-## Notes
+## Security Notes
 
-- Device 2 requires only the QR; no secrets are shared between devices
-- All sensitive steps happen in the wallet origin; WebAuthn never runs in the app frame when the wallet is configured
- - For Option F, the SDK performs a key replacement (AddKey new + DeleteKey temp) after discovering the account id
+**No Secrets Transmitted**: Device 2 only needs the QR code—no private keys or seed phrases are ever shared between devices. Each device generates its own keypair independently.
+
+**Isolated WebAuthn**: All sensitive operations (WebAuthn credential access, transaction signing) happen in the wallet iframe, isolated from your application code.
+
+**Key Replacement Flow**: When using the "Without Account ID" strategy, the SDK automatically performs a key replacement (AddKey for the permanent key + DeleteKey for the temporary key) once Device 2 discovers the account ID.

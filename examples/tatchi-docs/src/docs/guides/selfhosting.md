@@ -2,17 +2,33 @@
 title: Self‑hosting the Wallet SDK
 ---
 
-# Self‑hosting the Wallet SDK
+# Self-Hosting the Wallet SDK
 
-This guide shows how to run the wallet iframe on your own origin. Your app then points `iframeWallet.walletOrigin` at this origin so all sensitive flows (WebAuthn/PRF/VRF, key handling, signing) execute in an isolated, sandboxed site you control.
+This guide shows how to run the wallet iframe on your own infrastructure. By self-hosting, your application points `iframeWallet.walletOrigin` at your own domain, ensuring all sensitive operations (WebAuthn, PRF, VRF, key handling, and transaction signing) execute in an isolated environment you fully control.
 
-What you will deploy
-- Static SDK assets under a stable base path (default: `/sdk`).
-- A simple HTML route for the wallet service (default: `/wallet-service`).
+## What You Will Deploy
 
-When to self‑host
-- You want to own the wallet origin and headers entirely.
-- You want tighter network and CSP controls or a private deployment.
+Self-hosting requires two components:
+
+1. **Static SDK assets** served at a stable base path (default: `/sdk`)
+   - JavaScript bundles
+   - WASM modules for signing and VRF
+   - CSS and component files
+
+2. **Wallet service HTML page** at a dedicated route (default: `/wallet-service`)
+   - Minimal HTML that loads the wallet iframe host script
+   - Strict Content Security Policy headers
+
+## When to Self-Host
+
+Consider self-hosting if you need:
+
+- **Full control over infrastructure**: You manage the wallet origin, headers, and deployment pipeline
+- **Private deployments**: Internal applications or restricted networks where external wallet origins aren't accessible
+- **Custom CSP policies**: Specific security requirements beyond the default configuration
+- **Compliance requirements**: Regulatory or organizational policies requiring all code to run on your domains
+
+If you're building a public application and don't have these requirements, using a shared wallet origin (like `wallet.tatchi.xyz`) can simplify deployment while still providing security through origin isolation.
 
 ## 1) Publish the SDK assets
 
@@ -32,9 +48,11 @@ app.use('/sdk', (req, res, next) => {
 }, express.static(path.join(process.cwd(), 'node_modules', '@tatchi-xyz', 'sdk', 'dist', 'sdk')))
 ```
 
-Notes
-- Keep the base path stable (e.g., `/sdk`); the wallet host will request URLs relative to it.
-- If using a CDN, make sure it doesn’t rewrite `/sdk/*` to your app shell and that `.wasm` is served as `application/wasm`.
+**Important considerations**:
+
+- **Stable paths**: Keep the base path consistent (e.g., `/sdk`). The wallet iframe host requests assets relative to this path, so changing it will break existing deployments.
+- **CDN configuration**: If using a CDN, ensure it doesn't rewrite `/sdk/*` requests to your application shell (index.html). Configure your CDN to serve these paths as static assets.
+- **WASM MIME type**: WASM files must be served with `Content-Type: application/wasm` or browsers will refuse to load them. The code above sets this header explicitly.
 
 ## 2) Add the wallet service route
 
@@ -115,13 +133,74 @@ On the app origin:
 - Use the SDK/Vite header helpers or mirror their output in your platform.
 - Ensure HTTPS (WebAuthn requires a secure context).
 
-## 5) Testing locally
+## 5) Testing Locally
 
-- Use HTTPS locally (e.g., Caddy with `example.localhost` and `wallet.example.localhost`).
-- Verify the wallet iframe connects (network tab should show `/wallet-service`).
-- If you see mixed‑content or COOP errors, recheck origins, HTTPS, and per‑route headers above.
+Local testing requires HTTPS since WebAuthn only works in secure contexts:
 
-## See also
-- Wallet iframe details: ../guides/wallet-iframe
-- Concepts: ../concepts/wallet-iframe-architecture
-- Deployment notes: ../deployment/asset-url-resolution
+**Option 1: Use .localhost domains** (built-in browser trust):
+```bash
+# Run your app on example.localhost:3000
+# Run wallet on wallet.example.localhost:3001
+# Both are treated as secure contexts by browsers
+```
+
+**Option 2: Use mkcert for custom domains**:
+```bash
+mkcert -install
+mkcert example.test wallet.example.test
+# Configure your dev server to use the generated certificates
+```
+
+**Verification checklist**:
+1. Open browser DevTools → Network tab
+2. Your application should load `/wallet-service` in an iframe
+3. The wallet iframe should load `/sdk/wallet-iframe-host.js`
+4. Check for errors in Console tab
+
+**Common issues**:
+- **Mixed content errors**: Ensure both app and wallet origins use HTTPS
+- **COOP errors**: Verify `/wallet-service` has `Cross-Origin-Opener-Policy: unsafe-none`
+- **404 on /sdk assets**: Check that the SDK dist folder is correctly mounted
+- **WASM load failed**: Verify `.wasm` files are served with `application/wasm` MIME type
+
+## Troubleshooting
+
+### Wallet Iframe Fails to Load
+
+**Symptoms**: Console shows "Failed to load wallet iframe" or network errors for `/wallet-service`.
+
+**Fix**:
+1. Verify wallet origin is accessible: `curl https://wallet.example.com/wallet-service`
+2. Check CORS headers allow embedding
+3. Ensure CSP doesn't block iframe loading
+
+### Assets Not Found (404)
+
+**Symptoms**: Network tab shows 404 errors for `/sdk/*.js` or `/sdk/*.wasm`.
+
+**Fix**:
+1. Verify SDK assets are at `node_modules/@tatchi-xyz/sdk/dist/sdk/`
+2. Check your static file middleware mounts this directory at `/sdk`
+3. Test direct access: `curl https://wallet.example.com/sdk/wallet-iframe-host.js`
+
+### WASM Module Failed to Instantiate
+
+**Symptoms**: Console error: "Incorrect response MIME type. Expected 'application/wasm'."
+
+**Fix**:
+```typescript
+// Ensure .wasm files have correct MIME type
+app.use('/sdk', (req, res, next) => {
+  if (req.url?.endsWith('.wasm')) {
+    res.setHeader('Content-Type', 'application/wasm')
+  }
+  next()
+}, express.static(sdkPath))
+```
+
+## Additional Resources
+
+For more detailed information about wallet iframe integration:
+- [Wallet Iframe Integration](./wallet-iframe.md) - Complete setup guide
+- [Wallet Iframe Architecture](../concepts/wallet-iframe-architecture.md) - How origin isolation works
+- [Security Model](../concepts/security-model.md) - Defense-in-depth principles

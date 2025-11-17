@@ -1,0 +1,26 @@
+sequenceDiagram
+    participant Client
+    participant WASM as WASM Worker
+    participant NEAR as NEAR RPC
+    participant Contract as Web3Authn Contract
+
+    Note over Client: 1. Get NEAR block data for freshness
+    Client->>NEAR: 2. Get latest block (height + hash)
+    NEAR->>Client: 3. Block height + hash
+    Note over Client: 4. Generate VRF keypair and challenge
+    Client->>WASM: 5. generateVrfKeypair(saveInMemory=true, vrfInputs)
+    WASM->>WASM: 6. Generate VRF keypair + persist in memory
+    WASM->>WASM: 7. Generate VRF challenge with domain separation
+    WASM->>Client: 8. VRF challenge data (keypair stored in memory)
+    Note over Client: 9. WebAuthn registration with VRF challenge
+    Client->>Client: 10. WebAuthn registration with PRF (TouchID)
+    Note over Client: 11. Encrypt VRF keypair with PRF output
+    Client->>WASM: 12. encryptVrfKeypairWithPrf(prfOutput)
+    WASM->>WASM: 13. Encrypt VRF keypair with AES-GCM
+    WASM->>Client: 14. Encrypted VRF keypair for storage
+    Client->>Client: 15. Store encrypted VRF keypair in IndexedDB
+    Client->>Contract: 16. verify_registration(registration, vrf_proof, vrf_pubkey)
+    Contract->>Contract: 17. Verify VRF proof ✓
+    Contract->>Contract: 18. Verify WebAuthn registration ✓
+    Contract->>Contract: 19. Store VRF pubkey + authenticator
+    Contract->>Client: 20. Registration complete

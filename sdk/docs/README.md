@@ -1,193 +1,99 @@
-# Web3Authn Passkey System Documentation
+# Web3Authn SDK Implementation Documentation
 
-This directory contains comprehensive documentation for the Web3Authn passkey system, covering both registration and transaction signing using WASM workers for enhanced security.
+This directory contains implementation specifications, deployment guides, and design documents for the Web3Authn SDK. These docs are intended for SDK maintainers, contributors, and advanced users building custom integrations.
 
-## System Overview
+## For End Users
 
-The Web3Authn passkey system provides secure, passwordless authentication and transaction signing for NEAR blockchain applications. It consists of two main components:
+Looking for integration guides and how-tos? See:
+- **[User Documentation](../../examples/tatchi-docs/src/docs/)** - Guides, concepts, and API reference
+- **[Guides](../../examples/tatchi-docs/src/docs/guides/)** - Step-by-step integration tutorials
+- **[Concepts](../../examples/tatchi-docs/src/docs/concepts/)** - Architecture and design explanations
 
-1. **Registration System**: Event-driven user onboarding with real-time progress
-2. **Transaction Signing**: Secure WASM worker-based cryptographic operations
+## Directory Structure
 
-## Quick Start
+### [implementation/](./implementation/)
 
-### Registration
-```typescript
-import { useTatchi } from '@tatchi-xyz/sdk/react';
+Technical specifications for SDK internals:
 
-function MyComponent() {
-  const { registerPasskey } = useTatchi();
+- **[shamir3pass.md](./implementation/shamir3pass.md)** - Shamir 3-pass VRF encryption, login flow, and server key rotation
+- **[login-auth-sessions.md](./implementation/login-auth-sessions.md)** - VRF-backed authentication sessions implementation
+- **[offline-export.md](./implementation/offline-export.md)** - Service Worker implementation for offline PWA key export
+- **[iframe-isolated-signing.md](./implementation/iframe-isolated-signing.md)** - Cross-origin iframe security architecture
+- **[wallet-iframe-architecture.md](./implementation/wallet-iframe-architecture.md)** - Complete technical specification for wallet iframe system
 
-  const handleRegister = async (username: string) => {
-    await registerPasskey(username, {
-      onEvent: (event) => {
-        console.log(`Step ${event.step}: ${event.phase} - ${event.status}`);
-        if (event.step === 2) enableUserLogin(); // Enable login after verification
-      }
-    });
-  };
-}
-```
+### [deployment/](./deployment/)
+
+Production deployment specifications:
+
+- **[wallet-scoped-credentials.md](./deployment/wallet-scoped-credentials.md)** - ROR configuration, NEAR contract integration, reference deployment topology
+- **[hooks-behavior.md](./deployment/hooks-behavior.md)** - Custom hooks configuration and behavior
+
+### [design/](./design/)
+
+Design decisions and discussions:
+
+- **[wallet-iframe-architecture-discussion.md](./design/wallet-iframe-architecture-discussion.md)** - Design rationale, threat model, architecture trade-offs
+- **[feature_import_accounts_with_keys.md](./design/feature_import_accounts_with_keys.md)** - Account import feature design
+
+## Quick Reference
+
+### Registration System
+
+Event-driven registration with 8 steps. Users can log in after step 2 while remaining steps complete in background.
+
+**User docs**: [Passkeys Guide](../../examples/tatchi-docs/src/docs/guides/passkeys.md)
 
 ### Transaction Signing
-```typescript
-import { useTatchi } from '@tatchi-xyz/sdk/react';
 
-function TransactionComponent() {
-  const { tatchi } = useTatchi();
+All signing happens in WASM workers for security. Keys never touch main thread.
 
-  const handleTransaction = async () => {
-    const result = await passkeyManager.executeAction({
-      receiver_id: 'contract.testnet',
-      method_name: 'my_method',
-      args: { param: 'value' },
-      gas: '30000000000000',
-      deposit: '0'
-    });
-  };
-}
-```
+**User docs**: [Transaction Confirmation Guide](../../examples/tatchi-docs/src/docs/guides/tx-confirmation.md)
 
-## Documentation Files
+### Wallet Iframe
 
-### [Registration Flow](./registration-flow.md)
-Complete registration process documentation including step-by-step flow, TypeScript interfaces, and implementation examples.
+Cross-origin iframe isolation prevents XSS/supply-chain attacks from accessing keys.
 
-## Registration System
+**User docs**:
+- [Wallet Iframe Guide](../../examples/tatchi-docs/src/docs/guides/wallet-iframe.md)
+- [Wallet Iframe Architecture](../../examples/tatchi-docs/src/docs/concepts/wallet-iframe-architecture.md)
 
-The registration system uses numbered steps (1-6) with SDK-Sent Events (SSE) for real-time progress updates:
+**Implementation**: [wallet-iframe-architecture.md](./implementation/wallet-iframe-architecture.md)
 
-| Step | Phase | Description | Duration | Critical |
-|------|-------|-------------|----------|----------|
-| **1** | `webauthn-verification` | Verify WebAuthn credentials | 100-500ms | Yes |
-| **2** | `user-ready` | User verified, **can login** | Instant | Yes |
-| **3** | `access-key-addition` | Create NEAR account | 1-3s | Yes |
-| **4** | `database-storage` | Store authenticator data | 50-200ms | No |
-| **5** | `contract-registration` | Register in smart contract | 2-5s | No |
-| **6** | `registration-complete` | Final confirmation | Instant | No |
-| **0** | `registration-error` | Fatal error occurred | Instant | Fatal |
+### Shamir 3-Pass
 
+TouchID-free login via server-assisted VRF decryption. Server never sees plaintext keys.
 
-## Transaction Signing System
+**User docs**: [Passkeys Guide - Smooth Login](../../examples/tatchi-docs/src/docs/guides/passkeys.md#smooth-login-with-shamir-3-pass)
 
-All transaction signing happens inside WASM workers for enhanced security and performance.
+**Implementation**: [shamir3pass.md](./implementation/shamir3pass.md)
 
-### Architecture Benefits
+### Authentication Sessions
 
-**Security Advantages:**
-- Private keys never leave worker context
-- Reduced attack surface with isolated memory
-- Enhanced protection against main thread exploits
+VRF-backed sessions reduce biometric prompts after initial login.
 
-**Performance Benefits:**
-- Parallel processing during signing operations
-- Reduced main thread blocking
-- Better user experience with responsive UI
+**User docs**: [Authentication Sessions Guide](../../examples/tatchi-docs/src/docs/guides/authentication-sessions.md)
 
-**Architecture Benefits:**
-- Type-safe worker communication
-- Cross-library compatibility with near-api-js
-- Borsh serialization for NEAR protocol compliance
+**Implementation**: [login-auth-sessions.md](./implementation/login-auth-sessions.md)
 
-### Transaction Flow
+## Contributing
 
-```
-Main Thread                    WASM Worker                   RPC Node
-    │                              │                              │
-    ├─ Transaction Request ───────>│                              │
-    │  (receiver, method, args)    │                              │
-    │                              ├─ Decrypt Private Key         │
-    │                              │  (using PRF + encrypted key) │
-    │                              │                              │
-    │                              ├─ Build & Sign Transaction    │
-    │                              │  (ed25519 signature)         │
-    │                              │                              │
-    │                              ├─ Serialize to Borsh          │
-    │  <────── Signed Transaction ─┤  (NEAR protocol format)      │
-    │          (Borsh bytes)       │                              │
-    │                              │                              │
-    ├─ Deserialize & Send ───────────────────────────────────────>│
-```
+When adding implementation docs:
 
-### Worker Message Types
+1. **User-facing changes?** Update guides/concepts in `examples/tatchi-docs/` first
+2. **Implementation details?** Add to appropriate `implementation/` subdirectory
+3. **Deployment specifics?** Add to `deployment/` subdirectory
+4. **Design decisions?** Document in `design/` subdirectory
 
-```typescript
-interface TransactionSigningRequest {
-  type: 'SIGN_NEAR_TRANSACTION_WITH_PRF';
-  payload: {
-    username: string;
-    prfOutput: string; // base64
-    signerAccountId: string;
-    receiverAccountId: string;
-    methodName: string;
-    args: string; // JSON
-    gas: string;
-    deposit: string;
-    nonce: number;
-    blockHash: string; // base58
-  };
-}
+Keep implementation docs focused on:
+- Internal APIs and data structures
+- WASM worker protocols
+- IndexedDB schemas
+- HTTP message formats
+- Build system integration
+- Production configuration details
 
-interface TransactionSigningResponse {
-  type: 'TRANSACTION_SIGNING_SUCCESS' | 'TRANSACTION_SIGNING_ERROR';
-  payload: {
-    signedTransactionBorsh?: number[]; // Borsh bytes
-    error?: string;
-  };
-}
-```
+## Additional Resources
 
-## Implementation Best Practices
-
-### Registration Event Handling
-```typescript
-function handleRegistrationEvent(event: RegistrationSSEEvent) {
-  // Always handle progress for UX
-  if (event.status === 'progress') {
-    showProgressBar(calculateProgress(event.step));
-  }
-
-  // Enable login after step 2
-  if (event.step === 2 && event.status === 'success') {
-    enableUserLogin(event.username);
-  }
-
-  // Handle errors appropriately
-  if (event.status === 'error') {
-    if (event.step === 0 || event.step === 3) {
-      showFatalError(event.error); // Fatal errors
-    } else {
-      showWarning(`Step ${event.step} failed: ${event.error}`); // Non-fatal
-    }
-  }
-}
-```
-
-
-## Key Security Features
-
-1. **Private Key Isolation**: Ed25519 private keys never leave WASM worker context
-2. **PRF Encryption**: Keys encrypted using WebAuthn PRF extension output
-3. **Memory Protection**: Worker memory isolated from main thread
-4. **Type Safety**: Full TypeScript support prevents runtime errors
-
-## Architecture Overview
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Frontend UI   │    │   WASM Worker    │    │  NEAR Network   │
-│                 │    │                  │    │                 │
-│ • Registration  │◄──►│ • Key Generation │◄──►│ • Account Mgmt  │
-│ • Authentication│    │ • Transaction    │    │ • Contract Calls│
-│ • Progress UI   │    │   Signing        │    │ • State Updates │
-│                 │    │ • PRF Decryption │    │                 │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-## Development Workflow
-
-1. **Start** with [Registration Flow](./registration-flow.md) for system overview
-2. **Implement** registration with proper step 2 login enablement
-3. **Add** transaction signing using WASM worker architecture
-4. **Test** error handling for both registration and transactions
-5. **Monitor** performance and user experience metrics
+- **[Main README](../../README.md)** - Project overview and quick start
+- **[SDK Package README](../README.md)** - SDK installation and usage
+- **[Example Applications](../../examples/)** - Working integration examples
