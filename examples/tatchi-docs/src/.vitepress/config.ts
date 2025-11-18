@@ -63,7 +63,17 @@ export default defineConfig({
         items: [
           { text: 'Overview', link: '/docs/getting-started/overview' },
           { text: 'Installation', link: '/docs/getting-started/installation' },
-          { text: 'Next Steps', link: '/docs/getting-started/next-steps' },
+          {
+            text: 'Next Steps',
+            link: '/docs/getting-started/next-steps',
+            collapsed: false,
+            items: [
+              { text: 'Registration', link: '/docs/getting-started/next-steps#register-a-passkey' },
+              { text: 'Login', link: '/docs/getting-started/next-steps#login' },
+              { text: 'Send Transaction', link: '/docs/getting-started/next-steps#send-a-transaction' },
+            ]
+          },
+          { text: 'React Recipes', link: '/docs/getting-started/react-recipes' },
           {
             text: 'Other Frameworks',
             collapsed: true,
@@ -85,36 +95,51 @@ export default defineConfig({
             link: '/docs/concepts/',
             items: [
               { text: 'Design Goals', link: '/docs/concepts/#design-goals' },
-              { text: 'Architecture', link: '/docs/concepts/#architecture' },
-              { text: 'Deep Dive Topics', link: '/docs/concepts/#deep-dive-topics' },
+              { text: 'Security Model', link: '/docs/concepts/security-model' },
             ],
           },
-          { text: 'Security Model', link: '/docs/concepts/security-model' },
-          { text: 'VRF Webauthn Challenges', link: '/docs/concepts/vrf-challenges' },
-          { text: 'Shamir 3-Pass Protocol', link: '/docs/concepts/shamir-3pass' },
-          { text: 'Credential Scope (rpId)', link: '/docs/concepts/wallet-scoped-credentials' },
+          {
+            text: 'Architecture',
+            link: '/docs/concepts/architecture',
+            items: [
+              { text: 'Overview', link: '/docs/concepts/architecture#overview' },
+              {
+                text: 'Transaction Lifecycle',
+                link: '/docs/concepts/architecture#transaction-lifecycle',
+                collapsed: false,
+                items: [
+                  { text: 'Registration', link: '/docs/concepts/architecture#registration-flow' },
+                  { text: 'Login', link: '/docs/concepts/architecture#login-flow' },
+                  { text: 'Transaction', link: '/docs/concepts/architecture#transaction-flow' },
+                ]
+              },
+              { text: 'VRF Webauthn', link: '/docs/concepts/vrf-webauthn' },
+              { text: 'Credential Scoping', link: '/docs/concepts/credential-scope-rpid' },
+            ],
+          },
         ],
       },
       {
         text: 'Guides',
         collapsed: false,
         items: [
-          { text: 'Core Integration', items: [
-            { text: 'Passkeys (WebAuthn)', link: '/docs/guides/passkeys' },
-            { text: 'Wallet Iframe Integration', link: '/docs/guides/wallet-iframe' },
-            { text: 'Transaction Confirmation', link: '/docs/guides/tx-confirmation' },
-            { text: 'React Recipes', link: '/docs/guides/react-recipes' },
-            { text: 'Nonce Manager', link: '/docs/guides/nonce-manager' },
-          ]},
-          { text: 'Advanced Features', items: [
-            { text: 'Device Linking', link: '/docs/guides/device-linking' },
-            { text: 'Authentication Sessions', link: '/docs/guides/authentication-sessions' },
-            { text: 'Offline Key Export', link: '/docs/guides/offline-export' },
-          ]},
+          { text: 'Install and Wallet Setup', link: '/docs/guides/wallet-iframe-integration' },
+          { text: 'Progress Events', link: '/docs/guides/progress-events' },
+          { text: 'Sending Transactions', link: '/docs/guides/sending-transaction' },
+          { text: 'Advanced Features',
+            collapsed: false,
+            items: [
+              { text: 'Device Linking', link: '/docs/guides/device-linking' },
+              { text: 'Authentication Sessions', link: '/docs/guides/authentication-sessions' },
+              { text: 'Offline Key Export', link: '/docs/guides/offline-key-export' },
+              { text: 'Shamir 3-Pass Protocol', link: '/docs/guides/shamir-3-pass-protocol' },
+              { text: 'Nonce Manager', link: '/docs/guides/nonce-manager' },
+            ]
+          },
           { text: 'Deployment', items: [
             { text: 'Relay Server Deployment', link: '/docs/guides/relay-server-deployment' },
-            { text: 'Self-Hosting the Wallet SDK', link: '/docs/guides/selfhosting' },
-            { text: 'Cloudflare GitHub Actions', link: '/docs/guides/cloudflare-github-actions-setup' },
+            { text: 'Self-Hosting the Wallet SDK', link: '/docs/guides/self-hosting-the-wallet-sdk' },
+            { text: 'Cloudflare GitHub Actions', link: '/docs/guides/cloudflare-github-actions' },
           ]},
         ],
       },
@@ -128,6 +153,7 @@ export default defineConfig({
           { text: 'React Components', link: '/docs/api/react-components' },
           { text: 'Client', link: '/docs/api/client' },
           { text: 'Server', link: '/docs/api/server' },
+          { text: 'Web3Authn Contract', link: '/docs/api/web3authn-contract' },
         ],
       },
     ],

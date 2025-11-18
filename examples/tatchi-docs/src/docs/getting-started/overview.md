@@ -4,17 +4,36 @@ title: Overview
 
 # Overview
 
-Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [NEAR blockchain](https://github.com/near). Wallet keys are deterministically derived from passkeys, and users use biometrics to sign transaction in an isolated, cross‑origin wallet iframe.
+Tatchi is an embedded, serverless wallet SDK built on top of Passkeys and the [NEAR blockchain](https://github.com/near).
 
-Passkey (webauthn) authentications are performed directly with an onchain smart contract without the need for backend servers.
+- Wallet keys are deterministically derived from passkeys, and users use biometrics to sign transaction in an isolated, cross‑origin wallet iframe.
+- Passkey (webauthn) authentications are performed directly with an onchain smart contract without backend servers.
+
+You can get started here with the [installation instructions](./installation)
+
+::: code-group
+```bash [pnpm]
+pnpm add @tatchi-xyz/sdk
+```
+
+```bash [npm]
+npm i @tatchi-xyz/sdk
+```
+
+```bash [yarn]
+yarn add @tatchi-xyz/sdk
+```
+:::
+
+
 
 ## Why Tatchi?
 
-### Serverless and trustless by design.
-  - No auth/wallet backend to maintain for developers. WebAuthn and signing run in a hardened cross‑origin iframe which talks directly to the NEAR blockchain where the WebAuthn contract lives. No intermediaries or custodians  No MPC wallet‑as‑a‑service (e.g., Coinbase, Privy).
+### Serverless and trustless by design
+  - No auth/wallet backend to maintain for developers. WebAuthn and signing run in a hardened cross‑origin iframe which directly to the Webauthn contract on the NEAR blockchain. Neutral and 100% uptime.  No centralized wallet-as-service intermediaries or custodians like Coinbase, or Privy.
 
 ### Self‑custody via passkeys
-  - Keys are derived from WebAuthn registrations. Users never need to handle private keys or mnemonics. If you hold the passkey, you have the wallet.
+  - Keys are derived from WebAuthn registrations. Users never need to handle private keys or mnemonics. Holder of the passkey, is the custodian of the wallet.
   - Keys never leave the device; auth derives signing keys client‑side via PRF. No custodial servers required.
 
 ### Permissionless recovery and portability

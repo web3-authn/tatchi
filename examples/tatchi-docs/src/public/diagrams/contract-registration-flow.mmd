@@ -1,28 +1,40 @@
 sequenceDiagram
-    participant Client
-    participant WASM as WASM Worker
+    box Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as WASM Worker
+    end
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over Client: 1. Get NEAR block data for freshness
-    Client->>NEAR: 2. Get latest block (height + hash)
-    NEAR->>Client: 3. Block height + hash
-    Note over Client: 4. Generate VRF keypair and challenge (bootstrap)
-    Client->>WASM: 5. generateVrfKeypair(saveInMemory=true, vrfInputs)
-    WASM->>WASM: 6. Generate VRF keypair + persist in memory
-    WASM->>WASM: 7. Generate VRF challenge with domain separation
-    WASM->>Client: 8. VRF challenge data (keypair stored in memory)
-    Note over Client: 9. WebAuthn registration ceremony with VRF challenge
-    Client->>Client: 10. WebAuthn registration with PRF (TouchID)
-    Note over Client: 11. Encrypt VRF keypair with PRF output
-    Client->>WASM: 12. encryptVrfKeypairWithPrf(expectedPublicKey, prfOutput)
-    WASM->>WASM: 13. Verify public key matches stored keypair
-    WASM->>WASM: 14. Encrypt VRF keypair with AES-GCM + HKDF
-    WASM->>Client: 15. Encrypted VRF keypair for storage
-    Client->>Client: 16. Store encrypted VRF keypair in IndexedDB
-    Client->>Contract: 17. verify_registration_response(registration, vrf_proof, vrf_pubkey, vrf_input)
-    Contract->>Contract: 18. Verify VRF proof ✓
-    Contract->>Contract: 19. Extract challenge from VRF output
-    Contract->>Contract: 20. Verify WebAuthn registration ✓
-    Contract->>Contract: 21. Store VRF pubkey + authenticator on-chain
-    Contract->>Client: 22. Registration complete ✓
+    Note over Wallet,Worker: Phase 1: Bootstrap VRF Challenge
+    Wallet->>NEAR: 1. Get latest block (height + hash)
+    NEAR->>Wallet: 2. Block data (height + hash)
+    Wallet->>Worker: 3. generateVrfKeypairBootstrap()
+    Worker->>Worker: 4. Generate bootstrap VRF keypair (temporary)
+    Worker->>Worker: 5. Generate VRF proof + output (challenge)
+    Worker->>Wallet: 6. VRF challenge for WebAuthn ceremony
+
+    Note over Wallet,Worker: Phase 2: WebAuthn Registration with Dual PRF
+    Wallet->>Wallet: 7. WebAuthn registration (TouchID prompt)
+    Note over Wallet: PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
+
+    Note over Wallet,Worker: Phase 3: Derive Deterministic Keys from PRF
+    Wallet->>Worker: 8. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
+    Worker->>Worker: 9. Derive deterministic VRF keypair from PRF
+    Worker->>Worker: 10. Encrypt deterministic VRF with ChaCha20-Poly1305
+    Worker->>Wallet: 11. Encrypted deterministic VRF keypair
+
+    Wallet->>Worker: 12. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
+    Worker->>Worker: 13. Derive NEAR ed25519 keypair from PRF
+    Worker->>Worker: 14. Encrypt NEAR keypair with ChaCha20-Poly1305
+    Worker->>Wallet: 15. NEAR public key + encrypted keypair
+
+    Note over Wallet,Contract: Phase 4: Contract Registration
+    Wallet->>Contract: 16. verify_registration_response()
+    Contract->>Contract: 17. Registration verified, authenticator stored onchain ✓
+    Contract->>Wallet: 18. Registration complete (txId)
+
+    Note over Wallet,Worker: Phase 5: Client-side Storage
+    Wallet->>Wallet: 19. Store encrypted deterministic VRF in IndexedDB
+    Wallet->>Wallet: 20. Store encrypted NEAR keypair in IndexedDB
+    Wallet->>Wallet: 21. Registration complete ✓

@@ -65,7 +65,7 @@ export default defineConfig(({ mode }) => {
 These plugins add the right headers that allow your app to access
 the wallet origin which serves the wallet SDK from a secure iframe.
 
-You may also choose to self-host the wallet SDK (more on this later in the  [selfhosting](../guides/selfhosting.md) section).
+You may also choose to self-host the wallet SDK (more on this later in the  [selfhosting](../guides/self-hosting-the-wallet-sdk.md) section).
 
 
 ## 3. Enable HTTPS (Caddy setup)

@@ -160,5 +160,5 @@ await passkeyManager.logout()
 ## See Also
 
 - [Relay Server Deployment](./relay-server-deployment.md) - Deploy relay with session support
-- [VRF Challenges](../concepts/vrf-challenges.md) - How VRF-backed auth works
-- [Passkeys](./passkeys.md) - Login flows and Shamir 3-pass
+- [VRF Challenges](../concepts/vrf-webauthn.md) - How VRF-backed auth works
+- [Registration & Login Progress Events](./progress-events.md) - WebAuthn flows and Shamir 3-pass progress events

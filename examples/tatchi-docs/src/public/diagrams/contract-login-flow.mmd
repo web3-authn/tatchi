@@ -1,17 +1,39 @@
 sequenceDiagram
-    participant Client
-    participant WebWorker as VRF Web Worker
+    box Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
 
-    Note over Client: Login Flow: Unlock VRF Keypair
-    Note over Client: 1. User initiates login session
-    Note over Client: 2. WebAuthn authentication with PRF (TouchID #1)
-    Note over Client: 3. Derive AES key from PRF output
-    Client->>Client: 4. Retrieve encrypted VRF keypair from IndexedDB
-    Client->>WebWorker: 5. Initialize VRF Web Worker
-    WebWorker->>WebWorker: 6. Load VRF WASM module
-    Client->>WebWorker: 7. Send unlock request with PRF key + encrypted data
-    WebWorker->>WebWorker: 8. Decrypt VRF keypair with derived AES key
-    WebWorker->>WebWorker: 9. VRF keypair loaded into WASM memory
-    WebWorker->>Client: 10. VRF session active confirmation
-    Note over WebWorker: VRF keypair ready for challenge generation
-    Note over Client: Session active - no more TouchID needed for challenges
+    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
+    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
+
+    Note over Wallet,Relay: Phase 2: VRF Unlock (Two Options)
+
+    alt Option A: Shamir 3-Pass Unlock (No TouchID)
+        Wallet->>Relay: 2a. Request Shamir 3-pass decrypt
+        Relay->>Wallet: Server KEK component
+        Wallet->>Worker: 3a. Decrypt VRF with combined KEK
+        Worker->>Worker: 4a. VRF keypair loaded into memory
+        Worker->>Wallet: 5a. VRF session active ✓
+        Note over Wallet: No biometric prompt required
+    else Option B: WebAuthn Unlock (TouchID Fallback)
+        Wallet->>Wallet: 2b. WebAuthn authentication (TouchID prompt)
+        Note over Wallet: PRF extension returns chacha20 output
+        Wallet->>Worker: 3b. Decrypt VRF with PRF output
+        Worker->>Worker: 4b. VRF keypair loaded into memory
+        Worker->>Wallet: 5b. VRF session active ✓
+        Note over Wallet,Relay: Optional: Refresh Shamir encryption
+        Wallet->>Relay: 6b. Store new server-encrypted VRF
+    end
+
+    Note over Wallet,Relay: Phase 3: Optional JWT Session
+    opt Mint JWT for web2 auth
+        Wallet->>Worker: 7. Generate fresh VRF challenge
+        Worker->>Wallet: VRF challenge + proof
+        Wallet->>Wallet: 8. WebAuthn authentication (TouchID prompt)
+        Wallet->>Relay: 9. Verify authentication + VRF proof
+        Relay->>Wallet: 10. JWT token
+    end
+
+    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges

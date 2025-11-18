@@ -10,19 +10,14 @@ Every WebAuthn credential is bound to a **relying party ID (rpId)**. This single
 - Whether passkeys work across subdomains
 - Whether one passkey can serve multiple apps
 
-Choose carefully—changing `rpId` later requires migrating all existing credentials.
-
-## What is rpId?
-
-The `rpId` is a registrable domain name without scheme or port. Examples:
+Examples include:
 
 - `example.com` (covers all `*.example.com` subdomains)
-- `wallet.example.com` (covers only this specific subdomain)
+- `wallet.tatchi.xyz` (covers only this specific subdomain)
 - `web3authn.org` (different domain entirely)
 
-The browser checks that WebAuthn calls come from a page whose origin matches the `rpId`. If they don't match, the call fails.
+The browser checks that WebAuthn calls come from a page whose origin host is compatible with the `rpId` (the `rpId` must equal, or be a registrable suffix of, that host). If they don't line up, the call fails.
 
-## The two strategies
 
 The SDK supports two main patterns:
 
@@ -30,21 +25,20 @@ The SDK supports two main patterns:
 
 **`rpId = <wallet domain>`**
 
-One wallet credential can be reused across many apps that embed that wallet.
+One wallet credential can be reused across many apps that embed that wallet. In this pattern the app origin and wallet origin normally differ (for example, an app at `https://hosted.tatchi.xyz` embedding a wallet at `https://web3authn.org`).
 
-Example: `rpId = "wallet.example.com"`
+Example: `rpId = "web3authn.org"`
 
 **When to choose this:**
 
 - You run a shared wallet service across many apps
-- Users should see one "Tatchi wallet" passkey in their browser
-- You want a clear trust boundary: "trust the wallet origin"
+- Users should see a wallet passkey in their browser with rpId: `web3authn.org`
 
 ### 2. App-scoped credentials
 
 **`rpId = <app base domain>`**
 
-Credentials belong to your product's domain and work across its subdomains.
+Credentials belong to your product's domain and work across its subdomains. In this pattern the app origin is a registrable suffix of the wallet origin (for example, a wallet at `https://wallet.example.com` and an app at `https://example.com` both share `example.com` as the `rpId`).
 
 Example: `rpId = "example.com"`
 
@@ -56,35 +50,27 @@ Example: `rpId = "example.com"`
 
 Both strategies are secure. The difference is *reusability* and *browser compatibility*.
 
----
 
 ## Option A: Wallet-scoped credentials
 
-### The setup
-
 Use the wallet domain as `rpId`:
-
 ```tsx
 <PasskeyProvider
   config={{
     iframeWallet: {
-      walletOrigin: 'https://wallet.example.com',
-      rpIdOverride: 'wallet.example.com',  // ← Wallet-scoped
+      walletOrigin: 'https://wallet.tatchi.xyz',
+      rpIdOverride: 'wallet.tatchi.xyz',  // ← Wallet-scoped
     }
   }}
 >
 ```
-
-### How it works
-
-The wallet iframe calls WebAuthn with `rpId = "wallet.example.com"`. The browser compares:
+The wallet iframe calls WebAuthn with `rpId = "wallet.tatchi.xyz"`. The browser compares:
 
 ```
-claimed rpId: "wallet.example.com"
-iframe origin: "wallet.example.com"
+claimed rpId: "wallet.tatchi.xyz"
+iframe origin: "wallet.tatchi.xyz"
 → Match! WebAuthn allowed.
 ```
-
 Any app that embeds this iframe can reuse the same credential, as long as it delegates WebAuthn via Permissions-Policy.
 
 ### Pros
@@ -97,95 +83,19 @@ Any app that embeds this iframe can reuse the same credential, as long as it del
 
 **Safari iframe limitations:**
 
-Safari often blocks WebAuthn in cross-origin iframes. The SDK includes a top-level bridge as a fallback:
-
-1. The wallet detects the iframe error
-2. It asks the parent page to call WebAuthn instead
-3. The parent calls WebAuthn with `rpId = "wallet.example.com"`
-
-But when the top-level origin differs from `rpId`, you must configure **Related Origin Requests (ROR)**.
-
-**Related Origin Requests (ROR):**
-
-The wallet domain must serve `/.well-known/webauthn` listing allowed top-level origins:
-
+Safari often blocks WebAuthn in cross-origin iframes, so the SDK falls back to requesting TouchID in the app origin causing the rpID to differ from the wallet origins. For Safari, this requires the app to be whitelisted (Related Origin Requests (ROR)) in the wallet domain's `/.well-known/webauthn` endpoint:
 ```json
 {
   "origins": [
-    "https://app.example.com",
-    "https://another-app.example.com"
+    "https://wallet.tatchi.com",
+    "https://web3authn.org",
+    "https://example.your-app.com"
   ]
 }
 ```
 
-This tells the browser: "It's okay for these origins to use credentials with my `rpId`."
+The Wallet SDK automatically looks up the Web3Authn contracts `get_allowed_origins` endpoint and returns whitelisted origins, so every wallet deployment can call `set_allowed_origins` on the onchain Web3Authn contract and be added to the whitelist (or self-deploy their own wallet contracts).
 
-**Browser support:**
-
-- Chrome/Edge: Full support
-- Safari: Requires ROR for top-level bridge
-- Firefox: Limited ROR support (may need fallback)
-
-### Configuration example
-
-**1. Set rpId in SDK config:**
-
-```tsx
-iframeWallet: {
-  walletOrigin: 'https://wallet.example.com',
-  rpIdOverride: 'wallet.example.com',
-}
-```
-
-**2. Serve ROR manifest at wallet origin:**
-
-```
-https://wallet.example.com/.well-known/webauthn
-```
-
-```json
-{
-  "origins": [
-    "https://app.example.com",
-    "https://another-app.example.com"
-  ]
-}
-```
-
-**3. Delegate WebAuthn in parent page:**
-
-```text
-Permissions-Policy:
-  publickey-credentials-get=(self "https://wallet.example.com"),
-  publickey-credentials-create=(self "https://wallet.example.com")
-```
-
-The SDK's Vite plugin can generate this header automatically:
-
-```ts
-import { tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
-
-plugins: [
-  tatchiBuildHeaders({ walletOrigin: 'https://wallet.example.com' })
-]
-```
-
-### When you DON'T need ROR
-
-If WebAuthn runs **inside the iframe** (not using the top-level bridge), you don't need ROR. The browser checks:
-
-```
-claimed rpId: "wallet.example.com"
-iframe origin: "wallet.example.com"
-→ Match! No ROR needed.
-```
-
-You only need ROR when:
-
-- A **top-level page** calls WebAuthn, and
-- The top-level origin is **different** from the `rpId`
-
-This primarily supports Safari's top-level bridge mode.
 
 ### Shared wallet across unrelated domains
 
@@ -203,13 +113,10 @@ No allowlist needed! Any site can embed the wallet. Security relies on:
 
 **Key takeaway:** Wallet-scoped gives maximum reusability but requires careful ROR configuration for Safari.
 
----
 
 ## Option B: App-scoped credentials
 
-### The setup
-
-Use your app's base domain as `rpId`:
+You can use your app's base domain as `rpId` when the wallet also lives under that base domain:
 
 ```tsx
 <PasskeyProvider
@@ -224,17 +131,25 @@ Use your app's base domain as `rpId`:
 
 ### How it works
 
-Both your app and wallet are under `example.com`:
+Both your app and wallet share the same registrable suffix:
 
 - App: `https://app.example.com`
 - Wallet: `https://wallet.example.com`
 
-The browser checks:
+The browser checks (for iframe-origin WebAuthn):
 
 ```
 claimed rpId: "example.com"
-iframe origin: "wallet.example.com"
-→ "wallet.example.com" is under "example.com" → allowed
+iframe origin host: "wallet.example.com"
+→ "example.com" is a registrable suffix of "wallet.example.com" → allowed
+```
+
+When the Safari top-level bridge runs WebAuthn at the app origin:
+
+```
+claimed rpId: "example.com"
+top-level origin host: "app.example.com"
+→ "example.com" is a registrable suffix of "app.example.com" → allowed
 ```
 
 Credentials work across all `*.example.com` subdomains.
@@ -325,7 +240,7 @@ Set `rpIdOverride` in your production config and commit it:
 // config/production.ts
 export const config = {
   iframeWallet: {
-    walletOrigin: 'https://wallet.example.com',
+    walletOrigin: 'https://wallet.tatchi.xyz',
     rpIdOverride: 'example.com',  // Locked in
   }
 }
@@ -338,7 +253,7 @@ This is simplest and avoids surprises.
 In staging, you can toggle between strategies:
 
 ```tsx
-const rpId = searchParams.get('rpId') || 'wallet.example.com'
+const rpId = searchParams.get('rpId') || 'wallet.tatchi.xyz'
 
 <PasskeyProvider config={{
   iframeWallet: { rpIdOverride: rpId }
@@ -447,7 +362,7 @@ Before production, test in all target browsers:
 **1. Check ROR manifest:**
 
 ```bash
-curl https://wallet.example.com/.well-known/webauthn
+curl https://wallet.tatchi.xyz/.well-known/webauthn
 ```
 
 Should return valid JSON with your allowed origins.
@@ -457,7 +372,7 @@ Should return valid JSON with your allowed origins.
 Open DevTools → Network → Select your page → Check response headers:
 
 ```
-Permissions-Policy: publickey-credentials-get=(self "https://wallet.example.com")
+Permissions-Policy: publickey-credentials-get=(self "https://wallet.tatchi.xyz")
 ```
 
 **3. Check iframe attributes:**
@@ -467,7 +382,7 @@ Inspect the wallet iframe element:
 ```html
 <iframe
   allow="publickey-credentials-get; publickey-credentials-create"
-  src="https://wallet.example.com/wallet-service"
+  src="https://wallet.tatchi.xyz/wallet-service"
 >
 ```
 
@@ -491,7 +406,7 @@ Verify the passkey appears with the expected `rpId`.
 
 **Fix:**
 
-1. Add header: `Permissions-Policy: publickey-credentials-get=(self "https://wallet.example.com")`
+1. Add header: `Permissions-Policy: publickey-credentials-get=(self "https://wallet.tatchi.xyz")`
 2. Ensure iframe has: `allow="publickey-credentials-get; publickey-credentials-create"`
 3. Check the SDK's Vite plugin is enabled
 
@@ -554,6 +469,6 @@ Once you choose an `rpId` and register passkeys, changing it later is a migratio
 
 ## Next steps
 
-- Learn about [VRF-backed challenges](/docs/concepts/vrf-challenges)
-- Understand the [wallet iframe architecture](/docs/concepts/wallet-iframe-architecture)
+- Learn about [VRF-backed challenges](/docs/concepts/vrf-webauthn)
+- Understand the [architecture and iframe isolation model](/docs/concepts/architecture)
 - Review the [security model](/docs/concepts/security-model)

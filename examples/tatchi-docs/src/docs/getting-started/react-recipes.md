@@ -6,6 +6,9 @@ title: React Recipes
 
 These examples assume you’ve already wrapped your app in `TatchiPasskeyProvider` as shown in the [installation](../getting-started/installation.md) guide.
 
+The SDK provides pre-built React components which hooks up a lot of the functionality
+exposed by the `TatchiPasskeyManager`.
+
 ```tsx
 import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
 
