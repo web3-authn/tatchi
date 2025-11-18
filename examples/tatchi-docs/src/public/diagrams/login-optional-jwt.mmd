@@ -1,0 +1,13 @@
+sequenceDiagram
+    box Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
+
+    Note over Wallet,Relay: Optional JWT Session (After VRF Unlock)
+    Wallet->>Worker: 1. Generate fresh VRF challenge
+    Worker->>Wallet: VRF challenge + proof
+    Wallet->>Wallet: 2. WebAuthn authentication (TouchID prompt)
+    Wallet->>Relay: 3. Verify authentication + VRF proof
+    Relay->>Wallet: 4. JWT token

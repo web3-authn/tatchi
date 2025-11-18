@@ -43,7 +43,7 @@ const kek_c = clientBlind(kek)
 POST /vrf/apply-server-lock
 { "kek_c_b64u": base64url(kek_c) }
 
-’ { "kek_cs_b64u": base64url(kek_cs), "keyId": "..." }
+ï¿½ { "kek_cs_b64u": base64url(kek_cs), "keyId": "..." }
 ```
 
 **4. Remove client blind**
@@ -84,7 +84,7 @@ const kek_st = addClientLock(kek_s)
 POST /vrf/remove-server-lock
 { "kek_st_b64u": base64url(kek_st), "keyId": serverKeyId }
 
-’ { "kek_t_b64u": base64url(kek_t) }
+ï¿½ { "kek_t_b64u": base64url(kek_t) }
 ```
 
 **4. Remove client lock to recover KEK**
@@ -133,5 +133,5 @@ The SDK handles rotation transparently:
 
 ## Related
 
-- [VRF Challenges](vrf-challenges) - Learn how VRF keypairs are used for challenge construction
-- [Security Model](security-model) - Understand the broader security architecture
+- [VRF Challenges](../concepts/vrf-webauthn.md) - Learn how VRF keypairs are used for challenge construction
+- [Security Model](../concepts/security-model.md) - Understand the broader security architecture

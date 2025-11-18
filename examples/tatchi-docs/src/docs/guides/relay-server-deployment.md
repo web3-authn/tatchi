@@ -6,6 +6,9 @@ title: Relay Server Deployment
 
 The relay server is an optional backend service that enables account creation, improves login UX, and manages key rotation. This guide covers deployment to both Node.js/Express and Cloudflare Workers.
 
+**Note**: NEAR does require a relay server for registering new accounts (requires gas for writing the authenticator onchain), but after registration the wallet is truly serverless and non-custodial. Relay servers can be setup by anyone.
+
+
 ## When You Need a Relay Server
 
 The relay server handles three main responsibilities:
@@ -575,5 +578,5 @@ wrangler tail --status error
 
 - **Configure the SDK**: Point your client at the relay URL
 - **Set up monitoring**: Track account creation rate, error rates, key rotation events
-- **Configure CI/CD**: See [Cloudflare + GitHub Actions](/docs/guides/cloudflare-github-actions-setup) for automated deployments
+- **Configure CI/CD**: See [Cloudflare + GitHub Actions](/docs/guides/cloudflare-github-actions) for automated deployments
 - **Review security**: Read the [Security Model](/docs/concepts/security-model) to understand the full architecture

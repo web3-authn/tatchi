@@ -8,7 +8,7 @@ Now that you've got the SDK installed, let's walk through the core flow: registe
 
 The simplest way to get started is with a single component that registers a passkey-backed account:
 
-## 1. Register a passkey
+## Register a Passkey Wallet
 
 ```tsx
 import { useTatchi } from '@tatchi-xyz/sdk/react'
@@ -40,9 +40,9 @@ function Registration() {
 
 Behind the scenes, this triggers a WebAuthn registration, derives a deterministic NEAR keypair from the credential, and stores everything you need in IndexedDB (the WebAuthn credential ID, NEAR public key, and encrypted VRF keypair). If you've configured a relay, it'll also store server-encrypted VRF material for smoother future logins.
 
-## 2. Login
+## Login
 
-Once you've registered at least one account, you can retrieve recent logins and let users authenticate:
+Once you've registered an account, you can retrieve recent logins and let users authenticate:
 
 ```tsx
 import { useState, useEffect } from 'react'
@@ -75,7 +75,9 @@ function Login() {
 
 When you call `loginPasskey()`, the SDK establishes a VRF session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
 
-## 3. Send a transaction
+## Send a transaction
+
+Once logged in (VRF key is unlocked) you can call `executeAction()` which takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
 
 ```tsx
 import { useState } from 'react'
@@ -123,7 +125,6 @@ function Transactions() {
 }
 ```
 
-The `executeAction()` call takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
 You can set `confirmationConfig: { behavior: 'requireClick' | 'autoProceed' }` to  either force explicit user confirmation in the wallet UI or skip it.
 
 The `onEvent()` callback streams progress events (authentication, signing, broadcasting, completion) that you can use to update your UI or handle errors.
@@ -145,8 +146,8 @@ When you're done, call `logoutAndClearVrfSession()` to clear the in-memory VRF k
 ## Next steps
 
 - Setting up other frameworks (Next.js, Vue, Svelte, Express): [Using other frameworks](./other-frameworks.md)
-- [React Recipes](../guides/react-recipes.md): convenience components for registration, login, and managing accounts.
+- [React Recipes](/docs/getting-started/react-recipes): convenience components for registration, login, and managing accounts.
 - [API Reference](../api/index.md): export keys, recover accounts, link devices, batch sign/send
-- [Concepts](../concepts/index.md): security model, VRF/PRF, wallet iframe architecture
-  - [Wallet iframe architecture](../concepts/wallet-iframe-architecture)
-  - [VRF challenges](../concepts/vrf-challenges)
+- [Concepts](../concepts/index.md): security model, VRF/PRF, architecture
+  - [Architecture](../concepts/architecture.md)
+  - [VRF challenges](../concepts/vrf-webauthn.md)

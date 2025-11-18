@@ -1,0 +1,20 @@
+sequenceDiagram
+    box Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
+
+    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
+    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
+
+    Note over Wallet,Relay: Phase 2: WebAuthn Unlock (TouchID Fallback)
+    Wallet->>Wallet: 2. WebAuthn authentication (TouchID prompt)
+    Note over Wallet: PRF extension returns chacha20 output
+    Wallet->>Worker: 3. Decrypt VRF with PRF output
+    Worker->>Worker: 4. VRF keypair loaded into memory
+    Worker->>Wallet: 5. VRF session active ✓
+    Note over Wallet,Relay: Optional: Refresh Shamir encryption
+    Wallet->>Relay: 6. Store new server-encrypted VRF
+
+    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges
