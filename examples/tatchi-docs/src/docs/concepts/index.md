@@ -4,19 +4,13 @@ title: Concepts
 
 # Concepts
 
-Web3Authn architecture, security model, and cryptographic foundations are outlined here.
+Web3Authn architecture, design goals, and security model are outlined here.
 
 - [Design Goals](#design-goals)
-- [Security Model](./security-model)
 - [Architecture](./architecture)
+- [Security Model](./security-model)
 
 ## Design Goals
-
-::: tip To excel in two areas:
-1. Protecting the user from the wallet developer being hacked or malicious, and
-2. Protecting the user from their own mistakes.
-:::
-
 
 ### Minimal Reliance on Servers or Intermediaries
 

@@ -2,227 +2,164 @@
 title: VRF Webauthn
 ---
 
-
 # VRF Webauthn
 
-The Web3Authn contract uses **verifiable random function (VRF)* based challeges, enabling stateless and serverless Webauthn authentication with an onchain contract, instead of requiring a server.
+The Web3Authn contract uses **verifiable random function (VRF)** based challenges, enabling stateless and serverless WebAuthn authentication with an onchain contract.
 
-Traditionally, a webauthn server would need be required. The client would request the challenge, sign it as part of the webauthn authentication and return the payload to the server in order to prevent replay attacks and ensure user presence.
-
-Instead, we use VRFs to generate the webauthn challenge client-side, bind fresh blockchain data to ensure freshness and prevent replay attacks in the challenge, and verify both the VRF output matches the VRF public key stored onchain, and the webauthn authentication.
+- **Traditional WebAuthn** requires a server to generate challenges, verify signatures, and maintain session state.
+- **In Web3Authn** we use VRFs to generate challenges client-side, bind fresh blockchain data for freshness and to verify user presence, and verify both the VRF proof and WebAuthn signature onchain before unlocking wallet keys for transaction signing.
 
 
 ## VRF Challenge Construction
 
-Challenges bind fresh blockchain data with user identity:
+VRF challenges bind fresh blockchain data with user identity to prevent replay attacks. The client-side VRF worker constructs the challenge input by concatenating and hashing these fields:
 
 | Field | Purpose | Source |
 |-------|---------|--------|
 | `domain_separator` | Prevents cross-protocol collisions | Fixed constant (`"web3_authn_challenge_v3"`) |
-| `user_id` | Binds challenge to user identity | Client session |
-| `relying_party_id` | Binds to origin (e.g., `"example.com"`) | Client config |
+| `user_id` | Binds challenge to user identity | Client (NEAR account ID) |
+| `relying_party_id` | Binds to origin (e.g., `"example.com"`) | Client config (wallet origin) |
 | `block_height` | Ensures freshness and replay protection | NEAR RPC |
 | `block_hash` | Prevents reuse across forks/reorgs | NEAR RPC |
 
+These fields are concatenated and SHA-256 hashed client-side, then the VRF proof is generated from the hash. The contract receives:
+
+```rust
+pub struct VRFInputComponents {
+    pub account_id: String,            // User account for binding
+    pub block_height: u64,             // NEAR block height for freshness
+    pub challenge_data: Vec<u8>,       // SHA-256 hash of concatenated fields
+    pub expiration_block: Option<u64>, // Optional expiration
+}
+```
+
 **VRF security properties:**
-- Unpredictable outputs (indistinguishable from random)
-- Verifiable proofs (anyone can verify with public key)
-- Deterministic (same input → same output)
-- Non-malleable (requires private key to forge)
-- Block-bound freshness (challenges expire with old blocks)
-- Account-bound (VRF public keys tied to NEAR accounts)
+- **Unpredictable** - VRF outputs indistinguishable from random
+- **Verifiable** - Anyone can verify the challenge came from the user's public key
+- **Non-malleable** - Requires private key to generate valid proofs
+- **Fresh** - Blockheight and blockhash bound challenges expire rapidly, preventing replay attacks
+- **Account-scoped** - VRF public keys are tied to NEAR accounts onchain
 
-Together, these enable:
+### Meeting WebAuthn Challenge Freshness Requirements
 
-- Deterministic key derivation bound to origins
-- Fresh, verifiable challenges tied to blockchain state
-- Session-like UX without sacrificing security
+Traditional WebAuthn requires the relying party server to generate unique challenges, store them server-side, and validate them within a timeout window to prevent replay attacks. VRF challenges meet these requirements through cryptographic verification and blockchain state, eliminating the need for server-side storage:
 
+**Challenge Uniqueness**
+- Traditional: Server generates cryptographically random nonce for each request
+- VRF: Combines `user_id` + `rp_id` + `block_height` + `block_hash` to ensure each challenge is unique. VRF output appears random but is deterministically derived from these inputs.
 
-## WebAuthn PRF: Deriving NEAR keys
+**Time-Limited Validity**
+- Traditional: Server sets timeout and rejects expired challenges
+- VRF: `MAX_BLOCK_AGE` window (defaults to 100 blocks ≈ 60 seconds with 600ms NEAR block times) enforces temporal freshness. Challenges older than MAX_BLOCK_AGE are rejected on-chain.
 
-The wallet combines PRF output with an account-specific salt:
+**Stateless Verification**
+- Traditional: Server validates signed challenge matches the stored one
+- VRF: Contract verifies the VRF proof cryptographically proves the challenge was generated correctly from the claimed input. No storage required.
 
-```
-PRF output + account salt → NEAR keypair (deterministic)
-```
+**Replay Attack Prevention**
+- Traditional: Server marks used challenges to prevent reuse
+- VRF: Combination of block height freshness and user/origin-specific inputs prevents replay. An attacker cannot reuse a signed challenge because:
+  - The block height becomes stale (older than MAX_BLOCK_AGE blocks)
+  - The challenge is bound to specific user account and blockchain state
+  - The VRF proof cryptographically links the challenge to that exact input (user_id + rp_id + block data)
 
-This makes key derivation:
+### Replay Attack Window and Mitigation
 
-- Deterministic for a given account + credential
-- Different across accounts (via the salt)
-- Bound to the origin (via the `rpId`)
+**The Time Window:** An attacker who intercepts a valid VRF proof + WebAuthn signature has a narrow window (up to 60 seconds) where the authentication remains valid on-chain. Within this window, they could theoretically replay the authentication (note this is the Webauthn authentication, not the NEAR transactions which have nonces + replay protection).
 
-**Encrypting keys at rest:**
+1. **NEAR Transaction Nonces** - NEAR blockchain has accounts nonces tied to the account's access key. Even if an attacker replays a valid WebAuthn authentication, they cannot replay the same transaction.
 
-PRF output is fed into a key derivation function (like HKDF):
+2. **Transaction Binding** For additional security, the VRF challenge could include a transaction digest hash, preventing an attacker from substituting different transaction actions while reusing the same authentication.
 
-```
-PRF output → KDF → encryption keys
-```
+3. **Include NEAR nonce in VRF challenges** - Alternatively we could include the NEAR nonce in the VRF challenge and make it cryptographically binding, however this requirements nonce synchronization and makes it a bit more difficult to sign concurrent webauthn actions with little extra benefits
 
-These keys encrypt private keys before storing them in IndexedDB.
-
-**Security properties:**
-
-- PRF output never leaves the wallet origin
-- Your app never sees it
-- Relay servers never see it
-- It's only available via WebAuthn ceremonies
-
-**Key takeaway:** PRF gives us deterministic, origin-bound key material without managing passwords or separate key storage.
+### Summary
+VRF challenges provide equivalent security to traditional WebAuthn challenge freshness, but verified on-chain without requiring server-side state or challenge storage.
 
 
-## VRF-backed WebAuthn challenges
+## WebAuthn Contract Verification
 
-### Challenge input components
+During transaction signing, the VRF worker generates a challenge and the user approves with biometric authentication:
 
-| Field | Purpose |
-|-------|---------|
-| **Domain separator** | Prevents cross-protocol reuse |
-| **User ID** | Binds challenge to a specific user |
-| **Session ID** | Keeps challenges unique per browser session |
-| **Relying party ID** | Pins challenge to expected origin |
-| **Block height + hash** | Provides freshness and fork protection |
-| **Timestamp** | Supports audit logs and expiry logic |
+**1. Generate VRF challenge**
 
-All fields are concatenated and hashed before being passed to the VRF.
-
-### Flow in detail
-
-**1. Build the input**
+The WASM worker builds the VRF input from blockchain state and session data, then generates a verifiable challenge:
 
 ```ts
-const input = concat(
-  DOMAIN_SEPARATOR,
-  userId,
-  sessionId,
-  rpId,
-  blockHeight,
-  blockHash,
-  timestamp
-)
-const inputHash = sha256(input)
+const challengeData = await vrfWorker.generate_vrf_challenge({
+  user_id: userId,
+  rp_id: rpId,
+  block_height: blockHeight,
+  block_hash: blockHash
+})
+// Returns: { vrf_output, vrf_proof, vrf_input, vrf_public_key, ... }
 ```
 
-**2. Generate VRF output and proof**
+**2. WebAuthn authentication**
+
+The VRF output is used as the WebAuthn challenge, binding the VRF proof to the biometric signature:
 
 ```ts
-const { output, proof } = vrfWorker.evaluate(inputHash)
-```
-
-**3. Use output as WebAuthn challenge**
-
-```ts
-const credential = await navigator.credentials.create({
+const credential = await navigator.credentials.get({
   publicKey: {
-    challenge: output,  // VRF output
+    challenge: challengeData.vrf_output,  // VRF output as challenge
     // ... other options
   }
 })
 ```
 
-**4. Send proof to contract**
+**3. Submit to WebAuthn Contract for verification**
 
-When submitting the transaction:
-
-```ts
-contract.verify_and_execute({
-  vrf_input: input,
-  vrf_proof: proof,
-  webauthn_response: credential.response,
-  // ...
-})
-```
-
-**5. Contract verification**
-
-```ts
-contract.verify_and_execute({
-  vrf_input: input,
-  vrf_proof: proof,
-  webauthn_response: credential.response,
-  // ...
-})
-```
-
-## Web3Authn Contract Verification
-
-The Web3Authn contract performs atomic verification of both VRF proofs and WebAuthn signatures before executing any transaction.
-
-### What the Contract Verifies
-
-**1. VRF Proof Verification**
-- Verifies the VRF proof against the user's VRF public key stored on-chain
-- Computes the VRF output from the proof and input
-- Ensures the proof was generated by the correct private key
-
-**2. WebAuthn P256 Signature Verification**
-- Verifies the ECDSA P256 signature in the WebAuthn response
-- Validates against the passkey's public key stored on-chain
-- Confirms the signature covers the VRF output (used as challenge)
-
-**3. Challenge Binding**
-- Ensures the WebAuthn challenge equals the VRF output
-- This binds the WebAuthn authentication to the VRF-generated challenge
-- Prevents challenge substitution attacks
-
-**4. Freshness Check**
-- Validates the block height in the VRF input is recent (within MAX_AGE blocks)
-- Prevents replay attacks using old challenges
+The transaction includes both the VRF proof and WebAuthn signature for atomic onchain verification:
 
 ```rust
-// Simplified contract logic
-fn verify_and_execute(input, proof, webauthn_response) {
-    // 1. Verify VRF proof → extract output
-    let vrf_output = vrf_verify(user_vrf_pubkey, input, proof)?;
+// Contract method signature
+pub fn verify_authentication_response(
+    &self,
+    vrf_data: VRFVerificationData,
+    webauthn_authentication: WebAuthnAuthenticationCredential,
+) -> VerifiedAuthenticationResponse
+```
 
-    // 2. Check freshness
-    assert!(input.block_height >= env::block_height() - MAX_AGE);
+See the [Web3Authn contract section](../api/web3authn-contract.md) for implementation details.
 
-    // 3. Verify WebAuthn signature with VRF output as challenge
+The WASM signer worker waits for the Web3Authn contract verification of both the VRF proof and WebAuthn signature, before signing any transactions:
+
+```rust
+// Simplified verification flow
+fn verify_authentication_response(vrf_data, webauthn_authentication) {
+    // 1. Verify VRF proof against stored public key
+    let vrf_output = vrf_verify(user_vrf_pubkey, vrf_data.input, vrf_data.proof)?;
+
+    // 2. Check freshness (block height within MAX_BLOCK_AGE, default 100 blocks ≈ 60s)
+    assert!(vrf_data.block_height >= env::block_height() - MAX_BLOCK_AGE);
+
+    // 3. Verify WebAuthn P256 signature against stored passkey
     verify_webauthn_signature(
         passkey_pubkey,
-        webauthn_response,
+        webauthn_authentication,
         vrf_output  // Challenge must match VRF output
     )?;
 
-    // 4. Execute transaction
-    execute(...);
+    // 4. Return verified response
 }
 ```
 
-**Security guarantees:**
-- **Dual verification**: Both VRF and WebAuthn must pass atomically
-- **Challenge binding**: VRF output cryptographically linked to WebAuthn response
-- **Freshness**: Block-bound challenges prevent replay attacks
-- **On-chain state**: Public keys stored immutably on-chain
-- **No server required**: All verification happens on-chain
+**The contract verifies:**
 
+1. **VRF Proof** - Verifies the proof matches the user's VRF public key stored on-chain, confirming the challenge was generated by the correct private key
+2. **Challenge Binding** - Ensures the WebAuthn challenge equals the VRF output, preventing challenge substitution attacks
+3. **Freshness** - Validates block height is recent (within MAX_BLOCK_AGE blocks, defaults to 100 blocks ≈ 60 seconds), preventing replay attacks with old challenges
+4. **WebAuthn Signature** - Verifies the ECDSA P256 signature against the passkey's public key stored on-chain
 
-## How It All Works Together
+**This gives us the following properties:**
+- **Atomic verification** - Both VRF and WebAuthn must pass in a single transaction
+- **Stateless** - No server state required; all verification happens on-chain
+- **Cryptographically bound** - VRF output links blockchain state to biometric authentication
+- **Replay protection** - Block-bound challenges prevent reuse
 
-The wallet combines three cryptographic primitives:
-
-**WebAuthn PRF** → Origin-bound key derivation
-- Derives deterministic NEAR keys from passkey
-- Encrypts VRF keypair for storage
-- Bound to wallet origin, never exposed to apps
-
-**VRF** → Verifiable, blockchain-aware challenges
-- Generates unpredictable WebAuthn challenges
-- Binds fresh block data for replay protection
-- Verifiable on-chain without server state
-
-**Shamir 3-Pass** → Frictionless session unlock
-- Optional unlock without biometric prompts
-- Falls back to PRF if unavailable
-- Reduces friction without compromising security
-
-**Result:** Cryptographic guarantees without passwords, server state, or trusted oracles.
 
 ## Next steps
 
-- Explore the [Shamir 3-pass protocol](../guides/shamir-3-pass-protocol) for smoother login UX
-- Learn how the [nonce manager](../guides/nonce-manager.md) prevents transaction replay
-- Review [credential scope strategies](credential-scope-rpid)
+- Explore the [Shamir 3-pass protocol](../guides/shamir-3-pass-protocol) for smoother VRF unlocking UX
+- Review [passkey scope strategies](passkey-scope)

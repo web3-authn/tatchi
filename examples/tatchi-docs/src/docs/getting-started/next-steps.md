@@ -4,7 +4,7 @@ title: Next Steps
 
 # Next Steps: Register, Login, Send
 
-Now that you've got the SDK installed, let's walk through the core flow: registering a passkey, logging in, and sending your first transaction.
+Now that you've finished [wallet installation](./installation), let's walk through the core flow: registering a passkey, logging in, and sending your first transaction.
 
 The simplest way to get started is with a single component that registers a passkey-backed account:
 
@@ -75,7 +75,7 @@ function Login() {
 
 When you call `loginPasskey()`, the SDK establishes a VRF session. If you've configured a relay, it can unlock the VRF key via Shamir 3-pass without prompting for TouchID. Otherwise it falls back to a biometric prompt to decrypt the VRF keypair. Once logged in, you're ready to sign transactions.
 
-## Send a transaction
+## Send Transaction
 
 Once logged in (VRF key is unlocked) you can call `executeAction()` which takes your account ID, the receiver contract, and an array of actions (in this case, a function call).
 
@@ -142,10 +142,9 @@ When you're done, call `logoutAndClearVrfSession()` to clear the in-memory VRF k
 
 **Transactions**: `executeAction()` builds, signs, and broadcasts transactions to the NEAR blockchain. `onEvent` handlers stream progress events back for UI updates.
 
-
 ## Next steps
 
-- Setting up other frameworks (Next.js, Vue, Svelte, Express): [Using other frameworks](./other-frameworks.md)
+- [Set up other frameworks](./other-frameworks.md): Next.js, Vue, Svelte, Express
 - [React Recipes](/docs/getting-started/react-recipes): convenience components for registration, login, and managing accounts.
 - [API Reference](../api/index.md): export keys, recover accounts, link devices, batch sign/send
 - [Concepts](../concepts/index.md): security model, VRF/PRF, architecture

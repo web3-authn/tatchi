@@ -4,109 +4,46 @@ title: Offline Key Export
 
 # Offline Key Export
 
-Export private keys to external wallets while completely offline. The SDK includes a Progressive Web App (PWA) that works without network connectivity, ensuring keys never touch a server.
+You can export private keys while completely offline. The SDK includes a service worker that works without network connectivity.
+
 
 ## Why Offline Export?
 
-**Traditional export risks:**
-- Network requests could leak keys to servers
-- JavaScript on the page could exfiltrate keys
-- Malicious dependencies could intercept export flow
+WebAuthn relies on the wallet origin being reachable online. So if there is a DNS outage and the domain (e.g web3authn.org) goes down, users would be unable to access their wallet.
 
-**Offline export guarantees:**
-- Service Worker caches all assets, page works with network disabled
-- User can verify offline state (airplane mode, DevTools network tab)
-- rpId remains bound to wallet origin (no security downgrades)
+::: tip This is a WebAuthn constraint:
+"WebAuthn ties credentials to a specific domain name (the RP ID). If the browser can't reach the DNS server to verify the domain or resolve it to the correct IP, the authentication process cannot be completed."
+:::
 
-## Using Offline Export
+We therefore added an offline key export to ensure users can export wallet keys.
+The offline export flow is implemented as a service‑worker‑backed route under the wallet origin.
 
-### Browser Requirements
+Once users visit the wallet and register while online, the offline service worker is automatically registered and begins caching assets in the background.
 
-- **Chrome/Edge**: Full support
-- **Safari**: Requires manual "Add to Home Screen" for full offline PWA
-- **Firefox**: Service Workers supported, may need manual refresh
+**Users can:**
+1. Put the device in airplane mode (or otherwise disable Wifi access).
+2. Navigate to `https://wallet.example.com/offline-export/` (or the wallet host’s `/offline-export/`) while offline. NOTE: that the it's `/offline-export/` with the trailing slash `/`.
+3. The service worker will serve the app from cache and it can read the encrypted key material from IndexedDB and perform the export locally.
 
-### Export Flow
+In that scenario, whether DNS for web3authn.org still resolves or the host is "down" on the network is irrelevant: the browser never needs to reach the server.
 
-1. **Online preparation**: Visit `/offline-export/` once while online to cache assets
-2. **Go offline**: Enable airplane mode or disconnect network
-3. **Open export**: Navigate to `https://wallet.example.com/offline-export/`
-4. **Authenticate**: TouchID/FaceID to decrypt keys
-5. **View keys**: Private keys displayed, copy to external wallet
+::: warning
+The user must not clear site data (cookies/storage/caches for that origin).
 
-### React Integration
+If the wallet domain goes down, and the user clears site data, then the service worker will be gone (until the site comes up again, and they revisit the site)
+:::
 
-```tsx
-import { usePasskeyManager } from '@tatchi-xyz/sdk/react'
 
-function ExportButton() {
-  const passkeyManager = usePasskeyManager()
-
-  const handleExport = async () => {
-    // SDK handles fallback to offline route if needed
-    await passkeyManager.exportPrivateKey('alice.testnet')
-  }
-
-  return <button onClick={handleExport}>Export Keys</button>
-}
-```
-
-### Programmatic API
-
-```typescript
-import { TatchiPasskey } from '@tatchi-xyz/sdk'
-
-const tatchi = new TatchiPasskey({ /* config */ })
-
-// Trigger export (opens /offline-export/ in new tab if offline)
-await tatchi.exportPrivateKey('alice.testnet')
-```
-
-## How It Works
-
-### Service Worker Caching
-
-The SDK includes a Service Worker that pre-caches:
-- Export page HTML and manifest
-- WASM modules (signer and VRF)
-- JavaScript bundles for the export UI
-- CSS stylesheets
-
-**Cache scope**: Only `/offline-export/` route, doesn't affect main app.
-
-**Cache version**: `OFFLINE_EXPORT_v4` (automatically managed).
-
-### Automatic Fallback
-
-When online but dynamic chunks fail to load:
-1. Wallet iframe attempts export in-iframe
-2. If module import fails, posts `OFFLINE_EXPORT_FALLBACK` message
-3. SDK opens `/offline-export/` in new tab (guaranteed to work offline)
-
-### Security Model
-
-**WebAuthn still works offline**: TouchID/FaceID verification happens locally on device, no network required.
-
-**rpId preserved**: Export page runs on wallet origin, rpId matches registration origin.
-
-**No network access**: Service Worker serves all assets from cache, blocks network requests.
-
-## Verifying Offline Operation
-
-### Developer Tools Check
+## Verifying Offline Export
 
 1. Open wallet origin `https://wallet.example.com/offline-export/`
 2. Open DevTools → Application → Service Workers
 3. Verify `OFFLINE_EXPORT_v4` is active and controlling page
-4. Switch to Network tab
-5. Set throttling to "Offline"
+4. Turn off Wifi on your device
 6. Refresh page
 7. All assets load from Service Worker (no red network errors)
 
-### Cache Inspection
-
-DevTools → Application → Cache Storage → `OFFLINE_EXPORT_v4`:
-
+Chrome DevTools → Application → Cache Storage → `OFFLINE_EXPORT_v4`:
 Should contain:
 - `/offline-export/offline-export-app.js`
 - `/offline-export/workers/*.js` and `*.wasm`
@@ -114,40 +51,27 @@ Should contain:
 - `/sdk/export-viewer.css`
 - Various SDK chunks (e.g., `common-*.js`, `lit-events-*.js`)
 
-## Deployment
+The service worker and offline files are automatically generated by:
+- Vite: the `tatchiBuildHeaders` (or `tatchiWallet({ emitHeaders: true })`) plugin.
+- Next.js: the `nextEmitOfflineExportAssets` helper (see below).
 
-### Development
 
-SDK dev plugins automatically serve offline export:
+## Setting Up Offline Export (Automatic)
 
-```typescript
-// vite.config.ts
-import { tatchiDev } from '@tatchi-xyz/sdk/plugins/vite'
+In **development**, the SDK dev plugins automatically serve offline export for wallet hosts:
 
-export default defineConfig({
-  plugins: [
-    tatchiDev({
-      mode: 'self-contained',
-      walletOrigin: process.env.VITE_WALLET_ORIGIN
-    })
-  ]
-})
-```
+- Vite wallet host: use `tatchiWalletServer` / `tatchiDev` wrappers (see SDK plugin docs).
+- You can verify by visiting `http://wallet.example.localhost/offline-export/` (where `wallet.example.localhost` is your Caddy route to the wallet server).
 
-Visit `http://localhost:5173/offline-export/` once while online.
 
-### Production (Vite)
-
-Build plugin automatically emits offline export assets:
-
+In production, the build plugin automatically emits offline export assets.
+Here's a Vite example (wallet host build):
 ```typescript
 import { tatchiBuildHeaders } from '@tatchi-xyz/sdk/plugins/vite'
 
 export default defineConfig({
   plugins: [
-    tatchiBuildHeaders({
-      walletOrigin: 'https://wallet.example.com'
-    })
+    tatchiBuildHeaders({ walletOrigin: 'https://wallet.example.com' })
   ]
 })
 ```
@@ -161,7 +85,6 @@ Build output includes:
 ### Production (Next.js)
 
 Use postbuild helper:
-
 ```typescript
 // scripts/postbuild-offline.ts
 import { nextEmitOfflineExportAssets } from '@tatchi-xyz/sdk/plugins/next'
@@ -181,23 +104,11 @@ nextEmitOfflineExportAssets({
 }
 ```
 
-## Troubleshooting
-
-**504 "Offline asset not pre-cached"**: Service Worker cache incomplete. Unregister SW in DevTools, reload online once, try again offline.
-
-**Service Worker not activating**: Check browser console for registration errors. Ensure `/offline-export/sw.js` is served with `Cache-Control: no-cache`.
-
-**Assets load from network when offline**: Service Worker not controlling page. Check DevTools → Application → Service Workers shows "activated and is controlling this page".
-
-**WASM fails to load**: WASM files must be served with `Content-Type: application/wasm`. Check build config includes this MIME type.
-
-**Export works online but not offline**: Likely a missing asset in cache. Check Cache Storage in DevTools, compare against precache manifest at `/offline-export/precache.manifest.json`.
-
 ## Headers
 
 Production deployment requires specific headers:
 
-```
+```bash
 # /offline-export/sw.js and /offline-export/index.html
 Cache-Control: no-cache
 
@@ -213,10 +124,33 @@ Cross-Origin-Resource-Policy: cross-origin
 Permissions-Policy: publickey-credentials-get=(self)
 ```
 
-These are automatically generated by `tatchiBuildHeaders` plugin.
+
+
+## Troubleshooting
+
+::: warning **504 "Offline asset not pre-cached"**:
+Service Worker cache incomplete. Unregister SW in DevTools, reload online once, try again offline.
+:::
+
+::: warning **Service Worker not activating**:
+Check browser console for registration errors. Ensure `/offline-export/sw.js` is served with `Cache-Control: no-cache`.
+:::
+
+::: warning **Assets load from network when offline**:
+Service Worker not controlling page. Check DevTools → Application → Service Workers shows "activated and is controlling this page".
+:::
+
+::: warning **WASM fails to load**:
+WASM files must be served with `Content-Type: application/wasm`. Check build config includes this MIME type.
+:::
+
+::: warning **Export works online but not offline**:
+Likely a missing asset in cache. Check Cache Storage in DevTools, compare against precache manifest at `/offline-export/precache.manifest.json`.
+:::
+
+
 
 ## See Also
 
 - [Self-Hosting](./self-hosting-the-wallet-sdk.md) - Deploy wallet infrastructure
 - [Security Model](../concepts/security-model.md) - Defense-in-depth principles
-- [Registration & Login Progress Events](./progress-events.md) - WebAuthn authentication and login flow events

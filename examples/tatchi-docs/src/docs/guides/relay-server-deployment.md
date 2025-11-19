@@ -39,7 +39,7 @@ Publishes the current server key ID and maintains a grace period for old keys wh
 
 For most production deployments, the relay significantly improves UX.
 
----
+
 
 ## Deployment Options
 
@@ -52,7 +52,7 @@ Choose based on your infrastructure:
 
 Both platforms expose the same API and work identically from the client's perspective.
 
----
+
 
 ## Option 1: Express/Node.js
 
@@ -168,7 +168,7 @@ pnpm install
 pnpm dev
 ```
 
----
+
 
 ## Option 2: Cloudflare Workers
 
@@ -318,7 +318,7 @@ wrangler tail
 
 **Why `--remote`?** The local emulator doesn't perfectly match Cloudflare's WASM environment. Testing remotely catches issues early.
 
----
+
 
 ## API Reference
 
@@ -428,7 +428,7 @@ Returns the current server key ID and grace list for client migration.
 
 Returns `200 OK` if the service is healthy.
 
----
+
 
 ## cURL Examples
 
@@ -455,7 +455,7 @@ curl -X POST https://relay.example.com/vrf/remove-server-lock \
   }'
 ```
 
----
+
 
 ## Security Considerations
 
@@ -510,7 +510,7 @@ cors({ origin: '*' })  // ← Don't do this in production
 - Secrets are encrypted at rest and in transit
 - Use separate Workers for staging/production
 
----
+
 
 ## Troubleshooting
 
@@ -572,7 +572,7 @@ wrangler tail
 wrangler tail --status error
 ```
 
----
+
 
 ## Next Steps
 

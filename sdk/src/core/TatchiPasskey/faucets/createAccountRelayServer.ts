@@ -158,26 +158,3 @@ export async function createAccountAndRegisterWithRelayServer(
     };
   }
 }
-
-/**
- * Generate a hash of a signed transaction for verification purposes
- * Uses the borsh bytes of the transaction to create a consistent hash
- */
-function generateTransactionHash(signedTransaction: SignedTransaction): string {
-  try {
-    // Use the borsh_bytes which contain the serialized transaction data
-    const transactionBytes = new Uint8Array(signedTransaction.borsh_bytes);
-
-    // Create a simple hash using crypto.subtle (available in secure contexts)
-    // For testing purposes, we'll use a truncated hash of the borsh bytes
-    const hashInput = Array.from(transactionBytes).join(',');
-
-    // Create a deterministic hash by taking first 16 chars of base64 encoding
-    const hash = base64UrlEncode(new TextEncoder().encode(hashInput).buffer).substring(0, 16);
-
-    return hash;
-  } catch (error) {
-    console.warn('Failed to generate transaction hash:', error);
-    return 'hash-generation-failed';
-  }
-}

@@ -211,5 +211,6 @@ export function SendGreetingButton() {
 }
 ```
 
-From here you can refine styling and hook `onEvent` into your own toast/notification system, but the setup above is enough to get end‑to‑end passkey registration, login, and transaction signing with React components.
+From here you can refine styling and hook `onEvent` into your own toast/notification system, ful a full list of events see [progress events](../guides/progress-events.md).
+The setup above is enough to get end‑to‑end passkey registration, login, and transaction signing with React components.
 

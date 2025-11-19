@@ -1,21 +1,36 @@
 sequenceDiagram
-    participant Client
-    participant WebWorker as VRF Web Worker
+    box Iframe Wallet
+    participant JSMain as JS Main Thread
+    participant Worker as WASM Worker
+    end
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over Client: Authentication Flow (e.g. signing transactions)
-    Client->>NEAR: 1. Get latest block (height + hash)
-    Note over Client: 2. Construct VRF input with domain separator
-    Client->>WebWorker: 3. Send challenge generation request
-    WebWorker->>WebWorker: 4. Generate VRF proof + output (no TouchID needed)
-    WebWorker->>Client: 5. VRF challenge (bincode serialized) + proof
-    Note over Client: 6. Use VRF output as WebAuthn challenge
-    Note over Client: 7. WebAuthn authentication ceremony (TouchID #1)
-    Client->>Contract: 8. verify_authentication_response(authentication, vrf_proof, vrf_pubkey, vrf_input)
-    Contract->>Contract: 9. Verify VRF proof ✓
-    Contract->>Contract: 10. Extract challenge from VRF output
-    Contract->>Contract: 11. Read stored VRF pubkey + authenticator
-    Contract->>Contract: 12. Verify VRF pubkey matches stored ✓
-    Contract->>Contract: 13. Verify WebAuthn authentication ✓
-    Contract->>Client: 14. Authentication complete ✓
+    Note over JSMain,Worker: Phase 1: Preparation
+    JSMain->>JSMain: 1. Validate action inputs
+    JSMain->>JSMain: 2. Pre-warm NonceManager (async)
+
+    Note over JSMain,Worker: Phase 2: User Confirmation & VRF Challenge
+    JSMain->>Worker: 3. Request user confirmation
+    Note over Worker: UI mounts showing transaction details
+    Worker->>NEAR: 4. Get nonce, block height + hash
+    NEAR->>Worker: Block data + nonce
+    Worker->>Worker: 5. Generate VRF challenge (no TouchID)
+
+    Note over JSMain,Worker: Phase 3: WebAuthn Authentication
+    Worker->>Worker: 6. WebAuthn authentication (TouchID prompt)
+    Worker->>Contract: 7. verify_authentication_response(vrf_data, webauthn_authentication)
+    Contract->>Contract: 8. Verify VRF proof against stored VRF pubkey ✓
+    Contract->>Contract: 9. Check freshness (block_height within MAX_BLOCK_AGE) ✓
+    Contract->>Contract: 10. Verify WebAuthn signature against stored passkey ✓
+    Contract->>Worker: 11. Authentication verified ✓
+
+    Note over JSMain,Worker: Phase 4: Transaction Signing
+    Worker->>Worker: 12. Sign NEAR transaction with ed25519 keypair
+    Worker->>JSMain: 13. Signed transaction
+
+    Note over JSMain,NEAR: Phase 5: Broadcasting
+    JSMain->>NEAR: 14. Broadcast signed transaction
+    NEAR->>JSMain: 15. Transaction result (txId)
+    JSMain->>JSMain: 16. Update nonce from blockchain (async)
+    JSMain->>JSMain: 17. Transaction complete ✓
