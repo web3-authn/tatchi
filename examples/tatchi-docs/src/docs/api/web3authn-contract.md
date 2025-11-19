@@ -1,21 +1,67 @@
 # Web3Authn Contract
 
-The Web3Authn contract implements VRF-based WebAuthn authentication on NEAR blockchain, enabling serverless passkey wallets with on-chain credential storage.
+The Web3Authn contract implements verifiable random function (VRF) based WebAuthn authentication on NEAR blockchain, enabling serverless passkey wallets with onchain authenticator storage.
 
-**Source**: [github.com/web3-authn/web3-authn-contract](https://github.com/web3-authn/web3-authn-contract)
+See the [contract repository](https://github.com/web3-authn/web3-authn-contract) for deployment instructions and full API documentation.
 
-## Overview
+## Main Contract Methods
 
-**Features:**
-- Passkey authenticators stored on-chain (no server required for recovery)
-- VRF-based challenges eliminate server roundtrips for WebAuthn
-- Deterministic wallet derivation from passkey PRF credentials
-- Multi-device linking and passkey sync support (Google, Apple)
+### Registration
+
+```rust
+// Combines NEAR account creation and registration into 1 atomic step
+pub fn create_account_and_register_user(
+    &mut self,
+    new_account_id: AccountId,
+    new_public_key: PublicKey,
+    vrf_data: VRFVerificationData,
+    webauthn_registration: WebAuthnRegistrationCredential,
+    deterministic_vrf_public_key: Vec<u8>,
+    authenticator_options: Option<AuthenticatorOptions>,
+) -> Promise
+```
+
+::: info
+A relayer is needed to pay gas for initial account creation and registration. This is the only part that requires a relayer server (anyone can run a relayer).  Since it's creating accounts, it needs to know which `new_account_id` to associate to `new_public_key`. The client checks that this is correct before persisting and saving the account locally.
+
+After account creation, the protocol is fully serverless.
+:::
 
 
-## VRF Challenge Construction
+### Authentication
 
-Challenges bind fresh blockchain data with user identity:
+```rust
+// Verify VRF-backed WebAuthn authentication
+pub fn verify_authentication_response(
+    vrf_data: VRFVerificationData,
+    webauthn_authentication: WebAuthnAuthenticationCredential,
+) -> VerifiedAuthenticationResponse
+
+/// SHA256 hash of concatenated VRF input components:
+/// domain_separator + user_id + rp_id + block_height + block_hash
+pub struct VRFVerificationData {
+    /// This hashed data is used for VRF proof verification
+    pub vrf_input_data: Vec<u8>,
+    /// Used as the WebAuthn challenge (VRF output)
+    pub vrf_output: Vec<u8>,
+    /// Proves vrf_output was correctly derived from vrf_input_data
+    pub vrf_proof: Vec<u8>,
+    /// VRF public key used to verify the proof
+    pub public_key: Vec<u8>,
+    /// User ID (account_id in NEAR protocol) - cryptographically bound in VRF input
+    pub user_id: String,
+    /// Relying Party ID (domain) used in VRF input construction
+    pub rp_id: String,
+    /// Block height for freshness validation (must be recent)
+    pub block_height: u64,
+    /// Block hash included in VRF input for additional entropy
+    pub block_hash: Vec<u8>,
+}
+```
+
+The `webauthn_registration` and `webauthn_authentication` types are standard WebAuthn credentials, generated in the browser with PRF extensions via `navigator.credentials` and TouchID. The PRF outputs are redacted so it's not revealed publicly.
+
+These WebAuthn credentials are signed with a challenge: we use verifiable random function (VRF) outputs as challenges see [VRF WebAuthn](../concepts/vrf-webauthn.md), signed over a hash digest of the following data:
 
 | Field | Purpose | Source |
 |-------|---------|--------|
@@ -25,46 +71,9 @@ Challenges bind fresh blockchain data with user identity:
 | `block_height` | Ensures freshness and replay protection | NEAR RPC |
 | `block_hash` | Prevents reuse across forks/reorgs | NEAR RPC |
 
-**VRF security properties:**
-- Unpredictable outputs (indistinguishable from random)
-- Verifiable proofs (anyone can verify with public key)
-- Deterministic (same input → same output)
-- Non-malleable (requires private key to forge)
-- Block-bound freshness (challenges expire with old blocks)
-- Account-bound (VRF public keys tied to NEAR accounts)
+In order for contract verification to pass, both `vrf_data` proofs and the `webauthn_authentication` checks must pass.
 
-## Contract Methods
 
-### Registration
-
-```rust
-// Combined account creation and registration
-create_account_and_register_user(
-    new_account_id: AccountId,
-    new_public_key: PublicKey,
-    vrf_data: VrfData,
-    webauthn_registration: PublicKeyCredentialJSON,
-    deterministic_vrf_public_key: Vec<u8>
-)
-
-// Register VRF credentials for existing account
-verify_registration_response(
-    vrf_data: VrfData,
-    webauthn_data: PublicKeyCredentialJSON
-)
-```
-
-### Authentication
-
-```rust
-// Verify VRF-backed WebAuthn authentication
-verify_authentication_response(
-    vrf_data: VrfData,
-    webauthn_data: PublicKeyCredentialJSON
-)
-```
-
-See the [contract repository](https://github.com/web3-authn/web3-authn-contract) for deployment instructions and full API documentation.
 
 ## Integration
 

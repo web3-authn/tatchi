@@ -1,8 +1,8 @@
 ---
-title: Guides
+title: Detailed Guides
 ---
 
-# Guides
+# Detailed Guides
 
 Practical, step-by-step guides for integrating and deploying the Web3Authn SDK. Each guide focuses on a specific task or component.
 

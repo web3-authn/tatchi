@@ -21,6 +21,9 @@ if (env.VITE_RP_ID_BASE) process.env.VITE_RP_ID_BASE = env.VITE_RP_ID_BASE
 export default defineConfig({
   // Hosted at the site root
   base: '/',
+  sitemap: {
+    hostname: 'https://tatchi.xyz',
+  },
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
     // Hanken Grotesk for headings and UI; restrict to used weights for perf
@@ -64,13 +67,13 @@ export default defineConfig({
           { text: 'Overview', link: '/docs/getting-started/overview' },
           { text: 'Installation', link: '/docs/getting-started/installation' },
           {
-            text: 'Next Steps',
+            text: 'Quick Start: Next Steps',
             link: '/docs/getting-started/next-steps',
             collapsed: false,
             items: [
               { text: 'Registration', link: '/docs/getting-started/next-steps#register-a-passkey' },
               { text: 'Login', link: '/docs/getting-started/next-steps#login' },
-              { text: 'Send Transaction', link: '/docs/getting-started/next-steps#send-a-transaction' },
+              { text: 'Send Transaction', link: '/docs/getting-started/next-steps#send-transaction' },
             ]
           },
           { text: 'React Recipes', link: '/docs/getting-started/react-recipes' },
@@ -90,14 +93,7 @@ export default defineConfig({
         text: 'Concepts',
         collapsed: false,
         items: [
-          {
-            text: 'Overview',
-            link: '/docs/concepts/',
-            items: [
-              { text: 'Design Goals', link: '/docs/concepts/#design-goals' },
-              { text: 'Security Model', link: '/docs/concepts/security-model' },
-            ],
-          },
+          { text: 'Design Goals', link: '/docs/concepts/' },
           {
             text: 'Architecture',
             link: '/docs/concepts/architecture',
@@ -110,20 +106,36 @@ export default defineConfig({
                 items: [
                   { text: 'Registration', link: '/docs/concepts/architecture#registration-flow' },
                   { text: 'Login', link: '/docs/concepts/architecture#login-flow' },
-                  { text: 'Transaction', link: '/docs/concepts/architecture#transaction-flow' },
+                  { text: 'Sign Transactions', link: '/docs/concepts/architecture#transaction-flow' },
                 ]
               },
-              { text: 'VRF Webauthn', link: '/docs/concepts/vrf-webauthn' },
-              { text: 'Credential Scoping', link: '/docs/concepts/credential-scope-rpid' },
+              {
+                text: 'VRF WebAuthn',
+                link: '/docs/concepts/vrf-webauthn',
+                items: [
+                  { text: 'Challenge Construction', link: '/docs/concepts/vrf-webauthn#vrf-challenge-construction' },
+                  { text: 'WebAuthn Contract', link: '/docs/concepts/vrf-webauthn#webauthn-contract-verification' },
+                ]
+              },
             ],
           },
+          {
+            text: 'Passkey Scope',
+            link: '/docs/concepts/passkey-scope',
+            items: [
+              { text: 'Wallet Scope', link: '/docs/concepts/passkey-scope#option-a-wallet-scoped-credentials' },
+              { text: 'App Scope', link: '/docs/concepts/passkey-scope#option-b-app-scoped-credentials' },
+            ]
+          },
+          { text: 'Security Model', link: '/docs/concepts/security-model' },
         ],
       },
       {
-        text: 'Guides',
+        text: 'Detailed Guides',
         collapsed: false,
         items: [
           { text: 'Install and Wallet Setup', link: '/docs/guides/wallet-iframe-integration' },
+          { text: 'Registration (Detailed)', link: '/docs/guides/registration-login-detailed' },
           { text: 'Progress Events', link: '/docs/guides/progress-events' },
           { text: 'Sending Transactions', link: '/docs/guides/sending-transaction' },
           { text: 'Advanced Features',

@@ -1,40 +1,42 @@
 sequenceDiagram
     box Iframe Wallet
-    participant Wallet as Wallet
+    participant JSMain as JS Main Thread
     participant Worker as WASM Worker
     end
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over Wallet,Worker: Phase 1: Bootstrap VRF Challenge
-    Wallet->>NEAR: 1. Get latest block (height + hash)
-    NEAR->>Wallet: 2. Block data (height + hash)
-    Wallet->>Worker: 3. generateVrfKeypairBootstrap()
-    Worker->>Worker: 4. Generate bootstrap VRF keypair (temporary)
-    Worker->>Worker: 5. Generate VRF proof + output (challenge)
-    Worker->>Wallet: 6. VRF challenge for WebAuthn ceremony
+    Note over JSMain,Worker: Phase 1: Bootstrap VRF Challenge
+    JSMain->>NEAR: 1. Get block height + hash from RPC
+    NEAR->>JSMain: Block data
+    JSMain->>Worker: 2. generateVrfKeypairBootstrap()
+    Worker->>Worker: 3. Generate bootstrap VRF keypair (temporary)
+    Worker->>Worker: 4. Generate VRF proof + output (challenge)
+    Worker->>JSMain: 5. VRF challenge for WebAuthn ceremony
 
-    Note over Wallet,Worker: Phase 2: WebAuthn Registration with Dual PRF
-    Wallet->>Wallet: 7. WebAuthn registration (TouchID prompt)
-    Note over Wallet: PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
+    Note over JSMain,Worker: Phase 2: WebAuthn Registration with Dual PRF
+    JSMain->>Worker: 6. requestRegistrationCredentialConfirmation()
+    Note over Worker: WebAuthn registration (TouchID prompt)<br/>PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
+    Worker->>JSMain: Registration credential
 
-    Note over Wallet,Worker: Phase 3: Derive Deterministic Keys from PRF
-    Wallet->>Worker: 8. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
-    Worker->>Worker: 9. Derive deterministic VRF keypair from PRF
-    Worker->>Worker: 10. Encrypt deterministic VRF with ChaCha20-Poly1305
-    Worker->>Wallet: 11. Encrypted deterministic VRF keypair
+    Note over JSMain,Worker: Phase 3: Derive Deterministic Keys from PRF
+    JSMain->>Worker: 7. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
+    Worker->>Worker: 8. Derive deterministic VRF keypair from PRF
+    Worker->>Worker: 9. Encrypt deterministic VRF with ChaCha20-Poly1305
+    Worker->>JSMain: 10. Encrypted deterministic VRF keypair
 
-    Wallet->>Worker: 12. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
-    Worker->>Worker: 13. Derive NEAR ed25519 keypair from PRF
-    Worker->>Worker: 14. Encrypt NEAR keypair with ChaCha20-Poly1305
-    Worker->>Wallet: 15. NEAR public key + encrypted keypair
+    JSMain->>Worker: 11. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
+    Worker->>Worker: 12. Derive NEAR ed25519 keypair from PRF
+    Worker->>Worker: 13. Encrypt NEAR keypair with ChaCha20-Poly1305
+    Worker->>JSMain: 14. NEAR public key + encrypted keypair
 
-    Note over Wallet,Contract: Phase 4: Contract Registration
-    Wallet->>Contract: 16. verify_registration_response()
-    Contract->>Contract: 17. Registration verified, authenticator stored onchain ✓
-    Contract->>Wallet: 18. Registration complete (txId)
+    Note over JSMain,Contract: Phase 4: Contract Registration
+    Note over JSMain: Routed through relayer to pay for gas
+    JSMain->>Contract: 15. create_account_and_register_user()
+    Contract->>Contract: 16. Registration verified, authenticator stored onchain ✓
+    Contract->>JSMain: 17. Registration complete (txId)
 
-    Note over Wallet,Worker: Phase 5: Client-side Storage
-    Wallet->>Wallet: 19. Store encrypted deterministic VRF in IndexedDB
-    Wallet->>Wallet: 20. Store encrypted NEAR keypair in IndexedDB
-    Wallet->>Wallet: 21. Registration complete ✓
+    Note over JSMain,Worker: Phase 5: Client-side Storage
+    JSMain->>JSMain: 18. Store encrypted deterministic VRF in IndexedDB
+    JSMain->>JSMain: 19. Store encrypted NEAR keypair in IndexedDB
+    JSMain->>JSMain: 20. Registration complete ✓

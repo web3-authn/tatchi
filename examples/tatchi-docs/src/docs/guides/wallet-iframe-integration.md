@@ -8,7 +8,7 @@ Install the SDK, configure the wallet iframe, and wire up `PasskeyProvider` so y
 
 For a deep dive into the architecture and threat model, see [Architecture](/docs/concepts/architecture).
 
----
+
 
 ## 1. Install the SDK
 
@@ -19,7 +19,7 @@ pnpm add @tatchi-xyz/sdk
 npm install @tatchi-xyz/sdk
 ```
 
----
+
 
 ## 2. Wallet configuration
 
@@ -100,7 +100,7 @@ export default defineConfig({
 })
 ```
 
----
+
 
 ## 3. Registration (with config options)
 
@@ -148,7 +148,7 @@ export function RegisterButton({ accountId }: { accountId: string }) {
 - `afterCall?: (success: boolean, result?: RegistrationResult) => void` – callback after the flow finishes.
 - `confirmationConfig?: Partial<ConfirmationConfig>` – per‑call override for confirmation UI (does not persist).
 
----
+
 
 ## 4. Sending transactions (high level)
 
@@ -194,7 +194,7 @@ Behind the scenes:
 
 For a deeper dive into transaction flows and configuration options, see [Sending Transactions](./sending-transaction.md) and [Progress Events](./progress-events.md).
 
----
+
 
 ## 5. Troubleshooting
 
@@ -205,4 +205,4 @@ If the iframe or WebAuthn flows behave unexpectedly:
 - Ensure both app and wallet are served over HTTPS (required for WebAuthn in production).
 - Confirm that `/sdk/*` assets (JS, CSS, WASM) are reachable on the wallet origin.
 
-For credential scoping and Safari/ROR details, see [Credential Scope Strategy](/docs/concepts/credential-scope-rpid).
+For credential scoping and Safari/ROR details, see [Passkey Scope Strategy](/docs/concepts/passkey-scope).

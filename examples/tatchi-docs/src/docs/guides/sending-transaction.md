@@ -6,7 +6,7 @@ title: Sending Transactions
 
 Use the passkey wallet to sign and send NEAR transactions with iframe‑hosted confirmation UI. This guide focuses on configuration options and hooks for transaction flows.
 
----
+
 
 ## 1. APIs for sending transactions
 
@@ -40,7 +40,7 @@ function SendGreeting() {
 }
 ```
 
----
+
 
 ## 2. Confirmation configuration
 
@@ -67,7 +67,7 @@ await passkeyManager.executeAction('alice.testnet', action, {
 
 Global settings live in the wallet iframe and are respected when `confirmationConfig` is omitted.
 
----
+
 
 ## 3. Progress & result hooks
 
@@ -139,7 +139,7 @@ await passkeyManager.executeAction('alice.testnet', action, {
 
 For multi‑transaction flows, use `executionWait` with `signAndSendTransactions` (see below).
 
----
+
 
 ## 4. Multiple transactions (`signAndSendTransactions`)
 
@@ -166,7 +166,7 @@ await passkeyManager.signAndSendTransactions({
 - `{ mode: 'sequential'; waitUntil?: TxExecutionStatus }`
 - `{ mode: 'parallelStaggered'; staggerMs: number }`
 
----
+
 
 ## 5. Sign‑only flows (`signTransactionsWithActions`)
 
@@ -185,7 +185,7 @@ const signed = await passkeyManager.signTransactionsWithActions({
 
 This uses the same `confirmationConfig`, `onEvent`, and `onError` semantics, but leaves broadcasting to you.
 
----
+
 
 ## 6. React button component
 
@@ -227,7 +227,7 @@ import { ActionType } from '@tatchi-xyz/sdk'
 
 If you pass both a top‑level `onEvent` prop and `options.onEvent`, the component prioritizes the top‑level prop; `options.onEvent` is ignored.
 
----
+
 
 ## 7. Troubleshooting
 
