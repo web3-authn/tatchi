@@ -124,3 +124,31 @@ Non‑goals:
   - “Rotate NEAR keys for `web4authn.near`”:
     - Steps to generate new keys, update CI secrets, and verify web4 deployments still succeed.
 
+## Implementation Checklist
+
+### 1. Prerequisites (Manual Setup)
+- [ ] **Create a NEAR Account**: You need a dedicated account (e.g., `web4authn.near`) to deploy the contract to.
+- [ ] **Get Deploy Key**: You'll need a Full Access Key for this account to use in CI (stored as `NEAR_WEB4_KEY` in GitHub Secrets).
+
+### 2. Stage 1: Web4 Contract
+You need a minimal Web4 contract to route requests to the uploaded content.
+- [ ] **Create Contract**: Create a new Rust project (e.g., `web4-contract`) that implements `web4_get`.
+- [ ] **Deploy Initial Contract**: Build and deploy this contract to your NEAR account once.
+
+### 3. Stage 2: Manifest Generation
+Your current CI generates a manifest for the SDK, but the Web4 plan requires a comprehensive `wallet-manifest.json`.
+- [ ] **Create Manifest Script**: Write a script (e.g., `scripts/generate-web4-manifest.ts`) that:
+    - Scans `examples/vite/dist` (Wallet UI).
+    - Scans `sdk/dist` (SDK).
+    - Generates the JSON manifest with hashes.
+
+### 4. Stage 3: CI Automation
+- [ ] **Create Workflow**: Create `.github/workflows/deploy-web4.yml` that:
+    - Builds the Wallet and SDK (reusing your existing build steps).
+    - Runs the manifest script.
+    - Uses `npx web4-deploy` to upload assets to NEARFS and update the contract.
+
+### 5. Verification
+- [ ] **Verify**: Check `https://<your-account>.page` (e.g., `web4authn.near.page`) to see if the wallet loads.
+
+
