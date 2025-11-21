@@ -31,7 +31,7 @@ export function PasskeyColumn() {
       title: 'Demo',
       element: ({ nextSlide, canNext, index }: { nextSlide: () => void; canNext: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
+          <React.Suspense fallback={<div style={{ height: 320 }} />}>
             <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
           </React.Suspense>
           {index > 0 && canNext && (
@@ -53,7 +53,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
+          <React.Suspense fallback={<div style={{ height: 320 }} />}>
             <DemoPage />
           </React.Suspense>
           {index > 0 && (
@@ -83,7 +83,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
+          <React.Suspense fallback={<div style={{ height: 320 }} />}>
             <DemoChainsigs />
           </React.Suspense>
           {index > 0 && (
@@ -111,7 +111,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
+          <React.Suspense fallback={<div style={{ height: 320 }} />}>
             <AccountRecovery />
           </React.Suspense>
           {index > 0 && canPrev && (

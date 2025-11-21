@@ -73,6 +73,21 @@ These WebAuthn credentials are signed with a challenge: we use verifiable random
 
 In order for contract verification to pass, both `vrf_data` proofs and the `webauthn_authentication` checks must pass.
 
+Additionally, the contract enforces an **account binding** between the NEAR account ID and the VRF input:
+
+```rust
+assert!(
+    account_id.as_str() != vrf_data.user_id,
+    "account_id must equal vrf_data.user_id"
+);
+```
+
+Here `vrf_data.user_id` is the NEAR account ID that was included in the VRF input and is therefore cryptographically bound to the VRF output (which becomes the WebAuthn challenge). The effect is:
+
+- `new_account_id` must equal `vrf_data.user_id`, and  
+- the VRF proof ties that `user_id` to the WebAuthn challenge.
+
+This ensures the account being created or authenticated is exactly the one encoded in the VRF/WebAuthn pair, preventing credential reuse across accounts.
 
 
 ## Integration

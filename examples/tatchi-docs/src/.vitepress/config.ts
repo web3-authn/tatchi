@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import { loadEnv } from 'vite'
 import { tatchiWallet } from '@tatchi-xyz/sdk/plugins/vite'
 import { nodePolyfills } from 'vite-plugin-node-polyfills'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 const appSrc = fileURLToPath(new URL('../', import.meta.url))
 const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
@@ -18,9 +19,19 @@ if (env.VITE_ROR_METHOD) process.env.VITE_ROR_METHOD = env.VITE_ROR_METHOD
 // Ensure rpId base is visible to Node-side SDK dev plugins (offline-export HTML)
 if (env.VITE_RP_ID_BASE) process.env.VITE_RP_ID_BASE = env.VITE_RP_ID_BASE
 
-export default defineConfig({
+export default withMermaid(defineConfig({
   // Hosted at the site root
   base: '/',
+
+  // Mermaid plugin configuration
+  mermaid: {
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#f0f9ff',
+      primaryBorderColor: '#60a5fa',
+      lineColor: '#94a3b8',
+    }
+  },
   sitemap: {
     hostname: 'https://tatchi.xyz',
   },
@@ -213,6 +224,8 @@ export default defineConfig({
         'util',
         'stream-browserify',
         'crypto-browserify',
+        'mermaid',
+        'dayjs',
       ],
       esbuildOptions: {
         define: {
@@ -262,4 +275,4 @@ export default defineConfig({
       }),
     ],
   },
-})
+}))
