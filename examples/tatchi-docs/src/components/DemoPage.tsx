@@ -13,7 +13,6 @@ import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import type { ConfirmationUIMode, ConfirmationBehavior } from '@tatchi-xyz/sdk/core';
 
-import { GlassBorder } from './GlassBorder';
 import { LoadingButton } from './LoadingButton';
 import Refresh from './icons/Refresh';
 import { useSetGreeting } from '../hooks/useSetGreeting';
@@ -294,227 +293,224 @@ export const DemoPage: React.FC = () => {
 
   return (
     <div ref={rootRef}>
-      <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }} >
-
-        <div className="action-section">
-          <div className="demo-page-header">
-            <h2 className="demo-title">Welcome, {accountName}</h2>
-          </div>
-
-          <h2 className="demo-subtitle">Sign Transactions with TouchId</h2>
-          <div className="action-text">
-            Sign transactions securely in an cross-origin iframe.
-          </div>
-
-          <div className="greeting-controls-box">
-            <div className="on-chain-greeting-box">
-              <button
-                onClick={handleRefreshGreeting}
-                disabled={isLoading}
-                title="Refresh Greeting"
-                className="refresh-icon-button"
-                aria-busy={isLoading}
-              >
-                <Refresh size={22} strokeWidth={2} />
-              </button>
-              <p><strong>{onchainGreeting ?? '...'}</strong></p>
-            </div>
-
-            <div className="greeting-input-group">
-              <input
-                type="text"
-                name="greeting"
-                value={greetingInput}
-                onChange={(e) => setGreetingInput(e.target.value)}
-                placeholder="Enter new greeting"
-              />
-            </div>
-            <LoadingButton
-              onClick={handleSetGreeting}
-              loading={txLoading}
-              loadingText="Processing..."
-              variant="primary"
-              size="medium"
-              className="greeting-btn"
-              disabled={!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId) || txLoading}
-              style={{ width: 200 }}
-            >
-              Set Greeting
-            </LoadingButton>
-
-            {error && (
-              <div className="error-message">Error: {error}</div>
-            )}
-          </div>
+      <div className="action-section">
+        <div className="demo-page-header">
+          <h2 className="demo-title">Welcome, {accountName}</h2>
         </div>
 
-        <div className="action-section">
-          <h2 className="demo-subtitle">Batch Sign Transactions</h2>
-          <div className="action-text">
-            Sign multiple transactions securely in an cross-origin iframe.
-            What you see is what you sign.
+        <h2 className="demo-subtitle">Sign Transactions with TouchId</h2>
+        <div className="action-text">
+          Sign transactions securely in an cross-origin iframe.
+        </div>
+
+        <div className="greeting-controls-box">
+          <div className="on-chain-greeting-box">
+            <button
+              onClick={handleRefreshGreeting}
+              disabled={isLoading}
+              title="Refresh Greeting"
+              className="refresh-icon-button"
+              aria-busy={isLoading}
+            >
+              <Refresh size={22} strokeWidth={2} />
+            </button>
+            <p><strong>{onchainGreeting ?? '...'}</strong></p>
           </div>
 
-          <div className={"button-with-tooltip-container"}>
-            {!hasArmedHeavy
-              ? <LoadingButton
-                  onClick={() => {}}
-                  loading={false}
-                  loadingText="Batch Sign Actions"
-                  variant="primary"
-                  size="medium"
-                  disabled={true}
-                  style={{ width: 200 }}
-                >
-                  <TouchIdWithText buttonText="Batch Sign Actions" />
-                </LoadingButton>
-              : <SendTxButtonWithTooltip
-                nearAccountId={nearAccountId}
-                txSigningRequests={[
-                  {
-                    receiverId: WEBAUTHN_CONTRACT_ID,
-                    actions: [
-                      createGreetingAction(greetingInput, { postfix: 'Embedded' }),
-                      { type: ActionType.Transfer, amount: '30000000000000000000' },
-                    ],
-                  },
-                  {
-                    receiverId: `jeff.${networkPostfix}`,
-                    actions: [ { type: ActionType.Transfer, amount: '20000000000000000000' } ],
-                  },
-                  {
-                    receiverId: `jensen.${networkPostfix}`,
-                    actions: [ { type: ActionType.Transfer, amount: '10000000000000000000' } ],
-                  },
-                ]}
-                onEvent={(event) => {
-                  switch (event.phase) {
-                    case ActionPhase.STEP_1_PREPARATION:
-                    case ActionPhase.STEP_2_USER_CONFIRMATION:
-                    case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
-                    case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
-                    case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
-                    case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
-                    case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
-                    case ActionPhase.STEP_8_BROADCASTING:
-                      toast.loading(event.message, { id: 'embedded' });
-                      break;
-                    case ActionPhase.ACTION_ERROR:
-                    case ActionPhase.WASM_ERROR:
-                      toast.error(`Transaction failed: ${event.error}`, { id: 'embedded' });
-                      break;
-                  }
-                }}
-                options={{
-                  // Force the confirmer to use the drawer UI for this flow
-                  confirmationConfig: { uiMode: 'drawer' },
-                  waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-                  afterCall: (success: boolean, result?: ActionResult[]) => {
-                    if (success && result) {
-                      const last = result[result.length - 1] ?? result[0];
-                      let txId = last?.transactionId;
-                      if (txId) {
-                        try { toast.dismiss('embedded'); } catch {}
-                        toast.success('Embedded flow complete', {
-                          description: (
-                            <a href={`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`}
-                              target="_blank" rel="noopener noreferrer"
-                            >
-                              View transaction on NearBlocks
-                            </a>
-                          ),
-                        });
-                      } else {
-                        try { toast.dismiss('embedded'); } catch {}
-                        toast.success('Embedded flow complete');
-                      }
-                      setTimeout(() => { void fetchGreeting(); }, 1000);
-                    }
-                  },
-                  onError: (error) => {
-                    const message = error instanceof Error ? error.message : String(error);
-                    toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
-                  },
-                }}
-                buttonStyle={{
-                  color: 'white',
-                  background: 'var(--w3a-colors-primary)',
-                  borderRadius: '2rem',
-                  border: 'none',
-                  boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
-                  fontSize: '16px',
-                  height: '44px',
-                }}
-                buttonHoverStyle={{
-                  background: 'var(--w3a-colors-primaryHover)',
-                  boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
-                }}
-                tooltipPosition={{
-                  position: 'bottom-left',
-                }}
-                buttonTextElement={<TouchIdWithText buttonText="Batch Sign Actions" />}
-                onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
-                onSuccess={(result) => {
-                  try {
+          <div className="greeting-input-group">
+            <input
+              type="text"
+              name="greeting"
+              value={greetingInput}
+              onChange={(e) => setGreetingInput(e.target.value)}
+              placeholder="Enter new greeting"
+            />
+          </div>
+          <LoadingButton
+            onClick={handleSetGreeting}
+            loading={txLoading}
+            loadingText="Processing..."
+            variant="primary"
+            size="medium"
+            className="greeting-btn"
+            disabled={!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId) || txLoading}
+            style={{ width: 200 }}
+          >
+            Set Greeting
+          </LoadingButton>
+
+          {error && (
+            <div className="error-message">Error: {error}</div>
+          )}
+        </div>
+      </div>
+
+      <div className="action-section">
+        <h2 className="demo-subtitle">Batch Sign Transactions</h2>
+        <div className="action-text">
+          Sign multiple transactions securely in an cross-origin iframe.
+          What you see is what you sign.
+        </div>
+
+        <div className={"button-with-tooltip-container"}>
+          {!hasArmedHeavy
+            ? <LoadingButton
+                onClick={() => {}}
+                loading={false}
+                loadingText="Batch Sign Actions"
+                variant="primary"
+                size="medium"
+                disabled={true}
+                style={{ width: 200 }}
+              >
+                <TouchIdWithText buttonText="Batch Sign Actions" />
+              </LoadingButton>
+            : <SendTxButtonWithTooltip
+              nearAccountId={nearAccountId}
+              txSigningRequests={[
+                {
+                  receiverId: WEBAUTHN_CONTRACT_ID,
+                  actions: [
+                    createGreetingAction(greetingInput, { postfix: 'Embedded' }),
+                    { type: ActionType.Transfer, amount: '30000000000000000000' },
+                  ],
+                },
+                {
+                  receiverId: `jeff.${networkPostfix}`,
+                  actions: [ { type: ActionType.Transfer, amount: '20000000000000000000' } ],
+                },
+                {
+                  receiverId: `jensen.${networkPostfix}`,
+                  actions: [ { type: ActionType.Transfer, amount: '10000000000000000000' } ],
+                },
+              ]}
+              onEvent={(event) => {
+                switch (event.phase) {
+                  case ActionPhase.STEP_1_PREPARATION:
+                  case ActionPhase.STEP_2_USER_CONFIRMATION:
+                  case ActionPhase.STEP_3_CONTRACT_VERIFICATION:
+                  case ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION:
+                  case ActionPhase.STEP_5_AUTHENTICATION_COMPLETE:
+                  case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+                  case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+                  case ActionPhase.STEP_8_BROADCASTING:
+                    toast.loading(event.message, { id: 'embedded' });
+                    break;
+                  case ActionPhase.ACTION_ERROR:
+                  case ActionPhase.WASM_ERROR:
+                    toast.error(`Transaction failed: ${event.error}`, { id: 'embedded' });
+                    break;
+                }
+              }}
+              options={{
+                // Force the confirmer to use the drawer UI for this flow
+                confirmationConfig: { uiMode: 'drawer' },
+                waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
+                afterCall: (success: boolean, result?: ActionResult[]) => {
+                  if (success && result) {
                     const last = result[result.length - 1] ?? result[0];
                     let txId = last?.transactionId;
                     if (txId) {
-                      const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
                       try { toast.dismiss('embedded'); } catch {}
-                      toast.success('Tx Success', {
+                      toast.success('Embedded flow complete', {
                         description: (
-                          <a href={txLink} target="_blank" rel="noopener noreferrer">
-                            View transaction on NearBlocks ({txId})
+                          <a href={`${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`}
+                            target="_blank" rel="noopener noreferrer"
+                          >
+                            View transaction on NearBlocks
                           </a>
                         ),
                       });
                     } else {
                       try { toast.dismiss('embedded'); } catch {}
-                      toast.success('Tx Success');
+                      toast.success('Embedded flow complete');
                     }
-                  } catch {
+                    setTimeout(() => { void fetchGreeting(); }, 1000);
+                  }
+                },
+                onError: (error) => {
+                  const message = error instanceof Error ? error.message : String(error);
+                  toast.error(`Transaction failed: ${message}`, { id: 'embedded' });
+                },
+              }}
+              buttonStyle={{
+                color: 'white',
+                background: 'var(--w3a-colors-primary)',
+                borderRadius: '2rem',
+                border: 'none',
+                boxShadow: '0px 0px 3px 1px rgba(0, 0, 0, 0.1)',
+                fontSize: '16px',
+                height: '44px',
+              }}
+              buttonHoverStyle={{
+                background: 'var(--w3a-colors-primaryHover)',
+                boxShadow: '0px 0px 4px 2px rgba(0, 0, 0, 0.2)',
+              }}
+              tooltipPosition={{
+                position: 'bottom-left',
+              }}
+              buttonTextElement={<TouchIdWithText buttonText="Batch Sign Actions" />}
+              onCancel={() => toast('Transaction cancelled by user', { id: 'embedded' })}
+              onSuccess={(result) => {
+                try {
+                  const last = result[result.length - 1] ?? result[0];
+                  let txId = last?.transactionId;
+                  if (txId) {
+                    const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+                    try { toast.dismiss('embedded'); } catch {}
+                    toast.success('Tx Success', {
+                      description: (
+                        <a href={txLink} target="_blank" rel="noopener noreferrer">
+                          View transaction on NearBlocks ({txId})
+                        </a>
+                      ),
+                    });
+                  } else {
                     try { toast.dismiss('embedded'); } catch {}
                     toast.success('Tx Success');
                   }
-                  // Refresh the greeting after success
-                  setTimeout(() => { void fetchGreeting(); }, 1000);
-                }}
-              />
-            }
-          </div>
+                } catch {
+                  try { toast.dismiss('embedded'); } catch {}
+                  toast.success('Tx Success');
+                }
+                // Refresh the greeting after success
+                setTimeout(() => { void fetchGreeting(); }, 1000);
+              }}
+            />
+          }
         </div>
+      </div>
 
-        <div className="action-section" style={{ marginTop: '1rem' }}>
-          <h2 className="demo-subtitle">Configure Transaction UX Options</h2>
-          <div className="action-text">
-            Choose between Modal or Drawer for the tx confirmer menus.
-            You can also skip the confirmation menu.
-          </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <LoadingButton
-              onClick={() => handleExecuteMultiActions('modal', 'requireClick')}
-              loading={loadingUi === 'modal'}
-              loadingText="Signing..."
-              variant="primary"
-              size="medium"
-              style={{ flex: 1 }}
-            >
-              Show Modal
-            </LoadingButton>
-            <LoadingButton
-              onClick={() => handleExecuteMultiActions('drawer', 'autoProceed')}
-              loading={loadingUi === 'drawer'}
-              loadingText="Signing..."
-              variant="secondary"
-              size="medium"
-              style={{ flex: 1, minWidth: 200 }}
-            >
-              Drawer + Skip Confirm
-            </LoadingButton>
-          </div>
+      <div className="action-section" style={{ marginTop: '1rem' }}>
+        <h2 className="demo-subtitle">Configure Transaction UX Options</h2>
+        <div className="action-text">
+          Choose between Modal or Drawer for the tx confirmer menus.
+          You can also skip the confirmation menu.
         </div>
-      </GlassBorder>
-    </div>
+        <div style={{ display: 'flex', gap: 12 }}>
+          <LoadingButton
+            onClick={() => handleExecuteMultiActions('modal', 'requireClick')}
+            loading={loadingUi === 'modal'}
+            loadingText="Signing..."
+            variant="primary"
+            size="medium"
+            style={{ flex: 1 }}
+          >
+            Show Modal
+          </LoadingButton>
+          <LoadingButton
+            onClick={() => handleExecuteMultiActions('drawer', 'autoProceed')}
+            loading={loadingUi === 'drawer'}
+            loadingText="Signing..."
+            variant="secondary"
+            size="medium"
+            style={{ flex: 1, minWidth: 200 }}
+          >
+            Drawer + Skip Confirm
+          </LoadingButton>
+        </div>
+      </div>
+      </div>
   );
 };
 
