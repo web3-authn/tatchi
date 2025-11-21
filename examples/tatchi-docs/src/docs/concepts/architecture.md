@@ -40,7 +40,50 @@ Each section illustrates how the wallet handles VRF operations, onchain verifica
 
 Registration creates a passkey and derives deterministic keys from it from a single biometric prompt. The flow uses a bootstrap VRF keypair to generate an initial challenge, then derives permanent keys from the passkey's PRF outputs.
 
-![Registration Flow](/diagrams/contract-registration-flow.svg)
+```mermaid
+sequenceDiagram
+    box rgb(243, 244, 246) Iframe Wallet
+    participant JSMain as JS Main Thread
+    participant Worker as WASM Worker
+    end
+    participant NEAR as NEAR RPC
+    participant Contract as Web3Authn Contract
+
+    Note over JSMain,Worker: Phase 1: Bootstrap VRF Challenge
+    JSMain->>NEAR: 1. Get block height + hash from RPC
+    NEAR->>JSMain: Block data
+    JSMain->>Worker: 2. generateVrfKeypairBootstrap()
+    Worker->>Worker: 3. Generate bootstrap VRF keypair (temporary)
+    Worker->>Worker: 4. Generate VRF proof + output (challenge)
+    Worker->>JSMain: 5. VRF challenge for WebAuthn ceremony
+
+    Note over JSMain,Worker: Phase 2: WebAuthn Registration with Dual PRF
+    JSMain->>Worker: 6. requestRegistrationCredentialConfirmation()
+    Note over Worker: WebAuthn registration (TouchID prompt)<br/>PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
+    Worker->>JSMain: Registration credential
+
+    Note over JSMain,Worker: Phase 3: Derive Deterministic Keys from PRF
+    JSMain->>Worker: 7. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
+    Worker->>Worker: 8. Derive deterministic VRF keypair from PRF
+    Worker->>Worker: 9. Encrypt deterministic VRF with ChaCha20-Poly1305
+    Worker->>JSMain: 10. Encrypted deterministic VRF keypair
+
+    JSMain->>Worker: 11. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
+    Worker->>Worker: 12. Derive NEAR ed25519 keypair from PRF
+    Worker->>Worker: 13. Encrypt NEAR keypair with ChaCha20-Poly1305
+    Worker->>JSMain: 14. NEAR public key + encrypted keypair
+
+    Note over JSMain,Contract: Phase 4: Contract Registration
+    Note over JSMain: Routed through relayer to pay for gas
+    JSMain->>Contract: 15. create_account_and_register_user()
+    Contract->>Contract: 16. Registration verified, authenticator stored onchain ✓
+    Contract->>JSMain: 17. Registration complete (txId)
+
+    Note over JSMain,Worker: Phase 5: Client-side Storage
+    JSMain->>JSMain: 18. Store encrypted deterministic VRF in IndexedDB
+    JSMain->>JSMain: 19. Store encrypted NEAR keypair in IndexedDB
+    JSMain->>JSMain: 20. Registration complete ✓
+```
 
 ::: tip **Steps:**
 1. **Bootstrap VRF Challenge** - Fetch fresh NEAR block data and generate a temporary VRF keypair in the WASM worker to create the initial WebAuthn challenge.
@@ -81,7 +124,27 @@ During login:
 
 ### Path A: Shamir 3-Pass Unlock (No Biometric)
 
-![Login Option A: Shamir 3-Pass](/diagrams/login-option-a-shamir.svg)
+```mermaid
+sequenceDiagram
+    box rgb(243, 244, 246) Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
+
+    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
+    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
+
+    Note over Wallet,Relay: Phase 2: Shamir 3-Pass Unlock (No TouchID)
+    Wallet->>Relay: 2. Request Shamir 3-pass decrypt
+    Relay->>Wallet: Server KEK component
+    Wallet->>Worker: 3. Decrypt VRF with combined KEK
+    Worker->>Worker: 4. VRF keypair loaded into memory
+    Worker->>Wallet: 5. VRF session active ✓
+    Note over Wallet: No biometric prompt required
+
+    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges
+```
 
 ::: tip **Steps**:
 1. Load encrypted VRF keypair from IndexedDB
@@ -100,7 +163,28 @@ The Shamir 3-pass protocol uses commutative encryption: locks can be added and r
 
 ### Path B: WebAuthn PRF Unlock (Biometric Fallback)
 
-![Login Option B: WebAuthn PRF](/diagrams/login-option-b-webauthn.svg)
+```mermaid
+sequenceDiagram
+    box rgb(243, 244, 246) Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
+
+    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
+    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
+
+    Note over Wallet,Relay: Phase 2: WebAuthn Unlock (TouchID Fallback)
+    Wallet->>Wallet: 2. WebAuthn authentication (TouchID prompt)
+    Note over Wallet: PRF extension returns chacha20 output
+    Wallet->>Worker: 3. Decrypt VRF with PRF output
+    Worker->>Worker: 4. VRF keypair loaded into memory
+    Worker->>Wallet: 5. VRF session active ✓
+    Note over Wallet,Relay: Optional: Refresh Shamir encryption
+    Wallet->>Relay: 6. Store new server-encrypted VRF
+
+    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges
+```
 
 ::: tip **Steps**:
 1. Trigger WebAuthn authentication ceremony (TouchID/FaceID)
@@ -118,7 +202,21 @@ The Shamir 3-pass protocol uses commutative encryption: locks can be added and r
 
 After login, you can optionally mint a JWT session token for web2 authentication:
 
-![Login Optional: JWT Token](/diagrams/login-optional-jwt.svg)
+```mermaid
+sequenceDiagram
+    box Iframe Wallet
+    participant Wallet as Wallet
+    participant Worker as VRF Worker
+    end
+    participant Relay as Relay Server (Optional)
+
+    Note over Wallet,Relay: Optional JWT Session (After VRF Unlock)
+    Wallet->>Worker: 1. Generate fresh VRF challenge
+    Worker->>Wallet: VRF challenge + proof
+    Wallet->>Wallet: 2. WebAuthn authentication (TouchID prompt)
+    Wallet->>Relay: 3. Verify authentication + VRF proof
+    Relay->>Wallet: 4. JWT token
+```
 
 ::: info **Security properties:**
 - **VRF stays in worker**: Never exposed to main thread
@@ -130,7 +228,44 @@ After login, you can optionally mint a JWT session token for web2 authentication
 
 ## Transaction Flow
 
-![Transaction Flow](/diagrams/contract-transaction-flow.svg)
+```mermaid
+sequenceDiagram
+    box rgb(243, 244, 246) Iframe Wallet
+    participant JSMain as JS Main Thread
+    participant Worker as WASM Worker
+    end
+    participant NEAR as NEAR RPC
+    participant Contract as Web3Authn Contract
+
+    Note over JSMain,Worker: Phase 1: Preparation
+    JSMain->>JSMain: 1. Validate action inputs
+    JSMain->>JSMain: 2. Pre-warm NonceManager (async)
+
+    Note over JSMain,Worker: Phase 2: User Confirmation & VRF Challenge
+    JSMain->>Worker: 3. Request user confirmation
+    Note over Worker: UI mounts showing transaction details
+    Worker->>NEAR: 4. Get nonce, block height + hash
+    NEAR->>Worker: Block data + nonce
+    Worker->>Worker: 5. Generate VRF challenge (no TouchID)
+
+    Note over JSMain,Worker: Phase 3: WebAuthn Authentication
+    Worker->>Worker: 6. WebAuthn authentication (TouchID prompt)
+    Worker->>Contract: 7. verify_authentication_response(vrf_data, webauthn_authentication)
+    Contract->>Contract: 8. Verify VRF proof against stored VRF pubkey ✓
+    Contract->>Contract: 9. Check freshness (block_height within MAX_BLOCK_AGE) ✓
+    Contract->>Contract: 10. Verify WebAuthn signature against stored passkey ✓
+    Contract->>Worker: 11. Authentication verified ✓
+
+    Note over JSMain,Worker: Phase 4: Transaction Signing
+    Worker->>Worker: 12. Sign NEAR transaction with ed25519 keypair
+    Worker->>JSMain: 13. Signed transaction
+
+    Note over JSMain,NEAR: Phase 5: Broadcasting
+    JSMain->>NEAR: 14. Broadcast signed transaction
+    NEAR->>JSMain: 15. Transaction result (txId)
+    JSMain->>JSMain: 16. Update nonce from blockchain (async)
+    JSMain->>JSMain: 17. Transaction complete ✓
+```
 
 ::: tip **Steps:**
 1. **Preparation** - Validate action inputs and pre-warm the NonceManager to optimize nonce fetching for upcoming transactions.

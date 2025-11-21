@@ -7,11 +7,11 @@ import { useTatchi } from '@tatchi-xyz/sdk/react'
 import { CarouselProvider } from './Carousel2/CarouselProvider'
 import { Carousel } from './Carousel2/Carousel'
 
-// Lazily load heavy demo components to shrink the initial bundle
+// Lazily load only the auth menu; demo pages themselves stay in the main bundle
 const PasskeyLoginMenu = React.lazy(() => import('./PasskeyLoginMenu').then(m => ({ default: m.PasskeyLoginMenu })))
-const DemoPage = React.lazy(() => import('./DemoPage').then(m => ({ default: m.DemoPage })))
-const AccountRecovery = React.lazy(() => import('./AccountRecovery').then(m => ({ default: m.AccountRecovery })))
-const DemoChainsigs = React.lazy(() => import('./DemoChainsigs').then(m => ({ default: m.DemoChainsigs })))
+import { DemoPage } from './DemoPage'
+import { AccountRecovery } from './AccountRecovery'
+import { DemoChainsigs } from './DemoChainsigs'
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 import NearLogoBg from './NearLogoBg'
@@ -53,9 +53,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
-            <DemoPage />
-          </React.Suspense>
+          <DemoPage />
           {index > 0 && (
             <div className="carousel-cta"
               style={{ paddingBottom: '2rem' }} // prevent clipping of ButtonWithTooltip
@@ -83,9 +81,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
-            <DemoChainsigs />
-          </React.Suspense>
+          <DemoChainsigs />
           {index > 0 && (
             <div className="carousel-cta">
               <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
@@ -111,9 +107,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}> 
-            <AccountRecovery />
-          </React.Suspense>
+          <AccountRecovery />
           {index > 0 && canPrev && (
             <div className="carousel-cta carousel-cta--left">
               <button type="button" className="carousel-next-btn" onClick={prevSlide}>

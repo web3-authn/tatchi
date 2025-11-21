@@ -124,18 +124,6 @@ body::-webkit-scrollbar {
   height: 0;
 }
 
-.VPContent.is-home .VPHome .vp-doc.container {
-  box-sizing: border-box;
-  overflow: visible;
-  padding: 0;
-}
-
-@media (min-width: 1280px) {
-  .VPNavBarAppearance.appearance {
-    display: none;
-  }
-}
-
 /* Override Sonner toast close button styles */
 /* Vendor sets padding with !important; match with !important and ensure this loads after vendor CSS. */
 :root [data-sonner-toaster][data-theme] [data-sonner-toast] [data-close-button] {
@@ -154,6 +142,32 @@ body::-webkit-scrollbar {
 :root [data-sonner-toaster][data-theme] [data-sonner-toast] {
   border-radius: 1rem !important;
   background-color: var(--w3a-colors-colorBackground) !important;
+}
+
+.VPContent.is-home .VPHome .vp-doc.container {
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 0;
+}
+.VPFlyout.VPNavBarExtra.extra {
+  display: flex;
+}
+
+@media (min-width: 1280px) {
+  .VPNavBarAppearance.appearance {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .VPFlyout.VPNavBarExtra.extra {
+    display: flex;
+  }
+}
+@media (max-width: 768px) {
+  .VPFlyout.VPNavBarExtra.extra {
+    display: none;
+  }
 }
 
 .VPFlyout.VPNavBarExtra.extra > button {
@@ -175,7 +189,7 @@ body::-webkit-scrollbar {
 :root {
   /* Colors: Background (light) */
   --vp-c-bg: oklch(0.98 0 0);            /* grey50 */
-  --vp-c-bg-alt: oklch(0.95 0.005 240);/* grey100 */
+  --vp-c-bg-alt: oklch(0.95 0.005 240);  /* grey100 */
 
   /* Colors: Borders (light) */
   --vp-c-border: oklch(0.8 0.02 240);    /* slate300 */
@@ -202,4 +216,24 @@ body::-webkit-scrollbar {
   --vp-c-text-1: oklch(0.97 0.002 240);  /* grey75 */
   --vp-c-text-2: oklch(0.53 0.02 240);   /* grey500 */
   --vp-c-text-3: oklch(0.35 0.018 240);  /* grey650 */
+}
+
+/* Mermaid diagram box colors - theme aware */
+:root {
+  /* Light mode: lighter gray */
+  --mermaid-box-fill: rgb(243, 244, 246);      /* gray-100 */
+  --mermaid-box-stroke: rgb(156, 163, 175);    /* gray-400 */
+}
+
+.dark {
+  /* Dark mode: darker gray */
+  --mermaid-box-fill: rgb(55, 65, 81);         /* gray-700 */
+  --mermaid-box-stroke: rgb(107, 114, 128);    /* gray-500 */
+}
+
+/* Target mermaid box backgrounds - match rects with the specific gray color we set */
+.vp-doc .mermaid svg rect[style*="fill: rgb(243, 244, 246)"],
+.vp-doc .mermaid svg rect[fill="rgb(243, 244, 246)"] {
+  fill: var(--mermaid-box-fill) !important;
+  stroke: var(--mermaid-box-stroke) !important;
 }
