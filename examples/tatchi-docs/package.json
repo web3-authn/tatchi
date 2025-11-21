@@ -45,7 +45,6 @@
     "util": "^0.12.5",
     "vite": "^6.3.5",
     "vite-plugin-mkcert": "^1.17.8",
-    "vite-plugin-node-polyfills": "^0.24.0",
-    "vitepress-plugin-mermaid": "^2.0.17"
+    "vite-plugin-node-polyfills": "^0.24.0"
   }
 }
