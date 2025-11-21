@@ -33,7 +33,7 @@ sequenceDiagram
     Note over JSMain,Contract: Phase 4: Contract Registration
     Note over JSMain: Routed through relayer to pay for gas
     JSMain->>Contract: 15. create_account_and_register_user()
-    Contract->>Contract: 16. Registration verified, authenticator stored onchain ✓
+    Contract->>Contract: 16. Registration verified
     Contract->>JSMain: 17. Registration complete (txId)
 
     Note over JSMain,Worker: Phase 5: Client-side Storage
