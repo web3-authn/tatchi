@@ -226,9 +226,9 @@ body::-webkit-scrollbar {
 }
 
 .dark {
-  /* Dark mode: darker gray */
-  --mermaid-box-fill: rgb(55, 65, 81);         /* gray-700 */
-  --mermaid-box-stroke: rgb(107, 114, 128);    /* gray-500 */
+  /* Dark mode: dark blue background with deep orange border */
+  --mermaid-box-fill: rgb(40, 48, 58);        /* blue-900 */
+  --mermaid-box-stroke: rgb(40, 48, 58);     /* blue-990 */
 }
 
 /* Target mermaid box backgrounds - match rects with the specific gray color we set */

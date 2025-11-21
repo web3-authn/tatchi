@@ -173,6 +173,130 @@ const theme: Theme = {
 
     if (isServerRender()) return
 
+    // Initialize mermaid on client side
+    if (typeof window !== 'undefined') {
+      import('mermaid').then(({ default: mermaid }) => {
+        // Detect if we're in dark mode
+        const isDark = document.documentElement.classList.contains('dark')
+
+        mermaid.initialize({
+          startOnLoad: false,
+          theme: 'base',
+          themeVariables: {
+            primaryColor: '#f0f9ff',
+            primaryBorderColor: '#60a5fa',
+            lineColor: '#94a3b8',
+            fontSize: '16px',
+            // Text colors: light in dark mode, dark in light mode
+            primaryTextColor: isDark ? '#e2e8f0' : '#1e293b',
+            secondaryTextColor: isDark ? '#cbd5e1' : '#334155',
+            tertiaryTextColor: isDark ? '#94a3b8' : '#64748b',
+            textColor: isDark ? '#e2e8f0' : '#1e293b',
+            actorTextColor: isDark ? '#e2e8f0' : '#1e293b',
+            labelTextColor: isDark ? '#e2e8f0' : '#1e293b',
+            noteTextColor: isDark ? '#e2e8f0' : '#1e293b',
+            // Participant boxes: blue in dark mode
+            actorBkg: isDark ? '#2c6cbc' : '#f0f9ff',
+            actorBorder: isDark ? '#2c6cbc' : '#60a5fa',
+            // Note boxes: darker, less saturated orange in dark mode
+            noteBkgColor: isDark ? '#c88755' : '#fef3c7',
+            noteBorderColor: isDark ? '#c88755' : '#f59e0b',
+          }
+        })
+
+        // Function to render mermaid diagrams
+        const renderMermaid = async () => {
+          const mermaidDivs = document.querySelectorAll('.language-mermaid')
+          if (mermaidDivs.length === 0) return
+
+          for (const div of Array.from(mermaidDivs)) {
+            const pre = div.querySelector('pre')
+            const code = pre?.querySelector('code')
+            if (!code) continue
+
+            const text = code.textContent || ''
+            const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`
+
+            try {
+              const { svg } = await mermaid.render(id, text)
+              const container = document.createElement('div')
+              container.className = 'mermaid'
+              container.setAttribute('data-mermaid-source', text) // Store original source
+              container.innerHTML = svg
+              div.replaceWith(container)
+            } catch (err) {
+              console.error('Mermaid rendering error:', err)
+            }
+          }
+        }
+
+        // Initial render
+        renderMermaid()
+
+        // Re-render on route change
+        ctx.router.onAfterRouteChanged = () => {
+          setTimeout(renderMermaid, 0)
+        }
+
+        // Re-initialize and re-render when theme changes
+        const handleThemeChange = () => {
+          const isDark = document.documentElement.classList.contains('dark')
+          mermaid.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+              primaryColor: '#f0f9ff',
+              primaryBorderColor: '#60a5fa',
+              lineColor: '#94a3b8',
+              fontSize: '16px',
+              // Text colors: light in dark mode, dark in light mode
+              primaryTextColor: isDark ? '#e2e8f0' : '#1e293b',
+              secondaryTextColor: isDark ? '#cbd5e1' : '#334155',
+              tertiaryTextColor: isDark ? '#94a3b8' : '#64748b',
+              textColor: isDark ? '#e2e8f0' : '#1e293b',
+              actorTextColor: isDark ? '#e2e8f0' : '#1e293b',
+              labelTextColor: isDark ? '#e2e8f0' : '#1e293b',
+              noteTextColor: isDark ? '#e2e8f0' : '#1e293b',
+              // Participant boxes: blue in dark mode
+              actorBkg: isDark ? '#2c6cbc' : '#f0f9ff',
+              actorBorder: isDark ? '#5896d9' : '#60a5fa',
+              // Note boxes: darker, less saturated orange in dark mode
+              noteBkgColor: isDark ? '#b46e3c' : '#fef3c7',
+              noteBorderColor: isDark ? '#c88755' : '#f59e0b',
+            }
+          })
+          // Force re-render by finding existing mermaid diagrams and replacing them with code blocks
+          document.querySelectorAll('.mermaid[data-mermaid-source]').forEach((el) => {
+            const source = el.getAttribute('data-mermaid-source')
+            if (source) {
+              // Re-create the code block structure
+              const div = document.createElement('div')
+              div.className = 'language-mermaid'
+              const pre = document.createElement('pre')
+              const code = document.createElement('code')
+              code.textContent = source
+              pre.appendChild(code)
+              div.appendChild(pre)
+              el.replaceWith(div)
+            }
+          })
+          // Re-render with new colors
+          setTimeout(renderMermaid, 50)
+        }
+
+        // Listen for both VitePress theme changes and our custom theme events
+        const moTheme = new MutationObserver((mutations) => {
+          for (const mutation of mutations) {
+            if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+              handleThemeChange()
+              break
+            }
+          }
+        })
+        moTheme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+      }).catch(() => {})
+    }
+
     // Defer registering the wallet app custom element until needed
     registerWalletAppElementLazy()
     // Also warm the wallet-app chunk shortly after FCP on capable networks
