@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { LoadingButton } from '../LoadingButton';
-import { GlassBorder } from '../GlassBorder';
 import '../ActionSection.css';
 import './DemoChainsigs.css';
 
@@ -14,11 +13,8 @@ import { useDerivedEvmAddress } from './hooks/useDerivedEvmAddress';
 import ChainFieldsCard from './ChainFieldsCard';
 
 export const DemoChainsigs: React.FC = () => {
-  const {
-    loginState: { isLoggedIn, nearAccountId },
-    tatchi,
-  } = useTatchi();
 
+  const { loginState: { isLoggedIn, nearAccountId } } = useTatchi();
   const { theme } = useTheme();
 
   const { isWorking, signAndSendEvmTransfer, signAndSendErc20Transfer } = useMpcEvmFlow();
@@ -130,90 +126,88 @@ export const DemoChainsigs: React.FC = () => {
     return null;
   }
   return (
-    <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
-      <div className="demo-chainsigs-root">
+    <div className="demo-chainsigs-root">
+      <div className="action-section">
 
-        <div className="action-section">
-          <div className="demo-page-header">
-            <h2 className="demo-title">
-              <picture className="demo-near-logo">
-                <img
-                  src={nearLogo}
-                  alt="NEAR logo"
-                  width={32}
-                  height={32}
-                  style={{ display: 'inline-block' }}
-                />
-              </picture>
-              <span>NEAR Intents Demo</span>
-            </h2>
-          </div>
-          <div className="action-text">
-            <div className="demo-subtitle">
-              Send NEAR Intents using TouchID
-            </div>
-            Request a Chain Signature from the NEAR intents contract.
-            Then send it to Ethereum, or any network supported by NEAR intents
-            such as Solana, Bitcoin, Zcash, etc.
-          </div>
-
-          <div className="input-group"
-            style={{
-              marginTop: '2rem',
-              paddingTop: '2rem',
-              borderTop: '1px solid var(--fe-border)'
-            }}
-          >
-            <label style={{ textAlign: "center", margin: '0rem 0 0.25rem 0' }}>
-              Your derived ETH address is
-            </label>
-            <DerivedAddressPill address={derivedAddress} />
-          </div>
-
-          {derivedAddress ? (
-            <FaucetLinksRow
-              chainId={chainIdNum}
-              address={derivedAddress}
-              rpcOverride={rpcOverride}
-              asset={asset}
-              amountHuman={amountEth}
-              tokenAddress={tokenAddress}
-            />
-          ) : null}
-
-          <ChainFieldsCard
-            to={to}
-            onChangeTo={setTo}
-            amountEth={amountEth}
-            onChangeAmount={setAmountEth}
-            asset={asset}
-            onChangeAsset={setAsset}
-            chainId={chainId}
-            onChangeChainId={setChainId}
-            rpcOverride={rpcOverride}
-            onChangeRpcOverride={setRpcOverride}
-            tokenAddress={tokenAddress}
-            onChangeTokenAddress={setTokenAddress}
-            mpcContractId={mpcContractId}
-            onChangeMpcContractId={setMpcContractId}
-            expanded={chainFieldsExpanded}
-            onToggleExpanded={() => setChainFieldsExpanded((v) => !v)}
-          />
-
-          <LoadingButton
-            onClick={handleSignViaMpc}
-            loading={isWorking}
-            loadingText="Processing..."
-            variant="primary"
-            size="medium"
-            style={{ width: '100%', height: '55px' }}
-            textStyles={{ fontSize: '1rem' }}
-          >
-            {asset === 'ETH' ? 'Sign and Send ETH Transfer' : 'Sign and Send USDC Transfer'}
-          </LoadingButton>
+        <div className="demo-page-header">
+          <h2 className="demo-title">
+            <picture className="demo-near-logo">
+              <img
+                src={nearLogo}
+                alt="NEAR logo"
+                width={32}
+                height={32}
+                style={{ display: 'inline-block' }}
+              />
+            </picture>
+            <span>NEAR Intents Demo</span>
+          </h2>
         </div>
+        <div className="action-text">
+          <div className="demo-subtitle">
+            Send NEAR Intents using TouchID
+          </div>
+          Request a Chain Signature from the NEAR intents contract.
+          Then send it to Ethereum, or any network supported by NEAR intents
+          such as Solana, Bitcoin, Zcash, etc.
+        </div>
+
+        <div className="input-group"
+          style={{
+            marginTop: '2rem',
+            paddingTop: '2rem',
+            borderTop: '1px solid var(--fe-border)'
+          }}
+        >
+          <label style={{ textAlign: "center", margin: '0rem 0 0.25rem 0' }}>
+            Your derived ETH address is
+          </label>
+          <DerivedAddressPill address={derivedAddress} />
+        </div>
+
+        {derivedAddress ? (
+          <FaucetLinksRow
+            chainId={chainIdNum}
+            address={derivedAddress}
+            rpcOverride={rpcOverride}
+            asset={asset}
+            amountHuman={amountEth}
+            tokenAddress={tokenAddress}
+          />
+        ) : null}
+
+        <ChainFieldsCard
+          to={to}
+          onChangeTo={setTo}
+          amountEth={amountEth}
+          onChangeAmount={setAmountEth}
+          asset={asset}
+          onChangeAsset={setAsset}
+          chainId={chainId}
+          onChangeChainId={setChainId}
+          rpcOverride={rpcOverride}
+          onChangeRpcOverride={setRpcOverride}
+          tokenAddress={tokenAddress}
+          onChangeTokenAddress={setTokenAddress}
+          mpcContractId={mpcContractId}
+          onChangeMpcContractId={setMpcContractId}
+          expanded={chainFieldsExpanded}
+          onToggleExpanded={() => setChainFieldsExpanded((v) => !v)}
+        />
+
+        <LoadingButton
+          onClick={handleSignViaMpc}
+          loading={isWorking}
+          loadingText="Processing..."
+          variant="primary"
+          size="medium"
+          style={{ width: '100%', height: '55px' }}
+          textStyles={{ fontSize: '1rem' }}
+        >
+          {asset === 'ETH' ? 'Sign and Send ETH Transfer' : 'Sign and Send USDC Transfer'}
+        </LoadingButton>
       </div>
-    </GlassBorder>
+    </div>
   );
 };
 

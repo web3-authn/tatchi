@@ -1,11 +1,13 @@
 import React from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import NavbarStatic from './Navbar/NavbarStatic'
 import NavbarProfileOverlay from './Navbar/NavbarProfileOverlay'
 import { useTatchi } from '@tatchi-xyz/sdk/react'
 
+import { GlassBorder } from './GlassBorder';
 import { CarouselProvider } from './Carousel2/CarouselProvider'
 import { Carousel } from './Carousel2/Carousel'
+import { CarouselNextButton } from './Carousel2/CarouselNextButton'
+import { CarouselPrevButton } from './Carousel2/CarouselPrevButton'
 
 // Lazily load heavy demo components to shrink the initial bundle
 const PasskeyLoginMenu = React.lazy(() => import('./PasskeyLoginMenu').then(m => ({ default: m.PasskeyLoginMenu })))
@@ -36,12 +38,7 @@ export function PasskeyColumn() {
           </React.Suspense>
           {index > 0 && canNext && (
             <div className="carousel-cta">
-              <button type="button" className="carousel-next-btn" onClick={nextSlide}>
-                <span className="btn-icon-left" aria-hidden>
-                  <ChevronRight size={16} />
-                </span>
-                Next
-              </button>
+              <CarouselNextButton onClick={nextSlide} />
             </div>
           )}
         </>
@@ -53,25 +50,17 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}>
-            <DemoPage />
-          </React.Suspense>
+          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }} >
+            <React.Suspense fallback={<div style={{ height: 320 }} />}>
+              <DemoPage />
+            </React.Suspense>
+          </GlassBorder>
           {index > 0 && (
             <div className="carousel-cta"
               style={{ paddingBottom: '2rem' }} // prevent clipping of ButtonWithTooltip
             >
-              <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
-                <span className="btn-icon-left" aria-hidden>
-                  <ChevronLeft size={16} />
-                </span>
-                Previous
-              </button>
-              <button type="button" className="carousel-next-btn" onClick={nextSlide} disabled={!canNext}>
-                Next
-                <span className="btn-icon-right" aria-hidden>
-                  <ChevronRight size={16} />
-                </span>
-              </button>
+              <CarouselPrevButton onClick={prevSlide} disabled={!canPrev} />
+              <CarouselNextButton onClick={nextSlide} disabled={!canNext} />
             </div>
           )}
         </>
@@ -83,23 +72,15 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}>
-            <DemoChainsigs />
-          </React.Suspense>
+          <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
+            <React.Suspense fallback={<div style={{ height: 320 }} />}>
+              <DemoChainsigs />
+            </React.Suspense>
+          </GlassBorder>
           {index > 0 && (
             <div className="carousel-cta">
-              <button type="button" className="carousel-next-btn" onClick={prevSlide} disabled={!canPrev}>
-                <span className="btn-icon-left" aria-hidden>
-                  <ChevronLeft size={16} />
-                </span>
-                Previous
-              </button>
-              <button type="button" className="carousel-next-btn" onClick={nextSlide} disabled={!canNext}>
-                Next
-                <span className="btn-icon-right" aria-hidden>
-                  <ChevronRight size={16} />
-                </span>
-              </button>
+              <CarouselPrevButton onClick={prevSlide} disabled={!canPrev} />
+              <CarouselNextButton onClick={nextSlide} disabled={!canNext} />
             </div>
           )}
         </>
@@ -116,12 +97,7 @@ export function PasskeyColumn() {
           </React.Suspense>
           {index > 0 && canPrev && (
             <div className="carousel-cta carousel-cta--left">
-              <button type="button" className="carousel-next-btn" onClick={prevSlide}>
-                <span className="btn-icon-left" aria-hidden>
-                  <ChevronLeft size={16} />
-                </span>
-                Previous
-              </button>
+              <CarouselPrevButton onClick={prevSlide} />
             </div>
           )}
         </>
