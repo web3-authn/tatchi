@@ -105,6 +105,7 @@
   "scripts": {
     "build": "./scripts/build-dev.sh",
     "build:prod": "./scripts/build-prod.sh",
+    "build:sri-tarball": "bash ./scripts/build-sri-tarball.sh",
     "build:rolldown": "rolldown -c rolldown.config.ts",
     "dev": "rolldown -c rolldown.config.ts -w",
     "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",

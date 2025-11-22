@@ -1,156 +1,70 @@
-# SDK Tarball + SRI Plan
+# SDK SRI Tarball (Local Builds)
 
-This document captures a concrete plan for a dedicated GitHub Actions workflow that builds the SDK, packages the build output as a `.tar.gz`, and attaches integrity metadata (hashes + SRI string). It should be incremental and re‑use the existing `deploy-cloudflare` build shape as much as possible.
+This document describes the local‑only flow for building a deterministic SDK `.tar.gz` plus SRI metadata into a `./builds` directory in the repo. A separate service can then pick up these files and upload them to IPFS (or any other distribution channel) using the SRI hash for integrity.
 
-## Goals
+There is **no GitHub Actions job** for this anymore; everything here runs locally (or in whatever environment calls the scripts).
 
-- Produce a reproducible, versioned `@tatchi-xyz/sdk` build as a `.tar.gz` artifact.
-- Keep the build environment identical (or very close) to `deploy-cloudflare.yml`.
-- Emit integrity metadata (sha256 and SRI `sha384-…` string) for the tarball.
-- Optionally verify the tarball against its checksum/SRI in CI.
-- Avoid new secrets; rely only on public GitHub Actions and repository contents.
+## What Gets Built
 
-Non‑goals:
+From the current `sdk` package (version taken from `sdk/package.json`):
 
-- Publishing to npm (covered separately).
-- Changing the existing Cloudflare deploy pipeline.
+- Tarball: `builds/<version>/tatchi-sdk-<version>.tar.gz`
+- Checksum: `builds/<version>/tatchi-sdk-<version>.tar.gz.sha256`
+- SRI: `builds/<version>/tatchi-sdk-<version>.tar.gz.sri`
 
-## Target Artifact Layout
+Tarball contents:
 
-Tarball contents (initial proposal):
+- `sdk/dist/**` (production build output)
+- `sdk/package.json`
+- `sdk/README.md`
+- `sdk/LICENSE` (if present)
 
-- Root: `sdk/`
-  - `sdk/dist/**` (current production build output)
-  - `sdk/package.json`
-  - `sdk/README.md`
-  - `sdk/LICENSE` (if present)
-  - `sdk/dist/manifest.json` and `sdk/dist/manifest.sig` (when present from `deploy-cloudflare`‑style build)
+The SRI file contains a single `sha384-…` string suitable for Subresource Integrity (e.g., `<script integrity="sha384-…">`), derived from the tarball bytes.
 
-Artifact files uploaded by the workflow:
+## Prerequisites
 
-- `sdk-dist-${GITHUB_SHA}.tar.gz`
-- `sdk-dist-${GITHUB_SHA}.tar.gz.sha256` (plain sha256sum line)
-- `sdk-dist-${GITHUB_SHA}.tar.gz.sri` (single `sha384-…` line suitable for SRI)
+- Repository dependencies installed: `pnpm install` at the repo root.
+- SDK production build already run so that `sdk/dist` exists:
+  - From repo root: `pnpm build:sdk-prod`
+  - Or from `sdk/`: `pnpm build:prod`
 
-## New Workflow Skeleton
+The SRI tarball script **does not** build the SDK; it only packages the existing `sdk/dist` and computes integrity metadata.
 
-Add a new workflow file at `.github/workflows/sdk-tarball.yml` with:
+## Commands
 
-- `name: sdk-tarball`
-- `on`:
-  - `workflow_dispatch` (manual runs)
-  - `push` with `tags: ['v*']` (publish per release tag)
+From the repo root:
 
-Single job for now:
+```bash
+# 1. Build SDK (once per version)
+pnpm build:sdk-prod
 
-- `jobs.build-tarball`:
-  - `runs-on: ubuntu-latest`
-  - Steps (mirroring `deploy-cloudflare.yml`):
-    - Checkout (`actions/checkout@v4`, `fetch-depth: 0`).
-    - Setup pnpm (`pnpm/action-setup@v3`, `version: 9`).
-    - Setup Node (`actions/setup-node@v4`, `node-version: '20'`, `cache: 'pnpm'`).
-    - Install Rust toolchain (`dtolnay/rust-toolchain@stable`).
-    - Add wasm target (`rustup target add wasm32-unknown-unknown`).
-    - Install wasm-pack (same curl installer as `deploy-cloudflare`).
-    - Setup Bun (`oven-sh/setup-bun@v2`).
-    - Install deps: `pnpm install --no-frozen-lockfile`.
-    - Build SDK: `pnpm build:sdk-prod`.
-
-Packaging step (example shell):
-
-```yaml
-      - name: Package sdk/dist as tarball
-        run: |
-          set -euxo pipefail
-          mkdir -p artifacts
-          TARBALL="sdk-dist-${GITHUB_SHA}.tar.gz"
-          # include dist, package.json, README, LICENSE if present
-          tar -czf "artifacts/$TARBALL" \
-            -C sdk dist \
-            -C .. sdk/package.json sdk/README.md $( [ -f sdk/LICENSE ] && echo sdk/LICENSE || true )
+# 2. Package tarball + SRI into ./builds
+pnpm -C sdk build:sri-tarball
 ```
 
-Upload artifact:
+After step 2 you should see (for example, if `sdk/package.json` has `"version": "0.8.0"`):
 
-```yaml
-      - name: Upload tarball and hashes
-        uses: actions/upload-artifact@v4
-        with:
-          name: sdk-dist-${{ github.sha }}
-          path: artifacts/**
-```
+- `builds/0.8.0/tatchi-sdk-0.8.0.tar.gz`
+- `builds/0.8.0/tatchi-sdk-0.8.0.tar.gz.sha256`
+- `builds/0.8.0/tatchi-sdk-0.8.0.tar.gz.sri`
 
-## SRI Metadata Generation
+The SRI value is also printed to stdout at the end of the script run.
 
-After the tarball is created, generate both sha256 and SRI‑compatible sha384 hashes:
+## How a Downstream Service Can Use This
 
-```yaml
-      - name: Generate checksums and SRI string
-        run: |
-          set -euxo pipefail
-          cd artifacts
-          TARBALL=$(ls sdk-dist-*.tar.gz)
+Given access to the repo checkout (or a volume with `builds`), a downstream automation can:
 
-          # 1) sha256 manifest (simple to verify with sha256sum -c)
-          sha256sum "$TARBALL" > "$TARBALL.sha256"
+1. Locate the latest tarball by version (e.g., `builds/0.8.0/tatchi-sdk-0.8.0.tar.gz`).
+2. Read `builds/0.8.0/tatchi-sdk-0.8.0.tar.gz.sri` to get the SRI string.
+3. Optionally verify the tarball with:
 
-          # 2) SRI-style sha384 (base64 of raw digest, prefixed with "sha384-")
-          INTEGRITY=$(openssl dgst -sha384 -binary "$TARBALL" | openssl base64 -A)
-          echo "sha384-$INTEGRITY" > "$TARBALL.sri"
-```
+   ```bash
+   cd builds/0.8.0
+   sha256sum -c tatchi-sdk-0.8.0.tar.gz.sha256
+   ```
 
-Notes:
+4. Upload the tarball to IPFS and store the mapping:
+   - `version` → `IPFS CID`
+   - `SRI (sha384-…)` → `IPFS CID` (or additional metadata row).
 
-- The `.sha256` file is convenient for CLI verification (`sha256sum -c`).
-- The `.sri` file can be surfaced in docs as a copy‑paste `integrity` value for any consumers that load the tarball via `<script>` or similar (if applicable).
-
-## Optional: CI SRI / Checksum Verification
-
-If we want CI to verify the tarball against its own checksums (to guard against any later processing step), add a short self‑check job or step:
-
-- In the same `build-tarball` job, immediately verify:
-
-```yaml
-      - name: Self-check tarball checksum
-        run: |
-          set -euxo pipefail
-          cd artifacts
-          sha256sum -c *.tar.gz.sha256
-```
-
-- This confirms that the tarball written to disk still matches the checksum file (defense in depth; mainly useful if later steps move/copy files).
-
-If stronger guarantees are desired:
-
-- Reuse the existing `manifest.json` + `manifest.sig` flow:
-  - Generate `sdk/dist/manifest.sha256` / `manifest.json` as in `deploy-cloudflare.yml`.
-  - Sign the manifest with `cosign sign-blob` and include both `manifest.json` and `manifest.sig` in the tarball.
-  - Optionally, add a CI step that runs `cosign verify-blob` on the manifest before packaging to ensure only signed contents are included.
-
-## Optional: Release Asset Publishing
-
-To attach the tarball to GitHub Releases:
-
-- Add a second job `publish-release-asset`:
-  - `needs: build-tarball`
-  - `if: startsWith(github.ref, 'refs/tags/')`
-  - Steps:
-    - Download artifact (`actions/download-artifact@v4`).
-    - Use `softprops/action-gh-release@v2` (or similar) to attach:
-      - `sdk-dist-${GITHUB_SHA}.tar.gz`
-      - `sdk-dist-${GITHUB_SHA}.tar.gz.sha256`
-      - `sdk-dist-${GITHUB_SHA}.tar.gz.sri`
-
-This keeps the SRI/sha256 metadata colocated with the tarball at the release boundary.
-
-## Open Questions / Decisions
-
-- Exact tarball contents:
-  - Is `sdk/dist/** + package.json + README + LICENSE` sufficient, or should we include additional metadata (e.g., `CHANGELOG`, docs snapshot)?
-- Trigger conditions:
-  - Tags only, or also `main` pushes (for nightly tarballs)?
-- SRI surface:
-  - Do downstream consumers actually load the tarball via `<script>`/`<link>` (SRI‑style), or is sha256/`cosign`‑style verification enough?
-
-Once these are decided, implement `.github/workflows/sdk-tarball.yml` according to this plan and add a short doc link from relevant deployment docs (e.g., `docs/deployment/release.md`).
-
+Because the tarball name and contents are version‑based, the process is repeatable and does not depend on GitHub Actions artifacts or Releases.
