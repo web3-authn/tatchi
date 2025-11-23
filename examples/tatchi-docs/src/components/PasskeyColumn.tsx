@@ -9,11 +9,13 @@ import { Carousel } from './Carousel2/Carousel'
 import { CarouselNextButton } from './Carousel2/CarouselNextButton'
 import { CarouselPrevButton } from './Carousel2/CarouselPrevButton'
 
-// Lazily load heavy demo components to shrink the initial bundle
+// Lazily load the most common flows to shrink the initial bundle.
 const PasskeyLoginMenu = React.lazy(() => import('./PasskeyLoginMenu').then(m => ({ default: m.PasskeyLoginMenu })))
 const DemoPage = React.lazy(() => import('./DemoPage').then(m => ({ default: m.DemoPage })))
 const AccountRecovery = React.lazy(() => import('./AccountRecovery').then(m => ({ default: m.AccountRecovery })))
-const DemoChainsigs = React.lazy(() => import('./DemoChainsigs').then(m => ({ default: m.DemoChainsigs })))
+// DemoChainsigs is relatively heavy and has its own internal async flows.
+// Import it eagerly to avoid first-load quirks from nested lazy + network calls.
+import { DemoChainsigs } from './DemoChainsigs'
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 import NearLogoBg from './NearLogoBg'

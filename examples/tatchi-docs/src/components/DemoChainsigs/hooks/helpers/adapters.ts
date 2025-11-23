@@ -21,4 +21,3 @@ export async function deriveEvmAddress(evm: any, nearAccountId: string, path: st
   const { address } = await evm.deriveAddressAndPublicKey(nearAccountId, path);
   return ensure0x(address.toLowerCase());
 }
-

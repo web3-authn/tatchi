@@ -107,4 +107,3 @@ export function toFinalizeUnsigned(
     type: 'eip1559',
   };
 }
-

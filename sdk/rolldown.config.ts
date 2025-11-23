@@ -61,6 +61,10 @@ const external = [
   'idb',
   'near-api-js',
 
+  // Optional heavy deps – only used via dynamic imports in chainsigs helper
+  'viem',
+  'chainsig.js',
+
   // Other common packages
   'tslib',
   // UI libs used by React components should be provided by the app bundler
@@ -387,6 +391,37 @@ const configs = [
     external,
     resolve: {
       alias: aliasConfig
+    },
+  },
+  // Chainsigs helper ESM build
+  {
+    input: 'src/chainsigs/index.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.ESM}/chainsigs`,
+      format: 'esm',
+      preserveModules: true,
+      preserveModulesRoot: 'src/chainsigs',
+      sourcemap: true,
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
+    },
+  },
+  // Chainsigs helper CJS build
+  {
+    input: 'src/chainsigs/index.ts',
+    output: {
+      dir: `${BUILD_PATHS.BUILD.CJS}/chainsigs`,
+      format: 'cjs',
+      preserveModules: true,
+      preserveModulesRoot: 'src/chainsigs',
+      sourcemap: true,
+      exports: 'named',
+    },
+    external,
+    resolve: {
+      alias: aliasConfig,
     },
   },
   // React CSS build - output to separate styles directory to avoid JS conflicts
