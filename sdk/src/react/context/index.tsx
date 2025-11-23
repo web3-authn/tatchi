@@ -7,13 +7,10 @@ import {
   useMemo,
   useRef,
 } from 'react';
-import {
-  TatchiPasskey,
-  DeviceLinkingPhase,
-  type SignNEP413MessageParams,
-  type SignNEP413MessageResult,
-  ActionArgs
-} from '@/index';
+import { TatchiPasskey } from '@/core/TatchiPasskey';
+import { DeviceLinkingPhase } from '@/core/types/passkeyManager';
+import type { SignNEP413MessageParams, SignNEP413MessageResult } from '@/core/TatchiPasskey/signNEP413';
+import type { ActionArgs } from '@/core/types/actions';
 import type { WalletIframeRouter } from '@/core/WalletIframe/client/router';
 import { useNearClient } from '../hooks/useNearClient';
 import { useAccountInput } from '../hooks/useAccountInput';
@@ -46,6 +43,7 @@ const TatchiContext = createContext<TatchiContextType | undefined>(undefined);
 export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
   children,
   config,
+  eager,
 }) => {
 
   // Authentication state
@@ -89,10 +87,48 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
 
   const pmIframeRef = useRef<WalletIframeRouter | null>(null);
 
-  // Initialize and warm via consolidated initWalletIframe()
+  // Optional eager prewarm: warm iframe + workers on idle after mount.
   useEffect(() => {
-    try { void tatchi.initWalletIframe(); } catch {}
-  }, [tatchi]);
+    if (!eager) return;
+    if (typeof window === 'undefined') return;
+
+    let cancelled = false;
+    const win: any = window;
+
+    const run = async () => {
+      if (cancelled) return;
+      try {
+        const anyTatchi: any = tatchi as any;
+        if (typeof anyTatchi.prewarm === 'function') {
+          await anyTatchi.prewarm({ iframe: true, workers: true }).catch(() => undefined);
+        } else {
+          // Fallback for older builds: use initWalletIframe which also warms local resources
+          await tatchi.initWalletIframe().catch(() => undefined);
+        }
+      } catch {
+        // best-effort
+      }
+    };
+
+    let idleId: number | undefined;
+    let timeoutId: number | undefined;
+
+    if (typeof win.requestIdleCallback === 'function') {
+      idleId = win.requestIdleCallback(() => { void run(); }, { timeout: 1500 }) as number;
+    } else {
+      timeoutId = window.setTimeout(() => { void run(); }, 600);
+    }
+
+    return () => {
+      cancelled = true;
+      if (idleId != null && typeof win.cancelIdleCallback === 'function') {
+        try { win.cancelIdleCallback(idleId); } catch {}
+      }
+      if (timeoutId != null) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [eager, tatchi]);
 
   // Initialize wallet service via TatchiPasskeyIframe when walletOrigin is provided
   useEffect(() => {

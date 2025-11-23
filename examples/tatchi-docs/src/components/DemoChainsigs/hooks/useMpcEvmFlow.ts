@@ -192,7 +192,7 @@ export function useMpcEvmFlow() {
 
       const tryViemFinalize = async (): Promise<string> => {
         const viemUnsigned: TransactionSerializableEIP1559 = buildEip1559FromTransaction(unsignedTx, chainId, token);
-        const { txHashResp, v } = await finalizeViaViem(publicClient, viemUnsigned, rsvSignatures);
+        const { txHashResp, v } = await finalizeViaViem(viem, publicClient, viemUnsigned, rsvSignatures);
         return announceBroadcast(txHashResp, 'viem', v);
       };
 
@@ -337,7 +337,7 @@ export function useMpcEvmFlow() {
 
       const tryViemFinalize = async (): Promise<string> => {
         const viemUnsigned: TransactionSerializableEIP1559 = buildEip1559FromTransaction(unsignedTx, chainId, toAddr);
-        const { txHashResp, v } = await finalizeViaViem(publicClient, viemUnsigned, rsvSignatures);
+        const { txHashResp, v } = await finalizeViaViem(viem, publicClient, viemUnsigned, rsvSignatures);
         return announceBroadcast(txHashResp, 'viem', v);
       };
 

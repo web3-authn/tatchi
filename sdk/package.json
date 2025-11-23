@@ -63,7 +63,32 @@
       "require": "./dist/cjs/react/index.js",
       "types": "./dist/types/src/react/index.d.ts"
     },
+    "./react/profile": {
+      "import": "./dist/esm/react/components/ProfileSettingsButton/index.js",
+      "require": "./dist/cjs/react/components/ProfileSettingsButton/index.js",
+      "types": "./dist/types/src/react/components/ProfileSettingsButton/index.d.ts"
+    },
+    "./react/passkey-auth-menu": {
+      "import": "./dist/esm/react/components/PasskeyAuthMenu/index.js",
+      "require": "./dist/cjs/react/components/PasskeyAuthMenu/index.js",
+      "types": "./dist/types/src/react/components/PasskeyAuthMenu/index.d.ts"
+    },
+    "./react/embedded": {
+      "import": "./dist/esm/react/components/SendTxButtonWithTooltip.js",
+      "require": "./dist/cjs/react/components/SendTxButtonWithTooltip.js",
+      "types": "./dist/types/src/react/components/SendTxButtonWithTooltip.d.ts"
+    },
+    "./react/provider": {
+      "import": "./dist/esm/react/context/TatchiPasskeyProvider.js",
+      "require": "./dist/cjs/react/context/TatchiPasskeyProvider.js",
+      "types": "./dist/types/src/react/context/TatchiPasskeyProvider.d.ts"
+    },
     "./react/styles": "./dist/esm/react/styles/styles.css",
+    "./chainsigs": {
+      "import": "./dist/esm/chainsigs/index.js",
+      "require": "./dist/cjs/chainsigs/index.js",
+      "types": "./dist/types/src/chainsigs/index.d.ts"
+    },
     "./WalletIframe/client/html": {
       "import": "./dist/esm/core/WalletIframe/client/html.js",
       "require": "./dist/cjs/core/WalletIframe/client/html.js",
@@ -105,6 +130,7 @@
   "scripts": {
     "build": "./scripts/build-dev.sh",
     "build:prod": "./scripts/build-prod.sh",
+    "build:sri-tarball": "bash ./scripts/build-sri-tarball.sh",
     "build:rolldown": "rolldown -c rolldown.config.ts",
     "dev": "rolldown -c rolldown.config.ts -w",
     "test": "npm run build:check:fresh || npm run build && USE_RELAY_SERVER=1 playwright test --reporter=line",

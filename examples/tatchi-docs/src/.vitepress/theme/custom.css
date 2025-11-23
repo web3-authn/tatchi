@@ -29,16 +29,8 @@ body {
 }
 
 html[data-w3a-theme="light"] {
-  /* Mostly white base with soft pastel fringes (pink, cream, blue) */
-  background:
-    radial-gradient(120% 95% at 0% 10%,   rgba(178, 229, 248, 0.24) 0%, transparent 55%), /* blue #b2e5f8 */
-    radial-gradient(110% 85% at 100% 0%,  rgba(244, 179, 239, 0.20) 0%, transparent 52%), /* pink #f4b3ef */
-    radial-gradient(140% 100% at 50% 100%, rgba(242, 243, 226, 0.18) 0%, transparent 60%), /* cream #f2f3e2 */
-    linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
-  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x;
-  background-size: 140% 140%, 130% 130%, 170% 170%, 100% 100%;
-  /* Static placement: soft fringes left/right/bottom, white center */
-  background-position: 0% 10%, 100% 0%, 50% 100%, center;
+  /* Light mode: cream → light grey diagonal gradient (mirrors dark layout) */
+  background: linear-gradient(45deg, #e3e3e3 0%, #f3f4f6 50%);
 }
 
 /* Ensure visibility even if containers paint over the root background */
@@ -48,14 +40,7 @@ html[data-w3a-theme="light"]::before {
   inset: 0;
   pointer-events: none;
   z-index: -1; /* sit behind all content */
-  background:
-    radial-gradient(120% 95% at 0% 10%,   rgba(178, 229, 248, 0.24) 0%, transparent 55%),
-    radial-gradient(110% 85% at 100% 0%,  rgba(244, 179, 239, 0.20) 0%, transparent 52%),
-    radial-gradient(140% 100% at 50% 100%, rgba(242, 243, 226, 0.18) 0%, transparent 60%),
-    linear-gradient(180deg, #ffffff 0%, #fcfcfc 100%);
-  background-repeat: repeat-x, repeat-x, repeat-x, repeat-x;
-  background-size: 140% 140%, 130% 130%, 170% 170%, 100% 100%;
-  background-position: 0% 10%, 100% 0%, 50% 100%, center;
+  background: linear-gradient(45deg, #e3e3e3 0%, #f3f4f6 50%);
 }
 
 

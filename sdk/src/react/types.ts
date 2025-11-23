@@ -181,6 +181,12 @@ export interface TatchiContextProviderProps {
   children: ReactNode;
   // Allow passing only overrides; provider will resolve full config from env + defaults
   config: Partial<TatchiPasskeyConfigs>;
+  /**
+   * When true, the provider will opportunistically pre-warm iframe + workers
+   * on idle after mount to reduce first-action latency.
+   * Default: false (lazy by default).
+   */
+  eager?: boolean;
 }
 
 // === CONVENIENCE RE-EXPORTS ===

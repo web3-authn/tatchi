@@ -48,4 +48,3 @@ export async function finalizeViaAdapter(
   }
   throw last ?? new Error('All adapter finalize attempts failed');
 }
-

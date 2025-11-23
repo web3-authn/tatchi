@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import {
-  type TatchiPasskey,
-  toAccountId
-} from '@/index';
+import type { TatchiPasskey } from '@/core/TatchiPasskey';
+import { toAccountId } from '@/core/types/accountIds';
 import { awaitWalletIframeReady } from '../utils/walletIframe';
 
 export interface AccountInputState {

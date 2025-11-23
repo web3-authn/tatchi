@@ -59,7 +59,7 @@ import {
   type SignNEP413MessageResult
 } from './signNEP413';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
-import { WalletIframeRouter } from '../WalletIframe/client/router';
+import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
@@ -141,6 +141,7 @@ export class TatchiPasskey {
 
     // Initialize iframe router once
     if (!this.iframeRouter) {
+      const { WalletIframeRouter } = await import('../WalletIframe/client/router');
       this.iframeRouter = new WalletIframeRouter({
         walletOrigin,
         servicePath: walletIframeConfig?.walletServicePath || '/wallet-service',
@@ -189,6 +190,35 @@ export class TatchiPasskey {
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
     // Maintain backward compatibility: delegate to consolidated init
     await this.initWalletIframe(nearAccountId);
+  }
+
+  /**
+   * Pre-warm resources on a best-effort basis without changing visible state.
+   * - When iframe=true, initializes the wallet iframe client (and warms local resources).
+   * - When workers=true, warms local critical resources (nonce, IndexedDB, workers) without touching iframe.
+   * - When both are false/omitted, does nothing.
+   */
+  async prewarm(opts?: { iframe?: boolean; workers?: boolean; nearAccountId?: string }): Promise<void> {
+    const iframe = !!opts?.iframe;
+    const workers = !!opts?.workers;
+    const nearAccountId = opts?.nearAccountId;
+
+    const tasks: Promise<unknown>[] = [];
+
+    if (iframe) {
+      // initWalletIframe also calls WebAuthnManager.warmCriticalResources internally
+      tasks.push(this.initWalletIframe(nearAccountId));
+    } else if (workers) {
+      // Warm local-only resources without touching the iframe
+      tasks.push(this.webAuthnManager.warmCriticalResources(nearAccountId));
+    }
+
+    if (tasks.length === 0) return;
+    try {
+      await Promise.all(tasks);
+    } catch {
+      // Best-effort: swallow errors so prewarm never breaks app flows
+    }
   }
 
   /**
