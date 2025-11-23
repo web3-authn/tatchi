@@ -88,6 +88,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CF_PAGES_PROJECT_DOCS }}
+          projectName: ${{ secrets.CF_PAGES_PROJECT_VITE }}
           directory: examples/tatchi-docs/dist/docs
           branch: dev
