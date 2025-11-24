@@ -9,7 +9,10 @@ import {
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
 import { renderConfirmUI, fetchNearContext, maybeRefreshVrfChallenge, getNearAccountId, getIntentDigest, sanitizeForPostMessage } from './common';
-import { serializeRegistrationCredentialWithPRF, extractPrfFromCredential, isSerializedRegistrationCredential } from '../../../credentialsHelpers';
+import {
+  ensureDualPrfForRegistration,
+  isSerializedRegistrationCredential
+} from '../../../credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
 import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
@@ -128,11 +131,11 @@ export async function handleRegistrationFlow(
       }
     }
 
-    const dualPrfOutputs = extractPrfFromCredential({ credential, firstPrfOutput: true, secondPrfOutput: true });
-    // Support parent-performed fallback that may already return serialized credential
-    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
-      ? (credential as unknown as WebAuthnRegistrationCredential)
-      : serializeRegistrationCredentialWithPRF({ credential, firstPrfOutput: true, secondPrfOutput: true });
+    const { dualPrfOutputs, serialized } = await ensureDualPrfForRegistration({
+      credential: credential!,
+      nearAccountId,
+      rpId,
+    });
 
     // 6) Respond + close
     send(worker, {
@@ -151,8 +154,8 @@ export async function handleRegistrationFlow(
       const e = toError(err);
       return e.name === 'NotAllowedError' || e.name === 'AbortError';
     })();
-    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
     const msg = String((toError(err))?.message || err || '');
+    // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
     if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
       nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
       closeModalSafely(false, confirmHandle);
@@ -165,11 +168,18 @@ export async function handleRegistrationFlow(
     nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     closeModalSafely(false, confirmHandle);
 
+    const isPrfBrowserUnsupported =
+      /WebAuthn PRF output is missing from navigator\.credentials\.create\(\)/i.test(msg)
+      || /does not fully support the WebAuthn PRF extension during registration/i.test(msg)
+      || /roaming hardware authenticators .* not supported in this flow/i.test(msg);
+
     return send(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
-      error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+      error: cancelled
+        ? 'User cancelled secure confirm request'
+        : (isPrfBrowserUnsupported ? msg : 'Failed to collect credentials'),
     });
   }
 }

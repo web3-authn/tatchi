@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Github from "./icons/Github";
-import { SquareLibrary } from 'lucide-react';
+import { LibraryBig } from 'lucide-react';
+import { BookOpenText } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { TouchIcon, useTheme } from '@tatchi-xyz/sdk/react';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
@@ -66,7 +67,7 @@ export function HomeHero() {
             {...linkProps('/docs/getting-started/installation')}
             aria-label="Read the documentation"
           >
-            <SquareLibrary size={24} className="cta-icon" aria-hidden="true" />
+            <LibraryBig size={24} className="cta-icon" aria-hidden="true" />
             <span>Get Started</span>
             <ArrowRightAnim className="cta-icon" size={16}/>
           </a>

@@ -121,7 +121,10 @@ export class UserPreferencesManager {
 
   getCurrentUserAccountId(): AccountId {
     if (!this.currentUserAccountId) {
-      throw new Error('No current user set');
+      console.debug('[UserPreferencesManager]: getCurrentUserAccountId called with no current user; returning empty id');
+      // Return an empty string to keep callers defensive; most consumers
+      // already treat falsy accountIds as "no-op"/logged‑out.
+      return '' as AccountId;
     }
     return this.currentUserAccountId;
   }

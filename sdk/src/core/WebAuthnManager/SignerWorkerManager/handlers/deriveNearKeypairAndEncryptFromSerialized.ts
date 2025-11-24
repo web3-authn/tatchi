@@ -40,6 +40,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   nearAccountId: AccountId;
   publicKey: string;
   signedTransaction?: SignedTransaction;
+  error?: string;
 }> {
   try {
     const first = credential?.clientExtensionResults?.prf?.results?.first as string | undefined;
@@ -107,10 +108,12 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     };
   } catch (error: unknown) {
     console.error('WebAuthnManager: deriveNearKeypairAndEncryptFromSerialized error:', error);
+    const message = String((error as { message?: unknown })?.message || error || '');
     return {
       success: false,
       nearAccountId,
-      publicKey: ''
+      publicKey: '',
+      error: message
     };
   }
 }

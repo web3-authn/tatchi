@@ -1,4 +1,4 @@
-import { base64UrlEncode } from "../../utils";
+import { base64UrlEncode, base64UrlDecode } from "../../utils";
 import { isObject, isString, isArray } from '../WalletIframe/validation';
 import {
   type WebAuthnAuthenticationCredential,
@@ -41,6 +41,32 @@ export function isSerializedRegistrationCredential(x: unknown): x is WebAuthnReg
   const type = (x as { type?: unknown }).type;
   if (!isString(id) || !isString(rawId) || !isString(type)) return false;
   return true;
+}
+
+/**
+ * Generate ChaCha20Poly1305 salt using account-specific HKDF for encryption key derivation
+ * @param nearAccountId - NEAR account ID to scope the salt to
+ * @returns 32-byte Uint8Array salt for ChaCha20Poly1305 key derivation
+ */
+export function generateChaCha20Salt(nearAccountId: string): Uint8Array {
+  const saltString = `chacha20-salt:${nearAccountId}`;
+  const salt = new Uint8Array(32);
+  const saltBytes = new TextEncoder().encode(saltString);
+  salt.set(saltBytes.slice(0, 32));
+  return salt;
+}
+
+/**
+ * Generate Ed25519 salt using account-specific HKDF for signing key derivation
+ * @param nearAccountId - NEAR account ID to scope the salt to
+ * @returns 32-byte Uint8Array salt for Ed25519 key derivation
+ */
+export function generateEd25519Salt(nearAccountId: string): Uint8Array {
+  const saltString = `ed25519-salt:${nearAccountId}`;
+  const salt = new Uint8Array(32);
+  const saltBytes = new TextEncoder().encode(saltString);
+  salt.set(saltBytes.slice(0, 32));
+  return salt;
 }
 
 /**
@@ -242,6 +268,167 @@ export function serializeAuthenticationCredentialWithPRF({
         },
       },
     },
+  };
+}
+
+/**
+ * Ensure a registration credential has dual PRF outputs available.
+ *
+ * Normal path:
+ * - Extract PRF outputs directly from the registration credential produced by
+ *   `navigator.credentials.create()` and serialize it with PRF.
+ *
+ * Fallback path (for roaming authenticators / platforms that only expose PRF on get()):
+ * - If PRF results are missing on the registration credential but PRF is enabled,
+ *   perform a follow-up `navigator.credentials.get()` bound to the same credential
+ *   and request PRF evaluation via `extensions.prf.eval`.
+ * - Use that assertion's PRF outputs to derive keys while still registering the
+ *   original credential with the contract.
+ *
+ * @param credential - Live or serialized registration credential
+ * @param nearAccountId - NEAR account ID used for PRF salts (domain separation)
+ * @param rpId - Effective rpId for WebAuthn operations
+ */
+export async function ensureDualPrfForRegistration({
+  credential,
+  nearAccountId,
+  rpId,
+}: {
+  credential: PublicKeyCredential | WebAuthnRegistrationCredential;
+  nearAccountId: string;
+  rpId: string;
+}): Promise<{ dualPrfOutputs: DualPrfOutputs; serialized: WebAuthnRegistrationCredential }> {
+  // 1) Fast-path: PRF outputs already present on the registration credential.
+  try {
+    const dualPrfOutputs = extractPrfFromCredential({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: true,
+    });
+    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+      ? (credential as WebAuthnRegistrationCredential)
+      : serializeRegistrationCredentialWithPRF({
+          credential: credential as PublicKeyCredential,
+          firstPrfOutput: true,
+          secondPrfOutput: true,
+        });
+    return { dualPrfOutputs, serialized };
+  } catch (e: unknown) {
+    const msg = String((e as { message?: unknown })?.message || e || '');
+    const missingPrf = /Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg);
+    if (!missingPrf) {
+      // Some other failure; surface as-is.
+      throw e;
+    }
+  }
+
+  // 2) Fallback: perform a follow-up get() bound to the same credential and
+  // request PRF evaluation. This is necessary on platforms where create()
+  // exposes only { prf: { enabled: true } } without results (e.g., some YubiKey flows).
+  const dualPrfOutputs = await getDualPrfViaGetForCredential({
+    credential,
+    nearAccountId,
+    rpId,
+  });
+
+  let serialized: WebAuthnRegistrationCredential;
+  if (isSerializedRegistrationCredential(credential as unknown)) {
+    const base = credential as WebAuthnRegistrationCredential;
+    serialized = {
+      ...base,
+      clientExtensionResults: {
+        prf: {
+          results: {
+            first: dualPrfOutputs.chacha20PrfOutput,
+            second: dualPrfOutputs.ed25519PrfOutput,
+          },
+        },
+      },
+    };
+  } else {
+    const base = serializeRegistrationCredential(credential as PublicKeyCredential);
+    serialized = {
+      ...base,
+      clientExtensionResults: {
+        prf: {
+          results: {
+            first: dualPrfOutputs.chacha20PrfOutput,
+            second: dualPrfOutputs.ed25519PrfOutput,
+          },
+        },
+      },
+    };
+  }
+
+  return { dualPrfOutputs, serialized };
+}
+
+/**
+ * Helper: perform a constrained navigator.credentials.get() for a single
+ * credential and return dual PRF outputs derived from that assertion.
+ *
+ * This is used only as a fallback when create() did not expose PRF results.
+ */
+async function getDualPrfViaGetForCredential({
+  credential,
+  nearAccountId,
+  rpId,
+}: {
+  credential: PublicKeyCredential | WebAuthnRegistrationCredential;
+  nearAccountId: string;
+  rpId: string;
+}): Promise<DualPrfOutputs> {
+  if (typeof navigator === 'undefined' || typeof navigator.credentials === 'undefined') {
+    throw new Error('WebAuthn PRF fallback requires a browser environment with navigator.credentials');
+  }
+
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert('Additional step required for your security key; you will see another passkey prompt now.');
+  }
+
+  let rawIdBytes: ArrayBuffer;
+  if (isSerializedRegistrationCredential(credential as unknown)) {
+    const rawIdB64u = (credential as WebAuthnRegistrationCredential).rawId;
+    const rawIdU8 = base64UrlDecode(rawIdB64u);
+    rawIdBytes = rawIdU8.buffer as ArrayBuffer;
+  } else {
+    rawIdBytes = (credential as PublicKeyCredential).rawId;
+  }
+
+  const challenge = crypto.getRandomValues(new Uint8Array(32));
+  const allowCredentials: PublicKeyCredentialDescriptor[] = [{
+    id: rawIdBytes,
+    type: 'public-key',
+    transports: [],
+  }];
+
+  const getOptions: PublicKeyCredentialRequestOptions = {
+    challenge,
+    rpId,
+    allowCredentials,
+    userVerification: 'preferred',
+    extensions: {
+      prf: {
+        eval: {
+          first: generateChaCha20Salt(nearAccountId) as BufferSource,
+          second: generateEd25519Salt(nearAccountId) as BufferSource,
+        },
+      },
+    },
+  };
+
+  const assertion = await navigator.credentials.get({ publicKey: getOptions }) as PublicKeyCredential;
+  const extensionResults = assertion.getClientExtensionResults?.();
+  const prfExt = (extensionResults as any)?.prf as { results?: { first?: ArrayBufferLike; second?: ArrayBufferLike } } | undefined;
+  const firstBuf = prfExt?.results?.first;
+  const secondBuf = prfExt?.results?.second;
+  if (!firstBuf || !secondBuf) {
+    throw new Error('PRF outputs missing from follow-up authentication credential');
+  }
+
+  return {
+    chacha20PrfOutput: base64UrlEncode(firstBuf),
+    ed25519PrfOutput: base64UrlEncode(secondBuf),
   };
 }
 

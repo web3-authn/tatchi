@@ -18,7 +18,7 @@ import type { ConfirmationConfig } from '../types/signer-worker';
 import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
-import { authenticatorsToAllowCredentials, assertCredentialHasDualPrf } from '../WebAuthnManager/touchIdPrompt';
+import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -142,9 +142,8 @@ export async function registerPasskeyInternal(
         throw new Error('Failed to derive deterministic VRF keypair from PRF');
       }
       if (!nearKeyResult.success || !nearKeyResult.publicKey) {
-        // Validate whether the registration credential actually contained PRF results.
-        try { assertCredentialHasDualPrf(credential, 'Registration'); } catch (e) { throw e; }
-        throw new Error('Failed to generate NEAR keypair with PRF');
+        const reason = nearKeyResult?.error || 'Failed to generate NEAR keypair with PRF';
+        throw new Error(reason);
       }
       if (!canRegisterUserResult.verified) {
         console.error(canRegisterUserResult);
