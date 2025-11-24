@@ -133,6 +133,8 @@ export async function handleRegistrationFlow(
 
     const { dualPrfOutputs, serialized } = await ensureDualPrfForRegistration({
       credential: credential!,
+      nearAccountId,
+      rpId,
     });
 
     // 6) Respond + close
