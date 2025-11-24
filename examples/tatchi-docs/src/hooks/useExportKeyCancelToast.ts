@@ -25,7 +25,7 @@ export function useExportKeyCancelToast() {
         const nearId = data.nearAccountId || ''
         const accountLabel = nearId ? ` for ${nearId}` : ''
         toast('Key export cancelled', {
-          description: `TouchID authentication was cancelled${accountLabel}. You can try again anytime from the profile menu.`,
+          description: `TouchID was cancelled${accountLabel}.`,
         })
       } catch {
         // Best-effort UX: never throw from a global event handler

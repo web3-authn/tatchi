@@ -39,6 +39,48 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
   const isRegisterMode = mode === AuthMenuMode.Register || (typeof mode === 'number' && (AuthMenuModeMap as any)[mode] === 'register');
   const inputEnabled = canProceed && !waiting;
 
+  // Keep a stable ref to the input so we can manage focus across transitions
+  const inputRef = React.useRef<HTMLInputElement | null>(null);
+  const prevWaitingRef = React.useRef<boolean>(waiting);
+
+  const attachInputRef = React.useCallback((el: HTMLInputElement | null) => {
+    bindInput(el);
+    inputRef.current = el;
+  }, [bindInput]);
+
+  // Autofocus on initial mount when the input appears
+  React.useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    try {
+      el.focus();
+      const len = el.value?.length ?? 0;
+      if (len >= 0 && typeof el.setSelectionRange === 'function') {
+        el.setSelectionRange(len, len);
+      }
+    } catch {
+      // best-effort focus; ignore failures
+    }
+  }, []);
+
+  // When returning from a waiting state (e.g., login/register attempt cancelled),
+  // re-focus the input so users can keep typing without an extra click.
+  React.useEffect(() => {
+    const prev = prevWaitingRef.current;
+    if (prev && !waiting && inputRef.current) {
+      try {
+        inputRef.current.focus();
+        const len = inputRef.current.value?.length ?? 0;
+        if (len >= 0 && typeof inputRef.current.setSelectionRange === 'function') {
+          inputRef.current.setSelectionRange(len, len);
+        }
+      } catch {
+        // ignore focus errors
+      }
+    }
+    prevWaitingRef.current = waiting;
+  }, [waiting]);
+
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') onProceed();
   };
@@ -48,7 +90,7 @@ export const PasskeyInput: React.FC<PasskeyInputProps> = ({
       <div className={`w3a-input-pill${inputEnabled ? ' is-enabled' : ''}`}>
         <div className="w3a-input-wrap">
           <input
-            ref={bindInput}
+            ref={attachInputRef}
             type="text"
             id={inputId}
             name="passkey"

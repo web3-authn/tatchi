@@ -205,7 +205,9 @@ export function PasskeyLoginMenu(props: { onLoggedIn?: (nearAccountId?: string) 
   return (
     <div className="passkey-login-container-root">
       <PasskeyAuthMenu
-        key={`pam-${authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}-${authMenuControl.remountKey}`}
+        // Keep the key stable across accountExists changes to avoid
+        // remounting the menu (which causes input focus + content flashes).
+        key={`pam-${authMenuControl.defaultModeOverride ?? 'auto'}-${authMenuControl.remountKey}`}
         defaultMode={authMenuControl.defaultModeOverride ?? (accountExists ? AuthMenuMode.Login : AuthMenuMode.Register)}
         onLogin={onLogin}
         loadingScreenDelayMs={0}

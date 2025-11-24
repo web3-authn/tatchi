@@ -382,7 +382,6 @@
 .hero-ctas .cta-secondary {
   display: flex;
   justify-content: flex-end;
-  color: var(--w3a-colors-textButton, #fff);
   background-color: var(--w3a-colors-surface2);
   padding: 1rem;
   width: 200%;
@@ -404,6 +403,14 @@
   border-color: transparent;
 }
 
+[data-w3a-theme="light"] .cta-secondary:hover {
+  background-color: color-mix(in srgb, var(--w3a-colors-secondaryHover) 50%, #ffffff 50%);
+}
+[data-w3a-theme="light"] .cta-primary:hover {
+  background-color: color-mix(in srgb, var(--w3a-colors-primaryHover) 50%, #ffffff 50%);
+}
+
+
 .cta-3 {
   display: flex;
   justify-content: center;
@@ -413,7 +420,7 @@
   padding: 0.6rem 1rem 0.6rem 1rem;
 }
 .cta-3:hover {
-  color: var(--w3a-colors-textButton, #fff);
+  color: var(--w3a-colors-textPrimary);
   box-shadow: 0 3px 10px var(--fe-shadow);
   border-color: transparent;
 }

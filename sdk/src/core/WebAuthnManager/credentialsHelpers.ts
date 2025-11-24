@@ -1,4 +1,4 @@
-import { base64UrlEncode, base64UrlDecode } from "../../utils";
+import { base64UrlEncode } from "../../utils";
 import { isObject, isString, isArray } from '../WalletIframe/validation';
 import {
   type WebAuthnAuthenticationCredential,
