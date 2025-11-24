@@ -20,7 +20,8 @@ import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
 import NearLogoBg from './NearLogoBg'
 
-export function PasskeyColumn() {
+
+export function DemoPasskeyColumn() {
   const { loginState } = useTatchi()
   const [currentPage, setCurrentPage] = React.useState(0)
 
@@ -35,7 +36,7 @@ export function PasskeyColumn() {
       title: 'Demo',
       element: ({ nextSlide, canNext, index }: { nextSlide: () => void; canNext: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}>
+          <React.Suspense fallback={<SuspenseFallback />}>
             <PasskeyLoginMenu onLoggedIn={() => setCurrentPage(1)} />
           </React.Suspense>
           {index > 0 && canNext && (
@@ -53,7 +54,7 @@ export function PasskeyColumn() {
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
           <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }} >
-            <React.Suspense fallback={<div style={{ height: 320 }} />}>
+            <React.Suspense fallback={<SuspenseFallback />}>
               <DemoPage />
             </React.Suspense>
           </GlassBorder>
@@ -75,7 +76,7 @@ export function PasskeyColumn() {
       element: ({ nextSlide, prevSlide, canNext, canPrev, index }: { nextSlide: () => void; prevSlide: () => void; canNext: boolean; canPrev: boolean; index: number }) => (
         <>
           <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
-            <React.Suspense fallback={<div style={{ height: 320 }} />}>
+            <React.Suspense fallback={<SuspenseFallback />}>
               <DemoChainsigs />
             </React.Suspense>
           </GlassBorder>
@@ -94,7 +95,7 @@ export function PasskeyColumn() {
       disabled: !loginState?.isLoggedIn,
       element: ({ prevSlide, canPrev, index }: { prevSlide: () => void; canPrev: boolean; index: number }) => (
         <>
-          <React.Suspense fallback={<div style={{ height: 320 }} />}>
+          <React.Suspense fallback={<SuspenseFallback />}>
             <AccountRecovery />
           </React.Suspense>
           {index > 0 && canPrev && (
@@ -143,3 +144,9 @@ export function PasskeyColumn() {
     </div>
   );
 }
+
+const SuspenseFallback = () => (
+  <div className={'suspense-fallback'}
+    style={{ height: 320, width: 'min(480px, calc(100vw - 2rem))' }}
+  />
+);

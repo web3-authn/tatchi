@@ -91,7 +91,7 @@ Setup the React provider:
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

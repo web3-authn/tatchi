@@ -461,7 +461,7 @@
 
 @media (max-width: 576px) {
   .bento-grid {
-    grid-auto-rows: 7rem;
+    grid-auto-rows: 8rem;
   }
 }
 

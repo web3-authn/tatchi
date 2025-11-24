@@ -5,11 +5,10 @@ import {
   ActionPhase,
   ActionType,
   ActionResult,
-  TouchIdWithText,
   TxExecutionStatus,
   useTatchi,
 } from '@tatchi-xyz/sdk/react';
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
+import { TouchIdWithText, SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded';
 import type { ActionArgs, FunctionCallAction } from '@tatchi-xyz/sdk/react';
 import type { ConfirmationUIMode, ConfirmationBehavior } from '@tatchi-xyz/sdk/core';
 

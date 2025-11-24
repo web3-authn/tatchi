@@ -4,7 +4,7 @@ title: Install and Wallet Setup
 
 # Install and Wallet Setup
 
-Install the SDK, configure the wallet iframe, and wire up `PasskeyProvider` so your app can register users, log them in, and send transactions.
+Install the SDK, configure the wallet iframe, and wire up `TatchiPasskeyProvider` so your app can register users, log them in, and send transactions.
 
 For a deep dive into the architecture and threat model, see [Architecture](/docs/concepts/architecture).
 
@@ -27,14 +27,15 @@ The wallet runs in a dedicated iframe hosted on a separate origin. Your app talk
 
 ### Basic React setup
 
-Wrap your app with `PasskeyProvider` and point `iframeWallet` at the wallet host:
+Wrap your app with `TatchiPasskeyProvider` and point `iframeWallet` at the wallet host:
 
 ```tsx
-import { PasskeyProvider, PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
+import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '@tatchi-xyz/sdk/react'
 
 export function AppShell() {
   return (
-    <PasskeyProvider
+    <TatchiPasskeyProvider
       config={{
         ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
         iframeWallet: {
@@ -50,7 +51,7 @@ export function AppShell() {
       }}
     >
       <App />
-    </PasskeyProvider>
+    </TatchiPasskeyProvider>
   )
 }
 ```

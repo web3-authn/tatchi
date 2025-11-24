@@ -30,7 +30,7 @@ body {
 
 html[data-w3a-theme="light"] {
   /* Light mode: cream → light grey diagonal gradient (mirrors dark layout) */
-  background: linear-gradient(45deg, #e3e3e3 0%, #f3f4f6 50%);
+  background: linear-gradient(45deg, oklch(0.96 0.01 240) 0%, oklch(0.99 0.01 240) 50%);
 }
 
 /* Ensure visibility even if containers paint over the root background */
@@ -40,7 +40,7 @@ html[data-w3a-theme="light"]::before {
   inset: 0;
   pointer-events: none;
   z-index: -1; /* sit behind all content */
-  background: linear-gradient(45deg, #e3e3e3 0%, #f3f4f6 50%);
+  background: linear-gradient(45deg, oklch(0.96 0.01 240) 0%, oklch(0.99 0.01 240) 50%);
 }
 
 

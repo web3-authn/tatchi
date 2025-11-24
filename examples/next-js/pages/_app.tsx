@@ -15,7 +15,7 @@ const config = {
 
 // Avoid importing the SDK React entry on the server — it touches browser APIs.
 const TatchiPasskeyProvider = dynamic(() =>
-  import('@tatchi-xyz/sdk/react').then((m) => m.TatchiPasskeyProvider)
+  import('@tatchi-xyz/sdk/react/provider').then((m) => m.TatchiPasskeyProvider)
 , { ssr: false })
 
 export default function MyApp({ Component, pageProps }: AppProps) {

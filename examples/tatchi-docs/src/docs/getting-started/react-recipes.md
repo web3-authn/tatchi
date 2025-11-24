@@ -10,7 +10,7 @@ The SDK provides pre-built React components which hooks up a lot of the function
 exposed by the `TatchiPasskeyManager`.
 
 ```tsx
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
 
 const config = {
   iframeWallet: { walletOrigin: 'https://wallet.tatchi.xyz' },
@@ -36,11 +36,11 @@ function Root() {
 ```tsx
 import {
   useTatchi,
-  PasskeyAuthMenu,
   AuthMenuMode,
   type RegistrationSSEEvent,
   type DeviceLinkingSSEEvent,
 } from '@tatchi-xyz/sdk/react'
+import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react/passkey-auth-menu'
 
 export function PasskeySection() {
   const {
@@ -102,10 +102,10 @@ export function PasskeySection() {
 ```tsx
 import {
   useTatchi,
-  ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
 } from '@tatchi-xyz/sdk/react'
+import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile'
 
 export function HeaderProfile() {
   const { loginState } = useTatchi()
@@ -150,10 +150,10 @@ export function HeaderProfile() {
 ```tsx
 import {
   useTatchi,
-  SendTxButtonWithTooltip,
   ActionType,
   TxExecutionStatus,
 } from '@tatchi-xyz/sdk/react'
+import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded'
 
 export function SendGreetingButton() {
   const { tatchi, loginState } = useTatchi()
@@ -213,4 +213,3 @@ export function SendGreetingButton() {
 
 From here you can refine styling and hook `onEvent` into your own toast/notification system, ful a full list of events see [progress events](../guides/progress-events.md).
 The setup above is enough to get end‑to‑end passkey registration, login, and transaction signing with React components.
-

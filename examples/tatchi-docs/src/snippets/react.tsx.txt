@@ -1,4 +1,4 @@
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
 
 export function App() {
   return (
