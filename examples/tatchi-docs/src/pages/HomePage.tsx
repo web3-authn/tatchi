@@ -3,6 +3,7 @@ import { HomeHero } from '../components/HomeHero';
 import { BentoGrid } from '../components/BentoGrid';
 import { GetStartedCodeBlock } from '../components/GetStartedCodeBlock';
 import { Footer } from '../components/Footer';
+import NearLogoBg from '../components/NearLogoBg';
 import { useRevealOnIdle } from '../hooks/useRevealOnIdle';
 
 // Defer loading the DemoPasskeyColumn until after first paint/idle
@@ -15,14 +16,17 @@ const SectionPlaceholder: React.FC = () => (
 const LazyPasskeySection: React.FC = () => {
   const show = useRevealOnIdle()
   return (
-    <div className="card two">
-      {show ? (
-        <React.Suspense fallback={<SectionPlaceholder />}>
-          <DemoPasskeyColumnLazy />
-        </React.Suspense>
-      ) : (
-        <SectionPlaceholder />
-      )}
+    <div className="layout-column-right">
+      <NearLogoBg />
+      <div className="constrained-column">
+        {show ? (
+          <React.Suspense fallback={<SectionPlaceholder />}>
+            <DemoPasskeyColumnLazy />
+          </React.Suspense>
+        ) : (
+          <SectionPlaceholder />
+        )}
+      </div>
     </div>
   )
 }
@@ -38,7 +42,9 @@ export function HomePage() {
       </div>
 
       {/* two */}
-      <LazyPasskeySection />
+      <div className="card two">
+        <LazyPasskeySection />
+      </div>
 
       {/* three */}
       <div className="card three">
