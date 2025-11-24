@@ -145,11 +145,11 @@ export const DemoChainsigs: React.FC = () => {
         </div>
         <div className="action-text">
           <div className="demo-subtitle">
-            Send NEAR Intents using TouchID
+            Send Multi-chain Transactions with TouchID
           </div>
-          Request a Chain Signature from the NEAR intents contract.
-          Then send it to Ethereum, or any network supported by NEAR intents
-          such as Solana, Bitcoin, Zcash, etc.
+          Sign a Chain Signature to send multichain transactions.
+          Supports Ethereum, EVM chains, Solana, Bitcoin, Zcash, etc.
+          Uses NEAR Intents for Chain Signatures.
         </div>
 
         <div className="input-group"

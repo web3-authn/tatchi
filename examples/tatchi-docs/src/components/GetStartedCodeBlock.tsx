@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { ArrowUpRight, BookOpen } from 'lucide-react';
+import { BookOpen } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { useTheme } from '@tatchi-xyz/sdk/react';
 import { mobilePressHandlers } from '../utils/press';
 import NearLogo from './icons/NearLogoWithText';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
+import { ArrowRightAnim } from './ArrowRightAnim';
 
 import reactSnippet from '../snippets/react.tsx.txt?raw';
 import coreSnippet from '../snippets/core.ts.txt?raw';
@@ -62,30 +63,31 @@ export function GetStartedCodeBlock() {
 
       <div className="hero-ctas-bottom-grid">
         <a
-          className="cta-button cta-primary"
+          className="cta-3"
           {...linkProps('/docs/getting-started/overview')}
           aria-label="Learn more about the Tatchi SDK"
         >
-          <BookOpen size={16} className="cta-icon" aria-hidden="true" />
           <span>Learn More</span>
+          <ArrowRightAnim className="cta-icon" size={16}/>
         </a>
         <a
-          className="cta-button cta-secondary"
+          className="cta-3"
           {...linkProps('/docs/getting-started/installation')}
           aria-label="Get started installing the Tatchi SDK"
         >
           <span>Get Started</span>
-          <ArrowUpRight size={16} className="cta-icon" aria-hidden="true" />
+          <ArrowRightAnim className="cta-icon" size={16}/>
         </a>
         <a
           href="https://near.org"
           target="_blank"
           rel="noopener noreferrer"
-          className="hero-built-on"
+          className="hero-built-on cta-3"
           aria-label="Built on NEAR"
         >
-          <span className="hero-built-on__label">built on</span>
-          <NearLogo size={80} />
+          <span className="hero-built-on__label">Built on</span>
+          <NearLogo className={"near-svg"} size={96} />
+          <ArrowRightAnim className="cta-icon" size={16}/>
         </a>
       </div>
 

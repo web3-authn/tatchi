@@ -3,7 +3,6 @@ import {
   RegistrationPhase,
   RegistrationStatus,
   LoginPhase,
-  PasskeyAuthMenu,
   AuthMenuMode,
   DeviceLinkingPhase,
   AccountRecoveryPhase,
@@ -11,6 +10,7 @@ import {
   type RegistrationSSEEvent,
   type DeviceLinkingSSEEvent
 } from '@tatchi-xyz/sdk/react'
+import { PasskeyAuthMenu } from '@tatchi-xyz/sdk/react/passkey-auth-menu'
 
 import toast from 'react-hot-toast'
 import { friendlyWebAuthnMessage } from '../utils/strings'

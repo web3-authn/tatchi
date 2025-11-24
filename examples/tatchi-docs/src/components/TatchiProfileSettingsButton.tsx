@@ -2,12 +2,12 @@ import React from 'react';
 import { toast } from 'sonner';
 import {
   useTatchi,
-  ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
   useTheme,
   DeviceLinkingSSEEvent,
 } from '@tatchi-xyz/sdk/react';
+import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile';
 import { useProfileMenuControl } from '../contexts/ProfileMenuControl';
 
 export interface TatchiProfileSettingsButtonProps {

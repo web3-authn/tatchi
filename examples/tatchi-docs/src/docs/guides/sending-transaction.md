@@ -192,7 +192,7 @@ This uses the same `confirmationConfig`, `onEvent`, and `onError` semantics, but
 `SendTxButtonWithTooltip` wraps `executeAction` with a pre‑built button + tooltip UI:
 
 ```tsx
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react'
+import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded'
 import { ActionType } from '@tatchi-xyz/sdk'
 
 <SendTxButtonWithTooltip
@@ -236,4 +236,3 @@ If you pass both a top‑level `onEvent` prop and `options.onEvent`, the compone
 - **Nonce issues** – the SDK manages nonces internally; avoid manual nonce handling and see [Nonce Manager](/docs/guides/nonce-manager.md) for details.
 
 For additional error patterns and examples, see [Progress Events](./progress-events.md) and the SDK troubleshooting docs.
-

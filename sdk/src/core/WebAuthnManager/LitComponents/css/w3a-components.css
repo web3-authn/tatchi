@@ -76,7 +76,7 @@ w3a-export-key-viewer {
   --w3a-colors-textSecondary: oklch(0.53 0.02 240);
   --w3a-colors-textMuted: oklch(0.75 0.016 240);
   --w3a-colors-textButton: oklch(0.97 0.002 240);
-  --w3a-colors-colorBackground: oklch(0.98 0 0);
+  --w3a-colors-colorBackground: oklch(0.98 0.001 240);
   --w3a-colors-surface: oklch(0.95 0.01 240);
   --w3a-colors-surface2: oklch(0.915 0.0125 240);
   --w3a-colors-surface3: oklch(0.88 0.015 240);

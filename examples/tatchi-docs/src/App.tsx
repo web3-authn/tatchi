@@ -1,22 +1,23 @@
-import React from 'react'
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import React from 'react';
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider';
 
-import { HomePage } from './pages/HomePage'
-import { ToasterThemed } from './components/ToasterThemed'
-import { useSyncVitepressTheme } from './hooks/useSyncVitepressTheme'
-import { useThemeBridge } from './hooks/useThemeBridge'
-import { useBodyLoginStateBridge } from './hooks/useBodyLoginStateBridge'
-
+import { HomePage } from './pages/HomePage';
+import { ToasterThemed } from './components/ToasterThemed';
+import { useSyncVitepressTheme } from './hooks/useSyncVitepressTheme';
+import { useThemeBridge } from './hooks/useThemeBridge';
+import { useBodyLoginStateBridge } from './hooks/useBodyLoginStateBridge';
+import { useExportKeyCancelToast } from './hooks/useExportKeyCancelToast';
 
 export const App: React.FC = () => {
-  const env = import.meta.env
+  const env = import.meta.env;
 
   const VitepressStateSync: React.FC = () => {
     useSyncVitepressTheme();
     useThemeBridge();
     useBodyLoginStateBridge();
-    return null
-  }
+    useExportKeyCancelToast();
+    return null;
+  };
 
   return (
     <TatchiPasskeyProvider
@@ -25,12 +26,12 @@ export const App: React.FC = () => {
         nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
         relayer: {
           url: env.VITE_RELAYER_URL!,
-          accountId: env.VITE_RELAYER_ACCOUNT_ID!
+          accountId: env.VITE_RELAYER_ACCOUNT_ID!,
         },
         vrfWorkerConfigs: {
           shamir3pass: {
-            relayServerUrl: env.VITE_RELAYER_URL!
-          }
+            relayServerUrl: env.VITE_RELAYER_URL!,
+          },
         },
         iframeWallet: {
           walletOrigin: env.VITE_WALLET_ORIGIN,
@@ -44,7 +45,7 @@ export const App: React.FC = () => {
       <VitepressStateSync />
       <ToasterThemed />
     </TatchiPasskeyProvider>
-  )
-}
+  );
+};
 
-export default App
+export default App;

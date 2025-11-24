@@ -24,7 +24,7 @@ import dynamic from 'next/dynamic'
 import '@tatchi-xyz/sdk/react/styles'
 
 const TatchiPasskeyProvider = dynamic(
-  () => import('@tatchi-xyz/sdk/react').then(m => m.TatchiPasskeyProvider),
+  () => import('@tatchi-xyz/sdk/react/provider').then(m => m.TatchiPasskeyProvider),
   { ssr: false }
 )
 

@@ -3,12 +3,12 @@ import toast from 'react-hot-toast';
 
 import {
   useTatchi,
-  ProfileSettingsButton,
   DeviceLinkingPhase,
   DeviceLinkingStatus,
   Theme,
   useTheme,
 } from '@tatchi-xyz/sdk/react';
+import { ProfileSettingsButton } from '@tatchi-xyz/sdk/react/profile';
 import { DebugBanner } from './DebugBanner';
 
 export const Navbar: React.FC = () => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react';
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider';
 import '@tatchi-xyz/sdk/react/styles';
 
 import { HomePage } from './pages/HomePage';

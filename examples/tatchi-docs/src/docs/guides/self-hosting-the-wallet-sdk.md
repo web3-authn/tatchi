@@ -83,7 +83,7 @@ If you serve HTML via a framework router, ensure this route returns the HTML abo
 Configure the SDK in your app to use the self‑hosted wallet origin. Example (React provider):
 
 ```tsx
-import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react'
+import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
 
 <TatchiPasskeyProvider
   config={{

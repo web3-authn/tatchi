@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import Github from "./icons/Github";
-import { BookOpenText } from 'lucide-react';
+import { SquareLibrary } from 'lucide-react';
 import CopyButton from './CopyButton';
 import { TouchIcon, useTheme } from '@tatchi-xyz/sdk/react';
 import { useVitepressRouter } from '../hooks/useVitepressRouter';
 import { mobilePressHandlers } from '../utils/press';
+import { ArrowRightAnim } from './ArrowRightAnim';
 
 export function HomeHero() {
 
@@ -61,17 +62,18 @@ export function HomeHero() {
         </p>
         <div className="hero-ctas">
           <a
-            className="cta-button cta-primary"
+            className="cta-button cta-primary cta-3"
             {...linkProps('/docs/getting-started/installation')}
             aria-label="Read the documentation"
           >
-            <BookOpenText size={16} className="cta-icon" aria-hidden="true" />
+            <SquareLibrary size={24} className="cta-icon" aria-hidden="true" />
             <span>Get Started</span>
-            <span className="cta-chevron" aria-hidden>›</span>
+            <ArrowRightAnim className="cta-icon" size={16}/>
           </a>
-          <a className="cta-button cta-secondary" href="https://github.com/web3-authn/tatchi" target="_blank" rel="noopener noreferrer" aria-label="Open the Tatchi GitHub repository">
-            <Github size={16} className="cta-icon" aria-hidden="true" />
-            <span>GitHub</span>
+          <a className="cta-button cta-secondary cta-3" href="https://github.com/web3-authn/tatchi" target="_blank" rel="noopener noreferrer" aria-label="Open the Tatchi GitHub repository">
+            <Github size={22} className="cta-icon" aria-hidden="true" />
+            <span>Github Repository</span>
+            <ArrowRightAnim className="cta-icon" size={16}/>
           </a>
         </div>
       </section>

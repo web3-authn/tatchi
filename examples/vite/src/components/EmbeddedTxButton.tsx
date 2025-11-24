@@ -3,11 +3,10 @@ import toast from 'react-hot-toast';
 import {
   ActionPhase,
   ActionType,
-  TouchIdWithText,
   TxExecutionStatus,
   useTatchi,
 } from '@tatchi-xyz/sdk/react';
-import { SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react';
+import { TouchIdWithText, SendTxButtonWithTooltip } from '@tatchi-xyz/sdk/react/embedded';
 import type { ActionArgs } from '@tatchi-xyz/sdk/react';
 import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../config';
 import { GlassBorder } from './GlassBorder';

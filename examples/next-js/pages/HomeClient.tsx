@@ -3,11 +3,11 @@ import { useTatchi, LoginPhase, RegistrationPhase, RegistrationStatus } from '@t
 import dynamic from 'next/dynamic'
 
 const ProfileSettingsButton = dynamic(() =>
-  import('@tatchi-xyz/sdk/react').then((m) => m.ProfileSettingsButton)
+  import('@tatchi-xyz/sdk/react/profile').then((m) => m.ProfileSettingsButton)
 , { ssr: false })
 
 const PasskeyAuthMenu = dynamic(() =>
-  import('@tatchi-xyz/sdk/react').then((m) => m.PasskeyAuthMenu)
+  import('@tatchi-xyz/sdk/react/passkey-auth-menu').then((m) => m.PasskeyAuthMenu)
 , { ssr: false })
 
 export default function HomeClient() {
