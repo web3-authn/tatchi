@@ -44,11 +44,15 @@ export function toError(e: unknown): Error {
 export function isTouchIdCancellationError(error: unknown): boolean {
   const msg = errorMessage(error);
 
+  // Normalize for case-insensitive substring checks on user-facing phrases
+  const lower = msg.toLowerCase();
+
   return msg.includes('The operation either timed out or was not allowed') ||
          msg.includes('NotAllowedError') ||
          msg.includes('AbortError') ||
-         msg.includes('user cancelled') ||
-         msg.includes('user aborted');
+         lower.includes('user cancelled') ||
+         lower.includes('user canceled') ||
+         lower.includes('user aborted');
 }
 
 /**

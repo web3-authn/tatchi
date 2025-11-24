@@ -8,7 +8,8 @@ import type {
 } from '../shared/messages';
 import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
 import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
-import { OFFLINE_EXPORT_FALLBACK } from '../../OfflineExport/messages';
+import { OFFLINE_EXPORT_FALLBACK, EXPORT_NEAR_KEYPAIR_CANCELLED, WALLET_UI_CLOSED } from '../../OfflineExport/messages';
+import { isTouchIdCancellationError } from '../../../utils/errors';
 import type {
   RegistrationHooksOptions,
   RegistrationResult,
@@ -231,8 +232,15 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       if (pm.exportNearKeypairWithUI) {
         void pm.exportNearKeypairWithUI(nearAccountId, { variant, theme })
           .catch((err: unknown) => {
+            // User cancelled TouchID/FaceID prompt: close UI and emit a cancellation hint
+            // for parent UIs, without triggering offline-export fallback.
+            if (isTouchIdCancellationError(err)) {
+              postToParent?.({ type: EXPORT_NEAR_KEYPAIR_CANCELLED, nearAccountId });
+              postToParent?.({ type: WALLET_UI_CLOSED });
+              return;
+            }
             postToParent?.({ type: OFFLINE_EXPORT_FALLBACK, error: String((err as any)?.message || err || '') });
-            postToParent?.({ type: 'WALLET_UI_CLOSED' });
+            postToParent?.({ type: WALLET_UI_CLOSED });
           });
       }
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });

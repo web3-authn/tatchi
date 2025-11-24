@@ -6,6 +6,7 @@ import { ToasterThemed } from './components/ToasterThemed';
 import { useSyncVitepressTheme } from './hooks/useSyncVitepressTheme';
 import { useThemeBridge } from './hooks/useThemeBridge';
 import { useBodyLoginStateBridge } from './hooks/useBodyLoginStateBridge';
+import { useExportKeyCancelToast } from './hooks/useExportKeyCancelToast';
 
 export const App: React.FC = () => {
   const env = import.meta.env;
@@ -14,6 +15,7 @@ export const App: React.FC = () => {
     useSyncVitepressTheme();
     useThemeBridge();
     useBodyLoginStateBridge();
+    useExportKeyCancelToast();
     return null;
   };
 

@@ -44,8 +44,6 @@ export const NavbarStatic: React.FC = () => {
         alignItems: 'center',
         padding: '0.75rem',
         borderRadius: '0.5rem',
-        // background: 'color-mix(in oklab, var(--vp-c-bg, rgba(255,255,255,0.85)) 85%, transparent)',
-        // backdropFilter: 'blur(6px)',
         fontSize: '0.875rem'
       }}
     >
