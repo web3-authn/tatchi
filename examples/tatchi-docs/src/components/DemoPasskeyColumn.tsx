@@ -18,7 +18,6 @@ const AccountRecovery = React.lazy(() => import('./AccountRecovery').then(m => (
 import { DemoChainsigs } from './DemoChainsigs'
 import { AuthMenuControlProvider } from '../contexts/AuthMenuControl';
 import { ProfileMenuControlProvider } from '../contexts/ProfileMenuControl';
-import NearLogoBg from './NearLogoBg'
 
 
 export function DemoPasskeyColumn() {
@@ -109,39 +108,34 @@ export function DemoPasskeyColumn() {
   ]), [loginState?.isLoggedIn])
 
   return (
-    <div className="layout-column-right">
-      <NearLogoBg />
-      <div className="constrained-column">
-        <ProfileMenuControlProvider>
-          <NavbarStatic />
-          <NavbarProfileOverlay />
-          <div className="passkey-demo">
-            <AuthMenuControlProvider>
-              <CarouselProvider
-                pages={pages}
-                initialKey="login"
-                showBreadcrumbs
-                currentPage={currentPage}
-                onCurrentPageChange={setCurrentPage}
-                rootStyle={{
-                  padding: '0rem 0rem 6rem 0rem',
-                  // padding-bottom for tooltip so it's not clipped
-                  display: 'grid',
-                  placeContent: 'center',
-                }}
-                breadcrumbsStyle={{
-                  padding: '2rem 1rem 0rem 1rem',
-                  display: 'grid',
-                  placeContent: 'center',
-                }}
-              >
-                <Carousel />
-              </CarouselProvider>
-            </AuthMenuControlProvider>
-          </div>
-        </ProfileMenuControlProvider>
+    <ProfileMenuControlProvider>
+      <NavbarStatic />
+      <NavbarProfileOverlay />
+      <div className="passkey-demo">
+        <AuthMenuControlProvider>
+          <CarouselProvider
+            pages={pages}
+            initialKey="login"
+            showBreadcrumbs
+            currentPage={currentPage}
+            onCurrentPageChange={setCurrentPage}
+            rootStyle={{
+              padding: '0rem 0rem 6rem 0rem',
+              // padding-bottom for tooltip so it's not clipped
+              display: 'grid',
+              placeContent: 'center',
+            }}
+            breadcrumbsStyle={{
+              padding: '2rem 1rem 0rem 1rem',
+              display: 'grid',
+              placeContent: 'center',
+            }}
+          >
+            <Carousel />
+          </CarouselProvider>
+        </AuthMenuControlProvider>
       </div>
-    </div>
+    </ProfileMenuControlProvider>
   );
 }
 
