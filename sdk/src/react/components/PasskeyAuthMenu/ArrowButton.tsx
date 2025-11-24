@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpIcon } from './icons';
+import { ArrowRightAnim } from '../ArrowRightAnim';
 
 export interface ArrowButtonProps {
   disabled: boolean;
@@ -55,14 +55,10 @@ export const ArrowButton: React.FC<ArrowButtonProps> = ({
         disabled={disabled}
         style={{ width: w, height: h }}
       >
-        <ArrowUpIcon
-          size={24}
-          strokeWidth={2.5}
+        <ArrowRightAnim
+          size={18}
           color="#ffffff"
-          style={{
-            transition: 'transform 200ms, width 200ms, height 200ms',
-            opacity: disabled ? 0 : 1,
-          }}
+          className="w3a-arrow-icon"
         />
       </button>
     </div>

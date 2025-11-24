@@ -236,7 +236,7 @@ export class WebAuthnManager {
     credential: WebAuthnRegistrationCredential;
     nearAccountId: string;
     options?: any;
-  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; signedTransaction?: SignedTransaction }>{
+  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; signedTransaction?: SignedTransaction; error?: string }>{
     return this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
       credential,
       nearAccountId: toAccountId(nearAccountId),

@@ -16,6 +16,11 @@ export const ToasterThemed: React.FC = () => {
           background: 'var(--w3a-colors-colorBackground)',
           borderRadius: '1rem',
         },
+        // Keep error toasts (e.g., registration failures) visible
+        // until the user explicitly closes them.
+        error: {
+          duration: Infinity,
+        },
       }}
     />
   );

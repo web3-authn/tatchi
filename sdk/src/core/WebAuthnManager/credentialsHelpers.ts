@@ -1,4 +1,4 @@
-import { base64UrlEncode } from "../../utils";
+import { base64UrlEncode, base64UrlDecode } from "../../utils";
 import { isObject, isString, isArray } from '../WalletIframe/validation';
 import {
   type WebAuthnAuthenticationCredential,
@@ -41,6 +41,32 @@ export function isSerializedRegistrationCredential(x: unknown): x is WebAuthnReg
   const type = (x as { type?: unknown }).type;
   if (!isString(id) || !isString(rawId) || !isString(type)) return false;
   return true;
+}
+
+/**
+ * Generate ChaCha20Poly1305 salt using account-specific HKDF for encryption key derivation
+ * @param nearAccountId - NEAR account ID to scope the salt to
+ * @returns 32-byte Uint8Array salt for ChaCha20Poly1305 key derivation
+ */
+export function generateChaCha20Salt(nearAccountId: string): Uint8Array {
+  const saltString = `chacha20-salt:${nearAccountId}`;
+  const salt = new Uint8Array(32);
+  const saltBytes = new TextEncoder().encode(saltString);
+  salt.set(saltBytes.slice(0, 32));
+  return salt;
+}
+
+/**
+ * Generate Ed25519 salt using account-specific HKDF for signing key derivation
+ * @param nearAccountId - NEAR account ID to scope the salt to
+ * @returns 32-byte Uint8Array salt for Ed25519 key derivation
+ */
+export function generateEd25519Salt(nearAccountId: string): Uint8Array {
+  const saltString = `ed25519-salt:${nearAccountId}`;
+  const salt = new Uint8Array(32);
+  const saltBytes = new TextEncoder().encode(saltString);
+  salt.set(saltBytes.slice(0, 32));
+  return salt;
 }
 
 /**
@@ -243,6 +269,52 @@ export function serializeAuthenticationCredentialWithPRF({
       },
     },
   };
+}
+
+/**
+ * Ensure a registration credential has dual PRF outputs available, with fallback
+ * to a follow-up navigator.credentials.get() when create() only exposes
+ * `{ prf: { enabled: true } }` (e.g., YubiKey on some platforms).
+ *
+ * - Prefers extracting PRF directly from the provided credential.
+ * - On "Missing PRF result(s)" errors, performs an authentication ceremony
+ *   bound to the same credential and requests PRF evaluation.
+ *
+ * @param credential - Live or serialized registration credential
+ * @param nearAccountId - NEAR account ID used for PRF salts (domain separation)
+ * @param rpId - Effective rpId for WebAuthn operations
+ */
+export async function ensureDualPrfForRegistration({ credential }: {
+  credential: PublicKeyCredential | WebAuthnRegistrationCredential;
+}): Promise<{ dualPrfOutputs: DualPrfOutputs; serialized: WebAuthnRegistrationCredential }> {
+  // 1) Fast-path: PRF outputs already present on the credential
+  try {
+    const dualPrfOutputs = extractPrfFromCredential({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: true,
+    });
+    const serialized: WebAuthnRegistrationCredential = isSerializedRegistrationCredential(credential as unknown)
+      ? (credential as WebAuthnRegistrationCredential)
+      : serializeRegistrationCredentialWithPRF({
+          credential: credential as PublicKeyCredential,
+          firstPrfOutput: true,
+          secondPrfOutput: true,
+        });
+    return { dualPrfOutputs, serialized };
+  } catch (e: unknown) {
+    const msg = String((e as { message?: unknown })?.message || e || '');
+    const missingPrf = /Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg);
+    if (!missingPrf) {
+      throw e;
+    }
+    // Missing PRF outputs: we cannot safely support roaming authenticators here.
+    throw new Error(
+      'WebAuthn PRF output is missing from navigator.credentials.create(). '
+      + 'This browser does not fully support the WebAuthn PRF extension during registration, '
+      + 'so roaming hardware authenticators (e.g YubiKey) cannot be used yet.'
+    );
+  }
 }
 
 /////////////////////////////////////////
