@@ -15,9 +15,9 @@ Goal: wire a Cloudflare Email Worker that receives password‑reset / recovery e
 
 In a new, empty folder:
 
-- `mkdir zk-email-relayer && cd zk-email-relayer`
+- `mkdir zk-email-cloudflare-worker && cd zk-email-cloudflare-worker`
 - Initialize a Worker project:
-  - `wrangler init --from-dash zk-email-relayer`
+  - `wrangler init --from-dash zk-email-cloudflare-worker`
   - or `wrangler init` and choose the “Hello World” template.
 
 Wrangler will create:
@@ -30,7 +30,7 @@ Wrangler will create:
 Edit `wrangler.toml` to enable the email entrypoint:
 
 ```toml
-name = "zk-email-relayer"
+name = "zk-email-cloudflare-worker"
 main = "src/email-worker.ts"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["email"]
@@ -117,7 +117,7 @@ In the Cloudflare dashboard:
 - Add a routing rule:
   - **Destination address**: `reset@web3authn.org` (or your chosen recovery alias).
   - **Action**: “Send to Worker”.
-  - **Worker**: `zk-email-relayer` (the Worker you deployed above).
+  - **Worker**: `zk-email-cloudflare-worker` (the Worker you deployed above).
 
 Once this rule is active:
 
@@ -192,4 +192,3 @@ This is used when composing replies with `message.reply(...)`:
 
 - `from`: envelope sender for the reply.
 - `to`: envelope recipient for the reply.
-
