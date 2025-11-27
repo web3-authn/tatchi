@@ -55,7 +55,7 @@ Example shape:
 ```ts
 export default {
   async email(message: EmailMessage, env: any, ctx: ExecutionContext) {
-    const relayBaseUrl = env.RELAY_BASE_URL ?? "https://relay.tatchi.xyz";
+    const relayerUrl = env.RELAYER_URL ?? "https://relay.tatchi.xyz";
 
     // Serialize headers (including DKIM-Signature) to JSON
     const headers: Record<string, string> = {};
@@ -72,7 +72,7 @@ export default {
         // Optional: add a truncated/raw body snapshot if you need it server-side
       };
 
-      const response = await fetch(`${relayBaseUrl}/reset-email`, {
+      const response = await fetch(`${relayerUrl}/reset-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

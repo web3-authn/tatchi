@@ -8,7 +8,7 @@
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--fe-text);
-  margin: 0 0 var(--fe-gap-2) 0;
+  margin: 0;
 }
 
 .greeting-controls-box {

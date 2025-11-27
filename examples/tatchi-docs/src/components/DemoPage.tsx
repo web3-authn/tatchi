@@ -17,7 +17,6 @@ import Refresh from './icons/Refresh';
 import { useSetGreeting } from '../hooks/useSetGreeting';
 import { WEBAUTHN_CONTRACT_ID, NEAR_EXPLORER_BASE_URL } from '../types';
 import './DemoPage.css';
-import { SetupEmailRecovery } from './SetupEmailRecovery';
 
 
 export const DemoPage: React.FC = () => {
@@ -510,7 +509,6 @@ export const DemoPage: React.FC = () => {
           </LoadingButton>
         </div>
       </div>
-      <SetupEmailRecovery />
     </div>
   );
 };

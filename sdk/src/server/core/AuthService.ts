@@ -1085,7 +1085,9 @@ export class AuthService {
             args: JSON.stringify(contractArgs),
             // Use generous gas similar to createAccountAndRegisterGas
             gas: this.config.createAccountAndRegisterGas,
-            deposit: '0',
+            // Attach 0.01 NEAR as deposit for Outlayer/TEE DKIM verification (refunded minus fee).
+            // 0.01 NEAR = 10^22 yocto.
+            deposit: '10000000000000000000000',
           },
         ];
         actions.forEach(validateActionArgsWasm);

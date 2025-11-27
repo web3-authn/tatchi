@@ -8,10 +8,10 @@ type ForwardableEmailPayload = {
 
 export default {
   async email(message: any, env: any, ctx: any): Promise<void> {
-    const relayBaseUrl = env.RELAY_BASE_URL ?? 'https://relay.tatchi.xyz';
+    const relayerUrl = env.RELAYER_URL ?? 'https://relay.tatchi.xyz';
 
     // Hit the relay health endpoint once for basic liveness.
-    const healthResponse = await fetch(`${relayBaseUrl}/healthz`);
+    const healthResponse = await fetch(`${relayerUrl}/healthz`);
     const relayerHealth = JSON.stringify(await healthResponse.json());
 
     console.log('message.from:', JSON.stringify(message.from));
@@ -31,7 +31,7 @@ export default {
 
     switch (message.to) {
       case 'reset@web3authn.org': {
-        console.log(`Forwarding ZK-email reset request to ${relayBaseUrl}/reset-email`);
+        console.log(`Forwarding ZK-email reset request to ${relayerUrl}/reset-email`);
 
         // Normalize headers to lowercase keys for the payload.
         const normalizedHeaders: Record<string, string> = {};
@@ -47,7 +47,7 @@ export default {
           rawSize: typeof message.rawSize === 'number' ? message.rawSize : undefined,
         };
 
-        const response = await fetch(`${relayBaseUrl}/reset-email`, {
+        const response = await fetch(`${relayerUrl}/reset-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -67,4 +67,3 @@ export default {
     }
   },
 };
-

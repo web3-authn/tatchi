@@ -40,8 +40,14 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RELAYER_URL: ${{ secrets.VITE_RELAYER_URL }}
         run: |
-          wrangler deploy
+          set -euo pipefail
+          if [ -z "${RELAYER_URL:-}" ]; then
+            echo "VITE_RELAYER_URL (RELAYER_URL) secret is not set" >&2
+            exit 1
+          fi
+          wrangler deploy --var RELAYER_URL="${RELAYER_URL}"
 
       - name: Configure Email Routing for reset@web3authn.org
         if: env.CLOUDFLARE_ZONE_ID != ''
@@ -79,4 +85,3 @@ jobs:
             ]
           }
           JSON
-

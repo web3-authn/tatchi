@@ -356,7 +356,13 @@
   background-color: var(--w3a-colors-surface);
   padding: 1rem;
   width: 200%;
-  margin-left: -225%;
+  margin-left: -230%;
+}
+
+@media (max-width: 1200px) {
+  .hero-ctas .cta-primary {
+    margin-left: -220%;
+  }
 }
 @media (max-width: 600px) {
   .hero-ctas {
@@ -385,7 +391,12 @@
   background-color: var(--w3a-colors-surface2);
   padding: 1rem;
   width: 200%;
-  margin-left: -200%;
+  margin-left: -205%;
+}
+@media (max-width: 1200px) {
+  .hero-ctas .cta-secondary {
+    margin-left: -195%;
+  }
 }
 @media (max-width: 600px) {
   .hero-ctas {

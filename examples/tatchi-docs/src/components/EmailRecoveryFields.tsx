@@ -4,6 +4,8 @@ export interface EmailRecoveryFieldsProps {
   value?: string[];
   onChange?: (emails: string[]) => void;
   disabled?: boolean;
+  onChainHashes?: string[];
+  onClear?: () => void;
 }
 
 /**
@@ -16,6 +18,8 @@ export const EmailRecoveryFields: React.FC<EmailRecoveryFieldsProps> = ({
   value,
   onChange,
   disabled = false,
+  onChainHashes = [],
+  onClear,
 }) => {
   const [internalEmails, setInternalEmails] = React.useState<string[]>(['']);
 
@@ -101,7 +105,7 @@ export const EmailRecoveryFields: React.FC<EmailRecoveryFieldsProps> = ({
           </button>
         </div>
       ))}
-      <div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button
           type="button"
           onClick={handleAdd}
@@ -122,10 +126,47 @@ export const EmailRecoveryFields: React.FC<EmailRecoveryFieldsProps> = ({
         >
           +
         </button>
+        {onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={disabled}
+            aria-label="Clear recovery emails"
+            style={{
+              padding: '0.25rem 0.75rem',
+              borderRadius: 9999,
+              border: '1px solid rgba(239,68,68,0.8)',
+              background: 'rgba(127,29,29,0.2)',
+              color: 'rgb(248,113,113)',
+              fontSize: 12,
+              cursor: disabled ? 'default' : 'pointer',
+            }}
+          >
+            Clear emails
+          </button>
+        )}
       </div>
+      {onChainHashes.length > 0 && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ fontSize: 12, opacity: 0.85 }}>On-chain recovery hashes</div>
+          <ul style={{ margin: 4, paddingLeft: 16, fontSize: 11 }}>
+            {onChainHashes.map((hash, idx) => (
+              <li
+                key={idx}
+                style={{
+                  fontFamily: 'monospace',
+                  wordBreak: 'break-all',
+                  opacity: 0.9,
+                }}
+              >
+                {hash}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 };
 
 export default EmailRecoveryFields;
-
