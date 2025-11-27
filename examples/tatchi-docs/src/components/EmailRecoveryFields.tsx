@@ -148,7 +148,7 @@ export const EmailRecoveryFields: React.FC<EmailRecoveryFieldsProps> = ({
       </div>
       {onChainHashes.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          <div style={{ fontSize: 12, opacity: 0.85 }}>On-chain recovery hashes</div>
+          <div style={{ fontSize: 12, opacity: 0.85 }}>On-chain recovery emails</div>
           <ul style={{ margin: 4, paddingLeft: 16, fontSize: 11 }}>
             {onChainHashes.map((hash, idx) => (
               <li

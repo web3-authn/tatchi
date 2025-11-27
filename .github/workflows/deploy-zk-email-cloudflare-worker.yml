@@ -1,12 +1,16 @@
 name: deploy-zk-email-cloudflare-worker
 
 on:
+  # Manual trigger (with optional environment override)
   workflow_dispatch:
     inputs:
       environment:
         description: "Deployment environment (must match GitHub Environment name with secrets)"
         required: false
         default: "production"
+  # Automatic trigger when code is deployed to main (same as other deploy workflows)
+  push:
+    branches: [ main ]
 
 jobs:
   deploy-zk-email-worker:
@@ -40,11 +44,11 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          RELAYER_URL: ${{ secrets.VITE_RELAYER_URL }}
+          RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
         run: |
           set -euo pipefail
           if [ -z "${RELAYER_URL:-}" ]; then
-            echo "VITE_RELAYER_URL (RELAYER_URL) secret is not set" >&2
+            echo "VITE_RELAYER_URL (RELAYER_URL) environment variable is not set" >&2
             exit 1
           fi
           wrangler deploy --var RELAYER_URL="${RELAYER_URL}"
