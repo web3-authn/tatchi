@@ -52,7 +52,9 @@ jobs:
             echo "VITE_RELAYER_URL (RELAYER_URL) environment variable is not set" >&2
             exit 1
           fi
-          wrangler deploy --var RELAYER_URL="${RELAYER_URL}"
+          # Explicitly mark this binding as a text var to avoid Wrangler
+          # mis-parsing the URL scheme ("https") as a type.
+          wrangler deploy --var RELAYER_URL:text="${RELAYER_URL}"
 
       - name: Configure Email Routing for reset@web3authn.org
         if: env.CLOUDFLARE_ZONE_ID != ''
