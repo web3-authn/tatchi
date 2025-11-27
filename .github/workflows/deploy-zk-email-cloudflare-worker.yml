@@ -44,17 +44,9 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
         run: |
           set -euo pipefail
-          echo "deploy-zk-email-cloudflare-worker: RELAYER_URL='${RELAYER_URL}'"
-          if [ -z "${RELAYER_URL:-}" ]; then
-            echo "VITE_RELAYER_URL (RELAYER_URL) environment variable is not set" >&2
-            exit 1
-          fi
-          # Explicitly mark this binding as a text var to avoid Wrangler
-          # mis-parsing the URL scheme ("https") as a type.
-          wrangler deploy --var RELAYER_URL:text="${RELAYER_URL}"
+          wrangler deploy
 
       - name: Configure Email Routing for reset@web3authn.org
         if: env.CLOUDFLARE_ZONE_ID != ''
