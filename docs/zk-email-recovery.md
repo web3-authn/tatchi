@@ -33,7 +33,6 @@ Edit `wrangler.toml` to enable the email entrypoint:
 name = "zk-email-cloudflare-worker"
 main = "src/email-worker.ts"
 compatibility_date = "2025-01-01"
-compatibility_flags = ["email"]
 
 # optional: set the account ID explicitly
 # account_id = "your-cloudflare-account-id"

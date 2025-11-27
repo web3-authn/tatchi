@@ -1,4 +1,3 @@
 name = "zk-email-cloudflare-worker"
 main = "src/email-worker.ts"
 compatibility_date = "2025-01-01"
-compatibility_flags = ["email"]
