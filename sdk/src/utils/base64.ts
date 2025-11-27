@@ -1,13 +1,21 @@
 /**
  * Encodes an ArrayBuffer to standard base64 format for NEAR RPC compatibility.
  * Uses standard base64 characters (+, /, =) rather than base64url encoding.
- * Converts binary data to base64 string using browser's btoa() function.
+ *
+ * Important: Avoids spreading large arrays into String.fromCharCode(...) which
+ * can overflow the JS call stack when encoding big WASM binaries.
  *
  * @param value - ArrayBufferLike containing the binary data to encode
  * @returns Standard base64-encoded string with padding
  */
 export const base64Encode = (value: ArrayBufferLike): string => {
-  return btoa(String.fromCharCode(...Array.from(new Uint8Array(value as ArrayBufferLike))));
+  const bytes = new Uint8Array(value as ArrayBufferLike);
+  let binary = '';
+  // Build the string incrementally to avoid exceeding the argument limit.
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
 }
 
 /**

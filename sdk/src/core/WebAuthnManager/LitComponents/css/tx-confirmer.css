@@ -96,11 +96,11 @@ w3a-tx-confirm-content {
   touch-action: auto;
   width: fit-content;
   /* Responsive tooltip width that adapts to viewport and zoom */
-  --tooltip-margin: 1.25rem;
-  --tooltip-width: min(340px, calc(100vw - var(--tooltip-margin)));
+  --tooltip-margin: 1.5rem;
+  --tooltip-width: min(360px, calc(100vw - var(--tooltip-margin)));
 }
 @supports (width: 1dvw) {
-  .txc-root { --tooltip-width: min(340px, calc(100dvw - var(--tooltip-margin))); }
+  .txc-root { --tooltip-width: min(360px, calc(100dvw - var(--tooltip-margin))); }
 }
 .section { margin: 0.5rem 0; }
 .tooltip-width { width: var(--tooltip-width, 100%); }
@@ -750,6 +750,10 @@ w3a-drawer {
 }
 .margin-left1 {
   margin-left: 1rem;
+}
+.responsive-card-center {
+  display: flex;
+  justify-content: center;
 }
 
 .rpid-wrapper {

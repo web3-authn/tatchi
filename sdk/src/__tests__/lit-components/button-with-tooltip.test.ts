@@ -19,7 +19,7 @@ test.describe('Lit component – button-with-tooltip', () => {
         nearAccountId: 'demo.testnet',
         txSigningRequests: [],
         tooltip: {
-          width: '340px',
+          width: '360px',
           height: 'auto',
           position: 'top-center',
           offset: '8px',

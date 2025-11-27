@@ -93,6 +93,22 @@ pub type Nonce = u64;
 pub type Gas = u64;
 pub type Balance = u128;
 
+// === NEP-0591 GLOBAL CONTRACT TYPES ===
+
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GlobalContractDeployMode {
+    CodeHash,
+    AccountId,
+}
+
+#[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum GlobalContractIdentifier {
+    CodeHash(CryptoHash),   // 32-byte code hash
+    AccountId(AccountId),   // owner account ID
+}
+
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallAction {
@@ -128,6 +144,15 @@ pub enum Action {
     },
     DeleteAccount {
         beneficiary_id: AccountId,
+    },
+    SignedDelegate,
+    DeployGlobalContract {
+        #[serde(with = "serde_bytes")]
+        code: Vec<u8>,
+        deploy_mode: GlobalContractDeployMode,
+    },
+    UseGlobalContract {
+        contract_identifier: GlobalContractIdentifier,
     },
 }
 

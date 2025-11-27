@@ -224,6 +224,22 @@ export async function sendTransaction({
   let transactionResult;
   let txId;
   try {
+    // Debug snapshot of the signed transaction shape to aid integration debugging.
+    try {
+      const st: any = signedTransaction as any;
+      const snapshot = {
+        type: typeof st,
+        keys: st && typeof st === 'object' ? Object.keys(st) : null,
+        hasBase64Encode: typeof st?.base64Encode === 'function',
+        hasEncode: typeof st?.encode === 'function',
+        hasSnakeBytes: !!st?.borsh_bytes,
+        hasCamelBytes: !!st?.borshBytes,
+      };
+      console.debug('[sendTransaction] signedTransaction snapshot', snapshot);
+    } catch {
+      // best-effort logging only
+    }
+
     transactionResult = await context.nearClient.sendTransaction(
       signedTransaction,
       options?.waitUntil

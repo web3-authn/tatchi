@@ -99,20 +99,63 @@ function buildActionNode(action: ActionArgs, idx: number): TreeNode {
       actionNodes = [];
       break;
 
-    case 'DeployContract':
+    case 'DeployContract': {
       const code = action.code;
+      const codeSize = formatCodeSize(code as any);
       actionNodes = [
         {
           id: `a${idx}-code-size`,
-          label: 'contract code:',
+          label: `WASM contract code size: ${codeSize}`,
           type: 'file',
           open: false,
-          hideChevron: true,
-          hideLabel: true, // hide "contract code:" row label
-          content: formatArgs(code.toString())
         }
       ];
       break;
+    }
+
+    case 'DeployGlobalContract': {
+      const code = action.code;
+      const deployMode = action.deployMode;
+      const codeSize = formatCodeSize(code as any);
+      actionNodes = [
+        {
+          id: `a${idx}-deploy-mode`,
+          label: `mode: ${deployMode}`,
+          type: 'file',
+          open: false,
+        },
+        {
+          id: `a${idx}-code-size`,
+          label: `WASM global contract code size: ${codeSize}`,
+          type: 'file',
+          open: false,
+        }
+      ];
+      break;
+    }
+
+    case 'UseGlobalContract': {
+      const accountId = action.accountId;
+      const codeHash = action.codeHash;
+      let label: string;
+      if (accountId) {
+        label = `by account: ${accountId}`;
+      } else if (codeHash) {
+        const short = shortenPubkey(codeHash, { prefix: 10, suffix: 6 });
+        label = `by hash: ${short}`;
+      } else {
+        label = 'by global contract identifier';
+      }
+      actionNodes = [
+        {
+          id: `a${idx}-identifier`,
+          label,
+          type: 'file',
+          open: false,
+        }
+      ];
+      break;
+    }
 
     case 'Stake':
       actionNodes = [

@@ -18,6 +18,7 @@ import { BUILD_PATHS } from '@build-paths';
 import { buildPermissionsPolicy } from '../../plugins/headers';
 
 const TRANSFER_AMOUNT_YOCTO = '5000000000000000000000'; // 0.005 NEAR
+const RELAYER_REFUND_ACCOUNT_ID = 'w3a-relayer.testnet';
 
 interface VrfDiagnostics {
   workerResults: Array<{ path: string; success: boolean; status?: number; statusText?: string; error?: string }>;
@@ -230,6 +231,45 @@ test.describe('TatchiPasskey Complete E2E Test Suite', () => {
 
     printLog('test', `final login state: ${JSON.stringify(finalState.state)}`, { indent: 2 });
     printLog('test', `recent logins count: ${finalState.recent.accountIds.length}`, { indent: 2 });
+
+    // Best-effort cleanup: send remaining balance of the ephemeral
+    // test account back to the relay/funding account.
+    await passkey.withTestUtils(async ({ accountId: id, beneficiaryId }) => {
+      const utils = (window as any).testUtils as TestUtils;
+      const toAccountId = (window as any).toAccountId ?? ((value: string) => value);
+      const nearAccountId = toAccountId(id);
+
+      try {
+        // @ts-ignore - Runtime import within browser context
+        const { ActionType } = await import('/sdk/esm/core/types/actions.js');
+
+        console.log('[cleanup] Attempting DeleteAccount to refund remaining balance', {
+          nearAccountId,
+          beneficiaryId,
+        });
+
+        const result = await utils.passkeyManager.executeAction({
+          nearAccountId,
+          receiverId: nearAccountId,
+          actionArgs: {
+            type: ActionType.DeleteAccount,
+            beneficiaryId,
+          },
+          options: {
+            onEvent: (event: any) => {
+              console.log('[cleanup] DeleteAccount event', event?.phase, event?.status);
+            },
+            onError: (error: any) => {
+              console.warn('[cleanup] DeleteAccount error', error);
+            },
+          },
+        });
+
+        console.log('[cleanup] DeleteAccount result', result);
+      } catch (error) {
+        console.warn('[cleanup] Failed to delete test account; skipping cleanup', error);
+      }
+    }, { accountId, beneficiaryId: RELAYER_REFUND_ACCOUNT_ID });
   });
 
   test('Headers sanity', async ({ passkey, page }) => {

@@ -3,7 +3,7 @@
 
 /// Change this constant and recompile to adjust logging verbosity
 /// Available levels: Error, Warn, Info, Debug, Trace
-pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Info;
+pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Debug;
 
 // === CRYPTOGRAPHIC CONSTANTS ===
 

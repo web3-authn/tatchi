@@ -8,8 +8,7 @@
 */
 
 w3a-drawer {
-  /* Size defaults */
-  --w3a-drawer__max-width: 375px;
+  --w3a-drawer__max-width: 384px; /* 360px toolTip width + 1.5rem (24px) */
   --w3a-drawer__sheet-height: 100dvh; /* prefer dynamic viewport */
   --w3a-drawer__open-offset: 0px;     /* mobile chrome compensation */
   /* Match TxTree row expand/collapse timing */
@@ -19,7 +18,7 @@ w3a-drawer {
 
 /* Duplicate token defaults for shadow-adopted usage */
 :host {
-  --w3a-drawer__max-width: var(--w3a-drawer__max-width, 375px);
+  --w3a-drawer__max-width: var(--w3a-drawer__max-width, 384px);
   --w3a-drawer__sheet-height: var(--w3a-drawer__sheet-height, 100dvh);
   --w3a-drawer__open-offset: var(--w3a-drawer__open-offset, 0px);
 }
@@ -59,7 +58,7 @@ w3a-drawer .drawer,
   box-shadow: 0 0px 8px rgba(0,0,0,0.2);
   padding: 0.5rem;
   /* Constrain width and center horizontally */
-  max-width: var(--w3a-drawer__max-width, 375px);
+  max-width: var(--w3a-drawer__max-width, 384px);
   margin-left: auto;
   margin-right: auto;
   /* Use a tall sheet so we can overpull without clipping */

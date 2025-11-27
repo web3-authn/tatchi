@@ -198,6 +198,20 @@ fn test_get_action_handler_new_types() {
     let stake_params = ActionParams::Stake { stake: "1000000000000000000000000".to_string(), public_key: "ed25519:6E8sCci9badyRkXb3JoRpBj5p8C6Tw41ELDZoiihKEtp".to_string() };
     let handler = get_action_handler(&stake_params);
     assert!(handler.is_ok());
+
+    let deploy_global_params = ActionParams::DeployGlobalContract {
+        code: vec![0, 97, 115, 109],
+        deploy_mode: "CodeHash".to_string(),
+    };
+    let handler = get_action_handler(&deploy_global_params);
+    assert!(handler.is_ok());
+
+    let use_global_params = ActionParams::UseGlobalContract {
+        account_id: Some("global-contract.near".to_string()),
+        code_hash: None,
+    };
+    let handler = get_action_handler(&use_global_params);
+    assert!(handler.is_ok());
 }
 
 #[test]
@@ -233,6 +247,99 @@ fn test_stake_action_handler() {
         }
         _ => panic!("Expected Stake action"),
     }
+}
+
+#[test]
+fn test_deploy_global_contract_action_handler() {
+    let handler = DeployGlobalContractActionHandler;
+
+    let params = ActionParams::DeployGlobalContract {
+        code: vec![0, 97, 115, 109, 1, 0, 0, 0],
+        deploy_mode: "CodeHash".to_string(),
+    };
+    assert!(handler.validate_params(&params).is_ok());
+    let action = handler.build_action(&params).unwrap();
+    match action {
+        Action::DeployGlobalContract { code, deploy_mode } => {
+            assert!(!code.is_empty());
+            match deploy_mode {
+                GlobalContractDeployMode::CodeHash => {}
+                _ => panic!("Expected CodeHash deploy mode"),
+            }
+        }
+        _ => panic!("Expected DeployGlobalContract action"),
+    }
+}
+
+#[test]
+fn test_use_global_contract_action_handler_account_id() {
+    let handler = UseGlobalContractActionHandler;
+
+    let params = ActionParams::UseGlobalContract {
+        account_id: Some("global-contract.near".to_string()),
+        code_hash: None,
+    };
+    assert!(handler.validate_params(&params).is_ok());
+    let action = handler.build_action(&params).unwrap();
+    match action {
+        Action::UseGlobalContract { contract_identifier } => {
+            match contract_identifier {
+                GlobalContractIdentifier::AccountId(acc) => {
+                    assert_eq!(acc.0, "global-contract.near");
+                }
+                _ => panic!("Expected AccountId identifier"),
+            }
+        }
+        _ => panic!("Expected UseGlobalContract action"),
+    }
+}
+
+#[test]
+fn test_use_global_contract_action_handler_code_hash() {
+    use bs58;
+
+    let handler = UseGlobalContractActionHandler;
+
+    // 32-byte dummy hash
+    let bytes = [1u8; 32];
+    let hash_str = bs58::encode(bytes).into_string();
+
+    let params = ActionParams::UseGlobalContract {
+        account_id: None,
+        code_hash: Some(hash_str.clone()),
+    };
+    assert!(handler.validate_params(&params).is_ok());
+    let action = handler.build_action(&params).unwrap();
+    match action {
+        Action::UseGlobalContract { contract_identifier } => {
+            match contract_identifier {
+                GlobalContractIdentifier::CodeHash(hash) => {
+                    assert_eq!(hash.to_vec(), bytes.to_vec());
+                }
+                _ => panic!("Expected CodeHash identifier"),
+            }
+        }
+        _ => panic!("Expected UseGlobalContract action"),
+    }
+}
+
+#[test]
+fn test_use_global_contract_validation_errors() {
+    let handler = UseGlobalContractActionHandler;
+
+    // Both fields set
+    let params = ActionParams::UseGlobalContract {
+        account_id: Some("a.near".to_string()),
+        code_hash: Some("b".to_string()),
+    };
+    assert!(handler.validate_params(&params).is_err());
+
+    // Neither field set
+    let params = ActionParams::UseGlobalContract {
+        account_id: None,
+        code_hash: None,
+    };
+    assert!(handler.validate_params(&params).is_err());
 }
 
 #[test]

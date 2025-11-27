@@ -18,6 +18,7 @@ export const ToasterThemed: React.FC = () => {
         },
         // Keep error toasts (e.g., registration failures) visible
         // until the user explicitly closes them.
+        // @ts-ignore
         error: {
           duration: Infinity,
         },

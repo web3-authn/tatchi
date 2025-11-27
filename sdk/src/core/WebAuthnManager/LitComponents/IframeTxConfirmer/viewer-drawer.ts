@@ -264,7 +264,7 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
               </div>
             </div>
           </div>
-          <div class="section responsive-card">
+          <div class="section responsive-card responsive-card-center">
             <w3a-tx-confirm-content
               .nearAccountId=${this.nearAccountId || ''}
               .txSigningRequests=${this.txSigningRequests || []}

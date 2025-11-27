@@ -142,20 +142,23 @@
 - Add a config toggle `enableDelegateActions` (default: off) to reduce risk in early rollout. When disabled, SDK methods throw a clear “feature disabled” error.
 
 **Concrete Task Checklist**
-- Worker
-  - Add `SignDelegateAction` variants to `WorkerRequestType`/`WorkerResponseType` and map in `lib.rs`.
-  - Implement `handle_sign_delegate_action.rs` with confirm‑verify‑decrypt‑sign and progress messages.
-  - Implement NEP‑461 prefix encoding helpers and delegate Borsh schema.
-  - Re‑export new types for TS and add wasm_bindgen wrappers.
-- SDK
-  - Implement `sdk/src/core/TatchiPasskey/delegateAction.ts` and public API in `TatchiPasskey/index.ts`.
-  - Add `signDelegateAction` handler under `SignerWorkerManager/handlers/` and wire in the manager index.
-  - Add TS types in `sdk/src/core/types/delegate.ts` and map worker req/resp in `types/signer-worker.ts`.
-  - Add unit tests for encoding compatibility and key mismatch guard.
-- Wallet Iframe
-  - Add `'PM_SIGN_DELEGATE_ACTION'` envelope and payload types in `shared/messages.ts`.
-  - Implement host handler in `host/wallet-iframe-handlers.ts` and router method in `client/router.ts`.
-  - Extend confirm bridge consumer to render `type: 'signDelegateAction'` payloads.
+- [x] Wire `SignedDelegate` action enums
+  - [x] Add `SignedDelegate` to Rust `ActionType` in `sdk/src/wasm_signer_worker/src/actions.rs`.
+  - [x] Add `SignedDelegate` to TS `ActionType` in `sdk/src/core/types/actions.ts`.
+- [ ] Worker
+  - [ ] Add `SignDelegateAction` variants to `WorkerRequestType`/`WorkerResponseType` and map in `lib.rs`.
+  - [ ] Implement `handle_sign_delegate_action.rs` with confirm‑verify‑decrypt‑sign and progress messages.
+  - [ ] Implement NEP‑461 prefix encoding helpers and delegate Borsh schema.
+  - [ ] Re‑export new types for TS and add wasm_bindgen wrappers.
+- [ ] SDK
+  - [ ] Implement `sdk/src/core/TatchiPasskey/delegateAction.ts` and public API in `TatchiPasskey/index.ts`.
+  - [ ] Add `signDelegateAction` handler under `SignerWorkerManager/handlers/` and wire in the manager index.
+  - [ ] Add TS types in `sdk/src/core/types/delegate.ts` and map worker req/resp in `types/signer-worker.ts`.
+  - [ ] Add unit tests for encoding compatibility and key mismatch guard.
+- [ ] Wallet Iframe
+  - [ ] Add `'PM_SIGN_DELEGATE_ACTION'` envelope and payload types in `shared/messages.ts`.
+  - [ ] Implement host handler in `host/wallet-iframe-handlers.ts` and router method in `client/router.ts`.
+  - [ ] Extend confirm bridge consumer to render `type: 'signDelegateAction'` payloads.
 
 **Open Questions**
 - Do we need a dedicated progress phase set (e.g., `delegate-signing-progress`) or is reusing action phases sufficient for v1?

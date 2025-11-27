@@ -656,6 +656,34 @@ export class TatchiPasskey {
   }
 
   /**
+   * Convenience helper to sign and send a single transaction with actions.
+   * Internally delegates to signAndSendTransactions() and returns the first result.
+   */
+  async signAndSendTransaction({
+    nearAccountId,
+    receiverId,
+    actions,
+    options = {}
+  }: {
+    nearAccountId: string;
+    receiverId: string;
+    actions: ActionArgs[];
+    options?: SignAndSendTransactionHooksOptions;
+  }): Promise<ActionResult> {
+    const results = await this.signAndSendTransactions({
+      nearAccountId,
+      transactions: [
+        {
+          receiverId,
+          actions
+        }
+      ],
+      options
+    });
+    return results[0] as ActionResult;
+  }
+
+  /**
    * Batch sign transactions (with actions), allows you to sign transactions
    * to different receivers with a single TouchID prompt.
    * This method does not broadcast transactions, use sendTransaction() to do that.

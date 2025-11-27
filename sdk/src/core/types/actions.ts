@@ -23,6 +23,9 @@ export enum ActionType {
   AddKey = "AddKey",
   DeleteKey = "DeleteKey",
   DeleteAccount = "DeleteAccount",
+  SignedDelegate = "SignedDelegate",
+  DeployGlobalContract = "DeployGlobalContract",
+  UseGlobalContract = "UseGlobalContract",
 }
 
 export enum TxExecutionStatus {
@@ -62,6 +65,22 @@ export interface DeployContractAction {
   type: ActionType.DeployContract;
   /** Contract code as Uint8Array or base64 string */
   code: Uint8Array | string;
+}
+
+export interface DeployGlobalContractAction {
+  type: ActionType.DeployGlobalContract;
+  /** Global contract code as Uint8Array or base64 string */
+  code: Uint8Array | string;
+  /** Deployment mode: CodeHash | AccountId */
+  deployMode: 'CodeHash' | 'AccountId';
+}
+
+export interface UseGlobalContractAction {
+  type: ActionType.UseGlobalContract;
+  /** Exactly one of these should be set */
+  accountId?: string;
+  /** bs58-encoded 32-byte code hash */
+  codeHash?: string;
 }
 
 export interface StakeAction {
@@ -119,7 +138,9 @@ export type ActionArgs =
   | StakeAction
   | AddKeyAction
   | DeleteKeyAction
-  | DeleteAccountAction;
+  | DeleteAccountAction
+  | DeployGlobalContractAction
+  | UseGlobalContractAction;
 
 // === ACTION TYPES ===
 
@@ -128,6 +149,7 @@ export type ActionArgs =
 export type ActionArgsWasm =
   | { action_type: ActionType.CreateAccount }
   | { action_type: ActionType.DeployContract; code: number[] }
+  | { action_type: ActionType.DeployGlobalContract; code: number[]; deploy_mode: 'CodeHash' | 'AccountId' }
   | {
       action_type: ActionType.FunctionCall;
       method_name: string;
@@ -140,6 +162,7 @@ export type ActionArgsWasm =
   | { action_type: ActionType.AddKey; public_key: string; access_key: string }
   | { action_type: ActionType.DeleteKey; public_key: string }
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
+  | { action_type: ActionType.UseGlobalContract; account_id?: string; code_hash?: string }
 
 export function isActionArgsWasm(a?: any): a is ActionArgsWasm {
   return isObject(a) && 'action_type' in a;
@@ -201,6 +224,22 @@ export function toActionArgsWasm(action: ActionArgs): ActionArgsWasm {
           : Array.from(action.code)
       };
 
+    case ActionType.DeployGlobalContract:
+      return {
+        action_type: ActionType.DeployGlobalContract,
+        code: typeof action.code === 'string'
+          ? Array.from(new TextEncoder().encode(action.code))
+          : Array.from(action.code),
+        deploy_mode: action.deployMode,
+      };
+
+    case ActionType.UseGlobalContract:
+      return {
+        action_type: ActionType.UseGlobalContract,
+        account_id: action.accountId,
+        code_hash: action.codeHash,
+      };
+
     case ActionType.Stake:
       return {
         action_type: ActionType.Stake,
@@ -253,6 +292,14 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
         throw new Error('code required for DeployContract');
       }
       break;
+    case ActionType.DeployGlobalContract:
+      if (!actionArgsWasm.code || actionArgsWasm.code.length === 0) {
+        throw new Error('code required for DeployGlobalContract');
+      }
+      if (!actionArgsWasm.deploy_mode || (actionArgsWasm.deploy_mode !== 'CodeHash' && actionArgsWasm.deploy_mode !== 'AccountId')) {
+        throw new Error('deploy_mode must be CodeHash or AccountId for DeployGlobalContract');
+      }
+      break;
     case ActionType.Stake:
       if (!actionArgsWasm.stake) {
         throw new Error('stake amount required for Stake');
@@ -279,6 +326,14 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
         throw new Error('beneficiary_id required for DeleteAccount');
       }
       break;
+    case ActionType.UseGlobalContract: {
+      const hasAccountId = !!actionArgsWasm.account_id;
+      const hasCodeHash = !!actionArgsWasm.code_hash;
+      if (hasAccountId === hasCodeHash) {
+        throw new Error('UseGlobalContract requires exactly one of account_id or code_hash');
+      }
+      break;
+    }
     default:
       throw new Error(`Unsupported action type: ${(actionArgsWasm as any).action_type}`);
   }
@@ -332,6 +387,14 @@ export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
         code: codeBytes
       };
     }
+    case ActionType.DeployGlobalContract: {
+      const codeBytes = Array.isArray(a.code) ? new Uint8Array(a.code) : new Uint8Array();
+      return {
+        type: ActionType.DeployGlobalContract,
+        code: codeBytes,
+        deployMode: a.deploy_mode,
+      };
+    }
     case ActionType.Stake:
       return {
         type: ActionType.Stake,
@@ -382,6 +445,12 @@ export function fromActionArgsWasm(a: ActionArgsWasm): ActionArgs {
       return {
         type: ActionType.DeleteAccount,
         beneficiaryId: a.beneficiary_id
+      };
+    case ActionType.UseGlobalContract:
+      return {
+        type: ActionType.UseGlobalContract,
+        accountId: a.account_id,
+        codeHash: a.code_hash,
       };
     default:
       // Exhaustive guard
