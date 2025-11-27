@@ -47,6 +47,7 @@ jobs:
           RELAYER_URL: ${{ vars.VITE_RELAYER_URL }}
         run: |
           set -euo pipefail
+          echo "deploy-zk-email-cloudflare-worker: RELAYER_URL='${RELAYER_URL}'"
           if [ -z "${RELAYER_URL:-}" ]; then
             echo "VITE_RELAYER_URL (RELAYER_URL) environment variable is not set" >&2
             exit 1
