@@ -1041,6 +1041,123 @@ export class AuthService {
   }
 
   /**
+   * DKIM/TEE email recovery helper.
+   * Relayer signs a function call to the per-user email-recoverer contract
+   * deployed on `accountId`, passing the raw email blob for DKIM verification.
+   */
+  async recoverAccountFromEmailDKIMVerifier(request: { accountId: string; emailBlob: string }): Promise<{
+    success: boolean;
+    transactionHash?: string;
+    message?: string;
+    error?: string;
+  }> {
+    const accountId = (request.accountId || '').trim();
+    const emailBlob = request.emailBlob;
+
+    if (!this.isValidAccountId(accountId)) {
+      return {
+        success: false,
+        error: `Invalid account ID format: ${accountId}`,
+        message: `Invalid account ID format: ${accountId}`,
+      };
+    }
+    if (!emailBlob || typeof emailBlob !== 'string') {
+      return {
+        success: false,
+        error: 'emailBlob (raw email) is required',
+        message: 'emailBlob (raw email) is required',
+      };
+    }
+
+    await this._ensureSignerAndRelayerAccount();
+
+    return this.queueTransaction(async () => {
+      try {
+        // Prepare contract arguments for verify_dkim_and_recover(email_blob: String)
+        const contractArgs = {
+          email_blob: emailBlob,
+        };
+
+        const actions: ActionArgsWasm[] = [
+          {
+            action_type: ActionType.FunctionCall,
+            method_name: 'verify_dkim_and_recover',
+            args: JSON.stringify(contractArgs),
+            // Use generous gas similar to createAccountAndRegisterGas
+            gas: this.config.createAccountAndRegisterGas,
+            deposit: '0',
+          },
+        ];
+        actions.forEach(validateActionArgsWasm);
+
+        const { nextNonce, blockHash } = await this.fetchTxContext(
+          this.config.relayerAccountId,
+          this.relayerPublicKey,
+        );
+
+        const signed = await this.signWithPrivateKey({
+          nearPrivateKey: this.config.relayerPrivateKey,
+          signerAccountId: this.config.relayerAccountId,
+          receiverId: accountId,
+          nonce: nextNonce,
+          blockHash,
+          actions,
+        });
+
+        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
+
+        const contractError = this.parseContractExecutionError(result, accountId);
+        if (contractError) {
+          console.error(`[AuthService] Email recovery contract error for ${accountId}:`, contractError);
+          return {
+            success: false,
+            error: contractError,
+            message: contractError,
+          };
+        }
+
+        console.log(`[AuthService] Email recovery flow completed for ${accountId}: ${result.transaction.hash}`);
+        return {
+          success: true,
+          transactionHash: result.transaction.hash,
+          message: `Email recovery flow executed for ${accountId}`,
+        };
+      } catch (error: any) {
+        const msg = error?.message || 'Unknown email recovery error';
+        console.error(`[AuthService] Email recovery failed for ${accountId}:`, msg);
+        return {
+          success: false,
+          error: msg,
+          message: msg,
+        };
+      }
+    }, `email recovery (dkim) for ${accountId}`);
+  }
+
+  /**
+   * ZK-email recovery helper (stub).
+   * Intended to call the global ZkEmailVerifier and per-user recovery contract
+   * once zk-email proofs and public inputs are wired through.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async recoverAccountFromZkEmailVerifier(_request: {
+    accountId: string;
+    proof: unknown;
+    publicInputs: unknown;
+  }): Promise<{
+    success: boolean;
+    transactionHash?: string;
+    message?: string;
+    error?: string;
+  }> {
+    return {
+      success: false,
+      error: 'recoverAccountFromZkEmailVerifier is not yet implemented',
+      message: 'recoverAccountFromZkEmailVerifier is not yet implemented',
+    };
+  }
+
+  /**
    * Express-style middleware factory for verify-authentication
    */
   verifyAuthenticationMiddleware() {

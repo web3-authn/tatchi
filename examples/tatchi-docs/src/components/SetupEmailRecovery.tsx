@@ -9,6 +9,7 @@ import {
 
 import type { ActionArgs, ActionResult } from '@tatchi-xyz/sdk/react';
 import { LoadingButton } from './LoadingButton';
+import EmailRecoveryFields from './EmailRecoveryFields';
 import { NEAR_EXPLORER_BASE_URL } from '../types';
 
 const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer.testnet';
@@ -24,80 +25,11 @@ export const SetupEmailRecovery: React.FC = () => {
   } = useTatchi();
 
   const [isBusy, setIsBusy] = React.useState(false);
+  const [recoveryEmails, setRecoveryEmails] = React.useState<string[]>(['']);
 
   if (!isLoggedIn || !nearAccountId) {
     return null;
   }
-
-  const handleUpgradeEmailRecovery = async () => {
-    if (!tatchi || !nearAccountId) return;
-
-    if (tatchi.configs.nearNetwork !== 'testnet') {
-      toast.error('Email recovery demo is only available on testnet for now.');
-      return;
-    }
-
-    const toastId = 'email-recovery-upgrade';
-    setIsBusy(true);
-
-    try {
-      toast.loading('Fetching latest email recovery contract...', { id: toastId });
-
-      const nearClient = tatchi.getNearClient();
-      const wasmBytes = await nearClient.viewCode(EMAIL_RECOVERER_CODE_ACCOUNT_ID);
-
-      const actions: ActionArgs[] = [
-        {
-          type: ActionType.DeployContract,
-          code: wasmBytes,
-        },
-      ];
-
-      const result = await tatchi.executeAction({
-        nearAccountId,
-        receiverId: nearAccountId,
-        actionArgs: actions,
-        options: {
-          waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
-          afterCall: (success: boolean, actionResult?: ActionResult) => {
-            try {
-              toast.dismiss(toastId);
-            } catch {}
-
-            const txId = actionResult?.transactionId;
-
-            if (success && txId) {
-              const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
-              toast.success('Email recovery contract upgraded', {
-                description: (
-                  <a href={txLink} target="_blank" rel="noopener noreferrer">
-                    View transaction on NearBlocks
-                  </a>
-                ),
-              });
-            } else if (success) {
-              toast.success('Email recovery contract upgraded');
-            } else {
-              const message = actionResult?.error || 'Failed to upgrade email recovery contract';
-              toast.error(message);
-            }
-          },
-        },
-      });
-
-      if (!result?.success) {
-        toast.error(result?.error || 'Failed to upgrade email recovery contract');
-      }
-    } catch (error: any) {
-      try {
-        toast.dismiss(toastId);
-      } catch {}
-      const message = error?.message || 'Failed to upgrade email recovery contract';
-      toast.error(message);
-    } finally {
-      setIsBusy(false);
-    }
-  };
 
   const handleSetupEmailRecovery = async () => {
     if (!tatchi || !nearAccountId) return;
@@ -111,15 +43,12 @@ export const SetupEmailRecovery: React.FC = () => {
     setIsBusy(true);
 
     try {
-      toast.loading('Fetching email recovery contract...', { id: toastId });
-
-      const nearClient = tatchi.getNearClient();
-      const wasmBytes = await nearClient.viewCode(EMAIL_RECOVERER_CODE_ACCOUNT_ID);
+      toast.loading('Setting up email recovery using global contract...', { id: toastId });
 
       const actions: ActionArgs[] = [
         {
-          type: ActionType.DeployContract,
-          code: wasmBytes,
+          type: ActionType.UseGlobalContract,
+          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
         },
         {
           type: ActionType.FunctionCall,
@@ -129,6 +58,7 @@ export const SetupEmailRecovery: React.FC = () => {
             email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
             policy: null,
             // TODO: Wire hashed recovery emails when UI is ready.
+            // Placeholder: recovery_emails will be derived from recoveryEmails once hashing is wired.
             recovery_emails: [] as number[][],
           },
           gas: '80000000000000',
@@ -256,6 +186,13 @@ export const SetupEmailRecovery: React.FC = () => {
         Deploy a per-account recovery contract that can verify zk-email proofs
         for secure, email-based wallet recovery.
       </div>
+      <div style={{ marginTop: '0.75rem', maxWidth: 480 }}>
+        <EmailRecoveryFields
+          value={recoveryEmails}
+          onChange={setRecoveryEmails}
+          disabled={isBusy}
+        />
+      </div>
       <div style={{ marginTop: '0.75rem', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
         <LoadingButton
           onClick={handleSetupEmailRecovery}
@@ -266,16 +203,6 @@ export const SetupEmailRecovery: React.FC = () => {
           style={{ width: 220 }}
         >
           Setup Email Recovery
-        </LoadingButton>
-        <LoadingButton
-          onClick={handleUpgradeEmailRecovery}
-          loading={isBusy}
-          loadingText="Upgrading..."
-          variant="secondary"
-          size="medium"
-          style={{ width: 240 }}
-        >
-          Upgrade Recovery Contract
         </LoadingButton>
         <LoadingButton
           onClick={handleDeleteEmailRecovery}

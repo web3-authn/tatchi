@@ -57,6 +57,10 @@ export function orderActionForDigest(a: ActionArgsWasm) {
       return { action_type: a.action_type, beneficiary_id: a.beneficiary_id };
     case 'DeployContract':
       return { action_type: a.action_type, code: a.code };
+    case 'DeployGlobalContract':
+      return { action_type: a.action_type, code: a.code, deploy_mode: a.deploy_mode };
+    case 'UseGlobalContract':
+      return { action_type: a.action_type, account_id: a.account_id, code_hash: a.code_hash };
     case 'CreateAccount':
     default:
       return { action_type: a.action_type };

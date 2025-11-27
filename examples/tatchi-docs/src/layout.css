@@ -365,7 +365,7 @@
   }
   .hero-ctas .cta-primary {
     margin-left: -1rem;
-    width: 190px;
+    width: 220px;
     margin-left: 0%;
   }
 }
@@ -392,7 +392,7 @@
     align-items: flex-start;
   }
   .hero-ctas .cta-secondary {
-    width: 260px;
+    width: 290px;
     margin-left: 0;
   }
 }

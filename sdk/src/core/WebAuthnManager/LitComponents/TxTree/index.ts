@@ -5,7 +5,7 @@ import { dispatchLitTreeToggled } from '../lit-events';
 import type { TreeNode } from './tx-tree-utils';
 import type { TxTreeStyles } from './tx-tree-themes';
 import { TX_TREE_THEMES } from './tx-tree-themes';
-import { formatGas, formatDeposit, formatCodeSize } from '../common/formatters';
+import { formatGas, formatDeposit, formatCodeSize, shortenPubkey } from '../common/formatters';
 import { isNumber, isString } from '../../../WalletIframe/validation';
 import { ensureExternalStyles } from '../css/css-loader';
 // Re-export for backward compatibility
@@ -352,9 +352,34 @@ export class TxTree extends LitElementWithProps {
           return `Adding Key`;
         case 'DeleteKey':
           return `Deleting Key`;
-        case 'DeployContract':
+        case 'DeployContract': {
           const codeSize = formatCodeSize(a.code);
-          return `Deploying Contract of size ${codeSize}`;
+          return `Deploying WASM contract (${codeSize})`;
+        }
+        case 'DeployGlobalContract': {
+          const codeSize = formatCodeSize((a as any).code);
+          const mode = (a as any).deployMode || 'Unknown';
+          return `Deploy global WASM contract (mode: ${mode}, size ${codeSize})`;
+        }
+        case 'UseGlobalContract': {
+          const accountId = (a as any).accountId;
+          const codeHash = (a as any).codeHash;
+          if (accountId) {
+            const base = (this.nearExplorerUrl || 'https://testnet.nearblocks.io').replace(/\/$/, '');
+            const href = `${base}/address/${encodeURIComponent(accountId)}`;
+            return html`Use global contract <a
+              class="highlight-receiver-id"
+              href=${href}
+              target="_blank"
+              rel="noopener noreferrer"
+            >${accountId}</a>`;
+          }
+          if (codeHash) {
+            const short = shortenPubkey(codeHash, { prefix: 10, suffix: 6 });
+            return html`Use global contract by hash <span class="highlight-method-name">${short}</span>`;
+          }
+          return 'Use global contract';
+        }
         default: {
           const idxText = isNumber(treeNode.actionIndex) ? ` ${treeNode.actionIndex + 1}` : '';
           const typeText = a.type || 'Unknown';
@@ -411,7 +436,23 @@ export class TxTree extends LitElementWithProps {
         case 'DeleteKey':
           return 'Deleting Key';
         case 'DeployContract':
-          return 'Deploying Contract';
+          return 'Deploying WASM contract';
+        case 'DeployGlobalContract': {
+          const codeSize = formatCodeSize((a as any).code);
+          const mode = (a as any).deployMode || 'Unknown';
+          return `Deploy global WASM contract (mode: ${mode}, size ${codeSize})`;
+        }
+        case 'UseGlobalContract': {
+          const accountId = (a as any).accountId;
+          const codeHash = (a as any).codeHash;
+          if (accountId) {
+            return `Use global contract by account ${accountId}`;
+          }
+          if (codeHash) {
+            return `Use global contract by hash ${codeHash}`;
+          }
+          return 'Use global contract';
+        }
         default: {
           const idxText = isNumber(treeNode.actionIndex) ? ` ${treeNode.actionIndex + 1}` : '';
           const typeText = a.type || 'Unknown';

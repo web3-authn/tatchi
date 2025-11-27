@@ -34,6 +34,17 @@ pub enum ActionParams {
     DeleteAccount {
         beneficiary_id: String,
     },
+    // NEP-0591 Global Contracts
+    DeployGlobalContract {
+        code: Vec<u8>,
+        // "CodeHash" | "AccountId" (same strings as TS ActionType side)
+        deploy_mode: String,
+    },
+    UseGlobalContract {
+        // Exactly one of these must be set by TS side
+        account_id: Option<String>,
+        code_hash: Option<String>, // bs58 string encoded 32-byte hash
+    },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,6 +57,9 @@ pub enum ActionType {
     AddKey,
     DeleteKey,
     DeleteAccount,
+    SignedDelegate,
+    DeployGlobalContract,
+    UseGlobalContract,
 }
 
 /// Trait for handling different NEAR action types
@@ -397,6 +411,10 @@ pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler
         ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
         ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
         ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
+        ActionParams::DeployGlobalContract { .. } => {
+            Ok(Box::new(DeployGlobalContractActionHandler))
+        }
+        ActionParams::UseGlobalContract { .. } => Ok(Box::new(UseGlobalContractActionHandler)),
     }
 }
 
@@ -492,5 +510,132 @@ impl ActionHandler for StakeActionHandler {
 
     fn get_action_type(&self) -> ActionType {
         ActionType::Stake
+    }
+}
+
+// === NEP-0591 GLOBAL CONTRACT HANDLERS ===
+
+pub struct DeployGlobalContractActionHandler;
+
+impl ActionHandler for DeployGlobalContractActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::DeployGlobalContract { code, deploy_mode } => {
+                if code.is_empty() {
+                    return Err("Global contract code cannot be empty".to_string());
+                }
+                if deploy_mode != "CodeHash" && deploy_mode != "AccountId" {
+                    return Err(format!("Invalid deploy_mode: {}", deploy_mode));
+                }
+                Ok(())
+            }
+            _ => Err("Invalid params for DeployGlobalContract action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::DeployGlobalContract { code, deploy_mode } => {
+                let mode = match deploy_mode.as_str() {
+                    "CodeHash" => GlobalContractDeployMode::CodeHash,
+                    "AccountId" => GlobalContractDeployMode::AccountId,
+                    other => return Err(format!("Invalid deploy_mode: {}", other)),
+                };
+                Ok(Action::DeployGlobalContract {
+                    code: code.clone(),
+                    deploy_mode: mode,
+                })
+            }
+            _ => Err("Invalid params for DeployGlobalContract action".to_string()),
+        }
+    }
+
+    fn get_action_type(&self) -> ActionType {
+        ActionType::DeployGlobalContract
+    }
+}
+
+pub struct UseGlobalContractActionHandler;
+
+impl ActionHandler for UseGlobalContractActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::UseGlobalContract {
+                account_id,
+                code_hash,
+            } => {
+                match (account_id, code_hash) {
+                    (Some(id), None) => {
+                        if id.is_empty() {
+                            return Err("account_id cannot be empty".to_string());
+                        }
+                        id.parse::<crate::types::AccountId>()
+                            .map_err(|e| format!("Invalid account_id: {}", e))?;
+                        Ok(())
+                    }
+                    (None, Some(hash_str)) => {
+                        if hash_str.is_empty() {
+                            return Err("code_hash cannot be empty".to_string());
+                        }
+                        let bytes = bs58::decode(hash_str)
+                            .into_vec()
+                            .map_err(|e| format!("Invalid code_hash: {}", e))?;
+                        if bytes.len() != 32 {
+                            return Err("code_hash must be 32 bytes".to_string());
+                        }
+                        Ok(())
+                    }
+                    _ => Err(
+                        "UseGlobalContract requires exactly one of account_id or code_hash"
+                            .to_string(),
+                    ),
+                }
+            }
+            _ => Err("Invalid params for UseGlobalContract action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::UseGlobalContract {
+                account_id,
+                code_hash,
+            } => {
+                let identifier = match (account_id, code_hash) {
+                    (Some(id), None) => {
+                        let acc = id
+                            .parse::<crate::types::AccountId>()
+                            .map_err(|e| format!("Invalid account_id: {}", e))?;
+                        GlobalContractIdentifier::AccountId(acc)
+                    }
+                    (None, Some(hash_str)) => {
+                        let bytes = bs58::decode(hash_str)
+                            .into_vec()
+                            .map_err(|e| format!("Invalid code_hash: {}", e))?;
+                        if bytes.len() != 32 {
+                            return Err("code_hash must be 32 bytes".to_string());
+                        }
+                        let mut arr = [0u8; 32];
+                        arr.copy_from_slice(&bytes);
+                        GlobalContractIdentifier::CodeHash(CryptoHash::from_bytes(arr))
+                    }
+                    _ => {
+                        return Err(
+                            "UseGlobalContract requires exactly one of account_id or code_hash"
+                                .to_string(),
+                        );
+                    }
+                };
+
+                Ok(Action::UseGlobalContract {
+                    contract_identifier: identifier,
+                })
+            }
+            _ => Err("Invalid params for UseGlobalContract action".to_string()),
+        }
+    }
+
+    fn get_action_type(&self) -> ActionType {
+        ActionType::UseGlobalContract
     }
 }

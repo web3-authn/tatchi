@@ -1,6 +1,8 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import express from 'express';
 import type { AuthService } from '../core/AuthService';
+import type { ForwardableEmailPayload } from '../email-recovery/zkEmail';
+import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from '../email-recovery/zkEmail';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
@@ -184,6 +186,45 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
       } else {
         res.status(200).json({ ok: true, jwt: out.jwt });
       }
+    } catch (e: any) {
+      res.status(500).json({ code: 'internal', message: e?.message || 'Internal error' });
+    }
+  });
+
+  // Email recovery hook (DKIM/TEE flow):
+  // Accept a ForwardableEmailPayload from the email worker and call the
+  // per-user email-recoverer contract deployed on `accountId`.
+  router.post('/reset-email', async (req: any, res: any) => {
+    try {
+      const normalized = normalizeForwardableEmailPayload(req.body as unknown);
+      if (!normalized.ok) {
+        res.status(400).json({ code: normalized.code, message: normalized.message });
+        return;
+      }
+
+      const payload = normalized.payload as ForwardableEmailPayload;
+      const emailBlob = payload.raw || '';
+      const headers = payload.headers || {};
+
+      // Primary: parse accountId from Subject (header or raw)
+      const subjectHeader = headers['subject'];
+      const parsedAccountId = parseAccountIdFromSubject(subjectHeader || emailBlob);
+      // Fallback: header-based account id if provided
+      const headerAccountId = String(headers['x-near-account-id'] || headers['x-account-id'] || '').trim();
+      const accountId = (parsedAccountId || headerAccountId || '').trim();
+
+      if (!accountId) {
+        res.status(400).json({ code: 'missing_account', message: 'x-near-account-id header is required' });
+        return;
+      }
+      if (!emailBlob) {
+        res.status(400).json({ code: 'missing_email', message: 'raw email blob is required' });
+        return;
+      }
+
+      const result = await service.recoverAccountFromEmailDKIMVerifier({ accountId, emailBlob });
+      const status = result.success ? 202 : 400;
+      res.status(status).json(result);
     } catch (e: any) {
       res.status(500).json({ code: 'internal', message: e?.message || 'Internal error' });
     }
