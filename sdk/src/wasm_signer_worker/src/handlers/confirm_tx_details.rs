@@ -143,6 +143,7 @@ pub fn create_transaction_summary_from_parsed(
             match action {
                 ActionParams::CreateAccount => {}
                 ActionParams::DeployContract { .. } => {}
+                ActionParams::DeployGlobalContract { .. } => {}
                 ActionParams::FunctionCall { deposit, .. } => {
                     total_deposit += deposit.parse::<u128>().unwrap_or(0);
                 }
@@ -155,6 +156,7 @@ pub fn create_transaction_summary_from_parsed(
                 ActionParams::AddKey { .. } => {}
                 ActionParams::DeleteKey { .. } => {}
                 ActionParams::DeleteAccount { .. } => {}
+                ActionParams::UseGlobalContract { .. } => {}
             }
         }
     }

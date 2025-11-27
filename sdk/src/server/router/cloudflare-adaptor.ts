@@ -4,6 +4,8 @@ import type { SessionAdapter } from './express-adaptor';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
 import { setShamirWasmModuleOverride } from '../core/shamirWorker';
 import type { InitInput as ShamirInitInput } from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
+import type { ForwardableEmailPayload } from '../email-recovery/zkEmail';
+import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from '../email-recovery/zkEmail';
 
 export interface RelayRouterOptions {
   healthz?: boolean;
@@ -308,6 +310,41 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
             res.headers.set('Set-Cookie', session.buildSetCookie(out.jwt));
           } catch {}
         }
+        withCors(res.headers, opts, request);
+        return res;
+      }
+
+      if (method === 'POST' && pathname === '/reset-email') {
+        let rawBody: unknown; try { rawBody = await request.json(); } catch { rawBody = null; }
+        const normalized = normalizeForwardableEmailPayload(rawBody);
+        if (!normalized.ok) {
+          const res = json({ code: normalized.code, message: normalized.message }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        const payload = normalized.payload as ForwardableEmailPayload;
+        const emailBlob = payload.raw || '';
+        const headers = payload.headers || {};
+
+        const subjectHeader = headers['subject'];
+        const parsedAccountId = parseAccountIdFromSubject(subjectHeader || emailBlob);
+        const headerAccountId = String(headers['x-near-account-id'] || headers['x-account-id'] || '').trim();
+        const accountId = (parsedAccountId || headerAccountId || '').trim();
+
+        if (!accountId) {
+          const res = json({ code: 'missing_account', message: 'x-near-account-id header is required' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+        if (!emailBlob) {
+          const res = json({ code: 'missing_email', message: 'raw email blob is required' }, { status: 400 });
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        const result = await service.recoverAccountFromEmailDKIMVerifier({ accountId, emailBlob });
+        const res = json(result, { status: result.success ? 202 : 400 });
         withCors(res.headers, opts, request);
         return res;
       }

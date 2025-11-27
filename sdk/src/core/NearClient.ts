@@ -20,7 +20,7 @@ import type {
   RpcQueryRequest,
   FinalityReference,
 } from "@near-js/types";
-import { base64Encode } from "../utils";
+import { base64Encode, base64Decode } from "../utils";
 import { errorMessage } from "../utils/errors";
 import { NearRpcError } from "./NearRpcError";
 import { DEFAULT_WAIT_STATUS, RpcResponse } from "./types/rpc";
@@ -101,37 +101,89 @@ export class SignedTransaction {
  * Serialize a signed transaction-like object to base64.
  * Accepts either our SignedTransaction instance or a plain object
  * with borsh bytes (borsh_bytes | borshBytes) from cross-origin RPC.
+ *
+ * Implementation notes / pitfalls:
+ * - We always bind `this` correctly when calling .base64Encode() / .encode()
+ *   so methods defined on SignedTransaction can safely call this.encode().
+ * - The underlying base64Encode() helper is implemented to avoid spreading large
+ *   Uint8Arrays into String.fromCharCode(...), which can overflow the JS call
+ *   stack for big WASM binaries or large transactions.
+ * - As a fallback, we accept raw borsh bytes in multiple shapes to keep the
+ *   serializer resilient to different runtimes (plain objects, typed arrays, etc.).
  */
-type EncodableSignedTx =
+export type EncodableSignedTx =
   | SignedTransaction
-  | { borsh_bytes?: number[]; borshBytes?: number[]; encode?: () => ArrayBuffer; base64Encode?: () => string };
+  | {
+      // Borsh bytes in various shapes from different runtimes
+      borsh_bytes?: unknown;
+      borshBytes?: unknown;
+      // Optional helper methods from some callers
+      encode?: () => ArrayBuffer;
+      base64Encode?: () => string;
+    };
+
+export function toArrayBufferFromUnknownBytes(bytes: unknown): ArrayBuffer | null {
+  if (!bytes) return null;
+
+  // Plain number[]
+  if (Array.isArray(bytes)) {
+    return new Uint8Array(bytes as number[]).buffer;
+  }
+
+  // Typed arrays / DataView
+  if (ArrayBuffer.isView(bytes)) {
+    const view = bytes as ArrayBufferView;
+    return view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+  }
+
+  // Raw ArrayBuffer
+  if (bytes instanceof ArrayBuffer) {
+    return bytes;
+  }
+
+  return null;
+}
 
 export function encodeSignedTransactionBase64(signed: EncodableSignedTx): string {
-  try {
-    if (isFunction((signed as { base64Encode?: unknown }).base64Encode)) {
-      return (signed as { base64Encode: () => string }).base64Encode();
-    }
-    if (isFunction((signed as { encode?: unknown }).encode)) {
-      return base64Encode((signed as { encode: () => ArrayBuffer }).encode());
-    }
-    // Support both snake_case (borsh_bytes) and camelCase (borshBytes)
-    const bytesSnake = (signed as { borsh_bytes?: number[] | Uint8Array }).borsh_bytes;
-    if (Array.isArray(bytesSnake)) {
-      return base64Encode(new Uint8Array(bytesSnake).buffer);
-    }
-    if (bytesSnake instanceof Uint8Array) {
-      return base64Encode(bytesSnake.buffer);
-    }
-    const bytesCamel = (signed as { borshBytes?: number[] | Uint8Array }).borshBytes;
-    if (Array.isArray(bytesCamel)) {
-      return base64Encode(new Uint8Array(bytesCamel).buffer);
-    }
-    if (bytesCamel instanceof Uint8Array) {
-      return base64Encode(bytesCamel.buffer);
-    }
-  } catch {
-    // fall through
+  // Some call sites wrap the actual SignedTransaction in a { signedTransaction } envelope.
+  // Normalize that here so the rest of the function always works with a concrete tx-like object.
+  const maybeSigned = (signed as any)?.signedTransaction;
+  const txPayload: EncodableSignedTx =
+    maybeSigned && typeof maybeSigned === 'object'
+      ? (maybeSigned as EncodableSignedTx)
+      : signed;
+
+  // 1) If the payload exposes a .base64Encode() helper (our SignedTransaction class),
+  //    use it directly. Bind `this` so the method can safely call this.encode().
+  const maybeBase64 = (txPayload as { base64Encode?: unknown }).base64Encode;
+  if (isFunction(maybeBase64)) {
+    return (maybeBase64 as () => string).call(txPayload);
   }
+
+  // 2) Otherwise, fall back to a generic encode() → ArrayBuffer method if present.
+  const maybeEncode = (txPayload as { encode?: unknown }).encode;
+  if (isFunction(maybeEncode)) {
+    const buf = (maybeEncode as () => ArrayBuffer).call(txPayload);
+    return base64Encode(buf);
+  }
+
+  // 3) Finally, accept raw borsh bytes in multiple shapes / field names.
+  //    This keeps the serializer resilient across runtimes that may not
+  //    hydrate SignedTransaction instances but still provide borsh_bytes/Bytes.
+  const snakeBuf = toArrayBufferFromUnknownBytes(
+    (txPayload as { borsh_bytes?: unknown }).borsh_bytes
+  );
+  if (snakeBuf) {
+    return base64Encode(snakeBuf);
+  }
+
+  const camelBuf = toArrayBufferFromUnknownBytes(
+    (txPayload as { borshBytes?: unknown }).borshBytes
+  );
+  if (camelBuf) {
+    return base64Encode(camelBuf);
+  }
+
   throw new Error('Invalid signed transaction payload: cannot serialize to base64');
 }
 
@@ -142,6 +194,7 @@ export interface NearClient {
   viewAccessKey(accountId: string, publicKey: string, finalityQuery?: FinalityReference): Promise<AccessKeyView>;
   viewAccessKeyList(accountId: string, finalityQuery?: FinalityReference): Promise<AccessKeyList>;
   viewAccount(accountId: string): Promise<AccountView>;
+  viewCode(accountId: string, finalityQuery?: FinalityReference): Promise<Uint8Array>;
   viewBlock(params: BlockReference): Promise<BlockResult>;
   sendTransaction(
     signedTransaction: SignedTransaction,
@@ -312,6 +365,25 @@ export class MinimalNearClient implements NearClient {
       account_id: accountId
     };
     return this.makeRpcCall<typeof params, AccountView>(RpcCallType.Query, params, 'View Account');
+  }
+
+  async viewCode(accountId: string, finalityQuery?: FinalityReference): Promise<Uint8Array> {
+    const finality = finalityQuery?.finality || 'final';
+    const params = {
+      request_type: 'view_code',
+      finality,
+      account_id: accountId
+    };
+    const result = await this.makeRpcCall<typeof params, any>(
+      RpcCallType.Query,
+      params,
+      'View Code'
+    );
+    const codeBase64 = result?.code_base64;
+    if (typeof codeBase64 !== 'string' || !codeBase64.length) {
+      throw new Error('Invalid View Code response: missing code_base64');
+    }
+    return base64Decode(codeBase64);
   }
 
   async viewBlock(params: BlockReference): Promise<BlockResult> {

@@ -10,6 +10,7 @@ import { useCarousel } from './Carousel2/CarouselProvider'
 import { useAuthMenuControl } from '../contexts/AuthMenuControl'
 import { useProfileMenuControl } from '../contexts/ProfileMenuControl'
 import './AccountRecovery.css'
+import { SetupEmailRecovery } from './SetupEmailRecovery';
 
 export function AccountRecovery() {
   const { accountInputState, tatchi, refreshLoginState, loginState, logout } = useTatchi()
@@ -49,33 +50,35 @@ export function AccountRecovery() {
 
   return (
     <GlassBorder style={{ maxWidth: 480, marginTop: '1rem' }}>
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.5rem',
-        padding: '1rem'
-      }}>
+      <div className="action-section">
         <div className="demo-page-header">
-        <h2 className="demo-title">Account Recovery</h2>
+          <h2 className="demo-title">Account Recovery</h2>
         </div>
-        <div className="action-text">
-          Recover accounts on any device where your passkeys are located
-          <br/>
-          • Passkeys can be synced on iCloud Keychain or Google Password Manager
-          <br/>
-          • Synced passkeys across devices can recover the same wallet
-        </div>
-        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-          <LoadingButton
-            onClick={onRecover}
-            loading={busy}
-            loadingText="Recovering..."
-            variant="primary"
-            size="medium"
-            style={{ width: 200 }}
-          >
-            Start Recovery
-          </LoadingButton>
+
+        <SetupEmailRecovery />
+
+        <div style={{
+          marginTop: '2rem',
+          paddingTop: '2rem',
+          borderTop: '1px solid var(--fe-border)'
+        }}>
+          <h2 className="demo-title">Account Syncing</h2>
+          <div className="action-text">
+            Recover accounts on any device where your passkeys are synced,
+            such as iCloud Keychain or Google Password Manager.
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+            <LoadingButton
+              onClick={onRecover}
+              loading={busy}
+              loadingText="Recovering..."
+              variant="primary"
+              size="medium"
+              style={{ width: 200 }}
+            >
+              Start Recovery
+            </LoadingButton>
+          </div>
         </div>
 
         <div style={{

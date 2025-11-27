@@ -282,13 +282,13 @@ export class NonceManager {
           const now = Date.now();
           if (fetchAccessKey) this.lastNonceUpdate = now;
           if (fetchBlock) this.lastBlockHeightUpdate = now;
-          console.debug('[NonceManager]: committed context', {
-            nextNonce: transactionContext.nextNonce,
-            txBlockHeight: transactionContext.txBlockHeight,
-            txBlockHash: transactionContext.txBlockHash,
-            lastNonceUpdate: this.lastNonceUpdate,
-            lastBlockHeightUpdate: this.lastBlockHeightUpdate,
-          });
+          // console.debug('[NonceManager]: committed context', {
+          //   nextNonce: transactionContext.nextNonce,
+          //   txBlockHeight: transactionContext.txBlockHeight,
+          //   txBlockHash: transactionContext.txBlockHash,
+          //   lastNonceUpdate: this.lastNonceUpdate,
+          //   lastBlockHeightUpdate: this.lastBlockHeightUpdate,
+          // });
         } else {
           // Discard results from outdated or identity-mismatched fetches; a newer fetch has already committed.
         }
