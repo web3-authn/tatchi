@@ -129,10 +129,22 @@ export default {
     const rawText = await new Response(message.raw).text();
     console.log('[email] rawSize:', JSON.stringify(message.rawSize));
 
-    const to = String(message.to || '').toLowerCase();
-    const expectedRecipient = String(env.RESET_EMAIL_RECIPIENT || '').trim().toLowerCase();
+    const normalizeAddress = (input: string): string => {
+      const trimmed = input.trim();
+      const angleStart = trimmed.indexOf('<');
+      const angleEnd = trimmed.indexOf('>');
+      if (angleStart !== -1 && angleEnd > angleStart) {
+        return trimmed.slice(angleStart + 1, angleEnd).trim().toLowerCase();
+      }
+      return trimmed.toLowerCase();
+    };
+
+    const to = normalizeAddress(String(message.to || ''));
+    const expectedRecipientRaw = String(env.RESET_EMAIL_RECIPIENT || '').trim();
+    const expectedRecipient = expectedRecipientRaw ? normalizeAddress(expectedRecipientRaw) : '';
 
     if (!expectedRecipient || to !== expectedRecipient) {
+      console.log('[email] rejecting: to does not match RESET_EMAIL_RECIPIENT', { to, expectedRecipient });
       message.setReject('Unknown address');
       return;
     }
