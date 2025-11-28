@@ -32,6 +32,11 @@ export interface Env {
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
+  // Optional: base URL for forwarding email payloads back into the relay HTTP API.
+  // If unset, the worker will construct a URL based on the incoming email's domain.
+  RELAYER_URL?: string;
+  // Recipient address for recovery emails (e.g. "reset@web3authn.org").
+  RESET_EMAIL_RECIPIENT?: string;
 }
 
 let service: AuthService | null = null;
@@ -107,5 +112,73 @@ export default {
       rotate: env.ENABLE_ROTATION === '1'
     });
     await cron(event, env as unknown as CfEnv, ctx);
+  },
+  async email(message: any, env: Env, ctx: CfExecutionContext): Promise<void> {
+    const relayerUrl = env.RELAYER_URL || '';
+
+    // Basic debug logging; safe for low volume.
+    console.log('[email] from:', JSON.stringify(message.from));
+    console.log('[email] to:', JSON.stringify(message.to));
+
+    // Convert Headers to a standard JS object
+    let headersObj: Record<string, string> = {};
+    headersObj = Object.fromEntries(message.headers as any);
+    console.log('[email] headers:', JSON.stringify(headersObj, null, 2));
+    console.log('[email] DKIM-Signature:', message.headers.get('DKIM-Signature'));
+
+    const rawText = await new Response(message.raw).text();
+    console.log('[email] rawSize:', JSON.stringify(message.rawSize));
+
+    const to = String(message.to || '').toLowerCase();
+    const expectedRecipient = String(env.RESET_EMAIL_RECIPIENT || '').trim().toLowerCase();
+
+    if (!expectedRecipient || to !== expectedRecipient) {
+      message.setReject('Unknown address');
+      return;
+    }
+
+    // Determine base URL for calling the relay's HTTP API.
+    let base = relayerUrl;
+    if (!base) {
+      try {
+        // Best-effort: derive origin from the incoming worker URL.
+        // This assumes the relay HTTP endpoint is deployed under the same host.
+        const sampleUrl = new URL('https://relay.tatchi.xyz'); // fallback
+        base = sampleUrl.origin;
+      } catch {
+        base = 'https://relay.tatchi.xyz';
+      }
+    }
+    const baseTrimmed = base.replace(/\/+$/, '');
+
+    console.log(`[email] Forwarding ZK-email reset request to ${baseTrimmed}/reset-email`);
+
+    // Normalize headers to lowercase keys for the payload.
+    const normalizedHeaders: Record<string, string> = {};
+    for (const [k, v] of Object.entries(headersObj)) {
+      normalizedHeaders[String(k).toLowerCase()] = String(v);
+    }
+
+    const payload = {
+      from: message.from,
+      to: message.to,
+      headers: normalizedHeaders,
+      raw: rawText,
+      rawSize: typeof message.rawSize === 'number' ? message.rawSize : undefined,
+    };
+
+    const response = await fetch(`${baseTrimmed}/reset-email`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      message.setReject('Recovery relayer rejected email');
+      return;
+    }
+
+    // Optionally forward to a debug inbox.
+    await message.forward('dev@web3authn.org');
   }
 };

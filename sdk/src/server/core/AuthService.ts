@@ -60,6 +60,11 @@ import type {
   SignerWasmModuleSupplier,
 } from './types';
 
+// Default gas for DKIM-based email recovery calls.
+// aligned with a working near-cli example:
+// near contract call-function ... request_email_verification ... prepaid-gas '300.0 Tgas'
+const DEFAULT_EMAIL_RECOVERY_GAS: string = '300000000000000'; // 300 TGas
+
 /**
  * Framework-agnostic NEAR account service
  * Core business logic for account creation and registration operations
@@ -1083,8 +1088,9 @@ export class AuthService {
             action_type: ActionType.FunctionCall,
             method_name: 'verify_dkim_and_recover',
             args: JSON.stringify(contractArgs),
-            // Use generous gas similar to createAccountAndRegisterGas
-            gas: this.config.createAccountAndRegisterGas,
+            // Use generous gas for DKIM + Outlayer verification.
+            // This is intentionally higher than account-creation flows.
+            gas: DEFAULT_EMAIL_RECOVERY_GAS,
             // Attach 0.01 NEAR as deposit for Outlayer/TEE DKIM verification (refunded minus fee).
             // 0.01 NEAR = 10^22 yocto.
             deposit: '10000000000000000000000',

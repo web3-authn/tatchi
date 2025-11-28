@@ -185,6 +185,8 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+      RESET_EMAIL_RECIPIENT: ${{ vars.RESET_EMAIL_RECIPIENT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -220,11 +222,54 @@ jobs:
         run: pnpm build:sdk-prod
 
       - name: Deploy Cloudflare Worker (relay)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          pnpm -C examples/relay-cloudflare-worker run deploy
+          set -euo pipefail
+          if [ -z "${RESET_EMAIL_RECIPIENT:-}" ]; then
+            echo "RESET_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
+            exit 1
+          fi
+          pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --var RESET_EMAIL_RECIPIENT="${RESET_EMAIL_RECIPIENT}"
+
+      - name: Configure Email Routing for reset@web3authn.org
+        if: env.CLOUDFLARE_ZONE_ID != ''
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RESET_EMAIL_RECIPIENT:-}" ]; then
+            echo "RESET_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
+            exit 1
+          fi
+          API="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/email/routing/rules"
+          echo "Creating Email Routing rule for ${RESET_EMAIL_RECIPIENT} → w3a-relay"
+          # NOTE: Payload schema may need adjustment to match the latest
+          # Cloudflare Email Routing API. See Cloudflare docs for details.
+          curl -sS -X POST "$API" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data @- << JSON
+          {
+            "enabled": true,
+            "name": "${RESET_EMAIL_RECIPIENT} to w3a-relay",
+            "matchers": [
+              {
+                "type": "recipient",
+                "value": "${RESET_EMAIL_RECIPIENT}"
+              }
+            ],
+            "actions": [
+              {
+                "type": "worker",
+                "value": {
+                  "worker": {
+                    "name": "w3a-relay"
+                  }
+                }
+              }
+            ]
+          }
+          JSON
 
   deploy-pages:
     runs-on: ubuntu-latest

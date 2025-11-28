@@ -12,7 +12,7 @@ import { LoadingButton } from './LoadingButton';
 import EmailRecoveryFields from './EmailRecoveryFields';
 import { NEAR_EXPLORER_BASE_URL } from '../types';
 
-const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer.testnet';
+const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer-v1.testnet';
 const ZK_EMAIL_VERIFIER_ACCOUNT_ID = 'zk-email-verifier-v1.testnet';
 const EMAIL_DKIM_VERIFIER_ACCOUNT_ID = 'email-dkim-verifier-v1.testnet';
 

@@ -1,16 +1,15 @@
 name: deploy-zk-email-cloudflare-worker
 
 on:
-  # Manual trigger (with optional environment override)
+  # Manual trigger only (legacy / debugging).
+  # Normal deployments use deploy-cloudflare.yml which configures email
+  # routing to the unified w3a-relay worker.
   workflow_dispatch:
     inputs:
       environment:
         description: "Deployment environment (must match GitHub Environment name with secrets)"
         required: false
         default: "production"
-  # Automatic trigger when code is deployed to main (same as other deploy workflows)
-  push:
-    branches: [ main ]
 
 jobs:
   deploy-zk-email-worker:
