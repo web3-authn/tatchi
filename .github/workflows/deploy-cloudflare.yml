@@ -231,12 +231,15 @@ jobs:
           pnpm -C examples/relay-cloudflare-worker exec wrangler deploy --var RESET_EMAIL_RECIPIENT="${RESET_EMAIL_RECIPIENT}"
 
       - name: Configure Email Routing for reset@web3authn.org
-        if: env.CLOUDFLARE_ZONE_ID != ''
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           set -euo pipefail
+          if [ -z "${CF_ZONE_ID:-}" ]; then
+            echo "CLOUDFLARE_ZONE_ID / CF_ZONE_ID not set; skipping email routing configuration" >&2
+            exit 0
+          fi
           if [ -z "${RESET_EMAIL_RECIPIENT:-}" ]; then
             echo "RESET_EMAIL_RECIPIENT env var is not set in this GitHub Environment" >&2
             exit 1
