@@ -32,9 +32,6 @@ export interface Env {
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
-  // Optional: base URL for forwarding email payloads back into the relay HTTP API.
-  // If unset, the worker will construct a URL based on the incoming email's domain.
-  RELAYER_URL?: string;
   // Recipient address for recovery emails (e.g. "reset@web3authn.org").
   RESET_EMAIL_RECIPIENT?: string;
 }
@@ -114,7 +111,7 @@ export default {
     await cron(event, env as unknown as CfEnv, ctx);
   },
   async email(message: any, env: Env, ctx: CfExecutionContext): Promise<void> {
-    const relayerUrl = env.RELAYER_URL || '';
+    const service = getService(env);
 
     // Basic debug logging; safe for low volume.
     console.log('[email] from:', JSON.stringify(message.from));
@@ -143,27 +140,12 @@ export default {
     const expectedRecipientRaw = String(env.RESET_EMAIL_RECIPIENT || '').trim();
     const expectedRecipient = expectedRecipientRaw ? normalizeAddress(expectedRecipientRaw) : '';
 
-    if (!expectedRecipient || to !== expectedRecipient) {
-      console.log('[email] rejecting: to does not match RESET_EMAIL_RECIPIENT', { to, expectedRecipient });
-      message.setReject('Unknown address');
-      return;
+    if (!expectedRecipient) {
+      console.log('[email] warning: RESET_EMAIL_RECIPIENT is not set; accepting email for', to);
+    } else if (to !== expectedRecipient) {
+      console.log('[email] warning: to does not match RESET_EMAIL_RECIPIENT', { to, expectedRecipient });
+      // Do not reject here; Cloudflare routing already scoped which messages reach this worker.
     }
-
-    // Determine base URL for calling the relay's HTTP API.
-    let base = relayerUrl;
-    if (!base) {
-      try {
-        // Best-effort: derive origin from the incoming worker URL.
-        // This assumes the relay HTTP endpoint is deployed under the same host.
-        const sampleUrl = new URL('https://relay.tatchi.xyz'); // fallback
-        base = sampleUrl.origin;
-      } catch {
-        base = 'https://relay.tatchi.xyz';
-      }
-    }
-    const baseTrimmed = base.replace(/\/+$/, '');
-
-    console.log(`[email] Forwarding ZK-email reset request to ${baseTrimmed}/reset-email`);
 
     // Normalize headers to lowercase keys for the payload.
     const normalizedHeaders: Record<string, string> = {};
@@ -179,18 +161,53 @@ export default {
       rawSize: typeof message.rawSize === 'number' ? message.rawSize : undefined,
     };
 
-    const response = await fetch(`${baseTrimmed}/reset-email`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
+    const subjectHeader = normalizedHeaders['subject'];
+    const rawForParsing = subjectHeader || rawText;
 
-    if (!response.ok) {
+    const parseAccountIdFromSubject = (raw: string | undefined | null): string | null => {
+      if (!raw || typeof raw !== 'string') return null;
+      let subjectText = '';
+      const lines = raw.split(/\r?\n/);
+      const subjectLine = lines.find(line => /^subject:/i.test(line));
+      if (subjectLine) {
+        const [, restRaw = ''] = subjectLine.split(/:/, 2);
+        subjectText = restRaw.trim();
+      } else {
+        subjectText = raw.trim();
+      }
+      if (!subjectText) return null;
+      const parts = subjectText.split('|').map(p => p.trim()).filter(Boolean);
+      if (parts.length < 2) return null;
+      if (/^recover$/i.test(parts[0]) && parts[1]) {
+        return parts[1];
+      }
+      return parts[0] || null;
+    };
+
+    const parsedAccountId = parseAccountIdFromSubject(rawForParsing);
+    const headerAccountId = String(normalizedHeaders['x-near-account-id'] || normalizedHeaders['x-account-id'] || '').trim();
+    const accountId = (parsedAccountId || headerAccountId || '').trim();
+
+    if (!accountId) {
+      console.log('[email] rejecting: missing accountId in subject or headers');
       message.setReject('Recovery relayer rejected email');
       return;
     }
 
-    // Optionally forward to a debug inbox.
+    const result = await service.recoverAccountFromEmailDKIMVerifier({
+      accountId,
+      emailBlob: rawText,
+    });
+    console.log('[email] DKIM recovery result', JSON.stringify(result));
+
+    if (!result?.success) {
+      console.log('[email] DKIM recovery failed', { accountId, error: result?.error });
+      message.setReject('Recovery relayer rejected email');
+      return;
+    }
+
+    console.log('[email] DKIM recovery succeeded', { accountId, tx: result.transactionHash });
+    // Optionally forward to a debug inbox on success.
     await message.forward('dev@web3authn.org');
   }
 };
