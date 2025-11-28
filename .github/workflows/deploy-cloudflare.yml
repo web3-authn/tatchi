@@ -257,18 +257,15 @@ jobs:
             "name": "${RESET_EMAIL_RECIPIENT} to w3a-relay",
             "matchers": [
               {
-                "type": "recipient",
+                "type": "literal",
+                "field": "to",
                 "value": "${RESET_EMAIL_RECIPIENT}"
               }
             ],
             "actions": [
               {
                 "type": "worker",
-                "value": {
-                  "worker": {
-                    "name": "w3a-relay"
-                  }
-                }
+                "value": ["w3a-relay"]
               }
             ]
           }
