@@ -61,6 +61,7 @@ From the user’s point of view, the flow is:
 We need a small persisted state to bridge the gap between:
 - **Phase A** (derive `new_public_key` and show email UI) and
 - **Phase D** (finalize registration after `add_key` happens on‑chain).
+It must also support **resuming after reload** (user closes the tab, refreshes, or goes to top up funds and comes back later).
 
 Add an IndexedDB record (either in `IndexedDBManager` or a small dedicated helper) keyed by `accountId`:
 
@@ -90,6 +91,24 @@ This:
 - enables **resume after reload**, and
 - keeps the email‑based flow clearly separated from the rest of IndexedDB state.
 
+### 3.1 Resume behavior on reload
+
+On app startup (or when opening the recovery screen), the UI should:
+
+- Load `PendingEmailRecovery` by `accountId` (if the user re-enters the same accountId, or from a “last pending account” hint, if we add one later).
+- Branch based on `status`:
+  - `'awaiting-email'`: re-show the TouchID‑complete state with a “Send recovery email” CTA (allow regenerating the same mailto link).
+  - `'awaiting-add-key'`: show the “waiting for your recovery email to be processed…” state and allow restarting polling.
+  - `'finalizing'`: attempt `finalize()` again; if it previously failed due to low balance, surface that error and let the user retry after funding.
+  - `'error'`: show a concise error and offer a “Start over” button that clears the record.
+  - `'complete'`: clear the record and treat the flow as done (user should be able to log in normally).
+
+This ensures that if the user closes the tab while:
+- sending the email, or
+- topping up the account for Phase D,
+
+they can return later, re-enter `accountId`, and resume from the correct step using the same `new_public_key` and credential that were already created.
+
 ## 4. Phase A — Inputs + TouchID: Derive `new_public_key`
 
 Triggered when the user submits the “Recover account with email” form.
@@ -98,6 +117,9 @@ Triggered when the user submits the “Recover account with email” form.
 
 - Validate `accountId`:
   - use `validateNearAccountId(accountId)`; surface any error inline.
+- Check account balance:
+  - call `nearClient.viewAccount(accountId)` and ensure available balance is above a **configurable minimum** (e.g. enough to cover `verify_and_register_user_for_account`, ≈ `0.01` NEAR).
+  - if insufficient, fail early with a clear error (“This account doesn’t have enough NEAR to finalize recovery; please top up and try again.”) and do **not** proceed to TouchID.
 - Canonicalize email:
   - lowercase, trim whitespace.
 - Optional (if supported by the recovery contract):
@@ -179,7 +201,7 @@ From `PendingEmailRecovery`:
    - `subject`: `recover ${accountId}`.
    - `body`:
      - first line: `ed25519:${nearPublicKey}`
-     - optional explanation on subsequent lines, e.g. “I am requesting to recover my Web3Authn account <accountId> on a new device.”
+     - optional explanation on subsequent lines, e.g. “I am requesting to recover my Web3Authn account <accountId> with a new passkey.”
 
 2. Trigger the email client:
    - use `<a href={mailtoUrl}>Send email</a>` or `window.location.href = mailtoUrl`.
@@ -205,7 +227,7 @@ On the frontend, we need a polling loop similar to `LinkDeviceFlow.startPolling`
 
 - When we detect `PendingEmailRecovery.status === 'awaiting-add-key'`:
   - start `startPollingEmailRecovery(accountId, nearPublicKey)`.
-  - poll interval: reuse `DEVICE_LINKING_CONFIG.TIMEOUTS.POLLING_INTERVAL_MS`.
+  - poll interval: create a new `EMAIL_RECOVERY_CONFIG.TIMEOUTS.POLLING_INTERVAL_MS` similar to  `DEVICE_LINKING_CONFIG.TIMEOUTS.POLLING_INTERVAL_MS`.
 
 ### 6.2 Poll implementation
 
@@ -278,6 +300,18 @@ const result = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
 ### 7.3 Broadcast registration transaction
 
 - Call: `nearClient.sendTransaction(result.signedTransaction)`.
+- the contract function to call is:
+```
+    pub fn verify_and_register_user_for_account(
+        &mut self,
+        account_id: AccountId,
+        vrf_data: VRFVerificationData,
+        webauthn_registration: WebAuthnRegistrationCredential,
+        deterministic_vrf_public_key: Vec<u8>,
+        authenticator_options: AuthenticatorOptions,
+        device_number: Option<u8>,
+    ) -> VerifyRegistrationResponse
+```
 - After broadcast, update NonceManager:
 
 ```ts
@@ -364,3 +398,159 @@ Implementation‑wise, this should be encapsulated as a dedicated `EmailRecovery
 - exposes a hook‑friendly API (`discover`/`start`/`getState`/`reset`),
 - emits structured events for UI (phases: PREPARE → TOUCH_ID → AWAIT_EMAIL → POLLING → FINALIZING → COMPLETE/ERROR),
 - and internally reuses existing `WebAuthnManager`, `NonceManager`, and `IndexedDBManager` helpers to avoid duplicating low‑level logic.
+
+## 10. Implementation TODO (step‑by‑step)
+
+All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`, reusing existing primitives from `linkDevice.ts`, `recoverAccount.ts`, and `NearClient.ts`.
+
+### 10.1 Design `EmailRecoveryFlow` API
+
+- [ ] Read:
+  - `sdk/src/core/TatchiPasskey/linkDevice.ts` (flow structure, events, retry/polling patterns).
+  - `sdk/src/core/TatchiPasskey/recoverAccount.ts` (recovery flow + VRF derivation).
+  - `sdk/src/core/types/passkeyManager.ts` (event types, phases, status enums).
+  - `sdk/src/core/WebAuthnManager/index.ts` (registration + VRF helpers).
+  - `sdk/src/core/IndexedDBManager/index.ts` and `sdk/src/core/IndexedDBManager/passkeyClientDB.ts` (appState + recovery email storage).
+  - `sdk/src/core/NearClient.ts` (viewAccessKey, sendTransaction, viewBlock helpers).
+- [ ] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
+  - Define `PendingEmailRecovery` (copy the shape from section 3 of this doc).
+  - Define `EmailRecoveryFlowOptions` (callbacks: `onEvent`, `onError`, `afterCall` similar to `AccountRecoveryHooksOptions`).
+  - In `sdk/src/core/types/passkeyManager.ts`, define:
+    - `EmailRecoveryPhase` enum with phases matching this doc (e.g. PREPARE → TOUCH_ID → AWAIT_EMAIL → POLLING → FINALIZING → COMPLETE/ERROR).
+    - `EmailRecoveryStatus` enum (`PROGRESS`/`SUCCESS`/`ERROR`).
+    - `EmailRecoverySSEEvent` type (mirroring `DeviceLinkingSSEEvent` / `AccountRecoverySSEEvent`).
+    - Extend any relevant hook options (`SignNEP413HooksOptions` etc.) so `onEvent` can accept `EmailRecoverySSEEvent`.
+  - Define public methods:
+    - `start(input: { accountId: string; recoveryEmail: string }): Promise<void>` – kicks off Phase A.
+    - `buildMailtoUrl(accountId: string): Promise<string>` – returns `mailto:` URL for Phase B.
+    - `startPolling(): void` / `stopPolling(): void` – manage Phase C timers.
+    - `finalize(): Promise<void>` – runs Phase D (registration + local storage + auto‑login).
+    - `getState()` – returns current phase, pending record (without sensitive fields if needed), and last error.
+
+### 10.2 Implement IndexedDB helpers for `PendingEmailRecovery`
+
+- [ ] In `sdk/src/core/TatchiPasskey/emailRecovery.ts` implement private helpers using the existing appState store:
+  - `loadPending(accountId: AccountId): Promise<PendingEmailRecovery | null>` → `IndexedDBManager.clientDB.getAppState('pendingEmailRecovery:' + accountId)`.
+  - `savePending(record: PendingEmailRecovery): Promise<void>` → `setAppState('pendingEmailRecovery:' + record.accountId, record)`.
+  - `clearPending(accountId: AccountId): Promise<void>` → set `null` / `undefined` or delete the key via a helper if available.
+- [ ] Ensure serialization/deserialization works across reloads (plain JSON, no class instances).
+- [ ] Consider a simple TTL check based on `createdAt` when loading (e.g. treat >24h as expired and clear automatically).
+
+### 10.3 Implement Phase A in `EmailRecoveryFlow.start`
+
+- [ ] Validate inputs:
+  - Use `validateNearAccountId(accountId)` to reject invalid IDs early.
+  - Call `nearClient.viewAccount(accountId)` and enforce a configurable minimum balance (e.g. enough to cover `verify_and_register_user_for_account`); fail fast with a UX‑friendly error if there isn’t enough NEAR.
+  - Canonicalize email (lowercase, trimmed).
+  - Optionally verify that the email hash matches on‑chain recovery hashes (if the contract exposes them).
+- [ ] Determine `deviceNumber`:
+  - Call `syncAuthenticatorsContractCall(nearClient, configs.contractId, accountId)` to fetch existing authenticators.
+  - Compute `nextDeviceNumber = (max(deviceNumber) ?? 0) + 1`.
+- [ ] Trigger TouchID/FaceID registration:
+  - Call `webAuthnManager.requestRegistrationCredentialConfirmation` with:
+    - `nearAccountId: toAccountId(accountId)`,
+    - `deviceNumber: nextDeviceNumber`,
+    - `contractId: configs.contractId`,
+    - `nearRpcUrl: configs.nearRpcUrl`.
+  - Handle user cancel by emitting an error event and aborting without writing `PendingEmailRecovery`.
+- [ ] Derive VRF + NEAR keys (offline):
+  - Call `deriveVrfKeypairFromRawPrf({ prfOutput, nearAccountId: accountId })`.
+  - Call `deriveNearKeypairAndEncryptFromSerialized({ nearAccountId: accountId, credential, options: { deviceNumber: nextDeviceNumber } })`.
+- [ ] Persist `PendingEmailRecovery` via the helpers from 10.2 with `status: 'awaiting-email'`.
+- [ ] Emit appropriate PREPARE / TOUCH_ID / AWAIT_EMAIL events via `onEvent`.
+
+### 10.4 Implement Phase B helpers (`buildMailtoUrl`)
+
+- [ ] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
+  - Implement `buildMailtoUrl(accountId)` that:
+    - Loads `PendingEmailRecovery` by accountId.
+    - Assembles `mailto:${recoveryEmail}?subject=recover%20${encodeURIComponent(accountId)}&body=${encodeURIComponent('ed25519:' + nearPublicKey + '\\n\\n[...]')}`.
+  - Update `PendingEmailRecovery.status` to `'awaiting-add-key'` when this is called.
+- [ ] The React/UI layer (e.g. a “Recover account with email” page/component) will:
+  - Call `buildMailtoUrl` and then set `window.location.href = url` or use a link.
+  - Show the “Waiting for your recovery email to be processed…” state while polling is running.
+
+### 10.5 Implement Phase C polling (`startPolling` / `stopPolling`)
+
+- [ ] In `sdk/src/core/TatchiPasskey/emailRecovery.ts`:
+  - Use a pattern similar to `LinkDeviceFlow.startPolling`:
+    - Track `pollGeneration`, `pollingInterval` timer, and cancellation flag.
+  - Each tick:
+    - Load the current `PendingEmailRecovery` (if missing or expired → stop with error).
+    - Call `nearClient.viewAccessKey(accountId, nearPublicKey)` to check if `new_public_key` has been added.
+    - Emit POLLING events with progress messages.
+  - On success (key found):
+    - Update `PendingEmailRecovery.status = 'finalizing'`.
+    - Stop the polling timer.
+    - Optionally auto‑invoke `finalize()` if the caller requested it.
+  - On timeout (based on `createdAt` + max duration):
+    - Set `status = 'error'`.
+    - Emit an ERROR event and stop polling.
+
+### 10.6 Implement Phase D (`finalize`): registration + local storage + auto‑login
+
+- [ ] Initialize NonceManager for the new key:
+  - `nonceManager.initializeUser(accountId, nearPublicKey)`.
+  - `const { nextNonce, txBlockHash } = await nonceManager.getNonceBlockHashAndHeight(nearClient);`
+- [ ] Re‑derive deterministic NEAR keypair with correct nonce:
+  - Call `deriveNearKeypairAndEncryptFromSerialized` with:
+    - `vrfChallenge`, `contractId`, `nonce`, `blockHash`, `deterministicVrfPublicKey`, `deviceNumber`.
+  - Assert `result.publicKey === nearPublicKey`.
+- [ ] Broadcast registration transaction:
+  - `await nearClient.sendTransaction(result.signedTransaction)`.
+    - If this fails with an insufficient funds / gas error, surface a clear message (“Not enough NEAR to finalize recovery; please top up and retry”) but **keep** `PendingEmailRecovery` so the user can retry finalization after funding.
+  - `await nonceManager.updateNonceFromBlockchain(nearClient, nextNonce)` (best effort).
+- [ ] Store authenticator + encrypted keys locally:
+  - Use `webAuthnManager.storeUserData` with:
+    - `nearAccountId: accountId`,
+    - `deviceNumber`,
+    - `clientNearPublicKey: nearPublicKey`,
+    - `passkeyCredential: { id: credential.id, rawId: credential.rawId }`,
+    - `encryptedVrfKeypair` + `serverEncryptedVrfKeypair`.
+  - Optionally sync authenticators from contract via `syncAuthenticatorsContractCall` and update the authenticator cache in IndexedDB.
+- [ ] Auto‑login:
+  - Reuse `LinkDeviceFlow.attemptAutoLogin` logic (refactor into a shared helper if needed) to:
+    - unlock VRF either via Shamir 3‑pass or TouchID fallback,
+    - call `webAuthnManager.initializeCurrentUser(accountId, nearClient)`,
+    - call `webAuthnManager.setLastUser(accountId, deviceNumber)`.
+- [ ] Cleanup:
+  - Set `PendingEmailRecovery.status = 'complete'`.
+  - Call `clearPending(accountId)` to remove the appState entry.
+  - Emit FINALIZING / COMPLETE events.
+
+### 10.7 Wire `EmailRecoveryFlow` into `TatchiPasskey` and React UI
+
+- [ ] In `sdk/src/core/TatchiPasskey/index.ts`:
+  - Import `EmailRecoveryFlow`.
+  - Add a helper constructor method, e.g. `getEmailRecoveryFlow(options?: EmailRecoveryFlowOptions): EmailRecoveryFlow` that passes the shared `PasskeyManagerContext`.
+- [ ] In the React layer:
+  - Read reference patterns in:
+    - `sdk/src/react/components/PasskeyAuthMenu/index.tsx` (link device & recovery entrypoints).
+    - `sdk/src/react/components/ProfileSettingsButton/LinkedDevicesModal.tsx` (device list + access keys).
+  - Implement a simple “Recover account with email” flow component/hook that:
+    - Collects `accountId` and `recoveryEmail`.
+    - Calls `emailRecoveryFlow.start`, then `buildMailtoUrl`, then `startPolling`.
+    - Subscribes to `onEvent` to drive UI (steps/progress, error states).
+  - Optionally surface recovery status in `LinkedDevicesModal` (e.g. highlight the newly recovered device / key).
+
+### 10.8 Tests, logging, and hardening
+
+- [ ] Add targeted unit/integration tests (where feasible) around:
+  - `buildMailtoUrl` format (`recover <accountId>` subject + `ed25519:<new_public_key>` body).
+  - Polling logic (success, timeout, cancellation).
+  - Finalization flow happy path and retry of registration tx.
+- [ ] Ensure logs mirror existing patterns from `LinkDeviceFlow` and `AccountRecoveryFlow` (consistent prefixes, levels).
+- [ ] Double‑check that no sensitive material (PRF output, unencrypted keys) is persisted or logged.
+
+### 10.9 Wire `EmailRecoveryPhase` into wallet iframe plumbing
+
+- [ ] In `sdk/src/core/WalletIframe/client/progress-bus.ts`:
+  - Import `EmailRecoveryPhase`.
+  - Add email‑recovery phases that require user activation (e.g. TOUCH_ID, FINALIZING if it performs WebAuthn) to `SHOW_PHASES`.
+  - Add non‑interactive / completion phases (FINALIZING once past WebAuthn, COMPLETE, ERROR) to `HIDE_PHASES`.
+- [ ] In `sdk/src/core/WalletIframe/client/router.ts`:
+  - Import `EmailRecoverySSEEvent` and include it wherever progress events are typed (e.g. in `SignNEP413HooksOptions.onEvent` unions and any generic progress dispatch logic).
+  - Ensure the router forwards email‑recovery progress events from the iframe to parent callbacks just like device linking and account recovery.
+- [ ] In `sdk/src/core/WalletIframe/host/wallet-iframe-handlers.ts`:
+  - Add new PM handlers for the email recovery flow (e.g. `PM_EMAIL_RECOVERY_START`, `PM_EMAIL_RECOVERY_FINALIZE`, or a single `PM_EMAIL_RECOVERY_FLOW` depending on API shape).
+  - Inside those handlers, call the corresponding `TatchiPasskey` methods on the host (`emailRecoveryFlow.start`, `buildMailtoUrl`, `startPolling`, `finalize`) and wire `onEvent: (ev) => postProgress(req.requestId, ev)` so `EmailRecoveryPhase` events reach the client.
