@@ -6,8 +6,8 @@
   left: 0;
   height: 100%;
   width: 100%;
-  /* Ensure this modal sits above high z-index overlays (wallet iframe, profile overlay) */
-  z-index: 2147483648;
+  /* Ensure this modal stays below the wallet iframe overlay */
+  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2));
   background: oklch(0.2 0.01 240 / 0.8);
   backdrop-filter: blur(8px);
   display: flex;
@@ -19,7 +19,7 @@
 
 .w3a-access-keys-modal-inner {
   position: relative;
-  z-index: 2147483649;
+  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-content-offset, 1));
   display: grid;
   place-items: center;
   height: 100%;
@@ -82,6 +82,25 @@
   font-weight: 700;
   color: var(--w3a-colors-textPrimary);
   margin: 0;
+}
+
+.w3a-access-keys-modal-subtitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--w3a-colors-textPrimary);
+  margin: 16px 0 8px;
+}
+
+.w3a-access-keys-section {
+  margin-top: 12px;
+}
+
+.theme-light .w3a-access-key-current {
+  color: var(--w3a-colors-blue500, var(--w3a-colors-primary));
+}
+
+.theme-dark .w3a-access-key-current {
+  color: var(--w3a-colors-primary, var(--w3a-colors-blue500));
 }
 
 
@@ -347,6 +366,8 @@
   border-radius: 8px;
   font-size: 0.9rem;
   font-weight: 500;
+  min-width: 2rem;
+  min-height: 2rem;
   cursor: pointer;
   transition: all 0.2s ease;
   display: inline-flex;
@@ -356,17 +377,32 @@
 }
 
 .w3a-btn-primary {
-  background: var(--w3a-btn-primary);
+  background: var(--w3a-colors-primary);
   color: var(--w3a-btn-text);
 }
 
 .w3a-btn-primary:hover:not(:disabled) {
-  background: var(--w3a-btn-primary-hover);
+  background: var(--w3a-colors-primaryHover);
   box-shadow: 0 2px 4px var(--w3a-shadows-sm);
-  transform: translateY(-1px);
 }
 
 .w3a-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.w3a-btn-danger {
+  background: var(--w3a-colors-error);
+  color: #fff;
+}
+
+.w3a-btn-danger:hover:not(:disabled) {
+  background: var(--w3a-colors-error);
+  box-shadow: 0 2px 4px var(--w3a-shadows-sm);
+}
+
+.w3a-btn-danger:disabled {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
@@ -379,6 +415,23 @@
   border-top: 2px solid var(--w3a-colors-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
+}
+
+/* Button-local spinner: match text size inside small buttons */
+.w3a-btn .w3a-spinner,
+.w3a-btn-primary .w3a-spinner,
+.w3a-btn-danger .w3a-spinner,
+.w3a-btn-disabled .w3a-spinner {
+  width: 1em;
+  height: 1em;
+  border-width: 2px;
+  margin-left: 0;
+}
+
+/* Danger button spinner: use white instead of primary/blue */
+.w3a-btn-danger .w3a-spinner {
+  border-color: rgba(255, 255, 255, 0.4);
+  border-top-color: #ffffff;
 }
 
 @keyframes spin {

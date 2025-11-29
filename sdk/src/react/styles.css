@@ -15,3 +15,12 @@
 /* Import QR Code Scanner styles */
 @import './components/QRCodeScanner.css';
 @import './components/ShowQRCode.css';
+
+/* Global default z-index tokens for wallet overlay + SDK modals */
+:root {
+  /* Base z-index for wallet iframe overlay (host surface) */
+  --w3a-wallet-overlay-z: 2147483646;
+  /* Offset used by SDK modals that should sit just under the wallet overlay */
+  --w3a-wallet-underlay-backdrop-offset: 2;
+  --w3a-wallet-underlay-content-offset: 1;
+}

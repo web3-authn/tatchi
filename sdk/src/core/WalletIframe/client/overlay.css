@@ -28,7 +28,7 @@
   height: 100vh;
   opacity: 1;
   pointer-events: auto;
-  z-index: 2147483646;
+  z-index: var(--w3a-wallet-overlay-z, 2147483646);
 }
 @supports (width: 100dvw) and (height: 100dvh) {
   .w3a-ovf.fullscreen {
@@ -45,6 +45,5 @@
   height: var(--w3a-ovf-height, 1px);
   opacity: 1;
   pointer-events: auto;
-  z-index: 2147483646;
+  z-index: var(--w3a-wallet-overlay-z, 2147483646);
 }
-

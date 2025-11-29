@@ -48,7 +48,7 @@ function getNonce(): string | undefined {
 function installBaseStyles(): void {
   if (state.baseSheet || state.dynStyleEl) return;
   const css = `
-    .${CLASS_BASE} { position: fixed; border: none; box-sizing: border-box; background: transparent; color-scheme: normal; transform: none; right: auto; bottom: auto; inset: auto; top: auto; left: auto; z-index: 2147483646; }
+    .${CLASS_BASE} { position: fixed; border: none; box-sizing: border-box; background: transparent; color-scheme: normal; transform: none; right: auto; bottom: auto; inset: auto; top: auto; left: auto; z-index: var(--w3a-wallet-overlay-z, 2147483646); }
     .${CLASS_BASE}.${CLASS_HIDDEN} { width: 0px; height: 0px; opacity: 0; pointer-events: none; z-index: auto; }
     .${CLASS_BASE}.${CLASS_FULLSCREEN} { top: 0; left: 0; right: 0; bottom: 0; inset: 0; opacity: 1; pointer-events: auto; }
     @supports (width: 100dvw) { .${CLASS_BASE}.${CLASS_FULLSCREEN} { width: 100dvw; height: 100dvh; } }

@@ -25,7 +25,9 @@
  */
 
 export { TatchiContextProvider, useTatchi } from './context';
-export { TatchiPasskeyProvider } from './context/TatchiPasskeyProvider';
+export {
+  TatchiPasskeyProvider,
+} from './context/TatchiPasskeyProvider';
 
 // === RE-EXPORT CORE TYPES ===
 export { TatchiPasskey } from '../core/TatchiPasskey';
