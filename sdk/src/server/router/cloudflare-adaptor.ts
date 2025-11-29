@@ -314,7 +314,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         return res;
       }
 
-      if (method === 'POST' && pathname === '/reset-email') {
+      if (method === 'POST' && pathname === '/recover-email') {
         let rawBody: unknown; try { rawBody = await request.json(); } catch { rawBody = null; }
         const normalized = normalizeForwardableEmailPayload(rawBody);
         if (!normalized.ok) {

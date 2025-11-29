@@ -16,7 +16,7 @@ export interface SessionAdapter {
   parse(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; claims?: any } | { ok: false }>;
   buildSetCookie(token: string): string;
   buildClearCookie(): string;
-  refresh(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; jwt?: string; code?: string; message?: string }>;  
+  refresh(headers: Record<string, string | string[] | undefined>): Promise<{ ok: boolean; jwt?: string; code?: string; message?: string }>;
 }
 
 export function createRelayRouter(service: AuthService, opts: RelayRouterOptions = {}): ExpressRouter {
@@ -194,7 +194,7 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   // Email recovery hook (DKIM/TEE flow):
   // Accept a ForwardableEmailPayload from the email worker and call the
   // per-user email-recoverer contract deployed on `accountId`.
-  router.post('/reset-email', async (req: any, res: any) => {
+  router.post('/recover-email', async (req: any, res: any) => {
     try {
       const normalized = normalizeForwardableEmailPayload(req.body as unknown);
       if (!normalized.ok) {

@@ -45,8 +45,8 @@ export function normalizeForwardableEmailPayload(input: unknown): NormalizedEmai
 
 /**
  * Parse NEAR accountId from the Subject line inside a raw RFC822 email.
- * Expected format (case-insensitive on "Subject"):
- *   Subject: recover|bob.testnet|ed25519:xxxx...
+ * Expected primary format (case-insensitive on "Subject"):
+ *   Subject: recover bob.testnet
  *
  * Returns the parsed accountId (e.g. "bob.testnet") or null if not found.
  */
@@ -54,7 +54,7 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   if (!raw || typeof raw !== 'string') return null;
 
   // Accept either a full RFC822 message (with "Subject: ..." header)
-  // or a bare Subject value ("recover|bob.testnet|ed25519:...").
+  // or a bare Subject value ("recover bob.testnet").
   let subjectText = '';
 
   const lines = raw.split(/\r?\n/);
@@ -68,17 +68,17 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
 
   if (!subjectText) return null;
 
-  // Expected "recover|accountId|ed25519:..."
-  const parts = subjectText.split('|').map(p => p.trim()).filter(Boolean);
-  if (parts.length < 2) return null;
+  // Strip common reply/forward prefixes
+  subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
+  if (!subjectText) return null;
 
-  // Be tolerant: if first token is "recover" (any case), treat the second as accountId.
-  if (/^recover$/i.test(parts[0]) && parts[1]) {
-    return parts[1];
+  // Only support the new format: "recover <accountId>"
+  const spacedMatch = subjectText.match(/^recover\s+([^\s]+)\s*$/i);
+  if (spacedMatch && spacedMatch[1]) {
+    return spacedMatch[1];
   }
 
-  // Otherwise, fall back to treating the first non-empty token as the accountId.
-  return parts[0] || null;
+  return null;
 }
 
 export async function generateZkEmailProofFromPayload(

@@ -6,7 +6,8 @@ export type {
   UserPreferences,
   ClientAuthenticatorData,
   IndexedDBEvent,
-  DerivedAddressRecord
+  DerivedAddressRecord,
+  RecoveryEmailRecord
 } from './passkeyClientDB';
 
 export type {
@@ -113,6 +114,22 @@ export class UnifiedIndexedDBManager {
     args: { contractId: string; path: string }
   ): Promise<string | null> {
     return this.clientDB.getDerivedAddress(nearAccountId, args);
+  }
+
+  // === Recovery emails convenience ===
+  async upsertRecoveryEmails(
+    nearAccountId: AccountId,
+    entries: Array<{ hashHex: string; email: string }>
+  ): Promise<void> {
+    return this.clientDB.upsertRecoveryEmails(nearAccountId, entries);
+  }
+
+  async getRecoveryEmails(nearAccountId: AccountId): Promise<import('./passkeyClientDB').RecoveryEmailRecord[]> {
+    return this.clientDB.getRecoveryEmails(nearAccountId);
+  }
+
+  async clearRecoveryEmails(nearAccountId: AccountId): Promise<void> {
+    return this.clientDB.clearRecoveryEmails(nearAccountId);
   }
 }
 

@@ -30,8 +30,8 @@ export default {
     console.log('ctx:', JSON.stringify(ctx));
 
     switch (message.to) {
-      case 'reset@web3authn.org': {
-        console.log(`Forwarding ZK-email reset request to ${relayerUrl}/reset-email`);
+      case 'recover@web3authn.org': {
+        console.log(`Forwarding ZK-email recover request to ${relayerUrl}/recover-email`);
 
         // Normalize headers to lowercase keys for the payload.
         const normalizedHeaders: Record<string, string> = {};
@@ -47,7 +47,7 @@ export default {
           rawSize: typeof message.rawSize === 'number' ? message.rawSize : undefined,
         };
 
-        const response = await fetch(`${relayerUrl}/reset-email`, {
+        const response = await fetch(`${relayerUrl}/recover-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
