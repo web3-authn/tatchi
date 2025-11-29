@@ -3,8 +3,8 @@
 .qr-scanner-modal {
   position: fixed;
   inset: 0;
-  /* Sit above wallet iframe and profile overlay layers */
-  z-index: 2147483648;
+  /* Stay below the wallet iframe overlay so Tx confirmer always sits on top */
+  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2));
   display: flex;
   justify-content: center;
   align-items: center;

@@ -64,9 +64,13 @@ import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
 import {
-  setRecoveryEmails as setRecoveryEmailsInternal,
-  clearRecoveryEmails as clearRecoveryEmailsInternal,
+  prepareRecoveryEmails,
   getLocalRecoveryEmails,
+  clearLocalRecoveryEmails,
+  EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+  ZK_EMAIL_VERIFIER_ACCOUNT_ID,
+  EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+  bytesToHex,
 } from '../EmailRecovery';
 let warnedAboutSameOriginWallet = false;
 
@@ -974,11 +978,59 @@ export class TatchiPasskey {
   ///////////////////////////////////////
 
   /**
-   * Persist a mapping of recovery email hashes → canonical emails in IndexedDB for an account.
-   * This is a local-only helper that does not touch the blockchain.
+   * Get recovery emails for an account.
+   * - Fetches on-chain recovery email hashes via get_recovery_emails.
+   * - Resolves hashes to canonical emails using local IndexedDB mapping when available.
+   * - Returns an array of { hashHex, email }, where `email` is a human-readable label
+   *   (canonical email when known on this device, otherwise the hash hex).
    */
-  async getRecoveryEmails(nearAccountId: string): Promise<RecoveryEmailRecord[]> {
-    return await getLocalRecoveryEmails(toAccountId(nearAccountId));
+  async getRecoveryEmails(nearAccountId: string): Promise<Array<{ hashHex: string; email: string }>> {
+    const accountId = toAccountId(nearAccountId);
+
+    // Fetch on-chain recovery email hashes
+    let rawHashes: number[][] = [];
+    try {
+      const code = await this.nearClient.viewCode(accountId);
+      const hasContract = !!code && code.byteLength > 0;
+      if (!hasContract) return [];
+
+      const hashes = await this.nearClient.view<Record<string, never>, number[][]>({
+        account: accountId,
+        method: 'get_recovery_emails',
+        args: {} as Record<string, never>,
+      });
+
+      if (Array.isArray(hashes)) {
+        rawHashes = hashes as number[][];
+      } else {
+        return [];
+      }
+    } catch (error) {
+      console.error('[TatchiPasskey] Failed to fetch on-chain recovery emails', error);
+      return [];
+    }
+
+    // Load local mapping from IndexedDB (best-effort)
+    let local: RecoveryEmailRecord[] = [];
+    try {
+      local = await getLocalRecoveryEmails(accountId);
+    } catch (error) {
+      console.warn('[TatchiPasskey] Failed to load local recovery emails', error);
+    }
+
+    const emailByHashHex = new Map<string, string>();
+    for (const rec of local) {
+      if (!rec?.hashHex || !rec?.email) continue;
+      if (!emailByHashHex.has(rec.hashHex)) {
+        emailByHashHex.set(rec.hashHex, rec.email);
+      }
+    }
+
+    return rawHashes.map(hashBytes => {
+      const hashHex = bytesToHex(hashBytes);
+      const email = emailByHashHex.get(hashHex) || hashHex;
+      return { hashHex, email };
+    });
   }
 
   /**
@@ -993,10 +1045,62 @@ export class TatchiPasskey {
     recoveryEmails: string[],
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
-    return setRecoveryEmailsInternal({
-      context: this.getContext(),
-      nearAccountId: toAccountId(nearAccountId),
-      recoveryEmails,
+    const accountId = toAccountId(nearAccountId);
+
+    // Canonicalize, hash, and persist mapping locally (best-effort)
+    const { hashes: recoveryEmailHashes } = await prepareRecoveryEmails(accountId, recoveryEmails);
+
+    // Detect whether the per-account EmailRecoverer contract is already deployed:
+    // - If code exists on this account, assume recoverer is present and just call set_recovery_emails.
+    // - If no code is present, attach the global email-recoverer and call new(...) with emails.
+    let hasContract = false;
+    try {
+      const code = await this.nearClient.viewCode(accountId);
+      hasContract = !!code && code.byteLength > 0;
+    } catch {
+      hasContract = false;
+    }
+
+    const actions: ActionArgs[] = hasContract
+      ? [
+          {
+            type: ActionType.UseGlobalContract,
+            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+          },
+          {
+            type: ActionType.FunctionCall,
+            methodName: 'set_recovery_emails',
+            args: {
+              recovery_emails: recoveryEmailHashes,
+            },
+            gas: '80000000000000',
+            deposit: '0',
+          },
+        ]
+      : [
+          {
+            type: ActionType.UseGlobalContract,
+            accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
+          },
+          {
+            type: ActionType.FunctionCall,
+            methodName: 'new',
+            args: {
+              zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
+              email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+              policy: null,
+              recovery_emails: recoveryEmailHashes,
+            },
+            gas: '80000000000000',
+            deposit: '0',
+          },
+        ];
+
+    // Delegate to executeAction so iframe vs same-origin routing is respected.
+    return this.executeAction({
+      nearAccountId,
+      receiverId: nearAccountId,
+      actionArgs: actions,
       options,
     });
   }
@@ -1010,11 +1114,30 @@ export class TatchiPasskey {
     nearAccountId: string,
     options?: ActionHooksOptions
   ): Promise<ActionResult> {
-    return clearRecoveryEmailsInternal({
-      context: this.getContext(),
-      nearAccountId: toAccountId(nearAccountId),
+    const result = await this.executeAction({
+      nearAccountId,
+      receiverId: nearAccountId,
+      actionArgs: {
+        type: ActionType.FunctionCall,
+        methodName: 'set_recovery_emails',
+        args: {
+          recovery_emails: [] as number[][],
+        },
+        gas: '80000000000000',
+        deposit: '0',
+      },
       options,
     });
+
+    if (result?.success) {
+      try {
+        await clearLocalRecoveryEmails(toAccountId(nearAccountId));
+      } catch (error) {
+        console.warn('[TatchiPasskey] Failed to clear local recovery emails', error);
+      }
+    }
+
+    return result;
   }
 
   ///////////////////////////////////////

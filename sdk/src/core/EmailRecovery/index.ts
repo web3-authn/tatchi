@@ -1,14 +1,10 @@
-import type { PasskeyManagerContext } from '../TatchiPasskey';
 import type { AccountId } from '../types/accountIds';
 import { toAccountId } from '../types/accountIds';
-import { ActionType, type ActionArgs } from '../types/actions';
-import type { ActionHooksOptions, ActionResult } from '../types/passkeyManager';
-import { executeAction } from '../TatchiPasskey/actions';
 import { IndexedDBManager, type RecoveryEmailRecord } from '../IndexedDBManager';
 
-const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer-v1.testnet';
-const ZK_EMAIL_VERIFIER_ACCOUNT_ID = 'zk-email-verifier-v1.testnet';
-const EMAIL_DKIM_VERIFIER_ACCOUNT_ID = 'email-dkim-verifier-v1.testnet';
+export const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer-v1.testnet';
+export const ZK_EMAIL_VERIFIER_ACCOUNT_ID = 'zk-email-verifier-v1.testnet';
+export const EMAIL_DKIM_VERIFIER_ACCOUNT_ID = 'email-dkim-verifier-v1.testnet';
 
 export type RecoveryEmailEntry = {
   hashHex: string;
@@ -60,29 +56,20 @@ async function hashRecoveryEmails(emails: string[], accountId: AccountId): Promi
   return hashed;
 }
 
-export async function getLocalRecoveryEmails(nearAccountId: AccountId): Promise<RecoveryEmailRecord[]> {
-  return IndexedDBManager.getRecoveryEmails(nearAccountId);
-}
-
-export async function clearLocalRecoveryEmails(nearAccountId: AccountId): Promise<void> {
-  await IndexedDBManager.clearRecoveryEmails(nearAccountId);
-}
-
-export async function setRecoveryEmails(args: {
-  context: PasskeyManagerContext;
-  nearAccountId: AccountId;
-  recoveryEmails: string[];
-  options?: ActionHooksOptions;
-}): Promise<ActionResult> {
-  const { context, nearAccountId, recoveryEmails, options } = args;
-  const { nearClient } = context;
+/**
+ * Canonicalize and hash recovery emails for an account, and persist the mapping
+ * (hashHex → canonical email) in IndexedDB on a best-effort basis.
+ */
+export async function prepareRecoveryEmails(nearAccountId: AccountId, recoveryEmails: string[]): Promise<{
+  hashes: number[][];
+  pairs: RecoveryEmailEntry[];
+}> {
   const accountId = toAccountId(nearAccountId);
 
   const trimmedEmails = (recoveryEmails || []).map(e => e.trim()).filter(e => e.length > 0);
   const canonicalEmails = trimmedEmails.map(canonicalizeEmail);
   const recoveryEmailHashes = await hashRecoveryEmails(recoveryEmails, accountId);
 
-  // Persist mapping in IndexedDB (best-effort, non-blocking)
   const pairs: RecoveryEmailEntry[] = recoveryEmailHashes.map((hashBytes, idx) => ({
     hashHex: bytesToHex(hashBytes),
     email: canonicalEmails[idx],
@@ -96,97 +83,13 @@ export async function setRecoveryEmails(args: {
     }
   })();
 
-  // Detect whether the per-account EmailRecoverer contract is already deployed:
-  // - If code exists on this account, assume recoverer is present and just call set_recovery_emails.
-  // - If no code is present, attach the global email-recoverer and call new(...) with emails.
-  let hasContract = false;
-  try {
-    const code = await nearClient.viewCode(accountId);
-    hasContract = !!code && code.byteLength > 0;
-  } catch {
-    hasContract = false;
-  }
-
-  const actions: ActionArgs[] = hasContract
-    ? [
-        {
-          type: ActionType.UseGlobalContract,
-          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-        },
-        {
-          type: ActionType.FunctionCall,
-          methodName: 'set_recovery_emails',
-          args: {
-            recovery_emails: recoveryEmailHashes,
-          },
-          gas: '80000000000000',
-          deposit: '0',
-        },
-      ]
-    : [
-        {
-          type: ActionType.UseGlobalContract,
-          accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-        },
-        {
-          type: ActionType.FunctionCall,
-          methodName: 'new',
-          args: {
-            zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-            email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
-            policy: null,
-            recovery_emails: recoveryEmailHashes,
-          },
-          gas: '80000000000000',
-          deposit: '0',
-        },
-      ];
-
-  return executeAction({
-    context,
-    nearAccountId: accountId,
-    receiverId: accountId,
-    actionArgs: actions,
-    options,
-  });
+  return { hashes: recoveryEmailHashes, pairs };
 }
 
-export async function clearRecoveryEmails(args: {
-  context: PasskeyManagerContext;
-  nearAccountId: AccountId;
-  options?: ActionHooksOptions;
-}): Promise<ActionResult> {
-  const { context, nearAccountId, options } = args;
-  const accountId = toAccountId(nearAccountId);
-
-  const actions: ActionArgs[] = [
-    {
-      type: ActionType.FunctionCall,
-      methodName: 'set_recovery_emails',
-      args: {
-        recovery_emails: [] as number[][],
-      },
-      gas: '80000000000000',
-      deposit: '0',
-    },
-  ];
-
-  const result = await executeAction({
-    context,
-    nearAccountId: accountId,
-    receiverId: accountId,
-    actionArgs: actions,
-    options,
-  });
-
-  if (result?.success) {
-    try {
-      await IndexedDBManager.clearRecoveryEmails(accountId);
-    } catch (error) {
-      console.warn('[EmailRecovery] Failed to clear local recovery emails', error);
-    }
-  }
-
-  return result;
+export async function getLocalRecoveryEmails(nearAccountId: AccountId): Promise<RecoveryEmailRecord[]> {
+  return IndexedDBManager.getRecoveryEmails(nearAccountId);
 }
 
+export async function clearLocalRecoveryEmails(nearAccountId: AccountId): Promise<void> {
+  await IndexedDBManager.clearRecoveryEmails(nearAccountId);
+}
