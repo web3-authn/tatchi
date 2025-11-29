@@ -1,193 +1,247 @@
-# ZK Email Recovery — Cloudflare Email Worker Plan
+# ZK Email Recovery — Current DKIM Flow (and Future ZK Path)
 
-Goal: wire a Cloudflare Email Worker that receives password‑reset / recovery emails (for example, `reset@web3authn.org`), parses them into JSON (including DKIM‑related headers), and forwards them to the existing Cloudflare Relay Worker at an HTTP endpoint such as `/reset-email`. The Email Worker stays “dumb” (no keys, no ZK); the Relay Worker + prover infrastructure handle DKIM verification, zk‑email proofs, and NEAR transactions.
+This document describes what is **actually implemented** today for email‑based recovery, and what remains for the zk‑email path.
 
-## 1. Install Wrangler
+At a high level:
 
-- Ensure Node.js (LTS) and `npm` are installed.
-- Install or invoke Wrangler:
-  - `npm install -g wrangler`
-  - or run `npx wrangler --version` to use it ad‑hoc.
-- Log in once so Wrangler can manage your Cloudflare account:
-  - `wrangler login`
+- Cloudflare Email Routing delivers emails for `RECOVER_EMAIL_RECIPIENT` (for example, `recover@web3authn.org`) into a single Worker: `w3a-relay`.
+- The Worker’s `email` handler:
+  - Normalizes the message into a JSON payload.
+  - Parses the NEAR `account_id` from the subject / headers.
+  - Calls `AuthService.recoverAccountFromEmailDKIMVerifier` to invoke the per‑account `EmailRecoverer` contract.
+- The `EmailRecoverer` contract and `EmailDKIMVerifier` handle DKIM proof verification and account recovery logic.
+- The zk‑email path (proofs to a ZkEmailVerifier) is **not implemented yet**; helper stubs are in place.
 
-## 2. Create an Email Worker project
+---
 
-In a new, empty folder:
+## 1. Cloudflare Relay Worker (`w3a-relay`)
 
-- `mkdir zk-email-cloudflare-worker && cd zk-email-cloudflare-worker`
-- Initialize a Worker project:
-  - `wrangler init --from-dash zk-email-cloudflare-worker`
-  - or `wrangler init` and choose the “Hello World” template.
+Path: `examples/relay-cloudflare-worker/src/worker.ts`
 
-Wrangler will create:
+The worker exports three entrypoints:
 
-- `wrangler.toml`
-- A JS/TS entry file (for example, `src/index.ts` or `src/worker.js`).
+- `fetch` — HTTP API (create account, sessions, `/recover-email`, etc.).
+- `scheduled` — optional cron (Shamir key rotation).
+- `email` — invoked by Email Routing for incoming recovery emails.
 
-## 3. Configure `wrangler.toml` for Email Workers
+### 1.1 Email routing configuration
 
-Edit `wrangler.toml` to enable the email entrypoint:
+We configure an Email Routing rule for the zone (for example, `web3authn.org`) of the form:
 
-```toml
-name = "zk-email-cloudflare-worker"
-main = "src/email-worker.ts"
-compatibility_date = "2025-01-01"
+- **Matcher**:
+  - `type: "literal"`
+  - `field: "to"`
+  - `value: "recover@web3authn.org"`
+- **Action**:
+  - `type: "worker"`
+  - `value: ["w3a-relay"]`
 
-# optional: set the account ID explicitly
-# account_id = "your-cloudflare-account-id"
-```
+In GitHub CI this is created by `deploy-cloudflare.yml` using:
 
-- If you are using JavaScript instead of TypeScript, change `main` to `src/email-worker.js`.
-- Keep `compatibility_date` reasonably current; update it if Wrangler suggests it during deploys.
-
-## 4. Implement the Email Worker
-
-Create `src/email-worker.ts` (or `.js`) with an `email` handler that:
-
-- Filters for recovery addresses (for example, `reset@web3authn.org`).
-- Canonicalizes headers (including `DKIM-Signature`) into a JSON object.
-- POSTs that JSON to the Cloudflare Relay Worker (for example, `https://relay.tatchi.xyz/reset-email`).
-
-Example shape:
-
-```ts
-export default {
-  async email(message: EmailMessage, env: any, ctx: ExecutionContext) {
-    const relayerUrl = env.RELAYER_URL ?? "https://relay.tatchi.xyz";
-
-    // Serialize headers (including DKIM-Signature) to JSON
-    const headers: Record<string, string> = {};
-    for (const [key, value] of message.headers as any) {
-      headers[String(key).toLowerCase()] = String(value);
-    }
-
-    if (message.to === "reset@web3authn.org") {
-      const payload = {
-        to: message.to,
-        from: message.from,
-        subject: message.headers.get("subject") || "",
-        headers, // includes DKIM-Signature if present
-        // Optional: add a truncated/raw body snapshot if you need it server-side
-      };
-
-      const response = await fetch(`${relayerUrl}/reset-email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        // Relay rejected or failed; treat as a hard failure for now.
-        message.setReject("Recovery relayer rejected email");
-        return;
-      }
-
-      // Optional: forward to a debug inbox for manual inspection.
-      await message.forward("your-debug-inbox@example.com");
-      return;
-    }
-
-    message.setReject("Unknown address");
-  },
-};
-```
-
-- For JavaScript, drop the type annotations and keep the same structure.
-- The Email Worker does not verify DKIM or run zk proofs; it only re‑packages the message and forwards it to the existing Relay Worker.
-
-## 5. Deploy the Email Worker
-
-From the project root:
-
-- `npx wrangler deploy`
-
-Wrangler will:
-
-- Build and upload the Worker.
-- Print the Worker name and confirm deployment.
-
-## 6. Wire Cloudflare Email Routing → Worker
-
-In the Cloudflare dashboard:
-
-- Navigate to **Email → Email Routing** for your domain.
-- Ensure MX records are set for the domain (Cloudflare will guide you if not).
-- Add a routing rule:
-  - **Destination address**: `reset@web3authn.org` (or your chosen recovery alias).
-  - **Action**: “Send to Worker”.
-  - **Worker**: `zk-email-cloudflare-worker` (the Worker you deployed above).
-
-Once this rule is active:
-
-- Any email sent to `reset@web3authn.org` will be delivered to your Email Worker.
-- The Worker runs the `email` handler, can log, forward, or call your zk‑email relayer.
-
-## 7. Next steps for zk‑email recovery
-
-This plan focuses on the Email Worker + Relay Worker boundary. To turn it into a full zk‑email recovery path:
-
-- Define the expected email format (subject/body fields) that encode `account_id`, `new_public_key`, and an optional nonce.
-- Implement `POST /reset-email` on the existing Cloudflare Relay Worker (`examples/relay-cloudflare-worker`) to:
-  - Accept the JSON payload from the Email Worker.
-  - Verify DKIM and structural constraints (either directly or via a backend/prover service).
-  - Run zk‑email proofs and submit transactions to:
-    - The global `ZkEmailVerifier` contract (for proof verification).
-    - The per‑user zk‑email‑recovery contract on NEAR (to add a new recovery key when policy is satisfied).
-- Add logging and metrics on both Workers for observability, and tests that send synthetic emails through Email Routing into the full Email Worker → Relay Worker → NEAR path.
-
-## 8. Email Worker runtime types
-
-Cloudflare’s Email Workers expose the following runtime types (see Cloudflare Email Routing docs for the canonical definitions). These are the types you interact with in the `email` handler above.
-
-### `ForwardableEmailMessage`
-
-```ts
-interface ForwardableEmailMessage<Body = unknown> {
-  readonly from: string;
-  readonly to: string;
-  readonly headers: Headers;
-  readonly raw: ReadableStream;
-  readonly rawSize: number;
-
-  // Constructor is provided by the platform, not used directly in Workers code:
-  // constructor(from: string, to: string, raw: ReadableStream | string);
-
-  setReject(reason: string): void;
-  forward(rcptTo: string, headers?: Headers): Promise<void>;
-  reply(message: EmailMessage): Promise<void>;
+```json
+POST /client/v4/zones/$CF_ZONE_ID/email/routing/rules
+{
+  "enabled": true,
+  "name": "recover@web3authn.org to w3a-relay",
+  "matchers": [
+    { "type": "literal", "field": "to", "value": "recover@web3authn.org" }
+  ],
+  "actions": [
+    { "type": "worker", "value": ["w3a-relay"] }
+  ]
 }
 ```
 
-- `from` / `to`: envelope sender/recipient.
-- `headers`: full email headers (including `DKIM-Signature` when present).
-- `raw` / `rawSize`: stream and size of the raw message.
-- `setReject(reason)`: permanently reject the email with an SMTP error and message.
-- `forward(rcptTo, headers?)`: forward the email to a verified destination, optionally adding `X-*` headers.
-- `reply(message)`: send a reply `EmailMessage` back to the sender.
+The worker reads the configured recipient from `env.RECOVER_EMAIL_RECIPIENT` and only logs mismatches; Cloudflare routing itself determines which messages reach the worker.
 
-In the ES modules syntax, the `message` parameter in:
+### 1.2 Email normalization helpers
+
+Helpers live in `examples/relay-cloudflare-worker/src/worker-helpers.ts`:
+
+- `normalizeAddress(input: string): string`
+  - Strips optional display name: `"Name <user@example.com>" → "user@example.com"`.
+  - Lowercases the result.
+
+- `buildForwardableEmailPayload(message): Promise<ForwardableEmailPayload>`
+  - Produces:
+    ```ts
+    type ForwardableEmailPayload = {
+      from: string;
+      to: string;
+      headers: Record<string, string>; // all keys lowercased
+      raw: string;                     // full RFC822 message as text
+      rawSize?: number;
+    };
+    ```
+  - Lowercases header keys (including `dkim-signature`).
+
+- `parseAccountIdFromEmailPayload(payload): string | null`
+  - Reads the Subject and/or headers to extract `account_id`:
+    - Accepts either a full RFC822 message with a `Subject:` line or a bare subject value.
+    - Expected primary format:
+      - `Subject: recover bob.testnet`
+        with body containing `ed25519:<new_public_key>`.
+    - Logic:
+      - Parse Subject, strip common prefixes (`Re:`, `Fwd:`).
+      - If it matches `"recover <accountId>"` (case‑insensitive on `recover`), treat `<accountId>` as `account_id`.
+      - Otherwise, treat the subject as invalid and rely on header fallbacks.
+    - Fallback:
+      - `x-near-account-id` or `x-account-id` headers (lowercased).
+
+### 1.3 Email entrypoint
+
+The `email` handler in `worker.ts` orchestrates the DKIM recovery flow:
+
+1. Build normalized payload:
+   ```ts
+   const payload = await buildForwardableEmailPayload(message);
+   ```
+2. Log basic details:
+   - `from`, `to`, full headers, `dkim-signature`, `rawSize`.
+3. Compare `to` against `env.RECOVER_EMAIL_RECIPIENT` (normalized):
+   - Mismatches are logged but **not rejected**, since Cloudflare routing already scopes recipients.
+4. Parse `accountId`:
+   ```ts
+   const accountId = parseAccountIdFromEmailPayload(payload);
+   if (!accountId) {
+     console.log('[email] rejecting: missing accountId in subject or headers');
+     message.setReject('Recovery relayer rejected email');
+     return;
+   }
+   ```
+5. Call the DKIM recovery helper on the shared `AuthService` instance:
+   ```ts
+   const result = await service.recoverAccountFromEmailDKIMVerifier({
+     accountId,
+     emailBlob: payload.raw,
+   });
+   console.log('[email] DKIM recovery result', JSON.stringify(result));
+   ```
+6. Handle result:
+   - On failure:
+     ```ts
+     console.log('[email] DKIM recovery failed', { accountId, error: result?.error });
+     message.setReject('Recovery relayer rejected email');
+     ```
+   - On success:
+     ```ts
+     console.log('[email] DKIM recovery succeeded', { accountId, tx: result.transactionHash });
+     ```
+
+The email handler no longer forwards debug copies (`message.forward('dev@...')` was removed).
+
+---
+
+## 2. DKIM Recovery Helper (`AuthService.recoverAccountFromEmailDKIMVerifier`)
+
+Path: `sdk/src/server/core/AuthService.ts`
+
+We added a dedicated helper on `AuthService`:
 
 ```ts
-export default {
-  async email(message, env, ctx) {
-    // message is a ForwardableEmailMessage
-  },
-};
+async recoverAccountFromEmailDKIMVerifier(request: { accountId: string; emailBlob: string }): Promise<{
+  success: boolean;
+  transactionHash?: string;
+  message?: string;
+  error?: string;
+}>
 ```
 
-is a `ForwardableEmailMessage`.
+Behavior:
 
-### `EmailMessage`
+1. Validate inputs:
+   - `accountId` must pass `isValidAccountId`.
+   - `emailBlob` must be a non‑empty string.
+2. Ensure the signer and relayer account are initialized (WASM + Shamir).
+3. Queue a transaction (to avoid nonce races) that:
+   - Builds a single `FunctionCall` action:
+     ```ts
+     const contractArgs = { email_blob: emailBlob };
+     const actions: ActionArgsWasm[] = [
+       {
+         action_type: ActionType.FunctionCall,
+         method_name: 'verify_dkim_and_recover',
+         args: JSON.stringify(contractArgs),
+         gas: DEFAULT_EMAIL_RECOVERY_GAS,            // 300 TGas
+         deposit: '10000000000000000000000',         // 0.01 NEAR
+       },
+     ];
+     ```
+   - Signs and sends the transaction from the relayer:
+     - `signer_id = relayerAccountId` (e.g. `w3a-relayer.testnet`)
+     - `receiver_id = accountId` (e.g. `bob.w3a-v1.testnet`)
+4. Parse the execution outcome:
+   - Uses `parseContractExecutionError` to extract human‑readable errors from receipts.
+   - Returns:
+     - `{ success: true, transactionHash, message }` on success.
+     - `{ success: false, error, message }` on failure.
 
-```ts
-interface EmailMessage {
-  readonly from: string;
-  readonly to: string;
-}
-```
+Notes:
 
-This is used when composing replies with `message.reply(...)`:
+- `DEFAULT_EMAIL_RECOVERY_GAS = '300000000000000'` (300 TGas), aligned with a working `near-cli` example:
+  - `prepaid-gas '300.0 Tgas' attached-deposit '0.01 NEAR'`.
+- Over‑prepaid gas is refunded on NEAR; only gas actually burned is charged.
 
-- `from`: envelope sender for the reply.
-- `to`: envelope recipient for the reply.
+---
+
+## 3. Frontend: Setting Recovery Emails (Testnet Demo)
+
+Path: `examples/tatchi-docs/src/components/SetupEmailRecovery.tsx`
+
+The demo app exposes an **Email Recovery (beta)** section that:
+
+1. **Hashes recovery emails client‑side**
+   - Canonicalizes each email:
+     - Extracts bare `local@domain` from `"Name <local@domain>"`.
+     - Trims and lowercases entire address.
+   - Hashes:
+     ```ts
+     hashed_email = SHA256(canonical_email + "|" + account_id);
+     ```
+   - Produces `number[][]` (Vec<u8>) suitable for the `EmailRecoverer` contract.
+
+2. **Deploys / attaches the per‑account EmailRecoverer**
+   - Detects whether the account already has code via `nearClient.viewCode(nearAccountId)`.
+   - If **no code**:
+     - Sends a transaction:
+       - `UseGlobalContract` with `accountId: 'w3a-email-recoverer-v1.testnet'`.
+       - `FunctionCall` `new(zk_email_verifier, email_dkim_verifier, policy: null, recovery_emails: hashes)`.
+   - If **code exists**:
+     - Calls `set_recovery_emails(recovery_emails: Vec<HashedEmail>)`.
+
+3. **Configures recovery policy**
+   - Sends `set_policy(policy: { min_required_emails, max_age_ms })` to the per‑account contract.
+
+4. **Disables recovery**
+   - Calls `set_recovery_emails([])` to clear stored hashed emails (keeps the contract deployed).
+
+5. **Displays on‑chain recovery emails**
+   - Calls `get_recovery_emails()` via `nearClient.view`.
+   - Shows either:
+     - Matching plaintext emails (when they match locally computed hashes).
+     - Raw hashes (hex) when no local email matches (privacy preserving).
+
+All of this is currently **testnet‑only** (`tatchi.configs.nearNetwork === 'testnet'`).
+
+---
+
+## 4. What’s NOT implemented yet (ZK path)
+
+The zk‑email recovery flow is intentionally left as future work. Stubs and planned points of integration:
+
+- `sdk/src/server/email-recovery/zkEmail.ts`
+  - `generateZkEmailProofFromPayload(payload)` is a stub; it will eventually:
+    - Normalize headers + raw message for the ZK circuit.
+    - Call an external prover (e.g. Succinct SP1) to produce `proof` + `publicInputs`.
+
+- `AuthService.recoverAccountFromZkEmailVerifier(...)`
+  - Currently returns a fixed `"not yet implemented"` error.
+  - Intended future behavior:
+    - Call a global `ZkEmailVerifier` contract with the proof.
+    - Then call the per‑user recovery contract once the proof is accepted.
+
+- Worker routing:
+  - Today, the `email` handler always calls the DKIM path.
+  - In the future, different Subject prefixes (e.g. `zkrecover|...`) could be routed to the ZK path instead.
+
+Until those pieces are wired up, the system implements **DKIM‑based email recovery** only. ZK‑email remains a design target with helper scaffolding in place but no on‑chain verifier integration yet.

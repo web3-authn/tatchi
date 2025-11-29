@@ -4,6 +4,11 @@ import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi-xyz/sd
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
 import shamirWasmModule from '@tatchi-xyz/sdk/server/wasm/vrf';
 import jwt from 'jsonwebtoken';
+import {
+  buildForwardableEmailPayload,
+  normalizeAddress,
+  parseAccountIdFromEmailPayload,
+} from './worker-helpers';
 
 // Strongly-typed JWT claims used by this demo
 type DemoJwtClaims = {
@@ -32,13 +37,14 @@ export interface Env {
   EXPECTED_ORIGIN?: string;
   EXPECTED_WALLET_ORIGIN?: string;
   ENABLE_ROTATION?: string; // '1' to enable cron rotation
-  // Recipient address for recovery emails (e.g. "reset@web3authn.org").
-  RESET_EMAIL_RECIPIENT?: string;
+  // Recipient address for recovery emails (e.g. "recover@web3authn.org").
+  RECOVER_EMAIL_RECIPIENT?: string;
 }
 
+// Singleton AuthService instance shared across fetch/email/scheduled events
 let service: AuthService | null = null;
 
-function getService(env: Env) {
+function getService(env: Env): AuthService {
   if (!service) {
     service = new AuthService({
       relayerAccountId: env.RELAYER_ACCOUNT_ID,
@@ -64,6 +70,12 @@ function getService(env: Env) {
 }
 
 export default {
+
+  /**
+   * HTTP entrypoint
+   * - Handles REST API routes (create_account_and_register_user, /recover-email, sessions, etc.)
+   * - Reuses the shared AuthService + session adapter via createCloudflareRouter.
+   */
   async fetch(request: Request, env: Env, ctx: CfExecutionContext): Promise<Response> {
     const s = getService(env);
     const session = new SessionService<DemoJwtClaims>({
@@ -101,7 +113,12 @@ export default {
     });
     return router(request, env as unknown as CfEnv, ctx);
   },
-  // Optional cron; defaults to inactive. Enable by setting ENABLE_ROTATION='1' in vars and adding a [triggers] crons schedule.
+
+  /**
+   * Cron entrypoint
+   * - Used for optional Shamir key rotation and health heartbeats.
+   * - Activated when ENABLE_ROTATION='1' and a cron schedule is configured.
+   */
   async scheduled(event: CfScheduledEvent, env: Env, ctx: CfExecutionContext) {
     const s = getService(env);
     const cron = createCloudflareCron(s, {
@@ -110,93 +127,46 @@ export default {
     });
     await cron(event, env as unknown as CfEnv, ctx);
   },
+
+  /**
+   * Email entrypoint
+   * - Invoked by Cloudflare Email Routing for incoming messages to RECOVER_EMAIL_RECIPIENT.
+   * - Normalizes headers/raw body, parses accountId from Subject/headers,
+   *   and calls AuthService.recoverAccountFromEmailDKIMVerifier for DKIM-based recovery.
+   */
   async email(message: any, env: Env, ctx: CfExecutionContext): Promise<void> {
     const service = getService(env);
 
-    // Basic debug logging; safe for low volume.
-    console.log('[email] from:', JSON.stringify(message.from));
-    console.log('[email] to:', JSON.stringify(message.to));
+    const payload = await buildForwardableEmailPayload(message);
 
-    // Convert Headers to a standard JS object
-    let headersObj: Record<string, string> = {};
-    headersObj = Object.fromEntries(message.headers as any);
-    console.log('[email] headers:', JSON.stringify(headersObj, null, 2));
-    console.log('[email] DKIM-Signature:', message.headers.get('DKIM-Signature'));
+    console.log('[email] from:', JSON.stringify(payload.from));
+    console.log('[email] to:', JSON.stringify(payload.to));
+    console.log('[email] headers:', JSON.stringify(payload.headers, null, 2));
+    console.log('[email] DKIM-Signature:', payload.headers['dkim-signature']);
+    console.log('[email] rawSize:', JSON.stringify(payload.rawSize));
 
-    const rawText = await new Response(message.raw).text();
-    console.log('[email] rawSize:', JSON.stringify(message.rawSize));
-
-    const normalizeAddress = (input: string): string => {
-      const trimmed = input.trim();
-      const angleStart = trimmed.indexOf('<');
-      const angleEnd = trimmed.indexOf('>');
-      if (angleStart !== -1 && angleEnd > angleStart) {
-        return trimmed.slice(angleStart + 1, angleEnd).trim().toLowerCase();
-      }
-      return trimmed.toLowerCase();
-    };
-
-    const to = normalizeAddress(String(message.to || ''));
-    const expectedRecipientRaw = String(env.RESET_EMAIL_RECIPIENT || '').trim();
+    const to = normalizeAddress(payload.to);
+    const expectedRecipientRaw = String(env.RECOVER_EMAIL_RECIPIENT || '').trim();
     const expectedRecipient = expectedRecipientRaw ? normalizeAddress(expectedRecipientRaw) : '';
 
     if (!expectedRecipient) {
-      console.log('[email] warning: RESET_EMAIL_RECIPIENT is not set; accepting email for', to);
+      console.log('[email] warning: RECOVER_EMAIL_RECIPIENT is not set; accepting email for', to);
     } else if (to !== expectedRecipient) {
-      console.log('[email] warning: to does not match RESET_EMAIL_RECIPIENT', { to, expectedRecipient });
+      console.log('[email] warning: to does not match RECOVER_EMAIL_RECIPIENT', { to, expectedRecipient });
       // Do not reject here; Cloudflare routing already scoped which messages reach this worker.
     }
 
-    // Normalize headers to lowercase keys for the payload.
-    const normalizedHeaders: Record<string, string> = {};
-    for (const [k, v] of Object.entries(headersObj)) {
-      normalizedHeaders[String(k).toLowerCase()] = String(v);
-    }
-
-    const payload = {
-      from: message.from,
-      to: message.to,
-      headers: normalizedHeaders,
-      raw: rawText,
-      rawSize: typeof message.rawSize === 'number' ? message.rawSize : undefined,
-    };
-
-    const subjectHeader = normalizedHeaders['subject'];
-    const rawForParsing = subjectHeader || rawText;
-
-    const parseAccountIdFromSubject = (raw: string | undefined | null): string | null => {
-      if (!raw || typeof raw !== 'string') return null;
-      let subjectText = '';
-      const lines = raw.split(/\r?\n/);
-      const subjectLine = lines.find(line => /^subject:/i.test(line));
-      if (subjectLine) {
-        const [, restRaw = ''] = subjectLine.split(/:/, 2);
-        subjectText = restRaw.trim();
-      } else {
-        subjectText = raw.trim();
-      }
-      if (!subjectText) return null;
-      const parts = subjectText.split('|').map(p => p.trim()).filter(Boolean);
-      if (parts.length < 2) return null;
-      if (/^recover$/i.test(parts[0]) && parts[1]) {
-        return parts[1];
-      }
-      return parts[0] || null;
-    };
-
-    const parsedAccountId = parseAccountIdFromSubject(rawForParsing);
-    const headerAccountId = String(normalizedHeaders['x-near-account-id'] || normalizedHeaders['x-account-id'] || '').trim();
-    const accountId = (parsedAccountId || headerAccountId || '').trim();
+    const accountId = parseAccountIdFromEmailPayload(payload);
 
     if (!accountId) {
       console.log('[email] rejecting: missing accountId in subject or headers');
-      message.setReject('Recovery relayer rejected email');
+      message.setReject('Email recovery relayer rejected email: missing accountId in subject');
       return;
     }
 
     const result = await service.recoverAccountFromEmailDKIMVerifier({
       accountId,
-      emailBlob: rawText,
+      emailBlob: payload.raw,
     });
     console.log('[email] DKIM recovery result', JSON.stringify(result));
 
@@ -207,7 +177,5 @@ export default {
     }
 
     console.log('[email] DKIM recovery succeeded', { accountId, tx: result.transactionHash });
-    // Optionally forward to a debug inbox on success.
-    await message.forward('dev@web3authn.org');
   }
 };
