@@ -87,16 +87,18 @@ interface PasskeyClientDBConfig {
   appStateStore: string;
   authenticatorStore: string;
   derivedAddressStore: string;
+  recoveryEmailStore: string;
 }
 
 // === CONSTANTS ===
 const DB_CONFIG: PasskeyClientDBConfig = {
   dbName: 'PasskeyClientDB',
-  dbVersion: 14, // v14: add derivedAddresses store
+  dbVersion: 15, // v15: add recoveryEmails store
   userStore: 'users',
   appStateStore: 'appState',
   authenticatorStore: 'authenticators',
-  derivedAddressStore: 'derivedAddresses'
+  derivedAddressStore: 'derivedAddresses',
+  recoveryEmailStore: 'recoveryEmails'
 } as const;
 
 export interface IndexedDBEvent {
@@ -127,6 +129,22 @@ export interface DerivedAddressRecord {
   // Optional metadata (not used in the key)
   namespace?: string; // e.g., 'evm', 'solana', 'zcash'
   chainRef?: string;  // e.g., chainId '84532' or a named network slug
+}
+
+/**
+ * Persisted mapping of recovery email hashes to canonical email addresses for an account.
+ *
+ * Notes:
+ * - Composite primary key is [nearAccountId, hashHex].
+ * - `hashHex` is the 0x-prefixed hex encoding of the 32-byte hash:
+ *     SHA256(canonical_email || "|" || account_id)
+ * - `email` is the canonical form: "local@domain", lowercased.
+ */
+export interface RecoveryEmailRecord {
+  nearAccountId: AccountId;
+  hashHex: string;
+  email: string;
+  addedAt: number;
 }
 
 export class PasskeyClientDBManager {
@@ -189,6 +207,11 @@ export class PasskeyClientDBManager {
             // Derived addresses: composite key of [nearAccountId, contractId, path]
             const dStore = db.createObjectStore(DB_CONFIG.derivedAddressStore, { keyPath: ['nearAccountId', 'contractId', 'path'] });
             try { dStore.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
+          }
+          if (!db.objectStoreNames.contains(DB_CONFIG.recoveryEmailStore)) {
+            // Recovery emails: composite key of [nearAccountId, hashHex]
+            const rStore = db.createObjectStore(DB_CONFIG.recoveryEmailStore, { keyPath: ['nearAccountId', 'hashHex'] });
+            try { rStore.createIndex('nearAccountId', 'nearAccountId', { unique: false }); } catch {}
           }
         },
         blocked() {
@@ -734,6 +757,70 @@ export class PasskeyClientDBManager {
   async getDerivedAddress(nearAccountId: AccountId, args: { contractId: string; path: string }): Promise<string | null> {
     const rec = await this.getDerivedAddressRecord(nearAccountId, args);
     return rec?.address || null;
+  }
+
+  // === RECOVERY EMAIL METHODS ===
+
+  /**
+   * Upsert recovery email records for an account.
+   * Merges by hashHex, preferring the most recent email.
+   */
+  async upsertRecoveryEmails(
+    nearAccountId: AccountId,
+    entries: Array<{ hashHex: string; email: string }>
+  ): Promise<void> {
+    if (!nearAccountId || !entries?.length) return;
+    const validation = this.validateNearAccountId(nearAccountId);
+    if (!validation.valid) return;
+
+    const db = await this.getDB();
+    const accountId = toAccountId(nearAccountId);
+    const now = Date.now();
+
+    for (const entry of entries) {
+      const hashHex = String(entry?.hashHex || '').trim();
+      const email = String(entry?.email || '').trim();
+      if (!hashHex || !email) continue;
+
+      const rec: RecoveryEmailRecord = {
+        nearAccountId: accountId,
+        hashHex,
+        email,
+        addedAt: now,
+      };
+      await db.put(DB_CONFIG.recoveryEmailStore, rec);
+    }
+  }
+
+  /**
+   * Fetch all recovery email records for an account.
+   */
+  async getRecoveryEmails(nearAccountId: AccountId): Promise<RecoveryEmailRecord[]> {
+    if (!nearAccountId) return [];
+    const db = await this.getDB();
+    const accountId = toAccountId(nearAccountId);
+    const tx = db.transaction(DB_CONFIG.recoveryEmailStore, 'readonly');
+    const store = tx.objectStore(DB_CONFIG.recoveryEmailStore);
+    const index = store.index('nearAccountId');
+    const result = await index.getAll(accountId);
+    return (result as RecoveryEmailRecord[]) || [];
+  }
+
+  /**
+   * Clear all recovery email records for an account.
+   */
+  async clearRecoveryEmails(nearAccountId: AccountId): Promise<void> {
+    if (!nearAccountId) return;
+    const db = await this.getDB();
+    const accountId = toAccountId(nearAccountId);
+    const tx = db.transaction(DB_CONFIG.recoveryEmailStore, 'readwrite');
+    const store = tx.objectStore(DB_CONFIG.recoveryEmailStore);
+    const index = store.index('nearAccountId');
+    const existing = await index.getAll(accountId) as RecoveryEmailRecord[];
+
+    for (const rec of existing) {
+      await store.delete([accountId, rec.hashHex]);
+    }
   }
 
   /**

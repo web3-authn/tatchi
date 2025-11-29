@@ -36,7 +36,7 @@ import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
-import type { DerivedAddressRecord } from '../IndexedDBManager';
+import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
 import { chainsigAddressManager } from '../ChainsigAddressManager';
 import {
   ActionType,
@@ -63,6 +63,11 @@ import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
 import { toError } from '../../utils/errors';
 import { isOffline, openOfflineExport } from '../OfflineExport';
+import {
+  setRecoveryEmails as setRecoveryEmailsInternal,
+  clearRecoveryEmails as clearRecoveryEmailsInternal,
+  getLocalRecoveryEmails,
+} from '../EmailRecovery';
 let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
@@ -962,6 +967,54 @@ export class TatchiPasskey {
     args: { contractId: string; path: string }
   ): Promise<string | null> {
     return await chainsigAddressManager.getDerivedAddress(toAccountId(nearAccountId), args);
+  }
+
+  ///////////////////////////////////////
+  // === Email Recovery (public helpers) ===
+  ///////////////////////////////////////
+
+  /**
+   * Persist a mapping of recovery email hashes → canonical emails in IndexedDB for an account.
+   * This is a local-only helper that does not touch the blockchain.
+   */
+  async getRecoveryEmails(nearAccountId: string): Promise<RecoveryEmailRecord[]> {
+    return await getLocalRecoveryEmails(toAccountId(nearAccountId));
+  }
+
+  /**
+   * Set recovery emails for an account:
+   * - Canonicalizes and hashes emails client-side.
+   * - Persists mapping in IndexedDB.
+   * - Deploys/attaches the EmailRecoverer contract when needed.
+   * - Calls set_recovery_emails(...) on the per-account contract.
+   */
+  async setRecoveryEmails(
+    nearAccountId: string,
+    recoveryEmails: string[],
+    options?: ActionHooksOptions
+  ): Promise<ActionResult> {
+    return setRecoveryEmailsInternal({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      recoveryEmails,
+      options,
+    });
+  }
+
+  /**
+   * Clear recovery emails for an account:
+   * - Calls set_recovery_emails([]) on the per-account contract.
+   * - Clears local IndexedDB mapping for this account.
+   */
+  async clearRecoveryEmails(
+    nearAccountId: string,
+    options?: ActionHooksOptions
+  ): Promise<ActionResult> {
+    return clearRecoveryEmailsInternal({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      options,
+    });
   }
 
   ///////////////////////////////////////

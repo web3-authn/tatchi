@@ -1,59 +1,12 @@
 import React from 'react';
 import { toast } from 'sonner';
 
-import {
-  ActionType,
-  TxExecutionStatus,
-  useTatchi,
-} from '@tatchi-xyz/sdk/react';
+import { TxExecutionStatus, useTatchi } from '@tatchi-xyz/sdk/react';
 
-import type { ActionArgs, ActionResult } from '@tatchi-xyz/sdk/react';
+import type { ActionResult } from '@tatchi-xyz/sdk/react';
 import { LoadingButton } from './LoadingButton';
 import EmailRecoveryFields from './EmailRecoveryFields';
 import { NEAR_EXPLORER_BASE_URL } from '../types';
-
-const EMAIL_RECOVERER_CODE_ACCOUNT_ID = 'w3a-email-recoverer-v1.testnet';
-const ZK_EMAIL_VERIFIER_ACCOUNT_ID = 'zk-email-verifier-v1.testnet';
-const EMAIL_DKIM_VERIFIER_ACCOUNT_ID = 'email-dkim-verifier-v1.testnet';
-
-async function hashRecoveryEmails(emails: string[], accountId: string): Promise<number[][]> {
-  const encoder = new TextEncoder();
-  const salt = (accountId || '').trim().toLowerCase();
-  const normalized = (emails || [])
-    .map(e => e.trim())
-    .filter(e => e.length > 0);
-
-  const hashed: number[][] = [];
-
-  for (const email of normalized) {
-    try {
-      // Canonicalize email:
-      // - Optional display name "Name <local@domain>" → "local@domain"
-      // - Trim spaces
-      // - Lowercase full address
-      let addr = email;
-      const angleStart = email.indexOf('<');
-      const angleEnd = email.indexOf('>');
-      if (angleStart !== -1 && angleEnd > angleStart) {
-        addr = email.slice(angleStart + 1, angleEnd);
-      }
-      const canonicalEmail = addr.trim().toLowerCase();
-
-      // hashed_email = SHA256(canonical_email || "|" || account_id)
-      const input = `${canonicalEmail}|${salt}`;
-      const data = encoder.encode(input);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      const bytes = new Uint8Array(digest);
-      hashed.push(Array.from(bytes));
-    } catch {
-      // Fallback: use raw UTF-8 bytes if hashing fails
-      const bytes = encoder.encode(email.toLowerCase());
-      hashed.push(Array.from(bytes));
-    }
-  }
-
-  return hashed;
-}
 
 const bytesToHex = (bytes: number[] | Uint8Array): string => {
   const arr = bytes instanceof Uint8Array ? bytes : Uint8Array.from(bytes);
@@ -74,6 +27,7 @@ export const SetupEmailRecovery: React.FC = () => {
   const [maxAgeMinutes, setMaxAgeMinutes] = React.useState<string>('30');
   const [rawOnChainHashes, setRawOnChainHashes] = React.useState<number[][]>([]);
   const [onChainHashes, setOnChainHashes] = React.useState<string[]>([]);
+  const [localRecoveryEmails, setLocalRecoveryEmails] = React.useState<Array<{ hashHex: string; email: string }> | null>(null);
 
   const refreshOnChainEmails = React.useCallback(async () => {
     if (!tatchi || !nearAccountId) {
@@ -121,30 +75,58 @@ export const SetupEmailRecovery: React.FC = () => {
   React.useEffect(() => {
     let cancelled = false;
 
-    const recomputeDisplay = async () => {
+    const loadLocalRecoveryEmails = async () => {
+      if (!tatchi || !nearAccountId) {
+        setLocalRecoveryEmails(null);
+        return;
+      }
+
+      try {
+        const records = await tatchi.getRecoveryEmails(nearAccountId);
+        const pairs = (records || []).map(rec => ({
+          hashHex: rec.hashHex,
+          email: rec.email,
+        }));
+        if (!cancelled) {
+          setLocalRecoveryEmails(pairs);
+        }
+      } catch (error) {
+        // Best-effort: failures should not break the UI
+        // eslint-disable-next-line no-console
+        console.warn('[EmailRecovery] Failed to load local recovery emails', error);
+        if (!cancelled) {
+          setLocalRecoveryEmails(null);
+        }
+      }
+    };
+
+    void loadLocalRecoveryEmails();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [nearAccountId]);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const recomputeDisplay = () => {
       if (!nearAccountId || !rawOnChainHashes.length) {
         setOnChainHashes([]);
         return;
       }
 
       try {
-        const candidateEmails = (recoveryEmails || []).map(e => e.trim()).filter(e => e.length > 0);
-        if (!candidateEmails.length) {
-          // No local emails to match against; fall back to hex display
-          const hex = rawOnChainHashes.map(h => bytesToHex(h));
-          if (!cancelled) setOnChainHashes(hex);
-          return;
-        }
-
-        const candidateHashes = await hashRecoveryEmails(candidateEmails, nearAccountId);
         const emailByHex: Record<string, string> = {};
-        candidateHashes.forEach((h, idx) => {
-          const hex = bytesToHex(h);
-          // Prefer first mapping if duplicates exist
-          if (!emailByHex[hex]) {
-            emailByHex[hex] = candidateEmails[idx];
-          }
-        });
+
+        if (localRecoveryEmails?.length) {
+          localRecoveryEmails.forEach(entry => {
+            if (!entry?.hashHex || !entry?.email) return;
+            if (!emailByHex[entry.hashHex]) {
+              emailByHex[entry.hashHex] = entry.email;
+            }
+          });
+        }
 
         const display = rawOnChainHashes.map(h => {
           const hex = bytesToHex(h);
@@ -161,13 +143,12 @@ export const SetupEmailRecovery: React.FC = () => {
         }
       }
     };
-
-    void recomputeDisplay();
+    recomputeDisplay();
 
     return () => {
       cancelled = true;
     };
-  }, [nearAccountId, rawOnChainHashes, recoveryEmails]);
+  }, [nearAccountId, rawOnChainHashes, localRecoveryEmails]);
 
   if (!isLoggedIn || !nearAccountId) {
     return null;
@@ -192,21 +173,9 @@ export const SetupEmailRecovery: React.FC = () => {
     try {
       toast.loading('Disabling email recovery (clearing emails)...', { id: toastId });
 
-      const result = await tatchi.executeAction({
+      const result = await tatchi.clearRecoveryEmails(
         nearAccountId,
-        receiverId: nearAccountId,
-        actionArgs: [
-          {
-            type: ActionType.FunctionCall,
-            methodName: 'set_recovery_emails',
-            args: {
-              recovery_emails: [] as number[][],
-            },
-            gas: '80000000000000',
-            deposit: '0',
-          },
-        ],
-        options: {
+        {
           waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
           afterCall: (success: boolean, actionResult?: ActionResult) => {
             try {
@@ -233,10 +202,13 @@ export const SetupEmailRecovery: React.FC = () => {
             }
           },
         },
-      });
+      );
 
       if (!result?.success) {
         toast.error(result?.error || 'Failed to disable email recovery');
+      }
+      if (result?.success) {
+        setLocalRecoveryEmails([]);
       }
     } catch (error: any) {
       try {
@@ -258,56 +230,10 @@ export const SetupEmailRecovery: React.FC = () => {
 
     try {
       toast.loading('Updating recovery emails...', { id: toastId });
-      const recoveryEmailHashes = await hashRecoveryEmails(recoveryEmails, nearAccountId);
-
-      // Detect whether the per-account EmailRecoverer contract is already deployed:
-      // - If code exists on this account, assume recoverer is present and just call set_recovery_emails.
-      // - If no code is present, attach the global email-recoverer and call new(...) with emails.
-      let hasContract = false;
-      try {
-        const nearClient = tatchi.getNearClient();
-        const code = await nearClient.viewCode(nearAccountId);
-        hasContract = !!code && code.byteLength > 0;
-      } catch {
-        hasContract = false;
-      }
-
-      const actions: ActionArgs[] = hasContract
-        ? [
-            {
-              type: ActionType.FunctionCall,
-              methodName: 'set_recovery_emails',
-              args: {
-                recovery_emails: recoveryEmailHashes,
-              },
-              gas: '80000000000000',
-              deposit: '0',
-            },
-          ]
-        : [
-            {
-              type: ActionType.UseGlobalContract,
-              accountId: EMAIL_RECOVERER_CODE_ACCOUNT_ID,
-            },
-            {
-              type: ActionType.FunctionCall,
-              methodName: 'new',
-              args: {
-                zk_email_verifier: ZK_EMAIL_VERIFIER_ACCOUNT_ID,
-                email_dkim_verifier: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
-                policy: null,
-                recovery_emails: recoveryEmailHashes,
-              },
-              gas: '80000000000000',
-              deposit: '0',
-            },
-          ];
-
-      const result = await tatchi.executeAction({
+      const result = await tatchi.setRecoveryEmails(
         nearAccountId,
-        receiverId: nearAccountId,
-        actionArgs: actions,
-        options: {
+        recoveryEmails,
+        {
           waitUntil: TxExecutionStatus.EXECUTED_OPTIMISTIC,
           afterCall: (success: boolean, actionResult?: ActionResult) => {
             try {
@@ -334,10 +260,22 @@ export const SetupEmailRecovery: React.FC = () => {
             }
           },
         },
-      });
+      );
 
       if (!result?.success) {
         toast.error(result?.error || 'Failed to update recovery emails');
+      } else {
+        try {
+          const records = await tatchi.getRecoveryEmails(nearAccountId);
+          const pairs = (records || []).map(rec => ({
+            hashHex: rec.hashHex,
+            email: rec.email,
+          }));
+          setLocalRecoveryEmails(pairs);
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.warn('[EmailRecovery] Failed to refresh local recovery emails', error);
+        }
       }
     } catch (error: any) {
       try {
