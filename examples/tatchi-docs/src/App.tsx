@@ -26,7 +26,6 @@ export const App: React.FC = () => {
         nearRpcUrl: env.VITE_NEAR_RPC_URL || 'https://test.rpc.fastnear.com',
         relayer: {
           url: env.VITE_RELAYER_URL!,
-          accountId: env.VITE_RELAYER_ACCOUNT_ID!,
         },
         vrfWorkerConfigs: {
           shamir3pass: {

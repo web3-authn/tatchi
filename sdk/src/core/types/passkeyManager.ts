@@ -656,7 +656,7 @@ export interface TatchiPasskeyConfigs {
   };
   // Relay Server is used to create new NEAR accounts
   relayer: {
-    accountId: string;
+    // accountId: string;
     url: string
   }
   // authenticator options for registrations

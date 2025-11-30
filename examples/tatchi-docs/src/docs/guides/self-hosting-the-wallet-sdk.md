@@ -96,7 +96,7 @@ import { TatchiPasskeyProvider } from '@tatchi-xyz/sdk/react/provider'
       // rpIdOverride: 'example.com',
     },
     // Optional: relay for VRF session and account creation flows
-    relayer: { accountId: 'w3a-relayer.testnet', url: 'https://relay.example.com' },
+    relayer: { url: 'https://relay.example.com' },
   }}
 >
   <App />

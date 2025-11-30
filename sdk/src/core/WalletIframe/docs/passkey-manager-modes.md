@@ -113,7 +113,7 @@ const passkey = new TatchiPasskey({
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
-  relayer: { accountId: 'w3a-v1.testnet', url: 'https://relay-server.localhost' }
+  relayer: { url: 'https://relay-server.localhost' }
   // No iframeWallet = same-origin mode (SDK will log warnings)
 });
 ```
@@ -126,7 +126,6 @@ const passkey = new TatchiPasskey({
   nearNetwork: 'testnet',
   contractId: 'w3a-v1.testnet',
   relayer: {
-    accountId: 'w3a-v1.testnet',
     url: 'https://relay-server.localhost'
   },
   iframeWallet: {

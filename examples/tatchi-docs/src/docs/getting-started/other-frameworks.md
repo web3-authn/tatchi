@@ -37,7 +37,6 @@ export default function App({ Component, pageProps }) {
         },
         relayer: {
           url: process.env.NEXT_PUBLIC_RELAY_URL,
-          accountId: process.env.NEXT_PUBLIC_RELAY_ACCOUNT_ID,
         },
       }}
     >
@@ -82,7 +81,6 @@ const tatchi = new TatchiPasskey({
   },
   relayer: {
     url: import.meta.env.VITE_RELAY_URL,
-    accountId: import.meta.env.VITE_RELAY_ACCOUNT_ID,
   },
 })
 
@@ -131,7 +129,6 @@ onMount(async () => {
     },
     relayer: {
       url: import.meta.env.VITE_RELAY_URL,
-      accountId: import.meta.env.VITE_RELAY_ACCOUNT_ID,
     },
   })
   await tatchi.initWalletIframe()
@@ -215,7 +212,6 @@ const tatchi = new TatchiPasskey({
   },
   relayer: {
     url: 'https://relay.tatchi.xyz',
-    accountId: 'w3a-relayer.testnet',
   },
 })
 

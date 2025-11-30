@@ -18,7 +18,6 @@ function App() {
       config={{
         relayer: {
           url: relayerUrl,
-          accountId: env.VITE_RELAYER_ACCOUNT_ID!,
         },
         iframeWallet: {
           walletOrigin: env.VITE_WALLET_ORIGIN,

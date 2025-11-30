@@ -109,8 +109,7 @@ export interface WalletIframeRouterOptions {
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
   relayer?: {
-    accountId: string;
-    url: string
+    url: string;
   };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;

@@ -63,7 +63,7 @@ We need a small persisted state to bridge the gap between:
 - **Phase D** (finalize registration after `add_key` happens on‑chain).
 It must also support **resuming after reload** (user closes the tab, refreshes, or goes to top up funds and comes back later).
 
-Add an IndexedDB record (either in `IndexedDBManager` or a small dedicated helper) keyed by `accountId`:
+Add an IndexedDB record (either in `IndexedDBManager` or a small dedicated helper) keyed by `(accountId, nearPublicKey)`:
 
 ```ts
 type PendingEmailRecovery = {
@@ -83,19 +83,20 @@ type PendingEmailRecovery = {
 
 Helper API:
 
-- `getPendingEmailRecovery(accountId): Promise<PendingEmailRecovery | null>`
+- `getPendingEmailRecovery(accountId, nearPublicKey): Promise<PendingEmailRecovery | null>`
 - `savePendingEmailRecovery(record: PendingEmailRecovery): Promise<void>`
-- `clearPendingEmailRecovery(accountId): Promise<void>`
+- `clearPendingEmailRecovery(accountId, nearPublicKey): Promise<void>`
 
 This:
 - enables **resume after reload**, and
 - keeps the email‑based flow clearly separated from the rest of IndexedDB state.
+- removes the risk of accidentally overwriting a pending record when switching accounts or restarting a flow, since entries are unique per `(accountId, nearPublicKey)` and can be TTL‑cleaned after ~30 minutes.
 
 ### 3.1 Resume behavior on reload
 
 On app startup (or when opening the recovery screen), the UI should:
 
-- Load `PendingEmailRecovery` by `accountId` (if the user re-enters the same accountId, or from a “last pending account” hint, if we add one later).
+- Load `PendingEmailRecovery` by `accountId` (and optionally `nearPublicKey`, if known from on-chain state) or via a “last pending record” hint (see 10.2 for TTL and indexing).
 - Branch based on `status`:
   - `'awaiting-email'`: re-show the TouchID‑complete state with a “Send recovery email” CTA (allow regenerating the same mailto link).
   - `'awaiting-add-key'`: show the “waiting for your recovery email to be processed…” state and allow restarting polling.
@@ -430,11 +431,13 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 ### 10.2 Implement IndexedDB helpers for `PendingEmailRecovery`
 
 - [ ] In `sdk/src/core/TatchiPasskey/emailRecovery.ts` implement private helpers using the existing appState store:
-  - `loadPending(accountId: AccountId): Promise<PendingEmailRecovery | null>` → `IndexedDBManager.clientDB.getAppState('pendingEmailRecovery:' + accountId)`.
-  - `savePending(record: PendingEmailRecovery): Promise<void>` → `setAppState('pendingEmailRecovery:' + record.accountId, record)`.
-  - `clearPending(accountId: AccountId): Promise<void>` → set `null` / `undefined` or delete the key via a helper if available.
+  - `loadPending(accountId: AccountId, nearPublicKey?: string): Promise<PendingEmailRecovery | null>` → either:
+    - read a single record keyed by `'pendingEmailRecovery:' + accountId + ':' + nearPublicKey`, or
+    - read a small index (e.g. array of pending records for `accountId`) and filter in memory.
+  - `savePending(record: PendingEmailRecovery): Promise<void>` → write under a composite key including both `accountId` and `nearPublicKey` so concurrent recoveries for different keys don’t stomp each other.
+  - `clearPending(accountId: AccountId, nearPublicKey?: string): Promise<void>` → delete that specific record; optionally expose a helper to clear all stale records for an account.
 - [ ] Ensure serialization/deserialization works across reloads (plain JSON, no class instances).
-- [ ] Consider a simple TTL check based on `createdAt` when loading (e.g. treat >24h as expired and clear automatically).
+- [ ] Enforce a TTL of ~30 minutes when loading (e.g. if `Date.now() - createdAt > 30 * 60 * 1000`, treat the record as expired and clear it).
 
 ### 10.3 Implement Phase A in `EmailRecoveryFlow.start`
 
@@ -522,14 +525,19 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 
 - [ ] In `sdk/src/core/TatchiPasskey/index.ts`:
   - Import `EmailRecoveryFlow`.
-  - Add a helper constructor method, e.g. `getEmailRecoveryFlow(options?: EmailRecoveryFlowOptions): EmailRecoveryFlow` that passes the shared `PasskeyManagerContext`.
+  - Add helper methods:
+    - `startEmailRecovery(accountId: string, recoveryEmail: string, options?: EmailRecoveryFlowOptions): Promise<void>`
+    - `finalizeEmailRecovery(accountId: string, nearPublicKey?: string, options?: EmailRecoveryFlowOptions): Promise<void>`
+  - These methods should internally create/reuse a single `EmailRecoveryFlow` and are what the iframe RPC layer will call (wallet host and parent app both rely on this surface).
 - [ ] In the React layer:
   - Read reference patterns in:
     - `sdk/src/react/components/PasskeyAuthMenu/index.tsx` (link device & recovery entrypoints).
     - `sdk/src/react/components/ProfileSettingsButton/LinkedDevicesModal.tsx` (device list + access keys).
   - Implement a simple “Recover account with email” flow component/hook that:
     - Collects `accountId` and `recoveryEmail`.
-    - Calls `emailRecoveryFlow.start`, then `buildMailtoUrl`, then `startPolling`.
+    - Calls `tatchi.startEmailRecovery`, then uses the returned/derived `mailto:` URL, then starts polling.
+    - On reload or account switch, can call `tatchi.finalizeEmailRecovery` directly when on-chain state already contains `nearPublicKey` from a pending record.
+  - UX: clearly display **which email must send the message** (e.g. “Send this email from `<recoveryEmail>`”), and consider a short helper text that explains recovery will fail if sent from a different address.
     - Subscribes to `onEvent` to drive UI (steps/progress, error states).
   - Optionally surface recovery status in `LinkedDevicesModal` (e.g. highlight the newly recovered device / key).
 
@@ -539,7 +547,8 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
   - `buildMailtoUrl` format (`recover <accountId>` subject + `ed25519:<new_public_key>` body).
   - Polling logic (success, timeout, cancellation).
   - Finalization flow happy path and retry of registration tx.
-- [ ] Ensure logs mirror existing patterns from `LinkDeviceFlow` and `AccountRecoveryFlow` (consistent prefixes, levels).
+- [ ] Ensure logs mirror existing patterns from `LinkDeviceFlow` and `AccountRecoveryFlow` (consistent prefixes, levels) and include structured fields for:
+  - `accountId`, `nearPublicKey`, email recovery status (phase), AddKey detection, registration tx hash / error type.
 - [ ] Double‑check that no sensitive material (PRF output, unencrypted keys) is persisted or logged.
 
 ### 10.9 Wire `EmailRecoveryPhase` into wallet iframe plumbing
@@ -554,3 +563,13 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [ ] In `sdk/src/core/WalletIframe/host/wallet-iframe-handlers.ts`:
   - Add new PM handlers for the email recovery flow (e.g. `PM_EMAIL_RECOVERY_START`, `PM_EMAIL_RECOVERY_FINALIZE`, or a single `PM_EMAIL_RECOVERY_FLOW` depending on API shape).
   - Inside those handlers, call the corresponding `TatchiPasskey` methods on the host (`emailRecoveryFlow.start`, `buildMailtoUrl`, `startPolling`, `finalize`) and wire `onEvent: (ev) => postProgress(req.requestId, ev)` so `EmailRecoveryPhase` events reach the client.
+
+### 10.10 Config knobs (`TatchiPasskeyConfigs.relayer.emailRecovery`)
+
+- [ ] Extend `TatchiPasskeyConfigs` in `sdk/src/core/types/passkeyManager.ts`:
+  - under `relayer`, add an `emailRecovery` config object, for example:
+    - `minBalanceYocto?: string` – minimum available balance required to start Phase A (prevents underfunded accounts from entering the flow).
+    - `pollingIntervalMs?: number` – override for email recovery polling interval.
+    - `maxPollingDurationMs?: number` – maximum time to keep polling before timing out.
+    - `pendingTtlMs?: number` – TTL for `PendingEmailRecovery` records (default ~30 minutes).
+- [ ] Use these values in `EmailRecoveryFlow` instead of hard‑coding constants, falling back to sensible defaults when not provided.

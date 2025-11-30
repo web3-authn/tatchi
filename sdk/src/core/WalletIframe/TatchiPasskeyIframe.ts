@@ -116,7 +116,7 @@ export class TatchiPasskeyIframe {
       nearRpcUrl: configs.nearRpcUrl,
       nearNetwork: configs.nearNetwork,
       contractId: configs.contractId,
-      relayer: configs.relayer,
+      // relayer: configs.relayer,
       vrfWorkerConfigs: configs.vrfWorkerConfigs,
       rpIdOverride: configs.iframeWallet?.rpIdOverride,
       authenticatorOptions: configs.authenticatorOptions,

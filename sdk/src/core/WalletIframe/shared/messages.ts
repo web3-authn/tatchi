@@ -80,8 +80,7 @@ export interface PMSetConfigPayload {
   nearExplorerUrl?: string;
   relayer?: {
     initialUseRelayer?: boolean;
-    accountId: string;
-    url: string
+    url: string;
   };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;

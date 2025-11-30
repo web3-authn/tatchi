@@ -104,7 +104,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         },
         relayer: {
           url: "https://relay.tatchi.xyz",
-          accountId: "w3a-relayer.testnet",
         },
       }}
     >
