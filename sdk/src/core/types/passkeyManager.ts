@@ -100,6 +100,23 @@ export enum DeviceLinkingStatus {
   ERROR = 'error',
 }
 
+// Email Recovery Enums
+export enum EmailRecoveryPhase {
+  STEP_1_PREPARATION = 'email-recovery-preparation',
+  STEP_2_TOUCH_ID_REGISTRATION = 'email-recovery-touch-id-registration',
+  STEP_3_AWAIT_EMAIL = 'email-recovery-await-email',
+  STEP_4_POLLING_ADD_KEY = 'email-recovery-polling-add-key',
+  STEP_5_FINALIZING_REGISTRATION = 'email-recovery-finalizing-registration',
+  STEP_6_COMPLETE = 'email-recovery-complete',
+  ERROR = 'email-recovery-error',
+  RESUMED_FROM_PENDING = 'email-recovery-resumed-from-pending',
+}
+export enum EmailRecoveryStatus {
+  PROGRESS = 'progress',
+  SUCCESS = 'success',
+  ERROR = 'error',
+}
+
 // Base event callback type
 export type EventCallback<T> = (event: T) => void;
 
@@ -112,8 +129,8 @@ export interface AfterCall<T> {
 // Base SSE Event Types (unified for Registration and Actions)
 export interface BaseSSEEvent {
   step: number;
-  phase: RegistrationPhase | LoginPhase | ActionPhase | DeviceLinkingPhase | AccountRecoveryPhase;
-  status: RegistrationStatus | LoginStatus | ActionStatus | DeviceLinkingStatus | AccountRecoveryStatus;
+  phase: RegistrationPhase | LoginPhase | ActionPhase | DeviceLinkingPhase | AccountRecoveryPhase | EmailRecoveryPhase;
+  status: RegistrationStatus | LoginStatus | ActionStatus | DeviceLinkingStatus | AccountRecoveryStatus | EmailRecoveryStatus;
   message: string;
 }
 
@@ -144,6 +161,11 @@ export interface BaseDeviceLinkingSSEEvent extends BaseSSEEvent {
 export interface BaseAccountRecoveryEvent extends BaseSSEEvent {
   phase: AccountRecoveryPhase;
   status: AccountRecoveryStatus;
+}
+
+export interface BaseEmailRecoveryEvent extends BaseSSEEvent {
+  phase: EmailRecoveryPhase;
+  status: EmailRecoveryStatus;
 }
 
 // Progress Events
@@ -482,6 +504,69 @@ export type AccountRecoverySSEEvent =
   | AccountRecoveryEventStep5
   | AccountRecoveryError;
 
+/////////////////////////////////////////////
+// SDK-Sent-Events: Email Recovery Event Types
+/////////////////////////////////////////////
+
+export interface EmailRecoveryEventStep1 extends BaseEmailRecoveryEvent {
+  step: 1;
+  phase: EmailRecoveryPhase.STEP_1_PREPARATION;
+}
+
+export interface EmailRecoveryEventStep2 extends BaseEmailRecoveryEvent {
+  step: 2;
+  phase: EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION;
+}
+
+export interface EmailRecoveryEventStep3 extends BaseEmailRecoveryEvent {
+  step: 3;
+  phase: EmailRecoveryPhase.STEP_3_AWAIT_EMAIL;
+}
+
+export interface EmailRecoveryEventStep4 extends BaseEmailRecoveryEvent {
+  step: 4;
+  phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY;
+  data?: Record<string, unknown>;
+  logs?: string[];
+}
+
+export interface EmailRecoveryEventStep5 extends BaseEmailRecoveryEvent {
+  step: 5;
+  phase: EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION;
+  data?: Record<string, unknown>;
+}
+
+export interface EmailRecoveryEventStep6 extends BaseEmailRecoveryEvent {
+  step: 6;
+  phase: EmailRecoveryPhase.STEP_6_COMPLETE;
+  status: EmailRecoveryStatus.SUCCESS;
+  data?: Record<string, unknown>;
+}
+
+export interface EmailRecoveryEventResumedFromPending extends BaseEmailRecoveryEvent {
+  step: 0;
+  phase: EmailRecoveryPhase.RESUMED_FROM_PENDING;
+  status: EmailRecoveryStatus.PROGRESS;
+  data?: Record<string, unknown>;
+}
+
+export interface EmailRecoveryErrorEvent extends BaseEmailRecoveryEvent {
+  step: 0;
+  phase: EmailRecoveryPhase.ERROR;
+  status: EmailRecoveryStatus.ERROR;
+  error: string;
+}
+
+export type EmailRecoverySSEEvent =
+  | EmailRecoveryEventStep1
+  | EmailRecoveryEventStep2
+  | EmailRecoveryEventStep3
+  | EmailRecoveryEventStep4
+  | EmailRecoveryEventStep5
+  | EmailRecoveryEventStep6
+  | EmailRecoveryEventResumedFromPending
+  | EmailRecoveryErrorEvent;
+
 //////////////////////////////////
 /// Hooks Options
 //////////////////////////////////
@@ -568,7 +653,7 @@ export interface AccountRecoveryHooksOptions {
 }
 
 export interface SignNEP413HooksOptions {
-  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent>;
+  onEvent?: EventCallback<RegistrationSSEEvent | LoginSSEvent | ActionSSEEvent | DeviceLinkingSSEEvent | AccountRecoverySSEEvent | EmailRecoverySSEEvent>;
   onError?: (error: Error) => void;
 
   afterCall?: AfterCall<SignNEP413MessageResult>;
@@ -657,7 +742,14 @@ export interface TatchiPasskeyConfigs {
   // Relay Server is used to create new NEAR accounts
   relayer: {
     // accountId: string;
-    url: string
+    url: string;
+    emailRecovery?: {
+      minBalanceYocto?: string;
+      pollingIntervalMs?: number;
+      maxPollingDurationMs?: number;
+      pendingTtlMs?: number;
+      mailtoAddress?: string;
+    };
   }
   // authenticator options for registrations
   authenticatorOptions?: AuthenticatorOptions;

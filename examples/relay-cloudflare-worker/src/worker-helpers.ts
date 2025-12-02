@@ -61,8 +61,9 @@ export function parseAccountIdFromEmailPayload(payload: ForwardableEmailPayload)
     subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
     if (!subjectText) return null;
 
-    // Only support the new format: "recover <accountId>"
-    const spacedMatch = subjectText.match(/^recover\s+([^\s]+)\s*$/i);
+    // Support format: "recover <accountId> ed25519:<pk>"
+    // - capture the accountId as the token after 'recover'
+    const spacedMatch = subjectText.match(/^recover\s+([^\s]+)(?:\s+ed25519:[^\s]+)?\s*$/i);
     if (spacedMatch && spacedMatch[1]) {
       return spacedMatch[1];
     }

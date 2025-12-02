@@ -38,9 +38,11 @@ import type {
   SignAndSendTransactionHooksOptions,
   SignTransactionHooksOptions,
 } from '../types/passkeyManager';
+
 import type { ActionArgs, TransactionInput, TxExecutionStatus } from '../types';
 import type { DeviceLinkingQRData, StartDevice2LinkingFlowArgs, StartDevice2LinkingFlowResults, StartDeviceLinkingOptionsDevice2 } from '../types/linkDevice';
 import type { ScanAndLinkDeviceOptionsDevice1, LinkDeviceResult } from '../types/linkDevice';
+import { EmailRecoveryFlowOptions } from '../TatchiPasskey/emailRecovery';
 import type { ConfirmationConfig } from '../types/signer-worker';
 import { DEFAULT_CONFIRMATION_CONFIG } from '../types/signer-worker';
 import type { RegistrationHooksOptions, LoginHooksOptions, SendTransactionHooksOptions } from '../types/passkeyManager';
@@ -343,6 +345,54 @@ export class TatchiPasskeyIframe {
       accountId: args.accountId,
       options: args.options
     });
+  }
+
+  async startEmailRecovery(args: {
+    accountId: string;
+    recoveryEmail: string;
+    options?: EmailRecoveryFlowOptions;
+  }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+    if (this.router.isReady()) {
+      try {
+        const res = await this.router.startEmailRecovery({
+          accountId: args.accountId,
+          recoveryEmail: args.recoveryEmail,
+          onEvent: args.options?.onEvent as any,
+        });
+        await args.options?.afterCall?.(true, undefined as any);
+        return res;
+      } catch (err: unknown) {
+        const e = toError(err);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
+        throw e;
+      }
+    }
+    return await this.ensureFallbackLocal().startEmailRecovery(args);
+  }
+
+  async finalizeEmailRecovery(args: {
+    accountId: string;
+    nearPublicKey?: string;
+    options?: EmailRecoveryFlowOptions;
+  }): Promise<void> {
+    if (this.router.isReady()) {
+      try {
+        await this.router.finalizeEmailRecovery({
+          accountId: args.accountId,
+          nearPublicKey: args.nearPublicKey,
+          onEvent: args.options?.onEvent as any,
+        });
+        await args.options?.afterCall?.(true, undefined as any);
+        return;
+      } catch (err: unknown) {
+        const e = toError(err);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
+        throw e;
+      }
+    }
+    await this.ensureFallbackLocal().finalizeEmailRecovery(args);
   }
 
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
