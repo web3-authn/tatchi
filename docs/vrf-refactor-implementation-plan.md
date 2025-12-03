@@ -129,7 +129,7 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
 
 ### Phase 1 – Introduce VRF‑centric SecureConfirm bridging (JS only)
 
-**Goal:** Allow VRF‑side logic to reuse confirmTxFlow without changing Rust yet.
+**Goal:** Make VRF‑side logic the owner of SecureConfirm (confirmTxFlow), while SignerWorkerManager becomes a consumer of VRF sessions.
 
 - **Step 1.1 – Add a VRF‑side SecureConfirm bridge:**
   - Create a new VRF helper (e.g. `sdk/src/core/WebAuthnManager/VrfWorkerManager/secureConfirmBridge.ts`) that:
@@ -150,9 +150,19 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
   - Add a `VrfConfirmContext` builder in VRF manager (or wallet iframe host code) to build the same shape.
   - Update `handlePromptUserConfirmInJsMainThread` and flow modules (`flows/*`) to depend on `SecureConfirmHostContext` instead of `SignerWorkerManagerContext` directly.
 
-- **Step 1.3 – Keep existing signer‑worker SecureConfirm path intact:**
-  - Do not yet change `awaitSecureConfirmationV2` or Rust signer code.
-  - This ensures we can introduce VRF‑side SecureConfirm gradually and test both paths.
+- **Step 1.3 – Relocate SecureConfirm bridge from signer worker to VRF worker:**
+  - Move the WASM→JS bridge for SecureConfirm so that VRF becomes the caller:
+    - In `web3authn-vrf.worker.ts`, import `awaitSecureConfirmationV2` and `SecureConfirmMessageType` from `SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation` and assign it to `globalThis.awaitSecureConfirmationV2` (mirroring the current signer worker pattern).
+    - Update the VRF WASM crate (`wasm_vrf_worker`) to call `awaitSecureConfirmationV2` for flows that need TouchID/WebAuthn (login/unlock, VRF‑gated signing sessions), instead of the signer WASM crate.
+    - Remove the `awaitSecureConfirmationV2` bridge and `SecureConfirmMessageType` coupling from `web3authn-signer.worker.ts` and from the signer WASM crate.
+  - After this step:
+    - `confirmTxFlow` (touchId prompt + confirmation modals) is conceptually “owned” by the VRF pipeline.
+    - The signer worker never triggers SecureConfirm; it only receives `Kwrap`/session info and transaction payloads.
+
+- **Step 1.4 – Co-locate confirmTxFlow with VrfWorkerManager:**
+  - As part of this refactor, move the `confirmTxFlow` folder from `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow` to a new location under `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow`.
+  - Update all imports (in `SignerWorkerManager`, wallet iframe client/host code, tests, and worker files) to reference the new path.
+  - This co-location makes the ownership clear: confirmTxFlow is VRF‑centric infrastructure that SignerWorkerManager simply consumes via its context, rather than “belonging” to the signer worker.
 
 ### Phase 2 – Add Kwrap derivation & VRF→Signer channel
 
@@ -183,6 +193,12 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
   - Define a small protocol for messages on this channel:
     - `{ type: 'KWRAP_SESSION', sessionId, kwrap, saltWrap, vaultRef }`.
     - Possibly `{ type: 'SESSION_EXPIRE', sessionId }` for expiry semantics.
+  - Worker pool integration (ensuring we talk to the *same* signer worker):
+    - `SignerWorkerManager` (which owns the pool) selects a worker for the signing session and generates a `sessionId`.
+    - It stores a mapping `sessionId → { worker, kwrapPort }` in memory and marks that worker as reserved until the session completes or times out.
+    - It creates the `MessageChannel`, sends one port to that specific signer worker (e.g. `ATTACH_KWRAP_PORT { sessionId, port }`), and passes the other port + `sessionId` to the VRF side.
+    - VRF only ever uses the provided port; because the port is already attached to a concrete worker instance, `Kwrap` always lands on the same signer worker.
+    - Subsequent calls like `signTransactionsWithActions` for that session use the `sessionId` to look up the reserved worker in the map, rather than calling `getWorkerFromPool()` again, making it impossible to send the transaction payload to the wrong worker as long as the map is maintained correctly and cleaned up on success/timeout/cancel.
 
 - **Step 2.3 – Make signer worker accept Kwrap channel input:**
   - Extend signer worker Rust and TS bindings such that:
@@ -210,11 +226,9 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
 
 - **Step 3.2 – Wire signer calls to consume VRF sessions:**
   - Update `SignerWorkerManager.signTransactionsWithActions` so that:
-    - Option A (transitional): it can still use the old signer‑worker‑driven SecureConfirm path.
-    - Option B (new VRF mode): it calls the VRF‑driven `confirmAndPrepareSigningSession`, then:
+    - It always calls the VRF‑driven `confirmAndPrepareSigningSession`, then:
       - Sends a `SignTransactionsWithActions` message to the signer worker including the `kwrapPayload` and `transactionContext`.
       - Signer worker performs signing without ever invoking SecureConfirm on its own.
-  - Gradually flip the default to the VRF‑driven path once stable.
 
 - **Step 3.3 – Align NEP‑413 and other signing flows:**
   - Mirror Step 3.1 and 3.2 for NEP‑413 and any other signing flows using SecureConfirm.
@@ -267,19 +281,11 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
 
 ## 6. Interim Constraints and Backwards Compatibility
 
-- **Dual mode for a period:**
-  - Allow both:
-    - Legacy signer‑worker SecureConfirm path (for stability and rollback).
-    - New VRF‑driven path (behind a feature flag or configuration).
+In this implementation, we assume a full switch to the new VRF‑centric architecture:
 
-- **Feature flagging:**
-  - Introduce an internal flag (e.g. `enableVrfKwrapRefactor`) in configuration:
-    - When `false`: use existing signer‑worker SecureConfirm path.
-    - When `true`: route signing flows through VRF‑driven confirm + `Kwrap` session.
-
-- **No changes to wallet iframe public API initially:**
-  - External integrators should continue to use the same SDK surface (`signTransactionsWithActions`, etc.).
-  - The refactor should be internal to the wallet iframe + workers.
+- The legacy signer‑worker SecureConfirm path is removed rather than kept in parallel.
+- No feature flags are required for routing; all signing flows use the VRF‑driven confirm + `Kwrap` session.
+- The public SDK surface (`signTransactionsWithActions`, etc.) remains stable; changes are internal to the wallet iframe + workers.
 
 ---
 
@@ -288,8 +294,68 @@ From `vrf_webauthn_hybrid_feature_spec.md`:
 This plan:
 - Moves the critical PRF/WebAuthn + VRF logic to the **VRF worker pipeline**, in line with `vrf_webauthn_hybrid_feature_spec.md`.
 - Confines the real unwrapping key (`Kwrap`) to VRF/Signer workers and off the main thread.
-- Refactors confirmTxFlow to be reusable by both signer and VRF side, then gradually re‑centers it on VRF.
-- Enables a staged migration with dual‑mode support and minimal disruption to existing UI and APIs.
+- Refactors confirmTxFlow to be reusable by both signer and VRF side, then fully re‑centers it on VRF as the single path.
 
 The key structural change is that **transaction confirmation and PRF handling become VRF‑centric**, and the signer worker becomes a narrow “Kwrap → KEK → NEAR signature” enclave. This is what delivers the main security improvement while keeping the current confirmTxFlow UX model. 
 
+---
+
+## 8. Phased TODO Checklist
+
+Use this checklist to track implementation progress. Mark each item as it lands.
+
+### Phase 1 – VRF‑centric SecureConfirm (JS + ownership)
+
+- [ ] Extract `SecureConfirmHostContext` and update `confirmTxFlow` to depend on it instead of `SignerWorkerManagerContext`.
+- [ ] Add VRF‑side SecureConfirm bridge (`VrfWorkerManager/secureConfirmBridge.ts`) that calls `handlePromptUserConfirmInJsMainThread` with a VRF context.
+- [ ] Move the `awaitSecureConfirmationV2` bridge from `web3authn-signer.worker.ts` into `web3authn-vrf.worker.ts` and update the VRF WASM crate to call it.
+- [ ] Remove `awaitSecureConfirmationV2` / `SecureConfirmMessageType` wiring from signer worker TS + WASM.
+- [ ] Move the `confirmTxFlow` folder under `VrfWorkerManager/confirmTxFlow` and update all imports (SignerWorkerManager, iframe host/client, tests, workers).
+
+### Phase 2 – Kwrap derivation + VRF→Signer channel
+
+- [ ] Add a `DERIVE_KWRAP_AND_SESSION` (or equivalent) request/response to the VRF WASM crate, with bindings in `types/vrf-worker.ts` and `VrfWorkerManager`.
+- [ ] Implement the `KwrapChannel` abstraction in the wallet iframe, backed by a `MessageChannel` kept internal to the iframe.
+- [ ] Extend `SignerWorkerManager` to:
+  - [ ] Reserve a worker + generate `sessionId` per signing session.
+  - [ ] Maintain `sessionId → { worker, kwrapPort, createdAt }` mapping and clean it up on success/timeout/cancel.
+  - [ ] Implement a session timeout mechanism (e.g. 5‑minute default) that scans `createdAt`, auto‑releases expired sessions, and terminates/returns workers as needed.
+  - [ ] Add an explicit `releaseSession(sessionId)` helper that clears the mapping, closes the port, and returns/terminates the worker.
+  - [ ] Ensure pool APIs cannot bypass session binding (e.g. make `getWorkerFromPool()` private or never call it for active `sessionId`s).
+  - [ ] Send `ATTACH_KWRAP_PORT { sessionId, port }` to the chosen worker and pass the sibling port + `sessionId` to VRF.
+- [ ] Update signer worker TS + WASM to accept `Kwrap + salt_wrap` (via channel or envelope), derive `KEK`, and decrypt `near_sk`.
+- [ ] Extend signer request payloads (e.g. `SignTransactionsWithActions`, NEP‑413) to include `sessionId` / `kwrapPayload`.
+ - [ ] Implement Kwrap crypto changes:
+   - [ ] VRF WASM: implement `derive_kwrap(prf_first_auth, vrf_sk)` using the HKDF chain from `vrf_webauthn_hybrid_feature_spec.md`.
+   - [ ] Signer WASM: change KEK derivation from `derive_kek(prf_first)` to `derive_kek(kwrap, salt_wrap)`.
+ - [ ] Implement vault v2 format:
+   - [ ] Add `C_vrf_backup`, `shamir_pub`, `salt_wrap`, and `version: 2` fields.
+   - [ ] Ensure registration writes v2 vaults and existing v1 vaults are handled or migrated.
+ - [ ] Implement VRF unlock flows in the VRF worker:
+   - [ ] Primary: Shamir 3‑pass VRF unlock using the relay server.
+   - [ ] Fallback: PRF.second‑based VRF unlock for explicit recovery mode.
+
+### Phase 3 – VRF‑driven signing flows
+
+- [ ] Add `confirmAndPrepareSigningSession(args)` (or equivalent) to `VrfWorkerManager` to:
+  - [ ] Run VRF‑driven SecureConfirm (via `confirmTxFlow`).
+  - [ ] Derive `Kwrap` in the VRF worker and emit `{ sessionId, kwrapPayload, transactionContext }`.
+- [ ] Refactor `SignerWorkerManager.signTransactionsWithActions` to always:
+  - [ ] Call `confirmAndPrepareSigningSession`.
+  - [ ] Use the reserved worker from the `sessionId` map and send the tx payload + `kwrapPayload`.
+- [ ] Apply the same pattern to NEP‑413 and any other signing flows that rely on SecureConfirm.
+- [ ] Add tests to confirm signer worker never calls SecureConfirm and never sees PRF/`vrf_sk`.
+
+### Phase 4 – Cleanup, invariants, and hardening
+
+- [ ] Remove any remaining signer‑worker SecureConfirm glue from Rust and TS (including unused enums/types).
+- [ ] Enforce invariants via code + tests:
+  - [ ] No PRF/`vrf_sk` imports or identifiers in signer worker code/messages.
+  - [ ] No `near_sk` handling in VRF worker code.
+  - [ ] Kwrap only appears in VRF↔Signer channel payloads, not in generic logs or app‑origin messages.
+- [ ] Update `wasm-exports.test.ts` and related tests for the new export surface (VRF vs signer).
+- [ ] Add regression tests for confirmTxFlow parity (registration, link device, tx signing, NEP‑413, local‑only flows).
+- [ ] Update any relevant docs (SDK README, wallet iframe docs) to reflect the new VRF‑centric flow and worker responsibilities.
+ - [ ] Remove legacy PRF‑first paths from signer WASM:
+   - [ ] Remove `derive_chacha20_key_from_prf()` (or equivalent) and related callers.
+   - [ ] Remove any remaining direct PRF handling from the signer WASM crate so Kwrap is the only unlock factor.
