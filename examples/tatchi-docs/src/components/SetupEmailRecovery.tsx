@@ -48,10 +48,6 @@ export const SetupEmailRecovery: React.FC = () => {
     void refreshOnChainEmails();
   }, [refreshOnChainEmails]);
 
-  if (!isLoggedIn || !nearAccountId) {
-    return null;
-  }
-
   const ensureTestnet = () => {
     if (tatchi.configs.nearNetwork !== 'testnet') {
       toast.error('Email recovery demo is only available on testnet for now.');
@@ -402,6 +398,10 @@ export const SetupEmailRecovery: React.FC = () => {
     setPollingElapsedMs(null);
     setRecoveryStatus(null);
   };
+
+  if (!isLoggedIn || !nearAccountId) {
+    return null;
+  }
 
   return (
     <>
