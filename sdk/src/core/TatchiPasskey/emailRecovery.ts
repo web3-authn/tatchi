@@ -375,7 +375,7 @@ export class EmailRecoveryFlow {
   private buildMailtoUrlInternal(rec: PendingEmailRecovery): string {
     const { mailtoAddress } = this.getConfig();
     const to = encodeURIComponent(mailtoAddress);
-    const subject = encodeURIComponent(`recover ${rec.accountId} ed25519:${rec.nearPublicKey}`);
+    const subject = encodeURIComponent(`recover ${rec.accountId} ${rec.nearPublicKey}`);
     const body = encodeURIComponent(`Recovering account ${rec.accountId} with a new passkey.`);
     return `mailto:${to}?subject=${subject}&body=${body}`;
   }
