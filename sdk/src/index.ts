@@ -2,7 +2,11 @@
 export { TatchiPasskey } from './core/TatchiPasskey';
 export { WebAuthnManager } from './core/WebAuthnManager';
 export { AccountRecoveryFlow } from './core/TatchiPasskey';
-export { type NearClient, MinimalNearClient } from './core/NearClient';
+export {
+  type NearClient,
+  MinimalNearClient,
+  encodeSignedTransactionBase64
+} from './core/NearClient';
 export { verifyAuthenticationResponse } from './core/TatchiPasskey/login';
 
 export * from './config';

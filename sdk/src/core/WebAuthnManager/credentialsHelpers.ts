@@ -69,6 +69,32 @@ export function generateEd25519Salt(nearAccountId: string): Uint8Array {
   return salt;
 }
 
+/** Credential that may have extension results (live or serialized) */
+type CredentialWithExtensions =
+  | PublicKeyCredential
+  | {
+      clientExtensionResults?: unknown;
+      getClientExtensionResults?: () => unknown;
+    };
+
+/** Extension results structure - flexible to handle both live and serialized forms */
+type ExtensionResults = {
+  prf?: {
+    enabled?: boolean;
+    results?: {
+      first?: unknown;
+      second?: unknown;
+    };
+  };
+  [key: string]: unknown;
+};
+
+/** PRF output values after extraction */
+type PrfOutputs = {
+  first?: unknown;
+  second?: unknown;
+};
+
 /**
  * Extract PRF outputs from WebAuthn credential extension results
  * ENCODING: Uses base64url for WASM compatibility
@@ -82,49 +108,24 @@ export function extractPrfFromCredential({
   firstPrfOutput = true,
   secondPrfOutput = false,
 }: {
-  credential: PublicKeyCredential | { clientExtensionResults?: unknown; getClientExtensionResults?: () => unknown };
-  firstPrfOutput?: boolean | undefined,
-  secondPrfOutput?: boolean,
+  credential: CredentialWithExtensions;
+  firstPrfOutput?: boolean | undefined;
+  secondPrfOutput?: boolean;
 }): DualPrfOutputs {
-  // Support both live PublicKeyCredential and already-serialized credential objects
-  let extensionResults: unknown | undefined;
-  try {
-    const fn = (credential as { getClientExtensionResults?: () => unknown })?.getClientExtensionResults;
-    if (typeof fn === 'function') {
-      extensionResults = fn.call(credential);
-    } else {
-      extensionResults = (credential as { clientExtensionResults?: unknown })?.clientExtensionResults;
-    }
-  } catch {
-    extensionResults = (credential as { clientExtensionResults?: unknown })?.clientExtensionResults;
-  }
+  // Step 1: Get extension results (support both live and serialized credentials)
+  const extensionResults = getExtensionResults(credential);
 
-  const prfResults = ((): { first?: unknown; second?: unknown } | undefined => {
-    try {
-      const prf = (extensionResults as { prf?: { results?: { first?: unknown; second?: unknown } } })?.prf;
-      return prf?.results;
-    } catch { return undefined; }
-  })();
-  if (!prfResults) {
-    throw new Error('Missing PRF results from credential, use a PRF-enabled Authenticator');
-  }
+  // Step 2: Extract PRF results object
+  const prfResults = extractPrfResultsObject(extensionResults);
 
-  const normalizeToB64u = (val: unknown): string | undefined => {
-    if (!val) return undefined;
-    if (typeof val === 'string') return val; // already base64url in serialized shape
-    if (val instanceof ArrayBuffer) return base64UrlEncode(val);
-    if (ArrayBuffer.isView(val)) return base64UrlEncode((val as ArrayBufferView).buffer);
-    try {
-      // Attempt to treat as ArrayBuffer-like
-      return base64UrlEncode(val as ArrayBufferLike);
-    } catch {
-      try { return base64UrlEncode((new Uint8Array(val as ArrayBufferLike).buffer)); } catch { return undefined; }
-    }
-  };
+  // Step 3: Validate PRF results exist and are not empty
+  validatePrfResults(prfResults, firstPrfOutput, secondPrfOutput);
 
-  const firstEncoded = firstPrfOutput ? normalizeToB64u(prfResults.first) : undefined;
-  const secondEncoded = secondPrfOutput ? normalizeToB64u(prfResults.second) : undefined;
+  // Step 4: Normalize and encode PRF outputs
+  const firstEncoded = firstPrfOutput ? normalizePrfValueToBase64Url(prfResults.first) : undefined;
+  const secondEncoded = secondPrfOutput ? normalizePrfValueToBase64Url(prfResults.second) : undefined;
 
+  // Step 5: Validate required outputs are present
   if (firstPrfOutput && !firstEncoded) {
     throw new Error('Missing PRF result: first');
   }
@@ -136,6 +137,74 @@ export function extractPrfFromCredential({
     chacha20PrfOutput: firstEncoded || '',
     ed25519PrfOutput: secondEncoded || '',
   };
+}
+
+/** Get extension results from credential (live or serialized) */
+function getExtensionResults(credential: CredentialWithExtensions): ExtensionResults | undefined {
+  try {
+    const fn = (credential as { getClientExtensionResults?: () => unknown }).getClientExtensionResults;
+    if (typeof fn === 'function') {
+      return fn.call(credential) as ExtensionResults;
+    }
+  } catch {
+    // Fall through to direct property access
+  }
+  return (credential as { clientExtensionResults?: unknown }).clientExtensionResults as ExtensionResults | undefined;
+}
+
+/** Extract PRF results object from extension results */
+function extractPrfResultsObject(extensionResults: ExtensionResults | undefined): PrfOutputs | undefined {
+  try {
+    return extensionResults?.prf?.results;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Validate PRF results are present and not empty */
+function validatePrfResults(
+  prfResults: PrfOutputs | undefined,
+  firstRequired: boolean,
+  secondRequired: boolean
+): asserts prfResults is PrfOutputs {
+  if (!prfResults) {
+    throw new Error('Missing PRF results from credential, use a PRF-enabled Authenticator');
+  }
+
+  // Check if PRF results object exists but is completely empty
+  // This indicates a hard failure (not a platform limitation that should trigger GET fallback)
+  const hasAnyPrfData = prfResults.first !== undefined || prfResults.second !== undefined;
+  if (!hasAnyPrfData && (firstRequired || secondRequired)) {
+    throw new Error('Missing PRF result - PRF evaluation failed: results object is empty');
+  }
+}
+
+/** Normalize a PRF value to base64url string */
+function normalizePrfValueToBase64Url(value: unknown): string | undefined {
+  if (!value) return undefined;
+
+  // Already base64url encoded
+  if (typeof value === 'string') return value;
+
+  // ArrayBuffer
+  if (value instanceof ArrayBuffer) return base64UrlEncode(value);
+
+  // ArrayBufferView (TypedArray, DataView)
+  if (ArrayBuffer.isView(value)) {
+    return base64UrlEncode(value.buffer);
+  }
+
+  // Try to treat as ArrayBuffer-like
+  try {
+    return base64UrlEncode(value as ArrayBufferLike);
+  } catch {
+    // Last resort: wrap in Uint8Array
+    try {
+      return base64UrlEncode(new Uint8Array(value as ArrayBufferLike).buffer);
+    } catch {
+      return undefined;
+    }
+  }
 }
 
 type SerializableCredential = WebAuthnAuthenticationCredential | WebAuthnRegistrationCredential;
@@ -316,8 +385,10 @@ export async function ensureDualPrfForRegistration({
   } catch (e: unknown) {
     const msg = String((e as { message?: unknown })?.message || e || '');
     const missingPrf = /Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg);
-    if (!missingPrf) {
-      // Some other failure; surface as-is.
+    const prfFailed = /PRF evaluation failed/i.test(msg);
+    if (!missingPrf || prfFailed) {
+      // Either a non-PRF error, or a hard PRF failure (not a platform limitation).
+      // Re-throw immediately without attempting GET fallback.
       throw e;
     }
   }
