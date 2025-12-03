@@ -9,7 +9,7 @@ const config = {
   nearNetwork: 'testnet',
   nearRpcUrl: 'https://test.rpc.fastnear.com',
   contractId: 'w3a-v1.testnet',
-  relayer: { accountId: 'w3a-v1.testnet', url: relayerUrl },
+  relayer: { url: relayerUrl },
   iframeWallet: { walletOrigin },
 }
 

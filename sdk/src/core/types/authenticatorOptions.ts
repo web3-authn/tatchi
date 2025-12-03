@@ -1,4 +1,4 @@
-import * as wasmModule from '@/wasm_signer_worker/pkg/wasm_signer_worker.js';
+import * as wasmModule from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 
 /**
  * User verification policy for WebAuthn authenticators

@@ -96,6 +96,7 @@ export class TatchiPasskey {
   // Internal active Device2 flow when running locally (not exposed)
   private activeDeviceLinkFlow: LinkDeviceFlow | null = null;
   private activeAccountRecoveryFlow: AccountRecoveryFlow | null = null;
+  private activeEmailRecoveryFlow: import('./emailRecovery').EmailRecoveryFlow | null = null;
 
   constructor(
     configs: TatchiPasskeyConfigs,
@@ -1200,6 +1201,58 @@ export class TatchiPasskey {
       await options?.afterCall?.(false);
       throw e;
     }
+  }
+
+  ///////////////////////////////////////
+  // === Email Recovery Flow ===
+  ///////////////////////////////////////
+
+  private getEmailRecoveryFlow(options?: import('./emailRecovery').EmailRecoveryFlowOptions) {
+    const { EmailRecoveryFlow } = require('./emailRecovery') as typeof import('./emailRecovery');
+    if (!this.activeEmailRecoveryFlow) {
+      this.activeEmailRecoveryFlow = new EmailRecoveryFlow(this.getContext(), options);
+    } else if (options) {
+      this.activeEmailRecoveryFlow.setOptions(options);
+    }
+    return this.activeEmailRecoveryFlow;
+  }
+
+  async startEmailRecovery(args: {
+    accountId: string;
+    recoveryEmail: string;
+    options?: import('./emailRecovery').EmailRecoveryFlowOptions;
+  }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+    const { accountId, recoveryEmail, options } = args;
+    if (this.iframeRouter) {
+      const res = await this.iframeRouter.startEmailRecovery({
+        accountId,
+        recoveryEmail,
+        onEvent: options?.onEvent as any,
+      });
+      // Let the host flow own afterCall/onError; avoid double-calling
+      return res;
+    }
+    const flow = this.getEmailRecoveryFlow(options);
+    return await flow.start({ accountId, recoveryEmail });
+  }
+
+  async finalizeEmailRecovery(args: {
+    accountId: string;
+    nearPublicKey?: string;
+    options?: import('./emailRecovery').EmailRecoveryFlowOptions;
+  }): Promise<void> {
+    const { accountId, nearPublicKey, options } = args;
+    if (this.iframeRouter) {
+      await this.iframeRouter.finalizeEmailRecovery({
+        accountId,
+        nearPublicKey,
+        onEvent: options?.onEvent as any,
+      });
+      // Let the host flow own afterCall/onError; avoid double-calling
+      return;
+    }
+    const flow = this.getEmailRecoveryFlow(options);
+    await flow.finalize({ accountId, nearPublicKey });
   }
 
   ///////////////////////////////////////

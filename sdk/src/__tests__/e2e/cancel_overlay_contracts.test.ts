@@ -46,7 +46,7 @@ test.describe('Wallet iframe overlay contracts on cancel', () => {
           nearRpcUrl: cfg.nearRpcUrl,
           nearNetwork: cfg.nearNetwork || 'testnet',
           contractId: cfg.contractId,
-          relayer: cfg.useRelayer && cfg.relayServerUrl ? { accountId: cfg.relayerAccount, url: cfg.relayServerUrl } : undefined,
+          relayer: cfg.useRelayer && cfg.relayServerUrl ? { url: cfg.relayServerUrl } : undefined,
           // Tag the test-owned iframe for deterministic selection
           testOptions: { ownerTag: 'tests' },
         });

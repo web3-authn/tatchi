@@ -53,7 +53,7 @@ Config snippet (Option A)
 ```ts
 const passkey = new TatchiPasskey({
   ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-  relayer: { url: '…', accountId: '…' },
+  relayer: { url: '…' },
   iframeWallet: {
     walletOrigin: 'https://wallet.example.com',
     walletServicePath: 'wallet-service',
@@ -94,7 +94,7 @@ Config snippet (Option B)
 ```ts
 const passkey = new TatchiPasskey({
   ...PASSKEY_MANAGER_DEFAULT_CONFIGS,
-  relayer: { url: '…', accountId: '…' },
+  relayer: { url: '…' },
   iframeWallet: {
     walletOrigin: 'https://wallet.example.localhost',
     walletServicePath: 'wallet-service',

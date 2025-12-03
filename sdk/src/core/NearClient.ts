@@ -29,12 +29,10 @@ import {
   WasmTransaction,
   WasmSignature,
 } from "../wasm_signer_worker/pkg/wasm_signer_worker.js";
-// import { Provider } from "@near-js/providers";
 
 // re-export near-js types
 export type { AccessKeyList } from "@near-js/types";
 
-// Type definitions for getAccessKeys function
 export interface ViewAccountParams {
   account: string;
   block_id?: string;
@@ -122,7 +120,9 @@ export type EncodableSignedTx =
       base64Encode?: () => string;
     };
 
-export function toArrayBufferFromUnknownBytes(bytes: unknown): ArrayBuffer | null {
+export function toArrayBufferFromUnknownBytes(
+  bytes: unknown
+): ArrayBuffer | SharedArrayBuffer | null {
   if (!bytes) return null;
 
   // Plain number[]

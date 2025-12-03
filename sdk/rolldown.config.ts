@@ -71,6 +71,9 @@ const external = [
 
   // WASM modules - externalize so bundlers handle them correctly
   /\.wasm$/,
+  // Externalize WASM glue code so Rolldown doesn't wrap it in __esm and break exports
+  /wasm_signer_worker\.js$/,
+  /wasm_vrf_worker\.js$/,
 ];
 
 // External dependencies for embedded components.
@@ -591,7 +594,7 @@ const configs = [
               pushScale('slate', p.slate || {});
               pushScale('cream', p.cream || {});
               // Discover chroma families at root (blue, red, green, yellow, etc.)
-              const exclude = new Set(['grey','slate','cream','gradients','tokens','themes']);
+              const exclude = new Set(['grey', 'slate', 'cream', 'gradients', 'tokens', 'themes']);
               Object.keys(p).filter((k) => !exclude.has(k)).forEach((fam) => {
                 if (p[fam] && typeof p[fam] === 'object') pushScale(fam, p[fam]);
               });

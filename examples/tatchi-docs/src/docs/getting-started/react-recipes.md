@@ -16,7 +16,6 @@ const config = {
   iframeWallet: { walletOrigin: 'https://wallet.tatchi.xyz' },
   relayer: {
     url: 'https://relay.tatchi.xyz',
-    accountId: 'w3a-relayer.testnet',
   },
 }
 

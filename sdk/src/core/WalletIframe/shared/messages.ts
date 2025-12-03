@@ -46,7 +46,10 @@ export type ParentToChildType =
   | 'PM_START_DEVICE2_LINKING_FLOW'     // Device2: Generate QR + poll, render UI in iframe
   | 'PM_STOP_DEVICE2_LINKING_FLOW'      // Device2: Stop/cancel current UI flow
   // Account recovery flow
-  | 'PM_RECOVER_ACCOUNT_FLOW';
+  | 'PM_RECOVER_ACCOUNT_FLOW'
+  // Email recovery flow
+  | 'PM_START_EMAIL_RECOVERY'
+  | 'PM_FINALIZE_EMAIL_RECOVERY';
 
 export type ChildToParentType =
   | 'READY'
@@ -80,8 +83,7 @@ export interface PMSetConfigPayload {
   nearExplorerUrl?: string;
   relayer?: {
     initialUseRelayer?: boolean;
-    accountId: string;
-    url: string
+    url: string;
   };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
@@ -161,6 +163,16 @@ export interface PMViewAccessKeysPayload { accountId: string }
 
 export interface PMDeleteDeviceKeyPayload { accountId: string; publicKeyToDelete: string }
 
+export interface PMStartEmailRecoveryPayload {
+  accountId: string;
+  recoveryEmail: string;
+}
+
+export interface PMFinalizeEmailRecoveryPayload {
+  accountId: string;
+  nearPublicKey?: string;
+}
+
 export interface ProgressPayload {
   step: number;
   phase: string;
@@ -214,7 +226,9 @@ export type ParentToChildEnvelope =
       ui?: 'modal' | 'inline';
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
-  | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>;
+  | RpcEnvelope<'PM_RECOVER_ACCOUNT_FLOW', { accountId?: string }>
+  | RpcEnvelope<'PM_START_EMAIL_RECOVERY', PMStartEmailRecoveryPayload>
+  | RpcEnvelope<'PM_FINALIZE_EMAIL_RECOVERY', PMFinalizeEmailRecoveryPayload>;
 
 export type ChildToParentEnvelope =
   | RpcEnvelope<'READY', ReadyPayload>

@@ -100,6 +100,13 @@ pub fn init_worker() {
     wasm_logger::init(wasm_logger::Config::new(config::CURRENT_LOG_LEVEL));
 }
 
+/// Alias for init_worker to maintain compatibility with bundlers that auto-generate
+/// imports based on the module name (e.g., Rolldown)
+#[wasm_bindgen(js_name = "init_wasm_signer_worker")]
+pub fn init_wasm_signer_worker() {
+    init_worker();
+}
+
 // === PROGRESS MESSAGING ===
 
 /// Progress messaging function that sends messages back to main thread

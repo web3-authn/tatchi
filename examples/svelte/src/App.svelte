@@ -13,7 +13,7 @@
     nearNetwork: 'testnet',
     nearRpcUrl: 'https://test.rpc.fastnear.com',
     contractId: ACCOUNT_DOMAIN,
-    relayer: { accountId: ACCOUNT_DOMAIN, url: relayerUrl },
+    relayer: { url: relayerUrl },
     iframeWallet: { walletOrigin, sdkBasePath: '/sdk' },
   }
 

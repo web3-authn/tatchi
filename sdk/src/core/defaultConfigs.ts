@@ -12,7 +12,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
   contractId: 'w3a-v1.testnet',
   nearExplorerUrl: 'https://testnet.nearblocks.io',
   relayer: {
-    accountId: 'w3a-v1.testnet',
+    // accountId: 'w3a-v1.testnet',
     // No default relayer URL. Force apps to configure via env/overrides.
     // Using an empty string triggers early validation errors in code paths that require it.
     url: '',
@@ -50,7 +50,7 @@ export function buildConfigsFromEnv(overrides: Partial<TatchiPasskeyConfigs> = {
     ...overrides,
     contractId: overrides.contractId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
     relayer: {
-      accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
+      // accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
     },
     vrfWorkerConfigs: {

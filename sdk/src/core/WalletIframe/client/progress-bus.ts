@@ -39,6 +39,7 @@ import {
   AccountRecoveryPhase,
   RegistrationPhase,
   LoginPhase,
+  EmailRecoveryPhase,
 } from '../../types/passkeyManager';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
@@ -53,6 +54,8 @@ const SHOW_PHASES = new Set<string>([
   ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
   // Registration requires a WebAuthn create() ceremony at step 1
   RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
+  // Email recovery: TouchID registration uses WebAuthn create()
+  EmailRecoveryPhase.STEP_2_TOUCH_ID_REGISTRATION,
   // Device1: TouchID authorization (host needs overlay to capture activation)
   DeviceLinkingPhase.STEP_3_AUTHORIZATION,
   // Device2: Registration inside wallet host (collects passkey via ModalTxConfirmer)
@@ -87,6 +90,10 @@ const HIDE_PHASES = new Set<string>([
   AccountRecoveryPhase.STEP_4_AUTHENTICATOR_SAVED,
   AccountRecoveryPhase.STEP_5_ACCOUNT_RECOVERY_COMPLETE,
   AccountRecoveryPhase.ERROR,
+  // Email recovery: hide after finalization/complete or on error
+  EmailRecoveryPhase.STEP_5_FINALIZING_REGISTRATION,
+  EmailRecoveryPhase.STEP_6_COMPLETE,
+  EmailRecoveryPhase.ERROR,
 ]);
 
 export type ProgressPayload = MessageProgressPayload;

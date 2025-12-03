@@ -5,6 +5,8 @@ import type {
   ProgressPayload,
   PMSignAndSendTxsPayload,
   PMExecuteActionPayload,
+  PMStartEmailRecoveryPayload,
+  PMFinalizeEmailRecoveryPayload,
 } from '../shared/messages';
 import type { TatchiPasskey, PasskeyManagerContext, RecoveryResult } from '../../TatchiPasskey';
 import type { TatchiPasskeyIframe } from '../TatchiPasskeyIframe';
@@ -340,5 +342,33 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
     },
-  } as HandlerMap;
+    PM_START_EMAIL_RECOVERY: async (req: Req<'PM_START_EMAIL_RECOVERY'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId, recoveryEmail } = (req.payload as PMStartEmailRecoveryPayload);
+      if (respondIfCancelled(req.requestId)) return;
+      const result = await pm.startEmailRecovery({
+        accountId,
+        recoveryEmail,
+        options: {
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+        } as any,
+      });
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+    PM_FINALIZE_EMAIL_RECOVERY: async (req: Req<'PM_FINALIZE_EMAIL_RECOVERY'>) => {
+      const pm = getTatchiPasskey();
+      const { accountId, nearPublicKey } = (req.payload as PMFinalizeEmailRecoveryPayload);
+      if (respondIfCancelled(req.requestId)) return;
+      await pm.finalizeEmailRecovery({
+        accountId,
+        nearPublicKey,
+        options: {
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
+        } as any,
+      });
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true } });
+    },
+  } as unknown as HandlerMap;
 }

@@ -109,8 +109,7 @@ export interface WalletIframeRouterOptions {
   nearNetwork?: 'testnet' | 'mainnet';
   contractId?: string;
   relayer?: {
-    accountId: string;
-    url: string
+    url: string;
   };
   vrfWorkerConfigs?: Record<string, unknown>;
   rpIdOverride?: string;
@@ -830,6 +829,36 @@ export class WalletIframeRouter {
       }
     });
     return res.result
+  }
+
+  // ===== Email Recovery (wallet-hosted) =====
+  async startEmailRecovery(payload: {
+    accountId: string;
+    recoveryEmail: string;
+    onEvent?: (ev: ProgressPayload) => void
+  }): Promise<{ mailtoUrl: string; nearPublicKey: string }> {
+    const res = await this.post<{ mailtoUrl: string; nearPublicKey: string }>({
+      type: 'PM_START_EMAIL_RECOVERY',
+      payload: { accountId: payload.accountId, recoveryEmail: payload.recoveryEmail },
+      options: {
+        onProgress: payload.onEvent
+      }
+    });
+    return res.result;
+  }
+
+  async finalizeEmailRecovery(payload: {
+    accountId: string;
+    nearPublicKey?: string;
+    onEvent?: (ev: ProgressPayload) => void
+  }): Promise<void> {
+    await this.post<void>({
+      type: 'PM_FINALIZE_EMAIL_RECOVERY',
+      payload: { accountId: payload.accountId, nearPublicKey: payload.nearPublicKey },
+      options: {
+        onProgress: payload.onEvent
+      }
+    });
   }
 
   // ===== Device Linking (iframe-hosted) =====
