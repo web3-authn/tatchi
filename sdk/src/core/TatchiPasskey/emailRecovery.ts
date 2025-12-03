@@ -376,12 +376,7 @@ export class EmailRecoveryFlow {
     const { mailtoAddress } = this.getConfig();
     const to = encodeURIComponent(mailtoAddress);
     const subject = encodeURIComponent(`recover ${rec.accountId} ed25519:${rec.nearPublicKey}`);
-    const body = encodeURIComponent(
-      [
-        `I am requesting to recover my Web3Authn account ${rec.accountId} with a new passkey.`,
-        `Please verify that the email is sent from the registered recovery address: ${rec.recoveryEmail}.`,
-      ].join('\n')
-    );
+    const body = encodeURIComponent(`Recovering account ${rec.accountId} with a new passkey.`);
     return `mailto:${to}?subject=${subject}&body=${body}`;
   }
 

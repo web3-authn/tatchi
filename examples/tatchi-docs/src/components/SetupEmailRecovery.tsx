@@ -256,9 +256,9 @@ export const SetupEmailRecovery: React.FC = () => {
     setPollingElapsedMs(null);
     setRecoveryStatus(null);
 
-    const emailCandidate = (recoveryEmailInput || recoveryEmails[0] || '').trim().toLowerCase();
+    const emailCandidate = (recoveryEmailInput || '').trim().toLowerCase();
     if (!emailCandidate) {
-      toast.error('Please set at least one recovery email first.');
+      toast.error('Please enter the recovery email to send from.');
       return;
     }
 
