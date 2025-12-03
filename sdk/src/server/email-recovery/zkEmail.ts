@@ -72,9 +72,9 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
   if (!subjectText) return null;
 
-  // Only support the new format: "recover <accountId>"
-  const spacedMatch = subjectText.match(/^recover\s+([^\s]+)\s*$/i);
-  if (spacedMatch && spacedMatch[1]) {
+  // Strict format: "recover <accountId> ed25519:<pk>"
+  const spacedMatch = subjectText.match(/^recover\s+([^\s]+)\s+ed25519:[^\s]+\s*$/i);
+  if (spacedMatch?.[1]) {
     return spacedMatch[1];
   }
 
