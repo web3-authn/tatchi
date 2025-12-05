@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '../index';
+import type { SecureConfirmHostContext } from '../secureConfirmBridge';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import { determineConfirmationConfig } from './determineConfirmationConfig';
 import {
@@ -27,7 +27,7 @@ import type {
  * and proper data validation. Supports both transaction and registration confirmation flows.
  */
 export async function handlePromptUserConfirmInJsMainThread(
-  ctx: SignerWorkerManagerContext,
+  ctx: SecureConfirmHostContext,
   message: {
     type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
     data: SecureConfirmRequest,
@@ -116,7 +116,7 @@ export async function handlePromptUserConfirmInJsMainThread(
  * Validates and parses the confirmation request data
  */
 function validateAndParseRequest({ ctx, request }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: SecureConfirmHostContext,
   request: SecureConfirmRequest,
 }): {
   request: SecureConfirmRequest;

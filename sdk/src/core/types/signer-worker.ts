@@ -8,6 +8,9 @@ export { WorkerRequestType, WorkerResponseType }; // Export the WASM enums direc
 
 import { StripFree } from "./index.js";
 import type { onProgressEvents } from "./passkeyManager.js";
+import type { TransactionContext } from './rpc.js';
+import type { VRFChallenge } from './vrf-worker.js';
+import type { SerializableCredential } from '../WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js';
 
 export type WasmTransaction = wasmModule.WasmTransaction;
 export type WasmSignature = wasmModule.WasmSignature;
@@ -23,25 +26,59 @@ export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
  * }
  */
 
-export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
-export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
+export type WasmDeriveNearKeypairAndEncryptRequest = Omit<
+  StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>,
+  'wrapKeySeed' | 'wrapKeySalt' | 'shamirPub'
+> & {
+  // WrapKeySeed is delivered via MessagePort using sessionId
+  wrapKeySeed?: never;
+  // wrapKeySalt is generated/attached inside the VRF/Signer workers
+  wrapKeySalt?: string;
+  // shamirPub is carried on the main thread only (registration confirm → DB), not via signer WASM
+  shamirPub?: never;
+};
+export type WasmRecoverKeypairRequest = Omit<
+  StripFree<wasmModule.RecoverKeypairRequest>,
+  'wrapKeySeed' | 'wrapKeySalt'
+> & {
+  // WrapKeySeed travels over the dedicated VRF→Signer channel
+  wrapKeySeed?: never;
+  // wrapKeySalt is associated with the WrapKeySeed session and may be injected internally
+  wrapKeySalt?: string;
+};
 export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
 // Override the WASM request type to accept string literals for confirmation config
-export type WasmSignTransactionsWithActionsRequest = Omit<StripFree<wasmModule.SignTransactionsWithActionsRequest>, 'confirmationConfig'> & {
-  confirmationConfig?: {
-    uiMode: ConfirmationUIMode;
-    behavior: ConfirmationBehavior;
-    autoProceedDelay?: number;
-    theme?: 'dark' | 'light';
+type RawSignTransactionsWithActionsRequest = StripFree<wasmModule.SignTransactionsWithActionsRequest>;
+export type WasmSignTransactionsWithActionsRequest = Omit<
+  RawSignTransactionsWithActionsRequest,
+  'confirmationConfig' | 'decryption'
+> & {
+  confirmationConfig?: never;
+  intentDigest?: string;
+  transactionContext?: TransactionContext;
+  vrfChallenge?: VRFChallenge;
+  credential?: string;
+  // Decryption context: WrapKeySeed is delivered via MessagePort; only wrapKeySalt + ciphertext travel in payload.
+  decryption: Omit<RawSignTransactionsWithActionsRequest['decryption'], 'wrapKeySeed' | 'wrapKeySalt'> & {
+    wrapKeySeed?: never;
+    wrapKeySalt?: string;
   };
 };
-export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
-export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
-export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
-export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
-export type WasmRegistrationCredentialConfirmationRequest = Omit<StripFree<wasmModule.RegistrationCredentialConfirmationRequest>, 'confirmationConfig'> & {
-  confirmationConfig?: ConfirmationConfig;
+export type WasmDecryptPrivateKeyRequest = Omit<StripFree<wasmModule.DecryptPrivateKeyRequest>, 'wrapKeySeed' | 'wrapKeySalt'> & {
+  wrapKeySeed?: never;
+  wrapKeySalt?: string;
 };
+export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
+export type WasmSignNep413MessageRequest = Omit<
+  StripFree<wasmModule.SignNep413Request>,
+  'wrapKeySeed' | 'wrapKeySalt'
+> & {
+  // WrapKeySeed is delivered via MessagePort using sessionId
+  wrapKeySeed?: never;
+  wrapKeySalt?: string;
+  sessionId?: string;
+};
+export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
 export type WasmExportNearKeypairUiRequest = StripFree<wasmModule.ExportNearKeypairUiRequest>;
 
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
@@ -52,7 +89,6 @@ export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmExtractCosePublicKeyRequest
   | WasmSignNep413MessageRequest
   | WasmSignTransactionWithKeyPairRequest
-  | WasmRegistrationCredentialConfirmationRequest
   | WasmExportNearKeypairUiRequest;
 
 // WASM Worker Response Types
@@ -64,7 +100,6 @@ export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.Decrypt
 export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 // wasm-bindgen generates some classes with private constructors, which breaks
 // `InstanceType<typeof Class>`. Use the class name directly for the instance type.
-export type WasmRegistrationCredentialConfirmationResult = wasmModule.RegistrationCredentialConfirmationResult;
 export type WasmExportNearKeypairUiResult = wasmModule.ExportNearKeypairUiResult;
 
 
@@ -116,11 +151,6 @@ export interface WorkerRequestTypeMap {
     type: WorkerRequestType.SignNep413Message;
     request: WasmSignNep413MessageRequest;
     result: wasmModule.SignNep413Result;
-  };
-  [WorkerRequestType.RegistrationCredentialConfirmation]: {
-    type: WorkerRequestType.RegistrationCredentialConfirmation;
-    request: WasmRegistrationCredentialConfirmationRequest;
-    result: wasmModule.RegistrationCredentialConfirmationResult;
   };
   [WorkerRequestType.ExportNearKeypairUI]: {
     type: WorkerRequestType.ExportNearKeypairUI;
@@ -282,7 +312,6 @@ export interface RequestResponseMap {
   [WorkerRequestType.ExtractCosePublicKey]: wasmModule.CoseExtractionResult;
   [WorkerRequestType.SignTransactionWithKeyPair]: WasmTransactionSignResult;
   [WorkerRequestType.SignNep413Message]: wasmModule.SignNep413Result;
-  [WorkerRequestType.RegistrationCredentialConfirmation]: wasmModule.RegistrationCredentialConfirmationResult;
   [WorkerRequestType.ExportNearKeypairUI]: WasmExportNearKeypairUiResult;
 }
 
@@ -362,7 +391,6 @@ export function isWorkerSuccess<T extends RequestTypeKey>(
     response.type === WorkerResponseType.ExtractCosePublicKeySuccess ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess ||
     response.type === WorkerResponseType.SignNep413MessageSuccess ||
-    response.type === WorkerResponseType.RegistrationCredentialConfirmationSuccess ||
     response.type === WorkerResponseType.ExportNearKeypairUiSuccess
   );
 }
@@ -379,7 +407,6 @@ export function isWorkerError<T extends RequestTypeKey>(
     response.type === WorkerResponseType.ExtractCosePublicKeyFailure ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairFailure ||
     response.type === WorkerResponseType.SignNep413MessageFailure ||
-    response.type === WorkerResponseType.RegistrationCredentialConfirmationFailure ||
     response.type === WorkerResponseType.ExportNearKeypairUiFailure
   );
 }

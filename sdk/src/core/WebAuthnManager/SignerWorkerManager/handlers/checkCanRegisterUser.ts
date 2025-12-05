@@ -1,13 +1,8 @@
 
-import { SIGNER_WORKER_MANAGER_CONFIG } from "../../../../config";
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from "../../../defaultConfigs";
-import {
-  WorkerRequestType,
-  isWorkerError,
-  isCheckCanRegisterUserSuccess,
-} from '../../../types/signer-worker';
-import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
-import { serializeRegistrationCredentialWithPRF } from '../../credentialsHelpers';
+import type { CheckCanRegisterUserResult } from '../../../rpcCalls';
+import { checkCanRegisterUserContractCall } from '../../../rpcCalls';
+import { serializeRegistrationCredentialWithPRF, removePrfOutputGuard } from '../../credentialsHelpers';
 import { VRFChallenge } from '../../../types/vrf-worker';
 import type { onProgressEvents } from '../../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
@@ -62,41 +57,44 @@ export async function checkCanRegisterUser({
 
     // Ensure required fields are present; avoid undefined which gets dropped by JSON.stringify in the worker
     const resolvedContractId = contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId;
-    const resolvedNearRpcUrl = nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl);
 
-    const response = await ctx.sendMessage<WorkerRequestType.CheckCanRegisterUser>({
-      message: {
-        type: WorkerRequestType.CheckCanRegisterUser,
-        payload: {
-          vrfChallenge: {
-            vrfInput: vrfChallenge.vrfInput,
-            vrfOutput: vrfChallenge.vrfOutput,
-            vrfProof: vrfChallenge.vrfProof,
-            vrfPublicKey: vrfChallenge.vrfPublicKey,
-            userId: vrfChallenge.userId,
-            rpId: vrfChallenge.rpId,
-            blockHeight: vrfChallenge.blockHeight,
-            blockHash: vrfChallenge.blockHash,
-          },
-          credential: serializedCredential,
-          contractId: resolvedContractId,
-          nearRpcUrl: resolvedNearRpcUrl,
-          authenticatorOptions: authenticatorOptions ? {
-            userVerification: toEnumUserVerificationPolicy(authenticatorOptions.userVerification),
-            originPolicy: authenticatorOptions.originPolicy,
-          } : undefined
-        }
-      },
-      onEvent,
-      timeoutMs: SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.TRANSACTION
+    onEvent?.({
+      step: 3,
+      phase: 'REGISTRATION_CONTRACT_PRE_CHECK' as any,
+      status: 'PROGRESS' as any,
+      message: 'Calling check_can_register_user on contract...',
     });
 
-    if (!isCheckCanRegisterUserSuccess(response)) {
-      const errorDetails = isWorkerError(response) ? response.payload.error : 'Unknown worker error';
-      throw new Error(`Registration check failed: ${errorDetails}`);
+    // PRF outputs must never be sent over the network. Strip them before
+    // calling the contract while preserving the rest of the credential shape.
+    const strippedCredential = removePrfOutputGuard<WebAuthnRegistrationCredential>(serializedCredential);
+
+    const result: CheckCanRegisterUserResult = await checkCanRegisterUserContractCall({
+      nearClient: ctx.nearClient,
+      contractId: resolvedContractId,
+      vrfChallenge,
+      credential: strippedCredential,
+      authenticatorOptions,
+    });
+
+    if (!result.success) {
+      throw new Error(result.error || 'Registration pre-check RPC failed');
     }
 
-    const wasmResult = response.payload;
+    const wasmResult = {
+      verified: result.verified,
+      registrationInfo: undefined,
+      logs: result.logs,
+      error: result.error,
+    };
+
+    onEvent?.({
+      step: 3,
+      phase: 'REGISTRATION_CONTRACT_PRE_CHECK' as any,
+      status: result.verified ? 'SUCCESS' as any : 'ERROR' as any,
+      message: result.verified ? 'Registration pre-check succeeded' : (result.error || 'Registration pre-check failed'),
+    });
+
     return {
       success: true,
       verified: wasmResult.verified,
@@ -104,6 +102,7 @@ export async function checkCanRegisterUser({
       logs: wasmResult.logs,
       error: wasmResult.error,
     };
+
   } catch (error: unknown) {
     // Preserve the detailed error message instead of converting to generic error
     console.error('checkCanRegisterUser failed:', error);

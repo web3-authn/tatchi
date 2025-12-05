@@ -4,6 +4,7 @@ import {
 } from '../../../types/signer-worker';
 import type { WebAuthnAuthenticationCredential } from '../../../types/webauthn';
 import { SignerWorkerManagerContext } from '..';
+import { withSessionId } from './session';
 
 /**
  * Recover keypair from authentication credential for account recovery
@@ -13,10 +14,12 @@ export async function recoverKeypairFromPasskey({
   ctx,
   credential,
   accountIdHint,
+  sessionId,
 }: {
   ctx: SignerWorkerManagerContext;
   credential: WebAuthnAuthenticationCredential;
   accountIdHint?: string;
+  sessionId: string;
 }): Promise<{
   publicKey: string;
   encryptedPrivateKey: string;
@@ -35,15 +38,18 @@ export async function recoverKeypairFromPasskey({
       throw new Error('Dual PRF outputs required for account recovery - both ChaCha20 and Ed25519 PRF outputs must be available');
     }
 
+    if (!sessionId) throw new Error('Missing sessionId for recovery WrapKeySeed delivery');
+
     // Use generic sendMessage with specific request type for better type safety
     const response = await ctx.sendMessage<WorkerRequestType.RecoverKeypairFromPasskey>({
       message: {
         type: WorkerRequestType.RecoverKeypairFromPasskey,
-        payload: {
-          credential: credential,
-          accountIdHint: accountIdHint,
-        }
-      }
+        payload: withSessionId({
+          credential,
+          accountIdHint,
+        }, sessionId)
+      },
+      sessionId,
     });
 
     // response is RecoverKeypairSuccessResponse | RecoverKeypairFailureResponse

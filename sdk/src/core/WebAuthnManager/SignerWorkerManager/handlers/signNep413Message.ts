@@ -1,8 +1,9 @@
 
 import { WorkerRequestType, isSignNep413MessageSuccess } from '../../../types/signer-worker';
-import { extractPrfFromCredential } from '../../credentialsHelpers';
 import { getDeviceNumberForAccount } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
+import { isObject } from '../../../WalletIframe/validation';
+import { withSessionId } from './session';
 
 
 /**
@@ -20,6 +21,7 @@ export async function signNep413Message({ ctx, payload }: {
     state: string | null;
     accountId: string;
     credential: import('../../../types/webauthn').WebAuthnAuthenticationCredential;
+    sessionId?: string;
   };
 }): Promise<{
   success: boolean;
@@ -30,38 +32,50 @@ export async function signNep413Message({ ctx, payload }: {
   error?: string;
 }> {
   try {
-    const deviceNumber = await getDeviceNumberForAccount(ctx, payload.accountId);
+    const deviceNumber = await getDeviceNumberForAccount(payload.accountId, ctx.indexedDB.clientDB);
     const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(payload.accountId, deviceNumber);
-
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${payload.accountId}`);
     }
 
-    const { chacha20PrfOutput } = extractPrfFromCredential({
-      credential: payload.credential,
-      firstPrfOutput: true,
-      secondPrfOutput: false,
+    // Expect caller (SignerWorkerManager) to reserve a session and wire ports; just use provided sessionId
+    const sessionId = payload.sessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `nep413-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+
+    if (!ctx.vrfWorkerManager) {
+      throw new Error('VrfWorkerManager not available for NEP-413 signing');
+    }
+    // VRF-driven confirm path (collects credential and derives WrapKeySeed via confirmTxFlow).
+    const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
+      ctx,
+      sessionId,
+      kind: 'nep413',
+      nearAccountId: payload.accountId,
+      message: payload.message,
+      recipient: payload.recipient,
     });
 
     const response = await ctx.sendMessage<WorkerRequestType.SignNep413Message>({
       message: {
         type: WorkerRequestType.SignNep413Message,
-        payload: {
+        payload: withSessionId({
           message: payload.message,
           recipient: payload.recipient,
           nonce: payload.nonce,
           state: payload.state || undefined,
           accountId: payload.accountId,
-          prfOutput: chacha20PrfOutput, // Use ChaCha20 PRF output for decryption
           encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-          encryptedPrivateKeyIv: encryptedKeyData.iv
-        }
-      }
+          encryptedPrivateKeyIv: encryptedKeyData.iv,
+        }, sessionId)
+      },
+      sessionId,
     });
 
     if (!isSignNep413MessageSuccess(response)) {
       console.error('SignerWorkerManager: NEP-413 signing failed:', response);
-      throw new Error('NEP-413 signing failed');
+      const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
+      throw new Error(payloadError || 'NEP-413 signing failed');
     }
 
     return {

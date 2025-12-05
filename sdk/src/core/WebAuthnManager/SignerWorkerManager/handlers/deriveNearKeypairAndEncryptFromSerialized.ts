@@ -11,7 +11,7 @@ import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '@/core/types/webauthn';
 import type { VRFChallenge } from '../../../types/vrf-worker';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
-
+import { withSessionId } from './session';
 
 /**
  * Derive NEAR keypair and encrypt it from a serialized WebAuthn registration credential
@@ -22,6 +22,7 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   credential,
   nearAccountId,
   options,
+  sessionId,
 }: {
   ctx: SignerWorkerManagerContext,
   credential: WebAuthnRegistrationCredential;
@@ -34,11 +35,14 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     blockHash?: string;
     authenticatorOptions?: AuthenticatorOptions;
     deviceNumber?: number;
-  }
+  };
+  sessionId: string;
 }): Promise<{
   success: boolean;
   nearAccountId: AccountId;
   publicKey: string;
+  iv?: string;
+  wrapKeySalt?: string;
   signedTransaction?: SignedTransaction;
   error?: string;
 }> {
@@ -51,10 +55,12 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       throw new Error('PRF outputs missing from serialized credential');
     }
 
+    if (!sessionId) throw new Error('Missing sessionId for registration WrapKeySeed delivery');
+
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
       message: {
         type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
-        payload: {
+        payload: withSessionId({
           dualPrfOutputs: { chacha20PrfOutput: first, ed25519PrfOutput: second },
           nearAccountId: nearAccountId,
           credential,
@@ -68,9 +74,10 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
           authenticatorOptions: options?.authenticatorOptions ? {
             userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
-          } : undefined
-        }
-      }
+          } : undefined,
+        }, sessionId)
+      },
+      sessionId,
     });
 
     if (!isDeriveNearKeypairAndEncryptSuccess(response)) {
@@ -78,15 +85,19 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     }
 
     const wasmResult = response.payload;
+    const version = (wasmResult as any).version ?? 2;
+    const wrapKeySaltPersisted = (wasmResult as any).wrapKeySalt;
     // Prefer explicitly provided deviceNumber, else derive from IndexedDB state
     const deviceNumber = (typeof options?.deviceNumber === 'number')
       ? options!.deviceNumber!
-      : await getDeviceNumberForAccount(ctx, nearAccountId);
+      : await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
     const keyData: EncryptedKeyData = {
       nearAccountId: nearAccountId,
       deviceNumber,
       encryptedData: wasmResult.encryptedData,
       iv: wasmResult.iv,
+      wrapKeySalt: wrapKeySaltPersisted,
+      version,
       timestamp: Date.now()
     };
     await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
@@ -104,6 +115,8 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
       success: true,
       nearAccountId: toAccountId(wasmResult.nearAccountId),
       publicKey: wasmResult.publicKey,
+      iv: wasmResult.iv,
+      wrapKeySalt: wrapKeySaltPersisted,
       signedTransaction
     };
   } catch (error: unknown) {
