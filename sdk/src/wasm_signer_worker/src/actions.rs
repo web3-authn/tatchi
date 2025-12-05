@@ -47,26 +47,10 @@ pub enum ActionParams {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ActionType {
-    CreateAccount,
-    DeployContract,
-    FunctionCall,
-    Transfer,
-    Stake,
-    AddKey,
-    DeleteKey,
-    DeleteAccount,
-    SignedDelegate,
-    DeployGlobalContract,
-    UseGlobalContract,
-}
-
 /// Trait for handling different NEAR action types
 pub trait ActionHandler {
     fn validate_params(&self, params: &ActionParams) -> Result<(), String>;
     fn build_action(&self, params: &ActionParams) -> Result<Action, String>;
-    fn get_action_type(&self) -> ActionType;
 }
 
 // === ACTION HANDLER IMPLEMENTATIONS ===
@@ -130,10 +114,6 @@ impl ActionHandler for FunctionCallActionHandler {
             _ => Err("Invalid params for FunctionCall action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::FunctionCall
-    }
 }
 
 pub struct TransferActionHandler;
@@ -167,10 +147,6 @@ impl ActionHandler for TransferActionHandler {
             _ => Err("Invalid params for Transfer action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::Transfer
-    }
 }
 
 pub struct CreateAccountActionHandler;
@@ -188,10 +164,6 @@ impl ActionHandler for CreateAccountActionHandler {
             ActionParams::CreateAccount => Ok(Action::CreateAccount),
             _ => Err("Invalid params for CreateAccount action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::CreateAccount
     }
 }
 
@@ -298,10 +270,6 @@ impl ActionHandler for AddKeyActionHandler {
             _ => Err("Invalid params for AddKey action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::AddKey
-    }
 }
 
 pub struct DeleteKeyActionHandler;
@@ -353,10 +321,6 @@ impl ActionHandler for DeleteKeyActionHandler {
             _ => Err("Invalid params for DeleteKey action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeleteKey
-    }
 }
 
 pub struct DeleteAccountActionHandler;
@@ -393,10 +357,6 @@ impl ActionHandler for DeleteAccountActionHandler {
             }
             _ => Err("Invalid params for DeleteAccount action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeleteAccount
     }
 }
 
@@ -442,10 +402,6 @@ impl ActionHandler for DeployContractActionHandler {
             }
             _ => Err("Invalid params for DeployContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeployContract
     }
 }
 
@@ -507,10 +463,6 @@ impl ActionHandler for StakeActionHandler {
             _ => Err("Invalid params for Stake action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::Stake
-    }
 }
 
 // === NEP-0591 GLOBAL CONTRACT HANDLERS ===
@@ -548,10 +500,6 @@ impl ActionHandler for DeployGlobalContractActionHandler {
             }
             _ => Err("Invalid params for DeployGlobalContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeployGlobalContract
     }
 }
 
@@ -633,9 +581,5 @@ impl ActionHandler for UseGlobalContractActionHandler {
             }
             _ => Err("Invalid params for UseGlobalContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::UseGlobalContract
     }
 }

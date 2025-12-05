@@ -20,6 +20,7 @@
 
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
+use crate::types::worker_messages::WorkerResponseType;
 
 /// Progress message types that can be sent during WASM operations
 /// Values align with TypeScript WorkerResponseType enum for proper mapping
@@ -151,8 +152,17 @@ pub fn send_progress_message(
     message: &str,
     data: Option<&str>,
 ) {
+    // Map ProgressMessageType -> WorkerResponseType so the main thread
+    // can recognize these as typed progress responses.
+    let response_type = match message_type {
+        ProgressMessageType::RegistrationProgress => WorkerResponseType::RegistrationProgress,
+        ProgressMessageType::RegistrationComplete => WorkerResponseType::RegistrationComplete,
+        ProgressMessageType::ExecuteActionsProgress => WorkerResponseType::ExecuteActionsProgress,
+        ProgressMessageType::ExecuteActionsComplete => WorkerResponseType::ExecuteActionsComplete,
+    };
+
     crate::send_progress_message(
-        message_type as u32,
+        response_type.into(),
         step as u32,
         message,
         data.unwrap_or("{}"),
@@ -166,29 +176,21 @@ pub fn send_completion_message(
     message: &str,
     data: Option<&str>,
 ) {
+    let response_type = match message_type {
+        ProgressMessageType::RegistrationProgress => WorkerResponseType::RegistrationProgress,
+        ProgressMessageType::RegistrationComplete => WorkerResponseType::RegistrationComplete,
+        ProgressMessageType::ExecuteActionsProgress => WorkerResponseType::ExecuteActionsProgress,
+        ProgressMessageType::ExecuteActionsComplete => WorkerResponseType::ExecuteActionsComplete,
+    };
+
     // Completion messages have the same structure as progress, just different status
     crate::send_progress_message(
-        message_type as u32,
+        response_type.into(),
         step as u32,
         message,
         data.unwrap_or("{}"),
     );
 }
-
-/// Type-safe helper for sending error messages from WASM
-pub fn send_error_message(
-    message_type: ProgressMessageType,
-    step: ProgressStep,
-    message: &str,
-    error: &str,
-) {
-    let error_data = serde_json::json!({ "error": error }).to_string();
-    crate::send_progress_message(message_type as u32, step as u32, message, &error_data);
-}
-
-// === DEBUGGING HELPERS ===
-// Convert numeric enum values to readable strings for debugging
-// This makes Rust logs easier to read when dealing with numeric enum values
 
 /// Convert ProgressMessageType enum to readable string for debugging
 pub fn progress_message_type_name(message_type: ProgressMessageType) -> &'static str {
@@ -212,28 +214,4 @@ pub fn progress_step_name(step: ProgressStep) -> &'static str {
         ProgressStep::TransactionSigningComplete => "transaction-signing-complete",
         ProgressStep::Error => "error",
     }
-}
-
-/// Convert ProgressStatus enum to readable string for debugging
-#[allow(dead_code)]
-pub fn progress_status_name(status: ProgressStatus) -> &'static str {
-    match status {
-        ProgressStatus::Progress => "progress",
-        ProgressStatus::Success => "success",
-        ProgressStatus::Error => "error",
-        ProgressStatus::__Invalid => "invalid",
-    }
-}
-
-/// Enhanced logging helper that includes enum names for better debugging
-#[allow(dead_code)]
-pub fn log_progress_message(message_type: ProgressMessageType, step: ProgressStep, message: &str) {
-    crate::log(&format!(
-        "Progress: {} ({}) - {} ({}) - {}",
-        progress_message_type_name(message_type),
-        message_type as u32,
-        progress_step_name(step),
-        step as u32,
-        message
-    ));
 }

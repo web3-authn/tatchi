@@ -13,14 +13,11 @@ use wasm_bindgen::prelude::*;
 pub enum WorkerRequestType {
     DeriveNearKeypairAndEncrypt,
     RecoverKeypairFromPasskey,
-    CheckCanRegisterUser,
     DecryptPrivateKeyWithPrf,
     SignTransactionsWithActions,
     ExtractCosePublicKey,
     SignTransactionWithKeyPair,
     SignNep413Message,
-    // Collect registration credential via secureConfirm (registration or link-device flows)
-    RegistrationCredentialConfirmation,
     // Two-phase export: collect PRF (skip UI), decrypt, then show private key UI
     ExportNearKeypairUI,
 }
@@ -30,14 +27,12 @@ impl From<u32> for WorkerRequestType {
         match value {
             0 => WorkerRequestType::DeriveNearKeypairAndEncrypt,
             1 => WorkerRequestType::RecoverKeypairFromPasskey,
-            2 => WorkerRequestType::CheckCanRegisterUser,
-            3 => WorkerRequestType::DecryptPrivateKeyWithPrf,
-            4 => WorkerRequestType::SignTransactionsWithActions,
-            5 => WorkerRequestType::ExtractCosePublicKey,
-            6 => WorkerRequestType::SignTransactionWithKeyPair,
-            7 => WorkerRequestType::SignNep413Message,
-            8 => WorkerRequestType::RegistrationCredentialConfirmation,
-            9 => WorkerRequestType::ExportNearKeypairUI,
+            2 => WorkerRequestType::DecryptPrivateKeyWithPrf,
+            3 => WorkerRequestType::SignTransactionsWithActions,
+            4 => WorkerRequestType::ExtractCosePublicKey,
+            5 => WorkerRequestType::SignTransactionWithKeyPair,
+            6 => WorkerRequestType::SignNep413Message,
+            7 => WorkerRequestType::ExportNearKeypairUI,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -47,15 +42,11 @@ impl WorkerRequestType {
         match self {
             WorkerRequestType::DeriveNearKeypairAndEncrypt => "DERIVE_NEAR_KEYPAIR_AND_ENCRYPT",
             WorkerRequestType::RecoverKeypairFromPasskey => "RECOVER_KEYPAIR_FROM_PASSKEY",
-            WorkerRequestType::CheckCanRegisterUser => "CHECK_CAN_REGISTER_USER",
             WorkerRequestType::DecryptPrivateKeyWithPrf => "DECRYPT_PRIVATE_KEY_WITH_PRF",
             WorkerRequestType::SignTransactionsWithActions => "SIGN_TRANSACTIONS_WITH_ACTIONS",
             WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
-            WorkerRequestType::RegistrationCredentialConfirmation => {
-                "REGISTRATION_CREDENTIAL_CONFIRMATION"
-            }
             WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
         }
     }
@@ -68,25 +59,21 @@ pub enum WorkerResponseType {
     // Success responses - one for each request type
     DeriveNearKeypairAndEncryptSuccess,
     RecoverKeypairFromPasskeySuccess,
-    CheckCanRegisterUserSuccess,
     DecryptPrivateKeyWithPrfSuccess,
     SignTransactionsWithActionsSuccess,
     ExtractCosePublicKeySuccess,
     SignTransactionWithKeyPairSuccess,
     SignNep413MessageSuccess,
-    RegistrationCredentialConfirmationSuccess,
     ExportNearKeypairUiSuccess,
 
     // Failure responses - one for each request type
     DeriveNearKeypairAndEncryptFailure,
     RecoverKeypairFromPasskeyFailure,
-    CheckCanRegisterUserFailure,
     DecryptPrivateKeyWithPrfFailure,
     SignTransactionsWithActionsFailure,
     ExtractCosePublicKeyFailure,
     SignTransactionWithKeyPairFailure,
     SignNep413MessageFailure,
-    RegistrationCredentialConfirmationFailure,
     ExportNearKeypairUiFailure,
 
     // Progress responses - for real-time updates during operations
@@ -101,32 +88,28 @@ impl From<WorkerResponseType> for u32 {
             // Success responses
             WorkerResponseType::DeriveNearKeypairAndEncryptSuccess => 0,
             WorkerResponseType::RecoverKeypairFromPasskeySuccess => 1,
-            WorkerResponseType::CheckCanRegisterUserSuccess => 2,
-            WorkerResponseType::DecryptPrivateKeyWithPrfSuccess => 3,
-            WorkerResponseType::SignTransactionsWithActionsSuccess => 4,
-            WorkerResponseType::ExtractCosePublicKeySuccess => 5,
-            WorkerResponseType::SignTransactionWithKeyPairSuccess => 6,
-            WorkerResponseType::SignNep413MessageSuccess => 7,
-            WorkerResponseType::RegistrationCredentialConfirmationSuccess => 8,
-            WorkerResponseType::ExportNearKeypairUiSuccess => 9,
+            WorkerResponseType::DecryptPrivateKeyWithPrfSuccess => 2,
+            WorkerResponseType::SignTransactionsWithActionsSuccess => 3,
+            WorkerResponseType::ExtractCosePublicKeySuccess => 4,
+            WorkerResponseType::SignTransactionWithKeyPairSuccess => 5,
+            WorkerResponseType::SignNep413MessageSuccess => 6,
+            WorkerResponseType::ExportNearKeypairUiSuccess => 7,
 
             // Failure responses
-            WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 10,
-            WorkerResponseType::RecoverKeypairFromPasskeyFailure => 11,
-            WorkerResponseType::CheckCanRegisterUserFailure => 12,
-            WorkerResponseType::DecryptPrivateKeyWithPrfFailure => 13,
-            WorkerResponseType::SignTransactionsWithActionsFailure => 14,
-            WorkerResponseType::ExtractCosePublicKeyFailure => 15,
-            WorkerResponseType::SignTransactionWithKeyPairFailure => 16,
-            WorkerResponseType::SignNep413MessageFailure => 17,
-            WorkerResponseType::RegistrationCredentialConfirmationFailure => 18,
-            WorkerResponseType::ExportNearKeypairUiFailure => 19,
+            WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 8,
+            WorkerResponseType::RecoverKeypairFromPasskeyFailure => 9,
+            WorkerResponseType::DecryptPrivateKeyWithPrfFailure => 10,
+            WorkerResponseType::SignTransactionsWithActionsFailure => 11,
+            WorkerResponseType::ExtractCosePublicKeyFailure => 12,
+            WorkerResponseType::SignTransactionWithKeyPairFailure => 13,
+            WorkerResponseType::SignNep413MessageFailure => 14,
+            WorkerResponseType::ExportNearKeypairUiFailure => 15,
 
             // Progress responses - for real-time updates during operations
-            WorkerResponseType::RegistrationProgress => 20,
-            WorkerResponseType::RegistrationComplete => 21,
-            WorkerResponseType::ExecuteActionsProgress => 22,
-            WorkerResponseType::ExecuteActionsComplete => 23,
+            WorkerResponseType::RegistrationProgress => 16,
+            WorkerResponseType::RegistrationComplete => 17,
+            WorkerResponseType::ExecuteActionsProgress => 18,
+            WorkerResponseType::ExecuteActionsComplete => 19,
         }
     }
 }
@@ -136,30 +119,28 @@ impl From<u32> for WorkerResponseType {
             // Success responses
             0 => WorkerResponseType::DeriveNearKeypairAndEncryptSuccess,
             1 => WorkerResponseType::RecoverKeypairFromPasskeySuccess,
-            2 => WorkerResponseType::CheckCanRegisterUserSuccess,
-            3 => WorkerResponseType::DecryptPrivateKeyWithPrfSuccess,
-            4 => WorkerResponseType::SignTransactionsWithActionsSuccess,
-            5 => WorkerResponseType::ExtractCosePublicKeySuccess,
-            6 => WorkerResponseType::SignTransactionWithKeyPairSuccess,
-            7 => WorkerResponseType::SignNep413MessageSuccess,
-            8 => WorkerResponseType::RegistrationCredentialConfirmationSuccess,
+            2 => WorkerResponseType::DecryptPrivateKeyWithPrfSuccess,
+            3 => WorkerResponseType::SignTransactionsWithActionsSuccess,
+            4 => WorkerResponseType::ExtractCosePublicKeySuccess,
+            5 => WorkerResponseType::SignTransactionWithKeyPairSuccess,
+            6 => WorkerResponseType::SignNep413MessageSuccess,
+            7 => WorkerResponseType::ExportNearKeypairUiSuccess,
 
             // Failure responses
-            10 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
-            11 => WorkerResponseType::RecoverKeypairFromPasskeyFailure,
-            12 => WorkerResponseType::CheckCanRegisterUserFailure,
-            13 => WorkerResponseType::DecryptPrivateKeyWithPrfFailure,
-            14 => WorkerResponseType::SignTransactionsWithActionsFailure,
-            15 => WorkerResponseType::ExtractCosePublicKeyFailure,
-            16 => WorkerResponseType::SignTransactionWithKeyPairFailure,
-            17 => WorkerResponseType::SignNep413MessageFailure,
-            18 => WorkerResponseType::RegistrationCredentialConfirmationFailure,
+            8 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
+            9 => WorkerResponseType::RecoverKeypairFromPasskeyFailure,
+            10 => WorkerResponseType::DecryptPrivateKeyWithPrfFailure,
+            11 => WorkerResponseType::SignTransactionsWithActionsFailure,
+            12 => WorkerResponseType::ExtractCosePublicKeyFailure,
+            13 => WorkerResponseType::SignTransactionWithKeyPairFailure,
+            14 => WorkerResponseType::SignNep413MessageFailure,
+            15 => WorkerResponseType::ExportNearKeypairUiFailure,
 
             // Progress responses - for real-time updates during operations
-            20 => WorkerResponseType::RegistrationProgress,
-            21 => WorkerResponseType::RegistrationComplete,
-            22 => WorkerResponseType::ExecuteActionsProgress,
-            23 => WorkerResponseType::ExecuteActionsComplete,
+            16 => WorkerResponseType::RegistrationProgress,
+            17 => WorkerResponseType::RegistrationComplete,
+            18 => WorkerResponseType::ExecuteActionsProgress,
+            19 => WorkerResponseType::ExecuteActionsComplete,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
     }

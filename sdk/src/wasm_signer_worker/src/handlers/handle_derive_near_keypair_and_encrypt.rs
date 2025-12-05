@@ -4,14 +4,11 @@
 // *                                                                            *
 // ******************************************************************************
 
-use bs58;
 use log::{debug, warn};
 use serde::{Deserialize, Serialize};
-use serde_json;
 use wasm_bindgen::prelude::*;
 
-use crate::encoders::base64_url_decode;
-use crate::rpc_calls::VrfData;
+use crate::{encoders::base64_url_decode, WrapKey};
 use crate::types::wasm_to_json::WasmSignedTransaction;
 use crate::types::{
     AuthenticatorOptions, SerializedRegistrationCredential, VrfChallenge,
@@ -32,6 +29,8 @@ pub struct DeriveNearKeypairAndEncryptRequest {
     pub registration_transaction: Option<LinkDeviceRegistrationTransaction>,
     #[wasm_bindgen(getter_with_clone, js_name = "authenticatorOptions")]
     pub authenticator_options: Option<AuthenticatorOptions>,
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    pub session_id: String,
 }
 
 #[wasm_bindgen]
@@ -72,6 +71,10 @@ pub struct DeriveNearKeypairAndEncryptResult {
     pub encrypted_data: String,
     #[wasm_bindgen(getter_with_clone)]
     pub iv: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    pub wrap_key_salt: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "version")]
+    pub version: u8,
     pub stored: bool,
     #[wasm_bindgen(getter_with_clone, js_name = "signedTransaction")]
     pub signed_transaction: Option<WasmSignedTransaction>,
@@ -85,6 +88,8 @@ impl DeriveNearKeypairAndEncryptResult {
         public_key: String,
         encrypted_data: String,
         iv: String,
+        wrap_key_salt: String,
+        version: u8,
         stored: bool,
         signed_transaction: Option<WasmSignedTransaction>,
     ) -> DeriveNearKeypairAndEncryptResult {
@@ -93,6 +98,8 @@ impl DeriveNearKeypairAndEncryptResult {
             public_key,
             encrypted_data,
             iv,
+            wrap_key_salt,
+            version,
             stored,
             signed_transaction,
         }
@@ -112,6 +119,7 @@ impl DeriveNearKeypairAndEncryptResult {
 /// * `DeriveNearKeypairResult` - Contains derived public key, encrypted private key data, and optional signed transaction
 pub async fn handle_derive_near_keypair_and_encrypt(
     request: DeriveNearKeypairAndEncryptRequest,
+    wrap_key: WrapKey,
 ) -> Result<DeriveNearKeypairAndEncryptResult, String> {
     debug!("[rust wasm]: starting dual PRF keypair derivation with optional transaction signing");
     // Convert wasm-bindgen types to internal types
@@ -120,35 +128,38 @@ pub async fn handle_derive_near_keypair_and_encrypt(
         ed25519_prf_output_base64: request.dual_prf_outputs.ed25519_prf_output,
     };
 
-    // Call the dual PRF derivation function (same as JSON version)
-    let (public_key, encrypted_result) = crate::crypto::derive_and_encrypt_keypair_from_dual_prf(
-        &internal_dual_prf_outputs,
-        &request.near_account_id,
-    )
-    .map_err(|e| format!("Failed to derive and encrypt keypair: {}", e))?;
+    // Derive Ed25519 keypair from PRF.second
+    let (near_private_key, near_public_key) =
+        crate::crypto::derive_ed25519_key_from_prf_output(
+            &internal_dual_prf_outputs.ed25519_prf_output_base64,
+            &request.near_account_id,
+        )
+        .map_err(|e| format!("Failed to derive Ed25519 key: {}", e))?;
+
+    // Derive KEK from WrapKeySeed+wrapKeySalt and encrypt NEAR private key
+    let kek = wrap_key.derive_kek()?;
+
+    let wrap_key_salt_bytes = crate::encoders::base64_url_decode(wrap_key.salt_b64u())
+        .map_err(|e| format!("Failed to decode wrapKeySalt: {}", e))?;
+    let encryption_result = crate::crypto::encrypt_data_chacha20(&near_private_key, &kek)
+        .map_err(|e| format!("Failed to encrypt private key: {}", e))?
+        .with_wrap_key_salt(&wrap_key_salt_bytes);
 
     // Handle optional transaction signing if registration transaction is provided
     let signed_transaction_wasm = if let Some(registration_tx) = &request.registration_transaction {
         // Re-derive the private key from the same PRF output for signing (before it's encrypted)
-        let (near_private_key, _near_public_key) =
-            crate::crypto::derive_ed25519_key_from_prf_output(
-                &internal_dual_prf_outputs.ed25519_prf_output_base64,
-                &request.near_account_id,
-            )
-            .map_err(|e| format!("Failed to re-derive keypair for signing: {}", e))?;
+        // let (near_private_key, _near_public_key) =
+        //     crate::crypto::derive_ed25519_key_from_prf_output(
+        //         &internal_dual_prf_outputs.ed25519_prf_output_base64,
+        //         &request.near_account_id,
+        //     )
+        //     .map_err(|e| format!("Failed to re-derive keypair for signing: {}", e))?;
 
         // Parse nonce
         let parsed_nonce = registration_tx
             .nonce
             .parse::<u64>()
             .map_err(|e| format!("Invalid nonce format: {}", e))?;
-
-        // Use VrfChallenge directly instead of converting
-        let vrf_challenge_struct = &registration_tx.vrf_challenge;
-
-        // Convert to VrfData using the existing conversion
-        let vrf_data = VrfData::try_from(vrf_challenge_struct)
-            .map_err(|e| format!("Failed to convert VRF challenge: {:?}", e))?;
 
         // Convert the SerializedRegistrationCredential to WebAuthnRegistrationCredential
         let webauthn_registration = WebAuthnRegistrationCredential {
@@ -169,41 +180,9 @@ pub async fn handle_derive_near_keypair_and_encrypt(
             base64_url_decode(&registration_tx.deterministic_vrf_public_key)
                 .map_err(|e| format!("Failed to decode deterministic VRF public key: {}", e))?;
 
-        match crate::transaction::sign_link_device_registration_tx(
-            &registration_tx.contract_id,
-            vrf_data,
-            deterministic_vrf_public_key,
-            webauthn_registration,
-            &request.near_account_id,
-            &near_private_key, // Use the properly derived NEAR private key
-            parsed_nonce,
-            &bs58::decode(&registration_tx.block_hash)
-                .into_vec()
-                .map_err(|e| format!("Invalid block hash: {}", e))?,
-            request.authenticator_options, // Pass authenticator options
-        )
-        .await
-        {
-            Ok(registration_result) => {
-                let signed_tx_result = registration_result.unwrap_signed_transaction();
-                // Convert the result to SignedTransaction
-                match signed_tx_result {
-                    Some(json_value) => {
-                        // Parse the JSON value back to SignedTransaction
-                        let signed_tx: crate::types::SignedTransaction =
-                            serde_json::from_value(json_value).map_err(|e| {
-                                format!("Failed to parse signed transaction: {}", e)
-                            })?;
-                        Some(WasmSignedTransaction::from(&signed_tx))
-                    }
-                    None => None,
-                }
-            }
-            Err(e) => {
-                warn!("RUST: Transaction signing failed: {}", e);
-                None
-            }
-        }
+        let _ = (deterministic_vrf_public_key, webauthn_registration, parsed_nonce, registration_tx, request.authenticator_options);
+        warn!("[rust wasm]: registration_transaction path is deprecated; VRF worker now owns registration RPC/tx flows");
+        None
     } else {
         debug!("[rust wasm]: No transaction signing requested: parameters not provided");
         None
@@ -215,9 +194,13 @@ pub async fn handle_derive_near_keypair_and_encrypt(
     // Return structured result with optional signed transaction
     Ok(DeriveNearKeypairAndEncryptResult::new(
         request.near_account_id,
-        public_key,
-        encrypted_result.encrypted_near_key_data_b64u,
-        encrypted_result.chacha20_nonce_b64u,
+        near_public_key,
+        encryption_result.encrypted_near_key_data_b64u,
+        encryption_result.chacha20_nonce_b64u,
+        encryption_result
+            .wrap_key_salt_b64u
+            .unwrap_or_else(|| "".to_string()),
+        2,
         true, // stored = true since we're storing in WASM
         signed_transaction_struct,
     ))
