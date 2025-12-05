@@ -4,52 +4,7 @@ import {
   SecureConfirmDecision,
 } from './confirmTxFlow/types';
 import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
-import type { NearClient } from '../../NearClient';
-import type { UnifiedIndexedDBManager } from '../../IndexedDBManager';
-import type { TouchIdPrompt } from '../touchIdPrompt';
-import type { VrfWorkerManager } from '.';
-import type { UserPreferencesManager } from '../userPreferences';
-import type { NonceManager } from '../../nonceManager';
-import type { WorkerRequestTypeMap, WorkerResponseForRequest } from '../../types/signer-worker';
-import type { onProgressEvents } from '../../types/passkeyManager';
-
-/**
- * Shared host context for confirmTxFlow.
- *
- * The base context carries the fields used by confirmTxFlow (UI, NEAR, IndexedDB,
- * user preferences, NonceManager, and the sendMessage bridge). Concrete hosts
- * (VRF manager vs signer manager) extend this base with their own fields.
- */
-export interface VrfWorkerManagerContext {
-  touchIdPrompt: TouchIdPrompt;
-  nearClient: NearClient;
-  indexedDB: UnifiedIndexedDBManager;
-  userPreferencesManager: UserPreferencesManager;
-  nonceManager: NonceManager;
-  rpIdOverride?: string;
-  nearExplorerUrl?: string;
-  vrfWorkerManager?: VrfWorkerManager;
-  sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
-    message: {
-      type: T;
-      payload: WorkerRequestTypeMap[T]['request'];
-    };
-    onEvent?: (update: onProgressEvents) => void;
-    timeoutMs?: number;
-    sessionId?: string;
-  }) => Promise<WorkerResponseForRequest<T>>;
-}
-
-/** WebAuthnManager-owned host context: used by VRF-driven flows. */
-export interface WebAuthnManagerContext {
-  touchIdPrompt: TouchIdPrompt;
-  nearClient: NearClient;
-  indexedDB: UnifiedIndexedDBManager;
-  userPreferencesManager: UserPreferencesManager;
-  nonceManager: NonceManager;
-  rpIdOverride?: string;
-  nearExplorerUrl?: string;
-}
+import type { VrfWorkerManagerContext } from '.';
 
 /**
  * VRF-side helper to run confirmTxFlow directly from JS without going through a worker.

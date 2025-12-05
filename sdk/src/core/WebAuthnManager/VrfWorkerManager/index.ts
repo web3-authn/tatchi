@@ -26,7 +26,11 @@ import { BUILD_PATHS } from '../../../../build-paths.js';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import { AccountId, toAccountId } from '../../types/accountIds';
 import { extractPrfFromCredential } from '../credentialsHelpers';
-import type { VrfWorkerManagerContext } from './secureConfirmBridge';
+import type { TouchIdPrompt } from '../touchIdPrompt';
+import type { NearClient } from '../../NearClient';
+import type { UnifiedIndexedDBManager } from '../../IndexedDBManager';
+import type { UserPreferencesManager } from '../userPreferences';
+import type { NonceManager } from '../../nonceManager';
 import { runSecureConfirm } from './secureConfirmBridge';
 import {
   SecureConfirmationType,
@@ -44,6 +48,21 @@ import {
   requestRegistrationCredentialConfirmation
 } from './confirmTxFlow/flows/requestRegistrationCredentialConfirmation';
 import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
+import { WebAuthnAuthenticationCredential } from '../../types/webauthn';
+
+/**
+ * VRF-owned host context passed into confirmTxFlow.
+ */
+export interface VrfWorkerManagerContext {
+  touchIdPrompt: TouchIdPrompt;
+  nearClient: NearClient;
+  indexedDB: UnifiedIndexedDBManager;
+  userPreferencesManager: UserPreferencesManager;
+  nonceManager: NonceManager;
+  rpIdOverride?: string;
+  nearExplorerUrl?: string;
+  vrfWorkerManager?: VrfWorkerManager;
+}
 
 /**
  * VRF Worker Manager
@@ -61,16 +80,9 @@ export class VrfWorkerManager {
   private config: VrfWorkerManagerConfig;
   private currentVrfAccountId: string | null = null;
   private workerBaseOrigin: string | undefined;
+  private context: VrfWorkerManagerContext;
 
-      touchIdPrompt: this.touchIdPrompt,
-      nearClient: this.nearClient,
-      indexedDB: IndexedDBManager,
-      userPreferencesManager: this.userPreferencesManager,
-      nonceManager: this.nonceManager,
-      rpIdOverride: this.touchIdPrompt.getRpId(),
-      nearExplorerUrl: tatchiPasskeyConfigs.nearExplorerUrl,
-
-  constructor(config: VrfWorkerManagerConfig) {
+  constructor(config: VrfWorkerManagerConfig, context: VrfWorkerManagerContext) {
     this.config = {
       // Default to client-hosted worker file using centralized config
       vrfWorkerUrl: BUILD_PATHS.RUNTIME.VRF_WORKER,
@@ -78,56 +90,37 @@ export class VrfWorkerManager {
       debug: false,
       ...config
     };
-
-      touchIdPrompt: this.touchIdPrompt,
-      nearClient: this.nearClient,
-      indexedDB: IndexedDBManager,
-      userPreferencesManager: this.userPreferencesManager,
-      nonceManager: this.nonceManager,
-      rpIdOverride: this.touchIdPrompt.getRpId(),
-      nearExplorerUrl: tatchiPasskeyConfigs.nearExplorerUrl,
-  }
-
-  /**
-   * Return public Shamir parameters used for this VRF worker (if configured).
-   * This is the value that should be persisted as `shamir_pub` in vault metadata.
-   */
-  getShamirPub(): string | null {
-    return this.config.shamirPB64u || null;
+    // Attach a self-reference so confirmTxFlow helpers can call back into VRF APIs.
+    this.context = {
+      ...context,
+      vrfWorkerManager: this,
+    };
   }
 
   /**
    * Context used by confirmTxFlow for VRF-driven flows.
    */
   getContext(): VrfWorkerManagerContext {
-    return {
-      touchIdPrompt: this.touchIdPrompt,
-      nearClient: this.nearClient,
-      indexedDB: this.indexedDB,
-      userPreferencesManager: this.userPreferencesManager,
-      nonceManager: this.nonceManager,
-      rpIdOverride: this.touchIdPrompt.getRpId(),
-      nearExplorerUrl: this.nearExplorerUrl,
-      vrfWorkerManager: this,
-    };
+    return this.context;
   }
 
   /**
    * Create a VRF-owned MessageChannel for signing and return the signer-facing port.
    * VRF retains the sibling port for WrapKeySeed delivery.
    */
-  createSigningSessionChannel(sessionId: string): MessagePort {
+  async createSigningSessionChannel(sessionId: string): Promise<MessagePort> {
+    await this.ensureWorkerReady(true);
     const channel = new MessageChannel();
     // Hand one port to the VRF worker (Rust) so it can deliver WrapKeySeed directly
     // to the signer worker without exposing it to the main thread.
-    if (this.vrfWorker) {
-      try {
-        this.vrfWorker.postMessage({ type: 'ATTACH_WRAP_KEY_SEED_PORT', sessionId }, [channel.port1]);
-      } catch (err) {
-        console.error('[VrfWorkerManager] Failed to attach WrapKeySeed port to VRF worker', err);
-      }
-    } else {
-      console.warn('[VrfWorkerManager] VRF worker not initialized when creating signing session channel');
+    try {
+      this.vrfWorker!.postMessage(
+        { type: 'ATTACH_WRAP_KEY_SEED_PORT', sessionId },
+        [channel.port1],
+      );
+    } catch (err) {
+      console.error('[VrfWorkerManager] Failed to attach WrapKeySeed port to VRF worker', err);
+      throw err;
     }
     return channel.port2;
   }
@@ -145,7 +138,7 @@ export class VrfWorkerManager {
     contractId?: string;
     nearRpcUrl?: string;
     vrfChallenge?: VRFChallenge;
-    credential?: import('../../types/webauthn').WebAuthnAuthenticationCredential;
+    credential?: WebAuthnAuthenticationCredential;
   }): Promise<{ sessionId: string; wrapKeySalt: string }> {
     await this.ensureWorkerReady(true);
     const message: VRFWorkerMessage<WasmDeriveWrapKeySeedAndSessionRequest> = {
@@ -326,10 +319,9 @@ export class VrfWorkerManager {
   async requestRegistrationCredentialConfirmation(params: {
     nearAccountId: string;
     deviceNumber: number;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
     contractId: string;
     nearRpcUrl: string;
-    confirmationConfigOverride?: Partial<ConfirmationConfig>;
-    shamirPubOverride?: string;
   }): Promise<RegistrationCredentialConfirmationPayload> {
 
     const ctx = this.getContext();
@@ -521,7 +513,7 @@ export class VrfWorkerManager {
     encryptedVrfKeypair,
     onEvent,
   }: {
-    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential,
+    credential: WebAuthnAuthenticationCredential,
     nearAccountId: AccountId,
     encryptedVrfKeypair: EncryptedVRFKeypair,
     onEvent?: (event: { type: string, data: { step: string, message: string } }) => void,
@@ -756,7 +748,7 @@ export class VrfWorkerManager {
     vrfInputData,
     saveInMemory = true,
   }: {
-    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential;
+    credential: WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
