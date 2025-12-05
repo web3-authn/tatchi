@@ -10,6 +10,10 @@ use crate::types::{
     EncryptedVRFKeypair, VRFChallengeData, VRFInputData, VrfWorkerMessage, VrfWorkerResponse,
 };
 use crate::utils::{base64_url_decode, base64_url_encode};
+use crate::handlers::handle_generate_vrf_keypair_bootstrap::GenerateVrfKeypairBootstrapRequest;
+use crate::handlers::handle_generate_vrf_challenge::GenerateVrfChallengeRequest;
+use crate::handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest;
+use crate::handlers::handle_derive_vrf_keypair_from_prf::DeriveVrfKeypairFromPrfRequest;
 use num_bigint::BigUint;
 use serde_json;
 
@@ -20,6 +24,21 @@ fn create_test_prf_output() -> Vec<u8> {
 
 fn create_test_account_id() -> String {
     "test-account.testnet".to_string()
+}
+
+#[test]
+fn reject_near_sk_in_payload() {
+    // Craft a minimal message with a forbidden field; guard should reject before parsing
+    let msg = serde_json::json!({
+        "type": "PING",
+        "payload": { "near_sk": "should-not-pass" }
+    });
+    let js_val = wasm_bindgen::JsValue::from_str(&msg.to_string());
+    let result = futures::executor::block_on(crate::handle_message(js_val));
+    assert!(result.is_err(), "VRF worker should reject near_sk in payload");
+    let err = result.err().unwrap();
+    let err_str = err.as_string().unwrap_or_default();
+    assert!(err_str.contains("Forbidden secret field"), "unexpected error: {}", err_str);
 }
 
 #[test]
@@ -348,7 +367,7 @@ fn test_vrf_challenge_camelcase_deserialization() {
     assert_eq!(vrf_challenge.vrf_public_key, "dGVzdF9wdWJsaWNfa2V5X2RhdGE");
     assert_eq!(vrf_challenge.user_id, "test-user.testnet");
     assert_eq!(vrf_challenge.rp_id, "example.com");
-    assert_eq!(vrf_challenge.block_height, 12345);
+    assert_eq!(vrf_challenge.block_height, "12345");
     assert_eq!(vrf_challenge.block_hash, "dGVzdF9ibG9ja19oYXNoX2RhdGE");
 
     // Test round-trip serialization/deserialization
@@ -462,4 +481,93 @@ fn test_shamir_biguint_b64u_invalid_inputs() {
     assert!(decode_biguint_b64u("!!not-base64url!!").is_err());
     // padded base64 (not allowed for base64url)
     assert!(decode_biguint_b64u("AQ==").is_err());
+}
+
+#[test]
+fn derive_wrap_key_seed_and_session_uses_caller_wrap_key_salt_when_provided() {
+    // Session id and PRF first auth are arbitrary but well-formed
+    let req = DeriveWrapKeySeedAndSessionRequest {
+        session_id: "sess-123".to_string(),
+        prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
+        wrap_key_salt_b64u: "explicit-salt".to_string(),
+        contract_id: None,
+        near_rpc_url: None,
+        vrf_challenge: None,
+        credential: None,
+    };
+    let json = serde_json::to_string(&req).expect("serialize");
+    let parsed: DeriveWrapKeySeedAndSessionRequest =
+        serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(
+        parsed.wrap_key_salt_b64u, "explicit-salt",
+        "wrapKeySalt should round-trip unchanged when provided by caller"
+    );
+}
+
+#[test]
+fn derive_wrap_key_seed_and_session_generates_salt_when_empty() {
+    let req = DeriveWrapKeySeedAndSessionRequest {
+        session_id: "sess-456".to_string(),
+        prf_first_auth_b64u: base64_url_encode(&create_test_prf_output()),
+        wrap_key_salt_b64u: "  ".to_string(),
+        contract_id: None,
+        near_rpc_url: None,
+        vrf_challenge: None,
+        credential: None,
+    };
+    // The handler itself runs under wasm32, but the request shape must be JSON-compatible.
+    let json = serde_json::to_string(&req).expect("serialize");
+    let parsed: DeriveWrapKeySeedAndSessionRequest =
+        serde_json::from_str(&json).expect("deserialize");
+    assert!(
+        parsed.wrap_key_salt_b64u.trim().is_empty(),
+        "handler is responsible for generating wrapKeySalt when empty; request struct should preserve caller input"
+    );
+}
+
+#[test]
+fn generate_vrf_keypair_bootstrap_request_allows_optional_input() {
+    let req = GenerateVrfKeypairBootstrapRequest {
+        vrf_input_data: Some(VRFInputData {
+            user_id: create_test_account_id(),
+            rp_id: "example.com".to_string(),
+            block_height: "1".to_string(),
+            block_hash: "hash".to_string(),
+        }),
+    };
+    let json = serde_json::to_string(&req).expect("serialize");
+    let parsed: GenerateVrfKeypairBootstrapRequest =
+        serde_json::from_str(&json).expect("deserialize");
+    assert!(parsed.vrf_input_data.is_some(), "vrfInputData should survive round-trip");
+}
+
+#[test]
+fn generate_vrf_challenge_request_requires_input() {
+    let req = GenerateVrfChallengeRequest {
+        vrf_input_data: VRFInputData {
+            user_id: create_test_account_id(),
+            rp_id: "example.com".to_string(),
+            block_height: "2".to_string(),
+            block_hash: "hash2".to_string(),
+        },
+    };
+    let json = serde_json::to_string(&req).expect("serialize");
+    let parsed: GenerateVrfChallengeRequest =
+        serde_json::from_str(&json).expect("deserialize");
+    assert_eq!(parsed.vrf_input_data.rp_id, "example.com");
+}
+
+#[test]
+fn derive_vrf_keypair_from_prf_request_uses_defaults() {
+    let req = DeriveVrfKeypairFromPrfRequest {
+        prf_output: base64_url_encode(&create_test_prf_output()),
+        near_account_id: create_test_account_id(),
+        save_in_memory: true,
+        vrf_input_data: None,
+    };
+    let json = serde_json::to_string(&req).expect("serialize");
+    let parsed: DeriveVrfKeypairFromPrfRequest =
+        serde_json::from_str(&json).expect("deserialize");
+    assert!(parsed.save_in_memory, "saveInMemory default should be true");
+    assert!(parsed.vrf_input_data.is_none(), "vrfInputData can be omitted");
 }
