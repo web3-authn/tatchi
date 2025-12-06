@@ -43,61 +43,32 @@ Registration creates a passkey and derives deterministic keys from it from a sin
 ```mermaid
 sequenceDiagram
     box rgb(243, 244, 246) Iframe Wallet
-    participant JSMain as JS Main Thread
-    participant Worker as WASM Worker
+    participant UI as Wallet (iframe main)
+    participant VRF as VRF Worker
+    participant Signer as Signer Worker
     end
-    participant NEAR as NEAR RPC
+    participant Relay as Relay
     participant Contract as Web3Authn Contract
 
-    Note over JSMain,Worker: Phase 1: Bootstrap VRF Challenge
-    JSMain->>NEAR: 1. Get block height + hash from RPC
-    NEAR->>JSMain: Block data
-    JSMain->>Worker: 2. generateVrfKeypairBootstrap()
-    Worker->>Worker: 3. Generate bootstrap VRF keypair (temporary)
-    Worker->>Worker: 4. Generate VRF proof + output (challenge)
-    Worker->>JSMain: 5. VRF challenge for WebAuthn ceremony
-
-    Note over JSMain,Worker: Phase 2: WebAuthn Registration with Dual PRF
-    JSMain->>Worker: 6. requestRegistrationCredentialConfirmation()
-    Note over Worker: WebAuthn registration (TouchID prompt)<br/>PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
-    Worker->>JSMain: Registration credential
-
-    Note over JSMain,Worker: Phase 3: Derive Deterministic Keys from PRF
-    JSMain->>Worker: 7. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
-    Worker->>Worker: 8. Derive deterministic VRF keypair from PRF
-    Worker->>Worker: 9. Encrypt deterministic VRF with ChaCha20-Poly1305
-    Worker->>JSMain: 10. Encrypted deterministic VRF keypair
-
-    JSMain->>Worker: 11. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
-    Worker->>Worker: 12. Derive NEAR ed25519 keypair from PRF
-    Worker->>Worker: 13. Encrypt NEAR keypair with ChaCha20-Poly1305
-    Worker->>JSMain: 14. NEAR public key + encrypted keypair
-
-    Note over JSMain,Contract: Phase 4: Contract Registration
-    Note over JSMain: Routed through relayer to pay for gas
-    JSMain->>Contract: 15. create_account_and_register_user()
-    Contract->>Contract: 16. Registration verified
-    Contract->>JSMain: 17. Registration complete (txId)
-
-    Note over JSMain,Worker: Phase 5: Client-side Storage
-    JSMain->>JSMain: 18. Store encrypted deterministic VRF in IndexedDB
-    JSMain->>JSMain: 19. Store encrypted NEAR keypair in IndexedDB
-    JSMain->>JSMain: 20. Registration complete ✓
+    Note over UI,VRF: Single WebAuthn prompt (dual PRF)
+    UI->>VRF: requestRegistrationCredentialConfirmation()
+    VRF->>UI: TouchID prompt + confirm UI
+    UI->>VRF: Credential with PRF outputs
+    VRF->>VRF: Derive deterministic VRF keypair + WrapKeySeed + wrapKeySalt<br/>Prepare tx context (nonce, block hash)
+    VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt + PRF.second
+    Signer->>Signer: Derive deterministic NEAR keypair<br/>Encrypt near_sk<br/>Sign registration tx
+    Signer-->>UI: near_pk + encrypted NEAR key + signed tx
+    UI->>Relay: Submit create_account_and_register_user (or direct)
+    Relay->>Contract: Forward registration tx
+    Contract-->>UI: Registration receipt / txId
+    UI->>UI: Store encrypted VRF/NEAR keys + authenticator in IndexedDB
 ```
 
 ::: tip **Steps:**
-1. **Bootstrap VRF Challenge** - Fetch fresh NEAR block data and generate a temporary VRF keypair in the WASM worker to create the initial WebAuthn challenge.
-
-2. **WebAuthn Registration** - Request passkey creation with dual PRF extension (returns two outputs: one for ChaCha20 encryption, one for ed25519 derivation). This is the **only biometric prompt** in the entire flow.
-
-3. **Derive Deterministic Keys** - Use the PRF outputs to deterministically derive:
-   - A permanent VRF keypair (from PRF first output)
-   - A NEAR ed25519 keypair (from PRF second output)
-   - Encrypt both keypairs with ChaCha20-Poly1305 before storage
-
-4. **Contract Registration** - Submit the WebAuthn registration response to the NEAR smart contract, which verifies and stores the passkey's public key on-chain.
-
-5. **Client-side Storage** - Store both encrypted keypairs in isolated wallet origin-scoped IndexedDB for future use.
+1. **WebAuthn Registration** – Single prompt via VRF worker confirm UI collects credential with dual PRF.
+2. **Derive Deterministic Keys** – VRF worker derives deterministic VRF + WrapKeySeed; sends WrapKeySeed/wrapKeySalt to signer over MessageChannel; signer derives deterministic NEAR key, encrypts it, and signs the registration tx.
+3. **Contract Registration** – Signed registration is relayed to the contract; verification happens on-chain.
+4. **Client-side Storage** – Encrypted deterministic VRF/NEAR keys and authenticator metadata are stored in the wallet’s IndexedDB.
 :::
 
 **Key cryptographic properties:**
@@ -231,52 +202,42 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     box rgb(243, 244, 246) Iframe Wallet
-    participant JSMain as JS Main Thread
-    participant Worker as WASM Worker
+    participant UI as Wallet (iframe main)
+    participant VRF as VRF Worker
+    participant Signer as Signer Worker
     end
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over JSMain,Worker: Phase 1: Preparation
-    JSMain->>JSMain: 1. Validate action inputs
-    JSMain->>JSMain: 2. Pre-warm NonceManager (async)
+    Note over UI,VRF: Phase 1: Preparation
+    UI->>UI: Validate action inputs
+    UI->>VRF: signTransactionsWithActions(request)
+    VRF->>NEAR: Fetch nonce + block hash
+    NEAR-->>VRF: Nonce + block hash
+    VRF->>VRF: Canonical intent digest (receiverId + normalized actions)
 
-    Note over JSMain,Worker: Phase 2: User Confirmation & VRF Challenge
-    JSMain->>Worker: 3. Request user confirmation
-    Note over Worker: UI mounts showing transaction details
-    Worker->>NEAR: 4. Get nonce, block height + hash
-    NEAR->>Worker: Block data + nonce
-    Worker->>Worker: 5. Generate VRF challenge (no TouchID)
+    Note over UI,VRF: Phase 2: ConfirmTxFlow (single TouchID)
+    VRF->>UI: Render confirm UI with intent digest
+    UI->>VRF: WebAuthn authentication (TouchID)
+    VRF->>VRF: Derive WrapKeySeed; generate VRF proof for contract
+    VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt + PRF.second
 
-    Note over JSMain,Worker: Phase 3: WebAuthn Authentication
-    Worker->>Worker: 6. WebAuthn authentication (TouchID prompt)
-    Worker->>Contract: 7. verify_authentication_response(vrf_data, webauthn_authentication)
-    Contract->>Contract: 8. Verify VRF proof against stored VRF pubkey ✓
-    Contract->>Contract: 9. Check freshness (block_height within MAX_BLOCK_AGE) ✓
-    Contract->>Contract: 10. Verify WebAuthn signature against stored passkey ✓
-    Contract->>Worker: 11. Authentication verified ✓
+    Note over VRF,Signer: Phase 3: Signing in signer worker
+    Signer->>Signer: Derive KEK; decrypt/derive deterministic NEAR key
+    Signer->>Signer: Sign NEAR transaction(s)
+    Signer-->>UI: Signed transaction(s)
 
-    Note over JSMain,Worker: Phase 4: Transaction Signing
-    Worker->>Worker: 12. Sign NEAR transaction with ed25519 keypair
-    Worker->>JSMain: 13. Signed transaction
-
-    Note over JSMain,NEAR: Phase 5: Broadcasting
-    JSMain->>NEAR: 14. Broadcast signed transaction
-    NEAR->>JSMain: 15. Transaction result (txId)
-    JSMain->>JSMain: 16. Update nonce from blockchain (async)
-    JSMain->>JSMain: 17. Transaction complete ✓
+    Note over UI,NEAR: Phase 4: Broadcast
+    UI->>NEAR: Broadcast signed transaction(s)
+    NEAR-->>UI: Transaction result(s)
+    UI->>UI: Reconcile nonce (async)
 ```
 
 ::: tip **Steps:**
-1. **Preparation** - Validate action inputs and pre-warm the NonceManager to optimize nonce fetching for upcoming transactions.
-
-2. **User Confirmation & VRF Challenge** - Request user confirmation by mounting the wallet UI with transaction details. Fetch fresh NEAR block data (nonce, block height + hash) and generate VRF challenge without prompting for biometric.
-
-3. **WebAuthn Authentication** - User confirms transaction in wallet UI, triggering TouchID/FaceID prompt. Submit VRF proof + WebAuthn signature to Web3Authn contract for atomic on-chain verification (VRF proof, freshness check, WebAuthn signature).
-
-4. **Transaction Signing** - After successful authentication, sign NEAR transaction with ed25519 keypair in the WASM worker.
-
-5. **Broadcasting** - Broadcast signed transaction to NEAR RPC, receive transaction result, and asynchronously reconcile nonces from blockchain.
+1. **Preparation** – Validate inputs and fetch nonce/block hash; compute canonical intent digest in the VRF worker.
+2. **ConfirmTxFlow** – Single TouchID prompt in the VRF worker; derive WrapKeySeed and VRF proof; send WrapKeySeed/wrapKeySalt to the signer over MessageChannel.
+3. **Signing** – Signer worker derives/decrypts the deterministic NEAR key and signs the transaction(s).
+4. **Broadcasting** – Wallet broadcasts signed txs to NEAR RPC, receives results, and reconciles nonce.
 
 **Single biometric prompt** per transaction.
 :::
