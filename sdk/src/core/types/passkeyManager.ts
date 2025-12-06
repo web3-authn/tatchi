@@ -757,7 +757,7 @@ export interface TatchiPasskeyConfigs {
   // used for auto-unlocking VRF keypairs used for Web3authn challenges
   vrfWorkerConfigs?: {
     shamir3pass?: {
-      p?: string; // Shamir's P prime number
+      p?: string; // Shamir's P prime number (public parameter)
       relayServerUrl?: string; // Relay server URL, defaults to relayer.url
       applyServerLockRoute?: string; // Apply server lock route
       removeServerLockRoute?: string; // Remove server lock route

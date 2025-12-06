@@ -398,7 +398,6 @@ export class TatchiPasskeyIframe {
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
   async startDevice2LinkingFlow({
     ui,
-    accountId,
     afterCall,
     onError,
     onEvent,
@@ -407,7 +406,6 @@ export class TatchiPasskeyIframe {
     try {
       if (this.router.isReady()) {
         const res = await this.router.startDevice2LinkingFlow({
-          accountId: accountId,
           ui: ui,
           onEvent: onEvent
         });
@@ -418,7 +416,6 @@ export class TatchiPasskeyIframe {
         qrData,
         qrCodeDataURL
       } = await this.ensureFallbackLocal().startDevice2LinkingFlow({
-        accountId: accountId,
         onEvent: onEvent,
       });
       const res = { qrData, qrCodeDataURL };

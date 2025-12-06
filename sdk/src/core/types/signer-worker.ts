@@ -10,7 +10,6 @@ import { StripFree } from "./index.js";
 import type { onProgressEvents } from "./passkeyManager.js";
 import type { TransactionContext } from './rpc.js';
 import type { VRFChallenge } from './vrf-worker.js';
-import type { SerializableCredential } from '../WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js';
 
 export type WasmTransaction = wasmModule.WasmTransaction;
 export type WasmSignature = wasmModule.WasmSignature;
@@ -26,27 +25,8 @@ export type RpcCallPayload = StripFree<wasmModule.RpcCallPayload>;
  * }
  */
 
-export type WasmDeriveNearKeypairAndEncryptRequest = Omit<
-  StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>,
-  'wrapKeySeed' | 'wrapKeySalt' | 'shamirPub'
-> & {
-  // WrapKeySeed is delivered via MessagePort using sessionId
-  wrapKeySeed?: never;
-  // wrapKeySalt is generated/attached inside the VRF/Signer workers
-  wrapKeySalt?: string;
-  // shamirPub is carried on the main thread only (registration confirm → DB), not via signer WASM
-  shamirPub?: never;
-};
-export type WasmRecoverKeypairRequest = Omit<
-  StripFree<wasmModule.RecoverKeypairRequest>,
-  'wrapKeySeed' | 'wrapKeySalt'
-> & {
-  // WrapKeySeed travels over the dedicated VRF→Signer channel
-  wrapKeySeed?: never;
-  // wrapKeySalt is associated with the WrapKeySeed session and may be injected internally
-  wrapKeySalt?: string;
-};
-export type WasmCheckCanRegisterUserRequest = StripFree<wasmModule.CheckCanRegisterUserRequest>;
+export type WasmDeriveNearKeypairAndEncryptRequest = StripFree<wasmModule.DeriveNearKeypairAndEncryptRequest>;
+export type WasmRecoverKeypairRequest = StripFree<wasmModule.RecoverKeypairRequest>;
 // Override the WASM request type to accept string literals for confirmation config
 type RawSignTransactionsWithActionsRequest = StripFree<wasmModule.SignTransactionsWithActionsRequest>;
 export type WasmSignTransactionsWithActionsRequest = Omit<
@@ -59,41 +39,28 @@ export type WasmSignTransactionsWithActionsRequest = Omit<
   vrfChallenge?: VRFChallenge;
   credential?: string;
   // Decryption context: WrapKeySeed is delivered via MessagePort; only wrapKeySalt + ciphertext travel in payload.
-  decryption: Omit<RawSignTransactionsWithActionsRequest['decryption'], 'wrapKeySeed' | 'wrapKeySalt'> & {
-    wrapKeySeed?: never;
-    wrapKeySalt?: string;
-  };
+  decryption: RawSignTransactionsWithActionsRequest['decryption'];
 };
-export type WasmDecryptPrivateKeyRequest = Omit<StripFree<wasmModule.DecryptPrivateKeyRequest>, 'wrapKeySeed' | 'wrapKeySalt'> & {
-  wrapKeySeed?: never;
-  wrapKeySalt?: string;
-};
+export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
 export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
-export type WasmSignNep413MessageRequest = Omit<
-  StripFree<wasmModule.SignNep413Request>,
-  'wrapKeySeed' | 'wrapKeySalt'
-> & {
-  // WrapKeySeed is delivered via MessagePort using sessionId
-  wrapKeySeed?: never;
-  wrapKeySalt?: string;
-  sessionId?: string;
-};
+export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
 export type WasmSignTransactionWithKeyPairRequest = StripFree<wasmModule.SignTransactionWithKeyPairRequest>;
 export type WasmExportNearKeypairUiRequest = StripFree<wasmModule.ExportNearKeypairUiRequest>;
+// Combined Device2 registration handler (derive + sign in one step)
+export type WasmRegisterDevice2WithDerivedKeyRequest = StripFree<wasmModule.RegisterDevice2WithDerivedKeyRequest>;
 
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmRecoverKeypairRequest
-  | WasmCheckCanRegisterUserRequest
   | WasmSignTransactionsWithActionsRequest
   | WasmDecryptPrivateKeyRequest
   | WasmExtractCosePublicKeyRequest
   | WasmSignNep413MessageRequest
   | WasmSignTransactionWithKeyPairRequest
-  | WasmExportNearKeypairUiRequest;
+  | WasmExportNearKeypairUiRequest
+  | WasmRegisterDevice2WithDerivedKeyRequest;
 
 // WASM Worker Response Types
 export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
-export type WasmRegistrationCheckResult = InstanceType<typeof wasmModule.RegistrationCheckResult>;
 export type WasmSignedTransaction = InstanceType<typeof wasmModule.WasmSignedTransaction>;
 export type WasmTransactionSignResult = InstanceType<typeof wasmModule.TransactionSignResult>;
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
@@ -101,6 +68,7 @@ export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModu
 // wasm-bindgen generates some classes with private constructors, which breaks
 // `InstanceType<typeof Class>`. Use the class name directly for the instance type.
 export type WasmExportNearKeypairUiResult = wasmModule.ExportNearKeypairUiResult;
+export type WasmRegisterDevice2WithDerivedKeyResult = InstanceType<typeof wasmModule.RegisterDevice2WithDerivedKeyResult>;
 
 
 export type WasmSignerWorkerRequest = {
@@ -121,11 +89,6 @@ export interface WorkerRequestTypeMap {
     type: WorkerRequestType.RecoverKeypairFromPasskey;
     request: WasmRecoverKeypairRequest;
     result: WasmRecoverKeypairResult;
-  };
-  [WorkerRequestType.CheckCanRegisterUser]: {
-    type: WorkerRequestType.CheckCanRegisterUser;
-    request: WasmCheckCanRegisterUserRequest;
-    result: WasmRegistrationCheckResult;
   };
   [WorkerRequestType.SignTransactionsWithActions]: {
     type: WorkerRequestType.SignTransactionsWithActions;
@@ -156,6 +119,11 @@ export interface WorkerRequestTypeMap {
     type: WorkerRequestType.ExportNearKeypairUI;
     request: WasmExportNearKeypairUiRequest;
     result: WasmExportNearKeypairUiResult;
+  };
+  [WorkerRequestType.RegisterDevice2WithDerivedKey]: {
+    type: WorkerRequestType.RegisterDevice2WithDerivedKey;
+    request: WasmRegisterDevice2WithDerivedKeyRequest;
+    result: WasmRegisterDevice2WithDerivedKeyResult;
   };
 }
 
@@ -218,7 +186,6 @@ export const mapBehaviorToWasm = (behavior: ConfirmationBehavior): number => {
   }
 };
 export type WasmRequestResult = WasmRecoverKeypairResult
-  | WasmRegistrationCheckResult
   | WasmSignedTransaction
   | WasmTransactionSignResult
   | WasmDecryptPrivateKeyResult
@@ -306,13 +273,13 @@ export interface BaseWorkerResponse {
 export interface RequestResponseMap {
   [WorkerRequestType.DeriveNearKeypairAndEncrypt]: WasmDeriveNearKeypairAndEncryptResult;
   [WorkerRequestType.RecoverKeypairFromPasskey]: WasmRecoverKeypairResult;
-  [WorkerRequestType.CheckCanRegisterUser]: WasmRegistrationCheckResult;
   [WorkerRequestType.DecryptPrivateKeyWithPrf]: WasmDecryptPrivateKeyResult;
   [WorkerRequestType.SignTransactionsWithActions]: WasmTransactionSignResult;
   [WorkerRequestType.ExtractCosePublicKey]: wasmModule.CoseExtractionResult;
   [WorkerRequestType.SignTransactionWithKeyPair]: WasmTransactionSignResult;
   [WorkerRequestType.SignNep413Message]: wasmModule.SignNep413Result;
   [WorkerRequestType.ExportNearKeypairUI]: WasmExportNearKeypairUiResult;
+  [WorkerRequestType.RegisterDevice2WithDerivedKey]: WasmRegisterDevice2WithDerivedKeyResult;
 }
 
 // Generic success response type that uses WASM types
@@ -360,7 +327,6 @@ export type WorkerResponseForRequest<T extends RequestTypeKey> =
 
 export type EncryptionResponse = WorkerResponseForRequest<typeof WorkerRequestType.DeriveNearKeypairAndEncrypt>;
 export type RecoveryResponse = WorkerResponseForRequest<typeof WorkerRequestType.RecoverKeypairFromPasskey>;
-export type CheckRegistrationResponse = WorkerResponseForRequest<typeof WorkerRequestType.CheckCanRegisterUser>;
 export type TransactionResponse = WorkerResponseForRequest<typeof WorkerRequestType.SignTransactionsWithActions>;
 export type DecryptionResponse = WorkerResponseForRequest<typeof WorkerRequestType.DecryptPrivateKeyWithPrf>;
 export type CoseExtractionResponse = WorkerResponseForRequest<typeof WorkerRequestType.ExtractCosePublicKey>;
@@ -385,13 +351,13 @@ export function isWorkerSuccess<T extends RequestTypeKey>(
   return (
     response.type === WorkerResponseType.DeriveNearKeypairAndEncryptSuccess ||
     response.type === WorkerResponseType.RecoverKeypairFromPasskeySuccess ||
-    response.type === WorkerResponseType.CheckCanRegisterUserSuccess ||
     response.type === WorkerResponseType.DecryptPrivateKeyWithPrfSuccess ||
     response.type === WorkerResponseType.SignTransactionsWithActionsSuccess ||
     response.type === WorkerResponseType.ExtractCosePublicKeySuccess ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess ||
     response.type === WorkerResponseType.SignNep413MessageSuccess ||
-    response.type === WorkerResponseType.ExportNearKeypairUiSuccess
+    response.type === WorkerResponseType.ExportNearKeypairUiSuccess ||
+    response.type === WorkerResponseType.RegisterDevice2WithDerivedKeySuccess
   );
 }
 
@@ -401,13 +367,13 @@ export function isWorkerError<T extends RequestTypeKey>(
   return (
     response.type === WorkerResponseType.DeriveNearKeypairAndEncryptFailure ||
     response.type === WorkerResponseType.RecoverKeypairFromPasskeyFailure ||
-    response.type === WorkerResponseType.CheckCanRegisterUserFailure ||
     response.type === WorkerResponseType.DecryptPrivateKeyWithPrfFailure ||
     response.type === WorkerResponseType.SignTransactionsWithActionsFailure ||
     response.type === WorkerResponseType.ExtractCosePublicKeyFailure ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairFailure ||
     response.type === WorkerResponseType.SignNep413MessageFailure ||
-    response.type === WorkerResponseType.ExportNearKeypairUiFailure
+    response.type === WorkerResponseType.ExportNearKeypairUiFailure ||
+    response.type === WorkerResponseType.RegisterDevice2WithDerivedKeyFailure
   );
 }
 
@@ -419,10 +385,6 @@ export function isDeriveNearKeypairAndEncryptSuccess(response: EncryptionRespons
 
 export function isRecoverKeypairFromPasskeySuccess(response: RecoveryResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.RecoverKeypairFromPasskey> {
   return response.type === WorkerResponseType.RecoverKeypairFromPasskeySuccess;
-}
-
-export function isCheckCanRegisterUserSuccess(response: CheckRegistrationResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.CheckCanRegisterUser> {
-  return response.type === WorkerResponseType.CheckCanRegisterUserSuccess;
 }
 
 export function isSignTransactionsWithActionsSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions> {
@@ -439,4 +401,10 @@ export function isExtractCosePublicKeySuccess(response: CoseExtractionResponse):
 
 export function isSignNep413MessageSuccess(response: Nep413SigningResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignNep413Message> {
   return response.type === WorkerResponseType.SignNep413MessageSuccess;
+}
+
+export function isRegisterDevice2WithDerivedKeySuccess(
+  response: WorkerResponseForRequest<typeof WorkerRequestType.RegisterDevice2WithDerivedKey>
+): response is WorkerSuccessResponse<typeof WorkerRequestType.RegisterDevice2WithDerivedKey> {
+  return response.type === WorkerResponseType.RegisterDevice2WithDerivedKeySuccess;
 }

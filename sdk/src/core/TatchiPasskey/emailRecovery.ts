@@ -17,6 +17,7 @@ import type {
   VRFChallenge,
 } from '../types/vrf-worker';
 import type { WebAuthnRegistrationCredential } from '../types';
+import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 
 export type PendingEmailRecoveryStatus =
   | 'awaiting-email'
@@ -300,8 +301,6 @@ export class EmailRecoveryFlow {
       const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
         nearAccountId,
         deviceNumber,
-        contractId: this.context.configs.contractId,
-        nearRpcUrl: this.context.configs.nearRpcUrl,
       });
       if (!confirm.confirmed || !confirm.credential) {
         const err = this.emitError(2, 'User cancelled email recovery TouchID confirmation');
@@ -309,8 +308,19 @@ export class EmailRecoveryFlow {
         throw err;
       }
 
+      const { chacha20PrfOutput } = extractPrfFromCredential({
+        credential: confirm.credential,
+        firstPrfOutput: true,
+        secondPrfOutput: false,
+      });
+      if (!chacha20PrfOutput) {
+        const err = this.emitError(2, 'Missing PRF output from email recovery credential');
+        await this.options?.afterCall?.(false);
+        throw err;
+      }
+
       const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: confirm.prfOutput!,
+        prfOutput: chacha20PrfOutput,
         nearAccountId,
       });
 
@@ -574,40 +584,31 @@ export class EmailRecoveryFlow {
     const accountId = toAccountId(rec.accountId);
     nonceManager.initializeUser(accountId, rec.nearPublicKey);
 
-    let nextNonce: string;
-    let txBlockHash: string;
     try {
-      const result = await nonceManager.getNonceBlockHashAndHeight(this.context.nearClient);
-      nextNonce = result.nextNonce;
-      txBlockHash = result.txBlockHash;
-    } catch (e: any) {
-      const err = this.emitError(5, e?.message || 'Failed to fetch nonce and block hash for registration');
-      await this.options?.afterCall?.(false);
-      throw err;
-    }
-
-    try {
-      const nearKeyResult = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        nearAccountId: accountId,
-        credential: rec.credential,
-        options: {
-          vrfChallenge: rec.vrfChallenge,
-          contractId: this.context.configs.contractId,
-          nonce: nextNonce,
-          blockHash: txBlockHash,
-          deterministicVrfPublicKey: rec.vrfPublicKey,
-          deviceNumber: rec.deviceNumber,
-        },
-      });
-
-      if (!nearKeyResult.success || !nearKeyResult.signedTransaction) {
-        const err = this.emitError(5, nearKeyResult.error || 'Failed to sign email recovery registration transaction');
+      if (!rec.vrfChallenge) {
+        const err = this.emitError(5, 'Missing VRF challenge for email recovery registration');
         await this.options?.afterCall?.(false);
         throw err;
       }
 
+      const registrationResult = await this.context.webAuthnManager.signDevice2RegistrationWithStoredKey({
+        nearAccountId: accountId,
+        credential: rec.credential,
+        vrfChallenge: rec.vrfChallenge,
+        deterministicVrfPublicKey: rec.vrfPublicKey,
+        deviceNumber: rec.deviceNumber,
+      });
+
+      if (!registrationResult.success || !registrationResult.signedTransaction) {
+        const err = this.emitError(5, registrationResult.error || 'Failed to sign email recovery registration transaction');
+        await this.options?.afterCall?.(false);
+        throw err;
+      }
+
+      const signedTx = registrationResult.signedTransaction;
+
       try {
-        await this.context.nearClient.sendTransaction(nearKeyResult.signedTransaction);
+        await this.context.nearClient.sendTransaction(signedTx);
       } catch (e: any) {
         const msg = String(e?.message || '');
         const err = this.emitError(
@@ -619,7 +620,13 @@ export class EmailRecoveryFlow {
       }
 
       try {
-        await nonceManager.updateNonceFromBlockchain(this.context.nearClient, nextNonce);
+        const txNonce = (signedTx.transaction as any)?.nonce;
+        if (txNonce != null) {
+          await nonceManager.updateNonceFromBlockchain(
+            this.context.nearClient,
+            String(txNonce)
+          );
+        }
       } catch {
         // best-effort; do not fail flow
       }

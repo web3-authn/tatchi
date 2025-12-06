@@ -151,7 +151,7 @@ When adding a new Lit component that must render inside the wallet iframe host (
 - Keep the static import too (for type graphs and when bundlers honor side‑effects), but the dynamic import makes it robust.
 
 Implementation reference:
-- `src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts` (SHOW_SECURE_PRIVATE_KEY_UI path) dynamically imports the iframe host module before creating the element.
+- `src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts` (SHOW_SECURE_PRIVATE_KEY_UI path) dynamically imports the iframe host module before creating the element.
 
 ### Embedded assets (dev)
 - Bundles load from `/sdk/` (viewer + bootstrap) under `dist/esm/sdk/`.
@@ -204,7 +204,7 @@ document.body.appendChild(host);
 ```
 
 Reference in codebase:
-- `SignerWorkerManager/confirmTxFlow/flows/common.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
+- `VrfWorkerManager/confirmTxFlow/flows/common.ts` dynamically imports `ExportPrivateKey/iframe-host` before `createElement('w3a-export-viewer-iframe')`.
 
 ### Keep‑imports in wallet host (secondary defense)
 

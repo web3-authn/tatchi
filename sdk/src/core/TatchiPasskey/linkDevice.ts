@@ -433,65 +433,59 @@ export class LinkDeviceFlow {
 
     const realAccountId = this.session.accountId;
 
-    try {
-      this.safeOnEvent({
-        step: 6,
-        phase: DeviceLinkingPhase.STEP_6_REGISTRATION,
-        status: DeviceLinkingStatus.PROGRESS,
-        message: 'Storing device authenticator data locally...'
-      });
+    this.safeOnEvent({
+      step: 6,
+      phase: DeviceLinkingPhase.STEP_6_REGISTRATION,
+      status: DeviceLinkingStatus.PROGRESS,
+      message: 'Storing device authenticator data locally...'
+    });
 
-      // Migrate/generate deterministic VRF credentials for the real account
-      const deterministicKeysResult = await this.deriveDeterministicKeysAndRegisterAccount();
+    // Migrate/generate deterministic VRF credentials for the real account
+    const deterministicKeysResult = await this.deriveDeterministicKeysAndRegisterAccount();
 
-      if (!deterministicKeysResult) {
-        throw new Error('Failed to derive deterministic keys');
-      }
-
-      if (!deterministicKeysResult.vrfChallenge) {
-        throw new Error('Missing VRF challenge from deterministic key derivation');
-      }
-
-      // Store authenticator data locally on Device2
-      await this.storeDeviceAuthenticator(deterministicKeysResult);
-
-      // === NEW: Sign Device2 registration WITHOUT new prompt ===
-      // Use the credential we already collected to sign the registration transaction
-      // This reuses PRF outputs from the stored credential to re-derive WrapKeySeed and sign
-      const registrationResult = await this.context.webAuthnManager.signDevice2RegistrationWithStoredKey({
-        nearAccountId: realAccountId,
-        credential: deterministicKeysResult.credential,
-        vrfChallenge: deterministicKeysResult.vrfChallenge,
-        deterministicVrfPublicKey: deterministicKeysResult.vrfPublicKey,
-        deviceNumber: this.session.deviceNumber!,
-      });
-
-      if (!registrationResult.success || !registrationResult.signedTransaction) {
-        throw new Error(registrationResult.error || 'Device2 registration failed');
-      }
-
-      // Send the signed registration transaction to NEAR
-      await this.context.nearClient.sendTransaction(
-        registrationResult.signedTransaction,
-        DEFAULT_WAIT_STATUS.linkDeviceRegistration,
-      );
-
-      this.session.phase = DeviceLinkingPhase.STEP_7_LINKING_COMPLETE;
-      this.registrationRetryCount = 0; // Reset retry counter on success
-      this.safeOnEvent({
-        step: 7,
-        phase: DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
-        status: DeviceLinkingStatus.SUCCESS,
-        message: 'Device linking completed successfully'
-      });
-
-      // Auto-login for Device2 after successful device linking
-      await this.attemptAutoLogin(deterministicKeysResult, this.options);
-
-    } catch (error: any) {
-      // Re-throw error to be handled by attemptRegistration
-      throw error;
+    if (!deterministicKeysResult) {
+      throw new Error('Failed to derive deterministic keys');
     }
+
+    if (!deterministicKeysResult.vrfChallenge) {
+      throw new Error('Missing VRF challenge from deterministic key derivation');
+    }
+
+    // Store authenticator data locally on Device2
+    await this.storeDeviceAuthenticator(deterministicKeysResult);
+
+    // === NEW: Sign Device2 registration WITHOUT new prompt ===
+    // Use the credential we already collected to sign the registration transaction
+    // This reuses PRF outputs from the stored credential to re-derive WrapKeySeed and sign
+    const registrationResult = await this.context.webAuthnManager.signDevice2RegistrationWithStoredKey({
+      nearAccountId: realAccountId,
+      credential: deterministicKeysResult.credential,
+      vrfChallenge: deterministicKeysResult.vrfChallenge,
+      deterministicVrfPublicKey: deterministicKeysResult.vrfPublicKey,
+      deviceNumber: this.session.deviceNumber!,
+    });
+
+    if (!registrationResult.success || !registrationResult.signedTransaction) {
+      throw new Error(registrationResult.error || 'Device2 registration failed');
+    }
+
+    // Send the signed registration transaction to NEAR
+    await this.context.nearClient.sendTransaction(
+      registrationResult.signedTransaction,
+      DEFAULT_WAIT_STATUS.linkDeviceRegistration,
+    );
+
+    this.session.phase = DeviceLinkingPhase.STEP_7_LINKING_COMPLETE;
+    this.registrationRetryCount = 0; // Reset retry counter on success
+    this.safeOnEvent({
+      step: 7,
+      phase: DeviceLinkingPhase.STEP_7_LINKING_COMPLETE,
+      status: DeviceLinkingStatus.SUCCESS,
+      message: 'Device linking completed successfully'
+    });
+
+    // Auto-login for Device2 after successful device linking
+    await this.attemptAutoLogin(deterministicKeysResult, this.options);
   }
 
   /**
@@ -773,108 +767,102 @@ export class LinkDeviceFlow {
     };
     const realAccountId = this.session.accountId;
 
-    try {
-      // Use secureConfirm to collect passkey with device number inside wallet iframe
-      const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
-        nearAccountId: realAccountId,
-        deviceNumber: this.session.deviceNumber!,
-      });
-      if (!confirm.confirmed || !confirm.credential) {
-        throw new Error('User cancelled link-device confirmation');
-      }
-
-      // Store serialized credential and vrf challenge in session
-      this.session.credential = confirm.credential;
-      this.session.vrfChallenge = confirm.vrfChallenge || null;
-
-      const { chacha20PrfOutput } = extractPrfFromCredential({
-        credential: confirm.credential,
-        firstPrfOutput: true,
-        secondPrfOutput: false,
-      });
-      if (!chacha20PrfOutput) {
-        throw new Error('Missing PRF output from link-device credential');
-      }
-
-      // Derive VRF keypair using raw PRF output from secureConfirm
-      // This also loads the VRF keypair into the worker's memory (saveInMemory=true by default)
-      // and automatically tracks the account ID at the TypeScript level
-      const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: chacha20PrfOutput,
-        nearAccountId: realAccountId,
-      });
-
-      if (!vrfDerivationResult.success || !vrfDerivationResult.encryptedVrfKeypair) {
-        throw new Error('Failed to derive VRF keypair from PRF for real account');
-      }
-
-      // === STEP 1: Generate NEAR keypair (deterministic, no transaction signing) ===
-      // Use base account ID for consistent keypair derivation across devices
-      const nearKeyResultStep1 = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
-        nearAccountId: realAccountId, // Use base account ID for consistency
-        credential: confirm.credential,
-        options: { deviceNumber: this.session.deviceNumber },
-        // No options - just generate the keypair, don't sign registration tx yet.
-        // We need the deterministic NEAR public key to get the nonce for the key replacement transaction first
-        // Then once the key replacement transaction is executed, we use the deterministic key
-        // to sign the registration transaction
-      });
-
-      if (!nearKeyResultStep1.success || !nearKeyResultStep1.publicKey) {
-        throw new Error('Failed to derive NEAR keypair in step 1');
-      }
-
-      // === STEP 2: Execute Key Replacement Transaction ===
-      this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, this.session!.nearPublicKey);
-      // Initialize NonceManager with current (temporary) on-chain key
-      const {
-        nextNonce,
-        txBlockHash
-      } = await this.context.webAuthnManager.getNonceManager()
-        .getNonceBlockHashAndHeight(this.context.nearClient);
-
-      await this.executeKeySwapTransaction(
-        nearKeyResultStep1.publicKey,
-        nextNonce,
-        txBlockHash
-      );
-
-      // After the key swap, initialize NonceManager with the newly added deterministic key
-      // so future transactions and VRF flows use the correct on-chain key.
-      this.context.webAuthnManager.getNonceManager().initializeUser(
-        realAccountId,
-        nearKeyResultStep1.publicKey
-      );
-
-      // Clean up any temp account VRF data.
-      if (this.session?.tempPrivateKey) {
-        try {
-          await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
-        } catch {}
-        // Clean up temporary private key from memory after successful completion
-        this.cleanupTemporaryKeyFromMemory();
-      }
-
-      if (!this.session.credential) {
-        throw new Error('WebAuthn credential not available after VRF migration');
-      }
-
-      // Return all derived values.
-      const result = {
-        encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
-        serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair,
-        vrfPublicKey: vrfDerivationResult.vrfPublicKey,
-        nearPublicKey: nearKeyResultStep1.publicKey,
-        credential: this.session.credential,
-        vrfChallenge: this.session.vrfChallenge!
-      };
-
-      return result;
-
-    } catch (error) {
-      console.error(`LinkDeviceFlow: Failed to process VRF credentials:`, error);
-      throw error;
+    // Use secureConfirm to collect passkey with device number inside wallet iframe
+    const confirm = await this.context.webAuthnManager.requestRegistrationCredentialConfirmation({
+      nearAccountId: realAccountId,
+      deviceNumber: this.session.deviceNumber!,
+    });
+    if (!confirm.confirmed || !confirm.credential) {
+      throw new Error('User cancelled link-device confirmation');
     }
+
+    // Store serialized credential and vrf challenge in session
+    this.session.credential = confirm.credential;
+    this.session.vrfChallenge = confirm.vrfChallenge || null;
+
+    const { chacha20PrfOutput } = extractPrfFromCredential({
+      credential: confirm.credential,
+      firstPrfOutput: true,
+      secondPrfOutput: false,
+    });
+    if (!chacha20PrfOutput) {
+      throw new Error('Missing PRF output from link-device credential');
+    }
+
+    // Derive VRF keypair using raw PRF output from secureConfirm
+    // This also loads the VRF keypair into the worker's memory (saveInMemory=true by default)
+    // and automatically tracks the account ID at the TypeScript level
+    const vrfDerivationResult = await this.context.webAuthnManager.deriveVrfKeypairFromRawPrf({
+      prfOutput: chacha20PrfOutput,
+      nearAccountId: realAccountId,
+    });
+
+    if (!vrfDerivationResult.success || !vrfDerivationResult.encryptedVrfKeypair) {
+      throw new Error('Failed to derive VRF keypair from PRF for real account');
+    }
+
+    // === STEP 1: Generate NEAR keypair (deterministic, no transaction signing) ===
+    // Use base account ID for consistent keypair derivation across devices
+    const nearKeyResultStep1 = await this.context.webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+      nearAccountId: realAccountId, // Use base account ID for consistency
+      credential: confirm.credential,
+      options: { deviceNumber: this.session.deviceNumber },
+      // No options - just generate the keypair, don't sign registration tx yet.
+      // We need the deterministic NEAR public key to get the nonce for the key replacement transaction first
+      // Then once the key replacement transaction is executed, we use the deterministic key
+      // to sign the registration transaction
+    });
+
+    if (!nearKeyResultStep1.success || !nearKeyResultStep1.publicKey) {
+      throw new Error('Failed to derive NEAR keypair in step 1');
+    }
+
+    // === STEP 2: Execute Key Replacement Transaction ===
+    this.context.webAuthnManager.getNonceManager().initializeUser(realAccountId, this.session!.nearPublicKey);
+    // Initialize NonceManager with current (temporary) on-chain key
+    const {
+      nextNonce,
+      txBlockHash
+    } = await this.context.webAuthnManager.getNonceManager()
+      .getNonceBlockHashAndHeight(this.context.nearClient);
+
+    await this.executeKeySwapTransaction(
+      nearKeyResultStep1.publicKey,
+      nextNonce,
+      txBlockHash
+    );
+
+    // After the key swap, initialize NonceManager with the newly added deterministic key
+    // so future transactions and VRF flows use the correct on-chain key.
+    this.context.webAuthnManager.getNonceManager().initializeUser(
+      realAccountId,
+      nearKeyResultStep1.publicKey
+    );
+
+    // Clean up any temp account VRF data.
+    if (this.session?.tempPrivateKey) {
+      try {
+        await IndexedDBManager.nearKeysDB.deleteEncryptedKey('temp-device-linking.testnet');
+      } catch {}
+      // Clean up temporary private key from memory after successful completion
+      this.cleanupTemporaryKeyFromMemory();
+    }
+
+    if (!this.session.credential) {
+      throw new Error('WebAuthn credential not available after VRF migration');
+    }
+
+    // Return all derived values.
+    const result = {
+      encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
+      serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair,
+      vrfPublicKey: vrfDerivationResult.vrfPublicKey,
+      nearPublicKey: nearKeyResultStep1.publicKey,
+      credential: this.session.credential,
+      vrfChallenge: this.session.vrfChallenge!
+    };
+
+    return result;
   }
 
   /**

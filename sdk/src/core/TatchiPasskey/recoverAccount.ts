@@ -100,8 +100,6 @@ export class AccountRecoveryFlow {
   async discover(accountId: string): Promise<PasskeyOptionWithoutCredential[]> {
     try {
       this.phase = 'discovering';
-      console.debug('AccountRecoveryFlow: Discovering available accounts...');
-
       const hasValidAccount = !!accountId && validateNearAccountId(accountId).valid;
 
       if (hasValidAccount) {
@@ -324,8 +322,6 @@ export async function recoverAccount(
   const { onEvent, onError, afterCall } = options || {};
   const { webAuthnManager, nearClient, configs } = context;
 
-  
-
   onEvent?.({
     step: 1,
     phase: AccountRecoveryPhase.STEP_1_PREPARATION,
@@ -336,7 +332,7 @@ export async function recoverAccount(
   try {
     const validation = validateNearAccountId(accountId);
     if (!validation.valid) {
-  return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, afterCall);
+      return handleRecoveryError(accountId, `Invalid NEAR account ID: ${validation.error}`, onError, afterCall);
     }
 
     onEvent?.({
@@ -355,37 +351,20 @@ export async function recoverAccount(
     // Cross-check: ensure the authenticator's userHandle maps to the same account,
     // when available. This avoids deriving a key for the wrong account if the user
     // picks an unrelated passkey from the platform chooser.
-    try {
-      const assertion: any = (credential as any)?.response;
-      const passkeyAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
-      if (passkeyAccount && passkeyAccount !== accountId) {
-        return handleRecoveryError(
-          accountId,
-          `Selected passkey belongs to ${passkeyAccount}, not ${accountId}`,
-          onError,
-          afterCall
-        );
-      }
-    } catch {}
-    const recoveredKeypair = await webAuthnManager.recoverKeypairFromPasskey(
-      credential,
-      accountId
-    );
-
-    const { hasAccess, blockHeight, blockHash } = await Promise.all([
-      nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey),
-      nearClient.viewBlock({ finality: 'final' })
-    ]).then(([hasAccess, blockInfo]) => {
-      return {
-        hasAccess,
-        blockHeight: String(blockInfo.header.height),
-        blockHash: blockInfo.header.hash,
-      };
-    });
-
-    if (!hasAccess) {
-  return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, afterCall);
+    const assertion: any = (credential as any)?.response;
+    const passkeyAccount = parseAccountIdFromUserHandle(assertion?.userHandle);
+    if (passkeyAccount && passkeyAccount !== accountId) {
+      return handleRecoveryError(
+        accountId,
+        `Selected passkey belongs to ${passkeyAccount}, not ${accountId}`,
+        onError,
+        afterCall
+      );
     }
+
+    const blockInfo = await nearClient.viewBlock({ finality: 'final' });
+    const blockHeight = String(blockInfo.header.height);
+    const blockHash = blockInfo.header.hash;
 
     const vrfInputData: VRFInputData = {
       userId: accountId,
@@ -394,6 +373,8 @@ export async function recoverAccount(
       blockHash,
     };
 
+    // Generate VRF keypair first before recovering keypair
+    // keypair recovery needs the VRF keypair in memory to derive the WrapKeySeed
     const deterministicVrfResult = await webAuthnManager.deriveVrfKeypair({
       credential,
       nearAccountId: accountId,
@@ -404,6 +385,19 @@ export async function recoverAccount(
       throw new Error('Failed to derive deterministic VRF keypair and generate challenge from PRF');
     }
 
+    // Now recover the NEAR keypair (uses VRF keypair to derive WrapKeySeed)
+    const recoveredKeypair = await webAuthnManager.recoverKeypairFromPasskey(
+      credential,
+      accountId
+    );
+
+    // Check if the recovered public key has access to the account
+    const hasAccess = await nearClient.viewAccessKey(accountId, recoveredKeypair.publicKey);
+
+    if (!hasAccess) {
+      return handleRecoveryError(accountId, `Account ${accountId} was not created with this passkey`, onError, afterCall);
+    }
+
     const recoveryResult = await performAccountRecovery({
       context,
       accountId,
@@ -411,6 +405,7 @@ export async function recoverAccount(
       encryptedKeypair: {
         encryptedPrivateKey: recoveredKeypair.encryptedPrivateKey,
         iv: recoveredKeypair.iv,
+        wrapKeySalt: recoveredKeypair.wrapKeySalt,
       },
       credential: credential,
       encryptedVrfResult: {
@@ -514,7 +509,8 @@ async function performAccountRecovery({
   publicKey: string,
   encryptedKeypair: {
     encryptedPrivateKey: string,
-    iv: string
+    iv: string,
+    wrapKeySalt?: string,
   },
   credential: WebAuthnAuthenticationCredential,
   encryptedVrfResult: {
@@ -647,11 +643,12 @@ async function restoreUserData({
   serverEncryptedVrfKeypair?: ServerEncryptedVrfKeypair,
   encryptedNearKeypair: {
     encryptedPrivateKey: string;
-    iv: string
+    iv: string;
+    wrapKeySalt?: string;
   },
   credential: WebAuthnAuthenticationCredential
 }) {
-  const existingUser = await webAuthnManager.getUser(accountId);
+  const existingUser = await webAuthnManager.getUserByDevice(accountId, deviceNumber);
 
   // Store the encrypted NEAR keypair in the encrypted keys database
   await IndexedDBManager.nearKeysDB.storeEncryptedKey({
@@ -659,6 +656,10 @@ async function restoreUserData({
     deviceNumber,
     encryptedData: encryptedNearKeypair.encryptedPrivateKey,
     iv: encryptedNearKeypair.iv,
+    // Prefer the true WrapKeySeed salt when available; fall back to iv only for
+    // legacy recovery entries that did not persist wrapKeySalt explicitly.
+    wrapKeySalt: encryptedNearKeypair.wrapKeySalt || encryptedNearKeypair.iv,
+    version: 2,
     timestamp: Date.now()
   });
 
@@ -666,12 +667,12 @@ async function restoreUserData({
     await webAuthnManager.registerUser({
       nearAccountId: accountId,
       deviceNumber,
+      version: 2,
       clientNearPublicKey: publicKey,
       lastUpdated: Date.now(),
       passkeyCredential: {
         id: credential.id,
-        // credential here is a serialized auth cred during recovery; we don't store attestation
-        rawId: (credential as any).rawId ?? ''
+        rawId: credential.rawId
       },
       encryptedVrfKeypair: {
         encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,

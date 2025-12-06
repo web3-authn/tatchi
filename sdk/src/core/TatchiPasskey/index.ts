@@ -913,7 +913,10 @@ export class TatchiPasskey {
   ///////////////////////////////////////
 
   /**
-   * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
+   * Canonical entrypoint to show the Export Private Key UI (secure drawer/modal)
+   * without returning the key to the caller. All dApps should use this wrapper;
+   * the underlying WebAuthnManager.exportNearKeypairWithUI() is fully worker-
+   * driven and only ever reveals the private key inside trusted UI surfaces.
    */
   async exportNearKeypairWithUI(
     nearAccountId: string,
@@ -1267,7 +1270,6 @@ export class TatchiPasskey {
   async startDevice2LinkingFlow(args: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
     if (this.iframeRouter) {
       return await this.iframeRouter.startDevice2LinkingFlow({
-        accountId: args?.accountId,
         ui: args?.ui,
         onEvent: args?.onEvent
       });
@@ -1278,7 +1280,7 @@ export class TatchiPasskey {
       onEvent: args?.onEvent,
     });
     this.activeDeviceLinkFlow = flow;
-    const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId ? toAccountId(args.accountId) : undefined);
+    const { qrData, qrCodeDataURL } = await flow.generateQR();
     return { qrData, qrCodeDataURL };
   }
 

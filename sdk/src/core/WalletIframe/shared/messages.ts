@@ -222,7 +222,6 @@ export type ParentToChildEnvelope =
       fundingAmount: string;
     }>
   | RpcEnvelope<'PM_START_DEVICE2_LINKING_FLOW', {
-      accountId?: string; // optional; when omitted, host discovers via polling
       ui?: 'modal' | 'inline';
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>
