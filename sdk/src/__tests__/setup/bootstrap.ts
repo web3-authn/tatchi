@@ -99,6 +99,13 @@ async function waitForEnvironmentStabilization(page: Page): Promise<void> {
 /**
  * Step 4: DYNAMIC IMPORTS
  * Load TatchiPasskey only after environment is ready
+ *
+ * NOTE (VRF v2):
+ * - The dynamically loaded TatchiPasskey instance now wires:
+ *   - VRF worker as the sole owner of WebAuthn PRF + SecureConfirm
+ *     (via awaitSecureConfirmationV2 in the VRF worker).
+ *   - Signer worker as a WrapKeySeed/KEK/NEAR‑signature enclave that only ever
+ *     sees WrapKeySeed over the internal MessagePort channel (no PRF/vrf_sk).
  */
 async function loadPasskeyManagerDynamically(page: Page, configs: PasskeyTestConfig): Promise<void> {
   // Wait for page to be completely stable before attempting imports
