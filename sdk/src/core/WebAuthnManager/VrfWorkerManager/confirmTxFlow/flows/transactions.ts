@@ -80,22 +80,56 @@ export async function handleTransactionSigningFlow(
   // 5) Collect authentication credential
   try {
     const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+    const { authenticatorsForPrompt } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
+      toAccountId(nearAccountId),
+      authenticators,
+    );
+    console.debug('[SigningFlow] Authenticators for transaction signing', {
+      nearAccountId,
+      authenticatorCount: authenticatorsForPrompt.length,
+      authenticators: authenticatorsForPrompt.map(a => ({
+        deviceNumber: a.deviceNumber,
+        vrfPublicKey: a.vrfPublicKey,
+        credentialId: a.credentialId,
+      })),
+      vrfChallengePublicKey: uiVrfChallenge.vrfPublicKey,
+    });
+
     const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
       nearAccountId,
       challenge: uiVrfChallenge,
-      allowCredentials: authenticatorsToAllowCredentials(authenticators),
+      allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
     });
+
+    // Validate that the chosen credential matches the current device, if applicable.
+    const { wrongPasskeyError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
+      toAccountId(nearAccountId),
+      authenticators,
+      (credential as any)?.rawId,
+    );
+    if (wrongPasskeyError) {
+      throw new Error(wrongPasskeyError);
+    }
 
     const dualPrfOutputs = extractPrfFromCredential({
       credential,
       firstPrfOutput: true,
-      secondPrfOutput: false
+      secondPrfOutput: false  // PRF.second not needed for normal transaction signing (only registration/linking)
     });
     const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
     // 5c) Derive WrapKeySeed inside the VRF worker and deliver it to the signer worker via
     // the reserved WrapKeySeed MessagePort. Main thread only sees wrapKeySalt metadata.
     try {
+      // Ensure VRF session is active and bound to the same account we are signing for.
+      const vrfStatus = await ctx.vrfWorkerManager.checkVrfStatus();
+      if (!vrfStatus.active) {
+        throw new Error('VRF keypair not active in memory. VRF session may have expired or was not properly initialized. Please refresh and try again.');
+      }
+      if (!vrfStatus.nearAccountId || String(vrfStatus.nearAccountId) !== String(toAccountId(nearAccountId))) {
+        throw new Error('VRF session is active but bound to a different account than the one being signed. Please log in again on this device.');
+      }
+
       const deviceNumber = await getDeviceNumberForAccount(toAccountId(nearAccountId), ctx.indexedDB.clientDB);
       const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
       // For v2+ vaults, wrapKeySalt is the canonical salt. iv fallback is retained
@@ -107,6 +141,7 @@ export async function handleTransactionSigningFlow(
       if (!ctx.vrfWorkerManager) {
         throw new Error('VrfWorkerManager not available for WrapKeySeed derivation');
       }
+
       // Extract contract verification context when available.
       // - SIGN_TRANSACTION: use per-request rpcCall (already normalized by caller).
       // - SIGN_NEP413_MESSAGE: use default contract/rpc from PASSKEY_MANAGER_DEFAULT_CONFIGS.
@@ -131,7 +166,8 @@ export async function handleTransactionSigningFlow(
         credential: serialized,
       });
     } catch (err) {
-      console.warn('[SigningFlow] Skipped WrapKeySeed derivation', err);
+      console.error('[SigningFlow] WrapKeySeed derivation failed:', err);
+      throw err; // Don't silently ignore - propagate the error
     }
 
   // 6) Respond; keep nonces reserved for worker to use
@@ -168,11 +204,14 @@ export async function handleTransactionSigningFlow(
     nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
     // Close the UI to avoid stale element flashing on next open
     closeModalSafely(false, confirmHandle);
+    const isWrongPasskeyError = /multiple passkeys \(devicenumbers\) for account/i.test(msg);
     return send(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
-      error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+      error: cancelled
+        ? 'User cancelled secure confirm request'
+        : (isWrongPasskeyError ? msg : 'Failed to collect credentials'),
     });
   }
 }

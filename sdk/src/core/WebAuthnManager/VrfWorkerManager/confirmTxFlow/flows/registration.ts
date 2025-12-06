@@ -131,7 +131,7 @@ export async function handleRegistrationFlow(
       }
     }
 
-    const { dualPrfOutputs, serialized } = await ensureDualPrfForRegistration({
+    const { serialized } = await ensureDualPrfForRegistration({
       credential: credential!,
       nearAccountId,
       rpId,
@@ -143,7 +143,7 @@ export async function handleRegistrationFlow(
       intentDigest: getIntentDigest(request),
       confirmed: true,
       credential: serialized,
-      // PRF is extracted later inside VRF-driven flows; do not return it to signer paths
+      // PRF outputs are embedded in serialized credential; VRF worker extracts and sends via MessagePort
       vrfChallenge: uiVrfChallenge,
       transactionContext,
     });

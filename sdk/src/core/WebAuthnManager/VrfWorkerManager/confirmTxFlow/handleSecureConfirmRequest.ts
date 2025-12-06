@@ -126,6 +126,24 @@ function validateAndParseRequest({ ctx, request }: {
 } {
   // Parse and validate summary data (can contain extra fields we need)
   const summary = parseTransactionSummary(request.summary);
+
+  // Defensive guard: signing envelopes must not carry PRF or wrap-key material on the main thread.
+  const flowKind = classifyFlow(request);
+  if (flowKind === 'Signing') {
+    const payload: any = (request as SigningSecureConfirmRequest)?.payload || {};
+    if (payload.prfOutput !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field prfOutput');
+    }
+    if (payload.wrapKeySeed !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field wrapKeySeed');
+    }
+    if (payload.wrapKeySalt !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field wrapKeySalt');
+    }
+    if (payload.vrf_sk !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field vrf_sk');
+    }
+  }
   // Get confirmation configuration from data (overrides user settings) or use user's settings,
   // then compute effective config based on runtime and request type
   const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, request);
