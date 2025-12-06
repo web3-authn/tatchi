@@ -9,6 +9,7 @@ export interface ClientUserData {
   // Primary key - now uses AccountId + deviceNumber for unique identification
   nearAccountId: AccountId;
   deviceNumber: number; // Device number for multi-device support (1-indexed)
+  version?: number;
 
   // User metadata
   registeredAt?: number;
@@ -27,7 +28,6 @@ export interface ClientUserData {
     encryptedVrfDataB64u: string;
     chacha20NonceB64u: string;
   };
-
   // Server-assisted auto-login (VRF key session): Shamir 3-pass fields
   // Stores relayer-blinded KEK and the VRF ciphertext; server never sees plaintext VRF or KEK
   serverEncryptedVrfKeypair?: {
@@ -47,6 +47,12 @@ export type StoreUserDataInput = Omit<ClientUserData, 'deviceNumber' | 'lastLogi
   & {
     deviceNumber?: number;
     serverEncryptedVrfKeypair?: ClientUserData['serverEncryptedVrfKeypair'];
+    version?: number;
+    /**
+     * @deprecated See ClientUserData.wrapKeySalt. New registrations should
+     * rely on PasskeyNearKeysDB.EncryptedKeyData.wrapKeySalt instead.
+     */
+    wrapKeySalt?: string;
   };
 
 export interface UserPreferences {
@@ -73,6 +79,11 @@ interface AppStateEntry<T = unknown> {
   key: string;
   value: T;
 }
+
+// Internal helper: legacy user records may be missing deviceNumber.
+type ClientUserDataWithOptionalDevice =
+  | ClientUserData
+  | (Omit<ClientUserData, 'deviceNumber'> & { deviceNumber?: number });
 
 // Special type for lastUserAccountId app state entry
 export interface LastUserAccountIdState {
@@ -158,9 +169,6 @@ export class PasskeyClientDBManager {
 
   // === EVENT SYSTEM ===
 
-  /**
-   * Subscribe to IndexedDB change events
-   */
   onChange(listener: (event: IndexedDBEvent) => void): () => void {
     this.eventListeners.add(listener);
     return () => {
@@ -168,9 +176,6 @@ export class PasskeyClientDBManager {
     };
   }
 
-  /**
-   * Emit an event to all listeners
-   */
   private emitEvent(event: IndexedDBEvent): void {
     this.eventListeners.forEach(listener => {
       try {
@@ -225,8 +230,10 @@ export class PasskeyClientDBManager {
           this.db = null;
         },
       });
+
       // Post-open migrations (non-blocking)
       try { await this.runMigrationsIfNeeded(this.db); } catch {}
+
     } catch (err: any) {
       const msg = String(err?.message || '');
       if (err?.name === 'VersionError' || /less than the existing version/i.test(msg)) {
@@ -300,7 +307,7 @@ export class PasskeyClientDBManager {
 
   // === USER MANAGEMENT METHODS ===
 
-  async getUser(nearAccountId: AccountId): Promise<ClientUserData | null> {
+  async getUser(nearAccountId: AccountId, deviceNumber?: number): Promise<ClientUserData | null> {
     if (!nearAccountId) return null;
 
     const validation = this.validateNearAccountId(nearAccountId);
@@ -312,22 +319,39 @@ export class PasskeyClientDBManager {
     const db = await this.getDB();
     const accountId = toAccountId(nearAccountId);
 
-    // Find first device for this account (most common case)
-    // Should only have one record per account per device
+    if (typeof deviceNumber === 'number') {
+      const rec = await db.get(DB_CONFIG.userStore, [accountId, deviceNumber]);
+      if (!rec) return null;
+      return await this.normalizeUserDeviceNumber(rec as ClientUserDataWithOptionalDevice, deviceNumber);
+    }
+
     const index = db.transaction(DB_CONFIG.userStore).store.index('nearAccountId');
     const results = await index.getAll(accountId);
-    const user = results.length > 0 ? (results[0] as any) : null;
-    if (!user) return null;
-    // Ensure deviceNumber is always present; backfill to 1 if missing and persist
-    if (typeof user.deviceNumber !== 'number' || !Number.isFinite(user.deviceNumber)) {
-      const fixed: ClientUserData = {
-        ...user,
-        deviceNumber: 1,
-      };
-      await this.updateUser(accountId, { deviceNumber: 1 });
-      return fixed;
+    if (results.length === 0) {
+      return null;
     }
-    return user as ClientUserData;
+
+    if (results.length > 1) {
+      console.warn(
+        `Multiple passkeys found for account ${accountId}, deviceNumber not provided; ` +
+        'defaulting to last logged-in user.'
+      );
+      console.log('defaulting to last used user deviceNumber');
+      const lastUserState = await this.getAppState<LastUserAccountIdState>('lastUserAccountId').catch(() => null);
+      if (lastUserState && toAccountId(lastUserState.accountId) === accountId) {
+        const keyed = await db.get(DB_CONFIG.userStore, [accountId, lastUserState.deviceNumber]);
+        if (keyed) {
+          return await this.normalizeUserDeviceNumber(
+            keyed as ClientUserDataWithOptionalDevice,
+            lastUserState.deviceNumber
+          );
+        }
+      }
+    }
+
+    const first = results[0] as ClientUserDataWithOptionalDevice;
+    if (!first) return null;
+    return await this.normalizeUserDeviceNumber(first, 1);
   }
 
   /**
@@ -360,6 +384,61 @@ export class PasskeyClientDBManager {
   }
 
   /**
+   * Ensure the current passkey selection is aligned with the last logged-in device.
+   *
+   * - When multiple authenticators exist for an account and no deviceNumber is specified,
+   *   this helper prefers authenticators whose deviceNumber matches the last logged-in user.
+   * - Optionally validates that a selected credential (by rawId) also matches the last-user device.
+   *
+   * @param nearAccountId - Account ID for which the operation is being performed
+   * @param authenticators - All authenticators stored for the account
+   * @param selectedCredentialRawId - Optional rawId of the credential chosen by WebAuthn
+   * @returns filtered authenticators for allowCredentials, plus optional wrongPasskeyError
+   */
+  async ensureCurrentPasskey(
+    nearAccountId: AccountId,
+    authenticators: ClientAuthenticatorData[],
+    selectedCredentialRawId?: string,
+  ): Promise<{
+    authenticatorsForPrompt: ClientAuthenticatorData[];
+    wrongPasskeyError?: string;
+  }> {
+    let authenticatorsForPrompt = authenticators;
+    let wrongPasskeyError: string | undefined;
+
+    if (authenticators.length > 1) {
+      const accountIdNormalized = toAccountId(nearAccountId);
+      const lastUser = await this.getLastUser().catch(() => null);
+      const expectedAccountId = lastUser?.nearAccountId;
+      const expectedDeviceNumber = lastUser?.deviceNumber;
+
+      if (
+        expectedAccountId &&
+        expectedDeviceNumber &&
+        expectedAccountId === accountIdNormalized
+      ) {
+        // For the prompt, prefer authenticators that match the last-user deviceNumber.
+        const filtered = authenticators.filter(a => a.deviceNumber === expectedDeviceNumber);
+        if (filtered.length > 0) {
+          authenticatorsForPrompt = filtered;
+        }
+
+        // If a credential was already chosen, verify it matches the last-user deviceNumber.
+        if (selectedCredentialRawId) {
+          const matched = authenticators.find(a => a.credentialId === selectedCredentialRawId);
+          if (matched && matched.deviceNumber !== expectedDeviceNumber) {
+            wrongPasskeyError =
+              `You have multiple passkeys (deviceNumbers) for account ${accountIdNormalized}, ` +
+              'but used a passkey from a different device. Please use the passkey for the most recently logged-in device.';
+          }
+        }
+      }
+    }
+
+    return { authenticatorsForPrompt, wrongPasskeyError };
+  }
+
+  /**
    * Register a new user with the given NEAR account ID
    * @param nearAccountId - Full NEAR account ID (e.g., "username.testnet" or "username.relayer.testnet")
    * @param additionalData - Additional user data to store
@@ -376,6 +455,7 @@ export class PasskeyClientDBManager {
     const userData: ClientUserData = {
       nearAccountId: toAccountId(storeUserData.nearAccountId),
       deviceNumber: storeUserData.deviceNumber || 1, // Default to device 1 (1-indexed)
+      version: storeUserData.version || 2,
       registeredAt: now,
       lastLogin: now,
       lastUpdated: now,
@@ -452,6 +532,25 @@ export class PasskeyClientDBManager {
     }
   }
 
+  private async normalizeUserDeviceNumber(
+    user: ClientUserDataWithOptionalDevice,
+    defaultDeviceNumber: number
+  ): Promise<ClientUserData> {
+    const hasValidDevice =
+      typeof user.deviceNumber === 'number' && Number.isFinite(user.deviceNumber);
+    if (hasValidDevice) {
+      return user as ClientUserData;
+    }
+
+    const deviceNumber = defaultDeviceNumber;
+    const fixed: ClientUserData = {
+      ...(user as Omit<ClientUserData, 'deviceNumber'>),
+      deviceNumber,
+    };
+    await this.storeUser(fixed);
+    return fixed;
+  }
+
   private async storeUser(userData: ClientUserData): Promise<void> {
     const validation = this.validateNearAccountId(userData.nearAccountId);
     if (!validation.valid) {
@@ -479,6 +578,8 @@ export class PasskeyClientDBManager {
     deviceNumber?: number; // Device number for multi-device support (1-indexed)
     clientNearPublicKey: string;
     lastUpdated?: number;
+    version?: number;
+    wrapKeySalt?: string;
     passkeyCredential: {
       id: string;
       rawId: string;
@@ -513,6 +614,8 @@ export class PasskeyClientDBManager {
         clientNearPublicKey: userData.clientNearPublicKey,
         passkeyCredential: userData.passkeyCredential,
         encryptedVrfKeypair: userData.encryptedVrfKeypair,
+        version: userData.version || 2,
+        wrapKeySalt: userData.wrapKeySalt,
         serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
       });
     }
@@ -524,6 +627,7 @@ export class PasskeyClientDBManager {
       clientNearPublicKey: userData.clientNearPublicKey,
       encryptedVrfKeypair: userData.encryptedVrfKeypair,
       serverEncryptedVrfKeypair: userData.serverEncryptedVrfKeypair,
+      version: userData.version || existingUser.version,
       deviceNumber: finalDeviceNumber, // Use provided device number or keep existing
       lastUpdated: userData.lastUpdated || Date.now()
     });
@@ -581,8 +685,17 @@ export class PasskeyClientDBManager {
     credentialId: string
   ): Promise<ClientAuthenticatorData | null> {
     const db = await this.getDB();
-    const result = await db.get(DB_CONFIG.authenticatorStore, [nearAccountId, credentialId]);
-    return result || null;
+    const tx = db.transaction(DB_CONFIG.authenticatorStore, 'readonly');
+    const store = tx.objectStore(DB_CONFIG.authenticatorStore);
+    const accountId = toAccountId(nearAccountId);
+
+    // Primary key is [nearAccountId, deviceNumber, credentialId], so we cannot
+    // look up by [nearAccountId, credentialId] directly. Use the nearAccountId
+    // index and filter by credentialId.
+    const index = store.index('nearAccountId');
+    const all = await index.getAll(accountId);
+    const match = all.find((auth: any) => auth.credentialId === credentialId) || null;
+    return match;
   }
 
   /**
@@ -595,7 +708,8 @@ export class PasskeyClientDBManager {
     const store = tx.objectStore(DB_CONFIG.authenticatorStore);
 
     for (const auth of authenticators) {
-      await store.delete([nearAccountId, auth.credentialId]);
+      // Composite PK is [nearAccountId, deviceNumber, credentialId]
+      await store.delete([nearAccountId, auth.deviceNumber, auth.credentialId]);
     }
   }
 
@@ -662,7 +776,8 @@ export class PasskeyClientDBManager {
     const store = tx.objectStore(DB_CONFIG.authenticatorStore);
 
     for (const auth of authenticators) {
-      await store.delete([nearAccountId, auth.credentialId]);
+      // Composite PK is [nearAccountId, deviceNumber, credentialId]
+      await store.delete([nearAccountId, auth.deviceNumber, auth.credentialId]);
     }
 
     console.debug(`Deleted ${authenticators.length} authenticators for user ${nearAccountId}`);

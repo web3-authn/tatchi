@@ -1,3 +1,12 @@
+/**
+ * Shared test configuration for Passkey/VRF e2e-style tests.
+ *
+ * In the VRF v2 architecture:
+ * - These values are threaded into the TatchiPasskey instance and ultimately
+ *   into WebAuthnManager, NearClient, and the VRF worker configuration.
+ * - `nearRpcUrl` / `contractId` are used by both confirmTxFlow and VRF worker
+ *   to fetch NEAR context and generate VRF challenges consistently.
+ */
 export interface PasskeyTestConfig {
   frontendUrl: string;
   nearNetwork: 'testnet' | 'mainnet';

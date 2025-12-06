@@ -4,9 +4,7 @@
 // *                                                                            *
 // ******************************************************************************
 
-use crate::actions::ActionParams;
-use crate::handlers::confirm_tx_details::{request_user_confirmation, ConfirmationResult};
-use crate::rpc_calls::{verify_authentication_response_rpc_call, VrfData};
+use crate::{actions::ActionParams, WrapKey};
 use crate::transaction::{
     build_actions_from_params, build_transaction_with_actions, calculate_transaction_hash,
     sign_transaction,
@@ -14,12 +12,13 @@ use crate::transaction::{
 use crate::types::{
     handlers::{ConfirmationConfig, RpcCallPayload},
     progress::{
-        send_completion_message, send_error_message, send_progress_message, ProgressMessageType,
+        send_completion_message, send_progress_message,
+        ProgressMessageType,
         ProgressStep,
     },
     wasm_to_json::WasmSignedTransaction,
-    DecryptionPayload, SignedTransaction, WebAuthnAuthenticationCredential,
-    WebAuthnAuthenticationCredentialStruct,
+    DecryptionPayload,
+    SignedTransaction,
 };
 use bs58;
 use serde::{Deserialize, Serialize};
@@ -32,6 +31,10 @@ use wasm_bindgen::prelude::*;
 pub struct SignTransactionsWithActionsRequest {
     #[wasm_bindgen(getter_with_clone, js_name = "rpcCall")]
     pub rpc_call: RpcCallPayload,
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "createdAt")]
+    pub created_at: Option<f64>,
     #[wasm_bindgen(getter_with_clone)]
     pub decryption: DecryptionPayload,
     #[wasm_bindgen(getter_with_clone, js_name = "txSigningRequests")]
@@ -39,6 +42,12 @@ pub struct SignTransactionsWithActionsRequest {
     /// Unified confirmation configuration for controlling the confirmation flow
     #[wasm_bindgen(getter_with_clone, js_name = "confirmationConfig")]
     pub confirmation_config: Option<ConfirmationConfig>,
+    #[wasm_bindgen(getter_with_clone, js_name = "intentDigest")]
+    pub intent_digest: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "transactionContext")]
+    pub transaction_context: Option<crate::types::handlers::TransactionContext>,
+    #[wasm_bindgen(getter_with_clone)]
+    pub credential: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -149,27 +158,21 @@ impl KeyActionResult {
     }
 }
 
-#[wasm_bindgen]
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct Decryption {
-    #[wasm_bindgen(getter_with_clone)]
-    pub chacha20_prf_output: String,
-    #[wasm_bindgen(getter_with_clone)]
+    pub wrap_key: WrapKey,
     pub encrypted_private_key_data: String,
-    #[wasm_bindgen(getter_with_clone)]
     pub encrypted_private_key_iv: String,
 }
 
-#[wasm_bindgen]
 impl Decryption {
-    #[wasm_bindgen(constructor)]
     pub fn new(
-        chacha20_prf_output: String,
+        wrap_key: WrapKey,
         encrypted_private_key_data: String,
         encrypted_private_key_iv: String,
     ) -> Decryption {
         Decryption {
-            chacha20_prf_output,
+            wrap_key,
             encrypted_private_key_data,
             encrypted_private_key_iv,
         }
@@ -192,6 +195,7 @@ impl Decryption {
 /// * `TransactionSignResult` - Contains success status, transaction hashes, signed transactions, and detailed logs
 pub async fn handle_sign_transactions_with_actions(
     tx_batch_request: SignTransactionsWithActionsRequest,
+    wrap_key: WrapKey,
 ) -> Result<TransactionSignResult, String> {
     // Validate input
     if tx_batch_request.tx_signing_requests.is_empty() {
@@ -204,8 +208,15 @@ pub async fn handle_sign_transactions_with_actions(
         tx_batch_request.tx_signing_requests.len()
     ));
 
-    // Step 1: Request user confirmation and credential collection
-    // Log transaction details for validation
+    // Validate session expiry if created_at is present
+    if let Some(created_at) = tx_batch_request.created_at {
+        let now = js_sys::Date::now();
+        if now - created_at > crate::config::SESSION_MAX_DURATION_MS {
+             return Err("Session expired".to_string());
+        }
+    }
+
+    // Step 1: Validate pre-confirmed context (confirmation already ran in VRF-driven flow)
     for (i, tx) in tx_batch_request.tx_signing_requests.iter().enumerate() {
         logs.push(format!(
             "Transaction {}: {} -> {} ({} actions)",
@@ -218,7 +229,7 @@ pub async fn handle_sign_transactions_with_actions(
     send_progress_message(
         ProgressMessageType::ExecuteActionsProgress,
         ProgressStep::UserConfirmation,
-        "Requesting user confirmation...",
+        "Using pre-confirmed signing session from VRF flow...",
         Some(&serde_json::json!({
             "step": 1,
             "total": 4,
@@ -226,29 +237,31 @@ pub async fn handle_sign_transactions_with_actions(
         }).to_string()),
     );
 
-    // Use the confirmation configuration if provided, otherwise use default
-    let confirmation_config = tx_batch_request.confirmation_config.as_ref();
-    logs.push(format!("Using confirmation config: {:?}", confirmation_config));
+    let intent_digest = tx_batch_request
+        .intent_digest
+        .clone()
+        .ok_or_else(|| "Missing intent digest from pre-confirmed session".to_string())?;
 
-    let c = request_user_confirmation(&tx_batch_request, &mut logs)
-        .await
-        .map_err(|e| format!("Confirmation request failed: {}", e))?;
+    // let vrf_challenge = tx_batch_request
+    //     .vrf_challenge
+    //     .clone()
+    //     .ok_or_else(|| "Missing VRF challenge from confirmation".to_string())?;
 
-    if !c.confirmed {
-        return Ok(TransactionSignResult::failed(
-            logs,
-            "Transaction rejected by user".to_string(),
-        ));
-    }
+    // let credential_json_value: serde_json::Value = tx_batch_request
+    //     .credential
+    //     .clone()
+    //     .ok_or_else(|| "Missing authentication credential from confirmation".to_string())
+    //     .and_then(|v| serde_json::from_str(&v).map_err(|e| format!("Invalid credential payload: {}", e)))?;
+
+    let transaction_context = tx_batch_request
+        .transaction_context
+        .clone()
+        .ok_or_else(|| "Missing transaction context from confirmation".to_string())?;
+
     logs.push(format!(
-        "User confirmation received with digest: {}",
-        c.intent_digest.clone().unwrap_or_default()
+        "Pre-confirmed session with intent digest {}",
+        intent_digest
     ));
-
-    // Log validation success
-    if tx_batch_request.confirmation_config.is_some() {
-        logs.push("[WASM] User has confirmed transaction details".to_string());
-    }
 
     // Step 2: Extract credentials for verification
     logs.push("Extracting credentials for contract verification...".to_string());
@@ -259,126 +272,28 @@ pub async fn handle_sign_transactions_with_actions(
         Some(&serde_json::json!({"step": 2, "total": 4}).to_string()),
     );
 
-    // VRF challenge is now generated in the main thread confirmation flow
-    // and passed via the confirmation result
-    let vrf_challenge = c
-        .vrf_challenge
-        .clone()
-        .ok_or_else(|| "Missing VRF challenge from confirmation result".to_string())?;
-
-    // VRF challenge is passed to contract verification below; block height freshness is enforced there.
-
-    // Get credential from confirmation result (mandatory now)
-    let credential_json_value = c
-        .credential
-        .clone()
-        .ok_or_else(|| "Missing authentication credential from confirmation".to_string())?;
-
     // If credential is serde_json::Value, convert; else assume structured already
-    let credential = if let Ok(c) = serde_json::from_value::<WebAuthnAuthenticationCredentialStruct>(
-        credential_json_value.clone(),
-    ) {
-        c
-    } else {
-        // Fall back to extracting fields if we received the old structured type
-        let c: WebAuthnAuthenticationCredential = serde_json::from_value(credential_json_value)
-            .map_err(|e| format!("Invalid authentication credential: {}", e))?;
-        WebAuthnAuthenticationCredentialStruct::new(
-            c.id,
-            c.raw_id,
-            c.auth_type,
-            c.authenticator_attachment,
-            c.response.client_data_json,
-            c.response.authenticator_data,
-            c.response.signature,
-            c.response.user_handle,
-        )
-    };
+    // let credential = if let Ok(c) = serde_json::from_value::<WebAuthnAuthenticationCredentialStruct>(
+    //     credential_json_value.clone(),
+    // ) {
+    //     c
+    // } else {
+    //     // Fall back to extracting fields if we received the old structured type
+    //     let c: WebAuthnAuthenticationCredential = serde_json::from_value(credential_json_value)
+    //         .map_err(|e| format!("Invalid authentication credential: {}", e))?;
+    //     WebAuthnAuthenticationCredentialStruct::new(
+    //         c.id,
+    //         c.raw_id,
+    //         c.auth_type,
+    //         c.authenticator_attachment,
+    //         c.response.client_data_json,
+    //         c.response.authenticator_data,
+    //         c.response.signature,
+    //         c.response.user_handle,
+    //     )
+    // };
 
-    // Step 3: Contract verification using confirmed credentials (if preConfirm) or provided ones
-    logs.push(format!(
-        "Starting contract verification for {}",
-        tx_batch_request.rpc_call.contract_id
-    ));
-
-    // Send verification progress
-    send_progress_message(
-        ProgressMessageType::ExecuteActionsProgress,
-        ProgressStep::ContractVerification,
-        "Verifying credentials with contract...",
-        Some(&serde_json::json!({"step": 3, "total": 4}).to_string()),
-    );
-
-    // Convert structured types
-    let vrf_data = VrfData::try_from(&vrf_challenge)
-        .map_err(|e| format!("Failed to convert VRF data: {:?}", e))?;
-    let webauthn_auth = WebAuthnAuthenticationCredential::from(&credential);
-
-    // Perform contract verification once for the entire batch
-    let verification_result = match verify_authentication_response_rpc_call(
-        &tx_batch_request.rpc_call.contract_id,
-        &tx_batch_request.rpc_call.near_rpc_url,
-        vrf_data,
-        webauthn_auth,
-    )
-    .await
-    {
-        Ok(result) => {
-            logs.extend(result.logs.clone());
-
-            // Send verification complete progress
-            send_completion_message(
-                ProgressMessageType::ExecuteActionsProgress,
-                ProgressStep::AuthenticationComplete,
-                "Contract verification completed successfully",
-                Some(
-                    &serde_json::json!({
-                        "step": 3,
-                        "total": 4,
-                        "verified": result.verified,
-                        "logs": result.logs
-                    })
-                    .to_string(),
-                ),
-            );
-
-            result
-        }
-        Err(e) => {
-            let error_msg = format!("Contract verification failed: {}", e);
-            logs.push(error_msg.clone());
-
-            // Send error progress message
-            send_error_message(
-                ProgressMessageType::ExecuteActionsProgress,
-                ProgressStep::Error,
-                &error_msg,
-                &e.to_string(),
-            );
-
-            return Ok(TransactionSignResult::failed(logs, error_msg));
-        }
-    };
-
-    if !verification_result.verified {
-        let error_msg = verification_result
-            .error
-            .unwrap_or_else(|| "Contract verification failed".to_string());
-        logs.push(error_msg.clone());
-
-        send_error_message(
-            ProgressMessageType::ExecuteActionsProgress,
-            ProgressStep::Error,
-            &error_msg,
-            "verification failed",
-        );
-
-        return Ok(TransactionSignResult::failed(logs, error_msg));
-    }
-
-    logs.push("Contract verification successful".to_string());
-
-    // Step 4: Batch transaction signing (confirmation and verification completed)
+    // Step 3: Batch transaction signing (confirmation and verification already completed in VRF/confirmTxFlow)
     logs.push(format!(
         "Signing {} transactions in secure WASM context...",
         tx_batch_request.tx_signing_requests.len()
@@ -392,14 +307,11 @@ pub async fn handle_sign_transactions_with_actions(
         Some(&serde_json::json!({"step": 4, "total": 4, "transaction_count": tx_batch_request.tx_signing_requests.len()}).to_string())
     );
 
-    // Get PRF output from confirmation result (mandatory now)
-    let chacha20_prf_output = c
-        .prf_output
-        .clone()
-        .ok_or_else(|| "Missing PRF output from confirmation".to_string())?;
+    // Process all transactions using the shared verification and decryption
+    let tx_count = tx_batch_request.tx_signing_requests.len();
 
     let decryption = Decryption::new(
-        chacha20_prf_output,
+        wrap_key,
         tx_batch_request
             .decryption
             .encrypted_private_key_data
@@ -407,13 +319,10 @@ pub async fn handle_sign_transactions_with_actions(
         tx_batch_request.decryption.encrypted_private_key_iv.clone(),
     );
 
-    // Process all transactions using the shared verification and decryption
-    let tx_count = tx_batch_request.tx_signing_requests.len();
-    let confirmation_result = &c;
     let result = sign_near_transactions_with_actions_impl(
         tx_batch_request.tx_signing_requests,
         &decryption,
-        confirmation_result,
+        &transaction_context,
         logs,
     )
     .await?;
@@ -453,7 +362,7 @@ pub async fn handle_sign_transactions_with_actions(
 async fn sign_near_transactions_with_actions_impl(
     tx_requests: Vec<TransactionPayload>,
     decryption: &Decryption,
-    confirmation_result: &ConfirmationResult,
+    transaction_context: &crate::types::handlers::TransactionContext,
     mut logs: Vec<String>,
 ) -> Result<TransactionSignResult, String> {
     if tx_requests.is_empty() {
@@ -474,21 +383,35 @@ async fn sign_near_transactions_with_actions_impl(
     }
 
     logs.push(format!("Processing {} transactions", tx_requests.len()));
-    let signing_key = crate::crypto::decrypt_private_key_with_prf(
-        &first_transaction.near_account_id,
-        &decryption.chacha20_prf_output,
+    // Decrypt using WrapKey-derived KEK
+    let kek = decryption.wrap_key.derive_kek()?;
+
+    let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &decryption.encrypted_private_key_data,
         &decryption.encrypted_private_key_iv,
+        &kek,
     )
     .map_err(|e| format!("Decryption failed: {}", e))?;
 
-    logs.push("Private key decrypted successfully".to_string());
+    let decoded_pk = bs58::decode(
+        decrypted_private_key_str
+            .strip_prefix("ed25519:")
+            .unwrap_or(&decrypted_private_key_str),
+    )
+    .into_vec()
+    .map_err(|e| format!("Invalid private key base58: {}", e))?;
 
-    // Process NEAR data from confirmation result
-    let transaction_context = confirmation_result
-        .transaction_context
-        .as_ref()
-        .ok_or_else(|| "Missing transaction context from confirmation".to_string())?;
+    if decoded_pk.len() < 32 {
+        return Err("Decoded private key too short".to_string());
+    }
+
+    let secret_bytes: [u8; 32] = decoded_pk[0..32]
+        .try_into()
+        .map_err(|_| "Invalid secret key length".to_string())?;
+
+    let signing_key = ed25519_dalek::SigningKey::from_bytes(&secret_bytes);
+
+    logs.push("Private key decrypted successfully".to_string());
 
     // Prepare nonce sequencing: start from next_nonce and increment per transaction
     let mut current_nonce: u64 = transaction_context

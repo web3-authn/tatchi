@@ -57,11 +57,7 @@ import { errorMessage } from '../utils/errors';
 // Resolve WASM URL using the centralized resolution strategy
 const wasmUrl = resolveWasmUrl('wasm_signer_worker_bg.wasm', 'Signer Worker');
 const { handle_signer_message } = wasmModule;
-import { awaitSecureConfirmationV2 } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/awaitSecureConfirmation';
-import { SecureConfirmMessageType } from './WebAuthnManager/SignerWorkerManager/confirmTxFlow/types';
-
-// Expose the confirmation bridge under the JS name expected by wasm-bindgen (js_name = awaitSecureConfirmationV2)
-(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
+// SecureConfirm bridge removed: signer no longer initiates confirmations
 
 let messageProcessed = false;
 
@@ -106,7 +102,6 @@ function sendProgressMessage(
       logs: parsedLogs
     };
 
-    // Use the numeric messageType directly - no more string mapping needed!
     const progressMessage = {
       type: messageType,
       payload: progressPayload,
@@ -130,8 +125,21 @@ function sendProgressMessage(
 // Important: Make sendProgressMessage available globally for WASM to call
 (globalThis as any).sendProgressMessage = sendProgressMessage;
 
-// Expose the worker bridge for WASM to call (V2 only)
-// already assigned above
+/**
+ * Function called by WASM when a WrapKeySeed is successfully stored in WRAP_KEY_SEED_SESSIONS.
+ * This guarantees the seed is ready for signing operations.
+ *
+ * @param sessionId - The session ID for which the seed is ready
+ */
+function notifyWrapKeySeedReady(sessionId: string): void {
+  self.postMessage({
+    type: 'WRAP_KEY_SEED_READY',
+    sessionId,
+  });
+}
+
+// Make notifyWrapKeySeedReady available globally for WASM to call
+(globalThis as any).notifyWrapKeySeedReady = notifyWrapKeySeedReady;
 
 /**
  * Initialize WASM module
@@ -160,8 +168,6 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
     case WorkerRequestType.RecoverKeypairFromPasskey:
       return WorkerResponseType.RecoverKeypairFromPasskeyFailure;
-    case WorkerRequestType.CheckCanRegisterUser:
-      return WorkerResponseType.CheckCanRegisterUserFailure;
     case WorkerRequestType.DecryptPrivateKeyWithPrf:
       return WorkerResponseType.DecryptPrivateKeyWithPrfFailure;
     case WorkerRequestType.SignTransactionsWithActions:
@@ -172,10 +178,10 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
       return WorkerResponseType.SignTransactionWithKeyPairFailure;
     case WorkerRequestType.SignNep413Message:
       return WorkerResponseType.SignNep413MessageFailure;
-    case WorkerRequestType.RegistrationCredentialConfirmation:
-      return WorkerResponseType.RegistrationCredentialConfirmationFailure;
     case WorkerRequestType.ExportNearKeypairUI:
       return WorkerResponseType.ExportNearKeypairUiFailure;
+    case WorkerRequestType.RegisterDevice2WithDerivedKey:
+      return WorkerResponseType.RegisterDevice2WithDerivedKeyFailure;
     default:
       // Fallback for unknown request types
       return WorkerResponseType.DeriveNearKeypairAndEncryptFailure;
@@ -188,6 +194,8 @@ function getFailureResponseType(requestType: WorkerRequestType): WorkerResponseT
 async function processWorkerMessage(event: MessageEvent): Promise<void> {
   messageProcessed = true;
   try {
+    // Guardrail: PRF/vrf_sk must never traverse into signer payloads
+    assertNoPrfOrVrfSecrets(event.data);
     // Initialize WASM
     await initializeWasm();
     // Convert TypeScript message to JSON and pass to Rust
@@ -230,6 +238,20 @@ function sendInvalidMessageError(reason: string): void {
 self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload>>): Promise<void> => {
   const eventType = (event.data as any)?.type;
 
+  // Attach WrapKeySeed MessagePort for a signing session.
+  // This handler intentionally lives in JS instead of Rust:
+  // - MessagePort objects only exist at the JS boundary; they cannot be serialized into
+  //   the JSON string passed to `handle_signer_message`.
+  // - The Rust entrypoint (`handle_signer_message`) is also used in non-worker environments
+  //   (e.g. server-side AuthService) where no MessagePort is available.
+  // - The signer worker’s main Rust handler is designed as a one-shot JSON request/response
+  //   pipeline; attaching the port is a separate control path that must keep the worker alive
+  //   for subsequent signing requests sharing the same session.
+  if (eventType === 'ATTACH_WRAP_KEY_SEED_PORT') {
+    await handleAttachWrapKeySeedPort(event);
+    return;
+  }
+
   // Handle different message types explicitly
   switch (true) {
     case !messageProcessed && typeof eventType === 'number':
@@ -240,12 +262,6 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
     case !messageProcessed && typeof eventType !== 'number':
       // Case 2: First message but non-numeric type - ignore control messages
       console.warn('[signer-worker]: Ignoring message with invalid non-numeric type:', eventType);
-      break;
-
-    case eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE:
-      // Case 3: User confirmation response - let it bubble to awaitSecureConfirmationV2 listener
-      // By breaking here without consuming the event, the message continues to propagate
-      // to the existing addEventListener('message', onMainChannelDecision) listener in awaitSecureConfirmationV2
       break;
 
     case messageProcessed:
@@ -261,6 +277,61 @@ self.onmessage = async (event: MessageEvent<SignerWorkerMessage<WorkerRequestTyp
       break;
   }
 };
+
+async function handleAttachWrapKeySeedPort(
+  event: MessageEvent<SignerWorkerMessage<WorkerRequestType, WasmRequestPayload> | any>
+): Promise<void> {
+  const sessionId = (event.data as any)?.sessionId as string | undefined;
+  const port = event.ports?.[0];
+
+  if (!sessionId || !port) {
+    console.error('[signer-worker]: ATTACH_WRAP_KEY_SEED_PORT missing sessionId or MessagePort');
+    self.postMessage({
+      type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
+      sessionId: sessionId || 'unknown',
+      error: 'Missing sessionId or MessagePort'
+    });
+    return;
+  }
+
+  // Hand the port to WASM; Rust owns WrapKeySeed delivery/storage and session-bound injection.
+  try {
+    await initializeWasm();
+    wasmModule.attach_wrap_key_seed_port(sessionId, port);
+
+    // Emit success ACK to main thread
+    self.postMessage({
+      type: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
+      sessionId,
+    });
+  } catch (err) {
+    console.error('[signer-worker]: Failed to attach WrapKeySeed port in WASM', err);
+
+    // Emit error control message first (for early detection)
+    self.postMessage({
+      type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
+      sessionId,
+      error: errorMessage(err)
+    });
+
+    // Also bubble up a failure response so session can be cleaned up.
+    self.postMessage({
+      type: WorkerResponseType.SignTransactionsWithActionsFailure,
+      payload: { error: 'Failed to attach WrapKeySeed port' }
+    });
+  }
+}
+
+function assertNoPrfOrVrfSecrets(data: any): void {
+  const payload = data?.payload;
+  if (!payload || typeof payload !== 'object') return;
+  const forbiddenKeys = ['prfOutput', 'prf_output', 'prfFirst', 'prf_first', 'prf', 'vrfSk', 'vrf_sk'];
+  for (const key of forbiddenKeys) {
+    if ((payload as any)[key] !== undefined) {
+      throw new Error(`Forbidden secret field in signer payload: ${key}`);
+    }
+  }
+}
 
 self.onerror = (message, filename, lineno, colno, error) => {
   console.error('[signer-worker]: error:', {
@@ -288,7 +359,3 @@ function safeJsonParse(jsonString: string, fallback: any = {}): any {
     return Array.isArray(fallback) ? [jsonString] : { rawData: jsonString };
   }
 }
-
-// Error string extraction handled by errorMessage() in utils/errors
-
-// (bridge assigned above)

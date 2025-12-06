@@ -47,7 +47,7 @@ CRITICAL_FILES=(
     "src/core/WebAuthnManager/VrfWorkerManager/index.ts"
     "src/core/WebAuthnManager/SignerWorkerManager/index.ts"
     "src/core/WebAuthnManager/SignerWorkerManager/handlers"
-    "src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow"
+    "src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow"
     "src/core/WebAuthnManager/index.ts"
     "src/core/TatchiPasskey/index.ts"
     "src/core/TatchiPasskey/actions.ts"

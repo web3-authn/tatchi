@@ -15,7 +15,7 @@ The wallet iframe mounts as a hidden 0×0 element in the parent document. When a
   - `sdk/src/core/WalletIframe/client/router.ts`
 - Progress events are emitted by TatchiPasskey flows and the WASM worker handshake:
   - `sdk/src/core/TatchiPasskey/actions.ts`
-  - `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/*`
+  - `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/*`
 
 
 ## Progress → Overlay behavior
@@ -134,7 +134,7 @@ Even when you call `passkeyManager.executeAction(...)` directly from your app (n
    - `DEFAULT_CONFIRMATION_CONFIG` is `uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0`.
    - Source: `passkey-sdk/src/core/types/signer-worker.ts`
    - In `handleSecureConfirmRequest.ts`, the `modal + autoProceed` branch mounts the modal with `loading: true`, waits `autoProceedDelay`, and proceeds without requiring a user click.
-     - Source: `passkey-sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts`
+     - Source: `passkey-sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.ts`
 
 3) Proper iframe permissions
    - As described above, the wallet iframe (and nested modal host) have the correct `allow` attributes to use WebAuthn.
@@ -165,7 +165,7 @@ Before merging changes to the progress bus or overlay logic, verify:
   - Or use a UI element inside the wallet iframe (e.g., `SecureSignTxButton`) so the click lands in the wallet context.
 
 - For registration/link‑device in the wallet‑iframe host context, we enforce explicit click (no auto‑proceed) to guarantee a clean activation for `create()`:
-  - See: `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClick' }` in that runtime).
+  - See: `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts` (forces `{ uiMode: 'modal', behavior: 'requireClick' }` in that runtime).
 
 
 ## Developer tips

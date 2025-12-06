@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  handle: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
-  types: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/types.js',
+  handle: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
+  types: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js',
   events: '/sdk/esm/core/WalletIframe/events.js',
 } as const;
 
@@ -216,6 +216,101 @@ test.describe('confirmTxFlow – defensive paths', () => {
     expect(result.response.confirmed).toBe(false);
   });
 
+  test('NEP-413 flow: cancel releases reserved nonces', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.handle);
+      const types = await import(paths.types);
+      const events = await import(paths.events);
+      const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
+
+      const reserved: string[] = [];
+      const released: string[] = [];
+      const ctx: any = {
+        userPreferencesManager: {
+          getConfirmationConfig: () => ({
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'dark'
+          }),
+        },
+        nonceManager: {
+          async getNonceBlockHashAndHeight() {
+            return {
+              nearPublicKeyStr: 'pk-nep',
+              accessKeyInfo: { nonce: 50 },
+              nextNonce: '51',
+              txBlockHeight: '1500',
+              txBlockHash: 'h-nep',
+            };
+          },
+          reserveNonces(count: number) {
+            const values = Array.from({ length: count }, (_, i) => String(51 + i));
+            reserved.push(...values);
+            return values;
+          },
+          releaseNonce(nonce: string) {
+            released.push(nonce);
+          },
+        },
+        nearClient: {},
+        vrfWorkerManager: {
+          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+            return { vrfOutput: 'nep-out', vrfProof: 'nep-proof', blockHeight, blockHash };
+          },
+        },
+        touchIdPrompt: {
+          getRpId: () => 'example.localhost',
+          getAuthenticationCredentialsInternal: async () => ({}) as any,
+        },
+        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+      };
+
+      const request = {
+        schemaVersion: 2,
+        requestId: 'cancel-nep',
+        type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
+        summary: {},
+        payload: {
+          nearAccountId: 'cancel-nep.testnet',
+          message: 'cancel-me',
+          recipient: 'receiver.testnet',
+        },
+      } as any;
+
+      const workerMessages: any[] = [];
+      const worker = { postMessage: (msg: any) => workerMessages.push(msg) } as unknown as Worker;
+
+      const triggerCancel = () => {
+        const attempt = () => {
+          const portal = document.getElementById('w3a-confirm-portal');
+          const host = portal?.firstElementChild as HTMLElement | null;
+          if (host) {
+            host.dispatchEvent(new CustomEvent(
+              events.WalletIframeDomEvents.TX_CONFIRMER_CANCEL,
+              { bubbles: true, composed: true } as any
+            ));
+          } else {
+            setTimeout(attempt, 20);
+          }
+        };
+        setTimeout(attempt, 60);
+      };
+
+      triggerCancel();
+      await handle(ctx, {
+        type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+        data: request
+      }, worker);
+      const response = workerMessages[0]?.data;
+      return { reserved, released, response };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.reserved.length).toBeGreaterThan(0);
+    expect(result.released).toEqual(result.reserved);
+    expect(result.response.confirmed).toBe(false);
+  });
+
   test('SHOW_SECURE_PRIVATE_KEY_UI keeps viewer mounted and returns confirmed', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.handle);
@@ -322,6 +417,12 @@ test.describe('confirmTxFlow – defensive paths', () => {
           async generateVrfChallenge({ blockHeight, blockHash }: any) {
             return { vrfOutput: 'out', vrfProof: 'proof', blockHeight, blockHash };
           },
+          async checkVrfStatus() {
+            return { active: true, nearAccountId: 'error.testnet' };
+          },
+          async deriveWrapKeySeedAndSendToSigner() {
+            return;
+          },
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
@@ -338,7 +439,15 @@ test.describe('confirmTxFlow – defensive paths', () => {
             getClientExtensionResults: () => ({ prf: { results: {} } }),
           }) as any,
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            getAuthenticatorsByUser: async () => [],
+            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            getLastUser: async () => ({ nearAccountId: 'error.testnet', deviceNumber: 1 }),
+            getUserByDevice: async () => ({ deviceNumber: 1 }),
+          },
+          nearKeysDB: { getEncryptedKey: async () => ({ wrapKeySalt: 'salt-missing-prf' }) },
+        },
       };
 
       const request = {

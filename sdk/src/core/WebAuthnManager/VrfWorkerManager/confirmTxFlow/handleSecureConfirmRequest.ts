@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '../index';
+import type { VrfWorkerManagerContext } from '../';
 import type { ConfirmationConfig } from '../../../types/signer-worker';
 import { determineConfirmationConfig } from './determineConfirmationConfig';
 import {
@@ -27,7 +27,7 @@ import type {
  * and proper data validation. Supports both transaction and registration confirmation flows.
  */
 export async function handlePromptUserConfirmInJsMainThread(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   message: {
     type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
     data: SecureConfirmRequest,
@@ -116,7 +116,7 @@ export async function handlePromptUserConfirmInJsMainThread(
  * Validates and parses the confirmation request data
  */
 function validateAndParseRequest({ ctx, request }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
 }): {
   request: SecureConfirmRequest;
@@ -126,6 +126,24 @@ function validateAndParseRequest({ ctx, request }: {
 } {
   // Parse and validate summary data (can contain extra fields we need)
   const summary = parseTransactionSummary(request.summary);
+
+  // Defensive guard: signing envelopes must not carry PRF or wrap-key material on the main thread.
+  const flowKind = classifyFlow(request);
+  if (flowKind === 'Signing') {
+    const payload: any = (request as SigningSecureConfirmRequest)?.payload || {};
+    if (payload.prfOutput !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field prfOutput');
+    }
+    if (payload.wrapKeySeed !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field wrapKeySeed');
+    }
+    if (payload.wrapKeySalt !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field wrapKeySalt');
+    }
+    if (payload.vrf_sk !== undefined) {
+      throw new Error('Invalid secure confirm request: forbidden signing payload field vrf_sk');
+    }
+  }
   // Get confirmation configuration from data (overrides user settings) or use user's settings,
   // then compute effective config based on runtime and request type
   const confirmationConfig: ConfirmationConfig = determineConfirmationConfig(ctx, request);

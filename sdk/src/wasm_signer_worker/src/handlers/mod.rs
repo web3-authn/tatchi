@@ -1,35 +1,30 @@
-pub mod confirm_tx_details;
-pub mod handle_check_can_register_user;
 pub mod handle_decrypt_private_key_with_prf;
 pub mod handle_derive_near_keypair_and_encrypt;
 pub mod handle_extract_cose_public_key;
 pub mod handle_recover_keypair_from_passkey;
-pub mod handle_request_registration_credential_confirmation;
+pub mod handle_register_device2_with_derived_key;
 pub mod handle_sign_nep413_message;
 pub mod handle_sign_transaction_with_keypair;
 pub mod handle_sign_transactions_with_actions;
 
 // Handler functions
-pub use handle_check_can_register_user::handle_check_can_register_user;
 pub use handle_decrypt_private_key_with_prf::handle_decrypt_private_key_with_prf;
 pub use handle_decrypt_private_key_with_prf::handle_export_near_keypair_ui;
 pub use handle_derive_near_keypair_and_encrypt::handle_derive_near_keypair_and_encrypt;
 pub use handle_extract_cose_public_key::handle_extract_cose_public_key;
 pub use handle_recover_keypair_from_passkey::handle_recover_keypair_from_passkey;
-pub use handle_request_registration_credential_confirmation::handle_request_registration_credential_confirmation;
+pub use handle_register_device2_with_derived_key::handle_register_device2_with_derived_key;
 pub use handle_sign_nep413_message::handle_sign_nep413_message;
 pub use handle_sign_transaction_with_keypair::handle_sign_transaction_with_keypair;
 pub use handle_sign_transactions_with_actions::handle_sign_transactions_with_actions;
 
 // Request/Result types
-pub use handle_check_can_register_user::{
-    CheckCanRegisterUserRequest, RegistrationCheckRequest, RegistrationCheckResult,
-    RegistrationInfoStruct,
-};
 pub use handle_decrypt_private_key_with_prf::ExportNearKeypairUiRequest;
 pub use handle_extract_cose_public_key::{CoseExtractionResult, ExtractCoseRequest};
 pub use handle_recover_keypair_from_passkey::{RecoverKeypairRequest, RecoverKeypairResult};
-pub use handle_request_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
+pub use handle_register_device2_with_derived_key::{
+    RegisterDevice2WithDerivedKeyRequest, RegisterDevice2WithDerivedKeyResult,
+};
 pub use handle_sign_nep413_message::{SignNep413Request, SignNep413Result};
 pub use handle_sign_transaction_with_keypair::SignTransactionWithKeyPairRequest;
 pub use handle_sign_transactions_with_actions::{

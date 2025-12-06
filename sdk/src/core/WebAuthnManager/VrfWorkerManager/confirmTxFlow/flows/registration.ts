@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
   SecureConfirmationType,
@@ -18,7 +18,7 @@ import { isTouchIdCancellationError, toError } from '../../../../../utils/errors
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 
 export async function handleRegistrationFlow(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: RegistrationSecureConfirmRequest,
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
@@ -131,7 +131,7 @@ export async function handleRegistrationFlow(
       }
     }
 
-    const { dualPrfOutputs, serialized } = await ensureDualPrfForRegistration({
+    const { serialized } = await ensureDualPrfForRegistration({
       credential: credential!,
       nearAccountId,
       rpId,
@@ -143,7 +143,7 @@ export async function handleRegistrationFlow(
       intentDigest: getIntentDigest(request),
       confirmed: true,
       credential: serialized,
-      prfOutput: dualPrfOutputs.chacha20PrfOutput,
+      // PRF outputs are embedded in serialized credential; VRF worker extracts and sends via MessagePort
       vrfChallenge: uiVrfChallenge,
       transactionContext,
     });

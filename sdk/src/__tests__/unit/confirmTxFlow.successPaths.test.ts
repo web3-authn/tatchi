@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  handle: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
-  types: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/types.js',
+  handle: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/handleSecureConfirmRequest.js',
+  types: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js',
 } as const;
 
 test.describe('confirmTxFlow – success paths', () => {
@@ -56,13 +56,22 @@ test.describe('confirmTxFlow – success paths', () => {
       const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
       await handle(ctx, { type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD, data: request }, worker);
       const resp = msgs[0]?.data;
-      return { ok: !!resp?.confirmed, prf: resp?.prfOutput, cred: resp?.credential };
+      return {
+        ok: !!resp?.confirmed,
+        prf: resp?.prfOutput,
+        cred: resp?.credential,
+        wrapKeySeed: (resp as any).wrapKeySeed ?? (resp as any).wrapKeySeed,
+        wrapKeySalt: (resp as any).wrapKeySalt ?? (resp as any).wrapKeySalt,
+      };
     }, { paths: IMPORT_PATHS });
 
     expect(result.ok).toBe(true);
     expect(typeof result.prf).toBe('string');
     expect(result.prf.length).toBeGreaterThan(0);
     expect(result.cred?.id).toBe('cred-id');
+    // LocalOnly decrypt flows should not surface wrap key material on the main thread.
+    expect(result.wrapKeySeed).toBeUndefined();
+    expect(result.wrapKeySalt).toBeUndefined();
   });
 
   test('Registration: collects registration credential and emits vrfChallenge + tx context', async ({ page }) => {
@@ -160,6 +169,7 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
+        prf: resp?.prfOutput,
         vrf: resp?.vrfChallenge,
         tx: resp?.transactionContext,
         reserved: nonceReserved, jitRefreshed
@@ -173,6 +183,8 @@ test.describe('confirmTxFlow – success paths', () => {
     expect(result.tx?.nextNonce).toBe('101');
     expect(result.reserved).toEqual(['101']);
     expect(result.jitRefreshed).toBeGreaterThanOrEqual(0); // JIT may run best-effort
+    // Registration responses should not contain PRF output in VRF-centric design.
+    expect(result.prf).toBeUndefined();
   });
 
   test('Signing: collects assertion credential, reserves nonces, emits tx context', async ({ page }) => {
@@ -223,6 +235,12 @@ test.describe('confirmTxFlow – success paths', () => {
               blockHash
             };
           },
+          async checkVrfStatus() {
+            return { active: true, nearAccountId: 'carol.testnet' };
+          },
+          async deriveWrapKeySeedAndSendToSigner() {
+            return;
+          },
         },
         touchIdPrompt: {
           getRpId: () => 'example.localhost',
@@ -243,7 +261,17 @@ test.describe('confirmTxFlow – success paths', () => {
             })
           }),
         },
-        indexedDB: { clientDB: { getAuthenticatorsByUser: async () => [] } },
+        indexedDB: {
+          clientDB: {
+            getAuthenticatorsByUser: async () => [],
+            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            getLastUser: async () => ({ nearAccountId: 'carol.testnet', deviceNumber: 1 }),
+            getUserByDevice: async () => ({ deviceNumber: 1 }),
+          },
+          nearKeysDB: {
+            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-sign' }),
+          },
+        },
       };
 
       const request = {
@@ -273,18 +301,141 @@ test.describe('confirmTxFlow – success paths', () => {
       const resp = msgs[0]?.data;
       return {
         confirmed: resp?.confirmed,
-        prf: resp?.prfOutput,
         tx: resp?.transactionContext,
         reserved,
-        refreshed
+        refreshed,
+        prf: resp?.prfOutput,
       };
     }, { paths: IMPORT_PATHS });
 
     expect(result.confirmed).toBe(true);
-    expect(typeof result.prf).toBe('string');
-    expect(result.prf.length).toBeGreaterThan(0);
     expect(result.tx?.nextNonce).toBe('201');
     expect(result.reserved).toEqual(['201']);
     expect(result.refreshed).toBeGreaterThanOrEqual(0);
+    // Signing responses must not expose PRF in VRF-centric design.
+    expect(result.prf).toBeUndefined();
+  });
+
+  test('NEP-413: collects assertion credential, emits vrfChallenge + tx context without PRF', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.handle);
+      const types = await import(paths.types);
+      const handle = mod.handlePromptUserConfirmInJsMainThread as Function;
+
+      let refreshed = 0;
+      const ctx: any = {
+        userPreferencesManager: {
+          getConfirmationConfig: () => ({
+            uiMode: 'skip',
+            behavior: 'autoProceed',
+            autoProceedDelay: 0,
+            theme: 'dark'
+          })
+        },
+        nonceManager: {
+          async getNonceBlockHashAndHeight(_nc: any, _opts?: any) {
+            return {
+              nearPublicKeyStr: 'pk-nep413',
+              accessKeyInfo: { nonce: 10 },
+              nextNonce: '11',
+              txBlockHeight: '3000',
+              txBlockHash: 'h-nep',
+            };
+          },
+          reserveNonces(_n: number) {
+            return ['11'];
+          },
+          releaseNonce(_n: string) {},
+        },
+        nearClient: {
+          async viewBlock() {
+            return { header: { height: 3001, hash: 'h-nep-1' } };
+          }
+        },
+        vrfWorkerManager: {
+          async generateVrfChallenge({ blockHeight, blockHash }: any) {
+            refreshed++;
+            return {
+              vrfOutput: 'nep-out',
+              vrfProof: 'nep-proof',
+              blockHeight,
+              blockHash
+            };
+          },
+          async checkVrfStatus() {
+            return { active: true, nearAccountId: 'nep.testnet' };
+          },
+          async deriveWrapKeySeedAndSendToSigner() {
+            return;
+          },
+        },
+        touchIdPrompt: {
+          getRpId: () => 'example.localhost',
+          getAuthenticationCredentialsInternal: async () => ({
+            id: 'nep-cred',
+            type: 'public-key',
+            rawId: new Uint8Array([7]).buffer,
+            response: {
+              clientDataJSON: new Uint8Array([1]).buffer,
+              authenticatorData: new Uint8Array([2]).buffer,
+              signature: new Uint8Array([3]).buffer,
+              userHandle: null
+            },
+            getClientExtensionResults: () => ({
+              prf: {
+                results: {
+                  first: new Uint8Array(32).fill(6)
+                }
+              }
+            })
+          }),
+        },
+        indexedDB: {
+          clientDB: {
+            getAuthenticatorsByUser: async () => [],
+            ensureCurrentPasskey: async () => ({ authenticatorsForPrompt: [], wrongPasskeyError: undefined }),
+            getLastUser: async () => ({ nearAccountId: 'nep.testnet', deviceNumber: 1 }),
+            getUserByDevice: async () => ({ deviceNumber: 1 }),
+          },
+          nearKeysDB: {
+            getEncryptedKey: async () => ({ wrapKeySalt: 'salt-nep' }),
+          },
+        },
+      };
+
+      const request = {
+        schemaVersion: 2,
+        requestId: 'r-nep',
+        type: types.SecureConfirmationType.SIGN_NEP413_MESSAGE,
+        summary: {},
+        payload: {
+          nearAccountId: 'nep.testnet',
+          message: 'hello-world',
+          recipient: 'receiver.testnet',
+        },
+      } as any;
+
+      const msgs: any[] = [];
+      const worker = { postMessage: (m: any) => msgs.push(m) } as unknown as Worker;
+      await handle(ctx, {
+        type: types.SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
+        data: request
+      }, worker);
+      const resp = msgs[0]?.data;
+      return {
+        confirmed: resp?.confirmed,
+        prf: resp?.prfOutput,
+        vrf: resp?.vrfChallenge,
+        tx: resp?.transactionContext,
+        refreshed,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.confirmed).toBe(true);
+    expect(result.vrf?.vrfOutput).toBe('nep-out');
+    expect(result.tx?.nextNonce).toBe('11');
+    expect(result.refreshed).toBeGreaterThanOrEqual(0);
+    // NEP-413 signing also must not expose PRF output.
+    expect(result.prf).toBeUndefined();
   });
 });

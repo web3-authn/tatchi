@@ -163,7 +163,8 @@ export class UserPreferencesManager {
    * Load settings for a specific user
    */
   private async loadSettingsForUser(nearAccountId: AccountId): Promise<void> {
-    const user = await IndexedDBManager.clientDB.getUser(nearAccountId);
+    const user = await IndexedDBManager.clientDB.getLastUser();
+    if (!user || user.nearAccountId !== nearAccountId) return;
     if (user?.preferences?.confirmationConfig) {
       this.confirmationConfig = {
         ...this.confirmationConfig,

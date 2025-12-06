@@ -29,7 +29,7 @@ pub struct EncryptedVRFKeypair {
 }
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct VRFInputData {
     #[wasm_bindgen(getter_with_clone, js_name = "userId")]
     #[serde(rename = "userId")]
@@ -46,7 +46,7 @@ pub struct VRFInputData {
 }
 
 #[wasm_bindgen]
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct VRFChallengeData {
     #[wasm_bindgen(getter_with_clone, js_name = "vrfInput")]
@@ -90,4 +90,20 @@ pub struct GenerateVrfKeypairBootstrapResponse {
 pub struct EncryptedVrfKeypairResponse {
     pub vrf_public_key: String,
     pub encrypted_vrf_keypair: EncryptedVRFKeypair,
+}
+
+/// Mirror of JS WorkerConfirmationResponse (confirmTxFlow/types.ts)
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub struct WorkerConfirmationResponse {
+    pub request_id: String,
+    pub intent_digest: Option<String>,
+    pub confirmed: bool,
+    pub credential: Option<serde_json::Value>,
+    pub prf_output: Option<String>,
+    pub wrap_key_seed: Option<String>,
+    pub wrap_key_salt: Option<String>,
+    pub vrf_challenge: Option<serde_json::Value>,
+    pub transaction_context: Option<serde_json::Value>,
+    pub error: Option<String>,
 }

@@ -430,5 +430,5 @@ Two distinct origins (required for cross-origin WebAuthn) are maintained by Cadd
 - `docs/modalConfirmer-walletIframeMode.md`
 - `docs/wallet-iframe-onevent-hooks.md`
 - `passkey-sdk/docs/wallet-iframe-architecture.md`
-- `passkey-sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/README.md`
+- `passkey-sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/README.md`
 - `passkey-sdk/src/core/WalletIframe/docs/overlay-controller.md`

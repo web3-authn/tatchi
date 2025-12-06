@@ -56,6 +56,13 @@ import { installWalletSdkCorsShim } from './cross-origin-headers';
  * This function orchestrates the complete test environment setup following
  * a precise sequence to avoid module loading race conditions:
  *
+ * VRF v2 context:
+ * - The wallet iframe now loads two cooperating workers:
+ *   - VRF worker: owns WebAuthn PRF + SecureConfirm (`awaitSecureConfirmationV2`),
+ *     derives WrapKeySeed, and sends WrapKeySeed+s wrapKeySalt over a dedicated MessagePort.
+ *   - Signer worker: consumes WrapKeySeed via that channel and performs NEAR signing;
+ *     it never calls SecureConfirm and never sees PRF or `vrf_sk`.
+ *
  * 1. ENVIRONMENT SETUP: Configure WebAuthn Virtual Authenticator first
  * 2. IMPORT MAP INJECTION: Add module resolution mappings to the page
  * 3. STABILIZATION WAIT: Allow browser environment to settle
@@ -112,9 +119,15 @@ export async function setupBasicPasskeyTest(
       if (!enable) return;
       try {
         const OriginalWorker = window.Worker;
+        // Normalize worker URLs for both signer + VRF workers now that VRF owns SecureConfirm.
         const normalize = (url: string) => {
           try {
             const u = new URL(url, origin);
+            const filename = (u.pathname.split('/').pop() || '').toLowerCase();
+            if (filename === 'web3authn-vrf.worker.js' || filename === 'web3authn-signer.worker.js') {
+              const patchedPath = `/sdk/workers/${filename}`;
+              return new URL(patchedPath + u.search + u.hash, origin).toString();
+            }
             if (u.origin !== origin) {
               // preserve path/query/hash but swap origin
               return new URL(u.pathname + u.search + u.hash, origin).toString();
@@ -259,6 +272,12 @@ export interface TestUtils {
     verifyAccountDeleted: (accountId: string) => Promise<boolean>;
     getRollbackEvents: (events: any[]) => any[];
   };
+  /**
+   * VRF status helper:
+   * Returns the current VRF worker session status when available
+   * (owner of SecureConfirm + PRF in the new architecture).
+   */
+  vrfStatus?: () => Promise<any>;
   // Registration flow utilities
   registrationFlowUtils: {
     setupRelayServerMock: (successResponse?: boolean) => void;

@@ -9,59 +9,112 @@ export interface RegistrationCredentialConfirmationPayload {
   confirmed: boolean;
   requestId: string;
   intentDigest: string;
-  credential?: WebAuthnRegistrationCredential; // serialized PublicKeyCredential (no methods)
+  credential: WebAuthnRegistrationCredential; // serialized PublicKeyCredential (no methods)
   prfOutput?: string; // base64url string (ChaCha20 PRF)
-  vrfChallenge?: VRFChallenge;
+  vrfChallenge: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
 }
 
 function validateTransactionContextMaybe(input: unknown): TransactionContext | undefined {
   if (input == null) return undefined;
-  if (!isObject(input)) throw new Error('Invalid transactionContext: expected object');
-  // Minimal structural validation; AccessKeyView is complex. Be tolerant because the WASM struct omits it.
-  const nearPublicKeyStr = assertString((input as { nearPublicKeyStr?: unknown }).nearPublicKeyStr, 'transactionContext.nearPublicKeyStr');
-  const nextNonce = assertString((input as { nextNonce?: unknown }).nextNonce, 'transactionContext.nextNonce');
-  const txBlockHeight = assertString((input as { txBlockHeight?: unknown }).txBlockHeight, 'transactionContext.txBlockHeight');
-  const txBlockHash = assertString((input as { txBlockHash?: unknown }).txBlockHash, 'transactionContext.txBlockHash');
-  let accessKeyInfo = (input as { accessKeyInfo?: unknown }).accessKeyInfo as unknown;
-  if (accessKeyInfo != null && !isObject(accessKeyInfo)) {
-    throw new Error('Invalid transactionContext.accessKeyInfo: expected object');
+  if (!isObject(input)) {
+    throw new Error('Invalid transactionContext: expected object');
   }
-  if (accessKeyInfo == null) {
-    // Synthesize a minimal placeholder; not used by registration flows consuming this payload
-    accessKeyInfo = { nonce: 0 } as unknown;
-  }
-  return {
+
+  const {
     nearPublicKeyStr,
     nextNonce,
     txBlockHeight,
     txBlockHash,
-    accessKeyInfo: accessKeyInfo as TransactionContext['accessKeyInfo'],
-  } as TransactionContext;
+    accessKeyInfo,
+  } = input as {
+    nearPublicKeyStr?: unknown;
+    nextNonce?: unknown;
+    txBlockHeight?: unknown;
+    txBlockHash?: unknown;
+    accessKeyInfo?: unknown;
+  };
+
+  // Minimal structural validation; AccessKeyView is complex. Be tolerant because the WASM struct omits it.
+  const normalizedNearPublicKeyStr = assertString(
+    nearPublicKeyStr,
+    'transactionContext.nearPublicKeyStr',
+  );
+  const normalizedNextNonce = assertString(nextNonce, 'transactionContext.nextNonce');
+  const normalizedTxBlockHeight = assertString(
+    txBlockHeight,
+    'transactionContext.txBlockHeight',
+  );
+  const normalizedTxBlockHash = assertString(txBlockHash, 'transactionContext.txBlockHash');
+
+  let normalizedAccessKeyInfo = accessKeyInfo as TransactionContext['accessKeyInfo'] | undefined;
+  if (normalizedAccessKeyInfo != null && !isObject(normalizedAccessKeyInfo)) {
+    throw new Error('Invalid transactionContext.accessKeyInfo: expected object');
+  }
+  if (normalizedAccessKeyInfo == null) {
+    // Synthesize a minimal placeholder; not used by registration flows consuming this payload
+    normalizedAccessKeyInfo = { nonce: 0 } as unknown as TransactionContext['accessKeyInfo'];
+  }
+
+  return {
+    nearPublicKeyStr: normalizedNearPublicKeyStr,
+    nextNonce: normalizedNextNonce,
+    txBlockHeight: normalizedTxBlockHeight,
+    txBlockHash: normalizedTxBlockHash,
+    accessKeyInfo: normalizedAccessKeyInfo,
+  };
 }
 
 function validateCredentialMaybe(input: unknown): WebAuthnRegistrationCredential | undefined {
   if (input == null) return undefined;
+
   const cred = normalizeRegistrationCredential(input);
   if (cred.type !== 'public-key') {
     throw new Error('Invalid credential.type: expected "public-key"');
   }
+
+  const { id, rawId, response, authenticatorAttachment } = cred as {
+    id?: unknown;
+    rawId?: unknown;
+    response?: unknown;
+    authenticatorAttachment?: unknown;
+  };
+
   // Core field/type validation (serialized shapes should be base64url strings)
-  assertString((cred as { id?: unknown }).id, 'credential.id');
-  assertString((cred as { rawId?: unknown }).rawId, 'credential.rawId');
-  const resp: unknown = (cred as { response?: unknown }).response;
-  if (!isObject(resp)) throw new Error('Invalid credential.response: expected object');
-  assertString((resp as { clientDataJSON?: unknown }).clientDataJSON, 'credential.response.clientDataJSON');
-  assertString((resp as { attestationObject?: unknown }).attestationObject, 'credential.response.attestationObject');
-  const transports = (resp as { transports?: unknown }).transports;
-  if (!Array.isArray(transports)) throw new Error('Invalid credential.response.transports: expected string[]');
-  for (const t of transports) {
-    if (typeof t !== 'string') throw new Error('Invalid credential.response.transports item: expected string');
+  assertString(id, 'credential.id');
+  assertString(rawId, 'credential.rawId');
+
+  if (!isObject(response)) {
+    throw new Error('Invalid credential.response: expected object');
   }
-  if ((cred as { authenticatorAttachment?: unknown }).authenticatorAttachment != null && typeof (cred as { authenticatorAttachment?: unknown }).authenticatorAttachment !== 'string') {
+
+  const {
+    clientDataJSON,
+    attestationObject,
+    transports,
+  } = response as {
+    clientDataJSON?: unknown;
+    attestationObject?: unknown;
+    transports?: unknown;
+  };
+
+  assertString(clientDataJSON, 'credential.response.clientDataJSON');
+  assertString(attestationObject, 'credential.response.attestationObject');
+
+  if (!Array.isArray(transports)) {
+    throw new Error('Invalid credential.response.transports: expected string[]');
+  }
+  for (const t of transports) {
+    if (typeof t !== 'string') {
+      throw new Error('Invalid credential.response.transports item: expected string');
+    }
+  }
+
+  if (authenticatorAttachment != null && typeof authenticatorAttachment !== 'string') {
     throw new Error('Invalid credential.authenticatorAttachment: expected string | undefined');
   }
+
   // Note: prf.results may be undefined/null here. We intentionally do NOT
   // require them at the boundary; internal callers that need PRF (e.g. key
   // derivation) will extract/compute them separately. Contract payloads must
@@ -74,20 +127,15 @@ function validateVrfChallengeMaybe(input: unknown): VRFChallenge | undefined {
   return validateVRFChallenge(input as Parameters<typeof validateVRFChallenge>[0]);
 }
 
-export function parseAndValidateRegistrationCredentialConfirmationPayload(payload: unknown): RegistrationCredentialConfirmationPayload {
-  if (!isObject(payload)) throw new Error('Invalid response payload: expected object');
-  const confirmed = !!(payload as { confirmed?: unknown }).confirmed;
-  const requestId = assertString((payload as { requestId?: unknown }).requestId, 'requestId');
-  // intentDigest is only used for TX signing requests, not registration or link device requests
-  const intentDigest = (payload as { intentDigest?: unknown }).intentDigest == null ? '' : assertString((payload as { intentDigest?: unknown }).intentDigest, 'intentDigest');
+export function parseAndValidateRegistrationCredentialConfirmationPayload(
+  payload: unknown,
+): RegistrationCredentialConfirmationPayload {
 
-  const credential = (payload as { credential?: unknown }).credential != null ? validateCredentialMaybe((payload as { credential?: unknown }).credential) : undefined;
-  const prfOutput = (payload as { prfOutput?: unknown }).prfOutput == null ? undefined : assertString((payload as { prfOutput?: unknown }).prfOutput, 'prfOutput');
-  const vrfChallenge = (payload as { vrfChallenge?: unknown }).vrfChallenge != null ? validateVrfChallengeMaybe((payload as { vrfChallenge?: unknown }).vrfChallenge) : undefined;
-  const transactionContext = (payload as { transactionContext?: unknown }).transactionContext != null ? validateTransactionContextMaybe((payload as { transactionContext?: unknown }).transactionContext) : undefined;
-  const error = (payload as { error?: unknown }).error == null ? undefined : assertString((payload as { error?: unknown }).error, 'error');
+  if (!isObject(payload)) {
+    throw new Error('Invalid response payload: expected object');
+  }
 
-  return {
+  const {
     confirmed,
     requestId,
     intentDigest,
@@ -96,5 +144,54 @@ export function parseAndValidateRegistrationCredentialConfirmationPayload(payloa
     vrfChallenge,
     transactionContext,
     error,
+  } = payload as {
+    confirmed?: unknown;
+    requestId?: unknown;
+    intentDigest?: unknown;
+    credential?: unknown;
+    prfOutput?: unknown;
+    vrfChallenge?: unknown;
+    transactionContext?: unknown;
+    error?: unknown;
+  };
+
+  const normalizedRequestId = assertString(requestId, 'requestId');
+
+  // intentDigest is only used for TX signing requests, not registration or link device requests
+  const normalizedIntentDigest =
+    intentDigest == null ? '' : assertString(intentDigest, 'intentDigest');
+
+  const normalizedCredential =
+    credential != null ? validateCredentialMaybe(credential) : undefined;
+
+  if (!normalizedCredential) {
+    throw new Error('Missing registration credential');
+  }
+
+  const normalizedPrfOutput =
+    prfOutput == null ? undefined : assertString(prfOutput, 'prfOutput');
+
+  const normalizedVrfChallenge =
+    vrfChallenge != null ? validateVrfChallengeMaybe(vrfChallenge) : undefined;
+
+  if (!normalizedVrfChallenge) {
+    throw new Error('Missing VRF Challenge');
+  }
+
+  const normalizedTransactionContext =
+    transactionContext != null ? validateTransactionContextMaybe(transactionContext) : undefined;
+
+  const normalizedError =
+    error == null ? undefined : assertString(error, 'error');
+
+  return {
+    confirmed: !!confirmed,
+    requestId: normalizedRequestId,
+    intentDigest: normalizedIntentDigest,
+    credential: normalizedCredential,
+    prfOutput: normalizedPrfOutput,
+    vrfChallenge: normalizedVrfChallenge,
+    transactionContext: normalizedTransactionContext,
+    error: normalizedError,
   };
 }

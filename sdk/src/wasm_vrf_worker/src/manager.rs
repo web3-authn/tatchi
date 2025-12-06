@@ -36,6 +36,11 @@ impl SecureVRFKeyPair {
     pub fn inner(&self) -> &ECVRFKeyPair {
         &self.keypair
     }
+
+    pub fn secret_key_bytes(&self) -> Vec<u8> {
+        // vrf-wasm 0.8.4 exposes secret_key_bytes()
+        self.keypair.secret_key_bytes().to_vec()
+    }
 }
 
 // === VRF KEY MANAGER ===
@@ -91,6 +96,18 @@ impl VRFKeyManager {
     /// Get a mutable reference to the Shamir3Pass instance
     pub fn shamir3pass_mut(&mut self) -> &mut Shamir3Pass {
         &mut self.shamir3pass
+    }
+
+    /// Get secret key bytes for the current VRF keypair (error if not unlocked)
+    pub fn get_vrf_secret_key_bytes(&self) -> VrfResult<Vec<u8>> {
+        if !self.session_active {
+            return Err(VrfWorkerError::NoVrfKeypair);
+        }
+        let sk = self
+            .vrf_keypair
+            .as_ref()
+            .ok_or_else(|| VrfWorkerError::NoVrfKeypair)?;
+        Ok(sk.secret_key_bytes())
     }
 
     pub fn generate_vrf_keypair_bootstrap(
@@ -451,7 +468,7 @@ impl VRFKeyManager {
 
     /// Generate deterministic VRF keypair from seed material (PRF output)
     /// This enables deterministic VRF key derivation for account recovery
-    fn generate_vrf_keypair_from_seed(
+    pub fn generate_vrf_keypair_from_seed(
         &self,
         seed: &[u8],
         account_id: &str,
@@ -476,7 +493,7 @@ impl VRFKeyManager {
     }
 
     /// Encrypt VRF keypair data using PRF-derived AES key
-    fn encrypt_vrf_keypair_data(
+    pub fn encrypt_vrf_keypair_data(
         &self,
         vrf_keypair: &ECVRFKeyPair,
         prf_key: &[u8],

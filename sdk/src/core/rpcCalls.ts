@@ -14,12 +14,15 @@ import type { ContractStoredAuthenticator } from './TatchiPasskey/recoverAccount
 import type { PasskeyManagerContext } from './TatchiPasskey';
 import type { DeviceLinkingSSEEvent } from './types/passkeyManager';
 
-import { StoredAuthenticator } from './types/webauthn';
+import { StoredAuthenticator, WebAuthnRegistrationCredential } from './types/webauthn';
 import { ActionPhase } from './types/passkeyManager';
 import { ActionType } from './types/actions';
 import { VRFChallenge } from './types/vrf-worker';
 import { DeviceLinkingPhase, DeviceLinkingStatus } from './types/passkeyManager';
 import { DEFAULT_WAIT_STATUS, TransactionContext } from './types/rpc';
+import type { AuthenticatorOptions } from './types/authenticatorOptions';
+import { base64UrlDecode } from '../utils/encoders';
+import { errorMessage } from '../utils/errors';
 
 // ===========================
 // CONTRACT CALL RESPONSES
@@ -350,4 +353,76 @@ export async function fetchNonceBlockHashAndHeight({ nearClient, nearPublicKeySt
     txBlockHeight,
     txBlockHash,
   };
+}
+
+// ===========================
+// REGISTRATION PRE-CHECK CALL
+// ===========================
+
+export interface CheckCanRegisterUserResult {
+  success: boolean;
+  verified: boolean;
+  logs: string[];
+  error?: string;
+}
+
+/**
+ * View-only registration pre-check.
+ *
+ * Calls the contract's `check_can_register_user` view method with VRF data
+ * derived from the provided VRF challenge and a serialized WebAuthn
+ * registration credential (typically with PRF outputs embedded).
+ */
+export async function checkCanRegisterUserContractCall({
+  nearClient,
+  contractId,
+  vrfChallenge,
+  credential,
+  authenticatorOptions,
+}: {
+  nearClient: NearClient;
+  contractId: string;
+  vrfChallenge: VRFChallenge;
+  credential: WebAuthnRegistrationCredential;
+  authenticatorOptions?: AuthenticatorOptions;
+}): Promise<CheckCanRegisterUserResult> {
+  try {
+    const vrfData = {
+      vrf_input_data: Array.from(base64UrlDecode(vrfChallenge.vrfInput)),
+      vrf_output: Array.from(base64UrlDecode(vrfChallenge.vrfOutput)),
+      vrf_proof: Array.from(base64UrlDecode(vrfChallenge.vrfProof)),
+      public_key: Array.from(base64UrlDecode(vrfChallenge.vrfPublicKey)),
+      user_id: vrfChallenge.userId,
+      rp_id: vrfChallenge.rpId,
+      block_height: Number(vrfChallenge.blockHeight),
+      block_hash: Array.from(base64UrlDecode(vrfChallenge.blockHash)),
+    };
+
+    const args = {
+      vrf_data: vrfData,
+      webauthn_registration: credential,
+      authenticator_options: authenticatorOptions,
+    };
+
+    const response = await nearClient.callFunction<typeof args, any>(
+      contractId,
+      'check_can_register_user',
+      args,
+    );
+
+    const verified = !!response?.verified;
+    return {
+      success: true,
+      verified,
+      logs: [],
+      error: verified ? undefined : 'Contract registration check failed',
+    };
+  } catch (err: unknown) {
+    return {
+      success: false,
+      verified: false,
+      logs: [],
+      error: errorMessage(err) || 'Failed to call check_can_register_user',
+    };
+  }
 }

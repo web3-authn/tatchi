@@ -1,23 +1,20 @@
 /**
  * Offline Export App (minimal, zero-config)
  *
- * Runs under `/offline-export/` on the wallet origin and reuses the existing
- * SignerWorkerManager.exportNearKeypairUi() flow to decrypt and display the
- * private key export viewer. No network requests are made.
+ * Runs under `/offline-export/` on the wallet origin and reuses the
+ * WebAuthnManager.exportNearKeypairWithUI() VRF-driven flow to decrypt and
+ * display the private key export viewer. No network requests are made.
+ *
+ * See `docs/vrf2-refactor-export-keys.md` for the canonical export flow design.
  */
 import { IndexedDBManager } from '../IndexedDBManager';
-import { VrfWorkerManager } from '../WebAuthnManager/VrfWorkerManager';
-import { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
-import { NonceManager } from '../nonceManager';
 import { MinimalNearClient } from '../NearClient';
-import { SignerWorkerManager } from '../WebAuthnManager/SignerWorkerManager';
 import { toAccountId } from '../types/accountIds';
 import { OFFLINE_EXPORT_DONE, OFFLINE_EXPORT_ERROR } from './messages';
+import type { TatchiPasskeyConfigs } from '../types/passkeyManager';
+import { WebAuthnManager } from '../WebAuthnManager';
 import { TouchIdPrompt } from '../WebAuthnManager/touchIdPrompt';
 import { createRandomVRFChallenge, type VRFChallenge } from '../types/vrf-worker';
-import { recoverKeypairFromPasskey } from '../WebAuthnManager/SignerWorkerManager/handlers/recoverKeypairFromPasskey';
-import { getDeviceNumberForAccount } from '../WebAuthnManager/SignerWorkerManager/getDeviceNumber';
-import type { SignerWorkerManagerContext } from '../WebAuthnManager/SignerWorkerManager';
 
 async function registerServiceWorker(): Promise<void> {
   if (!('serviceWorker' in navigator)) return;
@@ -57,6 +54,23 @@ async function prewarmSdkAssets(): Promise<void> {
     // Warm the remaining entries opportunistically
     const schedule = () => void Promise.allSettled(rest.map((u) => fetch(u).then(() => void 0)))
     try { (window as any).requestIdleCallback ? (window as any).requestIdleCallback(schedule, { timeout: 8000 }) : setTimeout(schedule, 800) } catch { setTimeout(schedule, 800) }
+  } catch {}
+
+  // Fallback: proactively cache any /sdk/* scripts that the offline page
+  // already loaded as part of its initial bundle (e.g. common-*.js vendor chunks).
+  // These are requested before the SW takes control, so we re-fetch them once
+  // the SW is ready to ensure they are present in the offline cache.
+  try {
+    const origin = window.location.origin;
+    const scriptPaths = Array.from(document.querySelectorAll('script[src]'))
+      .map((el) => (el as HTMLScriptElement).src)
+      .filter((src) => typeof src === 'string' && src.startsWith(origin + '/sdk/'))
+      .map((src) => new URL(src).pathname);
+    if (scriptPaths.length > 0) {
+      await Promise.allSettled(
+        scriptPaths.map((p) => fetch(p).then(() => void 0))
+      );
+    }
   } catch {}
 }
 
@@ -204,19 +218,30 @@ async function main(): Promise<void> {
         // Soft-check (non-blocking) — we may still have resident credentials
         const authenticators = await ensureLocalAuthenticators(account);
 
-        // Instantiate managers with defaults. No network RPC is used in export flow.
-        const vrf = new VrfWorkerManager();
+        // Instantiate WebAuthnManager with minimal offline configs. No network RPC is used in export flow.
         const near = new MinimalNearClient('https://rpc.invalid.local');
-        const userPrefs = new UserPreferencesManager();
-        const nonce = NonceManager.getInstance();
-        const swm = new SignerWorkerManager(vrf, near, userPrefs, nonce, effectiveRpIdOverride);
-        swm.setWorkerBaseOrigin(window.location.origin);
+        const offlineConfigs: TatchiPasskeyConfigs = {
+          nearRpcUrl: 'https://rpc.invalid.local',
+          nearNetwork: 'testnet',
+          contractId: 'w3a-v1.testnet',
+          walletTheme: 'dark',
+          iframeWallet: effectiveRpIdOverride ? { rpIdOverride: effectiveRpIdOverride } : undefined,
+          relayer: {
+            url: 'https://rpc.invalid.local',
+          },
+          vrfWorkerConfigs: undefined,
+        };
+        const webAuthnManager = new WebAuthnManager(offlineConfigs, near);
         console.debug('[offline-export] rpId (hostname):', window.location.hostname);
         if (effectiveRpIdOverride) {
           console.debug('[offline-export] rpIdOverride:', effectiveRpIdOverride);
         }
         try {
-          await swm.exportNearKeypairUi({ nearAccountId: toAccountId(account), variant: 'drawer', theme: 'dark' });
+          // Attempt direct export using WebAuthnManager's worker-driven flow
+          await webAuthnManager.exportNearKeypairWithUI(toAccountId(account), {
+            variant: 'drawer',
+            theme: 'dark',
+          });
         } catch (err: any) {
           const msg = String(err?.message || err || '');
           if (msg.includes('Missing local key material for export')) {
@@ -232,35 +257,37 @@ async function main(): Promise<void> {
               challenge,
               allowCredentials,
             });
-            const ctx: SignerWorkerManagerContext = {
-              // Delegate worker messaging to swm internals
-              sendMessage: (args) => (swm as any).sendMessage(args),
-              indexedDB: IndexedDBManager as any,
-              touchIdPrompt: tip,
-              vrfWorkerManager: vrf,
-              nearClient: near,
-              userPreferencesManager: userPrefs,
-              nonceManager: nonce,
-              rpIdOverride: effectiveRpIdOverride,
-              nearExplorerUrl: undefined,
-            };
-            const rec = await recoverKeypairFromPasskey({ ctx, credential: authCred, accountIdHint: account });
-            // Store encrypted key locally for this device
-            const deviceNumber = await getDeviceNumberForAccount(ctx, toAccountId(account));
+            // Recover NEAR keypair using WebAuthnManager's recovery flow
+            const rec = await webAuthnManager.recoverKeypairFromPasskey(authCred, account);
+            // Store encrypted key locally for this device. Prefer the last logged-in
+            // device for this account; fall back to device 1 for legacy cases.
+            const last = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
+            const accountId = toAccountId(account);
+            const deviceNumber =
+              last && last.nearAccountId === accountId && last.deviceNumber
+                ? last.deviceNumber
+                : 1;
             await IndexedDBManager.nearKeysDB.storeEncryptedKey({
               nearAccountId: account,
               deviceNumber,
               encryptedData: rec.encryptedPrivateKey,
               iv: rec.iv,
+              // Prefer the true wrapKeySalt returned by recovery; fall back to iv
+              // only if missing for backwards compatibility.
+              wrapKeySalt: rec.wrapKeySalt || rec.iv,
+              version: 2,
               timestamp: Date.now(),
             });
-            // Upsert public key if missing
-            const existing = await IndexedDBManager.clientDB.getUser(toAccountId(account));
+            // Upsert public key if missing for this device
+            const existing = await IndexedDBManager.clientDB.getUserByDevice(accountId, deviceNumber).catch(() => null);
             if (!existing?.clientNearPublicKey) {
-              try { await IndexedDBManager.clientDB.updateUser(toAccountId(account), { clientNearPublicKey: rec.publicKey }); } catch {}
+              try { await IndexedDBManager.clientDB.updateUser(accountId, { clientNearPublicKey: rec.publicKey }); } catch {}
             }
             statusEl.textContent = 'Recovered local key material. Opening export viewer…';
-            await swm.exportNearKeypairUi({ nearAccountId: toAccountId(account), variant: 'drawer', theme: 'dark' });
+            await webAuthnManager.exportNearKeypairWithUI(toAccountId(account), {
+              variant: 'drawer',
+              theme: 'dark',
+            });
           } else {
             throw err;
           }

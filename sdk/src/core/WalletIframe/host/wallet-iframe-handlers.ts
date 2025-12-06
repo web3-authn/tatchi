@@ -153,11 +153,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_START_DEVICE2_LINKING_FLOW: async (req: Req<'PM_START_DEVICE2_LINKING_FLOW'>) => {
       const pm = getTatchiPasskey();
-      const { accountId } = (req.payload || {});
       if (respondIfCancelled(req.requestId)) return;
 
       const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
-        accountId,
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
       });
 
@@ -307,7 +305,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const ctx = pm.getContext();
       const web = ctx?.webAuthnManager;
       if (web) {
-        await web.getUser(toAccountId(nearAccountId)).catch(() => undefined);
+        await web.getLastUser().catch(() => undefined);
         await web.getAuthenticatorsByUser(toAccountId(nearAccountId)).catch(() => undefined);
       }
       const result = await pm.hasPasskeyCredential(toAccountId(nearAccountId));

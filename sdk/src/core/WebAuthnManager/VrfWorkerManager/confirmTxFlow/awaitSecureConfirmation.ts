@@ -3,6 +3,7 @@ import {
   SecureConfirmMessageType,
   SecureConfirmRequest,
   SerializableCredential,
+  SecureConfirmationType,
 } from './types';
 import { isObject, isString, isBoolean } from '@/core/WalletIframe/validation';
 import { errorMessage, toError } from '@/utils/errors';
@@ -17,6 +18,8 @@ type ConfirmResponsePayload = {
   intentDigest?: string;
   credential?: SerializableCredential;
   prfOutput?: string;
+  wrapKeySeed?: string;
+  wrapKeySalt?: string;
   vrfChallenge?: VRFChallenge;
   transactionContext?: TransactionContext;
   error?: string;
@@ -62,10 +65,10 @@ export function awaitSecureConfirmationV2(
 ): Promise<WorkerConfirmationResponse> {
   return new Promise((resolve, reject) => {
 
-    // 1) Validate JSON string from Rust
+    // 1) Normalize and validate JSON string from Rust / VRF.
     let request: SecureConfirmRequest;
     try {
-      request = validateRequestJson(requestJson);
+      request = normalizeAndValidateRequest(requestJson);
     } catch (e: unknown) {
       return reject(new Error(`[signer-worker]: invalid V2 request JSON: ${errorMessage(e)}`));
     }
@@ -95,6 +98,8 @@ export function awaitSecureConfirmationV2(
         confirmed: env.data.confirmed,
         credential: env.data.credential,
         prf_output: env.data.prfOutput,
+        wrapKeySeed: env.data.wrapKeySeed,
+        wrapKeySalt: env.data.wrapKeySalt,
         vrf_challenge: env.data.vrfChallenge,
         transaction_context: env.data.transactionContext,
         error: env.data.error
@@ -144,6 +149,10 @@ function deepClonePlain<T>(obj: T): T {
 
 function validateRequestJson(requestJson: string): SecureConfirmRequest {
   const parsed = JSON.parse(requestJson) as unknown;
+  return validateRequestObject(parsed);
+}
+
+function validateRequestObject(parsed: unknown): SecureConfirmRequest {
   if (!isObject(parsed)) throw new Error('parsed is not an object');
   const p = parsed as { schemaVersion?: unknown; requestId?: unknown; type?: unknown; payload?: unknown };
   if (p.schemaVersion !== 2) throw new Error('schemaVersion must be 2');
@@ -151,4 +160,118 @@ function validateRequestJson(requestJson: string): SecureConfirmRequest {
   if (!p.type) throw new Error('missing type');
   if (!p.payload) throw new Error('missing payload');
   return parsed as unknown as SecureConfirmRequest;
+}
+
+/**
+ * Accept either:
+ *  - Full SecureConfirmRequest JSON (schemaVersion: 2, etc.)
+ *  - VRF shorthand for LocalOnly decrypt:
+ *      { type: 'decryptPrivateKeyWithPrf', sessionId, nearAccountId }
+ */
+function normalizeAndValidateRequest(requestJson: string): SecureConfirmRequest {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(requestJson) as unknown;
+  } catch {
+    // Fall back to legacy behavior; this will throw with a descriptive error.
+    return validateRequestJson(requestJson);
+  }
+
+  // Shorthand: decryptPrivateKeyWithPrf for LocalOnly decrypt/export flows.
+  if (isObject(parsed) && (parsed as any).schemaVersion === undefined) {
+    const r = parsed as {
+      type?: unknown;
+      sessionId?: unknown;
+      requestId?: unknown;
+      nearAccountId?: unknown;
+      txSigningRequests?: unknown;
+      rpcCall?: unknown;
+      message?: unknown;
+      recipient?: unknown;
+      payload?: unknown;
+    };
+
+    // LocalOnly decrypt shorthand: { type: 'decryptPrivateKeyWithPrf', sessionId, nearAccountId }
+    if (r.type === 'decryptPrivateKeyWithPrf') {
+      const sessionId = String(r.sessionId || r.requestId || '');
+      const nearAccountId = String(r.nearAccountId || '');
+      if (!sessionId || !nearAccountId) {
+        throw new Error('decryptPrivateKeyWithPrf shorthand requires sessionId and nearAccountId');
+      }
+      const full: SecureConfirmRequest = {
+        schemaVersion: 2,
+        requestId: sessionId,
+        type: SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF,
+        summary: {
+          operation: 'Decrypt Private Key',
+          accountId: nearAccountId,
+          publicKey: '',
+          warning: 'Decrypting your private key grants full control of your account.',
+        } as any,
+        payload: {
+          nearAccountId,
+          publicKey: '',
+        } as any,
+      };
+      return full;
+    }
+
+    // Signing shorthand: { type: 'signTransaction', sessionId, payload or txSigningRequests/rpcCall }
+    if (r.type === 'signTransaction') {
+      const sessionId = String(r.sessionId || r.requestId || '');
+      if (!sessionId) {
+        throw new Error('signTransaction shorthand requires sessionId (or requestId)');
+      }
+      const payload = (r.payload as any) ?? {
+        txSigningRequests: r.txSigningRequests,
+        intentDigest: (r as any).intentDigest || '',
+        rpcCall: r.rpcCall,
+      };
+      const txs = (payload?.txSigningRequests as any[]) || [];
+      if (!Array.isArray(txs) || txs.length === 0 || !payload?.rpcCall) {
+        throw new Error('signTransaction shorthand requires txSigningRequests[] and rpcCall');
+      }
+      const receiverId = String(txs[0]?.receiverId || '');
+      const full: SecureConfirmRequest = {
+        schemaVersion: 2,
+        requestId: sessionId,
+        type: SecureConfirmationType.SIGN_TRANSACTION,
+        summary: {
+          receiverId,
+        } as any,
+        payload,
+      };
+      return full;
+    }
+
+    // NEP‑413 shorthand: { type: 'signNep413Message', sessionId, nearAccountId, message, recipient }
+    if (r.type === 'signNep413Message') {
+      const sessionId = String(r.sessionId || r.requestId || '');
+      const nearAccountId = String(r.nearAccountId || (r.payload as any)?.nearAccountId || '');
+      const message = String(r.message || (r.payload as any)?.message || '');
+      const recipient = String(r.recipient || (r.payload as any)?.recipient || '');
+      if (!sessionId || !nearAccountId || !message || !recipient) {
+        throw new Error('signNep413Message shorthand requires sessionId, nearAccountId, message, and recipient');
+      }
+      const full: SecureConfirmRequest = {
+        schemaVersion: 2,
+        requestId: sessionId,
+        type: SecureConfirmationType.SIGN_NEP413_MESSAGE,
+        summary: {
+          operation: 'Sign NEP-413 Message',
+          message,
+          recipient,
+          accountId: nearAccountId,
+        } as any,
+        payload: {
+          nearAccountId,
+          message,
+          recipient,
+        } as any,
+      };
+      return full;
+    }
+  }
+
+  return validateRequestObject(parsed);
 }

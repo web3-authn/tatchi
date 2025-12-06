@@ -8,7 +8,7 @@
 /// Log level for the VRF worker
 /// Change this constant and recompile to adjust logging verbosity
 /// Available levels: Error, Warn, Info, Debug, Trace
-pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Info;
+pub const CURRENT_LOG_LEVEL: log::Level = log::Level::Debug;
 
 /// Whether to include timestamps in log messages
 pub const LOG_INCLUDE_TIMESTAMP: bool = false;
@@ -29,6 +29,12 @@ pub const HKDF_CHACHA20_KEY_INFO: &[u8] = b"vrf-chacha20-key";
 /// HKDF info string for VRF keypair derivation from PRF output
 /// Used for deterministic VRF keypair generation during account recovery
 pub const HKDF_VRF_KEYPAIR_INFO: &[u8] = b"vrf-keypair-derivation-v1";
+
+/// Constant used for HKDF info when deriving K_pass_auth
+pub const VRF_WRAP_PASS_INFO: &[u8] = b"vrf-wrap-pass";
+
+/// Constant used for HKDF info when deriving WrapKeySeed
+pub const NEAR_WRAP_SEED_INFO: &[u8] = b"near-wrap-seed";
 
 // === ENCRYPTION PARAMETERS ===
 

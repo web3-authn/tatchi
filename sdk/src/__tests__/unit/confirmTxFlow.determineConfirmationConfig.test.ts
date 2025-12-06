@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  determine: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.js',
-  types: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/types.js',
+  determine: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.js',
+  types: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/types.js',
 } as const;
 
 test.describe('determineConfirmationConfig', () => {
@@ -76,6 +76,34 @@ test.describe('determineConfirmationConfig', () => {
     expect(res.cfg.uiMode).toBe('skip');
     expect(res.cfg.behavior).toBe('requireClick');
     expect(res.cfg.theme).toBe('light');
+  });
+
+  test('SHOW_SECURE_PRIVATE_KEY_UI inherits theme and uses modal/drawer UI', async ({ page }) => {
+    const res = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.determine);
+      const types = await import(paths.types);
+      const determine = mod.determineConfirmationConfig as Function;
+
+      const ctx: any = {
+        userPreferencesManager: {
+          getConfirmationConfig: () => ({
+            uiMode: 'modal',
+            behavior: 'requireClick',
+            autoProceedDelay: 0,
+            theme: 'dark'
+          })
+        }
+      };
+
+      const req = { type: types.SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI } as any;
+      const cfg = determine(ctx, req);
+      return { cfg };
+    }, { paths: IMPORT_PATHS });
+
+    // The export viewer uses a full-screen modal/drawer; we only assert
+    // that it does not get forced to 'skip' and that it keeps the theme.
+    expect(res.cfg.uiMode === 'modal' || res.cfg.uiMode === 'drawer').toBe(true);
+    expect(res.cfg.theme).toBe('dark');
   });
 
   test('in iframe + registration/link clamps to modal+requireClick when no override provided', async ({ page }) => {

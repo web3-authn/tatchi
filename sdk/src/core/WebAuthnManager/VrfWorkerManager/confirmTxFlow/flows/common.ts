@@ -1,10 +1,11 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig, ConfirmationUIMode } from '../../../../types/signer-worker';
 import {
   SecureConfirmRequest,
   SecureConfirmationType,
   SignTransactionPayload,
   RegisterAccountPayload,
+  SignNep413Payload,
   TransactionSummary,
 } from '../types';
 import { TransactionContext, VRFChallenge } from '../../../../types';
@@ -43,6 +44,8 @@ export function getNearAccountId(request: SecureConfirmRequest): string {
   switch (request.type) {
     case SecureConfirmationType.SIGN_TRANSACTION:
       return (request.payload as SignTransactionPayload).rpcCall.nearAccountId;
+    case SecureConfirmationType.SIGN_NEP413_MESSAGE:
+      return (request.payload as SignNep413Payload).nearAccountId;
     case SecureConfirmationType.REGISTER_ACCOUNT:
     case SecureConfirmationType.LINK_DEVICE:
       return (request.payload as RegisterAccountPayload).nearAccountId;
@@ -75,7 +78,7 @@ export function getIntentDigest(request: SecureConfirmRequest): string | undefin
 
 // ===== NEAR context and nonce management =====
 export async function fetchNearContext(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   opts: { nearAccountId: string; txCount: number },
 ): Promise<{
   transactionContext: TransactionContext | null;
@@ -135,7 +138,7 @@ export async function fetchNearContext(
 
 // ===== VRF refresh helper with backoff =====
 export async function maybeRefreshVrfChallenge(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
@@ -217,7 +220,7 @@ export async function renderConfirmUI({
   transactionSummary,
   vrfChallenge,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,

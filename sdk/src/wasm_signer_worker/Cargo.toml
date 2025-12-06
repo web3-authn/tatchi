@@ -1,6 +1,6 @@
 [package]
 name = "wasm_signer_worker"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Web3Authn Signer worker"
 repository = "https://github.com/web3-authn/sdk"
@@ -49,7 +49,9 @@ web-sys = { version = "0.3", features = [
   "RequestInit",
   "RequestMode",
   "Response",
-  "Headers"
+  "Headers",
+  "MessageEvent",
+  "MessagePort"
 ] }
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"

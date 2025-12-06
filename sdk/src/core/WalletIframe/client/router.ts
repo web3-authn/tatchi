@@ -893,7 +893,6 @@ export class WalletIframeRouter {
     const p = this.post<StartDevice2LinkingFlowResults>({
       type: 'PM_START_DEVICE2_LINKING_FLOW',
       payload: {
-        accountId: payload?.accountId,
         ui: payload?.ui
       },
       options: {

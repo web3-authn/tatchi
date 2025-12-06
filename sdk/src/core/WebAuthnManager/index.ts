@@ -2,6 +2,7 @@ import {
   IndexedDBManager,
   type ClientUserData,
   type ClientAuthenticatorData,
+  type UnifiedIndexedDBManager,
 } from '../IndexedDBManager';
 import { StoreUserDataInput } from '../IndexedDBManager/passkeyClientDB';
 import { type NearClient, SignedTransaction } from '../NearClient';
@@ -28,7 +29,15 @@ import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker'
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
+import { extractPrfFromCredential } from './credentialsHelpers';
+import { DEFAULT_WAIT_STATUS } from '../types/rpc';
 
+type SigningSessionOptions = {
+  /** PRF.first_auth for WrapKeySeed derivation (base64url) */
+  prfFirstAuthB64u: string;
+  /** Optional credential for PRF.second extraction by VRF worker */
+  credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+};
 
 /**
  * WebAuthnManager - Main orchestrator for WebAuthn operations
@@ -57,18 +66,9 @@ export class WebAuthnManager {
     return this.nonceManager;
   }
 
-  constructor(
-    tatchiPasskeyConfigs: TatchiPasskeyConfigs,
-    nearClient: NearClient
-  ) {
-    const { vrfWorkerConfigs } = tatchiPasskeyConfigs;
-    // Group VRF worker configuration into a single object
-    this.vrfWorkerManager = new VrfWorkerManager({
-      shamirPB64u: vrfWorkerConfigs?.shamir3pass?.p,
-      relayServerUrl: vrfWorkerConfigs?.shamir3pass?.relayServerUrl,
-      applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
-      removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
-    });
+  constructor(tatchiPasskeyConfigs: TatchiPasskeyConfigs, nearClient: NearClient) {
+    this.tatchiPasskeyConfigs = tatchiPasskeyConfigs;
+    this.nearClient = nearClient;
     // Respect rpIdOverride. Safari get() bridge fallback is always enabled.
     this.touchIdPrompt = new TouchIdPrompt(
       tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
@@ -76,16 +76,34 @@ export class WebAuthnManager {
     );
     this.userPreferencesManager = UserPreferencesInstance;
     this.nonceManager = NonceManagerInstance;
-    this.nearClient = nearClient;
+    const { vrfWorkerConfigs } = tatchiPasskeyConfigs;
+    // Group VRF worker configuration and pass context
+    this.vrfWorkerManager = new VrfWorkerManager(
+      {
+        shamirPB64u: vrfWorkerConfigs?.shamir3pass?.p,
+        relayServerUrl: vrfWorkerConfigs?.shamir3pass?.relayServerUrl,
+        applyServerLockRoute: vrfWorkerConfigs?.shamir3pass?.applyServerLockRoute,
+        removeServerLockRoute: vrfWorkerConfigs?.shamir3pass?.removeServerLockRoute,
+      },
+      {
+        touchIdPrompt: this.touchIdPrompt,
+        nearClient: this.nearClient,
+        indexedDB: IndexedDBManager,
+        userPreferencesManager: this.userPreferencesManager,
+        nonceManager: this.nonceManager,
+        rpIdOverride: this.touchIdPrompt.getRpId(),
+        nearExplorerUrl: tatchiPasskeyConfigs.nearExplorerUrl,
+      }
+    );
     this.signerWorkerManager = new SignerWorkerManager(
       this.vrfWorkerManager,
       nearClient,
-      UserPreferencesInstance,
-      NonceManagerInstance,
+      this.userPreferencesManager,
+      this.nonceManager,
       tatchiPasskeyConfigs.iframeWallet?.rpIdOverride,
       true,
+      tatchiPasskeyConfigs.nearExplorerUrl,
     );
-    this.tatchiPasskeyConfigs = tatchiPasskeyConfigs;
     // VRF worker initializes on-demand with proper error propagation
 
     // Compute initial worker base origin once
@@ -135,22 +153,176 @@ export class WebAuthnManager {
   async warmCriticalResources(nearAccountId?: string): Promise<void> {
     // Initialize current user first (best-effort)
     if (nearAccountId) {
-      await this.initializeCurrentUser(
-        toAccountId(nearAccountId),
-        this.nearClient,
-      ).catch(() => undefined);
+      await this.initializeCurrentUser(toAccountId(nearAccountId), this.nearClient).catch(() => null);
     }
-
     // Prefetch latest block/nonce context (best-effort)
-    await this.nonceManager.prefetchBlockheight(this.nearClient).catch(() => undefined);
-
+    await this.nonceManager.prefetchBlockheight(this.nearClient).catch(() => null);
     // Best-effort: open IndexedDB and warm key data for the account
     if (nearAccountId) {
-      await IndexedDBManager.getUserWithKeys(toAccountId(nearAccountId)).catch(() => undefined);
+      await IndexedDBManager.getUserWithKeys(toAccountId(nearAccountId)).catch(() => null);
     }
-
     // Warm signer workers in background
     this.prewarmSignerWorkers();
+  }
+
+  // getContext(): WebAuthnManagerContext {
+  //   return {
+  //     touchIdPrompt: this.touchIdPrompt,
+  //     nearClient: this.nearClient,
+  //     indexedDB: IndexedDBManager,
+  //     userPreferencesManager: this.userPreferencesManager,
+  //     nonceManager: this.nonceManager,
+  //     rpIdOverride: this.touchIdPrompt.getRpId(),
+  //     nearExplorerUrl: this.tatchiPasskeyConfigs.nearExplorerUrl,
+  //   }
+  // }
+
+  /**
+   * WebAuthnManager-level orchestrator for VRF-owned signing sessions.
+   * Creates sessionId, wires MessagePort between VRF and signer workers, and ensures cleanup.
+   *
+   * Overload 1: plain signing session (no WrapKeySeed derivation).
+   * Overload 2: signing session with WrapKeySeed derivation, when `SigningSessionOptions`
+   *             (PRF.first_auth) are provided. wrapKeySalt is generated inside the VRF worker
+   *             when a new vault entry is being created.
+   */
+  private async withSigningSession<T>(
+    prefix: string,
+    fn: (sessionId: string) => Promise<T>
+  ): Promise<T>;
+
+  private async withSigningSession<T>(
+    prefix: string,
+    opts: SigningSessionOptions,
+    fn: (sessionId: string) => Promise<T>
+  ): Promise<T>;
+
+  private async withSigningSession<T>(
+    prefix: string,
+    arg2: SigningSessionOptions | ((sessionId: string) => Promise<T>),
+    arg3?: (sessionId: string) => Promise<T>
+  ): Promise<T> {
+
+    const hasOptions = typeof arg2 === 'object' && typeof arg3 === 'function';
+    const options = hasOptions ? (arg2 as SigningSessionOptions) : undefined;
+    const handler = (hasOptions ? arg3 : arg2) as (sessionId: string) => Promise<T>;
+    if (typeof handler !== 'function') {
+      throw new Error('withSigningSession requires a handler function');
+    }
+
+    const sessionId = (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+    const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);
+    await this.signerWorkerManager.reserveSigningSession(sessionId, { signerPort });
+    try {
+      // If PRF is provided, derive WrapKeySeed in VRF worker and deliver it
+      // (along with PRF.second if credential is provided) to the signer worker
+      // via the reserved MessagePort before invoking the handler.
+      if (options) {
+        await this.vrfWorkerManager.deriveWrapKeySeedAndSendToSigner({
+          sessionId,
+          prfFirstAuthB64u: options.prfFirstAuthB64u,
+          credential: options.credential,
+        });
+
+        // Wait for the signer worker to confirm it has received and stored the seed
+        await this.signerWorkerManager.waitForSeedReady(sessionId);
+      }
+      return await handler(sessionId);
+    } finally {
+      this.signerWorkerManager.releaseSigningSession(sessionId);
+    }
+  }
+
+  /**
+   * VRF-driven registration confirmation helper.
+   * Runs confirmTxFlow and returns registration artifacts.
+   *
+   * SecureConfirm wrapper for link-device / registration: prompts user in-iframe to create a
+   * new passkey (device N), returning artifacts for subsequent derivation.
+   */
+  async requestRegistrationCredentialConfirmation(params: {
+    nearAccountId: string;
+    deviceNumber: number;
+    confirmationConfigOverride?: ConfirmationConfig;
+  }): Promise<RegistrationCredentialConfirmationPayload> {
+    return this.vrfWorkerManager.requestRegistrationCredentialConfirmation({
+      nearAccountId: params.nearAccountId,
+      deviceNumber: params.deviceNumber,
+      confirmationConfigOverride: params.confirmationConfigOverride,
+      contractId: this.tatchiPasskeyConfigs.contractId,
+      nearRpcUrl: this.tatchiPasskeyConfigs.nearRpcUrl,
+    });
+  }
+
+  /**
+   * Helper for export/decrypt flows:
+   *  - Read vault wrapKeySalt
+   *  - Ask VRF worker to run LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) + derive WrapKeySeed
+   *  - WrapKeySeed travels only over the VRF→Signer MessagePort
+   */
+  private async confirmDecryptAndDeriveWrapKeySeed(args: {
+    nearAccountId: AccountId;
+    sessionId: string;
+  }): Promise<void> {
+    const nearAccountId = toAccountId(args.nearAccountId);
+    console.debug('WebAuthnManager: Preparing VRF decrypt session', {
+      nearAccountId: String(nearAccountId),
+      sessionId: args.sessionId,
+    });
+    // Resolve deviceNumber consistently with signer paths so both VRF and signer
+    // operate on the same vault entry.
+    const deviceNumber = await IndexedDBManager.clientDB
+      .getLastUser()
+      .then((last) => (last && last.nearAccountId === nearAccountId ? last.deviceNumber || 1 : null))
+      .catch(() => null)
+      ?? (await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, 1).catch(() => null))?.deviceNumber
+      ?? 1;
+
+    // Gather encrypted key + wrapKeySalt and public key from IndexedDB for this device
+    const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
+    if (!encryptedKeyData) {
+      console.error('WebAuthnManager: No encrypted key found for decrypt session', {
+        nearAccountId: String(nearAccountId),
+        deviceNumber,
+      });
+      throw new Error(`No encrypted key found for account: ${nearAccountId}`);
+    }
+    // For v2+ vaults, wrapKeySalt is the canonical salt.
+    // iv fallback is retained only for legacy entries that were created
+    // before VRF-owned WrapKeySeed derivation.
+    const wrapKeySalt = encryptedKeyData.wrapKeySalt || encryptedKeyData.iv || '';
+    if (!wrapKeySalt) {
+      console.error('WebAuthnManager: Missing wrapKeySalt in vault for decrypt session', {
+        nearAccountId: String(nearAccountId),
+        deviceNumber,
+      });
+      throw new Error('Missing wrapKeySalt in vault; re-register to upgrade vault format.');
+    }
+
+    try {
+      await this.vrfWorkerManager.prepareDecryptSession({
+        sessionId: args.sessionId,
+        nearAccountId,
+        wrapKeySalt,
+      });
+      // Wait until the signer worker confirms WrapKeySeed has been received and stored
+      // for this session before proceeding to decrypt inside the signer.
+      await this.signerWorkerManager.waitForSeedReady(args.sessionId);
+      console.debug('WebAuthnManager: VRF decrypt session ready', {
+        nearAccountId: String(nearAccountId),
+        sessionId: args.sessionId,
+      });
+    } catch (error) {
+      console.error('WebAuthnManager: VRF decrypt session failed', {
+        nearAccountId: String(nearAccountId),
+        sessionId: args.sessionId,
+        error,
+      });
+      throw error;
+    }
   }
 
   getAuthenticationCredentialsSerialized({
@@ -200,32 +372,6 @@ export class WebAuthnManager {
   }
 
   /**
-   * SecureConfirm wrapper for link-device registration: prompts user in-iframe to create a
-   * new passkey (device N), returning artifacts for subsequent derivation.
-   */
-  async requestRegistrationCredentialConfirmation({
-    nearAccountId,
-    deviceNumber,
-    contractId,
-    nearRpcUrl,
-    confirmationConfigOverride,
-  }: {
-    nearAccountId: string;
-    deviceNumber: number;
-    contractId: string;
-    nearRpcUrl: string;
-    confirmationConfigOverride?: ConfirmationConfig;
-  }): Promise<RegistrationCredentialConfirmationPayload> {
-    return this.signerWorkerManager.requestRegistrationCredentialConfirmation({
-      nearAccountId,
-      deviceNumber,
-      contractId,
-      nearRpcUrl,
-      confirmationConfig: confirmationConfigOverride,
-    });
-  }
-
-  /**
    * Derive NEAR keypair directly from a serialized WebAuthn registration credential
    */
   async deriveNearKeypairAndEncryptFromSerialized({
@@ -236,12 +382,167 @@ export class WebAuthnManager {
     credential: WebAuthnRegistrationCredential;
     nearAccountId: string;
     options?: any;
-  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; signedTransaction?: SignedTransaction; error?: string }>{
-    return this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+  }): Promise<{ success: boolean; nearAccountId: string; publicKey: string; iv?: string; wrapKeySalt?: string; error?: string }>{
+    // Extract PRF.first for WrapKeySeed derivation
+    const { chacha20PrfOutput } = extractPrfFromCredential({
       credential,
-      nearAccountId: toAccountId(nearAccountId),
-      options,
+      firstPrfOutput: true,
+      secondPrfOutput: false,
     });
+    if (!chacha20PrfOutput) {
+      throw new Error('PRF outputs missing from registration credential');
+    }
+
+    return this.withSigningSession(
+      'reg',
+      { prfFirstAuthB64u: chacha20PrfOutput, credential },
+      (sessionId) =>
+        this.signerWorkerManager.deriveNearKeypairAndEncryptFromSerialized({
+          credential,
+          nearAccountId: toAccountId(nearAccountId),
+          options,
+          sessionId,
+        }),
+    );
+  }
+
+
+  /**
+   * **Sign Device2 registration transaction with already-stored key (no prompt)**
+   *
+   * Used by linkDevice flow after key swap to sign the registration transaction
+   * without prompting the user again. Reuses the credential collected earlier.
+   *
+   * Flow:
+   * 1. Extract PRF.first from the provided credential
+   * 2. Create new MessagePort session for WrapKeySeed delivery
+   * 3. VRF worker re-derives WrapKeySeed and sends to signer (with PRF.second)
+   * 4. Signer worker retrieves encrypted key from IndexedDB
+   * 5. Signer worker decrypts key and signs registration transaction
+   *
+   * @param nearAccountId - NEAR account ID for Device2
+   * @param credential - WebAuthn registration credential from earlier prompt
+   * @param vrfChallenge - VRF challenge from earlier prompt
+   * @param deviceNumber - Device number for Device2
+   * @returns Signed registration transaction ready for submission
+   */
+  async signDevice2RegistrationWithStoredKey(args: {
+    nearAccountId: AccountId;
+    credential: WebAuthnRegistrationCredential;
+    vrfChallenge: VRFChallenge;
+    deviceNumber: number;
+    deterministicVrfPublicKey: string;
+  }): Promise<{
+    success: boolean;
+    publicKey?: string;
+    signedTransaction?: any;
+    error?: string;
+  }> {
+    const { nearAccountId, credential, vrfChallenge, deviceNumber, deterministicVrfPublicKey } = args;
+    const contractId = this.tatchiPasskeyConfigs.contractId;
+
+    try {
+      // Generate new session ID for this signing operation
+      const sessionId = `device2-sign-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+
+      console.debug('[WebAuthnManager] Signing Device2 registration with stored key', {
+        nearAccountId,
+        deviceNumber,
+        sessionId,
+      });
+
+      // Retrieve encrypted key data and wrapKeySalt from IndexedDB
+      const encryptedKeyData = await IndexedDBManager.nearKeysDB.getEncryptedKey(
+        nearAccountId,
+        deviceNumber
+      );
+      if (!encryptedKeyData) {
+        throw new Error(`No encrypted key found for account ${nearAccountId} device ${deviceNumber}`);
+      }
+
+      const wrapKeySalt = encryptedKeyData.wrapKeySalt;
+      if (!wrapKeySalt) {
+        throw new Error(`Missing wrapKeySalt for account ${nearAccountId} device ${deviceNumber}`);
+      }
+      console.debug('[WebAuthnManager] Retrieved wrapKeySalt from IndexedDB:', wrapKeySalt);
+
+      // Extract PRF.first from the credential
+      const { chacha20PrfOutput: prfFirstB64u } = extractPrfFromCredential({
+        credential,
+        firstPrfOutput: true,
+        secondPrfOutput: false,
+      });
+      if (!prfFirstB64u) {
+        throw new Error('Failed to extract PRF.first from credential');
+      }
+
+      // === STEP 1: Create MessagePort session for WrapKeySeed delivery ===
+      const signerPort = await this.vrfWorkerManager.createSigningSessionChannel(sessionId);
+      await this.signerWorkerManager.reserveSigningSession(sessionId, { signerPort });
+
+      // === STEP 2: VRF worker re-derives WrapKeySeed and sends to signer ===
+      // This extracts PRF.second from the credential and delivers both WrapKeySeed + PRF.second
+      // to the signer worker via MessagePort
+      await this.vrfWorkerManager.deriveWrapKeySeedAndSendToSigner({
+        sessionId,
+        prfFirstAuthB64u: prfFirstB64u,
+        wrapKeySalt,
+        credential, // VRF will extract PRF.second from this
+      });
+
+      console.debug('[WebAuthnManager] WrapKeySeed sent to signer worker');
+
+      // === STEP 3: Wait for WrapKeySeed to arrive in signer worker ===
+      await this.signerWorkerManager.waitForSeedReady(sessionId);
+
+      // === STEP 4: Get transaction context for registration ===
+      const transactionContext = await this.nonceManager.getNonceBlockHashAndHeight(this.nearClient);
+
+      // === STEP 5: Determine deterministic VRF public key ===
+      // Try: provided parameter → authenticator table → fallback to ephemeral VRF from challenge
+      let vrfPublicKey = deterministicVrfPublicKey;
+      console.debug('[WebAuthnManager] VRF public key lookup result', {
+        vrfPublicKey,
+      });
+      // Fallback to ephemeral VRF public key from challenge if still not found
+      const finalVrfPublicKey = vrfPublicKey || vrfChallenge.vrfPublicKey;
+      console.debug('[WebAuthnManager] Final VRF public key for Device2 registration', {
+        source: vrfPublicKey ? (deterministicVrfPublicKey ? 'provided' : 'authenticator') : 'challenge',
+        finalVrfPublicKey,
+        ephemeralVrfPublicKey: vrfChallenge.vrfPublicKey,
+      });
+
+      // === STEP 6: Signer worker signs registration transaction ===
+      // WrapKeySeed and PRF.second are already in signer worker via MessagePort
+      const signerResult = await this.signerWorkerManager.registerDevice2WithDerivedKey({
+        sessionId,
+        nearAccountId,
+        credential,
+        vrfChallenge,
+        transactionContext,
+        contractId,
+        wrapKeySalt,
+        deviceNumber,
+        deterministicVrfPublicKey: finalVrfPublicKey,
+      });
+
+      console.debug('[WebAuthnManager] Device2 registration signed with stored key', {
+        publicKey: signerResult.publicKey,
+      });
+
+      return {
+        success: true,
+        publicKey: signerResult.publicKey,
+        signedTransaction: signerResult.signedTransaction,
+      };
+
+    } catch (error: any) {
+      console.error('[WebAuthnManager] Failed to sign Device2 registration with stored key:', error);
+      return {
+        success: false,
+        error: error.message || String(error),
+      };
+    }
   }
 
   /**
@@ -363,7 +664,10 @@ export class WebAuthnManager {
     credential: WebAuthnAuthenticationCredential;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      console.debug('WebAuthnManager: Unlocking VRF keypair');
+      console.debug('WebAuthnManager: Unlocking VRF keypair', {
+        nearAccountId,
+        hasEncryptedData: !!encryptedVrfKeypair?.encryptedVrfDataB64u,
+      });
 
       const unlockResult = await this.vrfWorkerManager.unlockVrfKeypair({
         credential,
@@ -498,7 +802,7 @@ export class WebAuthnManager {
     try {
       const relayUrl = this.tatchiPasskeyConfigs?.vrfWorkerConfigs?.shamir3pass?.relayServerUrl;
       if (!relayUrl) return false;
-      const userData = await this.getUser(nearAccountId);
+      const userData = await this.getLastUser();
       const stored = userData?.serverEncryptedVrfKeypair;
       if (!stored || !stored.kek_s_b64u || !stored.ciphertextVrfB64u || !stored.serverKeyId) return false;
 
@@ -523,19 +827,22 @@ export class WebAuthnManager {
   ///////////////////////////////////////
 
   async storeUserData(userData: StoreUserDataInput): Promise<void> {
-    await IndexedDBManager.clientDB.storeWebAuthnUserData(userData);
-  }
-
-  async getUser(nearAccountId: AccountId): Promise<ClientUserData | null> {
-    return await IndexedDBManager.clientDB.getUser(nearAccountId);
-  }
-
-  async getAllUserData(): Promise<ClientUserData[]> {
-    return await IndexedDBManager.clientDB.getAllUsers();
+    await IndexedDBManager.clientDB.storeWebAuthnUserData({
+      ...userData,
+      version: userData.version || 2,
+    });
   }
 
   async getAllUsers(): Promise<ClientUserData[]> {
     return await IndexedDBManager.clientDB.getAllUsers();
+  }
+
+  async getUserByDevice(nearAccountId: AccountId, deviceNumber: number): Promise<ClientUserData | null> {
+    return await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, deviceNumber);
+  }
+
+  async getLastUser(): Promise<ClientUserData | null> {
+    return await IndexedDBManager.clientDB.getLastUser();
   }
 
   async getAuthenticatorsByUser(nearAccountId: AccountId): Promise<ClientAuthenticatorData[]> {
@@ -568,20 +875,46 @@ export class WebAuthnManager {
     nearAccountId: AccountId,
     nearClient?: NearClient,
   ): Promise<void> {
-    // Set as last user for future sessions
-    await this.setLastUser(nearAccountId);
+    const accountId = toAccountId(nearAccountId);
+
+    // Set as last user for future sessions, preserving the current deviceNumber
+    // when it is already known for this account.
+    let deviceNumberToUse: number | null = null;
+    const lastUser = await IndexedDBManager.clientDB.getLastUser().catch(() => null);
+    if (
+      lastUser &&
+      toAccountId(lastUser.nearAccountId) === accountId &&
+      Number.isFinite(lastUser.deviceNumber)
+    ) {
+      deviceNumberToUse = lastUser.deviceNumber;
+    }
+
+    if (deviceNumberToUse === null) {
+      const userForAccount = await IndexedDBManager.clientDB
+        .getUserByDevice(accountId, 1)
+        .catch(() => null);
+      if (userForAccount && Number.isFinite(userForAccount.deviceNumber)) {
+        deviceNumberToUse = userForAccount.deviceNumber;
+      }
+    }
+
+    if (deviceNumberToUse === null) {
+      deviceNumberToUse = 1;
+    }
+
+    await this.setLastUser(accountId, deviceNumberToUse);
+
     // Set as current user for immediate use
-    this.userPreferencesManager.setCurrentUser(nearAccountId);
+    this.userPreferencesManager.setCurrentUser(accountId);
     // Ensure confirmation preferences are loaded before callers read them (best-effort)
     await this.userPreferencesManager.reloadUserSettings().catch(() => undefined);
 
     // Initialize NonceManager with the selected user's public key (best-effort)
     const userData = await IndexedDBManager.clientDB
-      .getUser(nearAccountId)
-      .catch(() => null)
-      .then(async (u) => (u ? u : await IndexedDBManager.clientDB.getLastUser().catch(() => null)));
+      .getUserByDevice(accountId, deviceNumberToUse)
+      .catch(() => null);
     if (userData && userData.clientNearPublicKey) {
-      this.nonceManager.initializeUser(nearAccountId, userData.clientNearPublicKey);
+      this.nonceManager.initializeUser(accountId, userData.clientNearPublicKey);
     }
 
     // Prefetch block height for better UX (non-fatal if it fails and nearClient is provided)
@@ -653,6 +986,7 @@ export class WebAuthnManager {
     encryptedVrfKeypair,
     vrfPublicKey,
     serverEncryptedVrfKeypair,
+    wrapKeySalt,
   }: {
     nearAccountId: AccountId;
     credential: WebAuthnRegistrationCredential;
@@ -660,6 +994,7 @@ export class WebAuthnManager {
     encryptedVrfKeypair: EncryptedVRFKeypair;
     vrfPublicKey: string;
     serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
+    wrapKeySalt?: string;
   }): Promise<void> {
     await this.atomicOperation(async (db) => {
       // Store credential for authentication
@@ -692,6 +1027,8 @@ export class WebAuthnManager {
           encryptedVrfDataB64u: encryptedVrfKeypair.encryptedVrfDataB64u,
           chacha20NonceB64u: encryptedVrfKeypair.chacha20NonceB64u,
         },
+        wrapKeySalt,
+        version: 2,
         serverEncryptedVrfKeypair: serverEncryptedVrfKeypair ? {
           ciphertextVrfB64u: serverEncryptedVrfKeypair?.ciphertextVrfB64u,
           kek_s_b64u: serverEncryptedVrfKeypair?.kek_s_b64u,
@@ -743,12 +1080,15 @@ export class WebAuthnManager {
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');
     }
-    return await this.signerWorkerManager.signTransactionsWithActions({
-      transactions,
-      rpcCall,
-      confirmationConfigOverride,
-      onEvent,
-    });
+    return this.withSigningSession('sign-session', (sessionId) =>
+      this.signerWorkerManager.signTransactionsWithActions({
+        transactions,
+        rpcCall,
+        confirmationConfigOverride,
+        onEvent,
+        sessionId,
+      })
+    );
   }
 
   async signNEP413Message(payload: {
@@ -757,7 +1097,6 @@ export class WebAuthnManager {
     nonce: string;
     state: string | null;
     accountId: AccountId;
-    credential: WebAuthnAuthenticationCredential;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -767,8 +1106,9 @@ export class WebAuthnManager {
     error?: string;
   }> {
     try {
-      // Send to WASM worker for signing
-      const result = await this.signerWorkerManager.signNep413Message(payload);
+      const result = await this.withSigningSession('nep413', (sessionId) =>
+        this.signerWorkerManager.signNep413Message({ ...payload, sessionId })
+      );
       if (result.success) {
         console.debug('WebAuthnManager: NEP-413 message signed successfully');
         return result;
@@ -802,7 +1142,20 @@ export class WebAuthnManager {
 
   /** Worker-driven export: two-phase V2 (collect PRF → decrypt → show UI) */
   async exportNearKeypairWithUIWorkerDriven(nearAccountId: AccountId, options?: { variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
-    await this.signerWorkerManager.exportNearKeypairUi({ nearAccountId, variant: options?.variant, theme: options?.theme });
+    await this.withSigningSession('export-session', async (sessionId) => {
+      // Phase 1: collect PRF via LocalOnly(DECRYPT_PRIVATE_KEY_WITH_PRF) inside VRF worker
+      // and derive WrapKeySeed with the vault-provided wrapKeySalt.
+      await this.confirmDecryptAndDeriveWrapKeySeed({ nearAccountId, sessionId });
+
+      // Phase 2 + 3: decrypt inside signer worker using the reserved session,
+      // then show the export viewer UI.
+      return this.signerWorkerManager.exportNearKeypairUi({
+        nearAccountId,
+        variant: options?.variant,
+        theme: options?.theme,
+        sessionId,
+      });
+    });
   }
 
   async exportNearKeypairWithUI(
@@ -811,7 +1164,10 @@ export class WebAuthnManager {
   ): Promise<{ accountId: string; publicKey: string; privateKey: string }>{
     // Route to worker-driven two-phase flow. UI is shown inside the wallet host; no secrets are returned.
     await this.exportNearKeypairWithUIWorkerDriven(nearAccountId, options);
-    const userData = await this.getUser(nearAccountId);
+    let userData = await this.getLastUser();
+    if (!userData || userData.nearAccountId !== nearAccountId) {
+      userData = await this.getUserByDevice(nearAccountId, 1);
+    }
     return {
       accountId: String(nearAccountId),
       publicKey: String(userData?.clientNearPublicKey || ''),
@@ -873,6 +1229,7 @@ export class WebAuthnManager {
     encryptedPrivateKey: string;
     iv: string;
     accountIdHint?: string;
+    wrapKeySalt?: string;
     stored?: boolean;
   }> {
     try {
@@ -892,14 +1249,31 @@ export class WebAuthnManager {
         throw new Error('Dual PRF outputs required for account recovery - both AES and Ed25519 PRF outputs must be available');
       }
 
-      // Call the WASM worker to derive and encrypt the keypair using dual PRF
-      const result = await this.signerWorkerManager.recoverKeypairFromPasskey({
+      // Extract PRF.first for WrapKeySeed derivation
+      const { chacha20PrfOutput } = extractPrfFromCredential({
         credential: authenticationCredential,
-        accountIdHint,
+        firstPrfOutput: true,
+        secondPrfOutput: false,
       });
+      if (!chacha20PrfOutput) {
+        throw new Error('PRF outputs missing from authentication credential for recovery');
+      }
 
-       console.debug('WebAuthnManager: Deterministic keypair derivation successful');
-       return result;
+      // Orchestrate a VRF-owned signing session with WrapKeySeed derivation, then ask
+      // the signer to recover and re-encrypt the NEAR keypair.
+      const result = await this.withSigningSession(
+        'recover',
+        { prfFirstAuthB64u: chacha20PrfOutput },
+        (sessionId) =>
+          this.signerWorkerManager.recoverKeypairFromPasskey({
+            credential: authenticationCredential,
+            accountIdHint,
+            sessionId,
+          }),
+      );
+
+      console.debug('WebAuthnManager: Deterministic keypair derivation successful');
+      return result;
 
     } catch (error: any) {
       console.error('WebAuthnManager: Deterministic keypair derivation error:', error);

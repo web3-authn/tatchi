@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
   SecureConfirmationType,
@@ -16,7 +16,7 @@ import { isTouchIdCancellationError, toError } from '../../../../../utils/errors
 import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 
 export async function handleLocalOnlyFlow(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: LocalOnlySecureConfirmRequest,
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },

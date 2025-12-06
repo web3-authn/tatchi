@@ -13,52 +13,55 @@
 - New TatchiPasskey method: `signDelegateAction` with progress events and unit tests for encoding/compat.
 - Wallet iframe routing, host handler, and confirm UI plumbing for delegate actions.
 
-**Stage 1 — WASM Signer Worker**
-- Add request/response types and a handler that mirrors the confirm‑verify‑decrypt‑sign flow used by regular transactions.
+**Stage 1 — WASM Signer Worker (session‑based, VRF‑gated)**
+- Add request/response types and a handler that mirrors the new session‑based `SignTransactionsWithActions` flow: signer worker only decrypts and signs using a pre‑confirmed VRF/WebAuthn session and a `WrapKey` derived from `WrapKeySeed` sent over a `MessagePort`.
   - Files to update:
     - `sdk/src/wasm_signer_worker/src/types/worker_messages.rs`
     - `sdk/src/wasm_signer_worker/src/lib.rs`
-    - `sdk/src/wasm_signer_worker/src/handlers/` (new `handle_sign_delegate_action.rs`)
-    - `sdk/src/wasm_signer_worker/src/types/near/` (new delegate types; or colocate with existing NEAR types)
-    - `sdk/src/wasm_signer_worker/src/encoders/` (borsh + prefix encoder, or colocate with transaction encoders)
-    - `sdk/src/wasm_signer_worker/src/handlers/confirm_tx_details.rs` (augment for delegate confirmation payload)
-  - New Worker request/response variants:
+    - `sdk/src/wasm_signer_worker/src/handlers/` (new `handle_sign_delegate_action.rs`, following `handle_sign_transactions_with_actions.rs`)
+    - `sdk/src/wasm_signer_worker/src/types/near.rs` (delegate types; or colocate with existing NEAR types)
+    - `sdk/src/wasm_signer_worker/src/encoders.rs` (borsh + prefix encoder, or colocate with transaction encoders)
+  - New signer‑worker request/response variants:
     - `WorkerRequestType::SignDelegateAction`
     - `WorkerResponseType::SignDelegateActionSuccess` | `SignDelegateActionFailure`
-  - Request payload (Rust struct, wasm_bindgen):
-    - `rpc_call: RpcCallPayload` — used for verification + VRF data
-    - `decryption: DecryptionPayload` — encrypted private key data + iv
+  - Request payload (Rust struct, `wasm_bindgen`), shaped like `SignTransactionsWithActionsRequest` but for a single delegate:
+    - `rpc_call: RpcCallPayload` — same shape as existing flows (contractId, nearRpcUrl, nearAccountId).
+    - `session_id: String` — used to look up the `WrapKey` via `lookup_wrap_key_shards` after the VRF worker has delivered `wrap_key_seed`/`wrapKeySalt` for this session.
+    - `created_at: Option<f64>` — for session expiry checks against `SESSION_MAX_DURATION_MS`.
+    - `decryption: DecryptionPayload` — encrypted NEAR private key data + IV.
     - `delegate: { sender_id, receiver_id, actions_json, nonce, max_block_height, public_key }`
-      - `actions_json: string` is `ActionParams[]` JSON (same representation as `TransactionPayload.actions`)
-    - `confirmation_config?: ConfirmationConfig`
+      - `actions_json: string` is `ActionParams[]` JSON (same representation as `TransactionPayload.actions`).
+    - `confirmation_config?: ConfirmationConfig` — forwarded for telemetry / parity with other flows.
+    - `intent_digest?: String` — must match the digest returned by the VRF worker’s confirmation step.
+    - `transaction_context?: TransactionContext` — carries `nextNonce`, `txBlockHash`, etc. for delegate hashing.
+    - `credential?: String` — optional, mirrors transaction signing; can be used for additional checks/logging.
   - Response payload:
     - `{ success: true, signed_delegate: WasmSignedDelegate, hash: string, logs: string[] }`
     - Or `{ success: false, error, logs }`
-  - Confirm‑verify‑sign flow:
-    - Confirm: Reuse the same secure confirmation bridge with an operation type of `signDelegateAction`.
-      - In `confirm_tx_details.rs`, add a delegate path that:
-        - builds a summary from `(receiverId, actions)`
-        - computes an intent digest over `[{ receiverId, actions }]` (same normalization/alphabetization as tx)
-        - sets request `schemaVersion: 2`, `type: 'signDelegateAction'`, and includes delegate‑specific fields (e.g., `nonce`, `maxBlockHeight`) in `payload` for UI display
-    - Verify: Use the same contract verification with the WebAuthn assertion + VRF challenge returned by the confirmation handshake.
-    - Decrypt: Use PRF output from confirmation (same path as transactions).
-    - Sign: Build the delegate action struct, check `publicKey` matches the decrypted keypair public key, encode with NEP‑461 prefix (`1073742190`), SHA‑256 the message, and Ed25519‑sign the hash.
-      - Return `{ hash, signed_delegate }` where `signed_delegate` contains `{ delegateAction, signature { keyType, data } }`.
+  - Confirm / VRF / sign flow (updated for the dual‑worker architecture):
+    - Confirm + VRF gating (VRF worker):
+      - The VRF worker orchestrates WebAuthn PRF + VRF challenge and calls `awaitSecureConfirmationV2` with `type: 'signDelegateAction'`, including `{ receiverId, actions, nonce, maxBlockHeight }` in the payload.
+      - It computes and returns `intent_digest`, `transaction_context`, `wrap_key_seed`, `wrap_key_salt`, `vrf_challenge`, and the confirmation result (`confirmed`, `credential`, `error`) via `WorkerConfirmationResponse`.
+      - Using `attach_wrap_key_seed_port(sessionId, port)`, the VRF worker delivers `wrap_key_seed`/`wrapKeySalt` to the signer worker for that `sessionId`.
+    - Decrypt + sign (signer worker):
+      - `handle_sign_delegate_action` resolves `WrapKey` from `WRAP_KEY_SEED_SESSIONS` using `session_id`, then calls `wrap_key.derive_kek()` and decrypts the NEAR private key using `DecryptionPayload`, as in `handle_sign_transactions_with_actions`.
+      - It validates the pre‑confirmed context (`intent_digest`, `transaction_context`) and checks that the `delegate.public_key` matches the decrypted device key.
+      - It builds a `DelegateAction` struct, encodes it with NEP‑461 prefix (`DELEGATE_ACTION_PREFIX`), computes `sha256(encode_delegate_action(delegate))`, and signs the hash with Ed25519.
+      - Returns `{ hash, signed_delegate }` where `signed_delegate` contains `{ delegateAction, signature { keyType, data } }`.
   - Encoding and schema:
-    - Implement `encode_delegate_action(delegate: DelegateAction) -> Vec<u8>` that prepends the NEP‑461 prefix before Borsh serializing the `DelegateAction` (mirror @near-js/transactions `encodeDelegateAction`). The prefix is a Borsh struct `{ prefix: u32 }` with value `2^30 + 366`.
+    - Implement `encode_delegate_action(delegate: DelegateAction) -> Vec<u8>` that prepends the NEP‑461 prefix before Borsh‑serializing the `DelegateAction` (mirror `@near-js/transactions` `encodeDelegateAction`). The prefix is a Borsh struct `{ prefix: u32 }` with value `2^30 + 366`.
     - Hashing/signing: compute `sha256(encode_delegate_action(delegate))` and Ed25519‑sign that hash. Do not include the signature during hashing.
-    - Implement `encode_signed_delegate(sd: SignedDelegate) -> Vec<u8>` for completeness/testing. This is a plain Borsh serialization of `{ delegateAction, signature }` and does not include the prefix (matches @near-js/transactions `encodeSignedDelegate`).
+    - Implement `encode_signed_delegate(sd: SignedDelegate) -> Vec<u8>` for completeness/testing. This is a plain Borsh serialization of `{ delegateAction, signature }` and does not include the prefix (matches `@near-js/transactions` `encodeSignedDelegate`).
   - Progress events:
-    - Reuse the existing action progress mapping for now to avoid new plumbing:
-      - `Preparation` → build inputs
-      - `UserConfirmation` → secure confirm request
-      - `WebauthnAuthentication`/`AuthenticationComplete`
-      - `ContractVerification`
-      - `TransactionSigningProgress` → “delegate signing” step
-      - `TransactionSigningComplete`
+    - Reuse the existing session‑based mapping used by `handle_sign_transactions_with_actions`:
+      - `ProgressMessageType::ExecuteActionsProgress` / `ExecuteActionsComplete`.
+      - `ProgressStep::UserConfirmation` → “Using pre-confirmed VRF/WebAuthn session for delegate signing…”
+      - `ProgressStep::Preparation` → build/validate delegate inputs.
+      - `ProgressStep::TransactionSigningProgress` → “Decrypting private key and signing delegate action…”
+      - `ProgressStep::TransactionSigningComplete` → success/failure summary.
     - Optionally add a `context: 'delegate'` field in the progress `data` payload for UI filtering.
-  - Exports (wasm_bindgen):
-    - Re‑export new types for TS: `DelegateAction`, `SignedDelegate`, `WasmSignedDelegate` (TS‑friendly wrapper), and request/response classes.
+  - Exports (`wasm_bindgen`):
+    - Re‑export new types for TS: `DelegateAction`, `SignedDelegate`, `WasmSignedDelegate` (TS‑friendly wrapper), and request/response classes, alongside the existing NEAR types already exported from `lib.rs`.
 
 **Stage 2 — TatchiPasskey SDK**
 - Implement the JS/TS orchestration and types, bridging to the new worker request.

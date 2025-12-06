@@ -281,6 +281,8 @@ export class TxConfirmerWrapperElement extends LitElementWithProps {
 
   private async computeIntentDigest(): Promise<string> {
     const raw = Array.isArray(this.txSigningRequests) ? this.txSigningRequests : [];
+    // Use the same canonical digest shape as confirmAndPrepareSigningSession:
+    // { receiverId, actions: ActionArgsWasm[] } with actions normalized via orderActionForDigest.
     const txs: TransactionInputWasm[] = raw
       .filter(isTransactionInput)
       .map((tx) => ({

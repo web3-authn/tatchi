@@ -1,6 +1,6 @@
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
-import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
-import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
+import type { VrfWorkerManagerContext } from '../VrfWorkerManager';
+import type { TransactionSummary } from '../VrfWorkerManager/confirmTxFlow/types';
 import { WalletIframeDomEvents } from '../../WalletIframe/events';
 import { TransactionInputWasm, VRFChallenge } from '../../types';
 
@@ -13,7 +13,7 @@ import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-
 import './IframeTxConfirmer/tx-confirmer-wrapper';
 
 // Resolve theme preference from explicit param, user preferences, or DOM attribute
-function resolveTheme(ctx: SignerWorkerManagerContext, requested?: ThemeName): ThemeName {
+function resolveTheme(ctx: VrfWorkerManagerContext, requested?: ThemeName): ThemeName {
   let resolved = validateTheme(requested);
   if (!resolved) {
     try { resolved = validateTheme((ctx as any)?.userPreferencesManager?.getUserTheme?.()); } catch {}
@@ -54,7 +54,7 @@ export async function mountConfirmUI({
   uiMode,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
@@ -87,7 +87,7 @@ export async function awaitConfirmUIDecision({
   uiMode,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests: TransactionInputWasm[],
   vrfChallenge: VRFChallenge,
@@ -173,6 +173,9 @@ async function checkIntentDigestGuard(
   const expected = summary?.intentDigest;
   if (!hasTxs || !expected) return undefined;
   try {
+    // UI-side check must mirror the canonical intent digest:
+    // { receiverId, actions: ActionArgsWasm[] } with actions normalized
+    // via orderActionForDigest, and no nonce included.
     const normalized: TransactionInputWasm[] = (txSigningRequests || []).map((tx) => ({
       receiverId: tx.receiverId,
       actions: (tx.actions || [])
@@ -274,7 +277,7 @@ function mountHostElement({
   variant,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
