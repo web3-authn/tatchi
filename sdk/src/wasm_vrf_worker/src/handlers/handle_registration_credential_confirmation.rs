@@ -4,21 +4,28 @@ use crate::vrf_await_secure_confirmation;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
+use wasm_bindgen::prelude::*;
 
 /// Request payload for VRF-driven registration credential confirmation.
 /// Mirrors the parameters used by the TypeScript helper while remaining
 /// generic so it can be called from any host that speaks the VRF worker protocol.
-#[derive(Debug, Deserialize)]
+#[wasm_bindgen]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RegistrationCredentialConfirmationRequest {
+    #[wasm_bindgen(getter_with_clone, js_name = "nearAccountId")]
     #[serde(rename = "nearAccountId")]
     pub near_account_id: String,
+    #[wasm_bindgen(js_name = "deviceNumber")]
     #[serde(rename = "deviceNumber")]
     pub device_number: u32,
+    #[wasm_bindgen(getter_with_clone, js_name = "contractId")]
     #[serde(rename = "contractId")]
     pub contract_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "nearRpcUrl")]
     #[serde(rename = "nearRpcUrl")]
     pub near_rpc_url: String,
     /// Optional confirmation configuration passed through to confirmTxFlow.
+    #[wasm_bindgen(skip)]
     #[serde(rename = "confirmationConfig")]
     pub confirmation_config: Option<serde_json::Value>,
 }

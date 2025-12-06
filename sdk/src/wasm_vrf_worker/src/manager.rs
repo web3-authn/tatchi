@@ -468,7 +468,7 @@ impl VRFKeyManager {
 
     /// Generate deterministic VRF keypair from seed material (PRF output)
     /// This enables deterministic VRF key derivation for account recovery
-    fn generate_vrf_keypair_from_seed(
+    pub fn generate_vrf_keypair_from_seed(
         &self,
         seed: &[u8],
         account_id: &str,
@@ -493,7 +493,7 @@ impl VRFKeyManager {
     }
 
     /// Encrypt VRF keypair data using PRF-derived AES key
-    fn encrypt_vrf_keypair_data(
+    pub fn encrypt_vrf_keypair_data(
         &self,
         vrf_keypair: &ECVRFKeyPair,
         prf_key: &[u8],

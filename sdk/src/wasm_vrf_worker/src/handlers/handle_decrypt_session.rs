@@ -4,12 +4,18 @@ use crate::vrf_await_secure_confirmation;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::rc::Rc;
-#[derive(Debug, Deserialize)]
+use wasm_bindgen::prelude::*;
+
+#[wasm_bindgen]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DecryptSessionRequest {
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
     #[serde(rename = "sessionId")]
     pub session_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "nearAccountId")]
     #[serde(rename = "nearAccountId")]
     pub near_account_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
     #[serde(rename = "wrapKeySalt")]
     pub wrap_key_salt_b64u: String,
 }

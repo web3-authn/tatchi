@@ -30,7 +30,7 @@ pub use shamir3pass::*;
 pub use utils::*;
 
 // Re-export VRF RPC types if needed from JS/tests
-pub use rpc_calls::{VrfData, ContractVerificationResult};
+pub use rpc_calls::{VrfData, ContractVerificationResult, WebAuthnAuthenticationCredential, WebAuthnAuthenticationResponse};
 
 // Import specific types to avoid ambiguity
 pub use types::{VrfWorkerMessage, VrfWorkerResponse, WorkerRequestType};
@@ -43,6 +43,9 @@ pub use handlers::handle_shamir3pass_client::{
     Shamir3PassClientDecryptVrfKeypairRequest, Shamir3PassClientEncryptCurrentVrfKeypairRequest,
 };
 pub use handlers::handle_derive_wrap_key_seed_and_session::DeriveWrapKeySeedAndSessionRequest;
+pub use handlers::handle_decrypt_session::DecryptSessionRequest;
+pub use handlers::handle_registration_credential_confirmation::RegistrationCredentialConfirmationRequest;
+pub use handlers::handle_device2_registration_session::Device2RegistrationSessionRequest;
 pub use handlers::handle_shamir3pass_config::{
     Shamir3PassConfigPRequest, Shamir3PassConfigServerUrlsRequest,
 };
@@ -157,12 +160,17 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
     }
 }
 
-// Helper module for WrapKeySeed delivery from handlers
+// Helper module for WrapKeySeed and PRF.second delivery from handlers
 #[cfg(target_arch = "wasm32")]
 pub mod wrap_key_seed_port {
     use super::*;
 
-    pub fn send_wrap_key_seed_to_signer(session_id: &str, wrap_key_seed_b64u: &str, wrap_key_salt_b64u: &str) {
+    pub fn send_wrap_key_seed_to_signer(
+        session_id: &str,
+        wrap_key_seed_b64u: &str,
+        wrap_key_salt_b64u: &str,
+        prf_second_b64u: Option<&str>,
+    ) {
         WRAP_KEY_SEED_PORTS.with(|map| {
             if let Some(port) = map.borrow().get(session_id) {
                 let obj = js_sys::Object::new();
@@ -176,6 +184,13 @@ pub mod wrap_key_seed_port {
                     &JsValue::from_str("wrapKeySalt"),
                     &JsValue::from_str(wrap_key_salt_b64u),
                 );
+                if let Some(prf_second) = prf_second_b64u {
+                    let _ = js_sys::Reflect::set(
+                        &obj,
+                        &JsValue::from_str("prfSecond"),
+                        &JsValue::from_str(prf_second),
+                    );
+                }
                 let _ = port.post_message(&obj);
             }
         });
@@ -321,6 +336,16 @@ pub async fn handle_message(message: JsValue) -> Result<JsValue, JsValue> {
         }
         WorkerRequestType::RegistrationCredentialConfirmation => {
             handlers::handle_registration_credential_confirmation(
+                manager_rc.clone(),
+                message.id.clone(),
+                message
+                    .parse_payload(request_type)
+                    .map_err(JsValue::from)?,
+            )
+            .await
+        }
+        WorkerRequestType::Device2RegistrationSession => {
+            handlers::handle_device2_registration_session(
                 manager_rc.clone(),
                 message.id.clone(),
                 message

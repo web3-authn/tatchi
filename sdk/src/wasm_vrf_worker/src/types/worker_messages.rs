@@ -28,6 +28,7 @@ pub enum WorkerRequestType {
     DeriveWrapKeySeedAndSession,
     DecryptSession,
     RegistrationCredentialConfirmation,
+    Device2RegistrationSession,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -50,6 +51,7 @@ impl From<u32> for WorkerRequestType {
             14 => WorkerRequestType::DeriveWrapKeySeedAndSession,
             15 => WorkerRequestType::DecryptSession,
             16 => WorkerRequestType::RegistrationCredentialConfirmation,
+            17 => WorkerRequestType::Device2RegistrationSession,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -83,6 +85,7 @@ impl From<&str> for WorkerRequestType {
             "REGISTRATION_CREDENTIAL_CONFIRMATION" => {
                 WorkerRequestType::RegistrationCredentialConfirmation
             }
+            "DEVICE2_REGISTRATION_SESSION" => WorkerRequestType::Device2RegistrationSession,
             _ => panic!("Invalid WorkerRequestType string: {}", value),
         }
     }
@@ -107,14 +110,29 @@ impl WorkerRequestType {
             WorkerRequestType::Shamir3PassGenerateServerKeypair => {
                 "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR"
             }
-            WorkerRequestType::Shamir3PassApplyServerLock => "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK",
-            WorkerRequestType::Shamir3PassRemoveServerLock => "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK",
-            WorkerRequestType::Shamir3PassConfigP => "SHAMIR3PASS_CONFIG_P",
-            WorkerRequestType::Shamir3PassConfigServerUrls => "SHAMIR3PASS_CONFIG_SERVER_URLS",
-            WorkerRequestType::DeriveWrapKeySeedAndSession => "DERIVE_WRAP_KEY_SEED_AND_SESSION",
-            WorkerRequestType::DecryptSession => "DECRYPT_SESSION",
+            WorkerRequestType::Shamir3PassApplyServerLock => {
+                "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK"
+            }
+            WorkerRequestType::Shamir3PassRemoveServerLock => {
+                "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK"
+            }
+            WorkerRequestType::Shamir3PassConfigP => {
+                "SHAMIR3PASS_CONFIG_P"
+            }
+            WorkerRequestType::Shamir3PassConfigServerUrls => {
+                "SHAMIR3PASS_CONFIG_SERVER_URLS"
+            }
+            WorkerRequestType::DeriveWrapKeySeedAndSession => {
+                "DERIVE_WRAP_KEY_SEED_AND_SESSION"
+            }
+            WorkerRequestType::DecryptSession => {
+                "DECRYPT_SESSION"
+            }
             WorkerRequestType::RegistrationCredentialConfirmation => {
                 "REGISTRATION_CREDENTIAL_CONFIRMATION"
+            }
+            WorkerRequestType::Device2RegistrationSession => {
+                "DEVICE2_REGISTRATION_SESSION"
             }
         }
     }

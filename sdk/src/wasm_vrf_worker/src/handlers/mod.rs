@@ -8,6 +8,7 @@ pub mod handle_unlock_vrf_keypair;
 pub mod handle_derive_wrap_key_seed_and_session;
 pub mod handle_decrypt_session;
 pub mod handle_registration_credential_confirmation;
+pub mod handle_device2_registration_session;
 
 pub use handle_derive_vrf_keypair_from_prf::*;
 pub use handle_generate_vrf_challenge::*;
@@ -19,6 +20,7 @@ pub use handle_unlock_vrf_keypair::*;
 pub use handle_derive_wrap_key_seed_and_session::*;
 pub use handle_decrypt_session::*;
 pub use handle_registration_credential_confirmation::*;
+pub use handle_device2_registration_session::*;
 
 use crate::manager::VRFKeyManager;
 use crate::types::VrfWorkerResponse;

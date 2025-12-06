@@ -60,25 +60,36 @@ impl TryFrom<&VRFChallengeData> for VrfData {
 }
 
 /// WebAuthn authentication data for contract verification (JS-serialized form)
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnAuthenticationCredential {
+    #[wasm_bindgen(getter_with_clone)]
     pub id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "rawId")]
     #[serde(rename = "rawId")]
     pub raw_id: String,
+    #[wasm_bindgen(skip)]
     pub response: WebAuthnAuthenticationResponse,
+    #[wasm_bindgen(getter_with_clone, js_name = "authenticatorAttachment")]
     #[serde(rename = "authenticatorAttachment")]
     pub authenticator_attachment: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "type")]
     #[serde(rename = "type")]
     pub auth_type: String,
 }
 
+#[wasm_bindgen]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnAuthenticationResponse {
+    #[wasm_bindgen(getter_with_clone, js_name = "clientDataJSON")]
     #[serde(rename = "clientDataJSON")]
     pub client_data_json: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "authenticatorData")]
     #[serde(rename = "authenticatorData")]
     pub authenticator_data: String,
+    #[wasm_bindgen(getter_with_clone)]
     pub signature: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "userHandle")]
     #[serde(rename = "userHandle")]
     pub user_handle: Option<String>,
 }
