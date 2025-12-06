@@ -1,4 +1,4 @@
-import { SignedTransaction } from '../../../NearClient';
+
 import type { EncryptedKeyData } from '../../../IndexedDBManager/passkeyNearKeysDB';
 import type { AuthenticatorOptions } from '../../../types/authenticatorOptions';
 import {
@@ -9,7 +9,6 @@ import { AccountId, toAccountId } from "../../../types/accountIds";
 import { getDeviceNumberForAccount } from '../getDeviceNumber';
 import { SignerWorkerManagerContext } from '..';
 import type { WebAuthnRegistrationCredential } from '@/core/types/webauthn';
-import type { VRFChallenge } from '../../../types/vrf-worker';
 import { toEnumUserVerificationPolicy } from '../../../types/authenticatorOptions';
 import { withSessionId } from './session';
 
@@ -28,11 +27,6 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   credential: WebAuthnRegistrationCredential;
   nearAccountId: AccountId,
   options?: {
-    vrfChallenge?: VRFChallenge;
-    deterministicVrfPublicKey?: string;
-    contractId?: string;
-    nonce?: string;
-    blockHash?: string;
     authenticatorOptions?: AuthenticatorOptions;
     deviceNumber?: number;
   };
@@ -43,34 +37,19 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
   publicKey: string;
   iv?: string;
   wrapKeySalt?: string;
-  signedTransaction?: SignedTransaction;
   error?: string;
 }> {
   try {
-    const first = credential?.clientExtensionResults?.prf?.results?.first as string | undefined;
-    const second = credential?.clientExtensionResults?.prf?.results?.second as string | undefined;
-    const hasFirst = typeof first === 'string' && first.length > 0;
-    const hasSecond = typeof second === 'string' && second.length > 0;
-    if (!hasFirst || !hasSecond) {
-      throw new Error('PRF outputs missing from serialized credential');
-    }
-
+    // PRF outputs are now extracted by VRF worker and delivered to signer worker via MessagePort
+    // No need to extract or send them through main thread
     if (!sessionId) throw new Error('Missing sessionId for registration WrapKeySeed delivery');
 
     const response = await ctx.sendMessage<WorkerRequestType.DeriveNearKeypairAndEncrypt>({
       message: {
         type: WorkerRequestType.DeriveNearKeypairAndEncrypt,
         payload: withSessionId({
-          dualPrfOutputs: { chacha20PrfOutput: first, ed25519PrfOutput: second },
           nearAccountId: nearAccountId,
           credential,
-          registrationTransaction: (options?.vrfChallenge && options?.contractId && options?.nonce && options?.blockHash && options?.deterministicVrfPublicKey) ? {
-            vrfChallenge: options.vrfChallenge,
-            contractId: options.contractId,
-            nonce: options.nonce,
-            blockHash: options.blockHash,
-            deterministicVrfPublicKey: options.deterministicVrfPublicKey,
-          } : undefined,
           authenticatorOptions: options?.authenticatorOptions ? {
             userVerification: toEnumUserVerificationPolicy(options.authenticatorOptions.userVerification),
             originPolicy: options.authenticatorOptions.originPolicy,
@@ -102,22 +81,12 @@ export async function deriveNearKeypairAndEncryptFromSerialized({
     };
     await ctx.indexedDB.nearKeysDB.storeEncryptedKey(keyData);
 
-    let signedTransaction: SignedTransaction | undefined = undefined;
-    if (wasmResult.signedTransaction) {
-      signedTransaction = new SignedTransaction({
-        transaction: wasmResult.signedTransaction.transaction,
-        signature: wasmResult.signedTransaction.signature,
-        borsh_bytes: Array.from(wasmResult.signedTransaction.borshBytes || [])
-      });
-    }
-
     return {
       success: true,
       nearAccountId: toAccountId(wasmResult.nearAccountId),
       publicKey: wasmResult.publicKey,
       iv: wasmResult.iv,
       wrapKeySalt: wrapKeySaltPersisted,
-      signedTransaction
     };
   } catch (error: unknown) {
     console.error('WebAuthnManager: deriveNearKeypairAndEncryptFromSerialized error:', error);

@@ -68,6 +68,7 @@ export async function signTransactionsWithActions({
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
     const deviceNumber = await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
     const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
+
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }

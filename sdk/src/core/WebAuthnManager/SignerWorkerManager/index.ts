@@ -8,7 +8,6 @@ import { resolveWorkerUrl } from '../../sdkPaths';
 import {
   WorkerRequestType,
   WorkerResponseForRequest,
-  isSignerWorkerControlMessage,
   isWorkerProgress,
   isWorkerError,
   isWorkerSuccess,
@@ -16,6 +15,7 @@ import {
   WorkerErrorResponse,
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
+import { isSignerWorkerControlMessage } from './sessionMessages.js';
 import { VRFChallenge } from '../../types/vrf-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
@@ -39,6 +39,7 @@ import {
   signNep413Message,
   requestRegistrationCredentialConfirmation,
   deriveNearKeypairAndEncryptFromSerialized,
+  registerDevice2WithDerivedKey,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
@@ -498,11 +499,6 @@ export class SignerWorkerManager {
     credential: WebAuthnRegistrationCredential;
     nearAccountId: AccountId;
     options?: {
-      vrfChallenge?: VRFChallenge;
-      deterministicVrfPublicKey?: string;
-      contractId?: string;
-      nonce?: string;
-      blockHash?: string;
       authenticatorOptions?: AuthenticatorOptions;
       deviceNumber?: number;
     };
@@ -511,7 +507,6 @@ export class SignerWorkerManager {
     success: boolean;
     nearAccountId: AccountId;
     publicKey: string;
-    signedTransaction?: SignedTransaction;
     iv?: string;
     wrapKeySalt?: string;
   }> {
@@ -550,6 +545,35 @@ export class SignerWorkerManager {
     return checkCanRegisterUser({ ctx: this.getContext(), ...args });
   }
 
+  /**
+   * Combined Device2 registration: derive NEAR keypair + sign registration transaction
+   * in a single operation without requiring a separate authentication prompt.
+   *
+   * This replaces the old two-step flow (register → authenticate → sign).
+   * PRF.second and WrapKeySeed are already in the signer worker via MessagePort.
+   */
+  async registerDevice2WithDerivedKey(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    credential: WebAuthnRegistrationCredential;
+    vrfChallenge: VRFChallenge;
+    transactionContext: import('../../types/rpc').TransactionContext;
+    contractId: string;
+    wrapKeySalt: string;
+    deviceNumber?: number;
+    deterministicVrfPublicKey: string;
+  }): Promise<{
+    success: boolean;
+    publicKey: string;
+    signedTransaction: any;
+    wrapKeySalt: string;
+    encryptedData?: string;
+    iv?: string;
+    error?: string;
+  }> {
+    return registerDevice2WithDerivedKey({ ctx: this.getContext(), ...args });
+  }
+
   // === ACTION-BASED SIGNING METHODS ===
 
   /**
@@ -586,6 +610,7 @@ export class SignerWorkerManager {
     encryptedPrivateKey: string;
     iv: string;
     accountIdHint?: string;
+    wrapKeySalt?: string;
   }> {
     return recoverKeypairFromPasskey({ ctx: this.getContext(), ...args });
   }
@@ -628,7 +653,6 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
-    credential: WebAuthnAuthenticationCredential;
     sessionId: string;
   }): Promise<{
     success: boolean;
@@ -664,7 +688,7 @@ export class SignerWorkerManager {
     const deviceNumber = await getDeviceNumberForAccount(accountId, ctx.indexedDB.clientDB);
     const [keyData, user] = await Promise.all([
       ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
-      ctx.indexedDB.clientDB.getUser(accountId),
+      ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
     ]);
     const publicKey = user?.clientNearPublicKey || '';
     if (!keyData || !publicKey) {
@@ -687,7 +711,13 @@ export class SignerWorkerManager {
     if (!isDecryptPrivateKeyWithPrfSuccess(response)) {
       console.error('WebAuthnManager: Export decrypt failed:', response);
       const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
-      throw new Error(payloadError || 'Export decrypt failed');
+      const msg = String(payloadError || 'Export decrypt failed');
+      // Treat AEAD/KEK mismatches as effectively "missing" local key material so
+      // callers (including offline-export) can trigger recovery and rewrite the vault.
+      if (msg.includes('Decryption failed: Decryption error: aead::Error')) {
+        throw new Error('Missing local key material for export');
+      }
+      throw new Error(msg);
     }
 
     const privateKey = response.payload.privateKey;

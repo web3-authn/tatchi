@@ -6,7 +6,7 @@
  * handshake flow from port attachment to seed readiness.
  */
 
-import { waitForWrapKeyPortAttach, waitForWrapKeySeedReady } from './controlMessages.js';
+import { waitForWrapKeyPortAttach, waitForWrapKeySeedReady } from './sessionMessages.js';
 
 /**
  * Attach a WrapKeySeed MessagePort to the signer worker and wait for acknowledgment.

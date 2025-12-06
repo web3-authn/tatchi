@@ -1,20 +1,88 @@
 /**
- * Control Message Handling for Signer Worker
+ * Session Message Handling for Signer Worker
  *
- * This module provides helpers for waiting on control messages from the signer worker.
- * Control messages are JS-only messages that never go through the Rust JSON pipeline
+ * This module provides helpers for waiting on session lifecycle messages from the signer worker.
+ * Session messages are JS-only messages that never go through the Rust JSON pipeline
  * and are used for worker lifecycle management and session setup.
  */
 
+// === SESSION MESSAGE TYPES ===
+
 /**
- * Generic helper for waiting on control messages from a worker.
+ * Control message sent by the signer worker after successfully attaching
+ * a WrapKeySeed MessagePort for a signing session.
+ */
+export interface AttachWrapKeySeedPortOkMessage {
+  type: 'ATTACH_WRAP_KEY_SEED_PORT_OK';
+  sessionId: string;
+}
+
+/**
+ * Control message sent by the signer worker when attaching a WrapKeySeed
+ * MessagePort fails.
+ */
+export interface AttachWrapKeySeedPortErrorMessage {
+  type: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR';
+  sessionId: string;
+  error: string;
+}
+
+/**
+ * Control message sent by the signer worker when it's ready to receive messages.
+ */
+export interface WorkerReadyMessage {
+  type: 'WORKER_READY';
+  ready: boolean;
+}
+
+/**
+ * Control message sent by the signer worker when a WrapKeySeed has been
+ * successfully received and stored in WRAP_KEY_SEED_SESSIONS.
+ * This guarantees the session is ready for signing operations.
+ */
+export interface WrapKeySeedReadyMessage {
+  type: 'WRAP_KEY_SEED_READY';
+  sessionId: string;
+}
+
+/**
+ * All control messages that can be sent by the signer worker.
+ */
+export type SignerWorkerControlMessage =
+  | AttachWrapKeySeedPortOkMessage
+  | AttachWrapKeySeedPortErrorMessage
+  | WorkerReadyMessage
+  | WrapKeySeedReadyMessage;
+
+/**
+ * Type guard to check if a message is a control message.
+ */
+export function isSignerWorkerControlMessage(msg: unknown): msg is SignerWorkerControlMessage {
+  if (!isObject(msg) || typeof (msg as any).type !== 'string') {
+    return false;
+  }
+  const type = (msg as any).type;
+  return type === 'ATTACH_WRAP_KEY_SEED_PORT_OK'
+    || type === 'ATTACH_WRAP_KEY_SEED_PORT_ERROR'
+    || type === 'WORKER_READY'
+    || type === 'WRAP_KEY_SEED_READY';
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+// === SESSION MESSAGE HELPERS ===
+
+/**
+ * Generic helper for waiting on session messages from a worker.
  * Registers a listener, sends no message (caller handles that), and waits for a matching response.
  *
  * @param worker - The worker to listen to
  * @param options - Configuration for what to wait for
  * @returns Promise that resolves when the expected message arrives, rejects on timeout or error
  */
-export function waitForControlMessage(
+export function waitForSessionMessage(
   worker: Worker,
   options: {
     /** Message type(s) to wait for (success) */
@@ -43,7 +111,7 @@ export function waitForControlMessage(
     const timeout = setTimeout(() => {
       cleanup();
       reject(new Error(
-        `Timeout waiting for control message (${successTypes.join('|')})${sessionId ? ` for session ${sessionId}` : ''}`
+        `Timeout waiting for session message (${successTypes.join('|')})${sessionId ? ` for session ${sessionId}` : ''}`
       ));
     }, timeoutMs);
 
@@ -64,7 +132,7 @@ export function waitForControlMessage(
       if (errorType && msg.type === errorType) {
         cleanup();
         const error = msg.error || 'Unknown error';
-        reject(new Error(`Control message error: ${error}`));
+        reject(new Error(`Session message error: ${error}`));
         return;
       }
 
@@ -112,7 +180,7 @@ export function waitForWrapKeyPortAttach(
   sessionId: string,
   timeoutMs: number = 2000
 ): Promise<void> {
-  return waitForControlMessage(worker, {
+  return waitForSessionMessage(worker, {
     successType: 'ATTACH_WRAP_KEY_SEED_PORT_OK',
     errorType: 'ATTACH_WRAP_KEY_SEED_PORT_ERROR',
     sessionId,
@@ -134,7 +202,7 @@ export function waitForWrapKeySeedReady(
   sessionId: string,
   timeoutMs: number = 2000
 ): Promise<void> {
-  return waitForControlMessage(worker, {
+  return waitForSessionMessage(worker, {
     successType: 'WRAP_KEY_SEED_READY',
     sessionId,
     timeoutMs,

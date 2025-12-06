@@ -25,6 +25,7 @@ export async function recoverKeypairFromPasskey({
   encryptedPrivateKey: string;
   iv: string;
   accountIdHint?: string;
+  wrapKeySalt?: string;
 }> {
   try {
     console.info('SignerWorkerManager: Starting dual PRF-based keypair recovery from authentication credential');
@@ -61,7 +62,8 @@ export async function recoverKeypairFromPasskey({
       publicKey: response.payload.publicKey,
       encryptedPrivateKey: response.payload.encryptedData,
       iv: response.payload.iv,
-      accountIdHint: response.payload.accountIdHint
+      accountIdHint: response.payload.accountIdHint,
+      wrapKeySalt: (response.payload as any).wrapKeySalt,
     };
 
   } catch (error: unknown) {
