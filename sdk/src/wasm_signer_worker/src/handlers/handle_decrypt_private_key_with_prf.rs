@@ -10,6 +10,8 @@ use wasm_bindgen::prelude::*;
 use crate::WrapKey;
 
 // Export/decrypt confirmation has been moved to the VRF bridge; signer no longer owns awaitSecureConfirmationV2.
+// Export flows must be VRF-prepared: this handler expects WrapKeySeed material injected via the
+// session-bound WrapKeySeed MessagePort, never raw PRF outputs in the request payload.
 
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]

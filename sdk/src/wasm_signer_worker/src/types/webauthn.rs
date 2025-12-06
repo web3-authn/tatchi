@@ -159,25 +159,71 @@ pub struct WebAuthnAuthenticationResponse {
     pub user_handle: Option<String>,
 }
 
-/// WebAuthn registration data for contract verification
+// ============================================================================
+// CONTRACT INTERFACE: WebAuthn Registration Credential
+// ============================================================================
+// Reference: sdk/src/core/TatchiPasskey/faucets/createAccountRelayServer.ts
+// Used in: create_account_and_register_user, link_device_register_user
+//
+// CRITICAL: All fields in these structs are sent to the NEAR smart contract.
+// The contract expects AuthenticatorAttestationResponse format with base64url strings.
+// DO NOT decode clientDataJSON or attestationObject to byte arrays.
+// ============================================================================
+
+/// WebAuthn registration credential sent to contract
+///
+/// This matches the W3C WebAuthn AuthenticatorAttestationResponse format
+/// that the contract expects for user registration verification.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnRegistrationCredential {
+    /// Credential ID (base64url-encoded)
+    /// CONTRACT EXPECTS: String (base64url, NOT decoded bytes)
     pub id: String,
+
+    /// Raw credential ID (base64url-encoded)
+    /// CONTRACT EXPECTS: String (base64url, NOT decoded bytes)
     #[serde(rename = "rawId")]
     pub raw_id: String,
+
+    /// Attestation response containing clientDataJSON and attestationObject
     pub response: WebAuthnRegistrationResponse,
+
+    /// Authenticator attachment type ("platform", "cross-platform", etc.)
+    /// CONTRACT EXPECTS: Optional String
     #[serde(rename = "authenticatorAttachment")]
     pub authenticator_attachment: Option<String>,
+
+    /// Credential type (always "public-key" for WebAuthn)
+    /// CONTRACT EXPECTS: String
     #[serde(rename = "type")]
     pub reg_type: String,
 }
 
+/// WebAuthn attestation response data
+///
+/// CRITICAL: clientDataJSON and attestationObject MUST be base64url strings.
+/// The contract will decode these internally. DO NOT decode to bytes here.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WebAuthnRegistrationResponse {
+    /// Client data JSON (base64url-encoded string)
+    /// TypeScript: base64UrlEncode(response.clientDataJSON)
+    /// CONTRACT EXPECTS: String (base64url, NOT decoded bytes or JSON object)
+    ///
+    /// Contains challenge, origin, type, etc. The contract decodes and parses this.
     #[serde(rename = "clientDataJSON")]
     pub client_data_json: String,
+
+    /// Attestation object (base64url-encoded string)
+    /// TypeScript: base64UrlEncode(response.attestationObject)
+    /// CONTRACT EXPECTS: String (base64url, NOT decoded bytes)
+    ///
+    /// Contains authData, fmt, attStmt. The contract decodes and parses this.
     #[serde(rename = "attestationObject")]
     pub attestation_object: String,
+
+    /// Transport types supported by this authenticator
+    /// CONTRACT EXPECTS: Optional array of strings
+    /// Example: ["hybrid", "internal"]
     pub transports: Option<Vec<String>>,
 }
 

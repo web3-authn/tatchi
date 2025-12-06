@@ -27,18 +27,16 @@ use crate::types::worker_messages::{
 };
 use crate::types::*;
 
-/////////////////////////////
 pub use handlers::handle_decrypt_private_key_with_prf::{
-    handle_decrypt_private_key_with_prf, DecryptPrivateKeyRequest, DecryptPrivateKeyResult,
+    handle_decrypt_private_key_with_prf,
+    DecryptPrivateKeyRequest,
+    DecryptPrivateKeyResult,
 };
-/// === RE-EXPORTED TYPES ===
-/////////////////////////////
 pub use handlers::handle_derive_near_keypair_and_encrypt::{
     handle_derive_near_keypair_and_encrypt,
     DeriveNearKeypairAndEncryptRequest,
     DeriveNearKeypairAndEncryptResult,
 };
-
 pub use handlers::{
     CoseExtractionResult,
     // Extract Cose Public Key
@@ -55,6 +53,9 @@ pub use handlers::{
     // Execute Actions
     SignTransactionsWithActionsRequest,
     TransactionPayload,
+    // Combined Device2 Registration
+    RegisterDevice2WithDerivedKeyRequest,
+    RegisterDevice2WithDerivedKeyResult,
 };
 
 // Re-export NEAR types for TypeScript usage
@@ -100,6 +101,7 @@ pub use crate::crypto::WrapKey;
 
 thread_local! {
     static WRAP_KEY_SEED_SESSIONS: RefCell<HashMap<String, WrapKey>> = RefCell::new(HashMap::new());
+    static SESSION_PRF_OUTPUTS: RefCell<HashMap<String, String>> = RefCell::new(HashMap::new());
 }
 
 #[wasm_bindgen]
@@ -139,6 +141,9 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
             let wrap_key_salt = js_sys::Reflect::get(&data, &JsValue::from_str("wrapKeySalt"))
                 .ok()
                 .and_then(|v| v.as_string());
+            let prf_second = js_sys::Reflect::get(&data, &JsValue::from_str("prfSecond"))
+                .ok()
+                .and_then(|v| v.as_string());
 
             if let (Some(seed), Some(salt)) = (wrap_key_seed, wrap_key_salt) {
                 WRAP_KEY_SEED_SESSIONS.with(|map| {
@@ -150,6 +155,15 @@ pub fn attach_wrap_key_seed_port(session_id: String, port_val: JsValue) {
                         },
                     );
                 });
+
+                // Store PRF.second if present (used in Device2 registration flow)
+                if let Some(prf_second_b64u) = prf_second {
+                    if !prf_second_b64u.is_empty() {
+                        SESSION_PRF_OUTPUTS.with(|map| {
+                            map.borrow_mut().insert(sid.clone(), prf_second_b64u);
+                        });
+                    }
+                }
 
                 // Notify JS that the WrapKeySeed is now ready for this session
                 #[wasm_bindgen]
@@ -262,9 +276,11 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
         WorkerRequestType::DeriveNearKeypairAndEncrypt => {
             let request = msg.parse_payload::<DeriveNearKeypairAndEncryptRequest>(request_type)?;
             let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
+            let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
             let result = handlers::handle_derive_near_keypair_and_encrypt(
                 request,
                 wrap_key,
+                prf_second_b64u,
             )
             .await?;
             result.to_json()
@@ -321,6 +337,18 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             let result = handlers::handle_export_near_keypair_ui(request).await?;
             result.to_json()
         }
+        WorkerRequestType::RegisterDevice2WithDerivedKey => {
+            let request = msg.parse_payload::<handlers::RegisterDevice2WithDerivedKeyRequest>(request_type)?;
+            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
+            let prf_second_b64u = lookup_prf_second(&request.session_id, request_type)?;
+            let result = handlers::handle_register_device2_with_derived_key(
+                request,
+                wrap_key,
+                prf_second_b64u,
+            )
+            .await?;
+            result.to_json()
+        }
     };
 
     // Handle the result and determine response type
@@ -352,6 +380,9 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::ExportNearKeypairUI => {
                     WorkerResponseType::ExportNearKeypairUiSuccess
                 }
+                WorkerRequestType::RegisterDevice2WithDerivedKey => {
+                    WorkerResponseType::RegisterDevice2WithDerivedKeySuccess
+                }
             };
             (success_response_type, message)
         }
@@ -381,6 +412,9 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 }
                 WorkerRequestType::ExportNearKeypairUI => {
                     WorkerResponseType::ExportNearKeypairUiFailure
+                }
+                WorkerRequestType::RegisterDevice2WithDerivedKey => {
+                    WorkerResponseType::RegisterDevice2WithDerivedKeyFailure
                 }
             };
             let error_payload = serde_json::json!({
@@ -422,6 +456,18 @@ fn lookup_wrap_key_shards(session_id: &str, _request_type: WorkerRequestType) ->
     Ok(mat)
 }
 
+fn lookup_prf_second(session_id: &str, _request_type: WorkerRequestType) -> Result<String, JsValue> {
+    let prf_second = SESSION_PRF_OUTPUTS.with(|map| map.borrow().get(session_id).cloned());
+    let Some(prf) = prf_second else {
+        return Err(JsValue::from_str(&format!(
+            "Missing PRF.second for session {}",
+            session_id
+        )));
+    };
+
+    Ok(prf)
+}
+
 // === DEBUGGING HELPERS ===
 // Convert numeric enum values to readable strings for debugging
 // Makes Rust logs much easier to read when dealing with wasm-bindgen numeric enums
@@ -437,6 +483,7 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
         WorkerRequestType::ExportNearKeypairUI => "EXPORT_NEAR_KEYPAIR_UI",
+        WorkerRequestType::RegisterDevice2WithDerivedKey => "REGISTER_DEVICE2_WITH_DERIVED_KEY",
     }
 }
 
@@ -462,6 +509,9 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         }
         WorkerResponseType::SignNep413MessageSuccess => "SIGN_NEP413_MESSAGE_SUCCESS",
         WorkerResponseType::ExportNearKeypairUiSuccess => "EXPORT_NEAR_KEYPAIR_UI_SUCCESS",
+        WorkerResponseType::RegisterDevice2WithDerivedKeySuccess => {
+            "REGISTER_DEVICE2_WITH_DERIVED_KEY_SUCCESS"
+        }
 
         // Failure responses
         WorkerResponseType::DeriveNearKeypairAndEncryptFailure => {
@@ -482,6 +532,9 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         }
         WorkerResponseType::SignNep413MessageFailure => "SIGN_NEP413_MESSAGE_FAILURE",
         WorkerResponseType::ExportNearKeypairUiFailure => "EXPORT_NEAR_KEYPAIR_UI_FAILURE",
+        WorkerResponseType::RegisterDevice2WithDerivedKeyFailure => {
+            "REGISTER_DEVICE2_WITH_DERIVED_KEY_FAILURE"
+        }
 
         // Progress responses - for real-time updates during operations
         WorkerResponseType::RegistrationProgress => "REGISTRATION_PROGRESS",
