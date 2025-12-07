@@ -2,10 +2,10 @@
 import { SignedTransaction } from '../../../NearClient';
 import { TransactionInputWasm, validateActionArgsWasm } from '../../../types/actions';
 import type { onProgressEvents } from '../../../types/passkeyManager';
+import type { ConfirmationConfig } from '../../../types/signer-worker';
 import {
   WorkerRequestType,
   TransactionPayload,
-  ConfirmationConfig,
   isSignTransactionsWithActionsSuccess,
 } from '../../../types/signer-worker';
 import { AccountId } from "../../../types/accountIds";
@@ -14,6 +14,8 @@ import { RpcCallPayload } from '../../../types/signer-worker';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../defaultConfigs';
 import { toAccountId } from '../../../types/accountIds';
 import { getDeviceNumberForAccount } from '../getDeviceNumber';
+import { isObject } from '../../../WalletIframe/validation';
+import { withSessionId } from './session';
 
 /**
  * Sign multiple transactions with shared VRF challenge and credential
@@ -24,7 +26,8 @@ export async function signTransactionsWithActions({
   transactions,
   rpcCall,
   onEvent,
-  confirmationConfigOverride
+  confirmationConfigOverride,
+  sessionId: providedSessionId,
 }: {
   ctx: SignerWorkerManagerContext,
   transactions: TransactionInputWasm[],
@@ -32,6 +35,7 @@ export async function signTransactionsWithActions({
   onEvent?: (update: onProgressEvents) => void;
   // Allow callers to pass a partial override (e.g., { uiMode: 'drawer' })
   confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  sessionId?: string;
 }): Promise<Array<{
   signedTransaction: SignedTransaction;
   nearAccountId: AccountId;
@@ -41,6 +45,10 @@ export async function signTransactionsWithActions({
     if (transactions.length === 0) {
       throw new Error('No transactions provided for batch signing');
     }
+
+    const sessionId = providedSessionId || ((typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `sign-session-${Date.now()}-${Math.random().toString(16).slice(2)}`);
 
     // Extract nearAccountId from rpcCall
     const nearAccountId = rpcCall.nearAccountId;
@@ -58,13 +66,34 @@ export async function signTransactionsWithActions({
 
     // Retrieve encrypted key data from IndexedDB in main thread
     console.debug('WebAuthnManager: Retrieving encrypted key from IndexedDB for account:', nearAccountId);
-    const deviceNumber = await getDeviceNumberForAccount(ctx, nearAccountId);
+    const deviceNumber = await getDeviceNumberForAccount(nearAccountId, ctx.indexedDB.clientDB);
     const encryptedKeyData = await ctx.indexedDB.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber);
+
     if (!encryptedKeyData) {
       throw new Error(`No encrypted key found for account: ${nearAccountId}`);
     }
 
-    // Credentials and PRF outputs are collected during user confirmation handshake
+    // Normalize rpcCall to ensure required fields are present
+    const resolvedRpcCall = {
+      contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
+      nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
+      nearAccountId: rpcCall.nearAccountId,
+    } as RpcCallPayload;
+
+    // Confirm via VRF-driven flow before sending anything to the signer worker.
+    // WrapKeySeed derivation is handled inside confirmTxFlow (handleTransactionSigningFlow),
+    // which uses the same sessionId/requestId and delivers WrapKeySeed over the reserved port.
+    if (!ctx.vrfWorkerManager) {
+      throw new Error('VrfWorkerManager not available for signing');
+    }
+    const confirmation = await ctx.vrfWorkerManager.confirmAndPrepareSigningSession({
+      ctx,
+      sessionId,
+      kind: 'transaction',
+      txSigningRequests: transactions,
+      rpcCall: resolvedRpcCall,
+      confirmationConfigOverride,
+    });
 
     // Create transaction signing requests
     // NOTE: nonce and blockHash are computed in confirmation flow, not here
@@ -74,45 +103,31 @@ export async function signTransactionsWithActions({
       actions: JSON.stringify(tx.actions)
     }));
 
-  // Merge partial override over the user's persisted preferences to form a complete config
-  // Important: strip undefined keys from the override so they don't clobber
-  // required fields (e.g., behavior) and break WASM deserialization.
-  const cleanedOverride = confirmationConfigOverride
-    ? (Object.fromEntries(
-        Object.entries(confirmationConfigOverride).filter(([, v]) => v !== undefined)
-      ) as Partial<ConfirmationConfig>)
-    : undefined;
-  const confirmationConfig: ConfirmationConfig = cleanedOverride
-    ? { ...ctx.userPreferencesManager.getConfirmationConfig(), ...cleanedOverride }
-    : ctx.userPreferencesManager.getConfirmationConfig();
-
     // Send batch signing request to WASM worker
-    // Normalize rpcCall to ensure required fields are present
-    const resolvedRpcCall = {
-      contractId: rpcCall.contractId || PASSKEY_MANAGER_DEFAULT_CONFIGS.contractId,
-      nearRpcUrl: rpcCall.nearRpcUrl || (PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl.split(',')[0] || PASSKEY_MANAGER_DEFAULT_CONFIGS.nearRpcUrl),
-      nearAccountId: rpcCall.nearAccountId,
-    } as RpcCallPayload;
-
     const response = await ctx.sendMessage({
       message: {
         type: WorkerRequestType.SignTransactionsWithActions,
-        payload: {
+        payload: withSessionId({
           rpcCall: resolvedRpcCall,
+          createdAt: Date.now(),
           decryption: {
             encryptedPrivateKeyData: encryptedKeyData.encryptedData,
-            encryptedPrivateKeyIv: encryptedKeyData.iv
+            encryptedPrivateKeyIv: encryptedKeyData.iv,
           },
           txSigningRequests: txSigningRequests,
-          confirmationConfig: confirmationConfig
-        }
+          intentDigest: confirmation.intentDigest,
+          transactionContext: confirmation.transactionContext,
+          credential: confirmation.credential ? JSON.stringify(confirmation.credential) : undefined,
+        }, sessionId)
       },
-      onEvent
+      onEvent,
+      sessionId,
     });
 
     if (!isSignTransactionsWithActionsSuccess(response)) {
       console.error('WebAuthnManager: Batch transaction signing failed:', response);
-      throw new Error('Batch transaction signing failed');
+      const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
+      throw new Error(payloadError || 'Batch transaction signing failed');
     }
     if (!response.payload.success) {
       throw new Error(response.payload.error || 'Batch transaction signing failed');

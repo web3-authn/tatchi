@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { injectImportMap } from '../setup/bootstrap';
 
 export interface WalletServiceHtmlOptions {
   respondReady?: boolean;
@@ -159,6 +160,11 @@ export const initRouter = async (
   page: Page,
   options: RouterHarnessOptions = {}
 ): Promise<void> => {
+  // Ensure bare module specifiers used by the built ESM bundle
+  // (e.g., "bs58") resolve in the browser by installing the
+  // shared import map used across Playwright tests.
+  await injectImportMap(page);
+
   const opts = {
     walletOrigin: 'https://wallet.test',
     servicePath: '/wallet-service',

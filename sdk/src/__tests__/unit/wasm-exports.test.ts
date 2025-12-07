@@ -37,4 +37,21 @@ test.describe('WASM Module Exports', () => {
     expect(typeof wasmModule.init_worker).toBe('function');
     expect(typeof wasmModule.init_wasm_signer_worker).toBe('function');
   });
+
+  test('wasm_vrf_worker exports required functions', async () => {
+    // Dynamic import to avoid bundling issues in test environment
+    const vrfModule = await import('../../wasm_vrf_worker/pkg/wasm_vrf_worker.js');
+
+    // Core entrypoints used by the VRF web worker bridge
+    expect(typeof vrfModule.handle_message).toBe('function');
+    expect(typeof vrfModule.attach_wrap_key_seed_port).toBe('function');
+
+    // Confirm enums are present for VRF worker messaging
+    expect(typeof vrfModule.WorkerRequestType).toBe('object');
+    expect(typeof vrfModule.WorkerResponseType).toBe('object');
+
+    // Shamir helpers should also be exported for configuration
+    expect(typeof vrfModule.configure_shamir_p).toBe('function');
+    expect(typeof vrfModule.configure_shamir_server_urls).toBe('function');
+  });
 });

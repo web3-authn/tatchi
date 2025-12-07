@@ -64,6 +64,15 @@ export enum ActionStatus {
   ERROR = 'error',
 }
 
+// Delegate-specific phase aliases for filtering
+export enum DelegateActionPhase {
+  STEP_1_PREPARATION = ActionPhase.STEP_1_PREPARATION,
+  STEP_2_USER_CONFIRMATION = ActionPhase.STEP_2_USER_CONFIRMATION,
+  STEP_3_TRANSACTION_SIGNING_PROGRESS = ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
+  STEP_4_TRANSACTION_SIGNING_COMPLETE = ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
+  ACTION_ERROR = ActionPhase.ACTION_ERROR,
+}
+
 // Account Recovery Enums
 export enum AccountRecoveryPhase {
   STEP_1_PREPARATION = 'preparation',
@@ -176,6 +185,10 @@ export interface onProgressEvents extends BaseActionSSEEvent {
   // Generic metadata bag for progress payloads
   data?: Record<string, unknown>;
   logs?: string[];
+}
+
+export interface DelegateActionSSEEvent extends onProgressEvents {
+  data?: (onProgressEvents['data'] & { context?: 'delegate' }) | undefined;
 }
 
 // Optional, phase-specific data shapes used where we can commit to fields
@@ -743,6 +756,11 @@ export interface TatchiPasskeyConfigs {
   relayer: {
     // accountId: string;
     url: string;
+    /**
+     * Relative path on the relayer used for delegate action execution.
+     * Defaults to '/signed-delegate'.
+     */
+    delegateActionRoute?: string;
     emailRecovery?: {
       minBalanceYocto?: string;
       pollingIntervalMs?: number;
@@ -757,7 +775,7 @@ export interface TatchiPasskeyConfigs {
   // used for auto-unlocking VRF keypairs used for Web3authn challenges
   vrfWorkerConfigs?: {
     shamir3pass?: {
-      p?: string; // Shamir's P prime number
+      p?: string; // Shamir's P prime number (public parameter)
       relayServerUrl?: string; // Relay server URL, defaults to relayer.url
       applyServerLockRoute?: string; // Apply server lock route
       removeServerLockRoute?: string; // Remove server lock route

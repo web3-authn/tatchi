@@ -3,7 +3,7 @@
 // *                        HANDLER 9: SIGN NEP-413 MESSAGE                    *
 // *                                                                            *
 // ******************************************************************************
-use crate::encoders::base64_standard_encode;
+use crate::{encoders::base64_standard_encode, WrapKey};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -26,8 +26,8 @@ pub struct SignNep413Request {
     pub encrypted_private_key_data: String,
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
     pub encrypted_private_key_iv: String,
-    #[wasm_bindgen(getter_with_clone, js_name = "prfOutput")]
-    pub prf_output: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    pub session_id: String,
 }
 
 #[wasm_bindgen]
@@ -74,6 +74,7 @@ impl SignNep413Result {
 /// * `SignNep413Result` - Contains signed message with account ID, public key, signature, and optional state
 pub async fn handle_sign_nep413_message(
     request: SignNep413Request,
+    wrap_key: WrapKey,
 ) -> Result<SignNep413Result, String> {
     debug!("RUST: Starting NEP-413 message signing");
 
@@ -88,14 +89,36 @@ pub async fn handle_sign_nep413_message(
         ));
     }
 
-    // Decrypt private key using PRF output
-    let signing_key = crate::crypto::decrypt_private_key_with_prf(
-        &request.account_id,
-        &request.prf_output,
+    // Decrypt private key using WrapKey material for this session
+    let kek = wrap_key.derive_kek()?;
+    let decrypted_private_key_str = crate::crypto::decrypt_data_chacha20(
         &request.encrypted_private_key_data,
         &request.encrypted_private_key_iv,
+        &kek,
     )
     .map_err(|e| format!("Failed to decrypt private key: {}", e))?;
+
+    let signing_key = {
+        use ed25519_dalek::SigningKey;
+
+        let decoded = bs58::decode(
+            decrypted_private_key_str
+                .strip_prefix("ed25519:")
+                .unwrap_or(&decrypted_private_key_str),
+        )
+        .into_vec()
+        .map_err(|e| format!("Invalid private key base58: {}", e))?;
+
+        if decoded.len() < 32 {
+            return Err("Decoded private key too short".to_string());
+        }
+
+        let secret_bytes: [u8; 32] = decoded[0..32]
+            .try_into()
+            .map_err(|_| "Invalid secret key length".to_string())?;
+
+        SigningKey::from_bytes(&secret_bytes)
+    };
 
     // Create NEP-413 payload structure for Borsh serialization
     #[derive(borsh::BorshSerialize)]

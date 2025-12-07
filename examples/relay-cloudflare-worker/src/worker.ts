@@ -9,6 +9,7 @@ import {
   normalizeAddress,
   parseAccountIdFromEmailPayload,
 } from './worker-helpers';
+import { handleSignedDelegateRoute } from './delegate-route';
 
 // Strongly-typed JWT claims used by this demo
 type DemoJwtClaims = {
@@ -111,6 +112,14 @@ export default {
       corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
       session
     });
+    const url = new URL(request.url);
+    if (url.pathname === '/signed-delegate') {
+      return handleSignedDelegateRoute(s, request, {
+        healthz: true,
+        corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
+        session,
+      }, env as unknown as CfEnv);
+    }
     return router(request, env as unknown as CfEnv, ctx);
   },
 

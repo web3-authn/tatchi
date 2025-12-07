@@ -58,7 +58,7 @@ export async function linkDeviceWithScannedQRData(
       message: `Performing TouchID authentication for device linking...`
     });
 
-    const userData = await context.webAuthnManager.getUser(device1AccountId);
+    const userData = await context.webAuthnManager.getLastUser();
     const nearPublicKeyStr = userData?.clientNearPublicKey;
     if (!nearPublicKeyStr) {
       throw new Error('Client NEAR public key not found in user data');

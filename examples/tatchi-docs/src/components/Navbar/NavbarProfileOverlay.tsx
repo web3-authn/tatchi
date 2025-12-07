@@ -71,8 +71,16 @@ export const NavbarProfileOverlay: React.FC = () => {
   const overlay = (
     <div
       ref={btnRef}
-      // Keep this overlay above site content, but below wallet/SDK modals
-      style={{ position: 'fixed', top: '0.5rem', right: '0.5rem', zIndex: 2147483646, pointerEvents: 'auto' }}
+      // Keep this overlay above site content/navbar, but well below wallet/SDK overlays.
+      // The wallet iframe + SDK modals use very high z-indices (~2^31); a modest value here
+      // avoids interfering with those layers while still floating above page content.
+      style={{
+        position: 'fixed',
+        top: '0.5rem',
+        right: '0.5rem',
+        zIndex: 1001,
+        pointerEvents: 'auto',
+      }}
       aria-hidden={false}
     >
       <TatchiProfileSettingsButton

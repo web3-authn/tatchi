@@ -18,7 +18,9 @@ export interface SecureConfirmDecision {
   intentDigest?: string;
   confirmed: boolean;
   credential?: SerializableCredential; // Serialized WebAuthn credential
-  prfOutput?: string; // Base64url-encoded PRF output
+  prfOutput?: string; // Base64url-encoded PRF output (local-only flows)
+  wrapKeySeed?: string; // Base64url-encoded WrapKeySeed (preferred; may be omitted for signing flows)
+  wrapKeySalt?: string; // Base64url-encoded salt for WrapKeySeed → KEK derivation
   vrfChallenge?: VRFChallenge; // VRF challenge generated during confirmation
   transactionContext?: TransactionContext; // NEAR data fetched during confirmation
   // This is a private field used to close the confirmation modal
@@ -31,6 +33,13 @@ export interface TransactionSummary {
   method?: string;
   intentDigest?: string;
   receiverId?: string;
+  type?: string;
+  delegate?: {
+    senderId?: string;
+    receiverId?: string;
+    nonce?: string;
+    maxBlockHeight?: string;
+  };
   registrationDetails?: {
     nearAccountId: string;
     deviceNumber: number;
@@ -47,6 +56,8 @@ export interface WorkerConfirmationResponse {
   confirmed: boolean;
   credential?: SerializableCredential;
   prf_output?: string;
+  wrapKeySeed?: string;
+  wrapKeySalt?: string;
   vrf_challenge?: VRFChallenge;     // VRF challenge generated during confirmation
   transaction_context?: TransactionContext; // NEAR data fetched during confirmation
   error?: string;

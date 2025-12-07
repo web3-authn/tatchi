@@ -12,6 +12,13 @@ export interface EncryptedKeyData {
   deviceNumber: number; // 1-indexed device number
   encryptedData: string;
   iv: string;
+  /**
+   * HKDF salt used alongside WrapKeySeed for KEK derivation.
+   * Required for v2+ vaults; may be undefined only for legacy entries
+   * that predate VRF‑owned WrapKeySeed derivation.
+   */
+  wrapKeySalt?: string;
+  version?: number;
   timestamp: number;
 }
 

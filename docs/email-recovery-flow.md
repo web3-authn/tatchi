@@ -269,31 +269,24 @@ const { nextNonce, txBlockHash } =
   await nonceManager.getNonceBlockHashAndHeight(nearClient);
 ```
 
-### 7.2 Re‑derive deterministic keypair with correct nonce
+### 7.2 Sign registration transaction with stored deterministic key
 
 Using the cached `PendingEmailRecovery` fields:
 
-- call `deriveNearKeypairAndEncryptFromSerialized` again:
+- call `signDevice2RegistrationWithStoredKey`:
 
 ```ts
-const result = await webAuthnManager.deriveNearKeypairAndEncryptFromSerialized({
+const result = await webAuthnManager.signDevice2RegistrationWithStoredKey({
   nearAccountId: accountId,
   credential,
-  options: {
-    vrfChallenge,
-    contractId: configs.contractId,
-    nonce: nextNonce,
-    blockHash: txBlockHash,
-    deterministicVrfPublicKey: vrfPublicKey,
-    deviceNumber,
-  },
+  vrfChallenge,
+  deterministicVrfPublicKey: vrfPublicKey,
+  deviceNumber,
 });
 ```
 
 - Expect:
   - `result.signedTransaction` (registration tx),
-  - `result.encryptedVrfKeypair` (may match stored one),
-  - `result.serverEncryptedVrfKeypair` (for Shamir 3‑pass),
   - `result.publicKey` (should equal `nearPublicKey`).
 
 ### 7.3 Broadcast registration transaction
@@ -494,14 +487,13 @@ All new core logic should live in `sdk/src/core/TatchiPasskey/emailRecovery.ts`,
 - [x] Initialize NonceManager for the new key:
   - `nonceManager.initializeUser(accountId, nearPublicKey)`.
   - `const { nextNonce, txBlockHash } = await nonceManager.getNonceBlockHashAndHeight(nearClient);`
-- [x] Re‑derive deterministic NEAR keypair with correct nonce:
-  - Call `deriveNearKeypairAndEncryptFromSerialized` with:
-    - `vrfChallenge`, `contractId`, `nonce`, `blockHash`, `deterministicVrfPublicKey`, `deviceNumber`.
+- [x] Sign registration transaction via the stored deterministic key:
+  - Call `signDevice2RegistrationWithStoredKey({ nearAccountId: accountId, credential, vrfChallenge, deterministicVrfPublicKey, deviceNumber })`.
   - Assert `result.publicKey === nearPublicKey`.
 - [x] Broadcast registration transaction:
   - `await nearClient.sendTransaction(result.signedTransaction)`.
     - If this fails with an insufficient funds / gas error, surface a clear message (“Not enough NEAR to finalize recovery; please top up and retry”) but **keep** `PendingEmailRecovery` so the user can retry finalization after funding.
-  - `await nonceManager.updateNonceFromBlockchain(nearClient, nextNonce)` (best effort).
+  - Best effort: `await nonceManager.updateNonceFromBlockchain(nearClient, result.signedTransaction.transaction.nonce)`.
 - [x] Store authenticator + encrypted keys locally:
   - Use `webAuthnManager.storeUserData` with:
     - `nearAccountId: accountId`,

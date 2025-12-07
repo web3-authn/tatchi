@@ -25,6 +25,10 @@ pub enum WorkerRequestType {
     Shamir3PassRemoveServerLock,
     Shamir3PassConfigP,
     Shamir3PassConfigServerUrls,
+    DeriveWrapKeySeedAndSession,
+    DecryptSession,
+    RegistrationCredentialConfirmation,
+    Device2RegistrationSession,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -44,6 +48,10 @@ impl From<u32> for WorkerRequestType {
             11 => WorkerRequestType::Shamir3PassRemoveServerLock,
             12 => WorkerRequestType::Shamir3PassConfigP,
             13 => WorkerRequestType::Shamir3PassConfigServerUrls,
+            14 => WorkerRequestType::DeriveWrapKeySeedAndSession,
+            15 => WorkerRequestType::DecryptSession,
+            16 => WorkerRequestType::RegistrationCredentialConfirmation,
+            17 => WorkerRequestType::Device2RegistrationSession,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -72,6 +80,12 @@ impl From<&str> for WorkerRequestType {
             "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK" => WorkerRequestType::Shamir3PassRemoveServerLock,
             "SHAMIR3PASS_CONFIG_P" => WorkerRequestType::Shamir3PassConfigP,
             "SHAMIR3PASS_CONFIG_SERVER_URLS" => WorkerRequestType::Shamir3PassConfigServerUrls,
+            "DERIVE_WRAP_KEY_SEED_AND_SESSION" => WorkerRequestType::DeriveWrapKeySeedAndSession,
+            "DECRYPT_SESSION" => WorkerRequestType::DecryptSession,
+            "REGISTRATION_CREDENTIAL_CONFIRMATION" => {
+                WorkerRequestType::RegistrationCredentialConfirmation
+            }
+            "DEVICE2_REGISTRATION_SESSION" => WorkerRequestType::Device2RegistrationSession,
             _ => panic!("Invalid WorkerRequestType string: {}", value),
         }
     }
@@ -96,10 +110,30 @@ impl WorkerRequestType {
             WorkerRequestType::Shamir3PassGenerateServerKeypair => {
                 "SHAMIR3PASS_GENERATE_SERVER_KEYPAIR"
             }
-            WorkerRequestType::Shamir3PassApplyServerLock => "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK",
-            WorkerRequestType::Shamir3PassRemoveServerLock => "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK",
-            WorkerRequestType::Shamir3PassConfigP => "SHAMIR3PASS_CONFIG_P",
-            WorkerRequestType::Shamir3PassConfigServerUrls => "SHAMIR3PASS_CONFIG_SERVER_URLS",
+            WorkerRequestType::Shamir3PassApplyServerLock => {
+                "SHAMIR3PASS_APPLY_SERVER_LOCK_KEK"
+            }
+            WorkerRequestType::Shamir3PassRemoveServerLock => {
+                "SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK"
+            }
+            WorkerRequestType::Shamir3PassConfigP => {
+                "SHAMIR3PASS_CONFIG_P"
+            }
+            WorkerRequestType::Shamir3PassConfigServerUrls => {
+                "SHAMIR3PASS_CONFIG_SERVER_URLS"
+            }
+            WorkerRequestType::DeriveWrapKeySeedAndSession => {
+                "DERIVE_WRAP_KEY_SEED_AND_SESSION"
+            }
+            WorkerRequestType::DecryptSession => {
+                "DECRYPT_SESSION"
+            }
+            WorkerRequestType::RegistrationCredentialConfirmation => {
+                "REGISTRATION_CREDENTIAL_CONFIRMATION"
+            }
+            WorkerRequestType::Device2RegistrationSession => {
+                "DEVICE2_REGISTRATION_SESSION"
+            }
         }
     }
 }
@@ -123,6 +157,8 @@ pub enum WorkerResponseType {
     Shamir3PassRemoveServerLockSuccess,
     Shamir3PassConfigPSuccess,
     Shamir3PassConfigServerUrlsSuccess,
+    DeriveWrapKeySeedAndSessionSuccess,
+    DecryptSessionSuccess,
 }
 
 impl From<WorkerResponseType> for u32 {
@@ -142,6 +178,8 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::Shamir3PassRemoveServerLockSuccess => 11,
             WorkerResponseType::Shamir3PassConfigPSuccess => 12,
             WorkerResponseType::Shamir3PassConfigServerUrlsSuccess => 13,
+            WorkerResponseType::DeriveWrapKeySeedAndSessionSuccess => 14,
+            WorkerResponseType::DecryptSessionSuccess => 15,
         }
     }
 }
@@ -163,6 +201,8 @@ impl From<u32> for WorkerResponseType {
             11 => WorkerResponseType::Shamir3PassRemoveServerLockSuccess,
             12 => WorkerResponseType::Shamir3PassConfigPSuccess,
             13 => WorkerResponseType::Shamir3PassConfigServerUrlsSuccess,
+            14 => WorkerResponseType::DeriveWrapKeySeedAndSessionSuccess,
+            15 => WorkerResponseType::DecryptSessionSuccess,
             _ => panic!("Invalid WorkerResponseType value: {}", value),
         }
     }

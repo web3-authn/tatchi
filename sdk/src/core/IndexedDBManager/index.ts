@@ -79,9 +79,13 @@ export class UnifiedIndexedDBManager {
     hasKeys: boolean;
     keyData?: EncryptedKeyData | null;
   }> {
-    const userData = await this.clientDB.getUser(nearAccountId);
     const last = await this.clientDB.getLastUser();
-    const deviceNumber = (last && last.nearAccountId === nearAccountId) ? last.deviceNumber : userData?.deviceNumber;
+    const userData = last && last.nearAccountId === nearAccountId
+      ? last
+      : await this.clientDB.getUserByDevice(nearAccountId, 1);
+    const deviceNumber = (last && last.nearAccountId === nearAccountId)
+      ? last.deviceNumber
+      : userData?.deviceNumber;
     const [hasKeys, keyData] = await Promise.all([
       this.nearKeysDB.hasEncryptedKey(nearAccountId, deviceNumber),
       this.nearKeysDB.getEncryptedKey(nearAccountId, deviceNumber)

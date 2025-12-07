@@ -1,24 +1,33 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
   SecureConfirmationType,
-  SecureConfirmMessageType,
   TransactionSummary,
   RegistrationSecureConfirmRequest,
-  RegisterAccountPayload,
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
-import { renderConfirmUI, fetchNearContext, maybeRefreshVrfChallenge, getNearAccountId, getIntentDigest, sanitizeForPostMessage } from './common';
+import {
+  renderConfirmUI,
+  fetchNearContext,
+  maybeRefreshVrfChallenge,
+  getNearAccountId,
+  getIntentDigest,
+  sendConfirmResponse,
+  closeModalSafely,
+  isUserCancelledSecureConfirm,
+  releaseReservedNonces,
+  ERROR_MESSAGES,
+  getRegisterAccountPayload,
+} from './common';
 import {
   ensureDualPrfForRegistration,
   isSerializedRegistrationCredential
 } from '../../../credentialsHelpers';
 import type { WebAuthnRegistrationCredential } from '../../../../types/webauthn';
-import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
-import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
+import { toError } from '../../../../../utils/errors';
 
 export async function handleRegistrationFlow(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: RegistrationSecureConfirmRequest,
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
@@ -43,11 +52,11 @@ export async function handleRegistrationFlow(
     txBlockHeight: nearRpc.transactionContext?.txBlockHeight,
   });
   if (nearRpc.error && !nearRpc.transactionContext) {
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
-      error: `Failed to fetch NEAR data: ${nearRpc.details}`,
+      error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
     });
   }
   const transactionContext = nearRpc.transactionContext as TransactionContext;
@@ -77,10 +86,10 @@ export async function handleRegistrationFlow(
   });
   console.debug('[RegistrationFlow] renderConfirmUI done', { confirmed, uiError });
   if (!confirmed) {
-    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    releaseReservedNonces(ctx, nearRpc.reservedNonces);
     console.debug('[RegistrationFlow] user cancelled');
     closeModalSafely(false, confirmHandle);
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
@@ -124,40 +133,37 @@ export async function handleRegistrationFlow(
         const nextDeviceNumber = (deviceNumber !== undefined && Number.isFinite(deviceNumber)) ? (deviceNumber + 1) : 2;
         console.debug('[RegistrationFlow] duplicate credential, retry with next deviceNumber', { nextDeviceNumber });
         credential = await tryCreate(nextDeviceNumber);
-        (request.payload as RegisterAccountPayload).deviceNumber = nextDeviceNumber;
+        getRegisterAccountPayload(request).deviceNumber = nextDeviceNumber;
       } else {
         console.error('[RegistrationFlow] credentials.create failed (non-duplicate)', { name, msg });
         throw err;
       }
     }
 
-    const { dualPrfOutputs, serialized } = await ensureDualPrfForRegistration({
+    const { serialized } = await ensureDualPrfForRegistration({
       credential: credential!,
       nearAccountId,
       rpId,
     });
 
     // 6) Respond + close
-    send(worker, {
+    sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: true,
       credential: serialized,
-      prfOutput: dualPrfOutputs.chacha20PrfOutput,
+      // PRF outputs are embedded in serialized credential; VRF worker extracts and sends via MessagePort
       vrfChallenge: uiVrfChallenge,
       transactionContext,
     });
     closeModalSafely(true, confirmHandle);
 
   } catch (err: unknown) {
-    const cancelled = isTouchIdCancellationError(err) || (() => {
-      const e = toError(err);
-      return e.name === 'NotAllowedError' || e.name === 'AbortError';
-    })();
+    const cancelled = isUserCancelledSecureConfirm(err);
     const msg = String((toError(err))?.message || err || '');
     // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
     if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
-      nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+      releaseReservedNonces(ctx, nearRpc.reservedNonces);
       closeModalSafely(false, confirmHandle);
       throw err;
     }
@@ -165,7 +171,7 @@ export async function handleRegistrationFlow(
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
     // Release any reserved nonces on failure (best-effort)
-    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    releaseReservedNonces(ctx, nearRpc.reservedNonces);
     closeModalSafely(false, confirmHandle);
 
     const isPrfBrowserUnsupported =
@@ -173,22 +179,13 @@ export async function handleRegistrationFlow(
       || /does not fully support the WebAuthn PRF extension during registration/i.test(msg)
       || /roaming hardware authenticators .* not supported in this flow/i.test(msg);
 
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
       error: cancelled
-        ? 'User cancelled secure confirm request'
-        : (isPrfBrowserUnsupported ? msg : 'Failed to collect credentials'),
+        ? ERROR_MESSAGES.cancelled
+        : (isPrfBrowserUnsupported ? msg : ERROR_MESSAGES.collectCredentialsFailed),
     });
   }
-}
-
-function send(worker: Worker, response: any) {
-  const sanitized = sanitizeForPostMessage(response);
-  worker.postMessage({ type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE, data: sanitized });
-}
-
-function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  handle?.close?.(confirmed);
 }

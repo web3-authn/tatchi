@@ -1,14 +1,32 @@
 /**
  * VRF Types for Web Worker Communication
  */
-
 import * as wasmModule from '../../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { StripFree } from "./index.js";
+
+import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from "./webauthn";
+import { ConfirmationConfig } from './signer-worker';
+import { AccountId } from "./accountIds.js";
+import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
 
 export type WasmGenerateVrfKeypairBootstrapRequest = StripFree<wasmModule.GenerateVrfKeypairBootstrapRequest>;
 export type WasmGenerateVrfChallengeRequest = StripFree<wasmModule.GenerateVrfChallengeRequest>;
 export type WasmUnlockVrfKeypairRequest = StripFree<wasmModule.UnlockVrfKeypairRequest>;
 export type WasmDeriveVrfKeypairFromPrfRequest = StripFree<wasmModule.DeriveVrfKeypairFromPrfRequest>;
+export type WasmDeriveWrapKeySeedAndSessionRequest = StripFree<wasmModule.DeriveWrapKeySeedAndSessionRequest> & {
+  // Optional contract verification context; when provided, VRF worker will
+  // call verify_authentication_response before deriving WrapKeySeed.
+  vrfChallenge?: VRFChallenge;
+  // Optional credential for PRF.second extraction (registration or authentication)
+  credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+};
+export type WasmDecryptSessionRequest = StripFree<wasmModule.DecryptSessionRequest>;
+export type WasmRegistrationCredentialConfirmationRequest = StripFree<wasmModule.RegistrationCredentialConfirmationRequest> & {
+  confirmationConfig?: ConfirmationConfig;
+};
+export type WasmDevice2RegistrationSessionRequest = StripFree<wasmModule.Device2RegistrationSessionRequest> & {
+  confirmationConfig?: ConfirmationConfig;
+};
 
 export type WasmShamir3PassConfigPRequest = StripFree<wasmModule.Shamir3PassConfigPRequest>;
 export type WasmShamir3PassConfigServerUrlsRequest = StripFree<wasmModule.Shamir3PassConfigServerUrlsRequest>;
@@ -19,13 +37,14 @@ export type WasmVrfWorkerRequestType = WasmGenerateVrfKeypairBootstrapRequest
   | WasmGenerateVrfChallengeRequest
   | WasmUnlockVrfKeypairRequest
   | WasmDeriveVrfKeypairFromPrfRequest
+  | WasmDeriveWrapKeySeedAndSessionRequest
+  | WasmDecryptSessionRequest
+  | WasmRegistrationCredentialConfirmationRequest
+  | WasmDevice2RegistrationSessionRequest
   | WasmShamir3PassConfigPRequest
   | WasmShamir3PassConfigServerUrlsRequest
   | WasmShamir3PassClientEncryptCurrentVrfKeypairRequest
   | WasmShamir3PassClientDecryptVrfKeypairRequest;
-
-import { AccountId } from "./accountIds.js";
-import { base64UrlDecode, base64UrlEncode } from "../../utils/encoders.js";
 
 export interface VRFChallenge {
   vrfInput: string;
@@ -107,7 +126,7 @@ export function validateVRFChallenge(vrfChallengeData: {
  */
 export function createRandomVRFChallenge(): Partial<VRFChallenge> {
   const challenge = crypto.getRandomValues(new Uint8Array(32));
-  const vrfOutput = base64UrlEncode(challenge);
+  const vrfOutput = base64UrlEncode(challenge.buffer);
   return {
     vrfOutput: vrfOutput,
     vrfInput: undefined,
@@ -153,18 +172,22 @@ export interface VRFInputData {
 export interface VRFWorkerMessage<T extends WasmVrfWorkerRequestType> {
   // type: wasmModule.WorkerRequestType
   type: 'PING'
-      | 'GENERATE_VRF_CHALLENGE'
-      | 'GENERATE_VRF_KEYPAIR_BOOTSTRAP'
-      | 'UNLOCK_VRF_KEYPAIR'
-      | 'CHECK_VRF_STATUS'
-      | 'LOGOUT'
-      | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
-      | 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR' // client only
-      | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
-      | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
-      | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
-      | 'SHAMIR3PASS_CONFIG_P'
-      | 'SHAMIR3PASS_CONFIG_SERVER_URLS'
+  | 'GENERATE_VRF_CHALLENGE'
+  | 'GENERATE_VRF_KEYPAIR_BOOTSTRAP'
+  | 'UNLOCK_VRF_KEYPAIR'
+  | 'CHECK_VRF_STATUS'
+  | 'LOGOUT'
+  | 'DERIVE_VRF_KEYPAIR_FROM_PRF'
+  | 'DERIVE_WRAP_KEY_SEED_AND_SESSION'
+  | 'DECRYPT_SESSION'
+  | 'REGISTRATION_CREDENTIAL_CONFIRMATION'
+  | 'DEVICE2_REGISTRATION_SESSION'
+  | 'SHAMIR3PASS_CLIENT_ENCRYPT_CURRENT_VRF_KEYPAIR' // client only
+  | 'SHAMIR3PASS_CLIENT_DECRYPT_VRF_KEYPAIR' // client only
+  | 'SHAMIR3PASS_APPLY_SERVER_LOCK_KEK' // server only
+  | 'SHAMIR3PASS_REMOVE_SERVER_LOCK_KEK' // server only
+  | 'SHAMIR3PASS_CONFIG_P'
+  | 'SHAMIR3PASS_CONFIG_SERVER_URLS'
   id?: string;
   payload?: T;
 }

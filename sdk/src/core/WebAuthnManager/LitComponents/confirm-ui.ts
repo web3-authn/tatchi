@@ -1,6 +1,6 @@
 import { isActionArgsWasm, toActionArgsWasm, type ActionArgs, type ActionArgsWasm } from '@/core/types/actions';
-import type { SignerWorkerManagerContext } from '../SignerWorkerManager';
-import type { TransactionSummary } from '../SignerWorkerManager/confirmTxFlow/types';
+import type { VrfWorkerManagerContext } from '../VrfWorkerManager';
+import type { TransactionSummary } from '../VrfWorkerManager/confirmTxFlow/types';
 import { WalletIframeDomEvents } from '../../WalletIframe/events';
 import { TransactionInputWasm, VRFChallenge } from '../../types';
 
@@ -13,7 +13,7 @@ import { computeUiIntentDigestFromTxs, orderActionForDigest } from './common/tx-
 import './IframeTxConfirmer/tx-confirmer-wrapper';
 
 // Resolve theme preference from explicit param, user preferences, or DOM attribute
-function resolveTheme(ctx: SignerWorkerManagerContext, requested?: ThemeName): ThemeName {
+function resolveTheme(ctx: VrfWorkerManagerContext, requested?: ThemeName): ThemeName {
   let resolved = validateTheme(requested);
   if (!resolved) {
     try { resolved = validateTheme((ctx as any)?.userPreferencesManager?.getUserTheme?.()); } catch {}
@@ -36,6 +36,13 @@ interface HostTxConfirmerElement extends HTMLElement {
   loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
+  title: string;
+  delegateMeta?: {
+    senderId?: string;
+    receiverId?: string;
+    nonce?: string;
+    maxBlockHeight?: string;
+  };
   requestUpdate?: () => void; // Lit element update hook (optional)
   nearExplorerUrl?: string;
 }
@@ -54,7 +61,7 @@ export async function mountConfirmUI({
   uiMode,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
@@ -87,7 +94,7 @@ export async function awaitConfirmUIDecision({
   uiMode,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests: TransactionInputWasm[],
   vrfChallenge: VRFChallenge,
@@ -173,6 +180,9 @@ async function checkIntentDigestGuard(
   const expected = summary?.intentDigest;
   if (!hasTxs || !expected) return undefined;
   try {
+    // UI-side check must mirror the canonical intent digest:
+    // { receiverId, actions: ActionArgsWasm[] } with actions normalized
+    // via orderActionForDigest, and no nonce included.
     const normalized: TransactionInputWasm[] = (txSigningRequests || []).map((tx) => ({
       receiverId: tx.receiverId,
       actions: (tx.actions || [])
@@ -210,10 +220,17 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
   if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
   if (props.theme != null) el.theme = props.theme;
   if (props.loading != null) el.loading = !!props.loading;
+  if ((props as any).title != null) el.title = (props as any).title;
   if ('errorMessage' in (props as Record<string, unknown>)) {
     const msg = props.errorMessage ?? '';
     el.errorMessage = msg;
     setErrorAttribute(el, msg);
+  }
+  if ((props as any).delegateMeta != null) {
+    el.delegateMeta = (props as any).delegateMeta;
+  }
+  if ((props as any).nearExplorerUrl != null) {
+    el.nearExplorerUrl = (props as any).nearExplorerUrl;
   }
   el.requestUpdate?.();
 }
@@ -274,7 +291,7 @@ function mountHostElement({
   variant,
   nearAccountIdOverride,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   summary: TransactionSummary,
   txSigningRequests?: TransactionInputWasm[],
   vrfChallenge?: VRFChallenge,
@@ -305,6 +322,10 @@ function mountHostElement({
   el.removeAttribute('data-error-message');
   // Two-phase close: let caller control removal
   el.deferClose = true;
+  if (summary?.delegate) {
+    el.title = 'Sign Delegate Action';
+    el.delegateMeta = summary.delegate;
+  }
   const portal = ensureConfirmPortal();
   // Ensure hidden state (idempotent) and mount
   portal.classList.remove('w3a-portal--visible');

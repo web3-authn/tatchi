@@ -18,11 +18,18 @@ The wallet runs in an isolated iframe context, separate from application code. T
 
 ![Iframe Isolation Architecture](/diagrams/architecture.png)
 
+The wallet mounts a hidden iframe at its own origin. Inside that iframe, two WASM workers hold secrets:
+
+- **VRF worker** – owns WebAuthn/PRF handling, Shamir 3-pass with the relay, derives `WrapKeySeed`, enforces canonical digests.
+- **Signer worker** – receives only `WrapKeySeed + wrapKeySalt` over an internal `MessageChannel`, derives the KEK, unwraps `near_sk`, and signs.
+
+Normal sessions are **2-of-2** (device + relay via Shamir 3-pass) and always require fresh WebAuthn for `PRF.first`. A high-friction **PRF.second recovery** path exists only for registration, device linking, or explicit recovery.
+
 The transaction signing flow follows this lifecycle:
-1. **Mount**: SDK creates hidden iframe pointing at wallet origin
+1. **Mount**: SDK creates hidden iframe pointing at wallet origin.
 2. **Request**: App calls methods like `registerPasskey()` or `signTransactionsWithActions()` by sending typed messages.
-3. **User Confirmation**: Wallet routes requests to workers, which requests user TouchId confirmation and mounts UI with transaction payload information.
-4. **Execute**: VRF Webauthn verification completes (TouchID) and runs transaction signing operations. Read more about stateless [VRF WebAuthn here](./vrf-webauthn).
+3. **User Confirmation**: Wallet routes requests to workers, triggers a TouchID/WebAuthn prompt, and shows intent UI from the wallet origin.
+4. **Execute**: VRF-WebAuthn completes, VRF worker runs Shamir 3-pass (or explicit recovery), derives `WrapKeySeed`, and signer worker signs.
 5. **Response**: Wallet streams progress events back to your app, then returns signed transaction payloads.
 
 <div style="margin-top: 6rem;"></div>
@@ -38,91 +45,51 @@ Each section illustrates how the wallet handles VRF operations, onchain verifica
 
 ## Registration Flow
 
-Registration creates a passkey and derives deterministic keys from it from a single biometric prompt. The flow uses a bootstrap VRF keypair to generate an initial challenge, then derives permanent keys from the passkey's PRF outputs.
+Registration creates the passkey, derives deterministic keys, and seals them with the dual-worker pipeline from a single TouchID prompt. PRF outputs stay VRF-side; the signer only receives `WrapKeySeed + wrapKeySalt` over the internal channel.
 
 ```mermaid
 sequenceDiagram
     box rgb(243, 244, 246) Iframe Wallet
-    participant JSMain as JS Main Thread
-    participant Worker as WASM Worker
+    participant UI as Wallet (iframe main)
+    participant VRF as VRF Worker
+    participant Signer as Signer Worker
     end
-    participant NEAR as NEAR RPC
+    participant Relay as Relay
     participant Contract as Web3Authn Contract
 
-    Note over JSMain,Worker: Phase 1: Bootstrap VRF Challenge
-    JSMain->>NEAR: 1. Get block height + hash from RPC
-    NEAR->>JSMain: Block data
-    JSMain->>Worker: 2. generateVrfKeypairBootstrap()
-    Worker->>Worker: 3. Generate bootstrap VRF keypair (temporary)
-    Worker->>Worker: 4. Generate VRF proof + output (challenge)
-    Worker->>JSMain: 5. VRF challenge for WebAuthn ceremony
-
-    Note over JSMain,Worker: Phase 2: WebAuthn Registration with Dual PRF
-    JSMain->>Worker: 6. requestRegistrationCredentialConfirmation()
-    Note over Worker: WebAuthn registration (TouchID prompt)<br/>PRF extension returns dual outputs:<br/>first=chacha20, second=ed25519
-    Worker->>JSMain: Registration credential
-
-    Note over JSMain,Worker: Phase 3: Derive Deterministic Keys from PRF
-    JSMain->>Worker: 7. deriveVrfKeypairFromRawPrf(ed25519PrfOutput)
-    Worker->>Worker: 8. Derive deterministic VRF keypair from PRF
-    Worker->>Worker: 9. Encrypt deterministic VRF with ChaCha20-Poly1305
-    Worker->>JSMain: 10. Encrypted deterministic VRF keypair
-
-    JSMain->>Worker: 11. deriveNearKeypairFromDualPrf(chacha20PrfOutput)
-    Worker->>Worker: 12. Derive NEAR ed25519 keypair from PRF
-    Worker->>Worker: 13. Encrypt NEAR keypair with ChaCha20-Poly1305
-    Worker->>JSMain: 14. NEAR public key + encrypted keypair
-
-    Note over JSMain,Contract: Phase 4: Contract Registration
-    Note over JSMain: Routed through relayer to pay for gas
-    JSMain->>Contract: 15. create_account_and_register_user()
-    Contract->>Contract: 16. Registration verified
-    Contract->>JSMain: 17. Registration complete (txId)
-
-    Note over JSMain,Worker: Phase 5: Client-side Storage
-    JSMain->>JSMain: 18. Store encrypted deterministic VRF in IndexedDB
-    JSMain->>JSMain: 19. Store encrypted NEAR keypair in IndexedDB
-    JSMain->>JSMain: 20. Registration complete ✓
+    Note over UI,VRF: Single WebAuthn prompt (PRF.first + PRF.second)
+    UI->>VRF: requestRegistrationCredentialConfirmation()
+    VRF->>UI: TouchID prompt + confirm UI
+    UI->>VRF: Credential with PRF outputs
+    VRF->>VRF: Derive deterministic VRF keypair<br/>Compute WrapKeySeed + wrapKeySalt<br/>Seal vault ciphertext
+    VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt
+    Signer->>Signer: Derive KEK; wrap deterministic NEAR key; sign registration tx
+    Signer-->>UI: near_pk + encrypted NEAR key + signed tx
+    UI->>Relay: Submit create_account_and_register_user (or direct)
+    Relay->>Contract: Forward registration tx
+    Contract-->>UI: Registration receipt / txId
+    UI->>UI: Store encrypted VRF/NEAR keys + authenticator in IndexedDB
 ```
 
 ::: tip **Steps:**
-1. **Bootstrap VRF Challenge** - Fetch fresh NEAR block data and generate a temporary VRF keypair in the WASM worker to create the initial WebAuthn challenge.
-
-2. **WebAuthn Registration** - Request passkey creation with dual PRF extension (returns two outputs: one for ChaCha20 encryption, one for ed25519 derivation). This is the **only biometric prompt** in the entire flow.
-
-3. **Derive Deterministic Keys** - Use the PRF outputs to deterministically derive:
-   - A permanent VRF keypair (from PRF first output)
-   - A NEAR ed25519 keypair (from PRF second output)
-   - Encrypt both keypairs with ChaCha20-Poly1305 before storage
-
-4. **Contract Registration** - Submit the WebAuthn registration response to the NEAR smart contract, which verifies and stores the passkey's public key on-chain.
-
-5. **Client-side Storage** - Store both encrypted keypairs in isolated wallet origin-scoped IndexedDB for future use.
+1. **WebAuthn registration** – VRF worker collects the credential (PRF.first + PRF.second) from the wallet-origin UI.
+2. **Derive deterministic keys** – VRF worker derives deterministic VRF/NEAR keys, `WrapKeySeed`, and `wrapKeySalt`; only the seed + salt cross to the signer via `MessageChannel`.
+3. **Sign and register** – Signer worker seals the deterministic NEAR key with the KEK and signs the registration tx.
+4. **Store vault** – Encrypted deterministic keys, salts, and authenticator metadata live in the wallet’s IndexedDB; plaintext never leaves workers.
 :::
 
 **Key cryptographic properties:**
-- **Origin-bound key derivation** - PRF extension binds all derived keys to the wallet origin
-- **Challenge binding** - Bootstrap VRF cryptographically binds fresh NEAR block data (height + hash) to the WebAuthn challenge
-- **Atomic verification** - Contract verifies both VRF proof and WebAuthn registration in a single transaction
-- **Stateless verification** - No server state required; all verification happens on-chain
-
-We use a bootstrap VRF to avoid forcing two TouchID prompts (one to derive VRF key, another to bind challenge), with the deterministic VRF key generated afterwards.
+- **Origin-bound PRF** – WebAuthn PRF binds all derived keys to the wallet origin.
+- **Challenge binding** – Bootstrap VRF ties fresh NEAR block data to the WebAuthn challenge for replay resistance.
+- **Atomic verification** – Contract verifies VRF proof + WebAuthn registration together.
+- **Isolation** – Only `WrapKeySeed + wrapKeySalt` cross the worker boundary; PRF outputs and `vrf_sk` stay VRF-side.
 
 
 ## Login Flow
 
-Session initialization by unlocking the VRF keypair, enabling subsequent VRF challenge generation without repeated biometric prompts.
+Session unlock reconstructs `vrf_sk` and derives a fresh `WrapKeySeed`. Primary mode is Shamir 3-pass (relay + device), always gated by fresh WebAuthn (`PRF.first_auth`). Backup mode uses `PRF.second` only in explicit Recovery Mode.
 
-During login:
-
-1. (Optional) Shamir 3-pass unlocks VRF keypair without biometric prompt
-2. If that fails, WebAuthn ceremony with PRF unlocks VRF keypair
-3. VRF keypair decrypted into Web Worker memory
-4. Worker can generate challenges without additional prompts
-
-**Login unlocks VRF session** enabling challenge generation without repeated biometric prompts.
-
-### Path A: Shamir 3-Pass Unlock (No Biometric)
+### Path A: Primary Shamir 3-Pass (fresh TouchID)
 
 ```mermaid
 sequenceDiagram
@@ -132,36 +99,24 @@ sequenceDiagram
     end
     participant Relay as Relay Server (Optional)
 
-    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
-    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
+    Note over Wallet,Worker: Phase 1: Fresh PRF.first_auth
+    Wallet->>Worker: WebAuthn authentication (TouchID) → PRF.first_auth
 
-    Note over Wallet,Relay: Phase 2: Shamir 3-Pass Unlock (No TouchID)
-    Wallet->>Relay: 2. Request Shamir 3-pass decrypt
-    Relay->>Wallet: Server KEK component
-    Wallet->>Worker: 3. Decrypt VRF with combined KEK
-    Worker->>Worker: 4. VRF keypair loaded into memory
-    Worker->>Wallet: 5. VRF session active ✓
-    Note over Wallet: No biometric prompt required
-
-    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges
+    Note over Wallet,Relay: Phase 2: Shamir 3-pass (2-of-2)
+    Worker->>Relay: shareA derived from PRF.first_auth
+    Relay->>Worker: shareB response
+    Worker->>Worker: Reconstruct vrf_sk; derive WrapKeySeed
+    Worker-->>Wallet: Session unlocked ✓ (WrapKeySeed retained VRF-side)
 ```
 
 ::: tip **Steps**:
-1. Load encrypted VRF keypair from IndexedDB
-2. Client wraps the encrypted VRF with its own lock (encryption)
-3. Server adds its lock on top, then removes the client's inner lock
-4. Server returns the result (still encrypted under server's lock + original client encryption)
-5. Client removes server's lock, revealing the VRF encrypted only with client keys
-6. Client decrypts using Key Encryption Key (KEK) derived from passkey
-7. Load VRF keypair into Web Worker memory
-8. VRF session active - ready for challenges
-
-**No biometric prompt required** for this path.
+1. Trigger WebAuthn PRF for `PRF.first_auth` (TouchID).
+2. VRF worker derives shareA and runs Shamir 3-pass with the relay to reconstruct `vrf_sk`.
+3. Derive `WrapKeySeed` from `PRF.first_auth || vrf_sk`; keep it inside the VRF worker.
+4. Session is ready to derive KEKs for signing. No secrets leave workers; main thread never sees PRF/`vrf_sk`.
 :::
 
-The Shamir 3-pass protocol uses commutative encryption: locks can be added and removed in any order. The server never sees the plaintext VRF key, it only strips its own lock from a doubly-encrypted package, ensuring the VRF remains encrypted at rest client-side while enabling frictionless unlock.
-
-### Path B: WebAuthn PRF Unlock (Biometric Fallback)
+### Path B: Explicit PRF.second Recovery
 
 ```mermaid
 sequenceDiagram
@@ -171,30 +126,18 @@ sequenceDiagram
     end
     participant Relay as Relay Server (Optional)
 
-    Note over Wallet,Worker: Phase 1: Load Encrypted VRF
-    Wallet->>Wallet: 1. Retrieve encrypted VRF from IndexedDB
-
-    Note over Wallet,Relay: Phase 2: WebAuthn Unlock (TouchID Fallback)
-    Wallet->>Wallet: 2. WebAuthn authentication (TouchID prompt)
-    Note over Wallet: PRF extension returns chacha20 output
-    Wallet->>Worker: 3. Decrypt VRF with PRF output
-    Worker->>Worker: 4. VRF keypair loaded into memory
-    Worker->>Wallet: 5. VRF session active ✓
-    Note over Wallet,Relay: Optional: Refresh Shamir encryption
-    Wallet->>Relay: 6. Store new server-encrypted VRF
-
-    Note over Wallet,Worker: VRF unlocked - ready to generate WebAuthn challenges
+    Note over Wallet,Worker: Recovery Mode only
+    Wallet->>Worker: WebAuthn authentication (TouchID) requesting PRF.second
+    Worker->>Worker: Re-derive vrf_sk deterministically from PRF.second
+    Worker->>Worker: Derive WrapKeySeed; zeroize PRF.second after use
+    Worker-->>Wallet: Session unlocked ✓ (relay not required)
 ```
 
 ::: tip **Steps**:
-1. Trigger WebAuthn authentication ceremony (TouchID/FaceID)
-2. Extract PRF output from WebAuthn response
-3. Decrypt VRF keypair using PRF-derived key
-4. Load VRF keypair into Web Worker memory
-5. VRF session active - ready for challenges
-6. (Optional) Re-wrap VRF with new Shamir encryption for future logins
-
-**Single biometric prompt** to unlock the session.
+1. User opts into Recovery Mode; wallet requests `PRF.second` in addition to `PRF.first`.
+2. VRF worker re-derives `vrf_sk` deterministically (no relay needed).
+3. Derive `WrapKeySeed` and proceed with signing/unwrapping.
+4. PRF.second is zeroized immediately; this path is high-friction and logged.
 :::
 
 
@@ -220,9 +163,9 @@ sequenceDiagram
 
 ::: info **Security properties:**
 - **VRF stays in worker**: Never exposed to main thread
-- **Session-scoped**: VRF keypair remains in memory for the session
-- **Optional Shamir**: Reduces friction without compromising security
-- **PRF fallback**: Always works even if Shamir unavailable
+- **Session-scoped**: VRF keypair is reconstructed per session with fresh WebAuthn
+- **Primary 2-of-2**: Shamir 3-pass uses relay + device
+- **PRF.second backup**: Only in Recovery Mode; zeroized immediately
 :::
 
 
@@ -231,52 +174,43 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     box rgb(243, 244, 246) Iframe Wallet
-    participant JSMain as JS Main Thread
-    participant Worker as WASM Worker
+    participant UI as Wallet (iframe main)
+    participant VRF as VRF Worker
+    participant Signer as Signer Worker
     end
     participant NEAR as NEAR RPC
     participant Contract as Web3Authn Contract
 
-    Note over JSMain,Worker: Phase 1: Preparation
-    JSMain->>JSMain: 1. Validate action inputs
-    JSMain->>JSMain: 2. Pre-warm NonceManager (async)
+    Note over UI,VRF: Phase 1: Preparation
+    UI->>UI: Validate action inputs
+    UI->>VRF: signTransactionsWithActions(request)
+    VRF->>NEAR: Fetch nonce + block hash
+    NEAR-->>VRF: Nonce + block hash
+    VRF->>VRF: Canonical intent digest (receiverId + normalized actions)
 
-    Note over JSMain,Worker: Phase 2: User Confirmation & VRF Challenge
-    JSMain->>Worker: 3. Request user confirmation
-    Note over Worker: UI mounts showing transaction details
-    Worker->>NEAR: 4. Get nonce, block height + hash
-    NEAR->>Worker: Block data + nonce
-    Worker->>Worker: 5. Generate VRF challenge (no TouchID)
+    Note over UI,VRF: Phase 2: ConfirmTxFlow (single TouchID)
+    VRF->>UI: Render confirm UI with intent digest
+    UI->>VRF: WebAuthn authentication (TouchID) → PRF.first_auth
+    VRF->>VRF: Shamir 3-pass (primary) or Recovery Mode (PRF.second) → vrf_sk
+    VRF->>VRF: Derive WrapKeySeed; generate VRF proof for contract
+    VRF-->>Signer: MessageChannel: WrapKeySeed + wrapKeySalt
 
-    Note over JSMain,Worker: Phase 3: WebAuthn Authentication
-    Worker->>Worker: 6. WebAuthn authentication (TouchID prompt)
-    Worker->>Contract: 7. verify_authentication_response(vrf_data, webauthn_authentication)
-    Contract->>Contract: 8. Verify VRF proof against stored VRF pubkey ✓
-    Contract->>Contract: 9. Check freshness (block_height within MAX_BLOCK_AGE) ✓
-    Contract->>Contract: 10. Verify WebAuthn signature against stored passkey ✓
-    Contract->>Worker: 11. Authentication verified ✓
+    Note over VRF,Signer: Phase 3: Signing in signer worker
+    Signer->>Signer: Derive KEK; decrypt/derive deterministic NEAR key
+    Signer->>Signer: Sign NEAR transaction(s)
+    Signer-->>UI: Signed transaction(s)
 
-    Note over JSMain,Worker: Phase 4: Transaction Signing
-    Worker->>Worker: 12. Sign NEAR transaction with ed25519 keypair
-    Worker->>JSMain: 13. Signed transaction
-
-    Note over JSMain,NEAR: Phase 5: Broadcasting
-    JSMain->>NEAR: 14. Broadcast signed transaction
-    NEAR->>JSMain: 15. Transaction result (txId)
-    JSMain->>JSMain: 16. Update nonce from blockchain (async)
-    JSMain->>JSMain: 17. Transaction complete ✓
+    Note over UI,NEAR: Phase 4: Broadcast
+    UI->>NEAR: Broadcast signed transaction(s)
+    NEAR-->>UI: Transaction result(s)
+    UI->>UI: Reconcile nonce (async)
 ```
 
 ::: tip **Steps:**
-1. **Preparation** - Validate action inputs and pre-warm the NonceManager to optimize nonce fetching for upcoming transactions.
-
-2. **User Confirmation & VRF Challenge** - Request user confirmation by mounting the wallet UI with transaction details. Fetch fresh NEAR block data (nonce, block height + hash) and generate VRF challenge without prompting for biometric.
-
-3. **WebAuthn Authentication** - User confirms transaction in wallet UI, triggering TouchID/FaceID prompt. Submit VRF proof + WebAuthn signature to Web3Authn contract for atomic on-chain verification (VRF proof, freshness check, WebAuthn signature).
-
-4. **Transaction Signing** - After successful authentication, sign NEAR transaction with ed25519 keypair in the WASM worker.
-
-5. **Broadcasting** - Broadcast signed transaction to NEAR RPC, receive transaction result, and asynchronously reconcile nonces from blockchain.
+1. **Preparation** – Validate inputs and fetch nonce/block hash; compute canonical intent digest in the VRF worker.
+2. **ConfirmTxFlow** – Single TouchID prompt; VRF worker runs Shamir 3-pass (or explicit Recovery Mode), derives `WrapKeySeed`, and produces the VRF proof; only the seed + salt cross to the signer.
+3. **Signing** – Signer worker derives/decrypts the deterministic NEAR key with the KEK and signs the transaction(s).
+4. **Broadcasting** – Wallet broadcasts signed txs to NEAR RPC, receives results, and reconciles nonce.
 
 **Single biometric prompt** per transaction.
 :::
@@ -288,4 +222,4 @@ sequenceDiagram
 - [VRF WebAuthn](vrf-webauthn) discusses how the VRF webauthn system works
 - Read about the [Security Model](security-model)
 - Explore [Passkey Scope Strategy](passkey-scope) for deployment options
-- Review [Shamir 3-Pass Protocol](../guides/shamir-3-pass-protocol) for frictionless login
+- Review [Shamir 3-Pass Protocol](../guides/shamir-3-pass-protocol) for the primary 2-of-2 unlock path

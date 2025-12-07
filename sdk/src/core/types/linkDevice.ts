@@ -61,7 +61,6 @@ export enum DeviceLinkingErrorCode {
 }
 
 export type StartDevice2LinkingFlowArgs = {
-  accountId?: string;
   ui?: 'modal' | 'inline';
 } & StartDeviceLinkingOptionsDevice2
 

@@ -19,12 +19,53 @@ import type {
   WasmShamir3PassClientDecryptVrfKeypairRequest,
   WasmUnlockVrfKeypairRequest,
   WasmDeriveVrfKeypairFromPrfRequest,
+  WasmDeriveWrapKeySeedAndSessionRequest,
+  WasmDevice2RegistrationSessionRequest,
 } from '../../types/vrf-worker';
 import { VRFChallenge, validateVRFChallenge } from '../../types/vrf-worker';
 import { BUILD_PATHS } from '../../../../build-paths.js';
 import { resolveWorkerUrl } from '../../sdkPaths';
 import { AccountId, toAccountId } from '../../types/accountIds';
 import { extractPrfFromCredential } from '../credentialsHelpers';
+import type { TouchIdPrompt } from '../touchIdPrompt';
+import type { NearClient } from '../../NearClient';
+import type { UnifiedIndexedDBManager } from '../../IndexedDBManager';
+import type { UserPreferencesManager } from '../userPreferences';
+import type { NonceManager } from '../../nonceManager';
+import { runSecureConfirm } from './secureConfirmBridge';
+import {
+  SecureConfirmationType,
+  SecureConfirmMessageType,
+  type SecureConfirmRequest,
+  type SignTransactionPayload,
+  type TransactionSummary,
+  type SerializableCredential,
+} from './confirmTxFlow/types';
+import type { SignNep413Payload } from './confirmTxFlow/types';
+import { ActionType, type TransactionInputWasm } from '../../types/actions';
+import type { RpcCallPayload, ConfirmationConfig } from '../../types/signer-worker';
+import { computeUiIntentDigestFromTxs, orderActionForDigest } from '../LitComponents/common/tx-digest';
+import { TransactionContext } from '../../types/rpc';
+import {
+  requestRegistrationCredentialConfirmation
+} from './confirmTxFlow/flows/requestRegistrationCredentialConfirmation';
+import type { RegistrationCredentialConfirmationPayload } from '../SignerWorkerManager/handlers/validation';
+import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types/webauthn';
+import { handlePromptUserConfirmInJsMainThread } from './confirmTxFlow';
+
+/**
+ * VRF-owned host context passed into confirmTxFlow.
+ */
+export interface VrfWorkerManagerContext {
+  touchIdPrompt: TouchIdPrompt;
+  nearClient: NearClient;
+  indexedDB: UnifiedIndexedDBManager;
+  userPreferencesManager: UserPreferencesManager;
+  nonceManager: NonceManager;
+  rpIdOverride?: string;
+  nearExplorerUrl?: string;
+  vrfWorkerManager?: VrfWorkerManager;
+}
 
 /**
  * VRF Worker Manager
@@ -42,8 +83,9 @@ export class VrfWorkerManager {
   private config: VrfWorkerManagerConfig;
   private currentVrfAccountId: string | null = null;
   private workerBaseOrigin: string | undefined;
+  private context: VrfWorkerManagerContext;
 
-  constructor(config: VrfWorkerManagerConfig = {}) {
+  constructor(config: VrfWorkerManagerConfig, context: VrfWorkerManagerContext) {
     this.config = {
       // Default to client-hosted worker file using centralized config
       vrfWorkerUrl: BUILD_PATHS.RUNTIME.VRF_WORKER,
@@ -51,16 +93,406 @@ export class VrfWorkerManager {
       debug: false,
       ...config
     };
+    // Attach a self-reference so confirmTxFlow helpers can call back into VRF APIs.
+    this.context = {
+      ...context,
+      vrfWorkerManager: this,
+    };
+  }
+
+  /**
+   * Context used by confirmTxFlow for VRF-driven flows.
+   */
+  getContext(): VrfWorkerManagerContext {
+    return this.context;
+  }
+
+  /**
+   * Create a VRF-owned MessageChannel for signing and return the signer-facing port.
+   * VRF retains the sibling port for WrapKeySeed delivery.
+   */
+  async createSigningSessionChannel(sessionId: string): Promise<MessagePort> {
+    await this.ensureWorkerReady(true);
+    const channel = new MessageChannel();
+    // Hand one port to the VRF worker (Rust) so it can deliver WrapKeySeed directly
+    // to the signer worker without exposing it to the main thread.
+    try {
+      this.vrfWorker!.postMessage(
+        { type: 'ATTACH_WRAP_KEY_SEED_PORT', sessionId },
+        [channel.port1],
+      );
+    } catch (err) {
+      console.error('[VrfWorkerManager] Failed to attach WrapKeySeed port to VRF worker', err);
+      throw err;
+    }
+    return channel.port2;
+  }
+
+  /**
+   * Derive WrapKeySeed in the VRF worker and deliver it (along with PRF.second if credential provided)
+   * to the signer worker via the registered port.
+   */
+  async deriveWrapKeySeedAndSendToSigner(args: {
+    sessionId: string;
+    prfFirstAuthB64u: string;
+    // Optional vault wrapKeySalt. When omitted or empty, VRF worker will generate a fresh wrapKeySalt.
+    wrapKeySalt?: string;
+    // Optional contract verification context; when provided, VRF Rust will call
+    // verify_authentication_response before deriving WrapKeySeed.
+    contractId?: string;
+    nearRpcUrl?: string;
+    vrfChallenge?: VRFChallenge;
+    // Optional credential for PRF.second extraction (registration or authentication)
+    credential?: WebAuthnRegistrationCredential | WebAuthnAuthenticationCredential;
+  }): Promise<{ sessionId: string; wrapKeySalt: string }> {
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage<WasmDeriveWrapKeySeedAndSessionRequest> = {
+      type: 'DERIVE_WRAP_KEY_SEED_AND_SESSION',
+      id: this.generateMessageId(),
+      payload: {
+        sessionId: args.sessionId,
+        prfFirstAuthB64u: args.prfFirstAuthB64u,
+        // Use empty string as a sentinel to tell the VRF worker to generate wrapKeySalt when none is provided.
+        wrapKeySalt: args.wrapKeySalt ?? '',
+        contractId: args.contractId,
+        nearRpcUrl: args.nearRpcUrl,
+        vrfChallenge: args.vrfChallenge,
+        credential: args.credential,
+      }
+    };
+    const response = await this.sendMessage<WasmDeriveWrapKeySeedAndSessionRequest>(message);
+    if (!response.success) {
+      throw new Error(`deriveWrapKeySeedAndSendToSigner failed: ${response.error}`);
+    }
+    // VRF WASM now delivers WrapKeySeed + wrapKeySalt directly to the signer worker via the
+    // attached MessagePort; TS only needs to know that the session is prepared and
+    // what wrapKeySalt was actually used (for new vault entries).
+    const data = (response.data as unknown) as { sessionId: string; wrapKeySalt?: string } | undefined;
+    const wrapKeySalt = data?.wrapKeySalt ?? args.wrapKeySalt ?? '';
+    if (!wrapKeySalt) {
+      throw new Error('deriveWrapKeySeedAndSendToSigner: VRF worker did not return wrapKeySalt');
+    }
+    return { sessionId: data?.sessionId ?? args.sessionId, wrapKeySalt };
+  }
+
+  /**
+   * VRF-driven decrypt session for export flows.
+   * Kicks off a LocalOnly DECRYPT_PRIVATE_KEY_WITH_PRF confirm via VRF Rust and derives
+   * WrapKeySeed using the vault-provided wrapKeySalt. WrapKeySeed + wrapKeySalt are sent to the signer over
+   * the dedicated MessagePort for the given sessionId.
+   */
+  async prepareDecryptSession(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    wrapKeySalt: string;
+  }): Promise<void> {
+    if (!args.wrapKeySalt) {
+      throw new Error('wrapKeySalt is required for decrypt session');
+    }
+    await this.ensureWorkerReady(true);
+    const message: VRFWorkerMessage<any> = {
+      type: 'DECRYPT_SESSION',
+      id: this.generateMessageId(),
+      payload: {
+        sessionId: args.sessionId,
+        nearAccountId: String(args.nearAccountId),
+        wrapKeySalt: args.wrapKeySalt,
+      },
+    };
+    try {
+      console.debug('[VRF] prepareDecryptSession: start', {
+        sessionId: args.sessionId,
+        nearAccountId: String(args.nearAccountId),
+      });
+      const response = await this.sendMessage(message);
+      if (!response.success) {
+        console.error('[VRF] prepareDecryptSession: worker reported failure', {
+          sessionId: args.sessionId,
+          nearAccountId: String(args.nearAccountId),
+          error: response.error,
+        });
+        throw new Error(`prepareDecryptSession failed: ${response.error}`);
+      }
+      console.debug('[VRF] prepareDecryptSession: success', {
+        sessionId: args.sessionId,
+        nearAccountId: String(args.nearAccountId),
+      });
+    } catch (error) {
+      console.error('[VRF] prepareDecryptSession: error', {
+        sessionId: args.sessionId,
+        nearAccountId: String(args.nearAccountId),
+        error,
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * VRF-driven confirmation + WrapKeySeed derivation for signing flows.
+   * Runs confirmTxFlow on the main thread, derives WrapKeySeed in the VRF worker, and returns
+   * the session metadata needed by the signer worker. WrapKeySeed itself travels only over the
+   * reserved MessagePort registered via registerSignerWrapKeySeedPort.
+   */
+  async confirmAndPrepareSigningSession(params: {
+    ctx: VrfWorkerManagerContext;
+    sessionId: string;
+    kind: 'transaction';
+    txSigningRequests: TransactionInputWasm[];
+    rpcCall: RpcCallPayload;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  } | {
+    ctx: VrfWorkerManagerContext;
+    sessionId: string;
+    kind: 'delegate';
+    nearAccountId: string;
+    delegate: {
+      senderId: string;
+      receiverId: string;
+      actions: TransactionInputWasm['actions'];
+      nonce: string | number | bigint;
+      maxBlockHeight: string | number | bigint;
+    };
+    rpcCall: RpcCallPayload;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  } | {
+    ctx: VrfWorkerManagerContext;
+    sessionId: string;
+    kind: 'nep413';
+    nearAccountId: string;
+    message: string;
+    recipient: string;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  }): Promise<{
+    sessionId: string;
+    wrapKeySalt: string;
+    vrfChallenge: VRFChallenge;
+    transactionContext: TransactionContext;
+    intentDigest: string;
+    credential: SerializableCredential;
+  }> {
+    const { ctx, sessionId } = params;
+
+    // Canonical intent digest for transactions: hash only receiverId + ordered actions,
+    // excluding nonce and other per-tx metadata, to stay in sync with UI confirmers.
+    const txSigningRequests = params.kind === 'delegate'
+      ? [{
+          receiverId: params.delegate.receiverId,
+          actions: params.delegate.actions,
+        } as TransactionInputWasm]
+      : params.kind === 'transaction'
+        ? params.txSigningRequests
+        : [];
+
+    const intentDigest = params.kind !== 'nep413'
+      ? await computeUiIntentDigestFromTxs(
+          txSigningRequests.map(tx => ({
+            receiverId: tx.receiverId,
+            actions: tx.actions.map(orderActionForDigest),
+          })) as TransactionInputWasm[]
+        )
+      : `${params.nearAccountId}:${params.recipient}:${params.message}`;
+
+    const summary: TransactionSummary = params.kind !== 'nep413'
+      ? {
+          intentDigest,
+          receiverId: txSigningRequests[0]?.receiverId,
+          totalAmount: computeTotalAmountYocto(txSigningRequests),
+          type: params.kind === 'delegate' ? 'delegateAction' : 'transaction',
+          delegate: params.kind === 'delegate'
+            ? {
+                senderId: params.nearAccountId,
+                receiverId: params.delegate.receiverId,
+                nonce: String(params.delegate.nonce),
+                maxBlockHeight: String(params.delegate.maxBlockHeight),
+              }
+            : undefined,
+        }
+      : {
+          intentDigest,
+          method: 'NEP-413',
+          receiverId: params.recipient,
+        };
+
+    const request: SecureConfirmRequest<SignTransactionPayload | SignNep413Payload, TransactionSummary> =
+      params.kind !== 'nep413'
+        ? {
+            schemaVersion: 2,
+            requestId: sessionId,
+            type: SecureConfirmationType.SIGN_TRANSACTION,
+            summary,
+            payload: {
+              txSigningRequests,
+              intentDigest,
+              rpcCall: params.rpcCall,
+            },
+            confirmationConfig: params.confirmationConfigOverride,
+            intentDigest,
+          }
+        : {
+            schemaVersion: 2,
+            requestId: sessionId,
+            type: SecureConfirmationType.SIGN_NEP413_MESSAGE,
+            summary,
+            payload: {
+              nearAccountId: params.nearAccountId,
+              message: params.message,
+              recipient: params.recipient,
+            },
+            confirmationConfig: params.confirmationConfigOverride,
+            intentDigest,
+          };
+
+    const decision = await runSecureConfirm(ctx, request);
+    if (!decision.confirmed) {
+      throw new Error(decision.error || 'User rejected signing request');
+    }
+    if (!decision.credential) {
+      throw new Error('Missing credential from confirmation flow');
+    }
+    if (!decision.vrfChallenge) {
+      throw new Error('Missing vrfChallenge from confirmation flow');
+    }
+    if (!decision.transactionContext) {
+      throw new Error('Missing transactionContext from confirmation flow');
+    }
+    const wrapKeySalt = decision.wrapKeySalt || '';
+
+    return {
+      sessionId,
+      wrapKeySalt,
+      vrfChallenge: decision.vrfChallenge,
+      transactionContext: decision.transactionContext,
+      intentDigest: decision.intentDigest || intentDigest,
+      credential: decision.credential,
+    };
+  }
+
+  /**
+   * VRF-driven helper for registration confirmation.
+   * Runs confirmTxFlow on the main thread and returns registration artifacts.
+   * WrapKeySeed derivation is handled later when we call into signing/derivation
+   * flows with PRF + withSigningSession.
+   */
+  async requestRegistrationCredentialConfirmation(params: {
+    nearAccountId: string;
+    deviceNumber: number;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    contractId: string;
+    nearRpcUrl: string;
+  }): Promise<RegistrationCredentialConfirmationPayload> {
+
+    const ctx = this.getContext();
+    const decision = await requestRegistrationCredentialConfirmation({
+      ctx: ctx,
+      ...params,
+    });
+
+    if (!decision.confirmed) {
+      throw new Error(decision.error || 'User rejected registration request');
+    }
+    if (!decision.credential) {
+      throw new Error('Missing credential from registration confirmation');
+    }
+    if (!decision.vrfChallenge) {
+      throw new Error('Missing vrfChallenge from registration confirmation');
+    }
+    if (!decision.transactionContext) {
+      throw new Error('Missing transactionContext from registration confirmation');
+    }
+
+    return decision;
+  }
+
+  /**
+   * Combined Device2 registration session: single WebAuthn ceremony for credential + WrapKeySeed derivation.
+   *
+   * This method orchestrates the complete Device2 registration flow:
+   * 1. Runs a VRF-driven registration confirmation (single TouchID prompt)
+   * 2. Extracts PRF.first from the credential and derives WrapKeySeed
+   * 3. Sends WrapKeySeed to signer worker via MessagePort (never exposed to JS)
+   * 4. Returns credential (with PRF.second embedded), vrfChallenge, transactionContext, wrapKeySalt
+   *
+   * The signer worker can then use PRF.second for NEAR key derivation and WrapKeySeed for encryption.
+   */
+  async confirmAndDeriveDevice2RegistrationSession(params: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    deviceNumber: number;
+    contractId: string;
+    nearRpcUrl: string;
+    authenticatorOptions?: object;
+    wrapKeySalt?: string;
+  }): Promise<{
+    confirmed: boolean;
+    sessionId: string;
+    credential: WebAuthnRegistrationCredential;
+    vrfChallenge: VRFChallenge;
+    transactionContext: TransactionContext;
+    wrapKeySalt: string;
+    requestId: string;
+    intentDigest: string;
+    deterministicVrfPublicKey: string;
+    encryptedVrfKeypair: EncryptedVRFKeypair;
+    error?: string;
+  }> {
+    await this.ensureWorkerReady(true);
+
+    const message: VRFWorkerMessage<WasmDevice2RegistrationSessionRequest> = {
+      type: 'DEVICE2_REGISTRATION_SESSION',
+      id: this.generateMessageId(),
+      payload: {
+        sessionId: params.sessionId,
+        nearAccountId: params.nearAccountId,
+        deviceNumber: params.deviceNumber,
+        contractId: params.contractId,
+        nearRpcUrl: params.nearRpcUrl,
+        wrapKeySalt: params.wrapKeySalt || '',
+        // No confirmationConfig override for now; can add later if needed
+      }
+    };
+
+    const response = await this.sendMessage<WasmDevice2RegistrationSessionRequest>(message);
+
+    if (!response.success) {
+      throw new Error(`Device2 registration session failed: ${response.error}`);
+    }
+
+    const data = response.data as any;
+
+    if (!data.confirmed) {
+      throw new Error(data.error || 'User rejected Device2 registration');
+    }
+
+    if (!data.credential) {
+      throw new Error('Missing credential from Device2 registration session');
+    }
+    if (!data.vrfChallenge) {
+      throw new Error('Missing vrfChallenge from Device2 registration session');
+    }
+    if (!data.transactionContext) {
+      throw new Error('Missing transactionContext from Device2 registration session');
+    }
+    if (!data.wrapKeySalt) {
+      throw new Error('Missing wrapKeySalt from Device2 registration session');
+    }
+
+    return {
+      confirmed: true,
+      sessionId: data.sessionId,
+      credential: data.credential,
+      vrfChallenge: data.vrfChallenge,
+      transactionContext: data.transactionContext,
+      wrapKeySalt: data.wrapKeySalt,
+      requestId: data.requestId,
+      intentDigest: data.intentDigest,
+      deterministicVrfPublicKey: data.deterministicVrfPublicKey,
+      encryptedVrfKeypair: data.encryptedVrfKeypair,
+    };
   }
 
   setWorkerBaseOrigin(origin: string | undefined): void {
     this.workerBaseOrigin = origin;
   }
-
-  /**
-   * Ensure VRF worker is initialized and ready
-   */
-
 
   /**
    * Ensure VRF worker is ready for operations
@@ -195,7 +627,31 @@ export class VrfWorkerManager {
       }, timeoutMs);
 
       const handleMessage = (event: MessageEvent) => {
-        const response = event.data as VRFWorkerResponse;
+        const payload = event.data as VRFWorkerResponse | {
+          type?: unknown;
+          data?: unknown;
+        };
+
+        // Intercept SecureConfirm handshake messages from the VRF worker and
+        // dispatch them through confirmTxFlow on the main thread. The decision
+        // is sent back to the worker as USER_PASSKEY_CONFIRM_RESPONSE and
+        // consumed by awaitSecureConfirmationV2; this should not resolve the
+        // original VRF request promise.
+        if ((payload as any)?.type === SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD) {
+          const env = payload as {
+            type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD;
+            data: SecureConfirmRequest;
+          };
+          const ctx = this.getContext();
+          if (!this.vrfWorker) {
+            console.error('[VRF] SecureConfirm: vrfWorker missing for PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD');
+            return;
+          }
+          void handlePromptUserConfirmInJsMainThread(ctx, env, this.vrfWorker);
+          return;
+        }
+
+        const response = payload as VRFWorkerResponse;
         if (response.id === message.id) {
           clearTimeout(timeout);
           this.vrfWorker!.removeEventListener('message', handleMessage);
@@ -225,7 +681,7 @@ export class VrfWorkerManager {
     encryptedVrfKeypair,
     onEvent,
   }: {
-    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential,
+    credential: WebAuthnAuthenticationCredential,
     nearAccountId: AccountId,
     encryptedVrfKeypair: EncryptedVRFKeypair,
     onEvent?: (event: { type: string, data: { step: string, message: string } }) => void,
@@ -370,6 +826,16 @@ export class VrfWorkerManager {
   }
 
   /**
+   * Set the current VRF account ID at the TypeScript level
+   * Used after VRF keypair is loaded in WASM memory (e.g., after deriveVrfKeypairFromRawPrf)
+   * to track which account has an active VRF session
+   */
+  setCurrentVrfAccountId(nearAccountId: AccountId): void {
+    this.currentVrfAccountId = nearAccountId;
+    console.debug(`VRF Manager: Current VRF account ID set to ${nearAccountId}`);
+  }
+
+  /**
    * Generate VRF keypair for bootstrapping - stores in memory unencrypted temporarily
    * This is used during registration to generate a VRF keypair that will be used for
    * WebAuthn ceremony and later encrypted with the real PRF output
@@ -460,7 +926,7 @@ export class VrfWorkerManager {
     vrfInputData,
     saveInMemory = true,
   }: {
-    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential;
+    credential: WebAuthnAuthenticationCredential;
     nearAccountId: AccountId;
     vrfInputData?: VRFInputData; // optional, for challenge generation
     saveInMemory?: boolean; // optional, whether to save in worker memory
@@ -539,6 +1005,12 @@ export class VrfWorkerManager {
             blockHash: data.vrfChallengeData.blockHash,
           })
         : null;
+
+      // Track the VRF account ID at TypeScript level when saving in memory
+      if (saveInMemory) {
+        this.currentVrfAccountId = nearAccountId;
+        console.debug(`VRF Manager: VRF keypair loaded in memory for ${nearAccountId}`);
+      }
 
       const result: {
         vrfPublicKey: string;
@@ -630,6 +1102,12 @@ export class VrfWorkerManager {
     const vrfPublicKey = data.vrfPublicKey || data.vrfChallengeData?.vrfPublicKey;
     if (!vrfPublicKey) {
       throw new Error('VRF public key not found in response');
+    }
+
+    // Track the VRF account ID at TypeScript level when saving in memory
+    if (saveInMemory) {
+      this.currentVrfAccountId = nearAccountId;
+      console.debug(`VRF Manager: VRF keypair loaded in memory for ${nearAccountId}`);
     }
 
     return {
@@ -726,5 +1204,31 @@ export class VrfWorkerManager {
     } catch (error: any) {
       console.warn(`️VRF Manager: testWebWorkerCommunication failed:`, error.message);
     }
+  }
+}
+
+function computeTotalAmountYocto(txSigningRequests: TransactionInputWasm[]): string | undefined {
+  try {
+    let total = BigInt(0);
+    for (const tx of txSigningRequests) {
+      for (const action of tx.actions) {
+        switch (action.action_type) {
+          case ActionType.Transfer:
+            total += BigInt(action.deposit || '0');
+            break;
+          case ActionType.FunctionCall:
+            total += BigInt(action.deposit || '0');
+            break;
+          case ActionType.Stake:
+            total += BigInt(action.stake || '0');
+            break;
+          default:
+            break;
+        }
+      }
+    }
+    return total > BigInt(0) ? total.toString() : undefined;
+  } catch {
+    return undefined;
   }
 }

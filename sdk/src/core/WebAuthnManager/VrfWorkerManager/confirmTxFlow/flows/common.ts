@@ -1,18 +1,20 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig, ConfirmationUIMode } from '../../../../types/signer-worker';
 import {
   SecureConfirmRequest,
   SecureConfirmationType,
   SignTransactionPayload,
   RegisterAccountPayload,
+  SignNep413Payload,
   TransactionSummary,
+  SecureConfirmMessageType,
 } from '../types';
 import { TransactionContext, VRFChallenge } from '../../../../types';
 import type { BlockReference, AccessKeyView } from '@near-js/types';
 import { awaitConfirmUIDecision, mountConfirmUI, type ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 import { addLitCancelListener } from '../../../LitComponents/lit-events';
 import { isObject, isFunction, isString } from '../../../../WalletIframe/validation';
-import { errorMessage, toError } from '../../../../../utils/errors';
+import { errorMessage, toError, isTouchIdCancellationError } from '../../../../../utils/errors';
 // Ensure the export viewer custom element is defined when used
 import type { ExportViewerIframeElement } from '../../../LitComponents/ExportPrivateKey/iframe-host';
 import { ensureDefined } from '../../../LitComponents/ensure-defined';
@@ -42,10 +44,12 @@ export function classifyFlow(request: SecureConfirmRequest): FlowKind {
 export function getNearAccountId(request: SecureConfirmRequest): string {
   switch (request.type) {
     case SecureConfirmationType.SIGN_TRANSACTION:
-      return (request.payload as SignTransactionPayload).rpcCall.nearAccountId;
+      return getSignTransactionPayload(request).rpcCall.nearAccountId;
+    case SecureConfirmationType.SIGN_NEP413_MESSAGE:
+      return (request.payload as SignNep413Payload).nearAccountId;
     case SecureConfirmationType.REGISTER_ACCOUNT:
     case SecureConfirmationType.LINK_DEVICE:
-      return (request.payload as RegisterAccountPayload).nearAccountId;
+      return getRegisterAccountPayload(request).nearAccountId;
     case SecureConfirmationType.DECRYPT_PRIVATE_KEY_WITH_PRF: {
       const p = request.payload as { nearAccountId?: string };
       return p?.nearAccountId || '';
@@ -61,7 +65,7 @@ export function getNearAccountId(request: SecureConfirmRequest): string {
 
 export function getTxCount(request: SecureConfirmRequest): number {
   return request.type === SecureConfirmationType.SIGN_TRANSACTION
-    ? ((request.payload as SignTransactionPayload).txSigningRequests?.length || 1)
+    ? (getSignTransactionPayload(request).txSigningRequests?.length || 1)
     : 1;
 }
 
@@ -75,7 +79,7 @@ export function getIntentDigest(request: SecureConfirmRequest): string | undefin
 
 // ===== NEAR context and nonce management =====
 export async function fetchNearContext(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   opts: { nearAccountId: string; txCount: number },
 ): Promise<{
   transactionContext: TransactionContext | null;
@@ -135,7 +139,7 @@ export async function fetchNearContext(
 
 // ===== VRF refresh helper with backoff =====
 export async function maybeRefreshVrfChallenge(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
   nearAccountId: string,
 ): Promise<{ vrfChallenge: VRFChallenge; transactionContext: TransactionContext }> {
@@ -217,7 +221,7 @@ export async function renderConfirmUI({
   transactionSummary,
   vrfChallenge,
 }: {
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest,
   confirmationConfig: ConfirmationConfig,
   transactionSummary: TransactionSummary,
@@ -255,6 +259,9 @@ export async function renderConfirmUI({
   }
 
   const uiMode = confirmationConfig.uiMode as ConfirmationUIMode;
+  const txSigningRequests = request.type === SecureConfirmationType.SIGN_TRANSACTION
+    ? getSignTransactionPayload(request).txSigningRequests
+    : [];
   switch (uiMode) {
     case 'skip': {
       return { confirmed: true, confirmHandle: undefined };
@@ -264,9 +271,7 @@ export async function renderConfirmUI({
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
-            ? (request.payload as SignTransactionPayload).txSigningRequests
-            : [],
+          txSigningRequests,
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
@@ -281,9 +286,7 @@ export async function renderConfirmUI({
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
-            ? (request.payload as SignTransactionPayload).txSigningRequests
-            : [],
+          txSigningRequests,
           vrfChallenge,
           theme: confirmationConfig.theme,
           uiMode: 'drawer',
@@ -298,9 +301,7 @@ export async function renderConfirmUI({
         const handle = await mountConfirmUI({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
-            ? (request.payload as SignTransactionPayload).txSigningRequests
-            : [],
+          txSigningRequests,
           vrfChallenge,
           loading: true,
           theme: confirmationConfig.theme,
@@ -314,9 +315,7 @@ export async function renderConfirmUI({
         const { confirmed, handle, error } = await awaitConfirmUIDecision({
           ctx,
           summary: transactionSummary,
-          txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
-            ? (request.payload as SignTransactionPayload).txSigningRequests
-            : [],
+          txSigningRequests,
           vrfChallenge,
           theme: confirmationConfig.theme,
           uiMode: 'modal',
@@ -329,9 +328,7 @@ export async function renderConfirmUI({
       const handle = await mountConfirmUI({
         ctx,
         summary: transactionSummary,
-        txSigningRequests: request.type === SecureConfirmationType.SIGN_TRANSACTION
-          ? (request.payload as SignTransactionPayload).txSigningRequests
-          : [],
+        txSigningRequests,
         vrfChallenge,
         loading: true,
         theme: confirmationConfig.theme,
@@ -385,4 +382,50 @@ export function sanitizeForPostMessage<T>(data: T): ShallowPostMessageSafe<T> {
 // Placeholder to assist per-flow modules; narrows request using caller-provided guard
 export function ensureTypedRequest<T extends SecureConfirmRequest>(req: SecureConfirmRequest): T {
   return req as unknown as T;
+}
+
+// ===== Shared worker response + UI close helpers (deduplicated from per-flow modules) =====
+export const ERROR_MESSAGES = {
+  cancelled: 'User cancelled secure confirm request',
+  collectCredentialsFailed: 'Failed to collect credentials',
+  prfMissing: 'Failed to extract PRF output from credential',
+  nearRpcFailed: 'Failed to fetch NEAR data',
+} as const;
+
+export function sendConfirmResponse(worker: Worker, response: any) {
+  const sanitized = sanitizeForPostMessage(response);
+  worker.postMessage({ type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE, data: sanitized });
+}
+
+export function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
+  handle?.close?.(confirmed);
+}
+
+export function isUserCancelledSecureConfirm(error: unknown): boolean {
+  return (
+    isTouchIdCancellationError(error) ||
+    (() => {
+      const e = toError(error);
+      return e?.name === 'NotAllowedError' || e?.name === 'AbortError';
+    })()
+  );
+}
+
+export function releaseReservedNonces(ctx: VrfWorkerManagerContext, nonces?: string[]) {
+  nonces?.forEach((n) => ctx.nonceManager.releaseNonce(n));
+}
+
+// ===== Payload guards =====
+export function getSignTransactionPayload(request: SecureConfirmRequest): SignTransactionPayload {
+  if (request.type !== SecureConfirmationType.SIGN_TRANSACTION) {
+    throw new Error(`Expected SIGN_TRANSACTION request, got ${request.type}`);
+  }
+  return request.payload as SignTransactionPayload;
+}
+
+export function getRegisterAccountPayload(request: SecureConfirmRequest): RegisterAccountPayload {
+  if (request.type !== SecureConfirmationType.REGISTER_ACCOUNT && request.type !== SecureConfirmationType.LINK_DEVICE) {
+    throw new Error(`Expected REGISTER_ACCOUNT or LINK_DEVICE request, got ${request.type}`);
+  }
+  return request.payload as RegisterAccountPayload;
 }

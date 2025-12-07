@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
-const WORKER_PATH = '/sdk/workers/web3authn-signer.worker.js';
+// In the VRF-centric architecture, awaitSecureConfirmationV2 is exposed
+// from the VRF worker bundle, not the signer worker.
+const WORKER_PATH = '/sdk/workers/web3authn-vrf.worker.js';
 
 test.describe('awaitSecureConfirmationV2 - error handling', () => {
   test.beforeEach(async ({ page }) => {
@@ -10,7 +12,7 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
 
   test('rejects on invalid JSON and missing fields', async ({ page }) => {
     const result = await page.evaluate(async ({ workerPath }) => {
-      // Load the signer worker bundle; it exposes awaitSecureConfirmationV2 on globalThis
+      // Load the VRF worker bundle; it exposes awaitSecureConfirmationV2 on globalThis
       await import(workerPath);
       const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
       const errors: string[] = [];
@@ -94,4 +96,51 @@ test.describe('awaitSecureConfirmationV2 - error handling', () => {
     expect(result.ok).toBe(false);
     expect(result.message).toContain('confirmation timed out');
   });
+
+  test('happy path: LocalOnly decrypt shorthand returns confirmation response', async ({ page }) => {
+    const result = await page.evaluate(async ({ workerPath }) => {
+      await import(workerPath);
+      const awaitV2 = (globalThis as any).awaitSecureConfirmationV2 as (json: string, opts?: any) => Promise<any>;
+
+      const request = {
+        type: 'decryptPrivateKeyWithPrf',
+        sessionId: 'sess-1',
+        nearAccountId: 'alice.testnet',
+      };
+
+      const originalAdd = self.addEventListener.bind(self);
+      // Intercept PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD and synthesize a matching response
+      self.addEventListener = ((type: string, listener: any, options?: any) => {
+        if (type === 'message') {
+          const wrapped = (ev: MessageEvent) => {
+            const data: any = ev.data;
+            if (data?.type === 'PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD') {
+              self.dispatchEvent(new MessageEvent('message', {
+                data: {
+                  type: 'USER_PASSKEY_CONFIRM_RESPONSE',
+                  data: {
+                    requestId: data.data.requestId,
+                    confirmed: true,
+                  },
+                },
+              }));
+            }
+            listener(ev);
+          };
+          return originalAdd(type, wrapped, options);
+        }
+        return originalAdd(type, listener, options);
+      }) as any;
+
+      const resp = await awaitV2(JSON.stringify(request), { timeoutMs: 250 });
+      return {
+        requestId: resp?.request_id,
+        confirmed: resp?.confirmed,
+      };
+    }, { workerPath: WORKER_PATH });
+
+    expect(result.requestId).toBe('sess-1');
+    expect(result.confirmed).toBe(true);
+  });
 });
+

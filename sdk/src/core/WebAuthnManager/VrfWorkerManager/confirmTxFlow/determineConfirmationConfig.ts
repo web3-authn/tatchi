@@ -1,5 +1,5 @@
 import type { ConfirmationConfig } from '../../../types/signer-worker';
-import type { SignerWorkerManagerContext } from '../index';
+import type { VrfWorkerManagerContext } from '../';
 import type { SecureConfirmRequest } from './types';
 import { SecureConfirmationType } from './types';
 import { isIOS, isMobileDevice, needsExplicitActivation } from '@/utils';
@@ -29,7 +29,7 @@ import { isIOS, isMobileDevice, needsExplicitActivation } from '@/utils';
  * - Theme and unrelated visual options are preserved in all cases.
  */
 export function determineConfirmationConfig(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: SecureConfirmRequest | undefined,
 ): ConfirmationConfig {
 

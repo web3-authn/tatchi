@@ -41,10 +41,27 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
       passkeyManager: (window as any).passkeyManager,
       configs: (window as any).configs,
       confirmOverrides: {
+        // VRF-centric invariants:
+        // - LocalOnly decrypt flows (DECRYPT_PRIVATE_KEY_WITH_PRF) typically run with uiMode: 'skip'
+        //   and return PRF only to the VRF pipeline.
+        // - Registration/signing flows use modal UI and never return PRF/WrapKeySeed to the signer worker.
         skip: { uiMode: 'skip', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
         autoProceed: { uiMode: 'modal', behavior: 'autoProceed', autoProceedDelay: 0, theme: 'dark' },
       },
       webAuthnUtils,
+      // VRF diagnostics helper (best-effort):
+      // Exposes the current VRF session status if the WebAuthnManager
+      // supports it; returns null when unavailable or on error.
+      vrfStatus: async () => {
+        try {
+          const pm = (window as any).passkeyManager;
+          const wm = pm?.webAuthnManager;
+          if (!wm || typeof wm.checkVrfStatus !== 'function') return null;
+          return await wm.checkVrfStatus();
+        } catch {
+          return null;
+        }
+      },
       // IMPORTANT: For the atomic relay-server flow, the contract creates the
       // account as the predecessor. On NEAR, only the predecessor can create
       // its own subaccounts. Since the contract call executes with
@@ -221,6 +238,8 @@ export async function setupTestUtilities(page: Page, config: PasskeyTestConfig):
       const passkeyManager = (window as any).passkeyManager;
       const nonceManager = passkeyManager?.webAuthnManager?.getNonceManager?.();
 
+      // VRF-centric confirmTxFlow tests rely on these fallbacks when NonceManager
+      // has not been initialized with a user yet (pre-login or LocalOnly decrypt).
       if (!nonceManager) {
         console.warn('[TEST PATCH] NonceManager not available for patching');
       } else {

@@ -7,7 +7,7 @@
   height: 100%;
   width: 100%;
   /* Ensure this modal stays below the wallet iframe overlay */
-  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2));
+  z-index: var(--w3a-z-underlay-backdrop, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2)));
   background: oklch(0.2 0.01 240 / 0.8);
   backdrop-filter: blur(8px);
   display: flex;
@@ -19,7 +19,7 @@
 
 .w3a-access-keys-modal-inner {
   position: relative;
-  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-content-offset, 1));
+  z-index: var(--w3a-z-underlay-content, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-content-offset, 1)));
   display: grid;
   place-items: center;
   height: 100%;

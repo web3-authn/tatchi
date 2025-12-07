@@ -4,7 +4,7 @@
 // *                                                                            *
 // ******************************************************************************
 
-use crate::types::SerializedCredential;
+use crate::{types::SerializedCredential, WrapKey};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
@@ -17,6 +17,8 @@ pub struct RecoverKeypairRequest {
     pub credential: SerializedCredential,
     #[wasm_bindgen(getter_with_clone, js_name = "accountIdHint")]
     pub account_id_hint: Option<String>,
+    #[wasm_bindgen(getter_with_clone, js_name = "sessionId")]
+    pub session_id: String,
 }
 
 #[wasm_bindgen]
@@ -29,6 +31,8 @@ pub struct RecoverKeypairResult {
     pub encrypted_data: String,
     #[wasm_bindgen(getter_with_clone)]
     pub iv: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "wrapKeySalt")]
+    pub wrap_key_salt: String,
     #[wasm_bindgen(getter_with_clone, js_name = "accountIdHint")]
     pub account_id_hint: Option<String>,
 }
@@ -40,12 +44,14 @@ impl RecoverKeypairResult {
         public_key: String,
         encrypted_data: String,
         iv: String,
+        wrap_key_salt: String,
         account_id_hint: Option<String>,
     ) -> RecoverKeypairResult {
         RecoverKeypairResult {
             public_key,
             encrypted_data,
             iv,
+            wrap_key_salt,
             account_id_hint,
         }
     }
@@ -65,15 +71,9 @@ impl RecoverKeypairResult {
 /// * `RecoverKeypairResult` - Contains recovered public key, re-encrypted private key data, and account hint
 pub async fn handle_recover_keypair_from_passkey(
     request: RecoverKeypairRequest,
+    wrap_key: WrapKey,
 ) -> Result<RecoverKeypairResult, String> {
-    // Extract PRF outputs
-    let chacha20_prf_output = request
-        .credential
-        .client_extension_results
-        .prf
-        .results
-        .first
-        .ok_or_else(|| "Missing PRF output (first) in credential".to_string())?;
+
     let ed25519_prf_output = request
         .credential
         .client_extension_results
@@ -95,10 +95,13 @@ pub async fn handle_recover_keypair_from_passkey(
         crate::crypto::derive_ed25519_key_from_prf_output(&ed25519_prf_output, account_id)
             .map_err(|e| format!("Failed to derive Ed25519 key: {}", e))?;
 
-    // Encrypt the private key with the AES PRF output (correct usage)
-    let encryption_result =
-        crate::crypto::encrypt_private_key_with_prf(&private_key, &chacha20_prf_output, account_id)
-            .map_err(|e| format!("Failed to encrypt private key: {}", e))?;
+    let kek = wrap_key.derive_kek()?;
+
+    let wrap_key_salt_bytes = crate::encoders::base64_url_decode(wrap_key.salt_b64u())
+        .map_err(|e| format!("Failed to decode wrapKeySalt: {}", e))?;
+    let encryption_result = crate::crypto::encrypt_data_chacha20(&private_key, &kek)
+        .map_err(|e| format!("Failed to encrypt private key: {}", e))?
+        .with_wrap_key_salt(&wrap_key_salt_bytes);
 
     debug!("[rust wasm]: Successfully derived NEAR keypair and encrypted with ChaCha20Poly1305");
     debug!("[rust wasm]: Key recovery from authentication credential successful");
@@ -107,6 +110,7 @@ pub async fn handle_recover_keypair_from_passkey(
         public_key,
         encryption_result.encrypted_near_key_data_b64u,
         encryption_result.chacha20_nonce_b64u, // IV
+        wrap_key.salt_b64u().to_string(),
         Some(account_id.to_string()),
     ))
 }

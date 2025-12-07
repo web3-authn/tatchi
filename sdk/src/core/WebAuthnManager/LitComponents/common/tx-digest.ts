@@ -34,8 +34,20 @@ export async function sha256Base64UrlUtf8(input: string): Promise<string> {
   return base64UrlEncode(digest);
 }
 
+// Canonical intent digest for signing flows.
+// Both VRF-side code (confirmAndPrepareSigningSession) and all UI confirmers
+// MUST call this with TransactionInputWasm[] built from:
+//   { receiverId, actions: ActionArgsWasm[] }
+// where each ActionArgsWasm has been normalized via orderActionForDigest.
+// IMPORTANT:
+// - The order of transactions and the order of actions within each transaction
+//   is preserved as provided by the caller.
+// - Only the *keys inside each object* are alphabetically sorted to produce
+//   a stable JSON encoding; the arrays themselves are not reordered.
+// Do NOT include nonce or other per-tx fields in the digest input, or
+// INTENT_DIGEST_MISMATCH errors will occur.
 export async function computeUiIntentDigestFromTxs(txInputs: TransactionInputWasm[]): Promise<string> {
-  // Important: preserve property insertion order and array order via JSON.stringify
+  // Important: preserve property insertion order and array order via JSON.stringify.
   // This must match the Rust worker's serde_json::to_string over the same shape.
   const json = alphabetizeStringify(txInputs);
   return sha256Base64UrlUtf8(json);

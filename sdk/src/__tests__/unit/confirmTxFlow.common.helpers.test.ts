@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { setupBasicPasskeyTest } from '../setup';
 
 const IMPORT_PATHS = {
-  helpers: '/sdk/esm/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/flows/common.js',
+  helpers: '/sdk/esm/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/flows/common.js',
 } as const;
 
 test.describe('confirmTxFlow common helpers', () => {
@@ -15,7 +15,7 @@ test.describe('confirmTxFlow common helpers', () => {
       const mod = await import(paths.helpers);
       // compile‑time type query, TypeScript requires module specifier to be a literal string
       const { sanitizeForPostMessage } = mod as typeof import(
-        '../../core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/flows/common'
+        '../../core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/flows/common'
       );
       const input = {
         confirmed: true,
@@ -43,11 +43,34 @@ test.describe('confirmTxFlow common helpers', () => {
     expect(result.count).toBe(2);
   });
 
+  test('sanitizeForPostMessage strips unexpected future function fields', async ({ page }) => {
+    const result = await page.evaluate(async ({ paths }) => {
+      const mod = await import(paths.helpers);
+      const { sanitizeForPostMessage } = mod as typeof import(
+        '../../core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/flows/common'
+      );
+      const sanitized = sanitizeForPostMessage({
+        confirmed: false,
+        futureHandler: () => 'noop',
+        ttl: 7,
+      } as any);
+      return {
+        keys: Object.keys(sanitized as Record<string, unknown>),
+        hasFutureHandler: ('futureHandler' in (sanitized as Record<string, unknown>)),
+        ttl: (sanitized as any).ttl,
+      };
+    }, { paths: IMPORT_PATHS });
+
+    expect(result.keys.sort()).toEqual(['confirmed', 'ttl']);
+    expect(result.hasFutureHandler).toBe(false);
+    expect(result.ttl).toBe(7);
+  });
+
   test('parseTransactionSummary parses JSON and falls back on invalid strings', async ({ page }) => {
     const result = await page.evaluate(async ({ paths }) => {
       const mod = await import(paths.helpers);
       const { parseTransactionSummary } = mod as typeof import(
-        '../../core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/flows/common'
+        '../../core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/flows/common'
       );
       const parsed = parseTransactionSummary('{"totalAmount":"10","method":"transfer"}');
       const fallback = parseTransactionSummary('{invalid json');

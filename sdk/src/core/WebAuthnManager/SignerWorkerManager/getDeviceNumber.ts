@@ -1,4 +1,4 @@
-import type { SignerWorkerManagerContext } from '.';
+import { PasskeyClientDBManager } from '@/core/IndexedDBManager';
 import type { AccountId } from '../../types/accountIds';
 import { toAccountId } from '../../types/accountIds';
 
@@ -8,19 +8,17 @@ import { toAccountId } from '../../types/accountIds';
  * Defaults to 1 if not found.
  */
 export async function getDeviceNumberForAccount(
-  ctx: SignerWorkerManagerContext,
-  nearAccountId: AccountId | string
+  nearAccountId: AccountId | string,
+  clientDB: PasskeyClientDBManager
 ): Promise<number> {
   let deviceNumber = 1;
-  try {
-    const accountId = toAccountId(nearAccountId);
-    const last = await ctx.indexedDB.clientDB.getLastUser();
-    if (last && (last.nearAccountId === accountId)) {
-      deviceNumber = last.deviceNumber || 1;
-    } else {
-      const userData = await ctx.indexedDB.clientDB.getUser(accountId);
-      deviceNumber = (userData?.deviceNumber ?? 1);
-    }
-  } catch {}
+  const accountId = toAccountId(nearAccountId);
+  const last = await clientDB.getLastUser();
+  if (last && last.nearAccountId === accountId) {
+    deviceNumber = last.deviceNumber || 1;
+  } else {
+    const userData = await clientDB.getUserByDevice(accountId, 1);
+    deviceNumber = userData?.deviceNumber ?? 1;
+  }
   return deviceNumber;
 }

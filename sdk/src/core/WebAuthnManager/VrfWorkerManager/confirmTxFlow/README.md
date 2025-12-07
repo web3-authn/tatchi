@@ -52,10 +52,10 @@ This section documents how a ConfirmationConfig is chosen for each confirmation,
 
 ### Order of Precedence
 
-- Request override (strongest): a per-call `confirmationConfig` attached to the request envelope wins over user prefs. See `determineConfirmationConfig` in `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:31`.
+- Request override (strongest): a per-call `confirmationConfig` attached to the request envelope wins over user prefs. See `determineConfirmationConfig` in `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:31`.
 - User preferences: fetched from `UserPreferencesManager.getConfirmationConfig()` and stored in IndexedDB per user. See `sdk/src/core/WebAuthnManager/userPreferences.ts:94` and `sdk/src/core/WebAuthnManager/userPreferences.ts:180`.
 - Defaults: when no user prefs exist, fall back to `DEFAULT_CONFIRMATION_CONFIG`. See `sdk/src/core/types/signer-worker.ts:164`.
-- Runtime clamps (applied after merge): environment-specific safety rules adjust the merged config (e.g., mobile/iOS requiring a click). See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64` and `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
+- Runtime clamps (applied after merge): environment-specific safety rules adjust the merged config (e.g., mobile/iOS requiring a click). See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64` and `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
 
 ### Where Overrides Are Added
 
@@ -78,11 +78,11 @@ This section documents how a ConfirmationConfig is chosen for each confirmation,
 
 Applied in `determineConfirmationConfig` after merging override + prefs:
 
-- Decrypt Private Key flow: forces `uiMode: 'skip'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
+- Decrypt Private Key flow: forces `uiMode: 'skip'` (UI suppressed; worker may follow with a separate UI). See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:47`.
 - Mobile/iOS heuristic: if `isIOS()` or `isMobileDevice()` is true, promote any configuration to a visible, clickable confirmation to reliably satisfy WebAuthn user activation:
-  - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'skip'` to a visible mode. See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
+  - Clamp to `behavior: 'requireClick'` and upgrade `uiMode: 'skip'` to a visible mode. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:64`.
 - Wallet‑iframe host, Registration/Link flows:
-  - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. See `sdk/src/core/WebAuthnManager/SignerWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
+  - All platforms: always use `{ uiMode: 'modal', behavior: 'requireClick' }` so the click lands inside the iframe. See `sdk/src/core/WebAuthnManager/VrfWorkerManager/confirmTxFlow/determineConfirmationConfig.ts:89`.
 
 ### Effective Behavior by Flow (Current Policy)
 

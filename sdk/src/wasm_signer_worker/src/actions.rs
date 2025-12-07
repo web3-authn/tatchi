@@ -34,6 +34,11 @@ pub enum ActionParams {
     DeleteAccount {
         beneficiary_id: String,
     },
+    SignedDelegate {
+        /// Fully-typed NEP-461 SignedDelegate payload, passed through from TS.
+        delegate_action: DelegateAction,
+        signature: Signature,
+    },
     // NEP-0591 Global Contracts
     DeployGlobalContract {
         code: Vec<u8>,
@@ -47,26 +52,10 @@ pub enum ActionParams {
     },
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum ActionType {
-    CreateAccount,
-    DeployContract,
-    FunctionCall,
-    Transfer,
-    Stake,
-    AddKey,
-    DeleteKey,
-    DeleteAccount,
-    SignedDelegate,
-    DeployGlobalContract,
-    UseGlobalContract,
-}
-
 /// Trait for handling different NEAR action types
 pub trait ActionHandler {
     fn validate_params(&self, params: &ActionParams) -> Result<(), String>;
     fn build_action(&self, params: &ActionParams) -> Result<Action, String>;
-    fn get_action_type(&self) -> ActionType;
 }
 
 // === ACTION HANDLER IMPLEMENTATIONS ===
@@ -130,10 +119,6 @@ impl ActionHandler for FunctionCallActionHandler {
             _ => Err("Invalid params for FunctionCall action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::FunctionCall
-    }
 }
 
 pub struct TransferActionHandler;
@@ -167,10 +152,6 @@ impl ActionHandler for TransferActionHandler {
             _ => Err("Invalid params for Transfer action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::Transfer
-    }
 }
 
 pub struct CreateAccountActionHandler;
@@ -188,10 +169,6 @@ impl ActionHandler for CreateAccountActionHandler {
             ActionParams::CreateAccount => Ok(Action::CreateAccount),
             _ => Err("Invalid params for CreateAccount action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::CreateAccount
     }
 }
 
@@ -298,10 +275,6 @@ impl ActionHandler for AddKeyActionHandler {
             _ => Err("Invalid params for AddKey action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::AddKey
-    }
 }
 
 pub struct DeleteKeyActionHandler;
@@ -353,10 +326,6 @@ impl ActionHandler for DeleteKeyActionHandler {
             _ => Err("Invalid params for DeleteKey action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeleteKey
-    }
 }
 
 pub struct DeleteAccountActionHandler;
@@ -394,9 +363,54 @@ impl ActionHandler for DeleteAccountActionHandler {
             _ => Err("Invalid params for DeleteAccount action".to_string()),
         }
     }
+}
 
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeleteAccount
+pub struct SignedDelegateActionHandler;
+
+impl ActionHandler for SignedDelegateActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::SignedDelegate {
+                delegate_action,
+                signature,
+            } => {
+                if delegate_action.sender_id.0.is_empty() {
+                    return Err("delegate_action.sender_id cannot be empty".to_string());
+                }
+                if delegate_action.receiver_id.0.is_empty() {
+                    return Err("delegate_action.receiver_id cannot be empty".to_string());
+                }
+                if delegate_action.actions.is_empty() {
+                    return Err("delegate_action.actions cannot be empty".to_string());
+                }
+                if delegate_action.nonce == 0 {
+                    return Err("delegate_action.nonce must be non-zero".to_string());
+                }
+                if signature.signature_data.len() != 64 {
+                    return Err("delegate signature must be 64 bytes".to_string());
+                }
+                Ok(())
+            }
+            _ => Err("Invalid params for SignedDelegate action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::SignedDelegate {
+                delegate_action,
+                signature,
+            } => {
+                // Map our internal SignedDelegate into the on-chain
+                // Action::Delegate(Box<SignedDelegateAction>) representation.
+                let signed = SignedDelegate {
+                    delegate_action: delegate_action.clone(),
+                    signature: signature.clone(),
+                };
+                Ok(Action::SignedDelegate(Box::new(signed)))
+            }
+            _ => Err("Invalid params for SignedDelegate action".to_string()),
+        }
     }
 }
 
@@ -411,6 +425,7 @@ pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler
         ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
         ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
         ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
+        ActionParams::SignedDelegate { .. } => Ok(Box::new(SignedDelegateActionHandler)),
         ActionParams::DeployGlobalContract { .. } => {
             Ok(Box::new(DeployGlobalContractActionHandler))
         }
@@ -442,10 +457,6 @@ impl ActionHandler for DeployContractActionHandler {
             }
             _ => Err("Invalid params for DeployContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeployContract
     }
 }
 
@@ -507,10 +518,6 @@ impl ActionHandler for StakeActionHandler {
             _ => Err("Invalid params for Stake action".to_string()),
         }
     }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::Stake
-    }
 }
 
 // === NEP-0591 GLOBAL CONTRACT HANDLERS ===
@@ -548,10 +555,6 @@ impl ActionHandler for DeployGlobalContractActionHandler {
             }
             _ => Err("Invalid params for DeployGlobalContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::DeployGlobalContract
     }
 }
 
@@ -633,9 +636,5 @@ impl ActionHandler for UseGlobalContractActionHandler {
             }
             _ => Err("Invalid params for UseGlobalContract action".to_string()),
         }
-    }
-
-    fn get_action_type(&self) -> ActionType {
-        ActionType::UseGlobalContract
     }
 }

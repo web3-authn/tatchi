@@ -2,7 +2,6 @@ import type { PasskeyManagerContext } from './index';
 import type { SignNEP413HooksOptions } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
-import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
 
 /**
  * NEP-413 message signing parameters
@@ -70,11 +69,10 @@ export async function signNEP413Message(args: {
       message: 'Preparing NEP-413 message signing'
     });
 
-    // Get user data and authenticators for NEP-413 signing
-    const [vrfStatus, userData, authenticators] = await Promise.all([
+    // Get user data and VRF status for NEP-413 signing
+    const [vrfStatus, userData] = await Promise.all([
       webAuthnManager.checkVrfStatus(),
-      webAuthnManager.getUser(nearAccountId),
-      webAuthnManager.getAuthenticatorsByUser(nearAccountId),
+      webAuthnManager.getLastUser(),
     ]);
     // Check VRF status to ensure user is authenticated
     if (!vrfStatus.active) {
@@ -84,25 +82,12 @@ export async function signNEP413Message(args: {
       throw new Error(`User data not found for ${nearAccountId}`);
     }
 
-    // Generate a random 32-byte nonce for NEP-413 signing
+    // Generate a nonce + block context for NEP-413 signing
     const {
       nextNonce,
       txBlockHash,
       txBlockHeight
     } = await context.webAuthnManager.getNonceManager().getNonceBlockHashAndHeight(nearClient);
-
-    // Get credential for NEP-413 signing
-    const vrfChallenge = await webAuthnManager.generateVrfChallenge({
-      userId: nearAccountId,
-      rpId: webAuthnManager.getRpId(),
-      blockHash: txBlockHash,
-      blockHeight: txBlockHeight,
-    });
-    const credential = await context.webAuthnManager.getAuthenticationCredentialsSerialized({
-      nearAccountId,
-      challenge: vrfChallenge,
-      allowCredentials: authenticatorsToAllowCredentials(authenticators),
-    });
 
     // Emit signing progress event
     options?.onEvent?.({
@@ -112,14 +97,15 @@ export async function signNEP413Message(args: {
       message: 'Signing NEP-413 message'
     });
 
-    // Send to WebAuthnManager for signing
+    // Send to WebAuthnManager for signing.
+    // Note: NEP-413 now uses VRF-driven confirmTxFlow inside WebAuthnManager/SignerWorkerManager;
+    // this call will trigger its own confirmation + WebAuthn authentication as needed.
     const result = await context.webAuthnManager.signNEP413Message({
       message: params.message,
       recipient: params.recipient,
       nonce: nextNonce,
       state: params.state || null,
       accountId: nearAccountId,
-      credential
     });
 
     if (result.success) {

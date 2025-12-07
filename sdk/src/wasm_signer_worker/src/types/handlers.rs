@@ -173,13 +173,14 @@ impl Default for ConfirmationConfig {
 // === DECRYPTION TYPES ===
 
 /// Decryption payload (consolidated for deserialization and WASM binding)
-/// Note: chacha20_prf_output is collected during user confirmation flow
 #[wasm_bindgen]
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecryptionPayload {
+    /// Encrypted NEAR private key
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyData")]
     pub encrypted_private_key_data: String,
+    /// Nonce/IV for ChaCha20Poly1305 ciphertext
     #[wasm_bindgen(getter_with_clone, js_name = "encryptedPrivateKeyIv")]
     pub encrypted_private_key_iv: String,
 }

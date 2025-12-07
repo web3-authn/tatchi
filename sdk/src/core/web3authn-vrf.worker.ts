@@ -2,7 +2,6 @@
  * VRF WASM Web Worker
  * This Web Worker loads the VRF WASM module and provides VRF keypair management.
  */
-
 import init, * as vrfWasmModule from '../wasm_vrf_worker/pkg/wasm_vrf_worker.js';
 import { resolveWasmUrl } from './sdkPaths/wasm-loader';
 import type {
@@ -10,6 +9,10 @@ import type {
   WasmVrfWorkerRequestType,
   VRFWorkerResponse
 } from './types/vrf-worker';
+import {
+  awaitSecureConfirmationV2,
+  SecureConfirmMessageType,
+} from './WebAuthnManager/VrfWorkerManager/confirmTxFlow';
 
 /**
  * WASM Asset Path Resolution for VRF Worker
@@ -25,14 +28,14 @@ import type {
 const wasmUrl = resolveWasmUrl('wasm_vrf_worker_bg.wasm', 'vrf-worker');
 console.debug(`[vrf-worker] WASM URL resolved to: ${wasmUrl.href}`);
 
+// Expose the confirmation bridge under the JS name expected by wasm-bindgen.
+// awaitSecureConfirmationV2 itself handles both full SecureConfirmRequest JSON
+// and VRF shorthand inputs (e.g. decryptPrivateKeyWithPrf shorthand).
+(globalThis as any).awaitSecureConfirmationV2 = awaitSecureConfirmationV2;
 const { handle_message } = vrfWasmModule;
-
-// === SIMPLIFIED STATE ===
 
 let wasmReady = false;
 let messageQueue: MessageEvent[] = [];
-
-// === WASM INITIALIZATION ===
 
 /**
  * Initialize WASM module once at startup
@@ -61,6 +64,25 @@ async function initializeWasmModule(): Promise<void> {
 // === MESSAGE HANDLING ===
 
 self.onmessage = async (event: MessageEvent) => {
+  const eventType = (event.data as any)?.type;
+  // Let SecureConfirm responses be handled by awaitSecureConfirmationV2's own listener
+  if (eventType === SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE) {
+    return;
+  }
+  // Attach WrapKeySeed MessagePort for a signing session (VRF side)
+  if (eventType === 'ATTACH_WRAP_KEY_SEED_PORT') {
+    const sessionId = (event.data as any)?.sessionId as string | undefined;
+    const port = event.ports?.[0];
+    if (sessionId && port) {
+      try {
+        await initializeWasmModule();
+        vrfWasmModule.attach_wrap_key_seed_port(sessionId, port);
+      } catch (err) {
+        console.error('[vrf-worker]: Failed to attach WrapKeySeed port in WASM', err);
+      }
+    }
+    return;
+  }
   await handleMessage(event);
 };
 

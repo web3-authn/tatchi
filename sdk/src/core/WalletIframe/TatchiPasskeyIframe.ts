@@ -50,6 +50,8 @@ import type { SignNEP413MessageParams, SignNEP413MessageResult } from '../Tatchi
 import type { RecoveryResult, PasskeyManagerContext } from '../TatchiPasskey';
 import { toError } from '../../utils/errors';
 import type { WalletUIRegistry } from './host/iframe-lit-element-registry';
+import type { DelegateActionInput } from '../types/delegate';
+import type { DelegateActionHooksOptions, SignDelegateActionResult } from '../TatchiPasskey/delegateAction';
 
 
 export class TatchiPasskeyIframe {
@@ -270,6 +272,33 @@ export class TatchiPasskeyIframe {
     }
   }
 
+  async signDelegateAction(args: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    options?: DelegateActionHooksOptions;
+  }): Promise<SignDelegateActionResult> {
+    // Prefer iframe route when ready; otherwise fall back to local manager
+    if (this.router.isReady()) {
+      const options = args.options;
+      try {
+        const res = await this.router.signDelegateAction({
+          nearAccountId: args.nearAccountId,
+          delegate: args.delegate,
+          options: { onEvent: options?.onEvent },
+        }) as SignDelegateActionResult;
+        await options?.afterCall?.(true, res);
+        return res;
+      } catch (err: unknown) {
+        const e = toError(err);
+        await args.options?.onError?.(e);
+        await args.options?.afterCall?.(false);
+        throw e;
+      }
+    }
+    // Fallback to local manager path
+    return this.ensureFallbackLocal().signDelegateAction(args);
+  }
+
   // Flows not yet proxied: fall back to local manager with identical APIs
   private ensureFallbackLocal(): TatchiPasskey {
     if (!this.fallbackLocal) {
@@ -398,7 +427,6 @@ export class TatchiPasskeyIframe {
   // Device2: Start QR generation + polling inside wallet iframe, return QR to parent
   async startDevice2LinkingFlow({
     ui,
-    accountId,
     afterCall,
     onError,
     onEvent,
@@ -407,7 +435,6 @@ export class TatchiPasskeyIframe {
     try {
       if (this.router.isReady()) {
         const res = await this.router.startDevice2LinkingFlow({
-          accountId: accountId,
           ui: ui,
           onEvent: onEvent
         });
@@ -418,7 +445,6 @@ export class TatchiPasskeyIframe {
         qrData,
         qrCodeDataURL
       } = await this.ensureFallbackLocal().startDevice2LinkingFlow({
-        accountId: accountId,
         onEvent: onEvent,
       });
       const res = { qrData, qrCodeDataURL };

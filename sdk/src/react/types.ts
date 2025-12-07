@@ -30,11 +30,15 @@ import type {
   LoginStatus,
   ActionPhase,
   ActionStatus,
+  DelegateActionPhase,
   ActionResult,
   AccountRecoveryHooksOptions,
   SignAndSendTransactionHooksOptions,
 } from '../core/types/passkeyManager';
-import type { EventCallback, ActionSSEEvent } from '../core/types/passkeyManager';
+import type { EventCallback, ActionSSEEvent, DelegateActionSSEEvent } from '../core/types/passkeyManager';
+import type { DelegateActionInput } from '../core/types/delegate';
+import type { DelegateActionHooksOptions } from '../core/TatchiPasskey/delegateAction';
+import type { WasmSignedDelegate } from '../core/types/signer-worker';
 import type { RegistrationResult, LoginResult } from '../core/types/passkeyManager';
 import type { AccessKeyList } from '../core/NearClient';
 
@@ -118,6 +122,18 @@ export interface TatchiContextType {
     options?: SignNEP413HooksOptions;
   }) => Promise<SignNEP413MessageResult>;
 
+  // Delegate action signing (NEP-461)
+  signDelegateAction: (args: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    options?: DelegateActionHooksOptions;
+  }) => Promise<{
+    signedDelegate: WasmSignedDelegate;
+    hash: string;
+    nearAccountId: string;
+    logs?: string[];
+  }>;
+
   // Account recovery function
   recoverAccount: (args: {
     accountId?: string;
@@ -200,6 +216,7 @@ export type {
   RegistrationSSEEvent,
   LoginSSEvent,
   ActionSSEEvent,
+  DelegateActionSSEEvent,
   DeviceLinkingSSEEvent,
   AccountRecoverySSEEvent,
   // Results

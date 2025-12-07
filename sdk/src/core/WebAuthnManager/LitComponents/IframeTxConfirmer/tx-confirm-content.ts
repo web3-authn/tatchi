@@ -40,6 +40,7 @@ export class TxConfirmContentElement extends LitElementWithProps {
     nearExplorerUrl: { type: String, attribute: 'near-explorer-url' },
     // Forwarded flag to control TxTree's shadow wrapper (drop shadow)
     showShadow: { type: Boolean, attribute: 'show-shadow' },
+    delegateMeta: { type: Object },
   } as const;
 
   declare nearAccountId: string;
@@ -55,6 +56,12 @@ export class TxConfirmContentElement extends LitElementWithProps {
   declare tooltipWidth?: string | number;
   declare nearExplorerUrl?: string;
   declare showShadow: boolean;
+  declare delegateMeta?: {
+    senderId?: string;
+    receiverId?: string;
+    nonce?: string;
+    maxBlockHeight?: string;
+  };
 
   private _treeNode: any | null = null;
   // Keep essential custom elements from being tree-shaken
@@ -190,6 +197,15 @@ export class TxConfirmContentElement extends LitElementWithProps {
     return html`
       <div class="txc-root">
         ${this.errorMessage ? html`<div class="error">${this.errorMessage}</div>` : null}
+        ${this.delegateMeta ? html`
+          <div class="delegate-meta">
+            <div class="delegate-label">Delegate action</div>
+            <div class="delegate-row"><span>Sender</span><span>${this.delegateMeta.senderId || this.nearAccountId || ''}</span></div>
+            <div class="delegate-row"><span>Receiver</span><span>${this.delegateMeta.receiverId || ''}</span></div>
+            <div class="delegate-row"><span>Nonce</span><span>${this.delegateMeta.nonce || ''}</span></div>
+            <div class="delegate-row"><span>Max Block Height</span><span>${this.delegateMeta.maxBlockHeight || ''}</span></div>
+          </div>
+        ` : null}
         ${(() => {
           const treeTheme: 'dark' | 'light' = this.theme === 'dark' ? 'dark' : 'light';
           const explorerBase = this.nearExplorerUrl || 'https://testnet.nearblocks.io';

@@ -16,35 +16,21 @@ pub const CHACHA20_KEY_SIZE: usize = 32;
 /// Ed25519 private key size in bytes
 pub const ED25519_PRIVATE_KEY_SIZE: usize = 32;
 
-/// Info string for ChaCha20Poly1305 encryption key derivation using HKDF
-pub const CHACHA20_ENCRYPTION_INFO: &str = "chacha20poly1305-encryption-key-v1";
-
 /// Info string for Ed25519 signing key derivation from dual PRF
 pub const ED25519_HKDF_KEY_INFO: &str = "ed25519-signing-key-dual-prf-v1";
 
-// === GAS CONSTANTS ===
+/// Constant used for HKDF info when deriving KEK from WrapKeySeed
+pub const NEAR_KEK_INFO: &[u8] = b"near-kek";
 
-/// Standard gas amount for contract verification calls (30 TGas)
-#[allow(dead_code)]
-pub const VERIFY_REGISTRATION_GAS: &str = "30000000000000";
-
-/// Higher gas amount for device linking registration calls (30 TGas)
-pub const LINK_DEVICE_REGISTRATION_GAS: &str = "30000000000000";
+/// Maximum session duration in milliseconds (30 minutes)
+pub const SESSION_MAX_DURATION_MS: f64 = 30.0 * 60.0 * 1000.0;
 
 // === ERROR MESSAGES ===
-
-/// Error message for empty PRF output
-pub const ERROR_EMPTY_PRF_OUTPUT: &str = "PRF output cannot be empty";
 
 /// Error message for invalid key size
 pub const ERROR_INVALID_KEY_SIZE: &str = "Invalid key size for ChaCha20Poly1305";
 
 // === UTILITY FUNCTIONS ===
-
-/// Generate account-specific ChaCha20Poly1305 salt
-pub fn chacha_salt_for_account(account_id: &str) -> String {
-    format!("chacha20poly1305-salt:{}", account_id)
-}
 
 /// Generate account-specific NEAR key derivation salt
 pub fn near_key_salt_for_account(account_id: &str) -> String {

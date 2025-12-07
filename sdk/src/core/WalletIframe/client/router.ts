@@ -42,6 +42,7 @@ import type {
   LoginState,
   ActionResult,
   ActionSSEEvent,
+  DelegateActionSSEEvent,
   RegistrationSSEEvent,
   LoginSSEvent,
   DeviceLinkingSSEEvent,
@@ -64,6 +65,7 @@ import {
   TransactionInput,
   TxExecutionStatus
 } from '../../types';
+import type { DelegateActionInput } from '../../types/delegate';
 import { IframeTransport } from './IframeTransport';
 import OverlayController, { type DOMRectLike } from './overlay-controller';
 import { isObject, isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, isBoolean } from '../validation';
@@ -469,6 +471,30 @@ export class WalletIframeRouter {
       options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
     });
     return normalizeSignedTransactionObject(res.result)
+  }
+
+  async signDelegateAction(payload: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    options?: {
+      onEvent?: (ev: ActionSSEEvent) => void;
+      onError?: (error: Error) => void;
+      afterCall?: AfterCall<any>;
+      confirmationConfig?: Partial<ConfirmationConfig>;
+    }
+  }): Promise<unknown> {
+    const res = await this.post<unknown>({
+      type: 'PM_SIGN_DELEGATE_ACTION',
+      payload: {
+        nearAccountId: payload.nearAccountId,
+        delegate: payload.delegate,
+        options: payload.options?.confirmationConfig
+          ? { confirmationConfig: payload.options.confirmationConfig as unknown as Record<string, unknown> }
+          : undefined
+      },
+      options: { onProgress: this.wrapOnEvent(payload.options?.onEvent, isActionSSEEvent) }
+    });
+    return res.result;
   }
 
   async registerPasskey(payload: {
@@ -893,7 +919,6 @@ export class WalletIframeRouter {
     const p = this.post<StartDevice2LinkingFlowResults>({
       type: 'PM_START_DEVICE2_LINKING_FLOW',
       payload: {
-        accountId: payload?.accountId,
         ui: payload?.ui
       },
       options: {
@@ -1272,6 +1297,12 @@ function isLoginSSEEvent(p: ProgressPayload): p is LoginSSEvent {
 
 function isActionSSEEvent(p: ProgressPayload): p is ActionSSEEvent {
   return ACTION_PHASES.has(phaseOf(p));
+}
+
+export function isDelegateSSEEvent(p: ProgressPayload): p is DelegateActionSSEEvent {
+  if (!isActionSSEEvent(p)) return false;
+  const data = (p as any).data;
+  return !!data && typeof data === 'object' && (data as any).context === 'delegate';
 }
 
 function isDeviceLinkingSSEEvent(p: ProgressPayload): p is DeviceLinkingSSEEvent {

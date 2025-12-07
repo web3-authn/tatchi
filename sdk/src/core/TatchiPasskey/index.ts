@@ -58,6 +58,8 @@ import {
   type SignNEP413MessageParams,
   type SignNEP413MessageResult
 } from './signNEP413';
+import { signDelegateAction, type DelegateActionHooksOptions, type SignDelegateActionResult } from './delegateAction';
+import { sendDelegateActionViaRelayer } from './relay';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
 import { __isWalletIframeHostMode } from '../WalletIframe/host-mode';
@@ -72,6 +74,8 @@ import {
   EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
   bytesToHex,
 } from '../EmailRecovery';
+import type { DelegateActionInput } from '../types/delegate';
+import type { WasmSignedDelegate } from '../types/signer-worker';
 let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
@@ -813,7 +817,6 @@ export class TatchiPasskey {
     signedTransaction: SignedTransaction,
     options?: SendTransactionHooksOptions
   }): Promise<ActionResult> {
-
     if (this.iframeRouter) {
       try {
         const res = await this.iframeRouter.sendTransaction({
@@ -841,6 +844,68 @@ export class TatchiPasskey {
         options?.onEvent?.({ step: 9, phase: ActionPhase.STEP_9_ACTION_COMPLETE, status: ActionStatus.SUCCESS, message: `Transaction ${txResult.transactionId} broadcasted` });
         return txResult;
       });
+  }
+
+  ///////////////////////////////////////
+  // === DELEGATE ACTION SIGNING (NEP-461) ===
+  ///////////////////////////////////////
+
+  async signDelegateAction({
+    nearAccountId,
+    delegate,
+    options,
+  }: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    options?: DelegateActionHooksOptions;
+  }): Promise<SignDelegateActionResult> {
+    // Prefer wallet iframe when available and method implemented
+    if (this.iframeRouter) {
+      try {
+        const result = await this.iframeRouter.signDelegateAction({
+          nearAccountId,
+          delegate,
+          options: { onEvent: options?.onEvent }
+        }) as SignDelegateActionResult;
+        await options?.afterCall?.(true, result);
+        return result;
+      } catch (error: unknown) {
+        const e = toError(error);
+        await options?.onError?.(e);
+        await options?.afterCall?.(false);
+        throw e;
+      }
+    }
+
+    return signDelegateAction({
+      context: this.getContext(),
+      nearAccountId: toAccountId(nearAccountId),
+      delegate,
+      options,
+    });
+  }
+
+  /**
+   * Convenience helper to POST a signed delegate to a relayer.
+   * Does not enforce any relayer semantics; simply forwards the payload.
+   */
+  async sendDelegateActionViaRelayer(args: {
+    relayerUrl: string;
+    signedDelegate: import('../types/delegate').SignedDelegate;
+    hash: string;
+    signal?: AbortSignal;
+  }) {
+    const base = args.relayerUrl.replace(/\/+$/, '');
+    const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
+    const endpoint = `${base}${route}`;
+    return sendDelegateActionViaRelayer({
+      url: endpoint,
+      payload: {
+        hash: args.hash,
+        signedDelegate: args.signedDelegate,
+      },
+      signal: args.signal,
+    });
   }
 
   ///////////////////////////////////////
@@ -913,7 +978,10 @@ export class TatchiPasskey {
   ///////////////////////////////////////
 
   /**
-   * Show Export Private Key UI (secure drawer/modal) without returning the key to caller
+   * Canonical entrypoint to show the Export Private Key UI (secure drawer/modal)
+   * without returning the key to the caller. All dApps should use this wrapper;
+   * the underlying WebAuthnManager.exportNearKeypairWithUI() is fully worker-
+   * driven and only ever reveals the private key inside trusted UI surfaces.
    */
   async exportNearKeypairWithUI(
     nearAccountId: string,
@@ -1267,7 +1335,6 @@ export class TatchiPasskey {
   async startDevice2LinkingFlow(args: StartDevice2LinkingFlowArgs): Promise<StartDevice2LinkingFlowResults> {
     if (this.iframeRouter) {
       return await this.iframeRouter.startDevice2LinkingFlow({
-        accountId: args?.accountId,
         ui: args?.ui,
         onEvent: args?.onEvent
       });
@@ -1278,7 +1345,7 @@ export class TatchiPasskey {
       onEvent: args?.onEvent,
     });
     this.activeDeviceLinkFlow = flow;
-    const { qrData, qrCodeDataURL } = await flow.generateQR(args?.accountId ? toAccountId(args.accountId) : undefined);
+    const { qrData, qrCodeDataURL } = await flow.generateQR();
     return { qrData, qrCodeDataURL };
   }
 

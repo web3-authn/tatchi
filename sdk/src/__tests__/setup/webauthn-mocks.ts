@@ -186,7 +186,14 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
     };
 
     /**
-     * Creates mock PRF outputs for WebAuthn PRF extension testing
+     * Creates mock PRF outputs for WebAuthn PRF extension testing.
+     *
+     * VRF v2 note:
+     * - These deterministic PRF outputs feed the VRF worker in tests:
+     *   - Registration flows use dual PRF outputs to derive VRF keypairs.
+     *   - Signing/decrypt flows use PRF.first to drive VRF‑side WrapKeySeed derivation.
+     * - Signer worker never sees these PRF bytes directly; it only receives WrapKeySeed
+     *   via the internal VRF→Signer MessagePort channel.
      */
     const createMockPRFOutput = (seed: string, accountHint: string = '', length: number = 32): ArrayBuffer => {
       const encoder = new TextEncoder();
@@ -382,6 +389,10 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
           } catch {}
         }
 
+        // Precompute deterministic PRF results so signing/decrypt flows always expose
+        // results.first/results.second in the shape confirmTxFlow expects.
+        const prfResults = prfRequested ? buildPrfExtensionResults(prfRequested, accountId) : null;
+
         // Credential ID Format for Contract Lookup Consistency
         // ==============================================================
         // Must return the same base64url-encoded format that the contract uses for storage
@@ -485,12 +496,12 @@ export async function setupWebAuthnMocks(page: Page): Promise<void> {
           },
           getClientExtensionResults: () => {
             const results: any = {};
-            if (prfRequested) {
-
+            if (prfRequested && prfResults) {
               results.prf = {
                 enabled: true,
                 results: {
-                  ...buildPrfExtensionResults(prfRequested, accountId)
+                  first: prfResults.first,
+                  second: prfResults.second
                 }
               };
             }

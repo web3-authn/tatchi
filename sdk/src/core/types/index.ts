@@ -25,5 +25,6 @@ export * from './errors'
 export * from './linkDevice'
 export * from './accountIds'
 export * from './passkeyManager'
+export * from './delegate'
 
 export type { ClientUserData } from '../IndexedDBManager/passkeyClientDB';

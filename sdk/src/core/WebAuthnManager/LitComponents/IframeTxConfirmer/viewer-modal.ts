@@ -72,6 +72,8 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
   // style injection has been removed to satisfy strict CSP.
   theme: ThemeName = 'dark';
   nearExplorerUrl?: string;
+  intentDigest?: string;
+  delegateMeta?: Record<string, unknown>;
   declare nearAccountId: string;
   // When true, this element will NOT remove itself on confirm/cancel.
   // The host is responsible for sending a CLOSE_MODAL instruction.
@@ -290,9 +292,11 @@ export class ModalTxConfirmElement extends LitElementWithProps implements Confir
             <w3a-tx-confirm-content
               .nearAccountId=${this['nearAccountId'] || ''}
               .txSigningRequests=${this.txSigningRequests || []}
+              .intentDigest=${this.intentDigest}
               .vrfChallenge=${this.vrfChallenge}
               .theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
+              .delegateMeta=${this.delegateMeta}
               .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}

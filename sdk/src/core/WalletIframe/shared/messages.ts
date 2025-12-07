@@ -14,6 +14,7 @@ import {
   StartDeviceLinkingOptionsDevice2
 } from '../../types';
 import { type DeviceLinkingQRData } from '../../types/linkDevice';
+import type { DelegateActionInput } from '../../types/delegate';
 
 export type WalletProtocolVersion = '1.0.0';
 
@@ -30,6 +31,7 @@ export type ParentToChildType =
   | 'PM_SIGN_AND_SEND_TXS'
   | 'PM_SEND_TRANSACTION'
   | 'PM_EXECUTE_ACTION'
+  | 'PM_SIGN_DELEGATE_ACTION'
   | 'PM_SIGN_NEP413'
   | 'PM_EXPORT_NEAR_KEYPAIR_UI'
   | 'PM_GET_RECENT_LOGINS'
@@ -140,6 +142,12 @@ export interface PMExecuteActionPayload {
   options?: Record<string, unknown>;
 }
 
+export interface PMSignDelegateActionPayload {
+  nearAccountId: string;
+  delegate: DelegateActionInput;
+  options?: Record<string, unknown>;
+}
+
 export interface PMSignNep413Payload {
   nearAccountId: string;
   params: { message: string; recipient: string; state?: string };
@@ -205,6 +213,7 @@ export type ParentToChildEnvelope =
   | RpcEnvelope<'PM_SIGN_AND_SEND_TXS', PMSignAndSendTxsPayload>
   | RpcEnvelope<'PM_SEND_TRANSACTION', PMSendTxPayload>
   | RpcEnvelope<'PM_EXECUTE_ACTION', PMExecuteActionPayload>
+  | RpcEnvelope<'PM_SIGN_DELEGATE_ACTION', PMSignDelegateActionPayload>
   | RpcEnvelope<'PM_SIGN_NEP413', PMSignNep413Payload>
   | RpcEnvelope<'PM_EXPORT_NEAR_KEYPAIR_UI', PMExportNearKeypairUiPayload>
   | RpcEnvelope<'PM_GET_RECENT_LOGINS'>
@@ -222,7 +231,6 @@ export type ParentToChildEnvelope =
       fundingAmount: string;
     }>
   | RpcEnvelope<'PM_START_DEVICE2_LINKING_FLOW', {
-      accountId?: string; // optional; when omitted, host discovers via polling
       ui?: 'modal' | 'inline';
     }>
   | RpcEnvelope<'PM_STOP_DEVICE2_LINKING_FLOW'>

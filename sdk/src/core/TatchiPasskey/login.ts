@@ -14,6 +14,7 @@ import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { base64UrlDecode } from '../../utils/base64';
 import { createRandomVRFChallenge, ServerEncryptedVrfKeypair, VRFChallenge } from '../types/vrf-worker';
 import { authenticatorsToAllowCredentials} from '../WebAuthnManager/touchIdPrompt';
+import { IndexedDBManager } from '../IndexedDBManager';
 
 /**
  * Core login function that handles passkey authentication without React dependencies.
@@ -116,6 +117,19 @@ export async function loginPasskey(
           allowCredentials: authenticatorsToAllowCredentials(authenticators),
         });
 
+        // Align lastUser deviceNumber with the passkey actually chosen for session minting.
+        try {
+          if (authenticators.length > 1) {
+            const rawId = credential.rawId;
+            const matched = authenticators.find(a => a.credentialId === rawId);
+            if (matched && typeof matched.deviceNumber === 'number') {
+              await context.webAuthnManager.setLastUser(nearAccountId, matched.deviceNumber);
+            }
+          }
+        } catch {
+          // Non-fatal; session minting can proceed even if last-user update fails here.
+        }
+
         const v = await verifyAuthenticationResponse(relayUrl, route, kind as 'jwt' | 'cookie', vrfChallenge, credential);
         if (v.success && v.verified) {
           const finalResult: LoginResult = { ...baseResult, jwt: v.jwt };
@@ -210,31 +224,30 @@ async function handleLoginUnlockVRF(
 
   try {
     // Step 1: Get VRF credentials and authenticators, and validate them
-    const {
-      userData,
-      authenticators
-    } = await Promise.all([
-      webAuthnManager.getUser(nearAccountId),
+    const [lastUser, authenticators] = await Promise.all([
+      webAuthnManager.getLastUser(),
       webAuthnManager.getAuthenticatorsByUser(nearAccountId),
-    ]).then(([userData, authenticators]) => {
-      // Validate user data and authenticators
-      if (!userData) {
-        throw new Error(`User data not found for ${nearAccountId} in IndexedDB. Please register an account.`);
-      }
-      if (!userData.clientNearPublicKey) {
-        throw new Error(`No NEAR public key found for ${nearAccountId}. Please register an account.`);
-      }
-      if (
-        !userData.encryptedVrfKeypair?.encryptedVrfDataB64u ||
-        !userData.encryptedVrfKeypair?.chacha20NonceB64u
-      ) {
-        throw new Error('No VRF credentials found. Please register an account.');
-      }
-      if (authenticators.length === 0) {
-        throw new Error(`No authenticators found for account ${nearAccountId}. Please register.`);
-      }
-      return { userData, authenticators };
-    });
+    ]);
+    let userData = (lastUser && lastUser.nearAccountId === nearAccountId)
+      ? lastUser
+      : await webAuthnManager.getUserByDevice(nearAccountId, 1);
+
+    // Validate user data and authenticators
+    if (!userData) {
+      throw new Error(`User data not found for ${nearAccountId} in IndexedDB. Please register an account.`);
+    }
+    if (!userData.clientNearPublicKey) {
+      throw new Error(`No NEAR public key found for ${nearAccountId}. Please register an account.`);
+    }
+    if (
+      !userData.encryptedVrfKeypair?.encryptedVrfDataB64u ||
+      !userData.encryptedVrfKeypair?.chacha20NonceB64u
+    ) {
+      throw new Error('No VRF credentials found. Please register an account.');
+    }
+    if (authenticators.length === 0) {
+      throw new Error(`No authenticators found for account ${nearAccountId}. Please register.`);
+    }
 
     // Step 2: Try Shamir 3-pass commutative unlock first (no TouchID required), fallback to TouchID
     onEvent?.({
@@ -246,6 +259,10 @@ async function handleLoginUnlockVRF(
 
     let unlockResult: { success: boolean; error?: string } = { success: false };
     let usedFallbackTouchId = false;
+    let activeDeviceNumber = userData.deviceNumber;
+    // Effective user row whose VRF/NEAR keys are actually used for this login.
+    // May be switched when multiple devices exist and the user picks a different passkey.
+    let effectiveUserData = userData;
 
     const hasServerEncrypted = !!userData.serverEncryptedVrfKeypair;
     const relayerUrl = context.configs.relayer?.url;
@@ -300,11 +317,29 @@ async function handleLoginUnlockVRF(
         allowCredentials: authenticatorsToAllowCredentials(authenticators),
       });
 
+      // If multiple authenticators exist, align VRF credentials with the passkey
+      // the user actually chose, based on credentialId → deviceNumber.
+      if (authenticators.length > 1 && userData) {
+        const rawId = credential.rawId;
+        const matched = authenticators.find(a => a.credentialId === rawId);
+        if (matched) {
+          try {
+            const byDevice = await IndexedDBManager.clientDB.getUserByDevice(nearAccountId, matched.deviceNumber);
+            if (byDevice) {
+              effectiveUserData = byDevice;
+              activeDeviceNumber = matched.deviceNumber;
+            }
+          } catch {
+            // If lookup by device fails, fall back to the base userData.
+          }
+        }
+      }
+
       unlockResult = await webAuthnManager.unlockVRFKeypair({
         nearAccountId: nearAccountId,
         encryptedVrfKeypair: {
-          encryptedVrfDataB64u: userData.encryptedVrfKeypair.encryptedVrfDataB64u,
-          chacha20NonceB64u: userData.encryptedVrfKeypair.chacha20NonceB64u,
+          encryptedVrfDataB64u: effectiveUserData.encryptedVrfKeypair.encryptedVrfDataB64u,
+          chacha20NonceB64u: effectiveUserData.encryptedVrfKeypair.chacha20NonceB64u,
         },
         credential: credential,
       });
@@ -334,12 +369,24 @@ async function handleLoginUnlockVRF(
     }
 
     // Step 3: Update local data and return success
+    // Ensure last-user deviceNumber reflects the passkey actually used for login.
+    try {
+      if (typeof activeDeviceNumber === 'number' && Number.isFinite(activeDeviceNumber)) {
+        await webAuthnManager.setLastUser(nearAccountId, activeDeviceNumber);
+      } else if (typeof userData.deviceNumber === 'number') {
+        await webAuthnManager.setLastUser(nearAccountId, userData.deviceNumber);
+      }
+    } catch {
+      // Non-fatal; continue even if last-user update fails.
+    }
     await webAuthnManager.updateLastLogin(nearAccountId);
 
     const result: LoginResult = {
       success: true,
       loggedInNearAccountId: nearAccountId,
-      clientNearPublicKey: userData?.clientNearPublicKey!, // non-null, validated above
+      // Ensure the clientNearPublicKey reflects the device whose VRF credentials
+      // are actually active for this login.
+      clientNearPublicKey: effectiveUserData?.clientNearPublicKey!, // non-null, validated above
       nearAccountId: nearAccountId
     };
 
@@ -350,7 +397,7 @@ async function handleLoginUnlockVRF(
         status: LoginStatus.SUCCESS,
         message: 'Login completed successfully',
         nearAccountId: nearAccountId,
-        clientNearPublicKey: userData?.clientNearPublicKey || ''
+        clientNearPublicKey: effectiveUserData?.clientNearPublicKey || ''
       });
       afterCall?.(true, result);
     }
@@ -381,24 +428,22 @@ export async function getLoginState(
 ): Promise<LoginState> {
   const { webAuthnManager } = context;
   try {
-    // Determine target account ID
-    let targetAccountId = nearAccountId;
-    if (!targetAccountId) {
-      const lastUsedAccount = await webAuthnManager.getLastUsedNearAccountId() || undefined;
-      targetAccountId = lastUsedAccount?.nearAccountId || undefined;
-    }
-    if (!targetAccountId) {
+    // Determine target account strictly from the last logged-in device.
+    const lastUser = await webAuthnManager.getLastUser();
+    const targetAccountId = nearAccountId ?? lastUser?.nearAccountId ?? null;
+
+    // If caller requested a specific account, it must match the last logged-in account.
+    if (!lastUser || (targetAccountId && lastUser.nearAccountId !== targetAccountId)) {
       return {
         isLoggedIn: false,
-        nearAccountId: null,
+        nearAccountId: targetAccountId || null,
         publicKey: null,
         vrfActive: false,
         userData: null
       };
     }
 
-    // Get comprehensive user data from IndexedDB (single call instead of two)
-    const userData = await webAuthnManager.getUser(targetAccountId);
+    const userData = lastUser;
     const publicKey = userData?.clientNearPublicKey || null;
 
     // Check actual VRF worker status
@@ -435,7 +480,7 @@ export async function getRecentLogins(
 ): Promise<GetRecentLoginsResult> {
   const { webAuthnManager } = context;
   // Get all user accounts from IndexDB
-  const allUsersData = await webAuthnManager.getAllUserData();
+  const allUsersData = await webAuthnManager.getAllUsers();
   const accountIds = allUsersData.map(user => user.nearAccountId);
   // Get last used account for initial state
   const lastUsedAccount = await webAuthnManager.getLastUsedNearAccountId();

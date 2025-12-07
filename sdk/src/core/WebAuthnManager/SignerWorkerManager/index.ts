@@ -15,16 +15,20 @@ import {
   WorkerErrorResponse,
   WorkerRequestTypeMap,
 } from '../../types/signer-worker';
+import { isSignerWorkerControlMessage } from './sessionMessages.js';
 import { VRFChallenge } from '../../types/vrf-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
+import type { DelegateActionInput } from '../../types/delegate';
 import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
-import { ConfirmationConfig } from '../../types/signer-worker';
+import { ConfirmationConfig, WasmSignedDelegate, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
+import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
 import { getDeviceNumberForAccount } from './getDeviceNumber';
 import { isObject } from '../../WalletIframe/validation';
+import { runSecureConfirm } from '../VrfWorkerManager/secureConfirmBridge';
 
 import {
   decryptPrivateKeyWithPrf,
@@ -36,37 +40,36 @@ import {
   signNep413Message,
   requestRegistrationCredentialConfirmation,
   deriveNearKeypairAndEncryptFromSerialized,
+  signDelegateAction,
+  registerDevice2WithDerivedKey,
 } from './handlers';
-import {
-  SecureConfirmMessageType,
-  handlePromptUserConfirmInJsMainThread,
-} from './confirmTxFlow';
 import { RpcCallPayload } from '../../types/signer-worker';
 import { UserPreferencesManager } from '../userPreferences';
 import { NonceManager } from '../../nonceManager';
 import { WebAuthnAuthenticationCredential, WebAuthnRegistrationCredential } from '../../types';
-import type { RegistrationCredentialConfirmationPayload } from './handlers/validation';
 import { toError } from '@/utils/errors';
-
+import { withSessionId } from './handlers/session';
+import { attachSessionPort, waitForSessionReady } from './sessionHandshake.js';
 
 export interface SignerWorkerManagerContext {
   touchIdPrompt: TouchIdPrompt;
   nearClient: NearClient;
   indexedDB: UnifiedIndexedDBManager;
-  vrfWorkerManager?: VrfWorkerManager;
   userPreferencesManager: UserPreferencesManager;
   nonceManager: NonceManager;
   rpIdOverride?: string;
   nearExplorerUrl?: string;
+  vrfWorkerManager?: VrfWorkerManager;
   sendMessage: <T extends keyof WorkerRequestTypeMap>(args: {
     message: {
       type: T;
-      payload: WorkerRequestTypeMap[T]['request']
+      payload: WorkerRequestTypeMap[T]['request'];
     };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
+    sessionId?: string;
   }) => Promise<WorkerResponseForRequest<T>>;
-}
+};
 
 /**
  * WebAuthnWorkers handles PRF, workers, and COSE operations
@@ -107,7 +110,7 @@ export class SignerWorkerManager {
     this.workerBaseOrigin = origin;
   }
 
-  private getContext(): SignerWorkerManagerContext {
+  getContext(): SignerWorkerManagerContext {
     return {
       sendMessage: this.sendMessage.bind(this), // bind to access this.createSecureWorker
       indexedDB: this.indexedDB,
@@ -157,6 +160,13 @@ export class SignerWorkerManager {
    */
   private workerPool: Worker[] = [];
   private readonly MAX_WORKER_POOL_SIZE = 3; // Increased for security model
+  // Map of active signing sessions to reserved workers and optional WrapKeySeed ports
+  private signingSessions: Map<string, {
+    worker: Worker;
+    wrapKeySeedPort?: MessagePort;
+    createdAt: number;
+  }> = new Map();
+  private readonly SIGNING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
   private getWorkerFromPool(): Worker {
     if (this.workerPool.length > 0) {
@@ -170,6 +180,95 @@ export class SignerWorkerManager {
     worker.terminate();
     // Asynchronously create a replacement worker for the pool
     this.createReplacementWorker();
+  }
+
+  /**
+   * Get the signing session entry for a given sessionId.
+   * Used internally to access worker and port information.
+   */
+  private getSigningSession(sessionId: string) {
+    return this.signingSessions.get(sessionId);
+  }
+
+  /**
+   * Wait for a WrapKeySeed to be ready for the given session.
+   * Public wrapper that looks up the worker and waits for the seed-ready signal.
+   */
+  async waitForSeedReady(sessionId: string, timeoutMs: number = 2000): Promise<void> {
+    const entry = this.getSigningSession(sessionId);
+    if (!entry) {
+      throw new Error(`No signing session found for id: ${sessionId}`);
+    }
+    await waitForSessionReady(entry.worker, sessionId, timeoutMs);
+  }
+
+  /**
+   * Reserve a worker for a signing session.
+   * If a signerPort is provided (VRF-created channel), attach it; otherwise create a fresh MessageChannel.
+   * Returns the reserved worker and ports (vrfPort for VRF when we create the channel).
+   */
+  async reserveSigningSession(sessionId: string, opts?: { signerPort?: MessagePort }): Promise<{ worker: Worker; signerPort?: MessagePort; vrfPort?: MessagePort }> {
+    if (this.signingSessions.has(sessionId)) {
+      throw new Error(`Signing session already exists for id: ${sessionId}`);
+    }
+    const worker = this.getWorkerFromPool();
+    let signerPort = opts?.signerPort;
+    let vrfPort: MessagePort | undefined;
+    if (!signerPort) {
+      const channel = new MessageChannel();
+      signerPort = channel.port1;
+      vrfPort = channel.port2;
+    }
+
+    // Attach the signerPort to the worker and wait for ACK before adding to signingSessions
+    try {
+      if (!signerPort) {
+        throw new Error('Missing signerPort for signing session');
+      }
+
+      // Use centralized handshake logic (registers listener, sends message, waits for ACK)
+      await attachSessionPort(worker, sessionId, signerPort);
+
+      // Only add to signingSessions after successful attachment
+      this.signingSessions.set(sessionId, {
+        worker,
+        wrapKeySeedPort: signerPort,
+        createdAt: Date.now(),
+      });
+
+    } catch (err) {
+      console.error('[SignerWorkerManager]: Failed to attach WrapKeySeed port to signer worker', err);
+      // Best-effort cleanup
+      try { signerPort?.close(); } catch {}
+      try { vrfPort?.close(); } catch {}
+      this.terminateAndReplaceWorker(worker);
+      this.signingSessions.delete(sessionId);
+      throw err;
+    }
+    return { worker, signerPort, vrfPort };
+  }
+
+  /**
+   * Release a signing session: close ports and terminate/replace the worker to zeroize state.
+   */
+  releaseSigningSession(sessionId: string): void {
+    const entry = this.signingSessions.get(sessionId);
+    if (!entry) return;
+    try { entry.wrapKeySeedPort?.close() } catch {}
+    try { this.terminateAndReplaceWorker(entry.worker) } catch {}
+    this.signingSessions.delete(sessionId);
+  }
+
+  /**
+   * Sweep expired signing sessions based on createdAt and timeout.
+   */
+  sweepExpiredSigningSessions(): void {
+    const now = Date.now();
+    for (const [sessionId, entry] of this.signingSessions.entries()) {
+      if (now - entry.createdAt > this.SIGNING_SESSION_TIMEOUT_MS) {
+        this.releaseSigningSession(sessionId);
+      }
+    }
   }
 
   private async createReplacementWorker(): Promise<void> {
@@ -265,19 +364,35 @@ export class SignerWorkerManager {
   private async sendMessage<T extends WorkerRequestType>({
     message,
     onEvent,
-    timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT // 60s
+    timeoutMs = SIGNER_WORKER_MANAGER_CONFIG.TIMEOUTS.DEFAULT, // 60s
+    sessionId,
   }: {
     message: { type: T; payload: WorkerRequestTypeMap[T]['request'] };
     onEvent?: (update: onProgressEvents) => void;
     timeoutMs?: number;
+    sessionId?: string;
   }): Promise<WorkerResponseForRequest<T>> {
 
-    const worker = this.getWorkerFromPool();
+    // Clean up any expired signing sessions before allocating a worker
+    this.sweepExpiredSigningSessions();
+
+    const sessionEntry = sessionId ? this.signingSessions.get(sessionId) : undefined;
+    if (sessionId && !sessionEntry) {
+      throw new Error(`Signing session not found for id: ${sessionId}`);
+    }
+
+    const worker = sessionEntry ? sessionEntry.worker : this.getWorkerFromPool();
+    const isSessionWorker = !!sessionEntry;
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         try {
-          this.terminateAndReplaceWorker(worker);
+          if (isSessionWorker && sessionId) {
+            // Release reserved session to avoid leaking worker/port
+            this.releaseSigningSession(sessionId);
+          } else {
+            this.terminateAndReplaceWorker(worker);
+          }
         } catch {}
         // Notify any open modal host to transition to error state
         try {
@@ -291,6 +406,10 @@ export class SignerWorkerManager {
 
       worker.onmessage = async (event) => {
         try {
+          // Ignore control messages (lifecycle/session setup) – they are handled elsewhere.
+          if (isSignerWorkerControlMessage(event?.data)) {
+            return;
+          }
           // Ignore readiness pings that can arrive if a worker was just spawned
           if (event?.data?.type === 'WORKER_READY' || event?.data?.ready) {
             return; // not a response to an operation
@@ -298,19 +417,6 @@ export class SignerWorkerManager {
           // Use strong typing from WASM-generated types
           const response = event.data as WorkerResponseForRequest<T>;
           responses.push(response);
-
-          // Intercept secure confirm handshake
-          if (event.data.type === SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD) {
-            await handlePromptUserConfirmInJsMainThread(
-              this.getContext(),
-              event.data as {
-                type: SecureConfirmMessageType.PROMPT_USER_CONFIRM_IN_JS_MAIN_THREAD,
-                data: import('./confirmTxFlow/types').SecureConfirmRequest,
-              },
-              worker
-            );
-            return; // do not treat as a worker response, continue listening for more messages
-          }
 
           // Handle progress updates using WASM-generated numeric enum values
           if (isWorkerProgress(response)) {
@@ -322,7 +428,7 @@ export class SignerWorkerManager {
           // Handle errors using WASM-generated enum
           if (isWorkerError(response)) {
             clearTimeout(timeoutId);
-            this.terminateAndReplaceWorker(worker);
+            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
             const errorResponse = response as WorkerErrorResponse;
             console.error('Worker error response:', errorResponse);
             reject(new Error(errorResponse.payload.error));
@@ -332,7 +438,7 @@ export class SignerWorkerManager {
           // Handle successful completion types using strong typing
           if (isWorkerSuccess(response)) {
             clearTimeout(timeoutId);
-            this.terminateAndReplaceWorker(worker);
+            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
             resolve(response as WorkerResponseForRequest<T>);
             return;
           }
@@ -345,7 +451,7 @@ export class SignerWorkerManager {
           // Check if it's a generic Error object
           if (isObject(response) && 'message' in response && 'stack' in response) {
             clearTimeout(timeoutId);
-            this.terminateAndReplaceWorker(worker);
+            if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
             console.error('Worker sent generic Error object:', response);
             reject(new Error(`Worker sent generic error: ${(response as Error).message}`));
             return;
@@ -353,11 +459,11 @@ export class SignerWorkerManager {
 
           // Unknown response format
           clearTimeout(timeoutId);
-          this.terminateAndReplaceWorker(worker);
+          if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
           reject(new Error(`Unknown worker response format: ${JSON.stringify(response)}`));
         } catch (error: unknown) {
           clearTimeout(timeoutId);
-          this.terminateAndReplaceWorker(worker);
+          if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
           console.error('Error processing worker message:', error);
           const err = toError(error);
           reject(new Error(`Worker message processing error: ${err.message}`));
@@ -366,7 +472,7 @@ export class SignerWorkerManager {
 
       worker.onerror = (event) => {
         clearTimeout(timeoutId);
-        this.terminateAndReplaceWorker(worker);
+        if (!isSessionWorker) this.terminateAndReplaceWorker(worker);
         const errorMessage = event.error?.message || event.message || 'Unknown worker error';
         console.error('Worker error details (progress):', {
           message: errorMessage,
@@ -395,19 +501,16 @@ export class SignerWorkerManager {
     credential: WebAuthnRegistrationCredential;
     nearAccountId: AccountId;
     options?: {
-      vrfChallenge?: VRFChallenge;
-      deterministicVrfPublicKey?: string;
-      contractId?: string;
-      nonce?: string;
-      blockHash?: string;
       authenticatorOptions?: AuthenticatorOptions;
       deviceNumber?: number;
     };
+    sessionId: string;
   }): Promise<{
     success: boolean;
     nearAccountId: AccountId;
     publicKey: string;
-    signedTransaction?: SignedTransaction;
+    iv?: string;
+    wrapKeySalt?: string;
   }> {
     return deriveNearKeypairAndEncryptFromSerialized({ ctx: this.getContext(), ...args });
   }
@@ -418,6 +521,7 @@ export class SignerWorkerManager {
   async decryptPrivateKeyWithPrf(args: {
     nearAccountId: AccountId,
     authenticators: ClientAuthenticatorData[],
+    sessionId: string,
   }): Promise<{
     decryptedPrivateKey: string;
     nearAccountId: AccountId
@@ -443,6 +547,35 @@ export class SignerWorkerManager {
     return checkCanRegisterUser({ ctx: this.getContext(), ...args });
   }
 
+  /**
+   * Combined Device2 registration: derive NEAR keypair + sign registration transaction
+   * in a single operation without requiring a separate authentication prompt.
+   *
+   * This replaces the old two-step flow (register → authenticate → sign).
+   * PRF.second and WrapKeySeed are already in the signer worker via MessagePort.
+   */
+  async registerDevice2WithDerivedKey(args: {
+    sessionId: string;
+    nearAccountId: AccountId;
+    credential: WebAuthnRegistrationCredential;
+    vrfChallenge: VRFChallenge;
+    transactionContext: import('../../types/rpc').TransactionContext;
+    contractId: string;
+    wrapKeySalt: string;
+    deviceNumber?: number;
+    deterministicVrfPublicKey: string;
+  }): Promise<{
+    success: boolean;
+    publicKey: string;
+    signedTransaction: any;
+    wrapKeySalt: string;
+    encryptedData?: string;
+    iv?: string;
+    error?: string;
+  }> {
+    return registerDevice2WithDerivedKey({ ctx: this.getContext(), ...args });
+  }
+
   // === ACTION-BASED SIGNING METHODS ===
 
   /**
@@ -454,12 +587,31 @@ export class SignerWorkerManager {
     rpcCall: RpcCallPayload,
     onEvent?: (update: onProgressEvents) => void,
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
+    sessionId: string,
   }): Promise<Array<{
     signedTransaction: SignedTransaction;
     nearAccountId: AccountId;
     logs?: string[]
   }>> {
-    return signTransactionsWithActions({ ctx: this.getContext(), ...args });
+    return signTransactionsWithActions({
+      ctx: this.getContext(),
+      ...args
+    });
+  }
+
+  async signDelegateAction(args: {
+    delegate: DelegateActionInput;
+    rpcCall: RpcCallPayload;
+    onEvent?: (update: onProgressEvents) => void;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    sessionId: string;
+  }): Promise<{
+    signedDelegate: WasmSignedDelegate;
+    hash: string;
+    nearAccountId: AccountId;
+    logs?: string[];
+  }> {
+    return signDelegateAction({ ctx: this.getContext(), ...args });
   }
 
   /**
@@ -469,11 +621,13 @@ export class SignerWorkerManager {
   async recoverKeypairFromPasskey(args: {
     credential: WebAuthnAuthenticationCredential;
     accountIdHint?: string;
+    sessionId: string,
   }): Promise<{
     publicKey: string;
     encryptedPrivateKey: string;
     iv: string;
     accountIdHint?: string;
+    wrapKeySalt?: string;
   }> {
     return recoverKeypairFromPasskey({ ctx: this.getContext(), ...args });
   }
@@ -516,7 +670,7 @@ export class SignerWorkerManager {
     nonce: string;
     state: string | null;
     accountId: string;
-    credential: import('../../types/webauthn').WebAuthnAuthenticationCredential;
+    sessionId: string;
   }): Promise<{
     success: boolean;
     accountId: string;
@@ -525,21 +679,10 @@ export class SignerWorkerManager {
     state?: string;
     error?: string;
   }> {
-    return signNep413Message({ ctx: this.getContext(), payload });
-  }
-
-  /**
-   * Prompt user for registration credential confirmation (create() with PRF) and return artifacts
-   * Used for registration (device 1) and link-device (device N) flows.
-   */
-  async requestRegistrationCredentialConfirmation(args: {
-    nearAccountId: string;
-    deviceNumber: number;
-    contractId: string;
-    nearRpcUrl: string;
-    confirmationConfig?: ConfirmationConfig;
-  }): Promise<RegistrationCredentialConfirmationPayload> {
-    return requestRegistrationCredentialConfirmation({ ctx: this.getContext(), ...args });
+    return signNep413Message({
+      ctx: this.getContext(),
+      payload
+    });
   }
 
   /**
@@ -548,40 +691,73 @@ export class SignerWorkerManager {
    *  - Decrypt inside worker
    *  - Phase 2: show export UI with decrypted key (kept open until user closes)
    */
-  async exportNearKeypairUi(args: { nearAccountId: AccountId, variant?: 'drawer'|'modal', theme?: 'dark'|'light' }): Promise<void> {
+  async exportNearKeypairUi(args: {
+    nearAccountId: AccountId,
+    variant?: 'drawer'|'modal',
+    theme?: 'dark'|'light',
+    sessionId: string,
+  }): Promise<void> {
     const ctx = this.getContext();
     const accountId = toAccountId(args.nearAccountId);
+    const sessionId = args.sessionId;
+
     // Gather encrypted key + IV and public key from IndexedDB
-    const deviceNumber = await getDeviceNumberForAccount(ctx, accountId);
+    const deviceNumber = await getDeviceNumberForAccount(accountId, ctx.indexedDB.clientDB);
     const [keyData, user] = await Promise.all([
       ctx.indexedDB.nearKeysDB.getEncryptedKey(accountId, deviceNumber),
-      ctx.indexedDB.clientDB.getUser(accountId),
+      ctx.indexedDB.clientDB.getUserByDevice(accountId, deviceNumber),
     ]);
     const publicKey = user?.clientNearPublicKey || '';
     if (!keyData || !publicKey) {
-      try {
-        // Suggest offline export route on the wallet domain when local material is absent
-        const { resolveWorkerBaseOrigin } = await import('../../sdkPaths/workers');
-        const origin = resolveWorkerBaseOrigin();
-        const hint = origin ? `No internet connection: for offline export go to ${origin}/offline-export/` : '';
-        throw new Error('Missing local key material for export.' + hint);
-      } catch {
-        throw new Error('Missing local key material for export. Offline: for offline export go to /offline-export/');
-      }
+      throw new Error('Missing local key material for export. Re-register to upgrade vault.');
     }
-    await (ctx as any).sendMessage({
+
+    // Decrypt inside signer worker using the reserved session
+    const response = await (ctx as any).sendMessage({
       message: {
-        type: WorkerRequestType.ExportNearKeypairUI,
-        payload: {
+        type: WorkerRequestType.DecryptPrivateKeyWithPrf,
+        payload: withSessionId({
           nearAccountId: accountId,
-          publicKey,
           encryptedPrivateKeyData: keyData.encryptedData,
           encryptedPrivateKeyIv: keyData.iv,
-          variant: args.variant,
-          theme: args.theme,
-        } as any,
+        } as any, sessionId),
       },
+      sessionId,
     });
+
+    if (!isDecryptPrivateKeyWithPrfSuccess(response)) {
+      console.error('WebAuthnManager: Export decrypt failed:', response);
+      const payloadError = isObject(response?.payload) && (response as any)?.payload?.error;
+      const msg = String(payloadError || 'Export decrypt failed');
+      // Treat AEAD/KEK mismatches as effectively "missing" local key material so
+      // callers (including offline-export) can trigger recovery and rewrite the vault.
+      if (msg.includes('Decryption failed: Decryption error: aead::Error')) {
+        throw new Error('Missing local key material for export');
+      }
+      throw new Error(msg);
+    }
+
+    const privateKey = response.payload.privateKey;
+
+    // Phase 2: show secure UI (VRF-driven viewer)
+    const showReq = {
+      schemaVersion: 2 as const,
+      requestId: sessionId,
+      type: SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI,
+      summary: {
+        operation: 'Export Private Key',
+        accountId,
+        publicKey,
+      },
+      payload: {
+        nearAccountId: accountId,
+        publicKey,
+        privateKey,
+        variant: args.variant,
+        theme: args.theme,
+      },
+    };
+    await runSecureConfirm(ctx, showReq);
   }
 
 }

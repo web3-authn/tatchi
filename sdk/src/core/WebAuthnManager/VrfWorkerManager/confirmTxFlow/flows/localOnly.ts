@@ -1,22 +1,19 @@
-import type { SignerWorkerManagerContext } from '../../index';
+import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
   SecureConfirmationType,
-  SecureConfirmMessageType,
   TransactionSummary,
   LocalOnlySecureConfirmRequest,
 } from '../types';
 import { VRFChallenge } from '../../../../types';
 import { createRandomVRFChallenge } from '../../../../types/vrf-worker';
-import { renderConfirmUI, getNearAccountId, getIntentDigest, sanitizeForPostMessage } from './common';
+import { renderConfirmUI, getNearAccountId, getIntentDigest, sendConfirmResponse, closeModalSafely, isUserCancelledSecureConfirm, ERROR_MESSAGES } from './common';
 import { toAccountId } from '../../../../types/accountIds';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
 import { extractPrfFromCredential, serializeAuthenticationCredentialWithPRF } from '../../../credentialsHelpers';
-import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
-import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
 
 export async function handleLocalOnlyFlow(
-  ctx: SignerWorkerManagerContext,
+  ctx: VrfWorkerManagerContext,
   request: LocalOnlySecureConfirmRequest,
   worker: Worker,
   opts: { confirmationConfig: ConfirmationConfig; transactionSummary: TransactionSummary },
@@ -38,7 +35,7 @@ export async function handleLocalOnlyFlow(
   if (request.type === SecureConfirmationType.SHOW_SECURE_PRIVATE_KEY_UI) {
     if (!confirmed) {
       closeModalSafely(false, confirmHandle);
-      return send(worker, {
+      return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
@@ -46,7 +43,7 @@ export async function handleLocalOnlyFlow(
       });
     }
     // Keep viewer open; do not close here
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: true,
@@ -71,13 +68,13 @@ export async function handleLocalOnlyFlow(
         secondPrfOutput: false,
       });
       if (!dualPrfOutputs.chacha20PrfOutput) {
-        throw new Error('Failed to extract PRF output from credential');
+        throw new Error(ERROR_MESSAGES.prfMissing);
       }
       const serialized = serializeAuthenticationCredentialWithPRF({ credential });
 
       touchIdSuccess = true;
       // No modal to keep open; export viewer will be shown by a subsequent request
-      return send(worker, {
+      return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: true,
@@ -85,31 +82,19 @@ export async function handleLocalOnlyFlow(
         prfOutput: dualPrfOutputs.chacha20PrfOutput,
       });
     } catch (err: unknown) {
-      const cancelled = isTouchIdCancellationError(err) || (() => {
-        const e = toError(err);
-        return e.name === 'NotAllowedError' || e.name === 'AbortError';
-      })();
+      const cancelled = isUserCancelledSecureConfirm(err);
       if (cancelled) {
         window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
       }
-      return send(worker, {
+      return sendConfirmResponse(worker, {
         requestId: request.requestId,
         intentDigest: getIntentDigest(request),
         confirmed: false,
-        error: cancelled ? 'User cancelled secure confirm request' : 'Failed to collect credentials',
+        error: cancelled ? ERROR_MESSAGES.cancelled : ERROR_MESSAGES.collectCredentialsFailed,
       });
     } finally {
       // If any modal was mounted despite skip config, close it
       if (!confirmed) closeModalSafely(touchIdSuccess, confirmHandle);
     }
   }
-}
-
-function send(worker: Worker, response: any) {
-  const sanitized = sanitizeForPostMessage(response);
-  worker.postMessage({ type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE, data: sanitized });
-}
-
-function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  handle?.close?.(confirmed);
 }

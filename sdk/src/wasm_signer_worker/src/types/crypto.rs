@@ -28,4 +28,5 @@ pub struct DualPrfDeriveKeypairRequest {
 pub struct EncryptedDataChaCha20Response {
     pub encrypted_near_key_data_b64u: String,
     pub chacha20_nonce_b64u: String,
+    pub wrap_key_salt_b64u: Option<String>,
 }

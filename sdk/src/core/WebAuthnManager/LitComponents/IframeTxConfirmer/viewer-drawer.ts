@@ -46,6 +46,8 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
   declare cancelText: string;
   declare deferClose: boolean;
   declare nearExplorerUrl?: string;
+  declare intentDigest?: string;
+  declare delegateMeta?: Record<string, unknown>;
 
   // Keep essential custom elements from being tree-shaken
   private _ensureDrawerDefinition = DrawerElement;
@@ -268,9 +270,11 @@ export class DrawerTxConfirmerElement extends LitElementWithProps implements Con
             <w3a-tx-confirm-content
               .nearAccountId=${this.nearAccountId || ''}
               .txSigningRequests=${this.txSigningRequests || []}
+              .intentDigest=${this.intentDigest}
               .vrfChallenge=${this.vrfChallenge}
-              theme=${this.theme}
+              .theme=${this.theme}
               .nearExplorerUrl=${this.nearExplorerUrl}
+              .delegateMeta=${this.delegateMeta}
               .showShadow=${false}
               .loading=${this.loading}
               .errorMessage=${this.errorMessage || ''}

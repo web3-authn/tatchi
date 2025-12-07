@@ -103,7 +103,6 @@ test.describe('WalletIframeRouter – sticky overlay lifecycle', () => {
 
 
         const stickyPromise = router.startDevice2LinkingFlow({
-          accountId: 'sticky.testnet',
           ui: 'modal',
         });
 

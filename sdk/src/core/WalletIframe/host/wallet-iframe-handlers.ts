@@ -40,6 +40,7 @@ import { SignedTransaction } from '../../NearClient';
 import type { SignNEP413MessageResult } from '../../TatchiPasskey/signNEP413';
 import { isPlainSignedTransactionLike, extractBorshBytesFromPlainSignedTx, PlainSignedTransactionLike } from '../validation';
 import type { TransactionInput, ActionArgs } from '../../types';
+import type { DelegateActionInput } from '../../types/delegate';
 
 type Req<T extends ParentToChildType> = Extract<ParentToChildEnvelope, { type: T }>;
 type HandlerMap = { [K in ParentToChildType]: (req: Extract<ParentToChildEnvelope, { type: K }>) => Promise<void> };
@@ -153,11 +154,9 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
 
     PM_START_DEVICE2_LINKING_FLOW: async (req: Req<'PM_START_DEVICE2_LINKING_FLOW'>) => {
       const pm = getTatchiPasskey();
-      const { accountId } = (req.payload || {});
       if (respondIfCancelled(req.requestId)) return;
 
       const { qrData, qrCodeDataURL } = await pm.startDevice2LinkingFlow({
-        accountId,
         onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
       });
 
@@ -208,6 +207,21 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
           ...(options || {}),
           onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev)
         } as ActionHooksOptions,
+      });
+      if (respondIfCancelled(req.requestId)) return;
+      post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
+    },
+
+    PM_SIGN_DELEGATE_ACTION: async (req: Req<'PM_SIGN_DELEGATE_ACTION'>) => {
+      const pm = getTatchiPasskey();
+      const { nearAccountId, delegate, options } = req.payload!;
+      const result = await pm.signDelegateAction({
+        nearAccountId: nearAccountId,
+        delegate,
+        options: {
+          ...(options || {}),
+          onEvent: (ev: ProgressPayload) => postProgress(req.requestId, ev),
+        } as any,
       });
       if (respondIfCancelled(req.requestId)) return;
       post({ type: 'PM_RESULT', requestId: req.requestId, payload: { ok: true, result } });
@@ -307,7 +321,7 @@ export function createWalletIframeHandlers(deps: HandlerDeps): HandlerMap {
       const ctx = pm.getContext();
       const web = ctx?.webAuthnManager;
       if (web) {
-        await web.getUser(toAccountId(nearAccountId)).catch(() => undefined);
+        await web.getLastUser().catch(() => undefined);
         await web.getAuthenticatorsByUser(toAccountId(nearAccountId)).catch(() => undefined);
       }
       const result = await pm.hasPasskeyCredential(toAccountId(nearAccountId));

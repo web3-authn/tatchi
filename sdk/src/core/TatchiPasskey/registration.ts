@@ -19,6 +19,7 @@ import type { WebAuthnRegistrationCredential } from '../types/webauthn';
 import type { AccountId } from '../types/accountIds';
 import { getUserFriendlyErrorMessage } from '../../utils/errors';
 import { authenticatorsToAllowCredentials } from '../WebAuthnManager/touchIdPrompt';
+import { extractPrfFromCredential } from '../WebAuthnManager/credentialsHelpers';
 // Registration forces a visible, clickable confirmation for cross‑origin safety
 
 /**
@@ -56,7 +57,6 @@ export async function registerPasskeyInternal(
   };
 
   console.log('⚡ Registration: Passkey registration with VRF WebAuthn');
-  // Emit started event
   onEvent?.({
     step: 1,
     phase: RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
@@ -66,7 +66,6 @@ export async function registerPasskeyInternal(
 
   try {
 
-    // Validate registration inputs
     await validateRegistrationInputs(context, nearAccountId, onEvent, onError);
 
     onEvent?.({
@@ -76,30 +75,26 @@ export async function registerPasskeyInternal(
       message: 'Account available - generating VRF credentials...'
     });
 
-    // Step 1 + 2: Use secureConfirm to collect a passkey with PRF
-    // Allow per-call override for confirmation behavior; otherwise default to modal + requireClick
-    const theme: 'dark' | 'light' = (context.configs?.walletTheme === 'light') ? 'light' : 'dark';
-    // Cross‑origin requirement: always require a click for registration on all devices.
-    const confirmationConfig: ConfirmationConfig = confirmationConfigOverride ?? {
-      uiMode: 'modal',
-      behavior: 'requireClick',
-      theme,
-    };
-
-    const confirm = await webAuthnManager.requestRegistrationCredentialConfirmation({
-      nearAccountId,
+    const registrationSession = await context.webAuthnManager.requestRegistrationCredentialConfirmation({
+      nearAccountId: String(nearAccountId),
       deviceNumber: 1,
-      contractId: context.configs.contractId,
-      nearRpcUrl: context.configs.nearRpcUrl,
-      confirmationConfigOverride: confirmationConfig,
+      confirmationConfigOverride: confirmationConfigOverride ?? {
+        uiMode: 'modal',
+        behavior: 'requireClick', // cross‑origin safari requirement: must requireClick
+        theme: (context.configs?.walletTheme === 'light') ? 'light' : 'dark',
+      },
     });
-    if (!confirm.confirmed || !confirm.credential) {
-      const reason = confirm?.error || 'User cancelled registration';
-      console.warn('Registration confirm failed', { confirmed: confirm?.confirmed, hasCredential: !!confirm?.credential, error: confirm?.error });
-      throw new Error(reason);
+
+    const credential = registrationSession.credential;
+    const vrfChallenge = registrationSession.vrfChallenge;
+    const { chacha20PrfOutput } = extractPrfFromCredential({
+      credential,
+      firstPrfOutput: true,
+      secondPrfOutput: false,
+    });
+    if (!chacha20PrfOutput) {
+      throw new Error('Missing PRF output from registration credential');
     }
-    const credential: WebAuthnRegistrationCredential = confirm.credential;
-    const vrfChallenge = confirm.vrfChallenge as VRFChallenge;
 
     onEvent?.({
       step: 1,
@@ -108,14 +103,14 @@ export async function registerPasskeyInternal(
       message: 'WebAuthn ceremony successful, PRF output obtained'
     });
 
-    // Steps 3-4: Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
+    // Derive deterministic VRF and NEAR keypairs from PRF, and check registration in parallel
     const {
       deterministicVrfKeyResult,
       nearKeyResult,
       canRegisterUserResult,
     } = await Promise.all([
       webAuthnManager.deriveVrfKeypairFromRawPrf({
-        prfOutput: confirm.prfOutput!,
+        prfOutput: chacha20PrfOutput,
         nearAccountId,
         saveInMemory: true,
       }),
@@ -230,6 +225,7 @@ export async function registerPasskeyInternal(
       encryptedVrfKeypair: deterministicVrfKeyResult.encryptedVrfKeypair,
       vrfPublicKey: deterministicVrfKeyResult.vrfPublicKey,
       serverEncryptedVrfKeypair: deterministicVrfKeyResult.serverEncryptedVrfKeypair,
+      wrapKeySalt: nearKeyResult.wrapKeySalt,
     });
 
     // Mark database as stored for rollback tracking

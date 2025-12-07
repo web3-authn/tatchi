@@ -11,19 +11,14 @@ import type {
 import type { TxExecutionStatus } from '@near-js/types';
 import type { ActionArgs, TransactionInput, TransactionInputWasm } from '../types/actions';
 import type { ConfirmationConfig } from '../types/signer-worker';
-import type { TransactionContext } from '../types/rpc';
 import type { PasskeyManagerContext } from './index';
-import type { NearClient, SignedTransaction } from '../NearClient';
+import type { SignedTransaction } from '../NearClient';
 import type { AccountId } from '../types/accountIds';
 import { ActionPhase, ActionStatus, ActionSSEEvent, onProgressEvents } from '../types/passkeyManager';
 import { toError, getNearShortErrorMessage } from '../../utils/errors';
 
-//////////////////////////////
-// === PUBLIC API ===
-//////////////////////////////
 
 /**
- * Public API for executing actions - respects user confirmation preferences
  * executeAction signs a single transaction (with actions[]) to a single receiver.
  * If you want to sign multiple transactions to different receivers,
  * use signTransactionsWithActions() instead.
