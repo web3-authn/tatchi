@@ -1,10 +1,6 @@
 # Web3Authn SDK
 
-A secure, user-friendly passkey wallet for NEAR blockchain applications. Built on WebAuthn with no popups, no seed phrases, and recovery through TouchID/FaceID across all your devices.
-
-## What Is This?
-
-Web3Authn is an embedded wallet SDK that makes blockchain applications feel like native apps. Users sign in with their fingerprint or face, and their keys are automatically synced across devices through iCloud and Google Password Manager.
+A secure, user-friendly passkey wallet for NEAR blockchain applications. Built on WebAuthn with no popups, no seed phrases, and recovery through TouchID/FaceID and email recovery across all your devices.
 
 **For users**: No more seed phrases to write down, no browser extensions to install. Just TouchID/FaceID.
 

@@ -377,7 +377,7 @@ export class AuthService {
           throw new Error(`Account ${request.new_account_id} already exists. Cannot create duplicate account.`);
         }
         console.log(`Account ${request.new_account_id} is available for atomic creation and registration`);
-        console.log(`Atomic registration for account: ${request.new_account_id}`);
+        console.log(`Registering account: ${request.new_account_id}`);
         console.log(`Contract: ${this.config.webAuthnContractId}`);
 
         // Prepare contract arguments
@@ -420,7 +420,7 @@ export class AuthService {
           throw new Error(contractError);
         }
 
-        console.log(`Atomic registration completed: ${result.transaction.hash}`);
+        console.log(`Registration completed: ${result.transaction.hash}`);
         return {
           success: true,
           transactionHash: result.transaction.hash,
