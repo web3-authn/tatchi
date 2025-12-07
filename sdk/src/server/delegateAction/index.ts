@@ -292,8 +292,7 @@ export async function executeSignedDelegateWithRelayer(params: {
       actions,
     });
 
-    console.log("Sending signed delegateAction: ", signedTx);
-
+    console.debug("Sending signed delegateAction: ", signedTx?.transaction?.actionsJson);
     const outcome = await nearClient.sendTransaction(signedTx);
 
     const txHash = outcome?.transaction?.hash || null;

@@ -65,8 +65,9 @@ fn extract_prf_second_from_credential(
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum WebAuthnCredential {
-    Authentication(WebAuthnAuthenticationCredential),
-    Registration(WebAuthnRegistrationCredential),
+    /// Raw JSON credential (registration or authentication). Using a generic
+    /// JSON value here ensures we preserve clientExtensionResults, including
+    /// PRF outputs, for extraction.
     Raw(JsonValue),
 }
 
@@ -74,8 +75,6 @@ pub enum WebAuthnCredential {
 fn credential_to_json_value(credential: &WebAuthnCredential) -> Result<JsonValue, String> {
     match credential {
         WebAuthnCredential::Raw(value) => Ok(value.clone()),
-        other => serde_json::to_value(other)
-            .map_err(|e| format!("Failed to serialize credential: {}", e)),
     }
 }
 
@@ -83,8 +82,6 @@ fn as_authentication_credential(
     credential: &WebAuthnCredential,
 ) -> Result<Option<WebAuthnAuthenticationCredential>, String> {
     match credential {
-        WebAuthnCredential::Authentication(c) => Ok(Some(c.clone())),
-        WebAuthnCredential::Registration(_) => Ok(None),
         WebAuthnCredential::Raw(raw) => {
             match serde_json::from_value::<WebAuthnAuthenticationCredential>(raw.clone()) {
                 Ok(auth) => Ok(Some(auth)),
