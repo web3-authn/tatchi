@@ -1,15 +1,18 @@
 import type { FinalExecutionOutcome } from '@near-js/types';
-import { MinimalNearClient } from '../../core/NearClient';
+import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
   WorkerResponseType,
-  type InitInput
+  type InitInput,
+  type WasmTransaction,
+  type WasmSignature,
 } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
 import { validateConfigs } from './config';
 import { isObject, isString } from '../../core/WalletIframe/validation';
+import { SignedDelegate } from '../../core/types/delegate';
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -40,9 +43,14 @@ function getSignerWasmUrls(): URL[] {
 
   return resolved;
 }
+import { ShamirService } from './ShamirService';
+import { formatGasToTGas, formatYoctoToNear } from './utils';
+import { parseContractExecutionError } from './errors';
 import {
-  Shamir3PassUtils,
-} from './shamirWorker';
+  type ExecuteSignedDelegateResult,
+  executeSignedDelegateWithRelayer,
+  type DelegateActionPolicy,
+} from '../delegateAction';
 import type {
   AuthServiceConfig,
   AccountCreationRequest,
@@ -60,9 +68,7 @@ import type {
   SignerWasmModuleSupplier,
 } from './types';
 
-// Default gas for DKIM-based email recovery calls.
-// aligned with a working near-cli example:
-// near contract call-function ... request_email_verification ... prepaid-gas '300.0 Tgas'
+// Default gas for DKIM-based email recovery calls
 const DEFAULT_EMAIL_RECOVERY_GAS: string = '300000000000000'; // 300 TGas
 
 /**
@@ -80,13 +86,8 @@ export class AuthService {
   private transactionQueue: Promise<any> = Promise.resolve();
   private queueStats = { pending: 0, completed: 0, failed: 0 };
 
-  // Shamir 3-pass key management
-  private shamir3pass: Shamir3PassUtils | null = null;
-  private graceKeys: Map<string, Shamir3PassUtils> = new Map();
-  private graceKeySpecs: Map<string, { e_s_b64u: string; d_s_b64u: string }> = new Map();
-  private graceKeysFilePath: string | null = null;
-  private graceKeysLoaded = false;
-  private graceKeysLoadPromise: Promise<void> | null = null;
+  // Shamir 3-pass key management (delegated to ShamirService)
+  public readonly shamirService: ShamirService | null = null;
 
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
@@ -108,39 +109,30 @@ export class AuthService {
       signerWasm: config.signerWasm,
     };
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
-    this.graceKeysFilePath = graceFileCandidate || 'grace-keys.json';
+    this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
-  }
 
-  /**
-   * Returns true when Shamir 3-pass is configured and initialized.
-   */
-  public hasShamir(): boolean {
-    return Boolean(this.config.shamir && this.shamir3pass);
-  }
-
-  /**
-   * Ensures Shamir 3-pass is ready (initializes if configured but not loaded).
-   */
-  public async ensureShamirReady(): Promise<boolean> {
-    if (!this.config.shamir) {
-      return false;
-    }
-    if (this.shamir3pass) {
-      return true;
-    }
-    try {
-      await this._ensureSignerAndRelayerAccount();
-    } catch (err) {
-      console.error('Failed to initialize Shamir 3-pass:', err);
-    }
-    return this.hasShamir();
+    // Log effective configuration at construction time so operators can
+    // verify wiring immediately when the service is created.
+    console.log(`
+    AuthService initialized with:
+    • networkId: ${this.config.networkId}
+    • nearRpcUrl: ${this.config.nearRpcUrl}
+    • relayerAccountId: ${this.config.relayerAccountId}
+    • webAuthnContractId: ${this.config.webAuthnContractId}
+    • accountInitialBalance: ${this.config.accountInitialBalance} (${formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
+    • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${formatGasToTGas(this.config.createAccountAndRegisterGas)})
+    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
+    `);
   }
 
   // Backward-compat getter, no longer returns near-js Account
   async getRelayerAccount(): Promise<{ accountId: string; publicKey: string }> {
     await this._ensureSignerAndRelayerAccount();
-    return { accountId: this.config.relayerAccountId, publicKey: this.relayerPublicKey };
+    return {
+      accountId: this.config.relayerAccountId,
+      publicKey: this.relayerPublicKey
+    };
   }
 
   /**
@@ -161,20 +153,11 @@ export class AuthService {
       return;
     }
 
-    // Initialize Shamir3Pass WASM module
-    if (!this.shamir3pass && this.config.shamir) {
-      // Configure WASM override for serverless environments (Cloudflare Workers, etc.)
+    // Initialize Shamir 3-pass via ShamirService (if configured)
+    if (this.config.shamir && this.shamirService) {
       await this.configureShamirWasmForServerless();
-
-      this.shamir3pass = new Shamir3PassUtils({
-        p_b64u: this.config.shamir.shamir_p_b64u,
-        e_s_b64u: this.config.shamir.shamir_e_s_b64u,
-        d_s_b64u: this.config.shamir.shamir_d_s_b64u,
-      });
-      try { await this.shamir3pass.initialize(); } catch {}
+      await this.shamirService.ensureReady();
     }
-
-    await this.ensureGraceKeysLoaded();
 
     // Derive public key from configured relayer private key
     try {
@@ -188,16 +171,6 @@ export class AuthService {
     // Prepare signer WASM for transaction building/signing
     await this.ensureSignerWasm();
     this.isInitialized = true;
-    console.log(`
-    AuthService initialized with:
-    • networkId: ${this.config.networkId}
-    • nearRpcUrl: ${this.config.nearRpcUrl}
-    • relayerAccountId: ${this.config.relayerAccountId}
-    • webAuthnContractId: ${this.config.webAuthnContractId}
-    • accountInitialBalance: ${this.config.accountInitialBalance} (${this.formatYoctoToNear(this.config.accountInitialBalance)} NEAR)
-    • createAccountAndRegisterGas: ${this.config.createAccountAndRegisterGas} (${this.formatGasToTGas(this.config.createAccountAndRegisterGas)})
-    ${this.config.shamir ? `• shamir_p_b64u: ${this.config.shamir.shamir_p_b64u.slice(0, 10)}...\n    • shamir_e_s_b64u: ${this.config.shamir.shamir_e_s_b64u.slice(0, 10)}...\n    • shamir_d_s_b64u: ${this.config.shamir.shamir_d_s_b64u.slice(0, 10)}...` : '• shamir: not configured'}
-    `);
   }
 
   private async ensureSignerWasm(): Promise<void> {
@@ -246,49 +219,6 @@ export class AuthService {
     } catch (e) {
       console.error('Failed to initialize signer WASM:', e);
       throw e instanceof Error ? e : new Error(String(e));
-    }
-  }
-
-  /**
-   * Fetch Related Origin Requests (ROR) allowed origins from a NEAR view method.
-   * Defaults: contractId = webAuthnContractId, method = 'get_allowed_origins', args = {}.
-   * Returns a sanitized, deduplicated list of absolute origins.
-   */
-  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: any }): Promise<string[]> {
-    const contractId = (opts?.contractId || this.config.webAuthnContractId).trim();
-    const method = (opts?.method || 'get_allowed_origins').trim();
-    const args = opts?.args ?? {};
-
-    const isValidOrigin = (s: unknown): string | null => {
-      if (typeof s !== 'string' || !s) return null;
-      try {
-        const u = new URL(s.trim());
-        const scheme = u.protocol;
-        const host = u.hostname.toLowerCase();
-        const port = u.port ? `:${u.port}` : '';
-        if (scheme !== 'https:' && !(scheme === 'http:' && host === 'localhost')) return null;
-        if ((u.pathname && u.pathname !== '/') || u.search || u.hash) return null;
-        return `${scheme}//${host}${port}`;
-      } catch { return null; }
-    };
-
-    try {
-      const result = await this.nearClient.view<{ } , unknown>({ account: contractId, method, args });
-      let list: string[] = [];
-      if (Array.isArray(result)) {
-        list = result as string[];
-      } else if (result && typeof result === 'object' && Array.isArray((result as any).origins)) {
-        list = (result as any).origins as string[];
-      }
-      const out = new Set<string>();
-      for (const item of list) {
-        const norm = isValidOrigin(item);
-        if (norm) out.add(norm);
-      }
-      return Array.from(out);
-    } catch (e) {
-      console.warn('[AuthService] getRorOrigins failed:', e);
-      return [];
     }
   }
 
@@ -347,331 +277,12 @@ export class AuthService {
     throw new Error('[AuthService] Failed to initialize signer WASM from filesystem candidates');
   }
 
-  private async ensureGraceKeysLoaded(): Promise<void> {
-    if (this.graceKeysLoaded) {
-      return;
-    }
-    if (this.graceKeysLoadPromise) {
-      await this.graceKeysLoadPromise;
-      return;
-    }
-
-    this.graceKeysLoadPromise = (async () => {
-      const specs: Array<{ e_s_b64u: string; d_s_b64u: string }> = [];
-
-      const fileSpecs = await this.loadGraceKeysFromFile();
-      if (fileSpecs.length) {
-        specs.push(...fileSpecs);
-      }
-
-      if (Array.isArray(this.config.shamir?.graceShamirKeys) && this.config.shamir!.graceShamirKeys!.length) {
-        specs.push(...(this.config.shamir!.graceShamirKeys as any));
-      }
-
-      if (specs.length) {
-        for (const spec of specs) {
-          await this.addGraceKeyInternal(spec, { persist: false, skipIfExists: true });
-        }
-      }
-
-      this.graceKeysLoaded = true;
-      this.syncGraceKeySpecsToConfig();
-    })();
-
-    try {
-      await this.graceKeysLoadPromise;
-    } finally {
-      this.graceKeysLoadPromise = null;
-      this.graceKeysLoaded = true;
-    }
-  }
-
-  private async loadGraceKeysFromFile(): Promise<Array<{ e_s_b64u: string; d_s_b64u: string }>> {
-    // Filesystem access is only possible in true Node.js environments.
-    if (!this.isNodeEnvironment()) {
-      return [];
-    }
-    const filePath = this.graceKeysFilePath?.trim();
-    if (!filePath) {
-      return [];
-    }
-
-    try {
-      const { readFile } = await import('node:fs/promises');
-      const raw = await readFile(filePath, 'utf8');
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        console.warn(`[AuthService] Grace keys file ${filePath} is not an array; ignoring contents`);
-        return [];
-      }
-      const normalized: Array<{ e_s_b64u: string; d_s_b64u: string }> = [];
-      for (const entry of parsed) {
-        if (!entry || typeof entry !== 'object') continue;
-        const e = (entry as any).e_s_b64u;
-        const d = (entry as any).d_s_b64u;
-        if (typeof e === 'string' && e && typeof d === 'string' && d) {
-          normalized.push({ e_s_b64u: e, d_s_b64u: d });
-        }
-      }
-      return normalized;
-    } catch (error: any) {
-      if (error?.code !== 'ENOENT') {
-        console.warn(`[AuthService] Failed to read grace keys file ${filePath}:`, error);
-      }
-      return [];
-    }
-  }
-
-  private syncGraceKeySpecsToConfig(): void {
-    if (this.graceKeySpecs.size === 0) {
-      if (this.config.shamir) this.config.shamir.graceShamirKeys = undefined;
-      return;
-    }
-    if (this.config.shamir) this.config.shamir.graceShamirKeys = Array.from(this.graceKeySpecs.values()).map((spec) => ({
-      e_s_b64u: spec.e_s_b64u,
-      d_s_b64u: spec.d_s_b64u,
-    }));
-  }
-
-  private async persistGraceKeysToDisk(): Promise<void> {
-    if (!this.isNodeEnvironment()) {
-      return;
-    }
-    const filePath = this.graceKeysFilePath?.trim();
-    if (!filePath) {
-      return;
-    }
-    const entries = Array.from(this.graceKeySpecs.entries()).map(([keyId, spec]) => ({
-      keyId,
-      e_s_b64u: spec.e_s_b64u,
-      d_s_b64u: spec.d_s_b64u,
-    }));
-    try {
-      const { writeFile } = await import('node:fs/promises');
-      const serialized = JSON.stringify(entries, null, 2);
-      await writeFile(filePath, `${serialized}\n`, 'utf8');
-    } catch (error) {
-      console.warn(`[AuthService] Failed to persist grace keys to ${filePath}:`, error);
-    }
-  }
-
-  private async addGraceKeyInternal(
-    spec: { e_s_b64u: string; d_s_b64u: string },
-    opts?: { persist?: boolean; skipIfExists?: boolean }
-  ): Promise<{ keyId: string } | null> {
-    const e = spec?.e_s_b64u;
-    const d = spec?.d_s_b64u;
-    if (typeof e !== 'string' || !e || typeof d !== 'string' || !d) {
-      return null;
-    }
-
-    const p_b64u = this.config.shamir?.shamir_p_b64u;
-    if (!p_b64u) {
-      console.warn('[AuthService] Missing Shamir p_b64u; cannot add grace key');
-      return null;
-    }
-    const util = new Shamir3PassUtils({
-      p_b64u,
-      e_s_b64u: e,
-      d_s_b64u: d,
-    });
-
-    let keyId = util.getCurrentKeyId();
-    if (!keyId) {
-      try {
-        await util.initialize();
-        keyId = util.getCurrentKeyId();
-      } catch (error) {
-        console.warn('[AuthService] Failed to initialize grace Shamir key (skipped):', error);
-        return null;
-      }
-    }
-
-    if (!keyId) {
-      return null;
-    }
-
-    if (opts?.skipIfExists && this.graceKeys.has(keyId)) {
-      return { keyId };
-    }
-
-    if (!this.graceKeys.has(keyId)) {
-      this.graceKeys.set(keyId, util);
-    }
-    if (!this.graceKeySpecs.has(keyId)) {
-      this.graceKeySpecs.set(keyId, { e_s_b64u: e, d_s_b64u: d });
-    }
-
-    this.syncGraceKeySpecsToConfig();
-
-    if (opts?.persist !== false) {
-      await this.persistGraceKeysToDisk();
-    }
-
-    return { keyId };
-  }
-
-  private async removeGraceKeyInternal(
-    keyId: string,
-    opts?: { persist?: boolean }
-  ): Promise<boolean> {
-    await this.ensureGraceKeysLoaded();
-    if (typeof keyId !== 'string' || !keyId) {
-      return false;
-    }
-    const removedUtil = this.graceKeys.delete(keyId);
-    const removedSpec = this.graceKeySpecs.delete(keyId);
-    if (!removedUtil && !removedSpec) {
-      return false;
-    }
-    this.syncGraceKeySpecsToConfig();
-    if (opts?.persist !== false) {
-      await this.persistGraceKeysToDisk();
-    }
-    return true;
-  }
   /**
-   * Shamir 3-pass: apply server exponent (registration step)
-   * @param kek_c_b64u - base64url-encoded KEK_c (client locked key encryption key)
-   * @returns base64url-encoded KEK_cs (server locked key encryption key)
+   * ===== Registration & authentication =====
+   *
+   * Helpers for creating accounts, registering WebAuthn credentials,
+   * and verifying authentication responses.
    */
-  async applyServerLock(kek_c_b64u: string): Promise<ShamirApplyServerLockResponse> {
-    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-    return await this.shamir3pass.applyServerLock({ kek_c_b64u } as ShamirApplyServerLockRequest);
-  }
-
-  /**
-   * Shamir 3-pass: remove server exponent (login step)
-   */
-  async removeServerLock(kek_cs_b64u: string): Promise<ShamirRemoveServerLockResponse> {
-    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-    return await this.shamir3pass.removeServerLock({ kek_cs_b64u } as ShamirRemoveServerLockRequest);
-  }
-
-  /**
-   * Generate a new Shamir3Pass server keypair without mutating current state.
-   * Useful for previewing rotations or external persistence flows.
-   */
-  async generateShamirServerKeypair(): Promise<{ e_s_b64u: string; d_s_b64u: string; keyId: string | null }> {
-    await this._ensureSignerAndRelayerAccount();
-    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-
-    const { e_s_b64u, d_s_b64u } = await this.shamir3pass.generateServerKeypair();
-    const p_b64u = this.config.shamir?.shamir_p_b64u;
-    if (!p_b64u) throw new Error('Shamir not configured');
-    const util = new Shamir3PassUtils({
-      p_b64u,
-      e_s_b64u,
-      d_s_b64u,
-    });
-    let keyId: string | null = null;
-    try {
-      keyId = util.getCurrentKeyId();
-      if (!keyId) {
-        await util.initialize();
-        keyId = util.getCurrentKeyId();
-      }
-    } catch (error) {
-      console.warn('[AuthService] Failed to derive keyId for generated Shamir keypair:', error);
-    }
-
-    return { e_s_b64u, d_s_b64u, keyId };
-  }
-
-  /**
-   * Rotate the active Shamir3Pass keypair while the service is running.
-   * The previous key is optionally retained as a grace key and persisted to disk.
-   */
-  async rotateShamirServerKeypair(options?: {
-    keepCurrentInGrace?: boolean;
-    persistGraceToDisk?: boolean;
-  }): Promise<{
-    newKeypair: { e_s_b64u: string; d_s_b64u: string };
-    newKeyId: string | null;
-    previousKeyId: string | null;
-    graceKeyIds: string[];
-  }> {
-    await this._ensureSignerAndRelayerAccount();
-    await this.ensureGraceKeysLoaded();
-    if (!this.shamir3pass) throw new Error('Shamir3Pass not initialized');
-
-    const keepCurrentInGrace = options?.keepCurrentInGrace !== false;
-    const persistGrace = options?.persistGraceToDisk !== false;
-
-    const previousKeyId = this.shamir3pass.getCurrentKeyId();
-    if (!this.config.shamir) throw new Error('Shamir not configured');
-    const previousKeypair = {
-      e_s_b64u: this.config.shamir.shamir_e_s_b64u,
-      d_s_b64u: this.config.shamir.shamir_d_s_b64u,
-    };
-
-    const { e_s_b64u: newE, d_s_b64u: newD } = await this.shamir3pass.generateServerKeypair();
-    const newUtil = new Shamir3PassUtils({
-      p_b64u: this.config.shamir.shamir_p_b64u,
-      e_s_b64u: newE,
-      d_s_b64u: newD,
-    });
-
-    await newUtil.initialize();
-
-    this.shamir3pass = newUtil;
-    this.config.shamir = { ...this.config.shamir, shamir_e_s_b64u: newE, shamir_d_s_b64u: newD };
-
-    const newKeyId = newUtil.getCurrentKeyId();
-
-    if (
-      keepCurrentInGrace
-      && previousKeyId
-      && typeof previousKeypair.e_s_b64u === 'string'
-      && typeof previousKeypair.d_s_b64u === 'string'
-    ) {
-      await this.addGraceKeyInternal(previousKeypair, { persist: persistGrace, skipIfExists: true });
-    } else if (persistGrace) {
-      await this.persistGraceKeysToDisk();
-    }
-
-    return {
-      newKeypair: { e_s_b64u: newE, d_s_b64u: newD },
-      newKeyId,
-      previousKeyId,
-      graceKeyIds: Array.from(this.graceKeys.keys()),
-    };
-  }
-
-  /**
-   * Framework-agnostic: rotate Shamir keypair (HTTP wrapper used by example server)
-   */
-  async handleRotateShamirKeypair(request: { keepOldInGrace?: boolean }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      const keepOldInGrace = request?.keepOldInGrace !== false;
-      const result = await this.rotateShamirServerKeypair({ keepCurrentInGrace: keepOldInGrace });
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(result)
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  // Format NEAR gas (string) to TGas for display
-  private formatGasToTGas(gasString: string): string {
-    const gasAmount = BigInt(gasString);
-    const tGas = Number(gasAmount) / 1e12;
-    return `${tGas.toFixed(0)} TGas`;
-  }
-
-  // Convert yoctoNEAR to NEAR for display
-  private formatYoctoToNear(yoctoAmount: string | bigint): string {
-    const amount = isString(yoctoAmount) ? BigInt(yoctoAmount) : yoctoAmount;
-    const nearAmount = Number(amount) / 1e24;
-    return nearAmount.toFixed(3);
-  }
 
   /**
    * Create a new account with the specified balance
@@ -724,8 +335,8 @@ export class AuthService {
           actions
         });
 
-        // Broadcast transaction via MinimalNearClient
-        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
+        // Broadcast transaction via MinimalNearClient using a strongly typed SignedTransaction
+        const result = await this.nearClient.sendTransaction(signed);
 
         console.log(`Account creation completed: ${result.transaction.hash}`);
         const nearAmount = (Number(BigInt(initialBalance)) / 1e24).toFixed(6);
@@ -800,10 +411,10 @@ export class AuthService {
           blockHash,
           actions
         });
-        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
+        const result = await this.nearClient.sendTransaction(signed);
 
         // Parse contract execution results to detect failures
-        const contractError = this.parseContractExecutionError(result, request.new_account_id);
+        const contractError = parseContractExecutionError(result, request.new_account_id);
         if (contractError) {
           console.error(`Contract execution failed for ${request.new_account_id}:`, contractError);
           throw new Error(contractError);
@@ -882,99 +493,46 @@ export class AuthService {
     }
   }
 
-  // AuthService no longer exposes session helpers; routers should handle sessions via a provided adapter.
-
   /**
-   * Parse contract response from execution outcome
+   * Fetch Related Origin Requests (ROR) allowed origins from a NEAR view method.
+   * Defaults: contractId = webAuthnContractId, method = 'get_allowed_origins', args = {}.
+   * Returns a sanitized, deduplicated list of absolute origins.
    */
-  private parseContractResponse(result: FinalExecutionOutcome): any {
+  public async getRorOrigins(opts?: { contractId?: string; method?: string; args?: any }): Promise<string[]> {
+    const contractId = (opts?.contractId || this.config.webAuthnContractId).trim();
+    const method = (opts?.method || 'get_allowed_origins').trim();
+    const args = opts?.args ?? {};
+
+    const isValidOrigin = (s: unknown): string | null => {
+      if (typeof s !== 'string' || !s) return null;
+      try {
+        const u = new URL(s.trim());
+        const scheme = u.protocol;
+        const host = u.hostname.toLowerCase();
+        const port = u.port ? `:${u.port}` : '';
+        if (scheme !== 'https:' && !(scheme === 'http:' && host === 'localhost')) return null;
+        if ((u.pathname && u.pathname !== '/') || u.search || u.hash) return null;
+        return `${scheme}//${host}${port}`;
+      } catch { return null; }
+    };
+
     try {
-      // For now, return a basic success response
-      // In a real implementation, you'd parse the actual contract response
-      return {
-        verified: true,
-        success: true,
-      };
-    } catch (error) {
-      return {
-        verified: false,
-        error: 'Failed to parse contract response',
-      };
-    }
-  }
-
-  /**
-   * Parse contract execution results to detect specific failure types
-   */
-  private parseContractExecutionError(result: FinalExecutionOutcome, accountId: string): string | null {
-    try {
-      // Check main transaction status
-      if (result.status && isObject(result.status) && 'Failure' in result.status) {
-        console.log(`Transaction failed:`, result.status.Failure);
-        return `Transaction failed: ${JSON.stringify(result.status.Failure)}`;
+      const result = await this.nearClient.view<{ } , unknown>({ account: contractId, method, args });
+      let list: string[] = [];
+      if (Array.isArray(result)) {
+        list = result as string[];
+      } else if (result && typeof result === 'object' && Array.isArray((result as any).origins)) {
+        list = (result as any).origins as string[];
       }
-
-      // Check receipts for failures
-      const receipts = (result.receipts_outcome || []) as NearReceiptOutcomeWithId[];
-      for (const receipt of receipts) {
-        const status = receipt.outcome?.status;
-
-        if (status?.Failure) {
-          const failure: NearExecutionFailure = status.Failure;
-          console.log(`Receipt failure detected:`, failure);
-
-          if (failure.ActionError?.kind) {
-            const actionKind = failure.ActionError.kind;
-
-            if (actionKind.AccountAlreadyExists) {
-              return `Account ${actionKind.AccountAlreadyExists.accountId} already exists on NEAR network`;
-            }
-
-            if (actionKind.AccountDoesNotExist) {
-              return `Referenced account ${actionKind.AccountDoesNotExist.account_id} does not exist`;
-            }
-
-            if (actionKind.InsufficientStake) {
-              const stakeInfo = actionKind.InsufficientStake;
-              return `Insufficient stake for account creation: ${stakeInfo.account_id}`;
-            }
-
-            if (actionKind.LackBalanceForState) {
-              const balanceInfo = actionKind.LackBalanceForState;
-              return `Insufficient balance for account state: ${balanceInfo.account_id}`;
-            }
-
-            return `Account creation failed: ${JSON.stringify(actionKind)}`;
-          }
-
-          return `Contract execution failed: ${JSON.stringify(failure)}`;
-        }
-
-        // Check logs for error keywords
-        const logs = receipt.outcome?.logs || [];
-        for (const log of logs) {
-          if (isString(log)) {
-            if (log.includes('AccountAlreadyExists') || log.includes('account already exists')) {
-              return `Account ${accountId} already exists`;
-            }
-            if (log.includes('AccountDoesNotExist')) {
-              return `Referenced account does not exist`;
-            }
-            if (log.includes('Cannot deserialize the contract state')) {
-              return `Contract state deserialization failed. This may be due to a contract upgrade. Please try again or contact support.`;
-            }
-            if (log.includes('GuestPanic')) {
-              return `Contract execution panic: ${log}`;
-            }
-          }
-        }
+      const out = new Set<string>();
+      for (const item of list) {
+        const norm = isValidOrigin(item);
+        if (norm) out.add(norm);
       }
-
-      return null;
-
-    } catch (parseError: any) {
-      console.warn(`Error parsing contract execution results:`, parseError);
-      return null;
+      return Array.from(out);
+    } catch (e) {
+      console.warn('[AuthService] getRorOrigins failed:', e);
+      return [];
     }
   }
 
@@ -984,6 +542,99 @@ export class AuthService {
     }
     const validPattern = /^[a-z0-9_.-]+$/;
     return validPattern.test(accountId);
+  }
+
+  /**
+   * Account existence helper used by registration flows.
+   */
+  async checkAccountExists(accountId: string): Promise<boolean> {
+    await this._ensureSignerAndRelayerAccount();
+    const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
+    const isRetryable = (m: string) => /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed/i.test(m);
+    const attempts = 3;
+    let lastErr: any = null;
+    for (let i = 1; i <= attempts; i++) {
+      try {
+        const view = await this.nearClient.viewAccount(accountId);
+        return !!view;
+      } catch (error: any) {
+        lastErr = error;
+        const msg = String(error?.message || '');
+        // Some providers embed the useful string only inside a nested JSON `details` object.
+        // Normalize both message and details (if available) into one searchable blob.
+        const detailsBlob = (() => {
+          try {
+            const d = (error && typeof error === 'object' && 'details' in error) ? (error as any).details : undefined;
+            if (!d) return '';
+            return typeof d === 'string' ? d : JSON.stringify(d);
+          } catch { return ''; }
+        })();
+        const combined = `${msg}\n${detailsBlob}`;
+        if (isNotFound(combined)) return false;
+        if (isRetryable(msg) && i < attempts) {
+          const backoff = 150 * Math.pow(2, i - 1);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        // As a safety valve for flaky RPCs, treat persistent retryable errors as not-found
+        if (isRetryable(msg)) {
+          console.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
+          return false;
+        }
+        console.error(`Error checking account existence for ${accountId}:`, error);
+        throw error;
+      }
+    }
+    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  }
+
+  /**
+   * ===== Delegate actions & transaction execution =====
+   *
+   * Flows that build and submit on-chain transactions, including NEP-461
+   * SignedDelegate meta-transactions.
+   */
+
+  /**
+   * Execute a NEP-461 SignedDelegate by wrapping it in an outer transaction
+   * from the relayer account. This method is intended to be called by
+   * example relayers (Node/Cloudflare) once a SignedDelegate has been
+   * produced by the signer worker and returned to the application.
+   *
+   * Notes:
+   * - Signature and hash computation are performed by the signer worker.
+   *   This method focuses on expiry/policy enforcement and meta-tx submission.
+   * - Nonce/replay protection is left to the integrator; see docs for guidance.
+   */
+  async executeSignedDelegate(input: {
+    hash: string;
+    signedDelegate: SignedDelegate;
+    policy?: DelegateActionPolicy;
+  }): Promise<ExecuteSignedDelegateResult> {
+    await this._ensureSignerAndRelayerAccount();
+
+    if (!input?.hash || !input?.signedDelegate) {
+      return {
+        ok: false,
+        code: 'invalid_delegate_request',
+        error: 'hash and signedDelegate are required',
+      };
+    }
+
+    const senderId = input.signedDelegate?.delegateAction?.senderId ?? 'unknown-sender';
+
+    return this.queueTransaction(
+      () => executeSignedDelegateWithRelayer({
+        nearClient: this.nearClient,
+        relayerAccountId: this.config.relayerAccountId,
+        relayerPublicKey: this.relayerPublicKey,
+        relayerPrivateKey: this.config.relayerPrivateKey,
+        hash: input.hash,
+        signedDelegate: input.signedDelegate,
+        signWithPrivateKey: (args) => this.signWithPrivateKey(args),
+      }),
+      `execute signed delegate for ${senderId}`,
+    );
   }
 
   // === Internal helpers for signing & RPC ===
@@ -1010,8 +661,7 @@ export class AuthService {
     nonce: string;
     blockHash: string;
     actions: ActionArgsWasm[];
-  }): Promise<{ borshBytes: number[] }>
-  {
+  }): Promise<SignedTransaction> {
     await this.ensureSignerWasm();
     const message = {
       type: WorkerRequestType.SignTransactionWithKeyPair,
@@ -1024,17 +674,20 @@ export class AuthService {
         actions: JSON.stringify(input.actions)
       }
     };
+    // uses wasm signer worker's SignTransactionWithKeyPair action,
+    // which doesn't require VRF worker session
     const responseJson = await handle_signer_message(JSON.stringify(message));
-    const response = JSON.parse(responseJson);
-    if (response.type !== WorkerResponseType.SignTransactionWithKeyPairSuccess) {
-      throw new Error(response?.payload?.error || 'Signing failed');
-    }
-    const signedTxs = response?.payload?.signedTransactions || [];
-    if (!signedTxs.length) throw new Error('No signed transaction returned');
-    const signed = signedTxs[0];
-    const borshBytes = signed?.borshBytes || signed?.borsh_bytes;
-    if (!Array.isArray(borshBytes)) throw new Error('Missing borsh bytes');
-    return { borshBytes };
+    const {
+      transaction,
+      signature,
+      borshBytes
+    } = extractFirstSignedTransactionFromWorkerResponse(responseJson);
+
+    return new SignedTransaction({
+      transaction: transaction,
+      signature: signature,
+      borsh_bytes: borshBytes,
+    });
   }
 
   /**
@@ -1112,9 +765,9 @@ export class AuthService {
           actions,
         });
 
-        const result = await this.nearClient.sendTransaction({ borshBytes: signed.borshBytes } as any);
+        const result = await this.nearClient.sendTransaction(signed);
 
-        const contractError = this.parseContractExecutionError(result, accountId);
+        const contractError = parseContractExecutionError(result, accountId);
         if (contractError) {
           console.error(`[AuthService] Email recovery contract error for ${accountId}:`, contractError);
           return {
@@ -1195,247 +848,6 @@ export class AuthService {
   }
 
   /**
-   * Framework-agnostic Shamir 3-pass: apply server lock
-   */
-  async handleApplyServerLock(request: {
-    body: { kek_c_b64u: string }
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      if (!request.body) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Missing body' })
-        };
-      }
-      if (!isString(request.body.kek_c_b64u) || !request.body.kek_c_b64u) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'kek_c_b64u required and must be a non-empty string' })
-        };
-      }
-      const out = await this.applyServerLock(request.body.kek_c_b64u);
-      const keyId = this.shamir3pass?.getCurrentKeyId?.();
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...out, keyId })
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  /**
-   * Framework-agnostic Shamir 3-pass: remove server lock
-   */
-  async handleRemoveServerLock(request: {
-    body: { kek_cs_b64u: string; keyId: string }
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      if (!request.body) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'Missing body' })
-        };
-      }
-      if (!isString(request.body.kek_cs_b64u) || !request.body.kek_cs_b64u) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'kek_cs_b64u required and must be a non-empty string' })
-        };
-      }
-      if (!isString((request.body as any).keyId) || !(request.body as any).keyId) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'keyId required and must be a non-empty string' })
-        };
-      }
-      const providedKeyId = String((request.body as any).keyId);
-      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
-      let out: ShamirRemoveServerLockResponse;
-      if (currentKeyId && providedKeyId === currentKeyId) {
-        out = await this.removeServerLock(request.body.kek_cs_b64u);
-      } else if (this.graceKeys.has(providedKeyId)) {
-        const util = this.graceKeys.get(providedKeyId)!;
-        out = await util.removeServerLock({ kek_cs_b64u: request.body.kek_cs_b64u } as ShamirRemoveServerLockRequest);
-      } else {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'unknown keyId' })
-        };
-      }
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(out)
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  /**
-   * Framework-agnostic: GET /shamir/key-info
-   */
-  async handleGetShamirKeyInfo(): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      await this._ensureSignerAndRelayerAccount();
-      const currentKeyId = this.shamir3pass?.getCurrentKeyId?.() || null;
-      const graceKeyIds = Array.from(this.graceKeys.keys());
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ currentKeyId, p_b64u: this.config.shamir?.shamir_p_b64u ?? null, graceKeyIds })
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  /**
-   * Framework-agnostic: list grace Shamir key IDs
-   */
-  async handleListGraceKeys(): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      await this.ensureGraceKeysLoaded();
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ graceKeyIds: Array.from(this.graceKeys.keys()) })
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  /**
-   * Framework-agnostic: add grace key
-   */
-  async handleAddGraceKey(request: { e_s_b64u: string; d_s_b64u: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      const { e_s_b64u, d_s_b64u } = request || ({} as any);
-      if (!isString(e_s_b64u) || !e_s_b64u || !isString(d_s_b64u) || !d_s_b64u) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'e_s_b64u and d_s_b64u required' })
-        };
-      }
-      await this.ensureGraceKeysLoaded();
-      const added = await this.addGraceKeyInternal({ e_s_b64u, d_s_b64u }, { persist: true, skipIfExists: true });
-      if (!added) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'failed to add grace key' })
-        };
-      }
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ keyId: added.keyId })
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  /**
-   * Framework-agnostic: remove grace key by keyId
-   */
-  async handleRemoveGraceKey(request: { keyId: string }): Promise<{ status: number; headers: Record<string, string>; body: string }> {
-    try {
-      const keyId = request?.keyId;
-      if (!isString(keyId) || !keyId) {
-        return {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ error: 'keyId required and must be a non-empty string' })
-        };
-      }
-      const removed = await this.removeGraceKeyInternal(keyId, { persist: true });
-      return {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ removed })
-      };
-    } catch (e: any) {
-      return {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'internal', details: e?.message })
-      };
-    }
-  }
-
-  async checkAccountExists(accountId: string): Promise<boolean> {
-    await this._ensureSignerAndRelayerAccount();
-    const isNotFound = (m: string) => /does not exist|UNKNOWN_ACCOUNT|unknown\s+account/i.test(m);
-    const isRetryable = (m: string) => /server error|internal|temporar|timeout|too many requests|429|empty response|rpc request failed/i.test(m);
-    const attempts = 3;
-    let lastErr: any = null;
-    for (let i = 1; i <= attempts; i++) {
-      try {
-        const view = await this.nearClient.viewAccount(accountId);
-        return !!view;
-      } catch (error: any) {
-        lastErr = error;
-        const msg = String(error?.message || '');
-        // Some providers embed the useful string only inside a nested JSON `details` object.
-        // Normalize both message and details (if available) into one searchable blob.
-        const detailsBlob = (() => {
-          try {
-            const d = (error && typeof error === 'object' && 'details' in error) ? (error as any).details : undefined;
-            if (!d) return '';
-            return typeof d === 'string' ? d : JSON.stringify(d);
-          } catch { return ''; }
-        })();
-        const combined = `${msg}\n${detailsBlob}`;
-        if (isNotFound(combined)) return false;
-        if (isRetryable(msg) && i < attempts) {
-          const backoff = 150 * Math.pow(2, i - 1);
-          await new Promise((r) => setTimeout(r, backoff));
-          continue;
-        }
-        // As a safety valve for flaky RPCs, treat persistent retryable errors as not-found
-        if (isRetryable(msg)) {
-          console.warn(`[AuthService] Assuming account '${accountId}' not found after retryable RPC errors:`, msg);
-          return false;
-        }
-        console.error(`Error checking account existence for ${accountId}:`, error);
-        throw error;
-      }
-    }
-    throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-  }
-
-  /**
    * Queue transactions to prevent nonce conflicts
    */
   private async queueTransaction<T>(operation: () => Promise<T>, description: string): Promise<T> {
@@ -1464,4 +876,43 @@ export class AuthService {
 
     return this.transactionQueue;
   }
+}
+
+interface WorkerSignedTransactionPayload {
+  transaction: WasmTransaction;
+  signature: WasmSignature;
+  borshBytes?: number[];
+  borsh_bytes?: number[];
+}
+
+function extractFirstSignedTransactionFromWorkerResponse(responseJson: string): {
+  transaction: WasmTransaction;
+  signature: WasmSignature;
+  borshBytes: number[];
+} {
+  const res = JSON.parse(responseJson) as {
+    type?: WorkerResponseType;
+    payload?: { signedTransactions?: WorkerSignedTransactionPayload[]; error?: string };
+  } | undefined;
+
+  if (res?.type !== WorkerResponseType.SignTransactionWithKeyPairSuccess) {
+    const errMsg = res?.payload?.error || 'Signing failed';
+    throw new Error(errMsg);
+  }
+
+  const payload = res?.payload;
+  const signedTxs = (payload?.signedTransactions ?? []) as WorkerSignedTransactionPayload[];
+  if (!Array.isArray(signedTxs) || signedTxs.length === 0) {
+    throw new Error('No signed transaction returned');
+  }
+  const first = signedTxs[0];
+  const borshBytes = first?.borshBytes ?? first?.borsh_bytes;
+  if (!Array.isArray(borshBytes)) {
+    throw new Error('Missing borsh bytes');
+  }
+  return {
+    transaction: first.transaction,
+    signature: first.signature,
+    borshBytes,
+  };
 }

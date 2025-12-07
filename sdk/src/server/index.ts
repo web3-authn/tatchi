@@ -17,6 +17,15 @@ export {
   getShamirPB64uFromWasm,
   SHAMIR_P_B64U,
 } from './core/shamirWorker';
+export { ShamirService } from './core/ShamirService';
+export {
+  handleApplyServerLock,
+  handleRemoveServerLock,
+  handleGetShamirKeyInfo,
+  handleListGraceKeys,
+  handleAddGraceKey,
+  handleRemoveGraceKey,
+} from './core/shamirHandlers';
 export {
   type ShamirApplyServerLockRequest,
   type ShamirApplyServerLockResponse,

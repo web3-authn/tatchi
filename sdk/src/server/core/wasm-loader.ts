@@ -4,29 +4,12 @@
  * This module provides utilities for loading WebAssembly modules in various
  * JavaScript runtimes, with special handling for Cloudflare Workers where
  * import.meta.url and filesystem access are not available.
- *
- * @module wasm-loader
  */
 
-/**
- * Generic WASM module supplier type
- * Supports various input formats that wasm-bindgen can handle
- */
-export type WasmModuleSupplier<T = any> =
-  | T  // Direct module (WebAssembly.Module, Response, ArrayBuffer, etc.)
-  | Promise<T>
-  | (() => T | Promise<T>);
-
-/**
- * Check if running in Node.js environment
- */
 export function isNodeEnvironment(): boolean {
   return Boolean((globalThis as any).process?.versions?.node);
 }
 
-/**
- * Check if running in Cloudflare Workers environment
- */
 export function isCloudflareWorkers(): boolean {
   return !isNodeEnvironment() && typeof (globalThis as any).caches !== 'undefined';
 }
@@ -45,9 +28,6 @@ export function getWasmInputType(input: unknown): string {
   return `${typeof input} (${Object.prototype.toString.call(input)})`;
 }
 
-/**
- * Create a logger function with a specific prefix
- */
 export function createWasmLogger(prefix: string) {
   return (msg: string): void => {
     try {
@@ -60,7 +40,6 @@ export function createWasmLogger(prefix: string) {
 
 /**
  * Resolve string path to URL (Node.js only - fails in Cloudflare Workers)
- *
  * @throws Error in Cloudflare Workers or if URL construction fails
  */
 export function resolveStringPath(path: string, baseUrl: string): URL {
@@ -102,6 +81,11 @@ export async function loadWasmFromFilesystem(url: URL): Promise<WebAssembly.Modu
   // Convert Buffer to Uint8Array for WebAssembly.compile compatibility
   return await WebAssembly.compile(new Uint8Array(wasmBuffer));
 }
+
+export type WasmModuleSupplier<T = any> =
+  | T  // Direct module (WebAssembly.Module, Response, ArrayBuffer, etc.)
+  | Promise<T>
+  | (() => T | Promise<T>);
 
 /**
  * Unwrap function suppliers to get the actual module/path
