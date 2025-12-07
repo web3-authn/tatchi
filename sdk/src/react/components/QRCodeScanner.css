@@ -4,7 +4,7 @@
   position: fixed;
   inset: 0;
   /* Stay below the wallet iframe overlay so Tx confirmer always sits on top */
-  z-index: calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2));
+  z-index: var(--w3a-z-underlay-backdrop, calc(var(--w3a-wallet-overlay-z, 2147483646) - var(--w3a-wallet-underlay-backdrop-offset, 2)));
   display: flex;
   justify-content: center;
   align-items: center;
