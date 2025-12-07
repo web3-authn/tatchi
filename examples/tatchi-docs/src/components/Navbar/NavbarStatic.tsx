@@ -36,8 +36,9 @@ export const NavbarStatic: React.FC = () => {
         position: 'fixed',
         top: '0rem',
         right: '0rem',
-        // Keep above VitePress navbar and most overlays; below wallet overlay
-        zIndex: 2147483645,
+        // Keep above VitePress navbar and typical content, but far below wallet/SDK overlays
+        // which live near 2^31 in z-index space.
+        zIndex: 1000,
         pointerEvents: 'auto',
         display: 'flex',
         gap: '0.5rem',

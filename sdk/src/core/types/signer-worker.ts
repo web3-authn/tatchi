@@ -41,6 +41,17 @@ export type WasmSignTransactionsWithActionsRequest = Omit<
   // Decryption context: WrapKeySeed is delivered via MessagePort; only wrapKeySalt + ciphertext travel in payload.
   decryption: RawSignTransactionsWithActionsRequest['decryption'];
 };
+type RawSignDelegateActionRequest = StripFree<wasmModule.SignDelegateActionRequest>;
+export type WasmSignDelegateActionRequest = Omit<
+  RawSignDelegateActionRequest,
+  'confirmationConfig' | 'decryption'
+> & {
+  confirmationConfig?: never;
+  intentDigest?: string;
+  transactionContext?: TransactionContext;
+  credential?: string;
+  decryption: RawSignDelegateActionRequest['decryption'];
+};
 export type WasmDecryptPrivateKeyRequest = StripFree<wasmModule.DecryptPrivateKeyRequest>;
 export type WasmExtractCosePublicKeyRequest = StripFree<wasmModule.ExtractCoseRequest>;
 export type WasmSignNep413MessageRequest = StripFree<wasmModule.SignNep413Request>;
@@ -52,6 +63,7 @@ export type WasmRegisterDevice2WithDerivedKeyRequest = StripFree<wasmModule.Regi
 export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
   | WasmRecoverKeypairRequest
   | WasmSignTransactionsWithActionsRequest
+  | WasmSignDelegateActionRequest
   | WasmDecryptPrivateKeyRequest
   | WasmExtractCosePublicKeyRequest
   | WasmSignNep413MessageRequest
@@ -62,7 +74,10 @@ export type WasmRequestPayload = WasmDeriveNearKeypairAndEncryptRequest
 // WASM Worker Response Types
 export type WasmRecoverKeypairResult = InstanceType<typeof wasmModule.RecoverKeypairResult>;
 export type WasmSignedTransaction = InstanceType<typeof wasmModule.WasmSignedTransaction>;
+export type WasmSignedDelegate = wasmModule.WasmSignedDelegate;
+export type WasmDelegateAction = wasmModule.WasmDelegateAction;
 export type WasmTransactionSignResult = InstanceType<typeof wasmModule.TransactionSignResult>;
+export type WasmDelegateSignResult = wasmModule.DelegateSignResult;
 export type WasmDecryptPrivateKeyResult = InstanceType<typeof wasmModule.DecryptPrivateKeyResult>;
 export type WasmDeriveNearKeypairAndEncryptResult = InstanceType<typeof wasmModule.DeriveNearKeypairAndEncryptResult>;
 // wasm-bindgen generates some classes with private constructors, which breaks
@@ -94,6 +109,11 @@ export interface WorkerRequestTypeMap {
     type: WorkerRequestType.SignTransactionsWithActions;
     request: WasmSignTransactionsWithActionsRequest;
     result: WasmTransactionSignResult;
+  };
+  [WorkerRequestType.SignDelegateAction]: {
+    type: WorkerRequestType.SignDelegateAction;
+    request: WasmSignDelegateActionRequest;
+    result: WasmDelegateSignResult;
   };
   [WorkerRequestType.DecryptPrivateKeyWithPrf]: {
     type: WorkerRequestType.DecryptPrivateKeyWithPrf;
@@ -187,7 +207,9 @@ export const mapBehaviorToWasm = (behavior: ConfirmationBehavior): number => {
 };
 export type WasmRequestResult = WasmRecoverKeypairResult
   | WasmSignedTransaction
+  | WasmSignedDelegate
   | WasmTransactionSignResult
+  | WasmDelegateSignResult
   | WasmDecryptPrivateKeyResult
   | WasmExportNearKeypairUiResult
 
@@ -275,6 +297,7 @@ export interface RequestResponseMap {
   [WorkerRequestType.RecoverKeypairFromPasskey]: WasmRecoverKeypairResult;
   [WorkerRequestType.DecryptPrivateKeyWithPrf]: WasmDecryptPrivateKeyResult;
   [WorkerRequestType.SignTransactionsWithActions]: WasmTransactionSignResult;
+  [WorkerRequestType.SignDelegateAction]: WasmDelegateSignResult;
   [WorkerRequestType.ExtractCosePublicKey]: wasmModule.CoseExtractionResult;
   [WorkerRequestType.SignTransactionWithKeyPair]: WasmTransactionSignResult;
   [WorkerRequestType.SignNep413Message]: wasmModule.SignNep413Result;
@@ -328,6 +351,7 @@ export type WorkerResponseForRequest<T extends RequestTypeKey> =
 export type EncryptionResponse = WorkerResponseForRequest<typeof WorkerRequestType.DeriveNearKeypairAndEncrypt>;
 export type RecoveryResponse = WorkerResponseForRequest<typeof WorkerRequestType.RecoverKeypairFromPasskey>;
 export type TransactionResponse = WorkerResponseForRequest<typeof WorkerRequestType.SignTransactionsWithActions>;
+export type DelegateSignResponse = WorkerResponseForRequest<typeof WorkerRequestType.SignDelegateAction>;
 export type DecryptionResponse = WorkerResponseForRequest<typeof WorkerRequestType.DecryptPrivateKeyWithPrf>;
 export type CoseExtractionResponse = WorkerResponseForRequest<typeof WorkerRequestType.ExtractCosePublicKey>;
 export type Nep413SigningResponse = WorkerResponseForRequest<typeof WorkerRequestType.SignNep413Message>;
@@ -353,6 +377,7 @@ export function isWorkerSuccess<T extends RequestTypeKey>(
     response.type === WorkerResponseType.RecoverKeypairFromPasskeySuccess ||
     response.type === WorkerResponseType.DecryptPrivateKeyWithPrfSuccess ||
     response.type === WorkerResponseType.SignTransactionsWithActionsSuccess ||
+    response.type === WorkerResponseType.SignDelegateActionSuccess ||
     response.type === WorkerResponseType.ExtractCosePublicKeySuccess ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairSuccess ||
     response.type === WorkerResponseType.SignNep413MessageSuccess ||
@@ -369,6 +394,7 @@ export function isWorkerError<T extends RequestTypeKey>(
     response.type === WorkerResponseType.RecoverKeypairFromPasskeyFailure ||
     response.type === WorkerResponseType.DecryptPrivateKeyWithPrfFailure ||
     response.type === WorkerResponseType.SignTransactionsWithActionsFailure ||
+    response.type === WorkerResponseType.SignDelegateActionFailure ||
     response.type === WorkerResponseType.ExtractCosePublicKeyFailure ||
     response.type === WorkerResponseType.SignTransactionWithKeyPairFailure ||
     response.type === WorkerResponseType.SignNep413MessageFailure ||
@@ -389,6 +415,10 @@ export function isRecoverKeypairFromPasskeySuccess(response: RecoveryResponse): 
 
 export function isSignTransactionsWithActionsSuccess(response: TransactionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignTransactionsWithActions> {
   return response.type === WorkerResponseType.SignTransactionsWithActionsSuccess;
+}
+
+export function isSignDelegateActionSuccess(response: DelegateSignResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.SignDelegateAction> {
+  return response.type === WorkerResponseType.SignDelegateActionSuccess;
 }
 
 export function isDecryptPrivateKeyWithPrfSuccess(response: DecryptionResponse): response is WorkerSuccessResponse<typeof WorkerRequestType.DecryptPrivateKeyWithPrf> {

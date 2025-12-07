@@ -210,3 +210,80 @@ impl From<&crate::types::SignedTransaction> for WasmSignedTransaction {
         }
     }
 }
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WasmDelegateAction {
+    #[wasm_bindgen(getter_with_clone, js_name = "senderId")]
+    pub sender_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "receiverId")]
+    pub receiver_id: String,
+    #[wasm_bindgen(getter_with_clone, js_name = "actionsJson")]
+    pub actions_json: String,
+    pub nonce: u64,
+    #[wasm_bindgen(getter_with_clone, js_name = "maxBlockHeight")]
+    pub max_block_height: u64,
+    #[wasm_bindgen(getter_with_clone, js_name = "publicKey")]
+    pub public_key: WasmPublicKey,
+}
+
+impl From<&crate::types::DelegateAction> for WasmDelegateAction {
+    fn from(delegate: &crate::types::DelegateAction) -> Self {
+        let actions_json = delegate
+            .get_actions_json()
+            .unwrap_or_else(|_| "[]".to_string());
+
+        WasmDelegateAction {
+            sender_id: delegate.sender_id.0.clone(),
+            receiver_id: delegate.receiver_id.0.clone(),
+            actions_json,
+            nonce: delegate.nonce,
+            max_block_height: delegate.max_block_height,
+            public_key: WasmPublicKey::from(&delegate.public_key),
+        }
+    }
+}
+
+#[wasm_bindgen]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WasmSignedDelegate {
+    #[wasm_bindgen(getter_with_clone, js_name = "delegateAction")]
+    pub delegate_action: WasmDelegateAction,
+    #[wasm_bindgen(getter_with_clone)]
+    pub signature: WasmSignature,
+    #[wasm_bindgen(getter_with_clone, js_name = "borshBytes")]
+    pub borsh_bytes: Vec<u8>,
+}
+
+#[wasm_bindgen]
+impl WasmSignedDelegate {
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        #[wasm_bindgen(js_name = "delegateAction")] delegate_action: WasmDelegateAction,
+        signature: WasmSignature,
+        #[wasm_bindgen(js_name = "borshBytes")] borsh_bytes: Vec<u8>,
+    ) -> WasmSignedDelegate {
+        WasmSignedDelegate {
+            delegate_action,
+            signature,
+            borsh_bytes,
+        }
+    }
+
+    pub fn to_borsh_bytes(&self) -> Result<Vec<u8>, String> {
+        Ok(self.borsh_bytes.clone())
+    }
+}
+
+impl From<&crate::types::SignedDelegate> for WasmSignedDelegate {
+    fn from(sd: &crate::types::SignedDelegate) -> Self {
+        let borsh_bytes = sd.to_borsh_bytes().unwrap_or_default();
+        WasmSignedDelegate {
+            delegate_action: WasmDelegateAction::from(&sd.delegate_action),
+            signature: WasmSignature::from(&sd.signature),
+            borsh_bytes,
+        }
+    }
+}

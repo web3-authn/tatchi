@@ -93,6 +93,131 @@ pub type Nonce = u64;
 pub type Gas = u64;
 pub type Balance = u128;
 
+// === SERDE HELPERS FOR BALANCE (u128) ===
+// JSON does not natively support 128-bit integers. To keep JSON round-trips
+// working (especially for delegate actions that serialize inner `Action`s),
+// we encode Balance as a decimal string and accept either a string or a
+// non-negative number when deserializing.
+mod serde_balance_as_dec_str {
+    use super::Balance;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Balance, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&value.to_string())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Balance, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = Balance;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("a non-negative u128 as string or number")
+            }
+
+            fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(v as Balance)
+            }
+
+            fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(v as Balance)
+            }
+
+            fn visit_i64<E>(self, v: i64) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                if v < 0 {
+                    return Err(E::custom("negative values are not allowed for Balance"));
+                }
+                Ok(v as u128)
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                v.parse::<Balance>().map_err(E::custom)
+            }
+
+            fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                self.visit_str(&v)
+            }
+        }
+
+        deserializer.deserialize_any(Visitor)
+    }
+}
+
+mod serde_option_balance_as_dec_str {
+    use super::Balance;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(value: &Option<Balance>, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        match value {
+            Some(v) => crate::types::near::serde_balance_as_dec_str::serialize(v, serializer),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Balance>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        // Treat absence / null as None, otherwise delegate to Balance helper.
+        struct OptVisitor;
+        impl<'de> serde::de::Visitor<'de> for OptVisitor {
+            type Value = Option<Balance>;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                f.write_str("an optional non-negative u128 as string or number")
+            }
+
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(None)
+            }
+
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                Ok(None)
+            }
+
+            fn visit_some<D2>(self, deserializer: D2) -> Result<Self::Value, D2::Error>
+            where
+                D2: Deserializer<'de>,
+            {
+                crate::types::near::serde_balance_as_dec_str::deserialize(deserializer).map(Some)
+            }
+        }
+
+        deserializer.deserialize_option(OptVisitor)
+    }
+}
+
 // === NEP-0591 GLOBAL CONTRACT TYPES ===
 
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -116,6 +241,7 @@ pub struct FunctionCallAction {
     #[serde(with = "serde_bytes")]
     pub args: Vec<u8>,
     pub gas: Gas,
+    #[serde(with = "serde_balance_as_dec_str")]
     pub deposit: Balance,
 }
 
@@ -129,9 +255,11 @@ pub enum Action {
     },
     FunctionCall(Box<FunctionCallAction>),
     Transfer {
+        #[serde(with = "serde_balance_as_dec_str")]
         deposit: Balance,
     },
     Stake {
+        #[serde(with = "serde_balance_as_dec_str")]
         stake: Balance,
         public_key: PublicKey,
     },
@@ -145,7 +273,7 @@ pub enum Action {
     DeleteAccount {
         beneficiary_id: AccountId,
     },
-    SignedDelegate,
+    SignedDelegate(Box<SignedDelegate>),
     DeployGlobalContract {
         #[serde(with = "serde_bytes")]
         code: Vec<u8>,
@@ -173,6 +301,7 @@ pub enum AccessKeyPermission {
 #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FunctionCallPermission {
+    #[serde(with = "serde_option_balance_as_dec_str")]
     pub allowance: Option<Balance>,
     pub receiver_id: String,
     pub method_names: Vec<String>,
@@ -277,5 +406,43 @@ impl SignedTransaction {
             );
         }
         Ok(serde_json::Value::Object(json_map))
+    }
+}
+
+// === DELEGATE ACTION TYPES (NEP-461) ===
+
+#[derive(
+    BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct DelegateAction {
+    pub sender_id: AccountId,
+    pub receiver_id: AccountId,
+    pub actions: Vec<Action>,
+    pub nonce: Nonce,
+    pub max_block_height: u64,
+    pub public_key: PublicKey,
+}
+
+impl DelegateAction {
+    pub fn get_actions_json(&self) -> Result<String, String> {
+        serde_json::to_string(&self.actions)
+            .map_err(|e| format!("Failed to serialize delegate actions: {}", e))
+    }
+}
+
+#[derive(
+    BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, Serialize, Deserialize,
+)]
+#[serde(rename_all = "camelCase")]
+pub struct SignedDelegate {
+    pub delegate_action: DelegateAction,
+    pub signature: Signature,
+}
+
+impl SignedDelegate {
+    /// Convert to borsh bytes for transmission
+    pub fn to_borsh_bytes(&self) -> Result<Vec<u8>, String> {
+        borsh::to_vec(self).map_err(|e| format!("Failed to serialize signed delegate: {}", e))
     }
 }

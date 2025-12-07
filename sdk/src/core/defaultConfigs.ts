@@ -16,6 +16,7 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
     // No default relayer URL. Force apps to configure via env/overrides.
     // Using an empty string triggers early validation errors in code paths that require it.
     url: '',
+    delegateActionRoute: '/signed-delegate',
   },
   vrfWorkerConfigs: {
     shamir3pass: {
@@ -28,7 +29,6 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
       removeServerLockRoute: '/vrf/remove-server-lock',
     }
   }
-  ,
   // Configure iframeWallet in application code to point at your dedicated wallet origin when available.
   // Example:
   // iframeWallet: {
@@ -52,6 +52,9 @@ export function buildConfigsFromEnv(overrides: Partial<TatchiPasskeyConfigs> = {
     relayer: {
       // accountId: overrides.relayer?.accountId ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.accountId,
       url: overrides.relayer?.url ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.url,
+      delegateActionRoute: overrides.relayer?.delegateActionRoute
+        ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.delegateActionRoute,
+      emailRecovery: overrides.relayer?.emailRecovery ?? PASSKEY_MANAGER_DEFAULT_CONFIGS.relayer.emailRecovery,
     },
     vrfWorkerConfigs: {
       shamir3pass: {

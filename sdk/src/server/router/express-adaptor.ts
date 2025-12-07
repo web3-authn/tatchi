@@ -1,6 +1,14 @@
 import type { Request, Response, Router as ExpressRouter } from 'express';
 import express from 'express';
 import type { AuthService } from '../core/AuthService';
+import {
+  handleApplyServerLock,
+  handleRemoveServerLock,
+  handleGetShamirKeyInfo,
+  handleListGraceKeys,
+  handleAddGraceKey,
+  handleRemoveGraceKey,
+} from '../core/shamirHandlers';
 import type { ForwardableEmailPayload } from '../email-recovery/zkEmail';
 import { normalizeForwardableEmailPayload, parseAccountIdFromSubject } from '../email-recovery/zkEmail';
 
@@ -60,11 +68,12 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   );
 
   router.post('/vrf/apply-server-lock', async (req: any, res: any) => {
-    if (typeof (service as any).hasShamir === 'function' && !service.hasShamir()) {
+    const shamir = service.shamirService;
+    if (!shamir || !shamir.hasShamir()) {
       return res.status(503).json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
     }
     try {
-      const serverResponse = await service.handleApplyServerLock({ body: req.body });
+      const serverResponse = await handleApplyServerLock(shamir, { body: req.body });
       Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
       res.status(serverResponse.status);
       res.send(JSON.parse(serverResponse.body));
@@ -74,11 +83,12 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   });
 
   router.post('/vrf/remove-server-lock', async (req: any, res: any) => {
-    if (typeof (service as any).hasShamir === 'function' && !service.hasShamir()) {
+    const shamir = service.shamirService;
+    if (!shamir || !shamir.hasShamir()) {
       return res.status(503).json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
     }
     try {
-      const serverResponse = await service.handleRemoveServerLock({ body: req.body });
+      const serverResponse = await handleRemoveServerLock(shamir, { body: req.body });
       Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
       res.status(serverResponse.status);
       res.send(JSON.parse(serverResponse.body));
@@ -231,11 +241,12 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   });
 
   router.get('/shamir/key-info', async (_req: any, res: any) => {
-    if (typeof (service as any).hasShamir === 'function' && !service.hasShamir()) {
+    const shamir = service.shamirService;
+    if (!shamir || !shamir.hasShamir()) {
       return res.status(503).json({ error: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' });
     }
     try {
-      const serverResponse = await service.handleGetShamirKeyInfo();
+      const serverResponse = await handleGetShamirKeyInfo(shamir);
       Object.entries(serverResponse.headers).forEach(([k, v]) => res.set(k, v as any));
       res.status(serverResponse.status);
       res.send(JSON.parse(serverResponse.body));
@@ -247,7 +258,10 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
   if (opts.healthz) {
     router.get('/healthz', async (_req: Request, res: Response) => {
       try {
-        const { currentKeyId } = JSON.parse((await service.handleGetShamirKeyInfo()).body) as { currentKeyId?: string };
+        const shamir = service.shamirService;
+        const { currentKeyId } = shamir
+          ? JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as { currentKeyId?: string }
+          : { currentKeyId: undefined as string | undefined };
         res.status(200).json({ ok: true, currentKeyId: currentKeyId || null });
       } catch {
         res.status(200).json({ ok: true });

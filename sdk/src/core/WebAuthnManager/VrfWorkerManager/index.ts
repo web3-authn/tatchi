@@ -243,6 +243,20 @@ export class VrfWorkerManager {
   } | {
     ctx: VrfWorkerManagerContext;
     sessionId: string;
+    kind: 'delegate';
+    nearAccountId: string;
+    delegate: {
+      senderId: string;
+      receiverId: string;
+      actions: TransactionInputWasm['actions'];
+      nonce: string | number | bigint;
+      maxBlockHeight: string | number | bigint;
+    };
+    rpcCall: RpcCallPayload;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+  } | {
+    ctx: VrfWorkerManagerContext;
+    sessionId: string;
     kind: 'nep413';
     nearAccountId: string;
     message: string;
@@ -260,20 +274,38 @@ export class VrfWorkerManager {
 
     // Canonical intent digest for transactions: hash only receiverId + ordered actions,
     // excluding nonce and other per-tx metadata, to stay in sync with UI confirmers.
-    const intentDigest = params.kind === 'transaction'
+    const txSigningRequests = params.kind === 'delegate'
+      ? [{
+          receiverId: params.delegate.receiverId,
+          actions: params.delegate.actions,
+        } as TransactionInputWasm]
+      : params.kind === 'transaction'
+        ? params.txSigningRequests
+        : [];
+
+    const intentDigest = params.kind !== 'nep413'
       ? await computeUiIntentDigestFromTxs(
-          params.txSigningRequests.map(tx => ({
+          txSigningRequests.map(tx => ({
             receiverId: tx.receiverId,
             actions: tx.actions.map(orderActionForDigest),
           })) as TransactionInputWasm[]
         )
       : `${params.nearAccountId}:${params.recipient}:${params.message}`;
 
-    const summary: TransactionSummary = params.kind === 'transaction'
+    const summary: TransactionSummary = params.kind !== 'nep413'
       ? {
           intentDigest,
-          receiverId: params.txSigningRequests[0]?.receiverId,
-          totalAmount: computeTotalAmountYocto(params.txSigningRequests),
+          receiverId: txSigningRequests[0]?.receiverId,
+          totalAmount: computeTotalAmountYocto(txSigningRequests),
+          type: params.kind === 'delegate' ? 'delegateAction' : 'transaction',
+          delegate: params.kind === 'delegate'
+            ? {
+                senderId: params.nearAccountId,
+                receiverId: params.delegate.receiverId,
+                nonce: String(params.delegate.nonce),
+                maxBlockHeight: String(params.delegate.maxBlockHeight),
+              }
+            : undefined,
         }
       : {
           intentDigest,
@@ -282,14 +314,14 @@ export class VrfWorkerManager {
         };
 
     const request: SecureConfirmRequest<SignTransactionPayload | SignNep413Payload, TransactionSummary> =
-      params.kind === 'transaction'
+      params.kind !== 'nep413'
         ? {
             schemaVersion: 2,
             requestId: sessionId,
             type: SecureConfirmationType.SIGN_TRANSACTION,
             summary,
             payload: {
-              txSigningRequests: params.txSigningRequests,
+              txSigningRequests,
               intentDigest,
               rpcCall: params.rpcCall,
             },

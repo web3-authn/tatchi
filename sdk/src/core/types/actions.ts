@@ -162,6 +162,21 @@ export type ActionArgsWasm =
   | { action_type: ActionType.AddKey; public_key: string; access_key: string }
   | { action_type: ActionType.DeleteKey; public_key: string }
   | { action_type: ActionType.DeleteAccount; beneficiary_id: string }
+  | {
+      action_type: ActionType.SignedDelegate;
+      /**
+       * Fully-typed NEP-461 delegate action payload.
+       * This mirrors near-api-js DelegateAction and is serialized to JSON
+       * for the signer worker, which converts it into an on-chain
+       * SignedDelegateAction inside the Action::Delegate variant.
+       */
+      delegate_action: import('./delegate').DelegateAction;
+      /**
+       * Ed25519 signature over the NEP-461 delegateAction hash.
+       * Mirrors near-api-js Signature and the Rust Signature struct.
+       */
+      signature: import('./delegate').Signature;
+    }
   | { action_type: ActionType.UseGlobalContract; account_id?: string; code_hash?: string }
 
 export function isActionArgsWasm(a?: any): a is ActionArgsWasm {
@@ -292,14 +307,6 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
         throw new Error('code required for DeployContract');
       }
       break;
-    case ActionType.DeployGlobalContract:
-      if (!actionArgsWasm.code || actionArgsWasm.code.length === 0) {
-        throw new Error('code required for DeployGlobalContract');
-      }
-      if (!actionArgsWasm.deploy_mode || (actionArgsWasm.deploy_mode !== 'CodeHash' && actionArgsWasm.deploy_mode !== 'AccountId')) {
-        throw new Error('deploy_mode must be CodeHash or AccountId for DeployGlobalContract');
-      }
-      break;
     case ActionType.Stake:
       if (!actionArgsWasm.stake) {
         throw new Error('stake amount required for Stake');
@@ -324,6 +331,27 @@ export function validateActionArgsWasm(actionArgsWasm: ActionArgsWasm): void {
     case ActionType.DeleteAccount:
       if (!actionArgsWasm.beneficiary_id) {
         throw new Error('beneficiary_id required for DeleteAccount');
+      }
+      break;
+    case ActionType.SignedDelegate: {
+      const payload = actionArgsWasm as {
+        delegate_action?: unknown;
+        signature?: unknown;
+      };
+      if (!payload.delegate_action || typeof payload.delegate_action !== 'object') {
+        throw new Error('delegate_action required for SignedDelegate');
+      }
+      if (!payload.signature || typeof payload.signature !== 'object') {
+        throw new Error('signature required for SignedDelegate');
+      }
+      break;
+    }
+    case ActionType.DeployGlobalContract:
+      if (!actionArgsWasm.code || actionArgsWasm.code.length === 0) {
+        throw new Error('code required for DeployGlobalContract');
+      }
+      if (!actionArgsWasm.deploy_mode || (actionArgsWasm.deploy_mode !== 'CodeHash' && actionArgsWasm.deploy_mode !== 'AccountId')) {
+        throw new Error('deploy_mode must be CodeHash or AccountId for DeployGlobalContract');
       }
       break;
     case ActionType.UseGlobalContract: {

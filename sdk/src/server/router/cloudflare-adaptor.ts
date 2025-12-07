@@ -1,4 +1,9 @@
 import type { AuthService } from '../core/AuthService';
+import {
+  handleApplyServerLock,
+  handleRemoveServerLock,
+  handleGetShamirKeyInfo,
+} from '../core/shamirHandlers';
 import { buildCorsOrigins } from '../core/SessionService';
 import type { SessionAdapter } from './express-adaptor';
 import type { CreateAccountAndRegisterRequest } from '../core/types';
@@ -195,7 +200,8 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'POST' && pathname === '/vrf/apply-server-lock') {
-        if (!(await service.ensureShamirReady())) {
+        const shamir = service.shamirService;
+        if (!shamir || !(await shamir.ensureReady())) {
           const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
@@ -207,7 +213,9 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           withCors(res.headers, opts, request);
           return res;
         }
-        const out = await service.handleApplyServerLock({ body: { kek_c_b64u: String((body as Record<string, unknown>).kek_c_b64u) } });
+        const out = await handleApplyServerLock(shamir, {
+          body: { kek_c_b64u: String((body as Record<string, unknown>).kek_c_b64u) },
+        });
         return toResponse(out);
       }
 
@@ -350,7 +358,8 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
       }
 
       if (method === 'POST' && pathname === '/vrf/remove-server-lock') {
-        if (!(await service.ensureShamirReady())) {
+        const shamir = service.shamirService;
+        if (!shamir || !(await shamir.ensureReady())) {
           const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
@@ -365,22 +374,23 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           withCors(res.headers, opts, request);
           return res;
         }
-        const out = await service.handleRemoveServerLock({
+        const out = await handleRemoveServerLock(shamir, {
           body: {
             kek_cs_b64u: String((body as Record<string, unknown>).kek_cs_b64u),
             keyId: String((body as Record<string, unknown>).keyId),
-          }
+          },
         });
         return toResponse(out);
       }
 
       if (method === 'GET' && pathname === '/shamir/key-info') {
-        if (!(await service.ensureShamirReady())) {
+        const shamir = service.shamirService;
+        if (!shamir || !(await shamir.ensureReady())) {
           const res = json({ code: 'shamir_disabled', message: 'Shamir 3-pass is not configured on this server' }, { status: 503 });
           withCors(res.headers, opts, request);
           return res;
         }
-        const out = await service.handleGetShamirKeyInfo();
+        const out = await handleGetShamirKeyInfo(shamir);
         return toResponse(out);
       }
 
@@ -389,8 +399,16 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
         const allowed = buildCorsOrigins(...(opts.corsOrigins || []));
         const corsAllowed = allowed === '*' ? '*' : allowed;
         try {
-          const { currentKeyId } = JSON.parse((await service.handleGetShamirKeyInfo()).body) as { currentKeyId?: string };
-          const res = json({ ok: true, currentKeyId: currentKeyId || null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
+          const shamir = service.shamirService;
+          if (shamir) {
+            const { currentKeyId } = JSON.parse((await handleGetShamirKeyInfo(shamir)).body) as {
+              currentKeyId?: string;
+            };
+            const res = json({ ok: true, currentKeyId: currentKeyId || null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
+            withCors(res.headers, opts, request);
+            return res;
+          }
+          const res = json({ ok: true, currentKeyId: null, cors: { allowedOrigins: corsAllowed } }, { status: 200 });
           withCors(res.headers, opts, request);
           return res;
         } catch {
@@ -433,8 +451,13 @@ export function createCloudflareCron(service: AuthService, opts: CloudflareCronO
       if (doRotate) {
         // Rotation in Workers is ephemeral unless you persist keys externally.
         // This call rotates in-memory only and logs the result.
-        const rotation = await service.rotateShamirServerKeypair();
-        console.log('[cloudflare-cron] rotated key', rotation.newKeyId, 'graceIds:', rotation.graceKeyIds);
+        const shamir = service.shamirService;
+        if (!shamir) {
+          console.warn('[cloudflare-cron] Shamir not configured; skipping rotation');
+        } else {
+          const rotation = await shamir.rotateShamirServerKeypair();
+          console.log('[cloudflare-cron] rotated key', rotation.newKeyId, 'graceIds:', rotation.graceKeyIds);
+        }
       } else {
         console.log('[cloudflare-cron] enabled but rotate=false (no action)');
       }

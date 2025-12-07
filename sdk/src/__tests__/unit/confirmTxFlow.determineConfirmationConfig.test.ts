@@ -120,6 +120,28 @@ test.describe('determineConfirmationConfig', () => {
       const frame = await element.contentFrame();
       if (!frame) throw new Error('iframe content frame not available');
 
+      // Ensure the iframe has the same import map as the top window so bare
+      // module specifiers (e.g., "bs58") used by the built ESM bundle resolve.
+      await frame.evaluate(() => {
+        try {
+          const parentImportMap = window.top?.document.querySelector<HTMLScriptElement>('script[type="importmap"]');
+          if (!parentImportMap) return;
+
+          const clone = document.createElement('script');
+          clone.type = 'importmap';
+          clone.textContent = parentImportMap.textContent;
+
+          if (document.head.firstChild) {
+            document.head.insertBefore(clone, document.head.firstChild);
+          } else {
+            document.head.appendChild(clone);
+          }
+        } catch {
+          // If anything goes wrong here, fall back to the iframe's default
+          // resolution (the test will surface any remaining issues).
+        }
+      });
+
       // Evaluate within the iframe so window.self !== window.top → true
       return await frame.evaluate(async ({ paths }) => {
         const mod = await import(paths.determine);

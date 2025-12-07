@@ -36,6 +36,13 @@ interface HostTxConfirmerElement extends HTMLElement {
   loading?: boolean;      // host elements use `loading` (iframe element uses `showLoading`)
   deferClose?: boolean;   // two-phase close coordination
   errorMessage?: string;
+  title: string;
+  delegateMeta?: {
+    senderId?: string;
+    receiverId?: string;
+    nonce?: string;
+    maxBlockHeight?: string;
+  };
   requestUpdate?: () => void; // Lit element update hook (optional)
   nearExplorerUrl?: string;
 }
@@ -213,10 +220,17 @@ function applyHostElementProps(el: HostTxConfirmerElement, props?: ConfirmUIUpda
   if (props.vrfChallenge != null) el.vrfChallenge = props.vrfChallenge;
   if (props.theme != null) el.theme = props.theme;
   if (props.loading != null) el.loading = !!props.loading;
+  if ((props as any).title != null) el.title = (props as any).title;
   if ('errorMessage' in (props as Record<string, unknown>)) {
     const msg = props.errorMessage ?? '';
     el.errorMessage = msg;
     setErrorAttribute(el, msg);
+  }
+  if ((props as any).delegateMeta != null) {
+    el.delegateMeta = (props as any).delegateMeta;
+  }
+  if ((props as any).nearExplorerUrl != null) {
+    el.nearExplorerUrl = (props as any).nearExplorerUrl;
   }
   el.requestUpdate?.();
 }
@@ -308,6 +322,10 @@ function mountHostElement({
   el.removeAttribute('data-error-message');
   // Two-phase close: let caller control removal
   el.deferClose = true;
+  if (summary?.delegate) {
+    el.title = 'Sign Delegate Action';
+    el.delegateMeta = summary.delegate;
+  }
   const portal = ensureConfirmPortal();
   // Ensure hidden state (idempotent) and mount
   portal.classList.remove('w3a-portal--visible');

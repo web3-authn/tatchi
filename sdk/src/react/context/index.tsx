@@ -33,6 +33,8 @@ import { AccountRecoveryHooksOptions } from '@/core/types/passkeyManager';
 import { TatchiPasskeyConfigs } from '@/core/types/passkeyManager';
 import { buildConfigsFromEnv } from '@/core/defaultConfigs';
 import { toAccountId } from '@/core/types/accountIds';
+import { DelegateActionInput } from '@/core/types/delegate';
+import { DelegateActionHooksOptions } from '@/core/TatchiPasskey/delegateAction';
 
 // Global singleton to prevent multiple manager instances in StrictMode
 let globalPasskeyManager: TatchiPasskey | null = null;
@@ -272,7 +274,10 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     return result
   }
 
-  const registerPasskey = async (nearAccountId: string, options?: RegistrationHooksOptions) => {
+  const registerPasskey = async (
+    nearAccountId: string,
+    options?: RegistrationHooksOptions
+  ) => {
     const result: RegistrationResult = await tatchi.registerPasskey(nearAccountId, {
       ...options,
       onEvent: async (event) => {
@@ -292,8 +297,11 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     return result;
   }
 
-  const recoverAccount = async (args: { accountId?: string; options?: AccountRecoveryHooksOptions }) => {
-    return await tatchi.recoverAccountFlow({ accountId: args.accountId, options: args.options });
+  const recoverAccount = async (args: {
+    accountId?: string;
+    options?: AccountRecoveryHooksOptions
+  }) => {
+    return await tatchi.recoverAccountFlow(args);
   }
 
   // Device2: Start device linking flow (returns QR payload)
@@ -320,12 +328,7 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     actionArgs: ActionArgs,
     options?: ActionHooksOptions
   }) => {
-    return await tatchi.executeAction({
-      nearAccountId: args.nearAccountId,
-      receiverId: args.receiverId,
-      actionArgs: args.actionArgs,
-      options: args.options
-    });
+    return await tatchi.executeAction(args);
   }
 
   const signNEP413Message = async (args: {
@@ -333,12 +336,16 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     params: SignNEP413MessageParams,
     options?: SignNEP413HooksOptions,
   }) => {
-    return await tatchi.signNEP413Message({
-      nearAccountId: args.nearAccountId,
-      params: args.params,
-      options: args.options
-    });
+    return await tatchi.signNEP413Message(args);
   }
+
+  const signDelegateAction = async (args: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    options?: DelegateActionHooksOptions;
+  }) => {
+    return await tatchi.signDelegateAction(args);
+  };
 
   // Function to manually refresh login state
   const refreshLoginState = useCallback(async (nearAccountId?: string) => {
@@ -405,6 +412,8 @@ export const TatchiContextProvider: React.FC<TatchiContextProviderProps> = ({
     executeAction,
     // NEP-413 message signing
     signNEP413Message,           // Sign NEP-413 messages
+    // Delegate action signing (NEP-461)
+    signDelegateAction,
 
     // Account recovery functions
     recoverAccount,             // Single-endpoint account recovery flow (wallet-origin when available)

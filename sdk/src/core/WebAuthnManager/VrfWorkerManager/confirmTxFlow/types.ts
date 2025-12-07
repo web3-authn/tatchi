@@ -33,6 +33,13 @@ export interface TransactionSummary {
   method?: string;
   intentDigest?: string;
   receiverId?: string;
+  type?: string;
+  delegate?: {
+    senderId?: string;
+    receiverId?: string;
+    nonce?: string;
+    maxBlockHeight?: string;
+  };
   registrationDetails?: {
     nearAccountId: string;
     deviceNumber: number;

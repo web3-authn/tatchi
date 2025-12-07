@@ -529,7 +529,7 @@ export const SetupEmailRecovery: React.FC = () => {
           <LoadingButton
             onClick={handleResetRecovery}
             loading={false}
-            variant="ghost"
+            variant="primary"
             size="small"
             disabled={isBusy}
           >

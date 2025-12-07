@@ -139,6 +139,7 @@ export default defineConfig({
           { text: 'Registration (Detailed)', link: '/docs/guides/registration-login-detailed' },
           { text: 'Progress Events', link: '/docs/guides/progress-events' },
           { text: 'Sending Transactions', link: '/docs/guides/sending-transaction' },
+          { text: 'Gasless Delegate Tranasctions', link: '/docs/guides/delegate-actions' },
           { text: 'Advanced Features',
             collapsed: false,
             items: [

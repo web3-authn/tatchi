@@ -25,7 +25,8 @@ import type { TatchiPasskeyConfigs, RegistrationHooksOptions, RegistrationSSEEve
 import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
-import type { ConfirmationConfig, RpcCallPayload } from '../types/signer-worker';
+import type { DelegateActionInput } from '../types/delegate';
+import type { ConfirmationConfig, RpcCallPayload, WasmSignedDelegate } from '../types/signer-worker';
 import { WebAuthnRegistrationCredential, WebAuthnAuthenticationCredential } from '../types';
 import { RegistrationCredentialConfirmationPayload } from './SignerWorkerManager/handlers/validation';
 import { resolveWorkerBaseOrigin, onEmbeddedBaseChange } from '../sdkPaths';
@@ -1089,6 +1090,60 @@ export class WebAuthnManager {
         sessionId,
       })
     );
+  }
+
+  async signDelegateAction({
+    delegate,
+    rpcCall,
+    confirmationConfigOverride,
+    onEvent,
+  }: {
+    delegate: DelegateActionInput;
+    rpcCall: RpcCallPayload;
+    // Accept partial override; merging happens in handlers layer
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    onEvent?: (update: onProgressEvents) => void;
+  }): Promise<{
+    signedDelegate: WasmSignedDelegate;
+    hash: string;
+    nearAccountId: AccountId;
+    logs?: string[];
+  }> {
+    const nearAccountId = toAccountId(rpcCall.nearAccountId || delegate.senderId);
+    const normalizedRpcCall: RpcCallPayload = {
+      contractId: rpcCall.contractId || this.tatchiPasskeyConfigs.contractId,
+      nearRpcUrl: rpcCall.nearRpcUrl || this.tatchiPasskeyConfigs.nearRpcUrl,
+      nearAccountId,
+    };
+
+    // Lightweight debug logs to help trace delegate signing stalls.
+    // eslint-disable-next-line no-console
+    console.debug('[WebAuthnManager][delegate] start', {
+      nearAccountId: String(nearAccountId),
+      receiverId: delegate.receiverId,
+      actions: delegate.actions?.length ?? 0,
+      nonce: delegate.nonce,
+      maxBlockHeight: delegate.maxBlockHeight,
+      rpcCall: normalizedRpcCall,
+    });
+
+    try {
+      return await this.withSigningSession('delegate-sign-session', (sessionId) => {
+        // eslint-disable-next-line no-console
+        console.debug('[WebAuthnManager][delegate] session created', { sessionId });
+        return this.signerWorkerManager.signDelegateAction({
+          delegate,
+          rpcCall: normalizedRpcCall,
+          confirmationConfigOverride,
+          onEvent,
+          sessionId,
+        });
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('[WebAuthnManager][delegate] failed', err);
+      throw err;
+    }
   }
 
   async signNEP413Message(payload: {
