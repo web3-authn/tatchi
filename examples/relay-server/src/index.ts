@@ -1,11 +1,15 @@
 import express, { Express } from 'express';
-import { AuthService, SessionService } from '@tatchi-xyz/sdk/server';
+import {
+  AuthService,
+  SessionService,
+  handleListGraceKeys,
+  handleRemoveGraceKey,
+} from '@tatchi-xyz/sdk/server';
 import { createRelayRouter } from '@tatchi-xyz/sdk/server/router/express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 
-// Strongly-typed JWT claims used by this demo
 type DemoJwtClaims = {
   sub: string;
   iss?: string;
@@ -91,6 +95,49 @@ app.use('/', createRelayRouter(authService, {
   session
 }));
 
+// Minimal /signed-delegate route for NEP-461 delegate actions.
+// Expects { hash, signedDelegate } in the JSON body and forwards to AuthService.
+app.options('/signed-delegate', (_req, res) => {
+  res.sendStatus(204);
+});
+
+app.post('/signed-delegate', async (req, res) => {
+  try {
+    const { hash, signedDelegate } = req.body || {};
+    if (typeof hash !== 'string' || !hash || !signedDelegate) {
+      res.status(400).json({ ok: false, code: 'invalid_body', message: 'Expected { hash, signedDelegate }' });
+      return;
+    }
+
+    const result = await authService.executeSignedDelegate({
+      hash,
+      signedDelegate,
+    });
+
+    if (!result || !result.ok) {
+      res.status(400).json({
+        ok: false,
+        code: result?.code || 'delegate_execution_failed',
+        message: result?.error || 'Failed to execute delegate action',
+      });
+      return;
+    }
+
+    res.status(200).json({
+      ok: true,
+      relayerTxHash: result.transactionHash || null,
+      status: 'submitted',
+      outcome: result.outcome ?? null,
+    });
+  } catch (e: any) {
+    res.status(500).json({
+      ok: false,
+      code: 'internal',
+      message: e?.message || 'Internal error while executing delegate action',
+    });
+  }
+});
+
 function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) {
   const prefix = '[key-rotation-cron]';
   const intervalMs = Math.max(1, intervalMinutes) * 60_000;
@@ -103,20 +150,25 @@ function startKeyRotationCronjob(intervalMinutes: number, service: AuthService) 
     }
     inFlight = true;
     try {
-      const rotation = await service.rotateShamirServerKeypair();
+      const shamir = service.shamirService;
+      if (!shamir) {
+        console.warn(`${prefix} Shamir not configured; skipping rotation`);
+        return;
+      }
+      const rotation = await shamir.rotateShamirServerKeypair();
       console.log(`${prefix} rotated to newKeyId=${rotation.newKeyId ?? 'unknown'} (prev=${rotation.previousKeyId ?? 'none'})`);
 
       const graceKeyIds = [...rotation.graceKeyIds];
       if (graceKeyIds.length > 5) {
         const toRemove = graceKeyIds.slice(0, graceKeyIds.length - 5);
         for (const keyId of toRemove) {
-          const response = await service.handleRemoveGraceKey({ keyId });
+          const response = await handleRemoveGraceKey(shamir, { keyId });
           const payload = JSON.parse(response.body) as { removed?: boolean };
           console.log(`${prefix} pruned grace key ${keyId}: ${payload.removed ? 'removed' : 'not found'}`);
         }
       }
 
-      const listResponse = await service.handleListGraceKeys();
+      const listResponse = await handleListGraceKeys(shamir);
       const listPayload = JSON.parse(listResponse.body) as { graceKeyIds?: string[] };
       console.log(`${prefix} grace keys (max 5 retained):`, listPayload.graceKeyIds ?? []);
       console.log(`${prefix} remember to persist new e_s/d_s values externally for durability.`);

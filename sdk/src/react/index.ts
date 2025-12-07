@@ -141,7 +141,8 @@ export {
   LoginPhase,
   LoginStatus,
   ActionPhase,
-  ActionStatus
+  ActionStatus,
+  DelegateActionPhase
 } from '../core/types/passkeyManager';
 
 // === PROFILE BUTTON TYPES ===

@@ -2,19 +2,29 @@ import type { VrfWorkerManagerContext } from '../../';
 import type { ConfirmationConfig } from '../../../../types/signer-worker';
 import {
   SecureConfirmationType,
-  SecureConfirmMessageType,
   TransactionSummary,
   SigningSecureConfirmRequest,
-  SignTransactionPayload,
 } from '../types';
 import { VRFChallenge, TransactionContext } from '../../../../types';
-import { renderConfirmUI, fetchNearContext, maybeRefreshVrfChallenge, getNearAccountId, getIntentDigest, getTxCount, sanitizeForPostMessage } from './common';
+import {
+  renderConfirmUI,
+  fetchNearContext,
+  maybeRefreshVrfChallenge,
+  getNearAccountId,
+  getIntentDigest,
+  getTxCount,
+  sendConfirmResponse,
+  closeModalSafely,
+  isUserCancelledSecureConfirm,
+  releaseReservedNonces,
+  ERROR_MESSAGES,
+  getSignTransactionPayload,
+} from './common';
 import { serializeAuthenticationCredentialWithPRF, extractPrfFromCredential } from '../../../credentialsHelpers';
 import { toAccountId } from '../../../../types/accountIds';
 import { getDeviceNumberForAccount } from '../../../SignerWorkerManager/getDeviceNumber';
 import { authenticatorsToAllowCredentials } from '../../../touchIdPrompt';
-import type { ConfirmUIHandle } from '../../../LitComponents/confirm-ui';
-import { isTouchIdCancellationError, toError } from '../../../../../utils/errors';
+import { toError } from '../../../../../utils/errors';
 import { PASSKEY_MANAGER_DEFAULT_CONFIGS } from '../../../../defaultConfigs';
 
 export async function handleTransactionSigningFlow(
@@ -29,11 +39,13 @@ export async function handleTransactionSigningFlow(
   // 1) NEAR context + nonce reservation
   const nearRpc = await fetchNearContext(ctx, { nearAccountId, txCount: getTxCount(request) });
   if (nearRpc.error && !nearRpc.transactionContext) {
-    return send(worker, {
+    // eslint-disable-next-line no-console
+    console.error('[SigningFlow] fetchNearContext failed', { error: nearRpc.error, details: nearRpc.details });
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
-      error: `Failed to fetch NEAR data: ${nearRpc.details}`,
+      error: `${ERROR_MESSAGES.nearRpcFailed}: ${nearRpc.details}`,
     });
   }
   let transactionContext = nearRpc.transactionContext as TransactionContext;
@@ -57,9 +69,9 @@ export async function handleTransactionSigningFlow(
     vrfChallenge: uiVrfChallenge,
   });
   if (!confirmed) {
-    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    releaseReservedNonces(ctx, nearRpc.reservedNonces);
     closeModalSafely(false, confirmHandle);
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
@@ -148,7 +160,7 @@ export async function handleTransactionSigningFlow(
       let contractId: string | undefined;
       let nearRpcUrl: string | undefined;
       if (request.type === SecureConfirmationType.SIGN_TRANSACTION) {
-        const payload = request.payload as SignTransactionPayload;
+        const payload = getSignTransactionPayload(request);
         contractId = payload?.rpcCall?.contractId;
         nearRpcUrl = payload?.rpcCall?.nearRpcUrl;
       } else if (request.type === SecureConfirmationType.SIGN_NEP413_MESSAGE) {
@@ -181,19 +193,16 @@ export async function handleTransactionSigningFlow(
     vrfChallenge: uiVrfChallenge,
     transactionContext,
   };
-  send(worker, response);
+  sendConfirmResponse(worker, response);
     closeModalSafely(true, confirmHandle);
   } catch (err: unknown) {
     // Treat TouchID/FaceID cancellation and related errors as a negative decision
-    const cancelled = isTouchIdCancellationError(err) || (() => {
-      const e = toError(err);
-      return e.name === 'NotAllowedError' || e.name === 'AbortError';
-    })();
+    const cancelled = isUserCancelledSecureConfirm(err);
     // For missing PRF outputs, surface the error to caller (defensive path tests expect a throw)
     const msg = String((toError(err))?.message || err || '');
     if (/Missing PRF result/i.test(msg) || /Missing PRF results/i.test(msg)) {
       // Ensure UI is closed and nonces released, then rethrow
-      nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+      releaseReservedNonces(ctx, nearRpc.reservedNonces);
       closeModalSafely(false, confirmHandle);
       throw err;
     }
@@ -201,26 +210,17 @@ export async function handleTransactionSigningFlow(
       window.parent?.postMessage({ type: 'WALLET_UI_CLOSED' }, '*');
     }
     // Release any reserved nonces on failure
-    nearRpc.reservedNonces?.forEach(n => ctx.nonceManager.releaseNonce(n));
+    releaseReservedNonces(ctx, nearRpc.reservedNonces);
     // Close the UI to avoid stale element flashing on next open
     closeModalSafely(false, confirmHandle);
     const isWrongPasskeyError = /multiple passkeys \(devicenumbers\) for account/i.test(msg);
-    return send(worker, {
+    return sendConfirmResponse(worker, {
       requestId: request.requestId,
       intentDigest: getIntentDigest(request),
       confirmed: false,
       error: cancelled
-        ? 'User cancelled secure confirm request'
-        : (isWrongPasskeyError ? msg : 'Failed to collect credentials'),
+        ? ERROR_MESSAGES.cancelled
+        : (isWrongPasskeyError ? msg : ERROR_MESSAGES.collectCredentialsFailed),
     });
   }
-}
-
-function send(worker: Worker, response: any) {
-  const sanitized = sanitizeForPostMessage(response);
-  worker.postMessage({ type: SecureConfirmMessageType.USER_PASSKEY_CONFIRM_RESPONSE, data: sanitized });
-}
-
-function closeModalSafely(confirmed: boolean, handle?: ConfirmUIHandle) {
-  handle?.close?.(confirmed);
 }

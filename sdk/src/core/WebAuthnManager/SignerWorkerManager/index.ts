@@ -19,10 +19,11 @@ import { isSignerWorkerControlMessage } from './sessionMessages.js';
 import { VRFChallenge } from '../../types/vrf-worker';
 import { VrfWorkerManager } from '../VrfWorkerManager';
 import type { ActionArgsWasm, TransactionInputWasm } from '../../types/actions';
+import type { DelegateActionInput } from '../../types/delegate';
 import type { onProgressEvents } from '../../types/passkeyManager';
 import type { AuthenticatorOptions } from '../../types/authenticatorOptions';
 import { AccountId } from "../../types/accountIds";
-import { ConfirmationConfig, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
+import { ConfirmationConfig, WasmSignedDelegate, isDecryptPrivateKeyWithPrfSuccess } from '../../types/signer-worker';
 import { toAccountId } from '../../types/accountIds';
 import { SecureConfirmationType } from '../VrfWorkerManager/confirmTxFlow/types';
 import { getDeviceNumberForAccount } from './getDeviceNumber';
@@ -39,6 +40,7 @@ import {
   signNep413Message,
   requestRegistrationCredentialConfirmation,
   deriveNearKeypairAndEncryptFromSerialized,
+  signDelegateAction,
   registerDevice2WithDerivedKey,
 } from './handlers';
 import { RpcCallPayload } from '../../types/signer-worker';
@@ -595,6 +597,21 @@ export class SignerWorkerManager {
       ctx: this.getContext(),
       ...args
     });
+  }
+
+  async signDelegateAction(args: {
+    delegate: DelegateActionInput;
+    rpcCall: RpcCallPayload;
+    onEvent?: (update: onProgressEvents) => void;
+    confirmationConfigOverride?: Partial<ConfirmationConfig>;
+    sessionId: string;
+  }): Promise<{
+    signedDelegate: WasmSignedDelegate;
+    hash: string;
+    nearAccountId: AccountId;
+    logs?: string[];
+  }> {
+    return signDelegateAction({ ctx: this.getContext(), ...args });
   }
 
   /**

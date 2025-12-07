@@ -42,6 +42,11 @@ export async function handlePromptUserConfirmInJsMainThread(
   let transactionSummary: TransactionSummary;
 
   try {
+    // eslint-disable-next-line no-console
+    console.debug('[SecureConfirm][Host] handlePromptUserConfirmInJsMainThread: received request', {
+      type: message?.data?.type,
+      requestId: message?.data?.requestId,
+    });
     const parsed = validateAndParseRequest({ ctx, request: message.data });
     request = parsed.request as SecureConfirmRequest;
     summary = parsed.summary;
@@ -76,6 +81,11 @@ export async function handlePromptUserConfirmInJsMainThread(
 
   // 2. Classify and dispatch to per-flow handlers
   const flowKind = classifyFlow(request);
+  // eslint-disable-next-line no-console
+  console.debug('[SecureConfirm][Host] flowKind', flowKind, {
+    type: request.type,
+    requestId: request.requestId,
+  });
   switch (flowKind) {
     case 'LocalOnly': {
       const { handleLocalOnlyFlow } = await import('./flows/localOnly').catch((e) => {

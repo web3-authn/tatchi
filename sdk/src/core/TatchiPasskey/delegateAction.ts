@@ -42,6 +42,16 @@ export async function signDelegateAction(args: {
     message: 'Preparing delegate action inputs',
   });
 
+  // Emit a user-confirmation phase before kicking off the VRF-driven
+  // confirmation flow so the wallet-iframe overlay can expand and allow
+  // the TxConfirmer modal to capture activation.
+  options?.onEvent?.({
+    step: 2,
+    phase: ActionPhase.STEP_2_USER_CONFIRMATION,
+    status: ActionStatus.PROGRESS,
+    message: 'Requesting delegate action confirmation…',
+  });
+
   try {
     const coreResult = await context.webAuthnManager.signDelegateAction({
       delegate: resolvedDelegate,

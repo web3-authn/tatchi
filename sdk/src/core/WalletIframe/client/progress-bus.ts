@@ -40,6 +40,7 @@ import {
   RegistrationPhase,
   LoginPhase,
   EmailRecoveryPhase,
+  DelegateActionPhase,
 } from '../../types/passkeyManager';
 
 // Phases that should temporarily SHOW the overlay (to capture activation)
@@ -51,6 +52,7 @@ const SHOW_PHASES = new Set<string>([
   // Show early during user confirmation so the modal inside the wallet iframe is visible
   // and can capture the required click when behavior === 'requireClick'.
   ActionPhase.STEP_2_USER_CONFIRMATION,
+  DelegateActionPhase.STEP_2_USER_CONFIRMATION,
   ActionPhase.STEP_4_WEBAUTHN_AUTHENTICATION,
   // Registration requires a WebAuthn create() ceremony at step 1
   RegistrationPhase.STEP_1_WEBAUTHN_VERIFICATION,
@@ -69,7 +71,9 @@ const SHOW_PHASES = new Set<string>([
 const HIDE_PHASES = new Set<string>([
   ActionPhase.STEP_5_AUTHENTICATION_COMPLETE,
   ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
+  DelegateActionPhase.STEP_3_TRANSACTION_SIGNING_PROGRESS,
   ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
+  DelegateActionPhase.STEP_4_TRANSACTION_SIGNING_COMPLETE,
   ActionPhase.STEP_3_CONTRACT_VERIFICATION,
   ActionPhase.STEP_8_BROADCASTING,
   ActionPhase.STEP_9_ACTION_COMPLETE,

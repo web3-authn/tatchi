@@ -2,6 +2,7 @@ export * from './checkCanRegisterUser';
 export * from './deriveNearKeypairAndEncryptFromSerialized';
 export * from './decryptPrivateKeyWithPrf';
 export * from './signTransactionsWithActions';
+export * from './signDelegateAction';
 export * from './recoverKeypairFromPasskey';
 export * from './extractCosePublicKey';
 export * from './signTransactionWithKeyPair';
