@@ -97,6 +97,7 @@ export const DemoPage: React.FC = () => {
   const networkPostfix = tatchi.configs.nearNetwork == 'mainnet' ? 'near' : 'testnet';
   const [greetingInput, setGreetingInput] = useState('Hello from Tatchi!');
   const [txLoading, setTxLoading] = useState(false);
+  const [delegateLoading, setDelegateLoading] = useState(false);
   const [loadingUi, setLoadingUi] = useState<ConfirmationUIMode|null>(null);
 
   const canExecuteGreeting = useCallback(
@@ -184,6 +185,105 @@ export const DemoPage: React.FC = () => {
       setTxLoading(false);
     }
   }, [greetingInput, isLoggedIn, nearAccountId, tatchi, fetchGreeting]);
+
+  const handleSignDelegateGreeting = useCallback(async () => {
+    if (!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId)) return;
+
+    const loginState = await tatchi.getLoginState();
+
+    setDelegateLoading(true);
+    try {
+      const relayerUrl = tatchi.configs.relayer?.url;
+      if (!relayerUrl) {
+        toast.error('Relayer URL is not configured: VITE_RELAYER_URL', {
+          id: 'delegate-greeting',
+        });
+        return;
+      }
+
+      const delegateAction = createGreetingAction(greetingInput, { postfix: 'Delegate' });
+      const result = await tatchi.signDelegateAction({
+        nearAccountId: nearAccountId!,
+        delegate: {
+          senderId: nearAccountId!,
+          receiverId: WEBAUTHN_CONTRACT_ID,
+          actions: [delegateAction],
+          // Demo-only nonce / maxBlockHeight; real apps should use
+          // chain context and replay protection from their relayer.
+          nonce: Date.now(),
+          maxBlockHeight: 0,
+          publicKey: loginState.publicKey!,
+        },
+        options: {
+          onEvent: (event) => {
+            switch (event.phase) {
+              case ActionPhase.STEP_1_PREPARATION:
+              case ActionPhase.STEP_2_USER_CONFIRMATION:
+              case ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS:
+                toast.loading(event.message, { id: 'delegate-greeting' });
+                break;
+              case ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE:
+                toast.success('Delegate action signed', { id: 'delegate-greeting' });
+                break;
+              case ActionPhase.ACTION_ERROR:
+              case ActionPhase.WASM_ERROR:
+                toast.error(`Delegate signing failed: ${event.error}`, { id: 'delegate-greeting' });
+                break;
+            }
+          },
+        },
+      });
+
+      toast.success('Signed delegate for set_greeting', {
+        description: (
+          <span>
+            Delegate hash:&nbsp;
+            <code>{result.hash.slice(0, 16)}…</code>
+          </span>
+        ),
+      });
+
+      // Forward the signed delegate to the configured relayer so it can
+      // wrap the NEP-461 payload in an outer transaction and submit it.
+      toast.loading('Submitting delegate to relayer…', { id: 'delegate-relay' });
+      const relayResult = await tatchi.sendDelegateActionViaRelayer({
+        relayerUrl,
+        hash: result.hash,
+        // WasmSignedDelegate is shape-compatible with the server-side SignedDelegate
+        // and is treated as an opaque blob by the relayer.
+        signedDelegate: result.signedDelegate as any,
+      });
+
+      try { toast.dismiss('delegate-relay'); } catch {}
+
+      if (!relayResult.ok) {
+        toast.error(`Relayer execution failed: ${relayResult.error || 'Unknown error'}`, {
+          id: 'delegate-greeting',
+        });
+        return;
+      }
+
+      const txId = relayResult.relayerTxHash;
+      if (txId) {
+        const txLink = `${NEAR_EXPLORER_BASE_URL}/transactions/${txId}`;
+        toast.success('Delegate executed via relayer', {
+          description: (
+            <a href={txLink} target="_blank" rel="noopener noreferrer">
+              View transaction on NearBlocks
+            </a>
+          ),
+          id: 'delegate-greeting',
+        });
+      } else {
+        toast.success('Delegate submitted via relayer (no TxID)', { id: 'delegate-greeting' });
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      toast.error(`Delegate signing failed: ${message}`, { id: 'delegate-greeting' });
+    } finally {
+      setDelegateLoading(false);
+    }
+  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction]);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -336,6 +436,18 @@ export const DemoPage: React.FC = () => {
             style={{ width: 200 }}
           >
             Set Greeting
+          </LoadingButton>
+          <LoadingButton
+            onClick={handleSignDelegateGreeting}
+            loading={delegateLoading}
+            loadingText="Signing delegate..."
+            variant="secondary"
+            size="medium"
+            className="greeting-btn"
+            disabled={!canExecuteGreeting(greetingInput, isLoggedIn, nearAccountId) || delegateLoading}
+            style={{ width: 200, marginTop: '0.5rem' }}
+          >
+            Send Delegate Action
           </LoadingButton>
 
           {error && (

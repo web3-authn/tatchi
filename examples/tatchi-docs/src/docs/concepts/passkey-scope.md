@@ -6,6 +6,8 @@ title: Passkey Scope and Composability
 
 Every Paskey WebAuthn credential is bound to a **relying party ID (rpId)**, a domain that determines which sites can access the passkey and whether it works across subdomains.
 
+Tatchi wallets use the WebAuthn **PRF extension** on every flow: `PRF.first` gates sessions (with Shamir 3-pass as primary) and `PRF.second` is reserved for registration, device linking, or explicit recovery. Whichever rpId strategy you choose must remain stable so these PRF outputs stay discoverable.
+
 The SDK supports two strategies:
 
 **Option A: Wallet-scoped (`rpId = wallet domain`)** - One passkey reused across many apps. The wallet and app origins differ (e.g., app at `app.example.com` embedding wallet at `web3authn.org` with `rpId = "web3authn.org"`). This is the default mode, as it requires less setup.
