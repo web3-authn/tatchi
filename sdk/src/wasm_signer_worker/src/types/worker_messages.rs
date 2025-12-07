@@ -22,6 +22,8 @@ pub enum WorkerRequestType {
     ExportNearKeypairUI,
     // Combined Device2 registration: derive + sign in one step
     RegisterDevice2WithDerivedKey,
+    // Delegate action signing (NEP-461)
+    SignDelegateAction,
 }
 
 impl From<u32> for WorkerRequestType {
@@ -36,6 +38,7 @@ impl From<u32> for WorkerRequestType {
             6 => WorkerRequestType::SignNep413Message,
             7 => WorkerRequestType::ExportNearKeypairUI,
             8 => WorkerRequestType::RegisterDevice2WithDerivedKey,
+            9 => WorkerRequestType::SignDelegateAction,
             _ => panic!("Invalid WorkerRequestType value: {}", value),
         }
     }
@@ -47,6 +50,7 @@ impl WorkerRequestType {
             WorkerRequestType::RecoverKeypairFromPasskey => "RECOVER_KEYPAIR_FROM_PASSKEY",
             WorkerRequestType::DecryptPrivateKeyWithPrf => "DECRYPT_PRIVATE_KEY_WITH_PRF",
             WorkerRequestType::SignTransactionsWithActions => "SIGN_TRANSACTIONS_WITH_ACTIONS",
+            WorkerRequestType::SignDelegateAction => "SIGN_DELEGATE_ACTION",
             WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
             WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
             WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
@@ -87,6 +91,9 @@ pub enum WorkerResponseType {
     RegistrationComplete,
     ExecuteActionsProgress,
     ExecuteActionsComplete,
+    // Delegate action signing
+    SignDelegateActionSuccess,
+    SignDelegateActionFailure,
 }
 impl From<WorkerResponseType> for u32 {
     fn from(value: WorkerResponseType) -> Self {
@@ -101,6 +108,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::SignNep413MessageSuccess => 6,
             WorkerResponseType::ExportNearKeypairUiSuccess => 7,
             WorkerResponseType::RegisterDevice2WithDerivedKeySuccess => 8,
+            WorkerResponseType::SignDelegateActionSuccess => 22,
 
             // Failure responses
             WorkerResponseType::DeriveNearKeypairAndEncryptFailure => 9,
@@ -112,6 +120,7 @@ impl From<WorkerResponseType> for u32 {
             WorkerResponseType::SignNep413MessageFailure => 15,
             WorkerResponseType::ExportNearKeypairUiFailure => 16,
             WorkerResponseType::RegisterDevice2WithDerivedKeyFailure => 17,
+            WorkerResponseType::SignDelegateActionFailure => 23,
 
             // Progress responses - for real-time updates during operations
             WorkerResponseType::RegistrationProgress => 18,
@@ -134,6 +143,7 @@ impl From<u32> for WorkerResponseType {
             6 => WorkerResponseType::SignNep413MessageSuccess,
             7 => WorkerResponseType::ExportNearKeypairUiSuccess,
             8 => WorkerResponseType::RegisterDevice2WithDerivedKeySuccess,
+            22 => WorkerResponseType::SignDelegateActionSuccess,
 
             // Failure responses
             9 => WorkerResponseType::DeriveNearKeypairAndEncryptFailure,
@@ -145,6 +155,7 @@ impl From<u32> for WorkerResponseType {
             15 => WorkerResponseType::SignNep413MessageFailure,
             16 => WorkerResponseType::ExportNearKeypairUiFailure,
             17 => WorkerResponseType::RegisterDevice2WithDerivedKeyFailure,
+            23 => WorkerResponseType::SignDelegateActionFailure,
 
             // Progress responses - for real-time updates during operations
             18 => WorkerResponseType::RegistrationProgress,

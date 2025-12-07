@@ -34,6 +34,11 @@ pub enum ActionParams {
     DeleteAccount {
         beneficiary_id: String,
     },
+    SignedDelegate {
+        /// Fully-typed NEP-461 SignedDelegate payload, passed through from TS.
+        delegate_action: DelegateAction,
+        signature: Signature,
+    },
     // NEP-0591 Global Contracts
     DeployGlobalContract {
         code: Vec<u8>,
@@ -360,6 +365,55 @@ impl ActionHandler for DeleteAccountActionHandler {
     }
 }
 
+pub struct SignedDelegateActionHandler;
+
+impl ActionHandler for SignedDelegateActionHandler {
+    fn validate_params(&self, params: &ActionParams) -> Result<(), String> {
+        match params {
+            ActionParams::SignedDelegate {
+                delegate_action,
+                signature,
+            } => {
+                if delegate_action.sender_id.0.is_empty() {
+                    return Err("delegate_action.sender_id cannot be empty".to_string());
+                }
+                if delegate_action.receiver_id.0.is_empty() {
+                    return Err("delegate_action.receiver_id cannot be empty".to_string());
+                }
+                if delegate_action.actions.is_empty() {
+                    return Err("delegate_action.actions cannot be empty".to_string());
+                }
+                if delegate_action.nonce == 0 {
+                    return Err("delegate_action.nonce must be non-zero".to_string());
+                }
+                if signature.signature_data.len() != 64 {
+                    return Err("delegate signature must be 64 bytes".to_string());
+                }
+                Ok(())
+            }
+            _ => Err("Invalid params for SignedDelegate action".to_string()),
+        }
+    }
+
+    fn build_action(&self, params: &ActionParams) -> Result<Action, String> {
+        match params {
+            ActionParams::SignedDelegate {
+                delegate_action,
+                signature,
+            } => {
+                // Map our internal SignedDelegate into the on-chain
+                // Action::Delegate(Box<SignedDelegateAction>) representation.
+                let signed = SignedDelegate {
+                    delegate_action: delegate_action.clone(),
+                    signature: signature.clone(),
+                };
+                Ok(Action::SignedDelegate(Box::new(signed)))
+            }
+            _ => Err("Invalid params for SignedDelegate action".to_string()),
+        }
+    }
+}
+
 /// Get the appropriate action handler for the given action parameters
 pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler>, String> {
     match params {
@@ -371,6 +425,7 @@ pub fn get_action_handler(params: &ActionParams) -> Result<Box<dyn ActionHandler
         ActionParams::AddKey { .. } => Ok(Box::new(AddKeyActionHandler)),
         ActionParams::DeleteKey { .. } => Ok(Box::new(DeleteKeyActionHandler)),
         ActionParams::DeleteAccount { .. } => Ok(Box::new(DeleteAccountActionHandler)),
+        ActionParams::SignedDelegate { .. } => Ok(Box::new(SignedDelegateActionHandler)),
         ActionParams::DeployGlobalContract { .. } => {
             Ok(Box::new(DeployGlobalContractActionHandler))
         }

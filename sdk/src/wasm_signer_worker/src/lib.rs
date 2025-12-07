@@ -53,20 +53,36 @@ pub use handlers::{
     // Execute Actions
     SignTransactionsWithActionsRequest,
     TransactionPayload,
+    // Delegate Actions
+    DelegatePayload,
+    DelegateSignResult,
+    SignDelegateActionRequest,
     // Combined Device2 Registration
     RegisterDevice2WithDerivedKeyRequest,
     RegisterDevice2WithDerivedKeyResult,
 };
 
 // Re-export NEAR types for TypeScript usage
-pub use types::near::{PublicKey, Signature, SignedTransaction, Transaction};
+pub use types::near::{
+    DelegateAction,
+    PublicKey,
+    Signature,
+    SignedDelegate,
+    SignedTransaction,
+    Transaction,
+};
 // Re-export progress types for auto-generation
 pub use types::progress::{
     ProgressMessageType, ProgressStatus, ProgressStep, WorkerProgressMessage,
 };
 // Re-export WASM-friendly wrapper types for TypeScript usage
 pub use types::wasm_to_json::{
-    WasmPublicKey, WasmSignature, WasmSignedTransaction, WasmTransaction,
+    WasmDelegateAction,
+    WasmPublicKey,
+    WasmSignature,
+    WasmSignedDelegate,
+    WasmSignedTransaction,
+    WasmTransaction,
 };
 
 // === CONSOLE LOGGING ===
@@ -312,11 +328,19 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
             .await?;
             result.to_json()
         }
+        WorkerRequestType::SignDelegateAction => {
+            let request = msg.parse_payload::<SignDelegateActionRequest>(request_type)?;
+            let wrap_key = lookup_wrap_key_shards(&request.session_id, request_type)?;
+            let result = handlers::handle_sign_delegate_action(request, wrap_key).await?;
+            result.to_json()
+        }
         WorkerRequestType::ExtractCosePublicKey => {
             let request = msg.parse_payload::<ExtractCoseRequest>(request_type)?;
             let result = handlers::handle_extract_cose_public_key(request).await?;
             result.to_json()
         }
+        // NOTE: Does not need wrapKeySeed, wrapKeySalt -> MessagePort
+        // The only method that does not require VRF Worker to sign
         WorkerRequestType::SignTransactionWithKeyPair => {
             let request = msg.parse_payload::<SignTransactionWithKeyPairRequest>(request_type)?;
             let result = handlers::handle_sign_transaction_with_keypair(request).await?;
@@ -368,6 +392,9 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 WorkerRequestType::SignTransactionsWithActions => {
                     WorkerResponseType::SignTransactionsWithActionsSuccess
                 }
+                WorkerRequestType::SignDelegateAction => {
+                    WorkerResponseType::SignDelegateActionSuccess
+                }
                 WorkerRequestType::ExtractCosePublicKey => {
                     WorkerResponseType::ExtractCosePublicKeySuccess
                 }
@@ -400,6 +427,9 @@ pub async fn handle_signer_message(message_json: &str) -> Result<String, JsValue
                 }
                 WorkerRequestType::SignTransactionsWithActions => {
                     WorkerResponseType::SignTransactionsWithActionsFailure
+                }
+                WorkerRequestType::SignDelegateAction => {
+                    WorkerResponseType::SignDelegateActionFailure
                 }
                 WorkerRequestType::ExtractCosePublicKey => {
                     WorkerResponseType::ExtractCosePublicKeyFailure
@@ -479,6 +509,7 @@ pub fn worker_request_type_name(request_type: WorkerRequestType) -> &'static str
         WorkerRequestType::RecoverKeypairFromPasskey => "RECOVER_KEYPAIR_FROM_PASSKEY",
         WorkerRequestType::DecryptPrivateKeyWithPrf => "DECRYPT_PRIVATE_KEY_WITH_PRF",
         WorkerRequestType::SignTransactionsWithActions => "SIGN_TRANSACTIONS_WITH_ACTIONS",
+        WorkerRequestType::SignDelegateAction => "SIGN_DELEGATE_ACTION",
         WorkerRequestType::ExtractCosePublicKey => "EXTRACT_COSE_PUBLIC_KEY",
         WorkerRequestType::SignTransactionWithKeyPair => "SIGN_TRANSACTION_WITH_KEYPAIR",
         WorkerRequestType::SignNep413Message => "SIGN_NEP413_MESSAGE",
@@ -503,6 +534,7 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::SignTransactionsWithActionsSuccess => {
             "SIGN_TRANSACTIONS_WITH_ACTIONS_SUCCESS"
         }
+        WorkerResponseType::SignDelegateActionSuccess => "SIGN_DELEGATE_ACTION_SUCCESS",
         WorkerResponseType::ExtractCosePublicKeySuccess => "EXTRACT_COSE_PUBLIC_KEY_SUCCESS",
         WorkerResponseType::SignTransactionWithKeyPairSuccess => {
             "SIGN_TRANSACTION_WITH_KEYPAIR_SUCCESS"
@@ -526,6 +558,7 @@ pub fn worker_response_type_name(response_type: WorkerResponseType) -> &'static 
         WorkerResponseType::SignTransactionsWithActionsFailure => {
             "SIGN_TRANSACTIONS_WITH_ACTIONS_FAILURE"
         }
+        WorkerResponseType::SignDelegateActionFailure => "SIGN_DELEGATE_ACTION_FAILURE",
         WorkerResponseType::ExtractCosePublicKeyFailure => "EXTRACT_COSE_PUBLIC_KEY_FAILURE",
         WorkerResponseType::SignTransactionWithKeyPairFailure => {
             "SIGN_TRANSACTION_WITH_KEYPAIR_FAILURE"

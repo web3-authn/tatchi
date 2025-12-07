@@ -1,9 +1,13 @@
-//! Base64 encoding and decoding utilities
-//!
-//! This module consolidates all base64 encoding and decoding functionality
-//! used throughout the wasm_signer_worker module.
+//! Encoding utilities for the signer worker.
+//! Includes base64 helpers and NEAR delegate action encoders.
 
 use base64ct::{Base64, Base64UrlUnpadded, Encoding};
+use sha2::{Digest, Sha256};
+
+use crate::types::{DelegateAction, SignedDelegate};
+
+/// NEP-461 delegate action prefix (2^30 + 366)
+pub const DELEGATE_ACTION_PREFIX: u32 = 1_073_742_190;
 
 // === BASE64URL (URL-SAFE, NO PADDING) ===
 
@@ -35,6 +39,34 @@ pub fn base64_standard_encode(data: &[u8]) -> String {
 /// Used for JSON payloads and HTTP operations.
 pub fn base64_standard_decode(input: &str) -> Result<Vec<u8>, String> {
     Base64::decode_vec(input).map_err(|e| format!("Base64 decode error: {}", e))
+}
+
+// === NEP-461 DELEGATE ACTION ENCODERS ===
+
+/// Encode DelegateAction with the NEP-461 prefix, mirroring @near-js/transactions encodeDelegateAction.
+pub fn encode_delegate_action(delegate: &DelegateAction) -> Result<Vec<u8>, String> {
+    let mut encoded =
+        borsh::to_vec(&DELEGATE_ACTION_PREFIX).map_err(|e| format!("Prefix encode error: {}", e))?;
+    let mut delegate_bytes =
+        borsh::to_vec(delegate).map_err(|e| format!("Delegate encode error: {}", e))?;
+    encoded.append(&mut delegate_bytes);
+    Ok(encoded)
+}
+
+/// Encode SignedDelegate without the NEP-461 prefix (parity with @near-js/transactions encodeSignedDelegate).
+pub fn encode_signed_delegate(sd: &SignedDelegate) -> Result<Vec<u8>, String> {
+    borsh::to_vec(sd).map_err(|e| format!("Signed delegate encode error: {}", e))
+}
+
+/// Compute sha256 over the NEP-461-prefixed delegate action bytes.
+pub fn hash_delegate_action(delegate: &DelegateAction) -> Result<[u8; 32], String> {
+    let encoded = encode_delegate_action(delegate)?;
+    let mut hasher = Sha256::new();
+    hasher.update(&encoded);
+    let digest = hasher.finalize();
+    let mut hash = [0u8; 32];
+    hash.copy_from_slice(&digest);
+    Ok(hash)
 }
 
 #[cfg(test)]
