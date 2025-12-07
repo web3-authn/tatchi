@@ -30,7 +30,7 @@ async function setupWebAuthnVirtualAuthenticator(page: Page): Promise<string> {
  * Step 2: IMPORT MAP INJECTION
  * Add module resolution mappings to the page
  */
-async function injectImportMap(page: Page): Promise<void> {
+export async function injectImportMap(page: Page): Promise<void> {
 
   await page.evaluate(() => {
     const importMap = document.createElement('script');
