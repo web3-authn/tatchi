@@ -4,7 +4,7 @@ This folder contains header builders and small plugins for Vite and Next. They p
 
 Takeaways:
 - Strict CSP is applied only to wallet HTML routes (`/wallet-service`, `/export-viewer`), not to your app pages.
-- Dev servers always set COEP/CORP so workers/WASM load cross‑origin reliably.
+- Dev servers set COEP/CORP by default so workers/WASM load cross‑origin reliably (configurable via `coepMode`).
 - Permissions‑Policy delegates WebAuthn + clipboard to your configured wallet origin.
 - CORS is echoed dynamically for SDK assets during dev; production CORS is opt‑in.
 
@@ -29,14 +29,14 @@ Takeaways:
     - Serves minimal wallet HTML with only external CSS/JS (no inline) so strict CSP works.
   - `tatchiWasmMime()`
     - Forces `application/wasm` for any `.wasm` file.
-  - `tatchiHeaders({ walletOrigin?, walletServicePath?, sdkBasePath?, devCSP? })`
-    - Adds: `COOP: same-origin` (except wallet HTML → `unsafe-none`), `COEP: require-corp`, `CORP: cross-origin`.
+  - `tatchiHeaders({ walletOrigin?, walletServicePath?, sdkBasePath?, devCSP?, coepMode? })`
+    - Adds: `COOP: same-origin` (except wallet HTML → `unsafe-none`), `COEP: require-corp`, `CORP: cross-origin` (when `coepMode !== 'off'`).
     - Adds `Permissions-Policy` built from `walletOrigin`.
     - Optional dev CSP on wallet HTML only: `devCSP: 'strict' | 'compatible'`.
-  - `tatchiApp({ walletOrigin?, emitHeaders? })`
+  - `tatchiApp({ walletOrigin?, emitHeaders?, coepMode? })`
     - Dev (serve): same behavior as `tatchiAppServer({ walletOrigin })` (headers only on the app origin).
     - Build (build): when `emitHeaders: true`, writes `_headers` (COOP/COEP/CORP + Permissions‑Policy; strict CSP scoped to wallet HTML routes).
-  - `tatchiWallet({ walletOrigin?, walletServicePath?, sdkBasePath?, emitHeaders? })`
+  - `tatchiWallet({ walletOrigin?, walletServicePath?, sdkBasePath?, emitHeaders?, coepMode? })`
     - Dev (serve): same behavior as `tatchiWalletServer({ ... })` (serves `/wallet-service` + `/sdk` with headers).
     - Build (build): when `emitHeaders: true`, writes `_headers` (same as above; strict CSP scoped to wallet HTML routes).
   - `tatchiApp({ walletOrigin?, emitHeaders? })`
@@ -45,9 +45,9 @@ Takeaways:
   - Convenience dev servers:
     - `tatchiWalletServer({...})` → wallet origin (`/wallet-service` + `/sdk` + headers)
     - `tatchiAppServer({...})` → app origin (headers only; combine with `tatchiServeSdk` if needed)
-  - `tatchiBuildHeaders({ walletOrigin?, cors? })`
+  - `tatchiBuildHeaders({ walletOrigin?, cors?, coepMode? })`
     - Writes a Pages/Netlify‑compatible `_headers` file into Vite `outDir`.
-    - Global: `COOP: same-origin`, `COEP: require-corp`, `CORP: cross-origin`, `Permissions-Policy`.
+    - Global: `COOP: same-origin`, `COEP: require-corp`, `CORP: cross-origin`, `Permissions-Policy` (COEP/CORP omitted when `coepMode === 'off'`).
     - Wallet HTML (`/wallet-service`, `/export-viewer`): adds strict `Content-Security-Policy`.
     - Optional: emit CORS for `/sdk/*` (prefer platform rules; avoid duplication).
 
