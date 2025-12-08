@@ -39,8 +39,8 @@ zk-email prover server for email-based account recovery.
   - `requestEmailRecovery({ accountId, emailBlob, explicitMode? })`:
     - Chooses mode:
       - `explicitMode` if provided.
-      - Otherwise first non-empty body line: `zk-email` / `encrypted` / `onchain-public`.
-      - Defaults to `encrypted`.
+      - Otherwise first non-empty body line: `zk-email` / `tee-encrypted` / `onchain-public` (also accepts legacy `encrypted` / `tee` as aliases for `tee-encrypted`).
+      - Defaults to `tee-encrypted` (TEE/DKIM path).
   - `requestZkEmailVerification({ accountId, emailBlob })`:
     - Normalizes `emailBlob`, parses bindings via `extractZkEmailBindingsFromPayload`.
     - Calls `generateZkEmailProofFromPayload` to get `{ proof, publicInputs }`.
@@ -55,7 +55,7 @@ From an HTTP handler or worker:
 const result = await authService.emailRecovery?.requestEmailRecovery({
   accountId,   // parsed from Subject / headers
   emailBlob,   // raw .eml as UTF-8 string
-  // optional: explicitMode: 'zk-email' | 'encrypted' | 'onchain-public'
+  // optional: explicitMode: 'zk-email' | 'tee-encrypted' | 'onchain-public'
 });
 ```
 

@@ -85,4 +85,4 @@ const result = await authService.emailRecovery?.requestEncryptedEmailVerificatio
 
 For multi-mode setups (ZK / encrypted / on-chain), use
 `EmailRecoveryService.requestEmailRecovery` instead and let the body marker
-(`zk-email | encrypted | onchain-public`) select the path.
+(`zk-email | tee-encrypted | onchain-public`, also accepting legacy `encrypted` / `tee` as aliases for `tee-encrypted`) select the path.
