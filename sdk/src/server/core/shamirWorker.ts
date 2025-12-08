@@ -20,7 +20,7 @@ import {
   Shamir3PassGenerateServerKeypairRequest,
   type ShamirWasmModuleSupplier,
 } from './types.js';
-import { createWasmLoader } from './wasm-loader.js';
+import { createWasmLoader, isNodeEnvironment } from './wasm-loader.js';
 
 export { SHAMIR_P_B64U, get_shamir_p_b64u };
 
@@ -50,10 +50,24 @@ const VRF_WASM_MAIN_PATH = '../../wasm_vrf_worker/pkg/wasm_vrf_worker_bg.wasm';
 const VRF_WASM_FALLBACK_PATH = '../../../workers/wasm_vrf_worker_bg.wasm';
 
 function getVrfWasmUrls(): URL[] {
-  return [
-    new URL(VRF_WASM_MAIN_PATH, import.meta.url),
-    new URL(VRF_WASM_FALLBACK_PATH, import.meta.url),
-  ];
+  // Only construct filesystem/URL fallbacks in Node.js.
+  // Cloudflare Workers cannot safely use import.meta.url as a base URL.
+  if (!isNodeEnvironment()) {
+    return [];
+  }
+
+  try {
+    return [
+      new URL(VRF_WASM_MAIN_PATH, import.meta.url),
+      new URL(VRF_WASM_FALLBACK_PATH, import.meta.url),
+    ];
+  } catch (err) {
+    console.warn(
+      '[ShamirWasmInit] Failed to construct VRF WASM URLs from import.meta.url:',
+      (err as Error)?.message || err
+    );
+    return [];
+  }
 }
 
 const vrfWasmLoader = createWasmLoader(initWasm, {
