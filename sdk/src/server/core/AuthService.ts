@@ -1,7 +1,10 @@
-import type { FinalExecutionOutcome } from '@near-js/types';
-import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
+import { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import { parseNearSecretKey, toPublicKeyString } from '../../core/nearCrypto';
+import { validateConfigs } from './config';
+import { formatGasToTGas, formatYoctoToNear } from './utils';
+import { parseContractExecutionError } from './errors';
+
 import initSignerWasm, {
   handle_signer_message,
   WorkerRequestType,
@@ -10,9 +13,27 @@ import initSignerWasm, {
   type WasmTransaction,
   type WasmSignature,
 } from '../../wasm_signer_worker/pkg/wasm_signer_worker.js';
-import { validateConfigs } from './config';
-import { isObject, isString } from '../../core/WalletIframe/validation';
+
+import type {
+  AuthServiceConfig,
+  AccountCreationRequest,
+  AccountCreationResult,
+  CreateAccountAndRegisterRequest,
+  CreateAccountAndRegisterResult,
+  VerifyAuthenticationRequest,
+  VerifyAuthenticationResponse,
+  SignerWasmModuleSupplier,
+} from './types';
+
+import { EMAIL_DKIM_VERIFIER_ACCOUNT_ID } from '../../core/EmailRecovery';
+import { EmailRecoveryService } from '../email-recovery';
+import { ShamirService } from './ShamirService';
 import { SignedDelegate } from '../../core/types/delegate';
+import {
+  type ExecuteSignedDelegateResult,
+  executeSignedDelegateWithRelayer,
+  type DelegateActionPolicy,
+} from '../delegateAction';
 
 // =============================
 // WASM URL CONSTANTS + HELPERS
@@ -43,33 +64,6 @@ function getSignerWasmUrls(): URL[] {
 
   return resolved;
 }
-import { ShamirService } from './ShamirService';
-import { formatGasToTGas, formatYoctoToNear } from './utils';
-import { parseContractExecutionError } from './errors';
-import {
-  type ExecuteSignedDelegateResult,
-  executeSignedDelegateWithRelayer,
-  type DelegateActionPolicy,
-} from '../delegateAction';
-import type {
-  AuthServiceConfig,
-  AccountCreationRequest,
-  AccountCreationResult,
-  CreateAccountAndRegisterRequest,
-  CreateAccountAndRegisterResult,
-  NearExecutionFailure,
-  NearReceiptOutcomeWithId,
-  VerifyAuthenticationRequest,
-  VerifyAuthenticationResponse,
-  ShamirApplyServerLockRequest,
-  ShamirRemoveServerLockRequest,
-  ShamirApplyServerLockResponse,
-  ShamirRemoveServerLockResponse,
-  SignerWasmModuleSupplier,
-} from './types';
-
-// Default gas for DKIM-based email recovery calls
-const DEFAULT_EMAIL_RECOVERY_GAS: string = '300000000000000'; // 300 TGas
 
 /**
  * Framework-agnostic NEAR account service
@@ -88,6 +82,8 @@ export class AuthService {
 
   // Shamir 3-pass key management (delegated to ShamirService)
   public readonly shamirService: ShamirService | null = null;
+  // DKIM/TEE email recovery logic (delegated to EmailRecoveryService)
+  public readonly emailRecovery: EmailRecoveryService | null = null;
 
   constructor(config: AuthServiceConfig) {
     validateConfigs(config);
@@ -111,6 +107,18 @@ export class AuthService {
     const graceFileCandidate = (this.config.shamir?.graceShamirKeysFile || '').trim();
     this.shamirService = new ShamirService(this.config.shamir, graceFileCandidate || 'grace-keys.json');
     this.nearClient = new MinimalNearClient(this.config.nearRpcUrl);
+    this.emailRecovery = new EmailRecoveryService({
+      relayerAccountId: this.config.relayerAccountId,
+      relayerPrivateKey: this.config.relayerPrivateKey,
+      networkId: this.config.networkId,
+      emailDkimVerifierAccountId: EMAIL_DKIM_VERIFIER_ACCOUNT_ID,
+      nearClient: this.nearClient,
+      ensureSignerAndRelayerAccount: () => this._ensureSignerAndRelayerAccount(),
+      queueTransaction: <T>(fn: () => Promise<T>, label: string) => this.queueTransaction(fn, label),
+      fetchTxContext: (accountId: string, publicKey: string) => this.fetchTxContext(accountId, publicKey),
+      signWithPrivateKey: (input) => this.signWithPrivateKey(input),
+      getRelayerPublicKey: () => this.relayerPublicKey,
+    });
 
     // Log effective configuration at construction time so operators can
     // verify wiring immediately when the service is created.
@@ -126,7 +134,6 @@ export class AuthService {
     `);
   }
 
-  // Backward-compat getter, no longer returns near-js Account
   async getRelayerAccount(): Promise<{ accountId: string; publicKey: string }> {
     await this._ensureSignerAndRelayerAccount();
     return {
@@ -696,103 +703,6 @@ export class AuthService {
    */
   async handleVerifyAuthenticationResponse(request: VerifyAuthenticationRequest): Promise<VerifyAuthenticationResponse> {
     return this.verifyAuthenticationResponse(request);
-  }
-
-  /**
-   * DKIM/TEE email recovery helper.
-   * Relayer signs a function call to the per-user email-recoverer contract
-   * deployed on `accountId`, passing the raw email blob for DKIM verification.
-   */
-  async recoverAccountFromEmailDKIMVerifier(request: { accountId: string; emailBlob: string }): Promise<{
-    success: boolean;
-    transactionHash?: string;
-    message?: string;
-    error?: string;
-  }> {
-    const accountId = (request.accountId || '').trim();
-    const emailBlob = request.emailBlob;
-
-    if (!this.isValidAccountId(accountId)) {
-      return {
-        success: false,
-        error: `Invalid account ID format: ${accountId}`,
-        message: `Invalid account ID format: ${accountId}`,
-      };
-    }
-    if (!emailBlob || typeof emailBlob !== 'string') {
-      return {
-        success: false,
-        error: 'emailBlob (raw email) is required',
-        message: 'emailBlob (raw email) is required',
-      };
-    }
-
-    await this._ensureSignerAndRelayerAccount();
-
-    return this.queueTransaction(async () => {
-      try {
-        // Prepare contract arguments for verify_dkim_and_recover(email_blob: String)
-        const contractArgs = {
-          email_blob: emailBlob,
-        };
-
-        const actions: ActionArgsWasm[] = [
-          {
-            action_type: ActionType.FunctionCall,
-            method_name: 'verify_dkim_and_recover',
-            args: JSON.stringify(contractArgs),
-            // Use generous gas for DKIM + Outlayer verification.
-            // This is intentionally higher than account-creation flows.
-            gas: DEFAULT_EMAIL_RECOVERY_GAS,
-            // Attach 0.01 NEAR as deposit for Outlayer/TEE DKIM verification (refunded minus fee).
-            // 0.01 NEAR = 10^22 yocto.
-            deposit: '10000000000000000000000',
-          },
-        ];
-        actions.forEach(validateActionArgsWasm);
-
-        const { nextNonce, blockHash } = await this.fetchTxContext(
-          this.config.relayerAccountId,
-          this.relayerPublicKey,
-        );
-
-        const signed = await this.signWithPrivateKey({
-          nearPrivateKey: this.config.relayerPrivateKey,
-          signerAccountId: this.config.relayerAccountId,
-          receiverId: accountId,
-          nonce: nextNonce,
-          blockHash,
-          actions,
-        });
-
-        const result = await this.nearClient.sendTransaction(signed);
-
-        const contractError = parseContractExecutionError(result, accountId);
-        if (contractError) {
-          console.error(`[AuthService] Email recovery contract error for ${accountId}:`, contractError);
-          return {
-            success: false,
-            error: contractError,
-            message: contractError,
-          };
-        }
-
-        console.log(`[AuthService] Email recovery flow completed for ${accountId}: ${result.transaction.hash}`);
-        return {
-          success: true,
-          transactionHash: result.transaction.hash,
-          message: `Email recovery flow executed for ${accountId}`,
-        };
-      } catch (error: any) {
-        const msg = error?.message || 'Unknown email recovery error';
-        console.error(`[AuthService] Email recovery failed for ${accountId}:`, msg);
-        return {
-          success: false,
-          error: msg,
-          message: msg,
-        };
-      }
-    }, `email recovery (dkim) for ${accountId}`);
   }
 
   /**

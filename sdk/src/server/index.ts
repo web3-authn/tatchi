@@ -32,3 +32,4 @@ export {
   type ShamirRemoveServerLockRequest,
   type ShamirRemoveServerLockResponse,
 } from './core/types';
+export * from './email-recovery';

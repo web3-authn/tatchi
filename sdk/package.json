@@ -189,6 +189,9 @@
   "dependencies": {
     "@lit/react": "^1.0.8",
     "@noble/ed25519": "^2.1.0",
+    "@noble/curves": "^2.0.1",
+    "@noble/hashes": "^2.0.1",
+    "@noble/ciphers": "^2.1.1",
     "idb": "^8.0.3",
     "bs58": "^6.0.0",
     "lit": "^3.3.1",

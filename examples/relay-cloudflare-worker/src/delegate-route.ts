@@ -1,6 +1,6 @@
 import type { AuthService } from '@tatchi-xyz/sdk/server';
 import type { CfEnv, RelayRouterOptions } from '@tatchi-xyz/sdk/server/router/cloudflare';
-import { buildCorsOrigins } from '@tatchi-xyz/sdk/server/core/SessionService';
+import { buildCorsOrigins } from '@tatchi-xyz/sdk/server';
 
 
 function json(body: unknown, init?: ResponseInit, extraHeaders?: Record<string, string>): Response {
