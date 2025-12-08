@@ -218,21 +218,35 @@ All of this is currently **testnet‑only** (`tatchi.configs.nearNetwork === 'te
 
 ## 4. What’s NOT implemented yet (ZK path)
 
-The zk‑email recovery flow is intentionally left as future work. Stubs and planned points of integration:
+The zk‑email recovery flow is intentionally left as future work. Stubs and planned points of integration, with checklists:
 
 - `sdk/src/server/email-recovery/zkEmail.ts`
-  - `generateZkEmailProofFromPayload(payload)` is a stub; it will eventually:
-    - Normalize headers + raw message for the ZK circuit.
-    - Call an external prover (e.g. Succinct SP1) to produce `proof` + `publicInputs`.
+  - [x] Implement basic zk-email prover client:
+    - `generateZkEmailProofFromPayload(payload, opts)` calls an external prover HTTP API (`POST /prove-email`) with `{ rawEmail }`.
+    - Handles HTTP/network errors and timeouts, returning `{ proof, publicInputs }` derived from `{ proof, publicSignals }`.
+  - [x] Parse subject/headers into bindings (`account_id`, `new_public_key`, `from_email`, `timestamp`).
+  - [x] Shape these bindings plus `{ proof, publicInputs }` into the `verify_zkemail_and_recover` contract arguments.
+  - [ ] Add more robust validation / logging around parsing and prover responses (e.g. size limits, stricter header checks).
 
-- `AuthService.recoverAccountFromZkEmailVerifier(...)`
-  - Currently returns a fixed `"not yet implemented"` error.
-  - Intended future behavior:
-    - Call a global `ZkEmailVerifier` contract with the proof.
-    - Then call the per‑user recovery contract once the proof is accepted.
+- zk-email mode in `EmailRecoveryService`
+  - [x] Route `explicitMode: "zk-email"` to a dedicated zk-email path.
+  - [x] Use `generateZkEmailProofFromPayload` to obtain `(proof, publicInputs)` for a given raw email.
+  - [x] Construct and send a `verify_zkemail_and_recover` transaction with:
+    - `proof` (Groth16),
+    - `public_inputs` (Vec<String>),
+    - and bound strings (`account_id`, `new_public_key`, `from_email`, `timestamp`).
+  - [ ] Expose high-level helpers on `AuthService` (or equivalent) that wrap the zk-email mode for callers.
 
-- Worker routing:
-  - Today, the `email` handler always calls the DKIM path.
-  - In the future, different Subject prefixes (e.g. `zkrecover|...`) could be routed to the ZK path instead.
+- Worker / HTTP routing:
+  - [x] Cloudflare `email` handler calls `EmailRecoveryService.requestEmailRecovery({ accountId, emailBlob })`, letting the service parse the first non-empty body line to select `zk-email | encrypted | onchain-public`.
+  - [x] HTTP endpoint (`POST /recover-email-zk`) accepts `{ accountId, emailBlob }` and forwards to `EmailRecoveryService.requestEmailRecovery`, which performs the same body-based mode selection.
+  - [ ] Add metrics and structured logging for zk-email requests and failures.
 
-Until those pieces are wired up, the system implements **DKIM‑based email recovery** only. ZK‑email remains a design target with helper scaffolding in place but no on‑chain verifier integration yet.
+HTTP callers should:
+
+- Provide the raw `.eml` as `emailBlob` (including mode marker in the body when desired).
+- Either:
+  - Let `EmailRecoveryService.requestEmailRecovery` parse the first non-empty body line (`zk-email | encrypted | onchain-public`), or
+  - Pass an explicit `explicitMode` override when calling from trusted code that already knows the desired path.
+
+Until those pieces are wired up end-to-end (especially worker routing and high-level helpers), the system implements **DKIM‑based email recovery** only. ZK‑email remains a design target with a prover client and relayer-side contract call in place but no production routing yet.

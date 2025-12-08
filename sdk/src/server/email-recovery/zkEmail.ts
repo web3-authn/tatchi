@@ -10,6 +10,33 @@ export type NormalizedEmailResult =
   | { ok: true; payload: ForwardableEmailPayload }
   | { ok: false; code: string; message: string };
 
+export interface ZkEmailProverClientOptions {
+  baseUrl: string;
+  timeoutMs?: number;
+}
+
+export interface ZkEmailProverResponse {
+  proof: unknown;
+  publicSignals: string[];
+}
+
+export interface ZkEmailProverError extends Error {
+  code: string;
+  status?: number;
+}
+
+export interface GenerateZkEmailProofResult {
+  proof: unknown;
+  publicInputs: string[];
+}
+
+export interface ParsedZkEmailBindings {
+  accountId: string;
+  newPublicKey: string;
+  fromEmail: string;
+  timestamp: string;
+}
+
 export function normalizeForwardableEmailPayload(input: unknown): NormalizedEmailResult {
   if (!input || typeof input !== 'object') {
     return { ok: false, code: 'invalid_email', message: 'JSON body required' };
@@ -81,22 +108,148 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   return null;
 }
 
-export async function generateZkEmailProofFromPayload(
+function parseSubjectBindings(rawSubject: string | undefined | null): { accountId: string; newPublicKey: string } | null {
+  if (!rawSubject || typeof rawSubject !== 'string') return null;
+
+  const lines = rawSubject.split(/\r?\n/);
+  const subjectLine = lines.find(line => /^subject:/i.test(line));
+  let subjectText = '';
+  if (subjectLine) {
+    const [, restRaw = ''] = subjectLine.split(/:/, 2);
+    subjectText = restRaw.trim();
+  } else {
+    subjectText = rawSubject.trim();
+  }
+  if (!subjectText) return null;
+
+  subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
+  if (!subjectText) return null;
+
+  const match = subjectText.match(/^recover\s+([^\s]+)\s+ed25519:([^\s]+)\s*$/i);
+  if (!match) return null;
+
+  return {
+    accountId: match[1],
+    newPublicKey: match[2],
+  };
+}
+
+export function extractZkEmailBindingsFromPayload(
   payload: ForwardableEmailPayload
-): Promise<{ proof: unknown; publicInputs: unknown }> {
+): ParsedZkEmailBindings | null {
+  const raw = payload.raw || '';
+  const lines = raw.split(/\r?\n/);
 
-  // TODO: Stub implementation for now.
-  // Will later call EmailRecoverer contract:
-  // pub fn verify_zkemail_and_recover(
-  //     &mut self,
-  //     proof: ProofInput,
-  //     public_inputs: Vec<String>,
-  //     account_id: String,
-  //     new_public_key: String,
-  //     from_email: String,
-  //     timestamp: String,
-  // ) -> Promise
+  const subjectLine = lines.find(line => /^subject:/i.test(line));
+  const subjectBindings = parseSubjectBindings(subjectLine ?? '');
+  if (!subjectBindings) {
+    return null;
+  }
 
-  void payload;
-  return { proof: null, publicInputs: null };
+  const headers = payload.headers || {};
+  const fromEmailRaw =
+    headers['from'] ||
+    headers['x-from-email'] ||
+    '';
+  const dateRaw =
+    headers['date'] ||
+    headers['x-original-date'] ||
+    '';
+
+  const fromEmail = String(fromEmailRaw || '').trim();
+  const timestamp = String(dateRaw || '').trim();
+
+  if (!fromEmail || !timestamp) {
+    return null;
+  }
+
+  return {
+    accountId: subjectBindings.accountId,
+    newPublicKey: subjectBindings.newPublicKey,
+    fromEmail,
+    timestamp,
+  };
+}
+
+async function postJsonWithTimeout<TResponse>(
+  url: string,
+  body: unknown,
+  timeoutMs: number
+): Promise<TResponse> {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+  const id = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller?.signal,
+    } as RequestInit);
+
+    const text = await res.text();
+    let json: any;
+    try {
+      json = text ? JSON.parse(text) : {};
+    } catch {
+      json = {};
+    }
+
+    if (!res.ok) {
+      const err: ZkEmailProverError = Object.assign(
+        new Error(
+          json?.error ||
+            `zk-email prover request failed with status ${res.status}`
+        ),
+        {
+          code: 'prover_http_error',
+          status: res.status,
+        }
+      );
+      throw err;
+    }
+
+    return json as TResponse;
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      const err: ZkEmailProverError = Object.assign(
+        new Error('zk-email prover request timed out'),
+        { code: 'prover_timeout' }
+      );
+      throw err;
+    }
+    if (e?.code) {
+      throw e;
+    }
+    const err: ZkEmailProverError = Object.assign(
+      new Error(e?.message || 'zk-email prover request failed'),
+      { code: 'prover_network_error' }
+    );
+    throw err;
+  } finally {
+    if (id !== undefined) clearTimeout(id);
+  }
+}
+
+export async function generateZkEmailProofFromPayload(
+  payload: ForwardableEmailPayload,
+  opts: ZkEmailProverClientOptions
+): Promise<GenerateZkEmailProofResult> {
+  if (!payload.raw || typeof payload.raw !== 'string') {
+    const err: ZkEmailProverError = Object.assign(
+      new Error('raw email contents are required to generate a zk-email proof'),
+      { code: 'missing_raw_email' }
+    );
+    throw err;
+  }
+
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const url = opts.baseUrl.replace(/\/+$/, '') + '/prove-email';
+
+  const res = await postJsonWithTimeout<ZkEmailProverResponse>(url, { rawEmail: payload.raw }, timeoutMs);
+
+  return {
+    proof: res.proof,
+    publicInputs: res.publicSignals,
+  };
 }

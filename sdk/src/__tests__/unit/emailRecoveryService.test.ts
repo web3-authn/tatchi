@@ -229,3 +229,136 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
     expect(parsedArgs.email_blob).toBe(GMAIL_RESET_EMAIL_BLOB);
   });
 });
+
+test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
+  test('routes zk-email mode to verify_zkemail_and_recover with bindings and prover output', async ({ page }) => {
+    await page.goto('/');
+    await injectImportMap(page);
+    const res = await page.evaluate(async ({ paths, emailBlob }) => {
+      try {
+        const { EmailRecoveryService } = await import(paths.server);
+
+        const calls: any[] = [];
+        let signedArgs: any = null;
+
+        // Minimal email blob with subject + headers for bindings parser
+        const rawEmail =
+          'Subject: recover berp61.w3a-v1.testnet ed25519:edpkDummyKey\n' +
+          'From: alice@example.com\n' +
+          'Date: Tue, 01 Jan 2024 00:00:00 GMT\n' +
+          '\n' +
+          emailBlob;
+
+        // Monkey patch global fetch used by zkEmail prover client
+        (globalThis as any).fetch = async (_url: string, _init?: any) => {
+          calls.push({ type: 'proverFetch', url: _url, init: _init });
+          return {
+            ok: true,
+            status: 200,
+            async text() {
+              return JSON.stringify({
+                proof: { pi_a: ['1', '2', '3'] },
+                publicSignals: ['10', '20', '30'],
+              });
+            },
+          } as any;
+        };
+
+        const nearClient = {
+          async view(_params: any): Promise<any> {
+            calls.push({ type: 'view' });
+            return '';
+          },
+          async sendTransaction(signedTx: any): Promise<any> {
+            calls.push({ type: 'send', signedTx });
+            const firstAction = signedTx.actions?.[0];
+            const parsedArgs = firstAction?.args ? JSON.parse(firstAction.args) : null;
+            calls.push({ type: 'parsedArgs', parsedArgs });
+            return {
+              transaction: { hash: 'zkemail-tx-hash' },
+              status: { SuccessValue: '' },
+              receipts_outcome: [],
+            };
+          },
+        };
+
+        const deps = {
+          relayerAccountId: 'w3a-relayer.testnet',
+          relayerPrivateKey: 'ed25519:dummy',
+          networkId: 'testnet',
+          emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+          nearClient,
+          ensureSignerAndRelayerAccount: async () => {},
+          queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
+          fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
+          signWithPrivateKey: async (input: any) => {
+            signedArgs = input;
+            return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
+          },
+          getRelayerPublicKey: () => 'relayer-public-key',
+          zkEmailProver: {
+            baseUrl: 'http://zk-email-prover.local',
+            timeoutMs: 5000,
+          },
+        };
+
+        const service = new EmailRecoveryService(deps);
+
+        const result = await service.requestEmailRecovery({
+          accountId: 'berp61.w3a-v1.testnet',
+          emailBlob: rawEmail,
+          explicitMode: 'zk-email',
+        });
+
+        return {
+          success: true,
+          result,
+          calls,
+          signedArgs,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error?.message || String(error),
+        };
+      }
+    }, { paths: IMPORT_PATHS, emailBlob: GMAIL_RESET_EMAIL_BLOB });
+
+    if (!res.success) {
+      console.error('EmailRecoveryService zk-email test error:', res.error);
+      expect(res.success).toBe(true);
+      return;
+    }
+
+    const { result, calls, signedArgs } = res as {
+      result: any;
+      calls: any[];
+      signedArgs: any;
+    };
+
+    expect(result.success).toBe(true);
+    expect(result.transactionHash).toBe('zkemail-tx-hash');
+
+    const proverCall = calls.find((c: any) => c.type === 'proverFetch');
+    expect(proverCall).toBeTruthy();
+    expect(proverCall.url).toBe('http://zk-email-prover.local/prove-email');
+
+    expect(signedArgs).toBeTruthy();
+    expect(signedArgs.signerAccountId).toBe('w3a-relayer.testnet');
+    expect(signedArgs.receiverId).toBe('berp61.w3a-v1.testnet');
+    expect(Array.isArray(signedArgs.actions)).toBe(true);
+    expect(signedArgs.actions.length).toBe(1);
+
+    const action = signedArgs.actions[0];
+    expect(action.action_type).toBe('FunctionCall');
+    expect(action.method_name).toBe('verify_zkemail_and_recover');
+
+    const parsedArgs = JSON.parse(action.args);
+    expect(parsedArgs.proof).toEqual({ pi_a: ['1', '2', '3'] });
+    expect(parsedArgs.public_inputs).toEqual(['10', '20', '30']);
+    expect(parsedArgs.account_id).toBe('berp61.w3a-v1.testnet');
+    expect(parsedArgs.new_public_key).toBe('edpkDummyKey');
+    expect(parsedArgs.from_email).toBe('alice@example.com');
+    expect(parsedArgs.timestamp).toBe('Tue, 01 Jan 2024 00:00:00 GMT');
+  });
+});

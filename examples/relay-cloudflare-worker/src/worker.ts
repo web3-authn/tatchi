@@ -1,4 +1,4 @@
-import { AuthService, SessionService } from '@tatchi-xyz/sdk/server';
+import { AuthService, SessionService, buildCorsOrigins } from '@tatchi-xyz/sdk/server';
 import { createCloudflareRouter, createCloudflareCron } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
@@ -44,6 +44,26 @@ export interface Env {
 
 // Singleton AuthService instance shared across fetch/email/scheduled events
 let service: AuthService | null = null;
+
+function withCorsForEnv(headers: Headers, env: Env, request?: Request): void {
+  const origins = buildCorsOrigins(env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN);
+  if (origins === '*') {
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    return;
+  }
+  if (Array.isArray(origins)) {
+    const origin = request?.headers.get('Origin') || '';
+    if (origin && origins.includes(origin)) {
+      headers.set('Access-Control-Allow-Origin', origin);
+      headers.append('Vary', 'Origin');
+      headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+      headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+}
 
 function getService(env: Env): AuthService {
   if (!service) {
@@ -118,8 +138,50 @@ export default {
         healthz: true,
         corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
         session,
-      }, env as unknown as CfEnv);
+      });
     }
+
+    if (url.pathname === '/recover-email-zk' && request.method === 'POST') {
+      try {
+        const body = await request.json().catch(() => null) as any;
+        const accountId = (body?.accountId || '').trim();
+        const emailBlob = body?.emailBlob;
+        if (!accountId || !emailBlob || typeof emailBlob !== 'string') {
+          return new Response(
+            JSON.stringify({ success: false, error: 'accountId and emailBlob are required' }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+        if (!s.emailRecovery) {
+          return new Response(
+            JSON.stringify({ success: false, error: 'email recovery service unavailable' }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } }
+          );
+        }
+
+        const result = await s.emailRecovery.requestEmailRecovery({
+          accountId,
+          emailBlob,
+        });
+
+        const status = result.success ? 200 : 502;
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        withCorsForEnv(headers, env, request);
+        return new Response(JSON.stringify(result), {
+          status,
+          headers,
+        });
+      } catch (e: any) {
+        const msg = e?.message || 'zk-email recovery endpoint error';
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        withCorsForEnv(headers, env, request);
+        return new Response(
+          JSON.stringify({ success: false, error: msg }),
+          { status: 500, headers }
+        );
+      }
+    }
+
     return router(request, env as unknown as CfEnv, ctx);
   },
 
@@ -186,20 +248,20 @@ export default {
       return;
     }
 
-    console.log('[email] using encrypted DKIM/TEE path via EmailRecoveryService');
+    console.log('[email] dispatching to EmailRecoveryService.requestEmailRecovery with body-based mode selection');
 
-    const result = await service.emailRecovery.requestEncryptedEmailVerification({
+    const result = await service.emailRecovery.requestEmailRecovery({
       accountId,
       emailBlob,
     });
-    console.log('[email] encrypted DKIM recovery result', JSON.stringify(result));
+    console.log('[email] email recovery result', JSON.stringify(result));
 
     if (!result?.success) {
-      console.log('[email] encrypted DKIM recovery failed', { accountId, error: result?.error });
+      console.log('[email] email recovery failed', { accountId, error: result?.error });
       message.setReject('Recovery relayer rejected email');
       return;
     }
 
-    console.log('[email] encrypted DKIM recovery succeeded', { accountId, tx: result.transactionHash });
+    console.log('[email] email recovery succeeded', { accountId, tx: result.transactionHash });
   }
 };
