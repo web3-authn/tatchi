@@ -351,7 +351,16 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           return res;
         }
 
-        const result = await service.recoverAccountFromEmailDKIMVerifier({ accountId, emailBlob });
+        if (!service.emailRecovery) {
+          const res = json(
+            { code: 'email_recovery_unavailable', message: 'EmailRecoveryService is not configured on this server' },
+            { status: 503 }
+          );
+          withCors(res.headers, opts, request);
+          return res;
+        }
+
+        const result = await service.emailRecovery.requestEncryptedEmailVerification({ accountId, emailBlob });
         const res = json(result, { status: result.success ? 202 : 400 });
         withCors(res.headers, opts, request);
         return res;

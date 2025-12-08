@@ -8,8 +8,8 @@ At a high level:
 - The Worker’s `email` handler:
   - Normalizes the message into a JSON payload.
   - Parses the NEAR `account_id` from the subject / headers.
-  - Calls `AuthService.recoverAccountFromEmailDKIMVerifier` to invoke the per‑account `EmailRecoverer` contract.
-- The `EmailRecoverer` contract and `EmailDKIMVerifier` handle DKIM proof verification and account recovery logic.
+  - Calls `AuthService.emailRecovery.requestEncryptedEmailVerification` to invoke the global `EmailDKIMVerifier` contract over an encrypted email blob.
+- The `EmailDKIMVerifier` contract and per‑account `EmailRecoverer` handle DKIM proof verification and account recovery logic.
 - The zk‑email path (proofs to a ZkEmailVerifier) is **not implemented yet**; helper stubs are in place.
 
 ---
@@ -109,78 +109,69 @@ The `email` handler in `worker.ts` orchestrates the DKIM recovery flow:
      return;
    }
    ```
-5. Call the DKIM recovery helper on the shared `AuthService` instance:
+5. Call the encrypted DKIM recovery helper on the shared `AuthService` instance:
    ```ts
-   const result = await service.recoverAccountFromEmailDKIMVerifier({
+   const result = await service.emailRecovery.requestEncryptedEmailVerification({
      accountId,
      emailBlob: payload.raw,
    });
-   console.log('[email] DKIM recovery result', JSON.stringify(result));
+   console.log('[email] encrypted DKIM recovery result', JSON.stringify(result));
    ```
 6. Handle result:
-   - On failure:
+   - On failure (encrypted DKIM path):
      ```ts
-     console.log('[email] DKIM recovery failed', { accountId, error: result?.error });
+     console.log('[email] encrypted DKIM recovery failed', { accountId, error: result?.error });
      message.setReject('Recovery relayer rejected email');
      ```
-   - On success:
+   - On success (encrypted DKIM path):
      ```ts
-     console.log('[email] DKIM recovery succeeded', { accountId, tx: result.transactionHash });
+     console.log('[email] encrypted DKIM recovery succeeded', { accountId, tx: result.transactionHash });
      ```
 
 The email handler no longer forwards debug copies (`message.forward('dev@...')` was removed).
 
 ---
 
-## 2. DKIM Recovery Helper (`AuthService.recoverAccountFromEmailDKIMVerifier`)
+## 2. DKIM Recovery Helper (`EmailRecoveryService.requestEncryptedEmailVerification`)
 
-Path: `sdk/src/server/core/AuthService.ts`
+Path: `sdk/src/server/email-recovery/teeEmail.ts`
 
-We added a dedicated helper on `AuthService`:
+Encrypted DKIM email recovery is now encapsulated in `EmailRecoveryService` and exposed via `AuthService.emailRecovery`:
 
 ```ts
-async recoverAccountFromEmailDKIMVerifier(request: { accountId: string; emailBlob: string }): Promise<{
-  success: boolean;
-  transactionHash?: string;
-  message?: string;
-  error?: string;
-}>
+const result = await service.emailRecovery.requestEncryptedEmailVerification({
+  accountId,
+  emailBlob: payload.raw,
+});
 ```
 
-Behavior:
+Behavior (high level):
 
 1. Validate inputs:
-   - `accountId` must pass `isValidAccountId`.
-   - `emailBlob` must be a non‑empty string.
-2. Ensure the signer and relayer account are initialized (WASM + Shamir).
-3. Queue a transaction (to avoid nonce races) that:
-   - Builds a single `FunctionCall` action:
-     ```ts
-     const contractArgs = { email_blob: emailBlob };
-     const actions: ActionArgsWasm[] = [
-       {
-         action_type: ActionType.FunctionCall,
-         method_name: 'verify_dkim_and_recover',
-         args: JSON.stringify(contractArgs),
-         gas: DEFAULT_EMAIL_RECOVERY_GAS,            // 300 TGas
-         deposit: '10000000000000000000000',         // 0.01 NEAR
-       },
-     ];
-     ```
-   - Signs and sends the transaction from the relayer:
-     - `signer_id = relayerAccountId` (e.g. `w3a-relayer.testnet`)
-     - `receiver_id = accountId` (e.g. `bob.w3a-v1.testnet`)
-4. Parse the execution outcome:
+   - `accountId` must be non‑empty (and should be a valid NEAR account ID).
+   - `emailBlob` must be a non‑empty string (full RFC822 message).
+2. Ensure the signer and relayer account are initialized (WASM + Shamir) via `AuthService`.
+3. Fetch the Outlayer X25519 public key from the `EmailDKIMVerifier` contract (`get_outlayer_encryption_public_key`) and cache it.
+4. Build an encryption context:
+   - `account_id` = target NEAR account.
+   - `payer_account_id` = relayer account.
+   - `network_id` = network id.
+5. Encrypt `emailBlob` with:
+   - X25519 + HKDF‑SHA256 → symmetric key.
+   - ChaCha20‑Poly1305 with a random 12‑byte nonce and JSON‑encoded context as AAD.
+   - Produces an `EncryptedEmailEnvelope` `{ version, ephemeral_pub, nonce, ciphertext }`.
+6. Queue a transaction that:
+   - Calls `request_email_verification` on the `EmailDKIMVerifier` contract with:
+     - `payer_account_id`.
+     - `email_blob = null`.
+     - `encrypted_email_blob` (the envelope).
+     - `params` (the same context JSON).
+   - Signs and sends it from the relayer account.
+7. Parse the execution outcome:
    - Uses `parseContractExecutionError` to extract human‑readable errors from receipts.
    - Returns:
      - `{ success: true, transactionHash, message }` on success.
      - `{ success: false, error, message }` on failure.
-
-Notes:
-
-- `DEFAULT_EMAIL_RECOVERY_GAS = '300000000000000'` (300 TGas), aligned with a working `near-cli` example:
-  - `prepaid-gas '300.0 Tgas' attached-deposit '0.01 NEAR'`.
-- Over‑prepaid gas is refunded on NEAR; only gas actually burned is charged.
 
 ---
 

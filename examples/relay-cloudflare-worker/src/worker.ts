@@ -141,7 +141,7 @@ export default {
    * Email entrypoint
    * - Invoked by Cloudflare Email Routing for incoming messages to RECOVER_EMAIL_RECIPIENT.
    * - Normalizes headers/raw body, parses accountId from Subject/headers,
-   *   and calls AuthService.recoverAccountFromEmailDKIMVerifier for DKIM-based recovery.
+   *   and calls AuthService.emailRecovery for encrypted DKIM/TEE-based recovery.
    */
   async email(message: any, env: Env, ctx: CfExecutionContext): Promise<void> {
     const service = getService(env);
@@ -173,18 +173,33 @@ export default {
       return;
     }
 
-    const result = await service.recoverAccountFromEmailDKIMVerifier({
+    const emailBlob = payload.raw;
+    if (!emailBlob || typeof emailBlob !== 'string') {
+      console.log('[email] rejecting: missing raw email blob');
+      message.setReject('Email recovery relayer rejected email: missing raw email blob');
+      return;
+    }
+
+    if (!service.emailRecovery) {
+      console.log('[email] rejecting: EmailRecoveryService is not configured on this relayer');
+      message.setReject('Recovery relayer rejected email: email recovery service unavailable');
+      return;
+    }
+
+    console.log('[email] using encrypted DKIM/TEE path via EmailRecoveryService');
+
+    const result = await service.emailRecovery.requestEncryptedEmailVerification({
       accountId,
-      emailBlob: payload.raw,
+      emailBlob,
     });
-    console.log('[email] DKIM recovery result', JSON.stringify(result));
+    console.log('[email] encrypted DKIM recovery result', JSON.stringify(result));
 
     if (!result?.success) {
-      console.log('[email] DKIM recovery failed', { accountId, error: result?.error });
+      console.log('[email] encrypted DKIM recovery failed', { accountId, error: result?.error });
       message.setReject('Recovery relayer rejected email');
       return;
     }
 
-    console.log('[email] DKIM recovery succeeded', { accountId, tx: result.transactionHash });
+    console.log('[email] encrypted DKIM recovery succeeded', { accountId, tx: result.transactionHash });
   }
 };

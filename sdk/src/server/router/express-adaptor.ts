@@ -232,7 +232,12 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
         return;
       }
 
-      const result = await service.recoverAccountFromEmailDKIMVerifier({ accountId, emailBlob });
+      if (!service.emailRecovery) {
+        res.status(503).json({ code: 'email_recovery_unavailable', message: 'EmailRecoveryService is not configured on this server' });
+        return;
+      }
+
+      const result = await service.emailRecovery.requestEncryptedEmailVerification({ accountId, emailBlob });
       const status = result.success ? 202 : 400;
       res.status(status).json(result);
     } catch (e: any) {

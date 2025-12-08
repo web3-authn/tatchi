@@ -84,24 +84,19 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
 export async function generateZkEmailProofFromPayload(
   payload: ForwardableEmailPayload
 ): Promise<{ proof: unknown; publicInputs: unknown }> {
-  // TODO: Implement real ZK-email proof generation.
-  // Rough outline:
-  // 1) Normalize headers (lowercase keys, extract DKIM-Signature and other
-  //    security-relevant fields).
-  // 2) Parse the raw email (if provided) or reconstruct the body to extract:
-  //    - target NEAR account_id (e.g. "bob.near"),
-  //    - requested new_public_key,
-  //    - optional nonce/session binding or timestamp.
-  // 3) Build prover input for the zk-email circuit:
-  //    - include the raw RFC822 message or a structured representation
-  //      (headers + body + DKIM signature) expected by the circuit,
-  //    - include derived fields (account_id, new_public_key, nonce).
-  // 4) Call the external ZK prover (for example, Succinct's SP1 Prover
-  //    Network) with { program_id, input } and await { proof, public_inputs }.
-  // 5) Return proof + public_inputs so the caller can forward them on-chain
-  //    to the global ZkEmailVerifier and per-user recovery contracts.
 
-  // Stub implementation for now.
+  // TODO: Stub implementation for now.
+  // Will later call EmailRecoverer contract:
+  // pub fn verify_zkemail_and_recover(
+  //     &mut self,
+  //     proof: ProofInput,
+  //     public_inputs: Vec<String>,
+  //     account_id: String,
+  //     new_public_key: String,
+  //     from_email: String,
+  //     timestamp: String,
+  // ) -> Promise
+
   void payload;
   return { proof: null, publicInputs: null };
 }
