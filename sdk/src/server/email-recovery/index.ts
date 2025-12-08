@@ -5,6 +5,12 @@ import {
   encryptEmailForOutlayer,
   type EmailEncryptionContext,
 } from './teeEmail';
+import {
+  extractZkEmailBindingsFromPayload,
+  generateZkEmailProofFromPayload,
+  normalizeForwardableEmailPayload,
+  type ZkEmailProverClientOptions,
+} from './zkEmail';
 
 export * from './teeEmail';
 export * from './zkEmail';
@@ -27,6 +33,7 @@ export interface EmailRecoveryServiceDeps {
     actions: ActionArgsWasm[];
   }): Promise<SignedTransaction>;
   getRelayerPublicKey(): string;
+  zkEmailProver?: ZkEmailProverClientOptions;
 }
 
 export interface EmailRecoveryRequest {
@@ -52,7 +59,7 @@ export interface EmailRecoveryResult {
  * refactored into a standalone package in the future. It orchestrates:
  * - Fetching the Outlayer X25519 public key from EmailDKIMVerifier,
  * - Encrypting the raw email with encryptEmailForOutlayer,
- * - Calling request_email_verification_private on the EmailDKIMVerifier contract.
+ * - Calling request_email_verification on the EmailDKIMVerifier contract.
  */
 export class EmailRecoveryService {
   private readonly deps: EmailRecoveryServiceDeps;
@@ -75,9 +82,9 @@ export class EmailRecoveryService {
     const normalize = (raw: string | undefined | null): EmailRecoveryMode | null => {
       if (!raw) return null;
       const value = raw.trim().toLowerCase();
-      if (value === 'zk-email' || value === 'zk') return 'zk-email';
-      if (value === 'encrypted' || value === 'enc' || value === 'tee-private' || value === 'tee') return 'encrypted';
-      if (value === 'onchain-public' || value === 'onchain' || value === 'public') return 'onchain-public';
+      if (value === 'zk-email' || 'zk') return 'zk-email';
+      if (value === 'encrypted' || value === 'tee') return 'encrypted';
+      if (value === 'onchain-public' || value === 'onchain') return 'onchain-public';
       return null;
     };
 
@@ -116,15 +123,24 @@ export class EmailRecoveryService {
 
   /**
    * Top-level dispatcher for email recovery modes.
-   * - Determines the recovery mode from body/overrides.
-   * - Routes encrypted → DKIM/TEE flow (requestEncryptedEmailVerification).
-   * - Routes onchain-public → pure on-chain EmailRecoverer flow (requestOnchainEmailVerification).
-   * - Returns a clear "not implemented" error for zk-email for now.
+   *
+   * Usage from HTTP routes:
+   * - Pass the full raw RFC822 email as `emailBlob` (including headers + body).
+   * - Optionally include an explicit `explicitMode` override (`'zk-email' | 'encrypted' | 'onchain-public'`).
+   * - Otherwise, the first non-empty body line is parsed as a mode hint:
+   *   - `"zk-email"` → zk-email prover + `verify_zkemail_and_recover`.
+   *   - `"encrypted"` → TEE DKIM encryption + `request_email_verification`.
+   *   - `"onchain-public"` → on-chain email recovery (`verify_email_onchain_and_recover`).
+   * - If no hint is found, the mode defaults to `'encrypted'`.
    */
   async requestEmailRecovery(request: EmailRecoveryDispatchRequest): Promise<EmailRecoveryResult> {
     const mode = this.determineRecoveryMode({
       explicitMode: request.explicitMode,
       emailBlob: request.emailBlob,
+    });
+    console.log('[email-recovery] requestEmailRecovery mode selected', {
+      mode,
+      accountId: request.accountId,
     });
 
     if (mode === 'encrypted') {
@@ -135,11 +151,10 @@ export class EmailRecoveryService {
     }
 
     if (mode === 'zk-email') {
-      return {
-        success: false,
-        error: 'zk-email recovery mode selected but not implemented yet',
-        message: 'zk-email recovery mode selected but not implemented yet',
-      };
+      return this.requestZkEmailVerification({
+        accountId: request.accountId,
+        emailBlob: request.emailBlob,
+      });
     }
 
     // onchain-public
@@ -226,6 +241,10 @@ export class EmailRecoveryService {
       await ensureSignerAndRelayerAccount();
     } catch (e: any) {
       const msg = e?.message || 'Failed to initialize relayer account';
+      console.error('[email-recovery] encrypted ensureSignerAndRelayerAccount failed', {
+        accountId,
+        error: msg,
+      });
       return { success: false, error: msg, message: msg };
     }
 
@@ -279,12 +298,21 @@ export class EmailRecoveryService {
 
         const contractError = parseContractExecutionError(result, emailDkimVerifierAccountId);
         if (contractError) {
+          console.warn('[email-recovery] encrypted contract error', {
+            accountId,
+            error: contractError,
+          });
           return {
             success: false,
             error: contractError,
             message: contractError,
           };
         }
+
+        console.log('[email-recovery] encrypted recovery success', {
+          accountId,
+          txHash: result.transaction.hash,
+        });
 
         return {
           success: true,
@@ -293,6 +321,10 @@ export class EmailRecoveryService {
         };
       } catch (error: any) {
         const msg = error?.message || 'Unknown encrypted email recovery error';
+        console.error('[email-recovery] encrypted recovery error', {
+          accountId,
+          error: msg,
+        });
         return {
           success: false,
           error: msg,
@@ -342,6 +374,10 @@ export class EmailRecoveryService {
       await ensureSignerAndRelayerAccount();
     } catch (e: any) {
       const msg = e?.message || 'Failed to initialize relayer account';
+      console.error('[email-recovery] onchain ensureSignerAndRelayerAccount failed', {
+        accountId,
+        error: msg,
+      });
       return { success: false, error: msg, message: msg };
     }
 
@@ -378,12 +414,21 @@ export class EmailRecoveryService {
 
         const contractError = parseContractExecutionError(result, accountId);
         if (contractError) {
+          console.warn('[email-recovery] onchain contract error', {
+            accountId,
+            error: contractError,
+          });
           return {
             success: false,
             error: contractError,
             message: contractError,
           };
         }
+
+        console.log('[email-recovery] onchain recovery success', {
+          accountId,
+          txHash: result.transaction.hash,
+        });
 
         return {
           success: true,
@@ -392,6 +437,10 @@ export class EmailRecoveryService {
         };
       } catch (error: any) {
         const msg = error?.message || 'Unknown on-chain email recovery error';
+        console.error('[email-recovery] onchain recovery error', {
+          accountId,
+          error: msg,
+        });
         return {
           success: false,
           error: msg,
@@ -399,6 +448,195 @@ export class EmailRecoveryService {
         };
       }
     }, `onchain email recovery for ${accountId}`);
+  }
+
+  /**
+   * Helper for zk-email recovery:
+   * - Calls external zk-email prover with the raw email blob to obtain (proof, publicInputs).
+   * - Extracts subject/header bindings (account_id, new_public_key, from_email, timestamp).
+   * - Calls the per-account EmailRecoverer contract with verify_zkemail_and_recover.
+   */
+  async requestZkEmailVerification(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
+    const accountId = (request.accountId || '').trim();
+    const emailBlob = request.emailBlob;
+
+    if (!accountId) {
+      return {
+        success: false,
+        error: 'accountId is required',
+        message: 'accountId is required',
+      };
+    }
+    if (!emailBlob || typeof emailBlob !== 'string') {
+      return {
+        success: false,
+        error: 'emailBlob (raw email) is required',
+        message: 'emailBlob (raw email) is required',
+      };
+    }
+
+    const {
+      relayerAccountId,
+      relayerPrivateKey,
+      nearClient,
+      ensureSignerAndRelayerAccount,
+      queueTransaction,
+      fetchTxContext,
+      signWithPrivateKey,
+      getRelayerPublicKey,
+      zkEmailProver,
+    } = this.deps;
+
+    if (!zkEmailProver || !zkEmailProver.baseUrl) {
+      console.error('[email-recovery] zk-email missing prover configuration', { accountId });
+      return {
+        success: false,
+        error: 'zk-email prover configuration is missing',
+        message: 'zk-email prover configuration is missing',
+      };
+    }
+
+    try {
+      await ensureSignerAndRelayerAccount();
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to initialize relayer account';
+      console.error('[email-recovery] zk-email ensureSignerAndRelayerAccount failed', {
+        accountId,
+        error: msg,
+      });
+      return { success: false, error: msg, message: msg };
+    }
+
+    return queueTransaction(async () => {
+      try {
+        const normalized = normalizeForwardableEmailPayload({
+          from: '',
+          to: '',
+          headers: {},
+          raw: emailBlob,
+        });
+        if (!normalized.ok) {
+          return {
+            success: false,
+            error: 'invalid_email_payload',
+            message: normalized.message || 'Invalid email payload for zk-email recovery',
+          };
+        }
+
+        const bindings = extractZkEmailBindingsFromPayload(normalized.payload);
+        if (!bindings) {
+          console.warn('[email-recovery] zk-email bindings parse error', { accountId });
+          return {
+            success: false,
+            error: 'zkemail_parse_error_bindings',
+            message: 'Failed to parse accountId/new_public_key/from_email/timestamp from email',
+          };
+        }
+
+        if (bindings.accountId !== accountId) {
+          console.warn('[email-recovery] zk-email account mismatch', {
+            accountIdRequested: accountId,
+            accountIdSubject: bindings.accountId,
+          });
+          return {
+            success: false,
+            error: 'zkemail_account_mismatch',
+            message: 'accountId in subject does not match requested accountId',
+          };
+        }
+
+        const proofResult = await generateZkEmailProofFromPayload(normalized.payload, zkEmailProver);
+
+        const contractArgs = {
+          proof: proofResult.proof,
+          public_inputs: proofResult.publicInputs,
+          account_id: bindings.accountId,
+          new_public_key: bindings.newPublicKey,
+          from_email: bindings.fromEmail,
+          timestamp: bindings.timestamp,
+        };
+
+        const actions: ActionArgsWasm[] = [
+          {
+            action_type: ActionType.FunctionCall,
+            method_name: 'verify_zkemail_and_recover',
+            args: JSON.stringify(contractArgs),
+            gas: '300000000000000',
+            deposit: '10000000000000000000000',
+          },
+        ];
+        actions.forEach(validateActionArgsWasm);
+
+        const relayerPublicKey = getRelayerPublicKey();
+        const { nextNonce, blockHash } = await fetchTxContext(relayerAccountId, relayerPublicKey);
+
+        const signed = await signWithPrivateKey({
+          nearPrivateKey: relayerPrivateKey,
+          signerAccountId: relayerAccountId,
+          receiverId: accountId,
+          nonce: nextNonce,
+          blockHash,
+          actions,
+        });
+
+        const result = await nearClient.sendTransaction(signed);
+
+        const contractError = parseContractExecutionError(result, accountId);
+        if (contractError) {
+          console.warn('[email-recovery] zk-email contract error', {
+            accountId,
+            error: contractError,
+          });
+          return {
+            success: false,
+            error: contractError,
+            message: contractError,
+          };
+        }
+
+        console.log('[email-recovery] zk-email recovery success', {
+          accountId,
+          txHash: result.transaction.hash,
+        });
+
+        return {
+          success: true,
+          transactionHash: result.transaction.hash,
+          message: `ZK-email recovery requested for ${accountId}`,
+        };
+      } catch (error: any) {
+        const code = (error && typeof error.code === 'string') ? error.code as string : undefined;
+        let errorCode = 'zkemail_unknown_error';
+        let msg = error?.message || 'Unknown zk-email recovery error';
+
+        if (code === 'prover_timeout') {
+          errorCode = 'zkemail_prover_timeout';
+          msg = 'ZK-email prover request timed out';
+        } else if (code === 'prover_http_error') {
+          errorCode = 'zkemail_prover_http_error';
+          // Keep underlying message if present for debugging
+          msg = error?.message || 'ZK-email prover HTTP error';
+        } else if (code === 'prover_network_error') {
+          errorCode = 'zkemail_prover_network_error';
+          msg = error?.message || 'ZK-email prover network error';
+        } else if (code === 'missing_raw_email') {
+          errorCode = 'zkemail_missing_raw_email';
+          msg = 'raw email contents are required to generate a zk-email proof';
+        }
+
+        console.error('[email-recovery] zk-email recovery error', {
+          accountId,
+          errorCode,
+          errorMessage: msg,
+        });
+
+        return {
+          success: false,
+          error: errorCode,
+          message: msg,
+        };
+      }
+    }, `zk-email recovery for ${accountId}`);
   }
 
 }
