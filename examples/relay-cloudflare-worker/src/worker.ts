@@ -1,4 +1,4 @@
-import { AuthService, SessionService } from '@tatchi-xyz/sdk/server';
+import { AuthService, SessionService, buildCorsOrigins } from '@tatchi-xyz/sdk/server';
 import { createCloudflareRouter, createCloudflareCron } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import type { CfExecutionContext, CfScheduledEvent, CfEnv } from '@tatchi-xyz/sdk/server/router/cloudflare';
 import signerWasmModule from '@tatchi-xyz/sdk/server/wasm/signer';
@@ -44,6 +44,26 @@ export interface Env {
 
 // Singleton AuthService instance shared across fetch/email/scheduled events
 let service: AuthService | null = null;
+
+function withCorsForEnv(headers: Headers, env: Env, request?: Request): void {
+  const origins = buildCorsOrigins(env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN);
+  if (origins === '*') {
+    headers.set('Access-Control-Allow-Origin', '*');
+    headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    return;
+  }
+  if (Array.isArray(origins)) {
+    const origin = request?.headers.get('Origin') || '';
+    if (origin && origins.includes(origin)) {
+      headers.set('Access-Control-Allow-Origin', origin);
+      headers.append('Vary', 'Origin');
+      headers.set('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+      headers.set('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+      headers.set('Access-Control-Allow-Credentials', 'true');
+    }
+  }
+}
 
 function getService(env: Env): AuthService {
   if (!service) {
@@ -118,7 +138,7 @@ export default {
         healthz: true,
         corsOrigins: [env.EXPECTED_ORIGIN, env.EXPECTED_WALLET_ORIGIN],
         session,
-      }, env as unknown as CfEnv);
+      });
     }
 
     if (url.pathname === '/recover-email-zk' && request.method === 'POST') {
@@ -145,15 +165,19 @@ export default {
         });
 
         const status = result.success ? 200 : 502;
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        withCorsForEnv(headers, env, request);
         return new Response(JSON.stringify(result), {
           status,
-          headers: { 'Content-Type': 'application/json' },
+          headers,
         });
       } catch (e: any) {
         const msg = e?.message || 'zk-email recovery endpoint error';
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        withCorsForEnv(headers, env, request);
         return new Response(
           JSON.stringify({ success: false, error: msg }),
-          { status: 500, headers: { 'Content-Type': 'application/json' } }
+          { status: 500, headers }
         );
       }
     }
