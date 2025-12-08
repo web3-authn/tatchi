@@ -41,7 +41,7 @@ export interface EmailRecoveryRequest {
   emailBlob: string;
 }
 
-export type EmailRecoveryMode = 'zk-email' | 'encrypted' | 'onchain-public';
+export type EmailRecoveryMode = 'zk-email' | 'tee-encrypted' | 'onchain-public';
 
 export interface EmailRecoveryDispatchRequest extends EmailRecoveryRequest {
   explicitMode?: string;
@@ -82,8 +82,9 @@ export class EmailRecoveryService {
     const normalize = (raw: string | undefined | null): EmailRecoveryMode | null => {
       if (!raw) return null;
       const value = raw.trim().toLowerCase();
-      if (value === 'zk-email' || 'zk') return 'zk-email';
-      if (value === 'encrypted' || value === 'tee') return 'encrypted';
+      if (value === 'zk-email' || value === 'zk') return 'zk-email';
+      // Accept both new marker `tee-encrypted` and legacy aliases `encrypted` / `tee`.
+      if (value === 'tee-encrypted' || value === 'encrypted' || value === 'tee') return 'tee-encrypted';
       if (value === 'onchain-public' || value === 'onchain') return 'onchain-public';
       return null;
     };
@@ -107,18 +108,20 @@ export class EmailRecoveryService {
         }
         const trimmed = line.trim();
         if (!trimmed) continue;
-        const bodyMode = normalize(trimmed);
-        if (bodyMode) return bodyMode;
         const lower = trimmed.toLowerCase();
+        // First, try strict marker matches.
+        const bodyMode = normalize(lower);
+        if (bodyMode) return bodyMode;
+        // Then, fall back to substring hints for backwards compatibility.
         if (lower.includes('zk-email')) return 'zk-email';
-        if (lower.includes('encrypted') || lower.includes('tee-private')) return 'encrypted';
+        if (lower.includes('tee-encrypted')) return 'tee-encrypted';
         if (lower.includes('onchain-public')) return 'onchain-public';
         break; // only inspect first non-empty body line
       }
     }
 
-    // 3) Default to encrypted (DKIM/TEE path)
-    return 'encrypted';
+    // 3) Default to TEE-encrypted (DKIM/TEE path)
+    return 'tee-encrypted';
   }
 
   /**
@@ -126,12 +129,12 @@ export class EmailRecoveryService {
    *
    * Usage from HTTP routes:
    * - Pass the full raw RFC822 email as `emailBlob` (including headers + body).
-   * - Optionally include an explicit `explicitMode` override (`'zk-email' | 'encrypted' | 'onchain-public'`).
+   * - Optionally include an explicit `explicitMode` override (`'zk-email' | 'tee-encrypted' | 'onchain-public'`).
    * - Otherwise, the first non-empty body line is parsed as a mode hint:
    *   - `"zk-email"` → zk-email prover + `verify_zkemail_and_recover`.
-   *   - `"encrypted"` → TEE DKIM encryption + `request_email_verification`.
+   *   - `"tee-encrypted"` (or legacy `"encrypted"`) → TEE DKIM encryption + `request_email_verification`.
    *   - `"onchain-public"` → on-chain email recovery (`verify_email_onchain_and_recover`).
-   * - If no hint is found, the mode defaults to `'encrypted'`.
+   * - If no hint is found, the mode defaults to `'tee-encrypted'`.
    */
   async requestEmailRecovery(request: EmailRecoveryDispatchRequest): Promise<EmailRecoveryResult> {
     const mode = this.determineRecoveryMode({
@@ -143,7 +146,7 @@ export class EmailRecoveryService {
       accountId: request.accountId,
     });
 
-    if (mode === 'encrypted') {
+    if (mode === 'tee-encrypted') {
       return this.requestEncryptedEmailVerification({
         accountId: request.accountId,
         emailBlob: request.emailBlob,

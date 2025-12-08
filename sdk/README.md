@@ -238,7 +238,7 @@ export default defineConfig({
 - Serves `/sdk/*` assets during development
 - Mounts `/wallet-service` endpoint
 - Enforces WASM MIME type
-- Optionally sets COOP/COEP headers
+- Optionally sets COOP/COEP headers (configurable)
 
 **`tatchiBuildHeaders`**:
 - Generates Permissions-Policy header for WebAuthn delegation
@@ -254,6 +254,7 @@ tatchiDev({
   walletServicePath: '/wallet-service',  // Wallet service route
   walletOrigin: 'https://wallet.example.com',  // For Permissions-Policy
   setDevHeaders: true,              // Enable COOP/COEP in dev
+  coepMode: 'strict',               // 'strict' (default) or 'off'
   enableDebugRoutes: false          // Add /__sdk-root debug endpoint
 })
 ```

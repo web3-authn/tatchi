@@ -54,6 +54,9 @@ export default defineConfig(({ mode }) => {
         walletServicePath: env.VITE_WALLET_SERVICE_PATH || '/wallet-service',
         walletOrigin: env.VITE_WALLET_ORIGIN,
         emitHeaders: true,
+        // Default to strict COEP/CORP; set coepMode: 'off' to disable COEP on app pages
+        // when debugging extensions (e.g., password managers) that are not COEP-ready.
+        coepMode: 'strict',
         // Build-time: emit _headers for Cloudflare Pages/Netlify with COOP/COEP and
         // a Permissions-Policy delegating WebAuthn to the wallet origin.
         // If your CI already writes a _headers file, this plugin will no-op.
