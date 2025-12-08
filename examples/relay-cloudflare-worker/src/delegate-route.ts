@@ -38,9 +38,10 @@ export async function handleSignedDelegateRoute(
   opts: RelayRouterOptions = {},
 ): Promise<Response> {
   if (request.method === 'OPTIONS') {
-    const res = json({ ok: true }, { status: 204 });
-    withCors(res.headers, opts, request);
-    return res;
+    const headers = new Headers();
+    withCors(headers, opts, request);
+    // 204 with no body for CORS preflight
+    return new Response(null, { status: 204, headers });
   }
 
   let body: unknown;
