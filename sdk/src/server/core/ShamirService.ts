@@ -7,6 +7,7 @@ import type {
   ShamirRemoveServerLockResponse,
 } from './types';
 import { isString } from '../../core/WalletIframe/validation';
+import { Shamir3PassUtils, setShamirWasmModuleOverride } from './shamirWorker';
 
 type ShamirConfig = AuthServiceConfig['shamir'];
 
@@ -57,6 +58,17 @@ export class ShamirService {
     }
 
     try {
+      // Configure WASM override when provided (e.g. Cloudflare Workers).
+      // This ensures Shamir endpoints like /vrf/apply-server-lock work
+      // even when AuthService._ensureSignerAndRelayerAccount has not run.
+      if (this.config.moduleOrPath) {
+        try {
+          setShamirWasmModuleOverride(this.config.moduleOrPath);
+        } catch (error) {
+          console.warn('[ShamirService] Failed to configure Shamir WASM override:', error);
+        }
+      }
+
       this.shamir3pass = new Shamir3PassUtils({
         p_b64u: this.config.shamir_p_b64u,
         e_s_b64u: this.config.shamir_e_s_b64u,
@@ -391,4 +403,3 @@ export class ShamirService {
     return isNode && !isCloudflareWorker;
   }
 }
-
