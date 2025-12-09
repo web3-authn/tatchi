@@ -243,7 +243,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
 
         // Minimal email blob with subject + headers for bindings parser
         const rawEmail =
-          'Subject: recover berp61.w3a-v1.testnet ed25519:edpkDummyKey\n' +
+          'Subject: recover-ABC123 berp61.w3a-v1.testnet ed25519:edpkDummyKey\n' +
           'From: alice@example.com\n' +
           'Date: Tue, 01 Jan 2024 00:00:00 GMT\n' +
           '\n' +

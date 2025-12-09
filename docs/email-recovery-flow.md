@@ -20,7 +20,7 @@ This document describes a full implementation plan for an **email‑based accoun
     - a recovery email address previously registered for zk‑email recovery.
 - **Contract + relayer setup**
   - Sending an email to the configured recovery address (e.g. `recover@web3authn.org`) with:
-    - `Subject: recover <accountId> ed25519:<new_public_key>`
+    - `Subject: recover-<request_id> <accountId> ed25519:<new_public_key>`
     causes the zk‑email pipeline to:
       - verify DKIM + zk proof,
       - and call the recovery contract to **add `new_public_key` as an access key** on `accountId`.
@@ -47,7 +47,7 @@ From the user’s point of view, the flow is:
    - On success, the app computes a new NEAR public key for that account.
 4. The app shows a **mailto** prompt:
    - `to`: the recovery email,
-   - `subject`: `recover <accountId> ed25519:<new_public_key>`.
+   - `subject`: `recover-<request_id> <accountId> ed25519:<new_public_key>`.
 5. The user hits **Send** in their email client.
 6. After a short delay (email is processed by the relayer), the app:
    - detects that `new_public_key` has been added on‑chain,
@@ -198,7 +198,7 @@ From `PendingEmailRecovery`:
 
 1. Build the `mailto:` URL:
    - `to`: `recoveryEmail` stored in the record.
-   - `subject`: `recover ${accountId} ed25519:${nearPublicKey}`.
+   - `subject`: `recover-${requestId} ${accountId} ed25519:${nearPublicKey}`.
    - `body`:
      - optional explanation on subsequent lines, e.g. “I am requesting to recover my Web3Authn account <accountId> with a new passkey.”
 

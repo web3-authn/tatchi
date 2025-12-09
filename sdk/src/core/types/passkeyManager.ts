@@ -767,6 +767,8 @@ export interface TatchiPasskeyConfigs {
       maxPollingDurationMs?: number;
       pendingTtlMs?: number;
       mailtoAddress?: string;
+      dkimVerifierAccountId?: string;
+      verificationViewMethod?: string;
     };
   }
   // authenticator options for registrations

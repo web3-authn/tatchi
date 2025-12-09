@@ -17,6 +17,22 @@ export const PASSKEY_MANAGER_DEFAULT_CONFIGS: TatchiPasskeyConfigs = {
     // Using an empty string triggers early validation errors in code paths that require it.
     url: '',
     delegateActionRoute: '/signed-delegate',
+    emailRecovery: {
+      // Require at least 0.01 NEAR available to start email recovery.
+      minBalanceYocto: '10000000000000000000000', // 0.01 NEAR
+      // Poll every 4 seconds for verification status / access key.
+      pollingIntervalMs: 4000,
+      // Stop polling after 30 minutes.
+      maxPollingDurationMs: 30 * 60 * 1000,
+      // Expire pending recovery records after 30 minutes.
+      pendingTtlMs: 30 * 60 * 1000,
+      // Default recovery mailbox for examples / docs.
+      mailtoAddress: 'recover@web3authn.org',
+      // EmailDKIMVerifier contract that stores verification results.
+      dkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+      // View method used to fetch VerificationResult by request_id.
+      verificationViewMethod: 'get_verification_result',
+    },
   },
   vrfWorkerConfigs: {
     shamir3pass: {

@@ -276,6 +276,9 @@ export const SetupEmailRecovery: React.FC = () => {
           onError: (err: Error) => {
             // eslint-disable-next-line no-console
             console.error('[EmailRecovery][start] error', err);
+            const message = err?.message || 'Failed to start email recovery flow';
+            toast.error(message);
+            setRecoveryStatus(message);
           },
           afterCall: async () => {},
         } as any,
@@ -338,10 +341,27 @@ export const SetupEmailRecovery: React.FC = () => {
               setPendingEmailRecoveryKey(null);
               setPollingElapsedMs(null);
             }
+            if (ev?.phase === 'email-recovery-error') {
+              const raw =
+                (ev as any)?.error ||
+                ev?.message ||
+                'Email recovery failed';
+              const isTimeout =
+                typeof raw === 'string' &&
+                raw.toLowerCase().includes('timed out waiting for recovery email');
+              const friendlyMessage = isTimeout
+                ? 'We did not see your recovery email processed on-chain before the timeout. Please check the subject (including request_id) and try again.'
+                : `Recovery email verification failed: ${raw}`;
+              toast.error(friendlyMessage);
+              setRecoveryStatus(friendlyMessage);
+            }
           },
           onError: (err: Error) => {
             // eslint-disable-next-line no-console
             console.error('[EmailRecovery][finalize] error', err);
+            const message = err?.message || 'Failed to finalize email recovery';
+            toast.error(message);
+            setRecoveryStatus(message);
           },
           afterCall: async () => {},
         } as any,

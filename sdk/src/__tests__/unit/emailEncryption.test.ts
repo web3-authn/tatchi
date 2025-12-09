@@ -32,7 +32,7 @@ test.describe('Email encryption round-trip (Outlayer DKIM flow)', () => {
         const nonce = new Uint8Array(12);
         nonce.set(encoder.encode('nonce-12-bytes').slice(0, 12));
 
-        const emailRaw = 'Subject: recover alice.testnet\n\nHello DKIM/TEE world!';
+        const emailRaw = 'Subject: recover-ABC123 alice.testnet\n\nHello DKIM/TEE world!';
         const context = {
           account_id: 'alice.testnet',
           payer_account_id: 'w3a-relayer.testnet',

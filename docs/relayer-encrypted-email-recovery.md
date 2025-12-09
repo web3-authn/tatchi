@@ -6,7 +6,7 @@ contract.
 
 ## High-Level Flow
 
-1. User sends a recovery email (e.g. `Subject: recover <accountId> ed25519:<new_public_key>`).
+1. User sends a recovery email (e.g. `Subject: recover-123ABC <accountId> ed25519:<new_public_key>`).
 2. The relayer receives the raw `.eml` (headers + body).
 3. The relayer encrypts the email with the Outlayer X25519 public key and
    constructs an `EncryptedEmailEnvelope`.

@@ -31,6 +31,7 @@ export type PendingEmailRecovery = {
   recoveryEmail: string;
   deviceNumber: number;
   nearPublicKey: string;
+  requestId: string;
   encryptedVrfKeypair: EncryptedVRFKeypair;
   serverEncryptedVrfKeypair: ServerEncryptedVrfKeypair | null;
   vrfPublicKey: string;
@@ -54,6 +55,8 @@ function getEmailRecoveryConfig(configs: TatchiPasskeyConfigs | undefined): {
   maxPollingDurationMs: number;
   pendingTtlMs: number;
   mailtoAddress: string;
+  dkimVerifierAccountId?: string;
+  verificationViewMethod: string;
 } {
   const MIN_BALANCE_YOCTO_DEFAULT = '10000000000000000000000'; // 0.01 NEAR (1e22 yocto)
   const relayerEmailCfg = configs?.relayer?.emailRecovery || {};
@@ -68,6 +71,8 @@ function getEmailRecoveryConfig(configs: TatchiPasskeyConfigs | undefined): {
   const pendingTtlMs = Number(relayerEmailCfg.pendingTtlMs ?? 30 * 60 * 1000);
   const mailtoAddressRaw = relayerEmailCfg.mailtoAddress;
   const mailtoAddress = String(mailtoAddressRaw || 'recover@web3authn.org');
+  const dkimVerifierAccountId = relayerEmailCfg.dkimVerifierAccountId;
+  const verificationViewMethod = String(relayerEmailCfg.verificationViewMethod || 'get_verification_result');
   if (!mailtoAddressRaw && !warnedMissingMailtoAddress) {
     warnedMissingMailtoAddress = true;
     // eslint-disable-next-line no-console
@@ -75,7 +80,28 @@ function getEmailRecoveryConfig(configs: TatchiPasskeyConfigs | undefined): {
       '[EmailRecovery] relayer.emailRecovery.mailtoAddress not configured; defaulting to recover@web3authn.org'
     );
   }
-  return { minBalanceYocto, pollingIntervalMs, maxPollingDurationMs, pendingTtlMs, mailtoAddress };
+  return {
+    minBalanceYocto,
+    pollingIntervalMs,
+    maxPollingDurationMs,
+    pendingTtlMs,
+    mailtoAddress,
+    dkimVerifierAccountId,
+    verificationViewMethod,
+  };
+}
+
+export function generateEmailRecoveryRequestId(): string {
+  // 6-character A–Z0–9 identifier, suitable for short-lived correlation.
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const length = 6;
+  const bytes = new Uint8Array(length);
+  (globalThis.crypto || window.crypto).getRandomValues(bytes);
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += alphabet[bytes[i] % alphabet.length];
+  }
+  return out;
 }
 
 export class EmailRecoveryFlow {
@@ -119,6 +145,64 @@ export class EmailRecoveryFlow {
 
   private getConfig() {
     return getEmailRecoveryConfig(this.context.configs);
+  }
+
+  private async checkVerificationStatus(
+    rec: PendingEmailRecovery
+  ): Promise<{ completed: boolean; success: boolean; errorMessage?: string } | null> {
+    const { dkimVerifierAccountId, verificationViewMethod } = this.getConfig();
+    if (!dkimVerifierAccountId) return null;
+
+    try {
+      type VerificationResult = {
+        verified: boolean;
+        account_id?: string;
+        new_public_key?: string;
+        error_code?: string;
+        error_message?: string;
+      };
+
+      const result = await this.context.nearClient.view<
+        { request_id: string },
+        VerificationResult | null
+      >({
+        account: dkimVerifierAccountId,
+        method: verificationViewMethod,
+        args: { request_id: rec.requestId },
+      });
+
+      if (!result) {
+        return { completed: false, success: false };
+      }
+
+      if (!result.verified) {
+        const errorMessage = result.error_message || result.error_code || 'Email verification failed on relayer/contract';
+        return { completed: true, success: false, errorMessage };
+      }
+
+      // Optional safety checks: ensure the bound account/key match expectations when available.
+      if (result.account_id && result.account_id !== rec.accountId) {
+        return {
+          completed: true,
+          success: false,
+          errorMessage: 'Email verification account_id does not match requested account.',
+        };
+      }
+      if (result.new_public_key && result.new_public_key !== rec.nearPublicKey) {
+        return {
+          completed: true,
+          success: false,
+          errorMessage: 'Email verification new_public_key does not match expected recovery key.',
+        };
+      }
+
+      return { completed: true, success: true };
+    } catch (err) {
+      // If the view method is not available or fails, fall back to access key polling.
+      // eslint-disable-next-line no-console
+      console.warn('[EmailRecoveryFlow] get_verification_result view failed; falling back to access key polling', err);
+      return null;
+    }
   }
 
   private async loadPending(
@@ -211,6 +295,7 @@ export class EmailRecoveryFlow {
         accountId: rec.accountId,
         recoveryEmail: rec.recoveryEmail,
         nearPublicKey: rec.nearPublicKey,
+        requestId: rec.requestId,
         mailtoUrl,
       },
     } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
@@ -347,6 +432,7 @@ export class EmailRecoveryFlow {
         recoveryEmail: canonicalEmail,
         deviceNumber,
         nearPublicKey: nearKeyResult.publicKey,
+        requestId: generateEmailRecoveryRequestId(),
         encryptedVrfKeypair: vrfDerivationResult.encryptedVrfKeypair,
         serverEncryptedVrfKeypair: vrfDerivationResult.serverEncryptedVrfKeypair || null,
         vrfPublicKey: vrfDerivationResult.vrfPublicKey,
@@ -368,6 +454,7 @@ export class EmailRecoveryFlow {
           accountId: rec.accountId,
           recoveryEmail: rec.recoveryEmail,
           nearPublicKey: rec.nearPublicKey,
+          requestId: rec.requestId,
           mailtoUrl,
         },
       } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
@@ -385,7 +472,7 @@ export class EmailRecoveryFlow {
   private buildMailtoUrlInternal(rec: PendingEmailRecovery): string {
     const { mailtoAddress } = this.getConfig();
     const to = encodeURIComponent(mailtoAddress);
-    const subject = encodeURIComponent(`recover ${rec.accountId} ${rec.nearPublicKey}`);
+    const subject = encodeURIComponent(`recover-${rec.requestId} ${rec.accountId} ${rec.nearPublicKey}`);
     const body = encodeURIComponent(`Recovering account ${rec.accountId} with a new passkey.`);
     return `mailto:${to}?subject=${subject}&body=${body}`;
   }
@@ -529,7 +616,25 @@ export class EmailRecoveryFlow {
         throw err;
       }
 
-      const hasKey = await this.checkAccessKey(rec);
+      let hasKey = false;
+
+      // Prefer contract-level verification status when available.
+      const verification = await this.checkVerificationStatus(rec);
+      if (verification && verification.completed) {
+        if (!verification.success) {
+          const err = this.emitError(4, verification.errorMessage || 'Email verification failed');
+          rec.status = 'error';
+          await this.savePending(rec);
+          await this.options?.afterCall?.(false);
+          throw err;
+        }
+        // Verification succeeded; optionally double-check that the access key is present.
+        hasKey = await this.checkAccessKey(rec);
+      } else {
+        // Fallback to legacy access key polling when verification view is unavailable or still pending.
+        hasKey = await this.checkAccessKey(rec);
+      }
+
       this.emit({
         step: 4,
         phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY,
@@ -539,6 +644,7 @@ export class EmailRecoveryFlow {
           : 'Waiting for recovery email to be processed on-chain...',
         data: {
           accountId: rec.accountId,
+          requestId: rec.requestId,
           nearPublicKey: rec.nearPublicKey,
           elapsedMs: elapsed,
         },

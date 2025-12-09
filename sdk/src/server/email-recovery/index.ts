@@ -184,7 +184,7 @@ export class EmailRecoveryService {
     });
 
     if (typeof result !== 'string' || !result) {
-      throw new Error('get_outlayer_encryption_public_key returned an invalid value');
+      throw new Error('Outlayer encryption public key is not configured on EmailDkimVerifier');
     }
 
     let bytes: Uint8Array;
