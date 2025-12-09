@@ -583,26 +583,19 @@ export class EmailRecoveryFlow {
       return;
     }
 
-    const hasKeyAlready = await this.checkAccessKey(rec);
-    if (!hasKeyAlready) {
-      await this.pollUntilAddKey(rec);
-    }
-
+    // Ensure verification has completed successfully before finalizing registration.
+    await this.pollUntilAddKey(rec);
     await this.finalizeRegistration(rec);
     await this.options?.afterCall?.(true, undefined as any);
   }
 
-  private async checkAccessKey(rec: PendingEmailRecovery): Promise<boolean> {
-    try {
-      await this.context.nearClient.viewAccessKey(rec.accountId, rec.nearPublicKey);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   private async pollUntilAddKey(rec: PendingEmailRecovery): Promise<void> {
-    const { pollingIntervalMs, maxPollingDurationMs } = this.getConfig();
+    const { pollingIntervalMs, maxPollingDurationMs, dkimVerifierAccountId } = this.getConfig();
+    if (!dkimVerifierAccountId) {
+      const err = this.emitError(4, 'Email recovery verification contract (dkimVerifierAccountId) is not configured');
+      await this.options?.afterCall?.(false);
+      throw err;
+    }
     this.phase = EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY;
     this.pollingStartedAt = Date.now();
 
@@ -616,32 +609,17 @@ export class EmailRecoveryFlow {
         throw err;
       }
 
-      let hasKey = false;
-
-      // Prefer contract-level verification status when available.
       const verification = await this.checkVerificationStatus(rec);
-      if (verification && verification.completed) {
-        if (!verification.success) {
-          const err = this.emitError(4, verification.errorMessage || 'Email verification failed');
-          rec.status = 'error';
-          await this.savePending(rec);
-          await this.options?.afterCall?.(false);
-          throw err;
-        }
-        // Verification succeeded; optionally double-check that the access key is present.
-        hasKey = await this.checkAccessKey(rec);
-      } else {
-        // Fallback to legacy access key polling when verification view is unavailable or still pending.
-        hasKey = await this.checkAccessKey(rec);
-      }
+      const completed = verification?.completed === true;
+      const success = verification?.success === true;
 
       this.emit({
         step: 4,
         phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY,
         status: EmailRecoveryStatus.PROGRESS,
-        message: hasKey
-          ? 'Recovery key detected on-chain; finalizing registration...'
-          : 'Waiting for recovery email to be processed on-chain...',
+        message: completed && success
+          ? 'Recovery email verified; finalizing registration...'
+          : 'Waiting for recovery email verification to complete...',
         data: {
           accountId: rec.accountId,
           requestId: rec.requestId,
@@ -650,7 +628,15 @@ export class EmailRecoveryFlow {
         },
       } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
 
-      if (hasKey) {
+      if (completed) {
+        if (!success) {
+          const err = this.emitError(4, verification?.errorMessage || 'Email verification failed');
+          rec.status = 'error';
+          await this.savePending(rec);
+          await this.options?.afterCall?.(false);
+          throw err;
+        }
+
         rec.status = 'finalizing';
         await this.savePending(rec);
         return;

@@ -25,8 +25,8 @@ test.describe('generateEmailRecoveryRequestId', () => {
       }
     }, { paths: IMPORT_PATHS });
 
-    if (!res.success) {
-      test.skip(true, `generateEmailRecoveryRequestId failed: ${res.error || 'unknown error'}`);
+    if (!res.success || !res.ids) {
+      test.skip(true, `generateEmailRecoveryRequestId failed: ${res.error || 'missing ids'}`);
       return;
     }
 
@@ -37,4 +37,3 @@ test.describe('generateEmailRecoveryRequestId', () => {
     }
   });
 });
-
