@@ -72,8 +72,9 @@ export function normalizeForwardableEmailPayload(input: unknown): NormalizedEmai
 
 /**
  * Parse NEAR accountId from the Subject line inside a raw RFC822 email.
- * Expected primary format (case-insensitive on "Subject"):
- *   Subject: recover bob.testnet
+ *
+ * Expected format (case-insensitive on "Subject" and "recover"):
+ *   Subject: recover-123ABC bob.testnet ed25519:<pk>
  *
  * Returns the parsed accountId (e.g. "bob.testnet") or null if not found.
  */
@@ -81,7 +82,7 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   if (!raw || typeof raw !== 'string') return null;
 
   // Accept either a full RFC822 message (with "Subject: ..." header)
-  // or a bare Subject value ("recover bob.testnet").
+  // or a bare Subject value ("recover-123ABC bob.testnet ed25519:<pk>").
   let subjectText = '';
 
   const lines = raw.split(/\r?\n/);
@@ -99,16 +100,20 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
   if (!subjectText) return null;
 
-  // Strict format: "recover <accountId> ed25519:<pk>"
-  const spacedMatch = subjectText.match(/^recover\s+([^\s]+)\s+ed25519:[^\s]+\s*$/i);
-  if (spacedMatch?.[1]) {
-    return spacedMatch[1];
+  // Strict format: "recover-<request_id> <accountId> [ed25519:<pk>]"
+  const match = subjectText.match(
+    /^recover-([A-Za-z0-9]{6})\s+([^\s]+)(?:\s+ed25519:[^\s]+)?\s*$/i
+  );
+  if (match?.[2]) {
+    return match[2];
   }
 
   return null;
 }
 
-function parseSubjectBindings(rawSubject: string | undefined | null): { accountId: string; newPublicKey: string } | null {
+function parseSubjectBindings(
+  rawSubject: string | undefined | null
+): { accountId: string; newPublicKey: string; requestId: string } | null {
   if (!rawSubject || typeof rawSubject !== 'string') return null;
 
   const lines = rawSubject.split(/\r?\n/);
@@ -125,12 +130,19 @@ function parseSubjectBindings(rawSubject: string | undefined | null): { accountI
   subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
   if (!subjectText) return null;
 
-  const match = subjectText.match(/^recover\s+([^\s]+)\s+ed25519:([^\s]+)\s*$/i);
+  // Strict format:
+  //   "recover-<request_id> <accountId> ed25519:<pk>"
+  const match = subjectText.match(
+    /^recover-([A-Za-z0-9]{6})\s+([^\s]+)\s+ed25519:([^\s]+)\s*$/i
+  );
   if (!match) return null;
 
+  const [, requestId, accountId, newPublicKey] = match;
+
   return {
-    accountId: match[1],
-    newPublicKey: match[2],
+    accountId,
+    newPublicKey,
+    requestId,
   };
 }
 
@@ -168,6 +180,8 @@ export function extractZkEmailBindingsFromPayload(
     newPublicKey: subjectBindings.newPublicKey,
     fromEmail,
     timestamp,
+    // requestId is currently only used for logging/debugging.
+    // It can be plumbed through to the contract in a follow-up change.
   };
 }
 

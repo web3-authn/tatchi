@@ -241,6 +241,7 @@ export default {
       message.setReject('Email recovery relayer rejected email: missing raw email blob');
       return;
     }
+    console.log('[email] rawEmail:', emailBlob);
 
     if (!service.emailRecovery) {
       console.log('[email] rejecting: EmailRecoveryService is not configured on this relayer');

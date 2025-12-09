@@ -61,11 +61,14 @@ export function parseAccountIdFromEmailPayload(payload: ForwardableEmailPayload)
     subjectText = subjectText.replace(/^(re|fwd):\s*/i, '').trim();
     if (!subjectText) return null;
 
-    // Support format: "recover <accountId> ed25519:<pk>"
-    // - capture the accountId as the token after 'recover'
-    const spacedMatch = subjectText.match(/^recover\s+([^\s]+)(?:\s+ed25519:[^\s]+)?\s*$/i);
-    if (spacedMatch && spacedMatch[1]) {
-      return spacedMatch[1];
+    // Expected format:
+    // - "recover-<request_id> <accountId> ed25519:<pk>"
+    // Capture the accountId as the token after 'recover-<request_id>'.
+    const spacedMatch = subjectText.match(
+      /^recover-([A-Za-z0-9]{6})\s+([^\s]+)(?:\s+ed25519:[^\s]+)?\s*$/i
+    );
+    if (spacedMatch && spacedMatch[2]) {
+      return spacedMatch[2];
     }
 
     return null;

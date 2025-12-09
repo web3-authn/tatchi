@@ -79,7 +79,7 @@ Helpers live in `examples/relay-cloudflare-worker/src/worker-helpers.ts`:
   - Reads the Subject and/or headers to extract `account_id`:
     - Accepts either a full RFC822 message with a `Subject:` line or a bare subject value.
     - Expected primary format:
-      - `Subject: recover bob.testnet`
+      - `Subject: recover-<request_id> bob.testnet ed25519:<new_public_key>`
         with body containing `ed25519:<new_public_key>`.
     - Logic:
       - Parse Subject, strip common prefixes (`Re:`, `Fwd:`).

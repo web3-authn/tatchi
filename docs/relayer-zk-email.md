@@ -31,7 +31,7 @@ zk-email prover server for email-based account recovery.
     - Returns `{ proof, publicInputs }` (public inputs mirror `publicSignals`).
   - `extractZkEmailBindingsFromPayload(payload)`:
     - Extracts `{ accountId, newPublicKey, fromEmail, timestamp }` from:
-      - `Subject: recover <accountId> ed25519:<new_public_key>`
+      - `Subject: recover-<request_id> <accountId> ed25519:<new_public_key>`
       - `From:` and `Date:` headers.
 
 - `sdk/src/server/email-recovery/index.ts` (`EmailRecoveryService`)

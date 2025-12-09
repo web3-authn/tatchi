@@ -1,4 +1,3 @@
-import { Shamir3PassUtils } from './shamirWorker';
 import type {
   AuthServiceConfig,
   ShamirApplyServerLockRequest,
