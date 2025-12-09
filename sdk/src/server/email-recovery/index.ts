@@ -6,6 +6,7 @@ import {
   type EmailEncryptionContext,
 } from './teeEmail';
 import {
+  buildForwardablePayloadFromRawEmail,
   extractZkEmailBindingsFromPayload,
   generateZkEmailProofFromPayload,
   normalizeForwardableEmailPayload,
@@ -255,16 +256,32 @@ export class EmailRecoveryService {
       try {
         const recipientPk = await this.getOutlayerEmailDkimPublicKey();
 
+        console.log('[email-recovery] encrypted using Outlayer public key', {
+          accountId,
+          outlayer_pk_bytes: Array.from(recipientPk),
+        });
+
         const context: EmailEncryptionContext = {
           account_id: accountId,
-          payer_account_id: relayerAccountId,
           network_id: networkId,
+          payer_account_id: relayerAccountId,
         };
 
         const { envelope } = await encryptEmailForOutlayer({
           emailRaw: emailBlob,
           context,
           recipientPk,
+        });
+
+        console.log('[email-recovery] encrypted email envelope metadata', {
+          accountId,
+          context,
+          envelope: {
+            version: envelope.version,
+            ephemeral_pub_len: envelope.ephemeral_pub?.length ?? 0,
+            nonce_len: envelope.nonce?.length ?? 0,
+            ciphertext_len: envelope.ciphertext?.length ?? 0,
+          },
         });
 
         const contractArgs = {
@@ -512,12 +529,8 @@ export class EmailRecoveryService {
 
     return queueTransaction(async () => {
       try {
-        const normalized = normalizeForwardableEmailPayload({
-          from: '',
-          to: '',
-          headers: {},
-          raw: emailBlob,
-        });
+        const forwardable = buildForwardablePayloadFromRawEmail(emailBlob);
+        const normalized = normalizeForwardableEmailPayload(forwardable);
         if (!normalized.ok) {
           return {
             success: false,

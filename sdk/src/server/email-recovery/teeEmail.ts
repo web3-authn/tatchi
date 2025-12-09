@@ -36,6 +36,35 @@ export interface EncryptEmailForOutlayerResult {
   context: EmailEncryptionContext;
 }
 
+function serializeContextForAad(context: EmailEncryptionContext): string {
+  // Canonicalize context for AAD by sorting keys alphabetically so
+  // JSON.stringify(context) matches the contract/worker JSON representation:
+  // {"account_id": "...", "network_id": "...", "payer_account_id": "..."}
+  const entries = Object.entries(context).sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify(Object.fromEntries(entries));
+}
+
+export function deriveOutlayerStaticKeyFromSeedHex(seedHex: string): { secretKey: Uint8Array; publicKey: Uint8Array } {
+  const cleaned = seedHex.trim();
+  if (cleaned.length !== 64) {
+    throw new Error('OUTLAYER_WORKER_SK_SEED_HEX32 must be a 64-char hex string');
+  }
+  const seed = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    const byteHex = cleaned.slice(i * 2, i * 2 + 2);
+    const value = Number.parseInt(byteHex, 16);
+    if (Number.isNaN(value)) {
+      throw new Error('OUTLAYER_WORKER_SK_SEED_HEX32 contains non-hex characters');
+    }
+    seed[i] = value;
+  }
+  const encoder = new TextEncoder();
+  const okm = hkdf(sha256, seed, undefined, encoder.encode('outlayer-email-dkim-x25519'), 32);
+  const secretKey = okm instanceof Uint8Array ? okm : new Uint8Array(okm);
+  const publicKey = x25519.getPublicKey(secretKey);
+  return { secretKey, publicKey };
+}
+
 export async function encryptEmailForOutlayer(
   input: EncryptEmailForOutlayerInput
 ): Promise<EncryptEmailForOutlayerResult> {
@@ -79,7 +108,7 @@ export async function encryptEmailForOutlayer(
   } else {
     nonce = crypto.getRandomValues(new Uint8Array(12));
   }
-  const aad = encoder.encode(JSON.stringify(context));
+  const aad = encoder.encode(serializeContextForAad(context));
   const plaintext = encoder.encode(emailRaw);
 
   const cipher = chacha20poly1305(symmetricKey, nonce, aad);
@@ -159,7 +188,7 @@ export async function decryptEmailForOutlayerTestOnly(
   const info = encoder.encode('email-dkim-encryption-key');
   const symmetricKey = hkdf(sha256, sharedSecret, undefined, info, 32);
 
-  const aad = encoder.encode(JSON.stringify(context));
+  const aad = encoder.encode(serializeContextForAad(context));
   const cipher = chacha20poly1305(symmetricKey, nonce, aad);
   const plaintext = cipher.decrypt(ciphertext);
 

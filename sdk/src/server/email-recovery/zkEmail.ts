@@ -37,6 +37,45 @@ export interface ParsedZkEmailBindings {
   timestamp: string;
 }
 
+/**
+ * Build a minimal ForwardableEmailPayload from a raw RFC822 email string.
+ * This is primarily used by server-side helpers that receive only a raw
+ * email blob (no pre-normalized headers).
+ */
+export function buildForwardablePayloadFromRawEmail(raw: string): ForwardableEmailPayload {
+  const safeRaw = typeof raw === 'string' ? raw : '';
+  const lines = safeRaw.split(/\r?\n/);
+
+  const getHeader = (name: string): string | undefined => {
+    const line = lines.find(l => new RegExp(`^${name}:`, 'i').test(l));
+    if (!line) return undefined;
+    const idx = line.indexOf(':');
+    const rest = idx >= 0 ? line.slice(idx + 1) : '';
+    const value = rest.trim();
+    return value || undefined;
+  };
+
+  const fromHeader = getHeader('from') || 'unknown@zkemail.local';
+  const toHeader = getHeader('to') || 'recover@zkemail.local';
+
+  const headers: Record<string, string> = {};
+  const subjectHeader = getHeader('subject');
+  const dateHeader = getHeader('date');
+
+  if (fromHeader) headers.from = fromHeader;
+  if (toHeader) headers.to = toHeader;
+  if (subjectHeader) headers.subject = subjectHeader;
+  if (dateHeader) headers.date = dateHeader;
+
+  return {
+    from: fromHeader,
+    to: toHeader,
+    headers,
+    raw: safeRaw,
+    rawSize: safeRaw.length,
+  };
+}
+
 export function normalizeForwardableEmailPayload(input: unknown): NormalizedEmailResult {
   if (!input || typeof input !== 'object') {
     return { ok: false, code: 'invalid_email', message: 'JSON body required' };
@@ -84,11 +123,11 @@ export function parseAccountIdFromSubject(raw: string | undefined | null): strin
   // Accept either a full RFC822 message (with "Subject: ..." header)
   // or a bare Subject value ("recover-123ABC bob.testnet ed25519:<pk>").
   let subjectText = '';
-
   const lines = raw.split(/\r?\n/);
   const subjectLine = lines.find(line => /^subject:/i.test(line));
   if (subjectLine) {
-    const [, restRaw = '' ] = subjectLine.split(/:/, 2);
+    const idx = subjectLine.indexOf(':');
+    const restRaw = idx >= 0 ? subjectLine.slice(idx + 1) : '';
     subjectText = restRaw.trim();
   } else {
     subjectText = raw.trim();
@@ -117,10 +156,11 @@ function parseSubjectBindings(
   if (!rawSubject || typeof rawSubject !== 'string') return null;
 
   const lines = rawSubject.split(/\r?\n/);
-  const subjectLine = lines.find(line => /^subject:/i.test(line));
   let subjectText = '';
+  const subjectLine = lines.find(line => /^subject:/i.test(line));
   if (subjectLine) {
-    const [, restRaw = ''] = subjectLine.split(/:/, 2);
+    const idx = subjectLine.indexOf(':');
+    const restRaw = idx >= 0 ? subjectLine.slice(idx + 1) : '';
     subjectText = restRaw.trim();
   } else {
     subjectText = rawSubject.trim();
@@ -159,14 +199,28 @@ export function extractZkEmailBindingsFromPayload(
   }
 
   const headers = payload.headers || {};
-  const fromEmailRaw =
-    headers['from'] ||
-    headers['x-from-email'] ||
-    '';
-  const dateRaw =
-    headers['date'] ||
-    headers['x-original-date'] ||
-    '';
+  let fromEmailRaw: string | undefined =
+    (headers['from'] as any) ||
+    (headers['x-from-email'] as any);
+  let dateRaw: string | undefined =
+    (headers['date'] as any) ||
+    (headers['x-original-date'] as any);
+
+  // Fallback: if headers object does not contain from/date,
+  // attempt to parse them from the raw RFC822 email lines.
+  if (!fromEmailRaw || !dateRaw) {
+    for (const line of lines) {
+      if (!fromEmailRaw && /^from:/i.test(line)) {
+        const idx = line.indexOf(':');
+        fromEmailRaw = idx >= 0 ? line.slice(idx + 1).trim() : '';
+      }
+      if (!dateRaw && /^date:/i.test(line)) {
+        const idx = line.indexOf(':');
+        dateRaw = idx >= 0 ? line.slice(idx + 1).trim() : '';
+      }
+      if (fromEmailRaw && dateRaw) break;
+    }
+  }
 
   const fromEmail = String(fromEmailRaw || '').trim();
   const timestamp = String(dateRaw || '').trim();
