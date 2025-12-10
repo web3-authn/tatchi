@@ -237,7 +237,7 @@ export function createRelayRouter(service: AuthService, opts: RelayRouterOptions
         return;
       }
 
-      const result = await service.emailRecovery.requestEncryptedEmailVerification({ accountId, emailBlob });
+      const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob });
       const status = result.success ? 202 : 400;
       res.status(status).json(result);
     } catch (e: any) {

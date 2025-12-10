@@ -360,7 +360,7 @@ export function createCloudflareRouter(service: AuthService, opts: RelayRouterOp
           return res;
         }
 
-        const result = await service.emailRecovery.requestEncryptedEmailVerification({ accountId, emailBlob });
+        const result = await service.emailRecovery.requestEmailRecovery({ accountId, emailBlob });
         const res = json(result, { status: result.success ? 202 : 400 });
         withCors(res.headers, opts, request);
         return res;

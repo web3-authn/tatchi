@@ -1,59 +1,25 @@
-import type { MinimalNearClient, SignedTransaction } from '../../core/NearClient';
 import { ActionType, type ActionArgsWasm, validateActionArgsWasm } from '../../core/types/actions';
 import { parseContractExecutionError } from '../core/errors';
-import {
-  encryptEmailForOutlayer,
-  type EmailEncryptionContext,
-} from './teeEmail';
 import {
   buildForwardablePayloadFromRawEmail,
   extractZkEmailBindingsFromPayload,
   generateZkEmailProofFromPayload,
   normalizeForwardableEmailPayload,
-  type ZkEmailProverClientOptions,
 } from './zkEmail';
+import { extractRecoveryModeFromBody, normalizeRecoveryMode } from './emailParsers';
+import { encryptEmailForOutlayer, type EmailEncryptionContext } from './emailEncryptor';
+import type {
+  EmailRecoveryDispatchRequest,
+  EmailRecoveryMode,
+  EmailRecoveryRequest,
+  EmailRecoveryResult,
+  EmailRecoveryServiceDeps,
+} from './types';
 
-export * from './teeEmail';
+export * from './emailEncryptor';
 export * from './zkEmail';
-
-export interface EmailRecoveryServiceDeps {
-  relayerAccountId: string;
-  relayerPrivateKey: string;
-  networkId: string;
-  emailDkimVerifierAccountId: string;
-  nearClient: MinimalNearClient;
-  ensureSignerAndRelayerAccount: () => Promise<void>;
-  queueTransaction<T>(fn: () => Promise<T>, label: string): Promise<T>;
-  fetchTxContext(accountId: string, publicKey: string): Promise<{ nextNonce: string; blockHash: string }>;
-  signWithPrivateKey(input: {
-    nearPrivateKey: string;
-    signerAccountId: string;
-    receiverId: string;
-    nonce: string;
-    blockHash: string;
-    actions: ActionArgsWasm[];
-  }): Promise<SignedTransaction>;
-  getRelayerPublicKey(): string;
-  zkEmailProver?: ZkEmailProverClientOptions;
-}
-
-export interface EmailRecoveryRequest {
-  accountId: string;
-  emailBlob: string;
-}
-
-export type EmailRecoveryMode = 'zk-email' | 'tee-encrypted' | 'onchain-public';
-
-export interface EmailRecoveryDispatchRequest extends EmailRecoveryRequest {
-  explicitMode?: string;
-}
-
-export interface EmailRecoveryResult {
-  success: boolean;
-  transactionHash?: string;
-  message?: string;
-  error?: string;
-}
+export * from './testHelpers';
+export * from './types';
 
 /**
  * EmailRecoveryService encapsulates DKIM/TEE email recovery logic so it can be
@@ -80,63 +46,25 @@ export class EmailRecoveryService {
     explicitMode?: string;
     emailBlob?: string;
   }): EmailRecoveryMode {
-    const normalize = (raw: string | undefined | null): EmailRecoveryMode | null => {
-      if (!raw) return null;
-      const value = raw.trim().toLowerCase();
-      if (value === 'zk-email' || value === 'zk') return 'zk-email';
-      // Accept both new marker `tee-encrypted` and legacy aliases `encrypted` / `tee`.
-      if (value === 'tee-encrypted' || value === 'encrypted' || value === 'tee') return 'tee-encrypted';
-      if (value === 'onchain-public' || value === 'onchain') return 'onchain-public';
-      return null;
-    };
-
-    // 1) Explicit override (e.g. from API param)
-    const fromExplicit = normalize(input.explicitMode);
-    if (fromExplicit) return fromExplicit;
-
-    const raw = input.emailBlob || '';
-    if (raw) {
-      const lines = raw.split(/\r?\n/);
-
-      // 2) First non-empty body line marker
-      let inBody = false;
-      for (const line of lines) {
-        if (!inBody) {
-          if (line.trim() === '') {
-            inBody = true;
-          }
-          continue;
-        }
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        const lower = trimmed.toLowerCase();
-        // First, try strict marker matches.
-        const bodyMode = normalize(lower);
-        if (bodyMode) return bodyMode;
-        // Then, fall back to substring hints for backwards compatibility.
-        if (lower.includes('zk-email')) return 'zk-email';
-        if (lower.includes('tee-encrypted')) return 'tee-encrypted';
-        if (lower.includes('onchain-public')) return 'onchain-public';
-        break; // only inspect first non-empty body line
-      }
-    }
-
-    // 3) Default to TEE-encrypted (DKIM/TEE path)
-    return 'tee-encrypted';
+    return (
+      normalizeRecoveryMode(input.explicitMode) ??
+      extractRecoveryModeFromBody(input.emailBlob) ??
+      'tee-encrypted'
+    );
   }
 
-  /**
-   * Top-level dispatcher for email recovery modes.
-   *
-   * Usage from HTTP routes:
-   * - Pass the full raw RFC822 email as `emailBlob` (including headers + body).
-   * - Optionally include an explicit `explicitMode` override (`'zk-email' | 'tee-encrypted' | 'onchain-public'`).
-   * - Otherwise, the first non-empty body line is parsed as a mode hint:
-   *   - `"zk-email"` → zk-email prover + `verify_zkemail_and_recover`.
-   *   - `"tee-encrypted"` (or legacy `"encrypted"`) → TEE DKIM encryption + `request_email_verification`.
-   *   - `"onchain-public"` → on-chain email recovery (`verify_email_onchain_and_recover`).
-   * - If no hint is found, the mode defaults to `'tee-encrypted'`.
-   */
+	  /**
+	   * Top-level dispatcher for email recovery modes.
+	   *
+	   * Usage from HTTP routes:
+	   * - Pass the full raw RFC822 email as `emailBlob` (including headers + body).
+	   * - Optionally include an explicit `explicitMode` override (`'zk-email' | 'tee-encrypted' | 'onchain-public'`).
+	   * - Otherwise, the first non-empty body line is parsed as a mode hint:
+	   *   - `"zk-email"` → zk-email prover + per-account `verify_zkemail_and_recover`.
+	   *   - `"tee-encrypted"` (or legacy `"encrypted"`) → per-account EmailRecoverer encrypted path (`verify_encrypted_email_and_recover`).
+	   *   - `"onchain-public"` → currently routed to the same per-account encrypted path for backwards compatibility.
+	   * - If no hint is found, the mode defaults to `'tee-encrypted'`.
+	   */
   async requestEmailRecovery(request: EmailRecoveryDispatchRequest): Promise<EmailRecoveryResult> {
     const mode = this.determineRecoveryMode({
       explicitMode: request.explicitMode,
@@ -147,25 +75,30 @@ export class EmailRecoveryService {
       accountId: request.accountId,
     });
 
-    if (mode === 'tee-encrypted') {
-      return this.requestEncryptedEmailVerification({
-        accountId: request.accountId,
-        emailBlob: request.emailBlob,
-      });
+    switch (mode) {
+      case 'tee-encrypted':
+        return this.verifyEncryptedEmailAndRecover({
+          accountId: request.accountId,
+          emailBlob: request.emailBlob,
+        });
+      case 'zk-email':
+        return this.verifyZkemailAndRecover({
+          accountId: request.accountId,
+          emailBlob: request.emailBlob,
+        });
+      case 'onchain-public':
+        // Use the same encrypted/TEE path via per-account EmailRecoverer.
+        return this.verifyEncryptedEmailAndRecover({
+          accountId: request.accountId,
+          emailBlob: request.emailBlob,
+        });
+      default:
+        // Fallback to the TEE-encrypted path for forwards compatibility.
+        return this.verifyEncryptedEmailAndRecover({
+          accountId: request.accountId,
+          emailBlob: request.emailBlob,
+        });
     }
-
-    if (mode === 'zk-email') {
-      return this.requestZkEmailVerification({
-        accountId: request.accountId,
-        emailBlob: request.emailBlob,
-      });
-    }
-
-    // onchain-public
-    return this.requestOnchainEmailVerification({
-      accountId: request.accountId,
-      emailBlob: request.emailBlob,
-    });
   }
 
   /**
@@ -178,7 +111,7 @@ export class EmailRecoveryService {
 
     const { nearClient, emailDkimVerifierAccountId } = this.deps;
 
-    const result = await nearClient.view<{ }, unknown>({
+    const result = await nearClient.view<{}, unknown>({
       account: emailDkimVerifierAccountId,
       method: 'get_outlayer_encryption_public_key',
       args: {},
@@ -207,25 +140,27 @@ export class EmailRecoveryService {
   }
 
   /**
-   * High-level helper for encrypted DKIM-based email verification.
+   * Helper for encrypted DKIM-based email recovery:
+   * - Encrypts the raw email blob for the Outlayer worker.
+   * - Calls the per-account EmailRecoverer contract's
+   *   `verify_encrypted_email_and_recover` entrypoint on the user's account.
+   *
+   * The per-account EmailRecoverer then delegates to the global
+   * EmailDKIMVerifier (TEE path), which stores a VerificationResult keyed by
+   * request_id. The frontend polls EmailDKIMVerifier::get_verification_result(request_id)
+   * to observe success/failure.
    */
-  async requestEncryptedEmailVerification(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
+  async verifyEncryptedEmailAndRecover(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
     const accountId = (request.accountId || '').trim();
     const emailBlob = request.emailBlob;
 
     if (!accountId) {
-      return {
-        success: false,
-        error: 'accountId is required',
-        message: 'accountId is required',
-      };
+      let errMsg = 'accountId is required';
+      return { success: false, error: errMsg, message: errMsg };
     }
     if (!emailBlob || typeof emailBlob !== 'string') {
-      return {
-        success: false,
-        error: 'emailBlob (raw email) is required',
-        message: 'emailBlob (raw email) is required',
-      };
+      let errMsg = 'emailBlob (raw email) is required';
+      return { success: false, error: errMsg, message: errMsg };
     }
 
     const {
@@ -245,27 +180,27 @@ export class EmailRecoveryService {
       await ensureSignerAndRelayerAccount();
     } catch (e: any) {
       const msg = e?.message || 'Failed to initialize relayer account';
-      console.error('[email-recovery] encrypted ensureSignerAndRelayerAccount failed', {
-        accountId,
-        error: msg,
-      });
       return { success: false, error: msg, message: msg };
     }
 
     return queueTransaction(async () => {
       try {
+        // Encrypt the email for Outlayer using the global DKIM verifier's
+        // X25519 public key, then call the per-account EmailRecoverer
+        // `verify_encrypted_email_and_recover` entrypoint.
         const recipientPk = await this.getOutlayerEmailDkimPublicKey();
-
         console.log('[email-recovery] encrypted using Outlayer public key', {
           accountId,
           outlayer_pk_bytes: Array.from(recipientPk),
         });
 
-        // NOTE: `context` is bound into the ChaCha20-Poly1305 AAD on the relayer
-        // side and re-serialized by the EmailDKIMVerifier + Outlayer worker.
-        // The exact field set and JSON encoding must stay in sync with
-        // `serializeContextForAad` in teeEmail.ts and the Outlayer compat tests.
-        const context: EmailEncryptionContext = {
+        // NOTE: The exact ORDER of the fields must be alphabetized:
+        // `context` is bound into the ChaCha20-Poly1305 AAD
+        // so order of context matters when decrypting email in the Outlayer worker.
+        // This context is also forwarded by the per-account EmailRecoverer into
+        // EmailDKIMVerifier::request_email_verification so the Outlayer worker
+        // sees the same JSON object for AEAD.
+        const aeadContext: EmailEncryptionContext = {
           account_id: accountId,
           network_id: networkId,
           payer_account_id: relayerAccountId,
@@ -273,13 +208,13 @@ export class EmailRecoveryService {
 
         const { envelope } = await encryptEmailForOutlayer({
           emailRaw: emailBlob,
-          context,
+          aeadContext,
           recipientPk,
         });
 
         console.log('[email-recovery] encrypted email envelope metadata', {
           accountId,
-          context,
+          aeadContext,
           envelope: {
             version: envelope.version,
             ephemeral_pub_len: envelope.ephemeral_pub?.length ?? 0,
@@ -289,16 +224,14 @@ export class EmailRecoveryService {
         });
 
         const contractArgs = {
-          payer_account_id: relayerAccountId,
-          email_blob: null,
           encrypted_email_blob: envelope,
-          params: context,
+          aead_context: aeadContext,
         };
 
         const actions: ActionArgsWasm[] = [
           {
             action_type: ActionType.FunctionCall,
-            method_name: 'request_email_verification',
+            method_name: 'verify_encrypted_email_and_recover',
             args: JSON.stringify(contractArgs),
             gas: '300000000000000', // 300 TGas
             deposit: '10000000000000000000000', // 0.01 NEAR
@@ -312,7 +245,7 @@ export class EmailRecoveryService {
         const signed = await signWithPrivateKey({
           nearPrivateKey: relayerPrivateKey,
           signerAccountId: relayerAccountId,
-          receiverId: emailDkimVerifierAccountId,
+          receiverId: accountId,
           nonce: nextNonce,
           blockHash,
           actions,
@@ -320,7 +253,7 @@ export class EmailRecoveryService {
 
         const result = await nearClient.sendTransaction(signed);
 
-        const contractError = parseContractExecutionError(result, emailDkimVerifierAccountId);
+        const contractError = parseContractExecutionError(result, accountId);
         if (contractError) {
           console.warn('[email-recovery] encrypted contract error', {
             accountId,
@@ -359,63 +292,51 @@ export class EmailRecoveryService {
   }
 
   /**
-   * Helper for on-chain/public email recovery:
-   * - Calls the per-account EmailRecoverer contract directly with the raw email blob.
-   * - No TEE or encrypted blob; relies purely on on-chain verification.
-   * - Email contents are made public as parameters onchain
+   * Legacy helper for plaintext/on-chain DKIM email verification + account recovery.
+   * This path is deprecated in favor of the encrypted TEE path via
+   * `verifyEncryptedEmailAndRecover` and is no longer used by
+   * `requestEmailRecovery`.
    */
-  async requestOnchainEmailVerification(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
+  async verifyEmailOnchainAndRecover(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
     const accountId = (request.accountId || '').trim();
     const emailBlob = request.emailBlob;
 
     if (!accountId) {
-      return {
-        success: false,
-        error: 'accountId is required',
-        message: 'accountId is required',
-      };
+      let errMsg = 'accountId is required';
+      return { success: false, error: errMsg, message: errMsg };
     }
     if (!emailBlob || typeof emailBlob !== 'string') {
-      return {
-        success: false,
-        error: 'emailBlob (raw email) is required',
-        message: 'emailBlob (raw email) is required',
-      };
+      let errMsg = 'emailBlob (raw email) is required';
+      return { success: false, error: errMsg, message: errMsg };
     }
 
     const {
       relayerAccountId,
       relayerPrivateKey,
-      nearClient,
       ensureSignerAndRelayerAccount,
       queueTransaction,
       fetchTxContext,
       signWithPrivateKey,
       getRelayerPublicKey,
+      nearClient,
     } = this.deps;
 
     try {
       await ensureSignerAndRelayerAccount();
     } catch (e: any) {
       const msg = e?.message || 'Failed to initialize relayer account';
-      console.error('[email-recovery] onchain ensureSignerAndRelayerAccount failed', {
-        accountId,
-        error: msg,
-      });
       return { success: false, error: msg, message: msg };
     }
 
     return queueTransaction(async () => {
       try {
-        const contractArgs = {
-          email_blob: emailBlob,
-        };
-
         const actions: ActionArgsWasm[] = [
           {
             action_type: ActionType.FunctionCall,
             method_name: 'verify_email_onchain_and_recover',
-            args: JSON.stringify(contractArgs),
+            args: JSON.stringify({
+              email_blob: emailBlob,
+            }),
             gas: '300000000000000', // 300 TGas
             deposit: '10000000000000000000000', // 0.01 NEAR
           },
@@ -438,22 +359,12 @@ export class EmailRecoveryService {
 
         const contractError = parseContractExecutionError(result, accountId);
         if (contractError) {
-          console.warn('[email-recovery] onchain contract error', {
-            accountId,
-            error: contractError,
-          });
           return {
             success: false,
             error: contractError,
             message: contractError,
           };
         }
-
-        console.log('[email-recovery] onchain recovery success', {
-          accountId,
-          txHash: result.transaction.hash,
-        });
-
         return {
           success: true,
           transactionHash: result.transaction.hash,
@@ -461,10 +372,6 @@ export class EmailRecoveryService {
         };
       } catch (error: any) {
         const msg = error?.message || 'Unknown on-chain email recovery error';
-        console.error('[email-recovery] onchain recovery error', {
-          accountId,
-          error: msg,
-        });
         return {
           success: false,
           error: msg,
@@ -480,7 +387,7 @@ export class EmailRecoveryService {
    * - Extracts subject/header bindings (account_id, new_public_key, from_email, timestamp).
    * - Calls the per-account EmailRecoverer contract with verify_zkemail_and_recover.
    */
-  async requestZkEmailVerification(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
+  async verifyZkemailAndRecover(request: EmailRecoveryRequest): Promise<EmailRecoveryResult> {
     const accountId = (request.accountId || '').trim();
     const emailBlob = request.emailBlob;
 

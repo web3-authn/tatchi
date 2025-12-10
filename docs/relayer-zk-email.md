@@ -41,7 +41,7 @@ zk-email prover server for email-based account recovery.
       - `explicitMode` if provided.
       - Otherwise first non-empty body line: `zk-email` / `tee-encrypted` / `onchain-public` (also accepts legacy `encrypted` / `tee` as aliases for `tee-encrypted`).
       - Defaults to `tee-encrypted` (TEE/DKIM path).
-  - `requestZkEmailVerification({ accountId, emailBlob })`:
+  - `verifyZkemailAndRecover({ accountId, emailBlob })`:
     - Normalizes `emailBlob`, parses bindings via `extractZkEmailBindingsFromPayload`.
     - Calls `generateZkEmailProofFromPayload` to get `{ proof, publicInputs }`.
     - Sends `verify_zkemail_and_recover` with:
