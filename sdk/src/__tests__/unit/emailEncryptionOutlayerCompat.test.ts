@@ -7,13 +7,13 @@ const IMPORT_PATHS = {
 } as const;
 
 const GMAIL_RESET_EMAIL_BLOB = readFileSync(
-  'sdk/src/__tests__/unit/emails/gmail_reset_full.eml',
+  'src/__tests__/unit/emails/gmail_reset_full.eml',
   'utf8'
 );
 
 // Raw email for the on-chain envelope test is now stored as a fixture.
 const RAW_EMAIL_FROM_LOGS = readFileSync(
-  'sdk/src/__tests__/unit/emails/gmail_reset_full2.eml',
+  'src/__tests__/unit/emails/gmail_reset_full2.eml',
   'utf8'
 );
 

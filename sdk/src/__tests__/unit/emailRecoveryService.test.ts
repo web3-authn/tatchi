@@ -7,7 +7,7 @@ const IMPORT_PATHS = {
 } as const;
 
 const GMAIL_RESET_EMAIL_BLOB = readFileSync(
-  'sdk/src/__tests__/unit/emails/gmail_reset_full.eml',
+  'src/__tests__/unit/emails/gmail_reset_full.eml',
   'utf8'
 );
 

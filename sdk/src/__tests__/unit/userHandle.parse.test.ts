@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupBasicPasskeyTest } from '../setup';
+import { injectImportMap } from '../setup/bootstrap';
 
 const IMPORT_PATHS = {
   userHandle: '/sdk/esm/core/WebAuthnManager/userHandle.js',
@@ -7,7 +7,9 @@ const IMPORT_PATHS = {
 
 test.describe('parseAccountIdFromUserHandle', () => {
   test.beforeEach(async ({ page }) => {
-    await setupBasicPasskeyTest(page);
+    // Light setup for unit tests: blank page + import map only
+    await page.goto('data:text/html,<!DOCTYPE html><html><head></head><body></body></html>');
+    await injectImportMap(page);
   });
 
   test('parses base64url string userHandle into accountId', async ({ page }) => {
