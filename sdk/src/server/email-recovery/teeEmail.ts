@@ -36,10 +36,24 @@ export interface EncryptEmailForOutlayerResult {
   context: EmailEncryptionContext;
 }
 
+// IMPORTANT: The exact JSON byte sequence here is used as AEAD AAD and must
+// match what the AEAD context being passed into decrypt_encrypted_email().
+// see: https://github.com/web3-authn/email-dkim-verifier-contract/blob/f06cf33b484cd9750661bf418812f259f0674b69/src/api.rs#L175
+//
+// The contract serializes `args` with serde_json, which orders keys
+// lexicographically, so we must mirror that here. Changing this logic or
+// adding/removing keys requires updating the Outlayer compat tests and
+// verifying decryption end-to-end.
+//
+// Canonical form (alphabetical by key):
+// ```
+// {
+//    "account_id": "...",
+//    "network_id": "...",
+//    "payer_account_id": "..."
+// }
+// ```
 function serializeContextForAad(context: EmailEncryptionContext): string {
-  // Canonicalize context for AAD by sorting keys alphabetically so
-  // JSON.stringify(context) matches the contract/worker JSON representation:
-  // {"account_id": "...", "network_id": "...", "payer_account_id": "..."}
   const entries = Object.entries(context).sort(([a], [b]) => a.localeCompare(b));
   return JSON.stringify(Object.fromEntries(entries));
 }

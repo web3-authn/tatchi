@@ -45,7 +45,10 @@ Encryption path (`encryptEmailForOutlayer`):
      - `key = HKDF(sharedSecret, info)[0..32]`.
   4. Encrypt `emailRaw` with ChaCha20‑Poly1305:
      - `nonce` = 12‑byte random via `crypto.getRandomValues`.
-     - `aad` = `JSON.stringify(context)` (preserving insertion order).
+     - `aad` = **canonicalized JSON of `context`**:
+       - Keys sorted alphabetically so the JSON bytes are:
+         `{"account_id":"…","network_id":"…","payer_account_id":"…"}`.
+       - This must match the contract + Outlayer worker’s `context` bytes exactly.
      - Ciphertext = `cipher.encrypt(plaintext)`.
   5. Envelope:
      - `version: 1`
@@ -210,4 +213,3 @@ To conclusively pinpoint the issue:
      - If decrypt **succeeds** locally: the error is not crypto but somewhere between Outlayer and the contract (e.g., different code path, wrong params being passed, or a misinterpreted error).
 
 This doc should give enough context for Outlayer/infra owners to reproduce the behavior and check that the deployed worker (binary + secrets) matches the code and seed we’re testing against here.
-

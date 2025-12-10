@@ -261,6 +261,10 @@ export class EmailRecoveryService {
           outlayer_pk_bytes: Array.from(recipientPk),
         });
 
+        // NOTE: `context` is bound into the ChaCha20-Poly1305 AAD on the relayer
+        // side and re-serialized by the EmailDKIMVerifier + Outlayer worker.
+        // The exact field set and JSON encoding must stay in sync with
+        // `serializeContextForAad` in teeEmail.ts and the Outlayer compat tests.
         const context: EmailEncryptionContext = {
           account_id: accountId,
           network_id: networkId,
