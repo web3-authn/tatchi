@@ -6,23 +6,26 @@ contract.
 
 ## High-Level Flow
 
-1. User sends a recovery email (e.g. `Subject: recover-123ABC <accountId> ed25519:<new_public_key>`).
+1. User sends a recovery email (e.g. `Subject: recover-<requestId-6digit> <accountId> ed25519:<new_public_key>`).
 2. The relayer receives the raw `.eml` (headers + body).
 3. The relayer encrypts the email with the Outlayer X25519 public key and
    constructs an `EncryptedEmailEnvelope`.
-4. The relayer calls `EmailDKIMVerifier::request_email_verification` with:
-   - `email_blob = null`
-   - `encrypted_email_blob = envelope`
-   - `params = { account_id, payer_account_id, network_id }`.
-5. The Outlayer worker decrypts, verifies DKIM, and the contract returns a
-   `VerificationResult` with the recovered fields.
+4. The relayer calls the per-account `EmailRecoverer` contract with:
+   - `verify_encrypted_email_and_recover(encrypted_email_blob, aead_context)`, where
+     `encrypted_email_blob = envelope` and
+     `aead_context = { account_id, network_id, payer_account_id }`.
+5. The per-account `EmailRecoverer` delegates to the global
+   `EmailDKIMVerifier` contract (which talks to the Outlayer worker) to perform
+   DKIM verification and account recovery, and ensures a `VerificationResult`
+   is stored keyed by `request_id` for the frontend to poll via
+   `get_verification_result(request_id)`.
 
 The goal is that validators and indexers only see ciphertext; the TEE worker
 handles plaintext and DKIM verification off-chain.
 
 ## SDK Components
 
-- `sdk/src/server/email-recovery/teeEmail.ts`
+- `sdk/src/server/email-recovery/emailEncryptor.ts`
   - `encryptEmailForOutlayer({ emailRaw, context, recipientPk })`:
     - Accepts an X25519 public key (`recipientPk`).
     - Generates an ephemeral X25519 keypair and 12-byte nonce.
@@ -39,20 +42,16 @@ handles plaintext and DKIM verification off-chain.
       ```
 
 - `sdk/src/server/email-recovery/index.ts` (`EmailRecoveryService`)
-  - `requestEncryptedEmailVerification({ accountId, emailBlob })`:
+  - `verifyEncryptedEmailAndRecover({ accountId, emailBlob })`:
     - Validates inputs.
-    - Builds `context`:
-      ```ts
-      {
-        account_id: accountId,
-        payer_account_id: relayerAccountId,
-        network_id: networkId,
-      }
-      ```
-    - Fetches and caches the Outlayer X25519 public key via `get_outlayer_encryption_public_key`.
-    - Calls `encryptEmailForOutlayer` to produce `encrypted_email_blob`.
-    - Sends `request_email_verification` to `EmailDKIMVerifier` with:
-      `{ payer_account_id, email_blob: null, encrypted_email_blob: envelope, params: context }`.
+    - Fetches and caches the Outlayer X25519 public key via
+      `get_outlayer_encryption_public_key` on the global `EmailDKIMVerifier`.
+    - Calls `encryptEmailForOutlayer` with AEAD context
+      `{ account_id: accountId, network_id: networkId, payer_account_id: relayerAccountId }`
+      to produce `encrypted_email_blob`.
+    - Sends `verify_encrypted_email_and_recover` to the per-account
+      `EmailRecoverer` contract with:
+      `{ encrypted_email_blob: envelope, aead_context: context }`.
     - Returns an `EmailRecoveryResult`:
       ```ts
       {
@@ -68,7 +67,7 @@ handles plaintext and DKIM verification off-chain.
 From an HTTP route or worker:
 
 ```ts
-const result = await authService.emailRecovery?.requestEncryptedEmailVerification({
+const result = await authService.emailRecovery?.verifyEncryptedEmailAndRecover({
   accountId,         // parsed from Subject / headers
   emailBlob,         // full raw .eml as UTF-8
 });

@@ -20,7 +20,7 @@ export interface EmailEncryptionContext {
 
 export interface EncryptEmailForOutlayerInput {
   emailRaw: string;
-  context: EmailEncryptionContext;
+  aeadContext: EmailEncryptionContext;
   recipientPk: Uint8Array;
   /**
    * Test-only overrides to make encryption deterministic for round-trip tests.
@@ -33,7 +33,7 @@ export interface EncryptEmailForOutlayerInput {
 
 export interface EncryptEmailForOutlayerResult {
   envelope: EncryptedEmailEnvelope;
-  context: EmailEncryptionContext;
+  aeadContext: EmailEncryptionContext;
 }
 
 // IMPORTANT: The exact JSON byte sequence here is used as AEAD AAD and must
@@ -82,7 +82,7 @@ export function deriveOutlayerStaticKeyFromSeedHex(seedHex: string): { secretKey
 export async function encryptEmailForOutlayer(
   input: EncryptEmailForOutlayerInput
 ): Promise<EncryptEmailForOutlayerResult> {
-  const { emailRaw, context, recipientPk, testOverrides } = input;
+  const { emailRaw, aeadContext, recipientPk, testOverrides } = input;
 
   if (!(recipientPk instanceof Uint8Array) || recipientPk.length !== 32) {
     throw new Error('recipientPk must be a 32-byte X25519 public key');
@@ -122,7 +122,7 @@ export async function encryptEmailForOutlayer(
   } else {
     nonce = crypto.getRandomValues(new Uint8Array(12));
   }
-  const aad = encoder.encode(serializeContextForAad(context));
+  const aad = encoder.encode(serializeContextForAad(aeadContext));
   const plaintext = encoder.encode(emailRaw);
 
   const cipher = chacha20poly1305(symmetricKey, nonce, aad);
@@ -147,77 +147,5 @@ export async function encryptEmailForOutlayer(
     ciphertext: b64(ciphertext),
   };
 
-  return { envelope, context };
-}
-
-export interface DecryptEmailForOutlayerTestOnlyInput {
-  envelope: EncryptedEmailEnvelope;
-  context: EmailEncryptionContext;
-  recipientSk: Uint8Array;
-}
-
-/**
- * Test-only helper to decrypt an EncryptedEmailEnvelope using the recipient's
- * X25519 private key. This mirrors the Outlayer worker logic so unit tests can
- * perform deterministic round-trip checks of encryptEmailForOutlayer.
- */
-export async function decryptEmailForOutlayerTestOnly(
-  input: DecryptEmailForOutlayerTestOnlyInput
-): Promise<string> {
-  const { envelope, context, recipientSk } = input;
-
-  if (!(recipientSk instanceof Uint8Array) || recipientSk.length !== 32) {
-    throw new Error('recipientSk must be a 32-byte X25519 secret key');
-  }
-
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
-
-  const fromB64 = (value: string): Uint8Array => {
-    if (!value) return new Uint8Array();
-    if (typeof Buffer !== 'undefined') {
-      return new Uint8Array(Buffer.from(value, 'base64'));
-    }
-    const bin = atob(value);
-    const out = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) {
-      out[i] = bin.charCodeAt(i);
-    }
-    return out;
-  };
-
-  const ephemeralPub = fromB64(envelope.ephemeral_pub);
-  const nonce = fromB64(envelope.nonce);
-  const ciphertext = fromB64(envelope.ciphertext);
-
-  if (ephemeralPub.length !== 32) {
-    throw new Error(`ephemeral_pub must decode to 32 bytes, got ${ephemeralPub.length}`);
-  }
-  if (nonce.length !== 12) {
-    throw new Error(`nonce must decode to 12 bytes, got ${nonce.length}`);
-  }
-
-  // Derive shared secret and symmetric key exactly as in encryptEmailForOutlayer
-  const sharedSecret = x25519.getSharedSecret(recipientSk, ephemeralPub);
-  const info = encoder.encode('email-dkim-encryption-key');
-  const symmetricKey = hkdf(sha256, sharedSecret, undefined, info, 32);
-
-  const aad = encoder.encode(serializeContextForAad(context));
-  const cipher = chacha20poly1305(symmetricKey, nonce, aad);
-  const plaintext = cipher.decrypt(ciphertext);
-
-  return decoder.decode(plaintext);
-}
-
-/**
- * Test-only helper to derive a deterministic X25519 keypair from a seed string.
- * This is used only in unit tests so they don't need to import @noble/curves directly.
- */
-export function deriveTestX25519KeypairFromSeed(seed: string): { secretKey: Uint8Array; publicKey: Uint8Array } {
-  const encoder = new TextEncoder();
-  const bytes = encoder.encode(seed || '');
-  const sk = new Uint8Array(32);
-  sk.set(bytes.slice(0, 32));
-  const pk = x25519.getPublicKey(sk);
-  return { secretKey: sk, publicKey: pk };
+  return { envelope, aeadContext };
 }

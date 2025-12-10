@@ -7,7 +7,8 @@ const IMPORT_PATHS = {
 
 test.describe('zk-email subject parsing with request_id', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    // Use a blank page for unit tests to avoid network dependencies
+    await page.goto('data:text/html,<!DOCTYPE html><html><head></head><body></body></html>');
     await injectImportMap(page);
   });
 

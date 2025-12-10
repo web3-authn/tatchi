@@ -81,7 +81,7 @@ export async function setupBasicPasskeyTest(
     const appOrigin = new URL(config.frontendUrl).origin;
     const mirror = true;
     await installWalletSdkCorsShim(page, { appOrigin, logStyle: 'silent', mirror });
-  } catch {}
+  } catch { }
 
   // Defensive shims (test-only):
   // 1) Pin embedded base to app origin so all SDK assets resolve same-origin (toggle: forceSameOriginSdkBase)
@@ -106,11 +106,11 @@ export async function setupBasicPasskeyTest(
         } as any);
         try {
           window.addEventListener('W3A_WALLET_SDK_BASE_CHANGED' as any, (e: Event) => {
-            try { (e as any).stopImmediatePropagation?.(); } catch {}
-            try { e.stopPropagation(); } catch {}
+            try { (e as any).stopImmediatePropagation?.(); } catch { }
+            try { e.stopPropagation(); } catch { }
           }, true);
-        } catch {}
-      } catch {}
+        } catch { }
+      } catch { }
     }, { origin: appOrigin, enable: forceSameOriginSdkBase });
 
     // (2) Patch Worker constructor to force same-origin worker URLs
@@ -138,18 +138,18 @@ export async function setupBasicPasskeyTest(
           }
         };
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const PatchedWorker: any = function(this: any, url: string | URL, options?: WorkerOptions) {
+        const PatchedWorker: any = function (this: any, url: string | URL, options?: WorkerOptions) {
           const patchedUrl = normalize(String(url));
           return new (OriginalWorker as any)(patchedUrl, options);
         };
         PatchedWorker.prototype = (OriginalWorker as any).prototype;
         Object.defineProperty(window, 'Worker', { value: PatchedWorker });
-      } catch {}
+      } catch { }
     }, { origin: appOrigin, enable: forceSameOriginWorkers });
-  } catch {}
+  } catch { }
 
   // Navigate to the frontend
-  await page.goto(config.frontendUrl);
+  await page.goto('/');
 
   // Execute the 5-step sequential setup process
   const authenticatorId = await executeSequentialSetup(page, config);

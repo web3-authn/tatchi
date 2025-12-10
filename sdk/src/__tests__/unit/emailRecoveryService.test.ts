@@ -11,7 +11,7 @@ const GMAIL_RESET_EMAIL_BLOB = readFileSync(
   'utf8'
 );
 
-test.describe('EmailRecoveryService.requestEncryptedEmailVerification', () => {
+test.describe('EmailRecoveryService.verifyEncryptedEmailAndRecover', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
     await injectImportMap(page);
@@ -22,51 +22,54 @@ test.describe('EmailRecoveryService.requestEncryptedEmailVerification', () => {
       try {
         const { EmailRecoveryService } = await import(paths.server);
 
+        const createMockDeps = (calls: any[], signedArgsRef: { current: any }) => {
+          const nearClient = {
+            async view(params: any): Promise<any> {
+              calls.push({ type: 'view', params });
+              const bytes = new Uint8Array(32);
+              for (let i = 0; i < 32; i++) bytes[i] = i + 1;
+              let bin = '';
+              for (const b of bytes) bin += String.fromCharCode(b);
+              return btoa(bin);
+            },
+            async sendTransaction(signedTx: any): Promise<any> {
+              calls.push({ type: 'send', signedTx });
+              // Parse contract args for inspection
+              const firstAction = signedTx.actions?.[0];
+              const parsedArgs = firstAction?.args ? JSON.parse(firstAction.args) : null;
+              calls.push({ type: 'parsedArgs', parsedArgs });
+              return {
+                transaction: { hash: 'test-tx-hash' },
+                status: { SuccessValue: '' },
+                receipts_outcome: [],
+              };
+            },
+          };
+
+          return {
+            relayerAccountId: 'w3a-relayer.testnet',
+            relayerPrivateKey: 'ed25519:dummy',
+            networkId: 'testnet',
+            emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+            nearClient,
+            ensureSignerAndRelayerAccount: async () => { },
+            queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
+            fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
+            signWithPrivateKey: async (input: any) => {
+              signedArgsRef.current = input;
+              return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
+            },
+            getRelayerPublicKey: () => 'relayer-public-key',
+          };
+        };
+
         const calls: any[] = [];
-        let signedArgs: any = null;
-
-        const nearClient = {
-          async view(params: any): Promise<any> {
-            calls.push({ type: 'view', params });
-            const bytes = new Uint8Array(32);
-            for (let i = 0; i < 32; i++) bytes[i] = i + 1;
-            let bin = '';
-            for (const b of bytes) bin += String.fromCharCode(b);
-            return btoa(bin);
-          },
-          async sendTransaction(signedTx: any): Promise<any> {
-            calls.push({ type: 'send', signedTx });
-            // Parse contract args for inspection
-            const firstAction = signedTx.actions?.[0];
-            const parsedArgs = firstAction?.args ? JSON.parse(firstAction.args) : null;
-            calls.push({ type: 'parsedArgs', parsedArgs });
-            return {
-              transaction: { hash: 'test-tx-hash' },
-              status: { SuccessValue: '' },
-              receipts_outcome: [],
-            };
-          },
-        };
-
-        const deps = {
-          relayerAccountId: 'w3a-relayer.testnet',
-          relayerPrivateKey: 'ed25519:dummy',
-          networkId: 'testnet',
-          emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
-          nearClient,
-          ensureSignerAndRelayerAccount: async () => {},
-          queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
-          fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
-          signWithPrivateKey: async (input: any) => {
-            signedArgs = input;
-            return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
-          },
-          getRelayerPublicKey: () => 'relayer-public-key',
-        };
+        const signedArgsRef = { current: null };
+        const deps = createMockDeps(calls, signedArgsRef);
 
         const service = new EmailRecoveryService(deps);
 
-        const result = await service.requestEncryptedEmailVerification({
+        const result = await service.verifyEncryptedEmailAndRecover({
           accountId: 'berp61.w3a-v1.testnet',
           emailBlob,
         });
@@ -75,7 +78,7 @@ test.describe('EmailRecoveryService.requestEncryptedEmailVerification', () => {
           success: true,
           result,
           calls,
-          signedArgs,
+          signedArgs: signedArgsRef.current,
         };
       } catch (error: any) {
         return {
@@ -107,69 +110,78 @@ test.describe('EmailRecoveryService.requestEncryptedEmailVerification', () => {
 
     expect(signedArgs).toBeTruthy();
     expect(signedArgs.signerAccountId).toBe('w3a-relayer.testnet');
-    expect(signedArgs.receiverId).toBe('email-dkim-verifier-v1.testnet');
+    // Encrypted path now calls the per-account EmailRecoverer contract.
+    expect(signedArgs.receiverId).toBe('berp61.w3a-v1.testnet');
     expect(Array.isArray(signedArgs.actions)).toBe(true);
     expect(signedArgs.actions.length).toBe(1);
 
     const action = signedArgs.actions[0];
     expect(action.action_type).toBe('FunctionCall');
-    expect(action.method_name).toBe('request_email_verification');
+    expect(action.method_name).toBe('verify_encrypted_email_and_recover');
 
     const parsedArgs = JSON.parse(action.args);
-    expect(parsedArgs.payer_account_id).toBe('w3a-relayer.testnet');
-    expect(parsedArgs.email_blob).toBeNull();
-    expect(parsedArgs.params.account_id).toBe('berp61.w3a-v1.testnet');
-    expect(parsedArgs.params.network_id).toBe('testnet');
     expect(parsedArgs.encrypted_email_blob).toBeTruthy();
     expect(parsedArgs.encrypted_email_blob.version).toBe(1);
     expect(typeof parsedArgs.encrypted_email_blob.ephemeral_pub).toBe('string');
     expect(typeof parsedArgs.encrypted_email_blob.nonce).toBe('string');
     expect(typeof parsedArgs.encrypted_email_blob.ciphertext).toBe('string');
+    // AEAD context should be forwarded to EmailRecoverer and then to EmailDKIMVerifier
+    // and must include account_id, network_id, payer_account_id.
+    expect(parsedArgs.aead_context).toBeTruthy();
+    expect(parsedArgs.aead_context.account_id).toBe('berp61.w3a-v1.testnet');
+    expect(parsedArgs.aead_context.network_id).toBe('testnet');
+    expect(parsedArgs.aead_context.payer_account_id).toBe('w3a-relayer.testnet');
   });
 });
 
 test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () => {
-  test('routes onchain-public mode to verify_email_onchain_and_recover', async ({ page }) => {
+  test('routes onchain-public mode to verify_encrypted_email_and_recover via EmailRecoverer', async ({ page }) => {
     await page.goto('/');
     await injectImportMap(page);
     const res = await page.evaluate(async ({ paths, emailBlob }) => {
       try {
         const { EmailRecoveryService } = await import(paths.server);
 
+        const createMockDeps = (calls: any[], signedArgsRef: { current: any }) => {
+          const nearClient = {
+            async view(params: any): Promise<any> {
+              calls.push({ type: 'view', params });
+              const bytes = new Uint8Array(32);
+              for (let i = 0; i < 32; i++) bytes[i] = i + 1;
+              let bin = '';
+              for (const b of bytes) bin += String.fromCharCode(b);
+              return btoa(bin);
+            },
+            async sendTransaction(signedTx: any): Promise<any> {
+              calls.push({ type: 'send', signedTx });
+              return {
+                transaction: { hash: 'onchain-tx-hash' },
+                status: { SuccessValue: '' },
+                receipts_outcome: [],
+              };
+            },
+          };
+
+          return {
+            relayerAccountId: 'w3a-relayer.testnet',
+            relayerPrivateKey: 'ed25519:dummy',
+            networkId: 'testnet',
+            emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+            nearClient,
+            ensureSignerAndRelayerAccount: async () => { },
+            queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
+            fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
+            signWithPrivateKey: async (input: any) => {
+              signedArgsRef.current = input;
+              return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
+            },
+            getRelayerPublicKey: () => 'relayer-public-key',
+          };
+        };
+
         const calls: any[] = [];
-        let signedArgs: any = null;
-
-        const nearClient = {
-          async view(_params: any): Promise<any> {
-            // Should not be called in onchain-public mode.
-            calls.push({ type: 'view' });
-            return '';
-          },
-          async sendTransaction(signedTx: any): Promise<any> {
-            calls.push({ type: 'send', signedTx });
-            return {
-              transaction: { hash: 'onchain-tx-hash' },
-              status: { SuccessValue: '' },
-              receipts_outcome: [],
-            };
-          },
-        };
-
-        const deps = {
-          relayerAccountId: 'w3a-relayer.testnet',
-          relayerPrivateKey: 'ed25519:dummy',
-          networkId: 'testnet',
-          emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
-          nearClient,
-          ensureSignerAndRelayerAccount: async () => {},
-          queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
-          fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
-          signWithPrivateKey: async (input: any) => {
-            signedArgs = input;
-            return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
-          },
-          getRelayerPublicKey: () => 'relayer-public-key',
-        };
+        const signedArgsRef = { current: null };
+        const deps = createMockDeps(calls, signedArgsRef);
 
         const service = new EmailRecoveryService(deps);
 
@@ -183,7 +195,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
           success: true,
           result,
           calls,
-          signedArgs,
+          signedArgs: signedArgsRef.current,
         };
       } catch (error: any) {
         return {
@@ -223,10 +235,14 @@ test.describe('EmailRecoveryService.requestEmailRecovery (onchain-public)', () =
 
     const action = signedArgs.actions[0];
     expect(action.action_type).toBe('FunctionCall');
-    expect(action.method_name).toBe('verify_email_onchain_and_recover');
+    expect(action.method_name).toBe('verify_encrypted_email_and_recover');
 
     const parsedArgs = JSON.parse(action.args);
-    expect(parsedArgs.email_blob).toBe(GMAIL_RESET_EMAIL_BLOB);
+    expect(parsedArgs.encrypted_email_blob).toBeTruthy();
+    expect(parsedArgs.encrypted_email_blob.version).toBe(1);
+    expect(typeof parsedArgs.encrypted_email_blob.ephemeral_pub).toBe('string');
+    expect(typeof parsedArgs.encrypted_email_blob.nonce).toBe('string');
+    expect(typeof parsedArgs.encrypted_email_blob.ciphertext).toBe('string');
   });
 });
 
@@ -238,8 +254,48 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
       try {
         const { EmailRecoveryService } = await import(paths.server);
 
+        const createMockDeps = (calls: any[], signedArgsRef: { current: any }) => {
+          const nearClient = {
+            async view(_params: any): Promise<any> {
+              calls.push({ type: 'view' });
+              return '';
+            },
+            async sendTransaction(signedTx: any): Promise<any> {
+              calls.push({ type: 'send', signedTx });
+              const firstAction = signedTx.actions?.[0];
+              const parsedArgs = firstAction?.args ? JSON.parse(firstAction.args) : null;
+              calls.push({ type: 'parsedArgs', parsedArgs });
+              return {
+                transaction: { hash: 'zkemail-tx-hash' },
+                status: { SuccessValue: '' },
+                receipts_outcome: [],
+              };
+            },
+          };
+
+          return {
+            relayerAccountId: 'w3a-relayer.testnet',
+            relayerPrivateKey: 'ed25519:dummy',
+            networkId: 'testnet',
+            emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
+            nearClient,
+            ensureSignerAndRelayerAccount: async () => { },
+            queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
+            fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
+            signWithPrivateKey: async (input: any) => {
+              signedArgsRef.current = input;
+              return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
+            },
+            getRelayerPublicKey: () => 'relayer-public-key',
+            zkEmailProver: {
+              baseUrl: 'http://zk-email-prover.local',
+              timeoutMs: 5000,
+            },
+          };
+        };
+
         const calls: any[] = [];
-        let signedArgs: any = null;
+        const signedArgsRef = { current: null };
 
         // Minimal email blob with subject + headers for bindings parser
         const rawEmail =
@@ -264,43 +320,7 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
           } as any;
         };
 
-        const nearClient = {
-          async view(_params: any): Promise<any> {
-            calls.push({ type: 'view' });
-            return '';
-          },
-          async sendTransaction(signedTx: any): Promise<any> {
-            calls.push({ type: 'send', signedTx });
-            const firstAction = signedTx.actions?.[0];
-            const parsedArgs = firstAction?.args ? JSON.parse(firstAction.args) : null;
-            calls.push({ type: 'parsedArgs', parsedArgs });
-            return {
-              transaction: { hash: 'zkemail-tx-hash' },
-              status: { SuccessValue: '' },
-              receipts_outcome: [],
-            };
-          },
-        };
-
-        const deps = {
-          relayerAccountId: 'w3a-relayer.testnet',
-          relayerPrivateKey: 'ed25519:dummy',
-          networkId: 'testnet',
-          emailDkimVerifierAccountId: 'email-dkim-verifier-v1.testnet',
-          nearClient,
-          ensureSignerAndRelayerAccount: async () => {},
-          queueTransaction: async <T>(fn: () => Promise<T>, _label: string): Promise<T> => fn(),
-          fetchTxContext: async () => ({ nextNonce: '1', blockHash: 'block-hash' }),
-          signWithPrivateKey: async (input: any) => {
-            signedArgs = input;
-            return { transaction: { dummy: true }, signature: {}, borsh_bytes: [], actions: input.actions };
-          },
-          getRelayerPublicKey: () => 'relayer-public-key',
-          zkEmailProver: {
-            baseUrl: 'http://zk-email-prover.local',
-            timeoutMs: 5000,
-          },
-        };
+        const deps = createMockDeps(calls, signedArgsRef);
 
         const service = new EmailRecoveryService(deps);
 
@@ -314,8 +334,9 @@ test.describe('EmailRecoveryService.requestEmailRecovery (zk-email)', () => {
           success: true,
           result,
           calls,
-          signedArgs,
+          signedArgs: signedArgsRef.current,
         };
+
       } catch (error: any) {
         return {
           success: false,

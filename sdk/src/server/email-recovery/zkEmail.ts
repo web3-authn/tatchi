@@ -314,7 +314,11 @@ export async function generateZkEmailProofFromPayload(
   const timeoutMs = opts.timeoutMs ?? 60_000;
   const url = opts.baseUrl.replace(/\/+$/, '') + '/prove-email';
 
-  const res = await postJsonWithTimeout<ZkEmailProverResponse>(url, { rawEmail: payload.raw }, timeoutMs);
+  const res = await postJsonWithTimeout<ZkEmailProverResponse>(
+    url,
+    { rawEmail: payload.raw },
+    timeoutMs
+  );
 
   return {
     proof: res.proof,
