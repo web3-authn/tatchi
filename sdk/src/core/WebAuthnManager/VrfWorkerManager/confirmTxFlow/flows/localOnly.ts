@@ -56,10 +56,18 @@ export async function handleLocalOnlyFlow(
     try {
       // UI for decrypt is typically skipped; proceed to collect credentials
       const authenticators = await ctx.indexedDB.clientDB.getAuthenticatorsByUser(toAccountId(nearAccountId));
+      // Prefer the last logged-in device for this account when multiple passkeys exist.
+      const { authenticatorsForPrompt, wrongPasskeyError } = await ctx.indexedDB.clientDB.ensureCurrentPasskey(
+        toAccountId(nearAccountId),
+        authenticators,
+      );
+      if (wrongPasskeyError) {
+        throw new Error(wrongPasskeyError);
+      }
       const credential = await ctx.touchIdPrompt.getAuthenticationCredentialsInternal({
         nearAccountId,
         challenge: vrfChallenge,
-        allowCredentials: authenticatorsToAllowCredentials(authenticators),
+        allowCredentials: authenticatorsToAllowCredentials(authenticatorsForPrompt),
       });
 
       const dualPrfOutputs = extractPrfFromCredential({
