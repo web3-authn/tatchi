@@ -30,10 +30,10 @@ The `ProgressBus` class receives typed progress payloads and applies a phase heu
   - Source: `sdk/src/core/WalletIframe/client/progress-bus.ts`
 
 - Hide phases (post‑activation, non‑interactive work):
+  - `ActionPhase.STEP_3_CONTRACT_VERIFICATION`
   - `ActionPhase.STEP_5_AUTHENTICATION_COMPLETE`
   - `ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS`
   - `ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE`
-  - `ActionPhase.STEP_3_CONTRACT_VERIFICATION`
   - `ActionPhase.STEP_8_BROADCASTING`
   - `ActionPhase.STEP_9_ACTION_COMPLETE`
   - Device linking/registration completion/error phases

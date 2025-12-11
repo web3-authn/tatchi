@@ -22,7 +22,7 @@ import {
 } from '../types/vrf-worker';
 import type { ActionArgsWasm, TransactionInputWasm } from '../types/actions';
 import type { TatchiPasskeyConfigs, RegistrationHooksOptions, RegistrationSSEEvent, onProgressEvents } from '../types/passkeyManager';
-import type { VerifyAndSignTransactionResult } from '../types/passkeyManager';
+import type { SignTransactionResult } from '../types/passkeyManager';
 import type { AccountId } from '../types/accountIds';
 import type { AuthenticatorOptions } from '../types/authenticatorOptions';
 import type { DelegateActionInput } from '../types/delegate';
@@ -1076,7 +1076,7 @@ export class WebAuthnManager {
     // Accept partial override; merging happens in handlers layer
     confirmationConfigOverride?: Partial<ConfirmationConfig>,
     onEvent?: (update: onProgressEvents) => void,
-  }): Promise<VerifyAndSignTransactionResult[]> {
+  }): Promise<SignTransactionResult[]> {
 
     if (transactions.length === 0) {
       throw new Error('No payloads provided for signing');

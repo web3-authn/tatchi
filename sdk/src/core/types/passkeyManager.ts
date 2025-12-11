@@ -64,14 +64,8 @@ export enum ActionStatus {
   ERROR = 'error',
 }
 
-// Delegate-specific phase aliases for filtering
-export enum DelegateActionPhase {
-  STEP_1_PREPARATION = ActionPhase.STEP_1_PREPARATION,
-  STEP_2_USER_CONFIRMATION = ActionPhase.STEP_2_USER_CONFIRMATION,
-  STEP_3_TRANSACTION_SIGNING_PROGRESS = ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
-  STEP_4_TRANSACTION_SIGNING_COMPLETE = ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
-  ACTION_ERROR = ActionPhase.ACTION_ERROR,
-}
+// Delegate-specific phase alias for filtering
+export { ActionPhase as DelegateActionPhase };
 
 // Account Recovery Enums
 export enum AccountRecoveryPhase {
@@ -115,6 +109,7 @@ export enum EmailRecoveryPhase {
   STEP_2_TOUCH_ID_REGISTRATION = 'email-recovery-touch-id-registration',
   STEP_3_AWAIT_EMAIL = 'email-recovery-await-email',
   STEP_4_POLLING_ADD_KEY = 'email-recovery-polling-add-key',
+  STEP_4_POLLING_VERIFICATION_RESULT = 'email-recovery-polling-add-key',
   STEP_5_FINALIZING_REGISTRATION = 'email-recovery-finalizing-registration',
   STEP_6_COMPLETE = 'email-recovery-complete',
   ERROR = 'email-recovery-error',
@@ -185,10 +180,6 @@ export interface onProgressEvents extends BaseActionSSEEvent {
   // Generic metadata bag for progress payloads
   data?: Record<string, unknown>;
   logs?: string[];
-}
-
-export interface DelegateActionSSEEvent extends onProgressEvents {
-  data?: (onProgressEvents['data'] & { context?: 'delegate' }) | undefined;
 }
 
 // Optional, phase-specific data shapes used where we can commit to fields
@@ -403,6 +394,8 @@ export type ActionSSEEvent =
   | ActionEventError
   | ActionEventWasmError;
 
+export type DelegateActionSSEEvent = ActionSSEEvent;
+
 /////////////////////////////////////////////
 // SDK-Sent-Events: Device Linking Event Types
 /////////////////////////////////////////////
@@ -538,8 +531,15 @@ export interface EmailRecoveryEventStep3 extends BaseEmailRecoveryEvent {
 
 export interface EmailRecoveryEventStep4 extends BaseEmailRecoveryEvent {
   step: 4;
-  phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY;
-  data?: Record<string, unknown>;
+  phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY | EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT;
+  data?: {
+    accountId?: string;
+    requestId?: string;
+    nearPublicKey?: string;
+    elapsedMs?: number;
+    pollCount?: number;
+    [key: string]: unknown;
+  };
   logs?: string[];
 }
 
@@ -642,7 +642,7 @@ export interface SignTransactionHooksOptions {
   onEvent?: EventCallback<ActionSSEEvent>;
   onError?: (error: Error) => void;
 
-  afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
+  afterCall?: AfterCall<SignTransactionResult[]>;
   waitUntil?: TxExecutionStatus;
   // Per-call confirmation configuration (non-persistent)
   // Accept partial config so callers can pass minimal overrides like { uiMode: 'drawer' }
@@ -656,6 +656,25 @@ export interface SendTransactionHooksOptions {
   afterCall?: AfterCall<ActionResult>;
   waitUntil?: TxExecutionStatus;
 }
+
+export interface DelegateActionHooksOptions {
+  onEvent?: EventCallback<DelegateActionSSEEvent>;
+  onError?: (error: Error) => void;
+  waitUntil?: TxExecutionStatus;
+  afterCall?: AfterCall<SignDelegateActionResult>;
+  confirmationConfig?: Partial<ConfirmationConfig>;
+}
+
+export interface DelegateRelayHooksOptions {
+  onEvent?: EventCallback<ActionSSEEvent>;
+  onError?: (error: Error) => void;
+  afterCall?: AfterCall<DelegateRelayResponse>;
+}
+
+export type SignAndSendDelegateActionHooksOptions =
+  Omit<DelegateActionHooksOptions, 'afterCall'> & {
+    afterCall?: AfterCall<SignAndSendDelegateActionResult>;
+  };
 
 export interface AccountRecoveryHooksOptions {
   onEvent?: EventCallback<AccountRecoverySSEEvent>;
@@ -673,7 +692,7 @@ export interface SignNEP413HooksOptions {
 }
 
 //////////////////////////////////
-/// State Types
+/// Result Types
 //////////////////////////////////
 
 export interface LoginState {
@@ -685,7 +704,6 @@ export interface LoginState {
   vrfSessionDuration?: number;
 }
 
-// Result Types
 export interface RegistrationResult {
   success: boolean;
   error?: string;
@@ -720,7 +738,7 @@ export interface ActionResult {
   result?: FinalExecutionOutcome;
 }
 
-export interface VerifyAndSignTransactionResult {
+export interface SignTransactionResult {
   signedTransaction: SignedTransaction;
   nearAccountId: string;
   logs?: string[];
@@ -732,6 +750,26 @@ export interface GetRecentLoginsResult {
     nearAccountId: AccountId,
     deviceNumber: number,
   } | null
+}
+
+export interface SignDelegateActionResult {
+  hash: string;
+  signedDelegate: import('../types/signer-worker').WasmSignedDelegate;
+  nearAccountId: string;
+  logs?: string[];
+}
+
+export interface DelegateRelayResponse {
+  ok: boolean;
+  relayerTxHash?: string;
+  status?: string;
+  outcome?: unknown;
+  error?: string;
+}
+
+export interface SignAndSendDelegateActionResult {
+  signResult: SignDelegateActionResult;
+  relayResult: DelegateRelayResponse;
 }
 
 // TatchiPasskey Configuration

@@ -38,7 +38,7 @@ import { ProgressBus, defaultPhaseHeuristics } from './progress-bus';
 import type {
   RegistrationResult,
   LoginResult,
-  VerifyAndSignTransactionResult,
+  SignTransactionResult,
   LoginState,
   ActionResult,
   ActionSSEEvent,
@@ -453,13 +453,13 @@ export class WalletIframeRouter {
     options?: {
       onEvent?: (ev: ActionSSEEvent) => void;
       onError?: (error: Error) => void;
-      afterCall?: AfterCall<VerifyAndSignTransactionResult[]>;
+      afterCall?: AfterCall<SignTransactionResult[]>;
       // Allow minimal overrides (e.g., { uiMode: 'drawer' })
       confirmationConfig?: Partial<ConfirmationConfig>;
     }
-  }): Promise<VerifyAndSignTransactionResult[]> {
+  }): Promise<SignTransactionResult[]> {
     // Do not forward non-cloneable functions in options; host emits its own PROGRESS messages
-    const res = await this.post<VerifyAndSignTransactionResult>({
+    const res = await this.post<SignTransactionResult>({
       type: 'PM_SIGN_TXS_WITH_ACTIONS',
       payload: {
         nearAccountId: payload.nearAccountId,
@@ -1316,7 +1316,7 @@ function isAccountRecoverySSEEvent(p: ProgressPayload): p is AccountRecoverySSEE
 /**
  * Strips out class functions as they cannot be sent over postMessage to iframe
  */
-  function normalizeSignedTransactionObject(result: VerifyAndSignTransactionResult) {
+  function normalizeSignedTransactionObject(result: SignTransactionResult) {
     const arr = Array.isArray(result) ? result : [];
     const normalized = arr.map(entry => {
       if (entry?.signedTransaction) {

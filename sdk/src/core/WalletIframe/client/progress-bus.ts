@@ -71,10 +71,7 @@ const SHOW_PHASES = new Set<string>([
 const HIDE_PHASES = new Set<string>([
   ActionPhase.STEP_5_AUTHENTICATION_COMPLETE,
   ActionPhase.STEP_6_TRANSACTION_SIGNING_PROGRESS,
-  DelegateActionPhase.STEP_3_TRANSACTION_SIGNING_PROGRESS,
   ActionPhase.STEP_7_TRANSACTION_SIGNING_COMPLETE,
-  DelegateActionPhase.STEP_4_TRANSACTION_SIGNING_COMPLETE,
-  ActionPhase.STEP_3_CONTRACT_VERIFICATION,
   ActionPhase.STEP_8_BROADCASTING,
   ActionPhase.STEP_9_ACTION_COMPLETE,
   // Device linking: hide when the flow has finished or errored

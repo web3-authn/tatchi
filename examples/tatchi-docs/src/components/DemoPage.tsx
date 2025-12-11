@@ -169,11 +169,11 @@ export const DemoPage: React.FC = () => {
             });
             setGreetingInput('');
             // Refresh the greeting after success
-            setTimeout(() => { void fetchGreeting(); }, 1000);
+            void fetchGreeting();
           } else if (success) {
             toast.success('Greeting updated (no TxID)');
             setGreetingInput('');
-            setTimeout(() => { void fetchGreeting(); }, 1000);
+            void fetchGreeting();
           } else {
             toast.error(`Greeting update failed: ${result?.error || 'Unknown error'}`);
           }
@@ -252,6 +252,13 @@ export const DemoPage: React.FC = () => {
         // WasmSignedDelegate is shape-compatible with the server-side SignedDelegate
         // and is treated as an opaque blob by the relayer.
         signedDelegate: result.signedDelegate as any,
+        options: {
+          afterCall: (success, res) => {
+            if (success && res?.ok !== false) {
+              void fetchGreeting()
+            }
+          },
+        },
       });
 
       try { toast.dismiss('delegate-relay'); } catch {}
@@ -283,7 +290,7 @@ export const DemoPage: React.FC = () => {
     } finally {
       setDelegateLoading(false);
     }
-  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction]);
+  }, [greetingInput, isLoggedIn, nearAccountId, tatchi, createGreetingAction, fetchGreeting]);
 
   const nearToYocto = (nearAmount: string): string => {
     const amount = parseFloat(nearAmount);
@@ -536,7 +543,7 @@ export const DemoPage: React.FC = () => {
                       try { toast.dismiss('embedded'); } catch {}
                       toast.success('Embedded flow complete');
                     }
-                    setTimeout(() => { void fetchGreeting(); }, 1000);
+                    void fetchGreeting();
                   }
                 },
                 onError: (error) => {

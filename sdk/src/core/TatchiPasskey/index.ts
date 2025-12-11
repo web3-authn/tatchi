@@ -19,18 +19,24 @@ import type {
   TatchiPasskeyConfigs,
   RegistrationResult,
   LoginResult,
-  SignNEP413HooksOptions,
+  LoginState,
+  ActionResult,
+  GetRecentLoginsResult,
+  SignTransactionResult,
+  SignDelegateActionResult,
+  SignAndSendDelegateActionResult,
+  SignAndSendDelegateActionHooksOptions,
+  DelegateRelayHooksOptions,
+  DelegateRelayResponse,
   RegistrationHooksOptions,
   LoginHooksOptions,
   ActionHooksOptions,
-  ActionResult,
-  LoginState,
-  AccountRecoveryHooksOptions,
-  VerifyAndSignTransactionResult,
-  SignAndSendTransactionHooksOptions,
-  SendTransactionHooksOptions,
   SignTransactionHooksOptions,
-  GetRecentLoginsResult,
+  SendTransactionHooksOptions,
+  SignAndSendTransactionHooksOptions,
+  SignNEP413HooksOptions,
+  DelegateActionHooksOptions,
+  AccountRecoveryHooksOptions,
 } from '../types/passkeyManager';
 import { ActionPhase, ActionStatus } from '../types/passkeyManager';
 import { ConfirmationConfig } from '../types/signer-worker';
@@ -38,11 +44,7 @@ import { DEFAULT_AUTHENTICATOR_OPTIONS } from '../types/authenticatorOptions';
 import { toAccountId, type AccountId } from '../types/accountIds';
 import type { DerivedAddressRecord, RecoveryEmailRecord } from '../IndexedDBManager';
 import { chainsigAddressManager } from '../ChainsigAddressManager';
-import {
-  ActionType,
-  type ActionArgs,
-  type TransactionInput
-} from '../types/actions';
+import { ActionType, type ActionArgs, type TransactionInput } from '../types/actions';
 import type {
   DeviceLinkingQRData,
   LinkDeviceResult,
@@ -58,7 +60,8 @@ import {
   type SignNEP413MessageParams,
   type SignNEP413MessageResult
 } from './signNEP413';
-import { signDelegateAction, type DelegateActionHooksOptions, type SignDelegateActionResult } from './delegateAction';
+import { signDelegateAction } from './delegateAction';
+import { SignedDelegate } from '../types/delegate';
 import { sendDelegateActionViaRelayer } from './relay';
 import type { UserPreferencesManager } from '../WebAuthnManager/userPreferences';
 import type { WalletIframeRouter } from '../WalletIframe/client/router';
@@ -75,8 +78,6 @@ import {
   bytesToHex,
 } from '../EmailRecovery';
 import type { DelegateActionInput } from '../types/delegate';
-import type { WasmSignedDelegate } from '../types/signer-worker';
-let warnedAboutSameOriginWallet = false;
 
 ///////////////////////////////////////
 // PASSKEY MANAGER
@@ -87,6 +88,8 @@ export interface PasskeyManagerContext {
   nearClient: NearClient;
   configs: TatchiPasskeyConfigs;
 }
+
+let warnedAboutSameOriginWallet = false;
 
 /**
  * Main TatchiPasskey class that provides framework-agnostic passkey operations
@@ -753,7 +756,7 @@ export class TatchiPasskey {
     nearAccountId: string,
     transactions: TransactionInput[],
     options?: SignTransactionHooksOptions
-  }): Promise<VerifyAndSignTransactionResult[]> {
+  }): Promise<SignTransactionResult[]> {
     // route signing via wallet origin
     if (this.iframeRouter) {
       try {
@@ -766,7 +769,7 @@ export class TatchiPasskey {
             confirmationConfig: options?.confirmationConfig
           }
         });
-        const arr: VerifyAndSignTransactionResult[] = Array.isArray(result) ? result : [];
+        const arr: SignTransactionResult[] = Array.isArray(result) ? result : [];
         await options?.afterCall?.(true, arr);
         return arr;
       } catch (error: unknown) {
@@ -891,10 +894,11 @@ export class TatchiPasskey {
    */
   async sendDelegateActionViaRelayer(args: {
     relayerUrl: string;
-    signedDelegate: import('../types/delegate').SignedDelegate;
+    signedDelegate: SignedDelegate;
     hash: string;
     signal?: AbortSignal;
-  }) {
+    options?: DelegateRelayHooksOptions;
+  }): Promise<DelegateRelayResponse> {
     const base = args.relayerUrl.replace(/\/+$/, '');
     const route = (this.configs.relayer?.delegateActionRoute || '/signed-delegate').replace(/^\/?/, '/');
     const endpoint = `${base}${route}`;
@@ -905,7 +909,79 @@ export class TatchiPasskey {
         signedDelegate: args.signedDelegate,
       },
       signal: args.signal,
+      options: args.options,
     });
+  }
+
+  /**
+   * Convenience helper to sign a delegate action and immediately forward it to the relayer.
+   * Emits delegate signing events and relay broadcasting events through the provided options.
+   */
+  async signAndSendDelegateAction(args: {
+    nearAccountId: string;
+    delegate: DelegateActionInput;
+    relayerUrl: string;
+    signal?: AbortSignal;
+    options?: SignAndSendDelegateActionHooksOptions;
+  }): Promise<SignAndSendDelegateActionResult> {
+    const { nearAccountId, delegate, relayerUrl, signal, options } = args;
+
+    const signOptions: DelegateActionHooksOptions | undefined = options
+      ? {
+          onEvent: options.onEvent,
+          onError: options.onError,
+          waitUntil: options.waitUntil,
+          confirmationConfig: options.confirmationConfig,
+          // suppress afterCall so we can call afterCall() once at the end of the lifecycle.
+          afterCall: () => {},
+        }
+      : undefined;
+
+    let signResult: SignDelegateActionResult;
+    try {
+      signResult = await this.signDelegateAction({
+        nearAccountId,
+        delegate,
+        options: signOptions,
+      });
+    } catch (error) {
+      await options?.afterCall?.(false);
+      throw error;
+    }
+
+    const relayOptions: DelegateRelayHooksOptions | undefined = options
+      ? {
+          onEvent: options.onEvent,
+          onError: options.onError,
+        }
+      : undefined;
+
+    let relayResult: DelegateRelayResponse;
+    try {
+      relayResult = await this.sendDelegateActionViaRelayer({
+        relayerUrl,
+        hash: signResult.hash,
+        signedDelegate: signResult.signedDelegate as any,
+        signal,
+        options: relayOptions,
+      });
+    } catch (error) {
+      await options?.afterCall?.(false);
+      throw error;
+    }
+
+    const combined: SignAndSendDelegateActionResult = {
+      signResult,
+      relayResult,
+    };
+
+    const success = relayResult.ok !== false;
+    if (success) {
+      await options?.afterCall?.(true, combined);
+    } else {
+      await options?.afterCall?.(false);
+    }
+    return combined;
   }
 
   ///////////////////////////////////////

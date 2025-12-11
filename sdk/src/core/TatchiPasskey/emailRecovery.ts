@@ -596,10 +596,12 @@ export class EmailRecoveryFlow {
       await this.options?.afterCall?.(false);
       throw err;
     }
-    this.phase = EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY;
+    this.phase = EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT;
     this.pollingStartedAt = Date.now();
+    let pollCount = 0;
 
     while (!this.cancelled) {
+      pollCount += 1;
       const elapsed = Date.now() - (this.pollingStartedAt || 0);
       if (elapsed > maxPollingDurationMs) {
         const err = this.emitError(4, 'Timed out waiting for recovery email to be processed on-chain');
@@ -615,16 +617,17 @@ export class EmailRecoveryFlow {
 
       this.emit({
         step: 4,
-        phase: EmailRecoveryPhase.STEP_4_POLLING_ADD_KEY,
+        phase: EmailRecoveryPhase.STEP_4_POLLING_VERIFICATION_RESULT,
         status: EmailRecoveryStatus.PROGRESS,
         message: completed && success
-          ? 'Recovery email verified; finalizing registration...'
-          : 'Waiting for recovery email verification to complete...',
+          ? `Recovery email verified for request ${rec.requestId}; finalizing registration...`
+          : `Waiting for recovery email verification for request ${rec.requestId}...`,
         data: {
           accountId: rec.accountId,
           requestId: rec.requestId,
           nearPublicKey: rec.nearPublicKey,
           elapsedMs: elapsed,
+          pollCount,
         },
       } as EmailRecoverySSEEvent & { data: Record<string, unknown> });
 

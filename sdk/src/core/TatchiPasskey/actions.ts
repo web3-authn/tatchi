@@ -2,7 +2,7 @@ import { ActionType, toActionArgsWasm } from '../types/actions';
 import type {
   SendTransactionHooksOptions,
   SignTransactionHooksOptions,
-  VerifyAndSignTransactionResult,
+  SignTransactionResult,
   ActionHooksOptions,
   ActionResult,
   SignAndSendTransactionHooksOptions,
@@ -60,7 +60,7 @@ async function sendTransactionsParallelStaggered({
   staggerMs,
 }: {
   context: PasskeyManagerContext,
-  signedTxs: VerifyAndSignTransactionResult[],
+  signedTxs: SignTransactionResult[],
   options?: SignAndSendTransactionHooksOptions,
   staggerMs: number,
 }): Promise<ActionResult[]> {
@@ -146,7 +146,7 @@ export async function signTransactionsWithActions(args: {
   nearAccountId: AccountId,
   transactionInputs: TransactionInput[],
   options?: SignTransactionHooksOptions,
-}): Promise<VerifyAndSignTransactionResult[]> {
+}): Promise<SignTransactionResult[]> {
   try {
     return signTransactionsWithActionsInternal({
       context: args.context,
@@ -458,7 +458,7 @@ export async function signTransactionsWithActionsInternal({
   transactionInputs: TransactionInput[],
   options?: Omit<ActionHooksOptions, 'afterCall'>,
   confirmationConfigOverride?: Partial<ConfirmationConfig> | undefined,
-}): Promise<VerifyAndSignTransactionResult[]> {
+}): Promise<SignTransactionResult[]> {
 
   const { onEvent, onError, waitUntil } = options || {};
 
@@ -552,7 +552,7 @@ async function wasmAuthenticateAndSignTransactions(
   transactionInputs: TransactionInput[],
   options?: Omit<ActionHooksOptions, 'afterCall'> & { confirmationConfigOverride?: Partial<ConfirmationConfig> }
   // Per-call override for confirmation behavior (does not persist to IndexedDB)
-): Promise<VerifyAndSignTransactionResult[]> {
+): Promise<SignTransactionResult[]> {
 
   const { onEvent, onError, confirmationConfigOverride } = options || {};
   const { webAuthnManager } = context;

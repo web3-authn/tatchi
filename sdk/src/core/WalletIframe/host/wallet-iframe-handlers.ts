@@ -23,7 +23,7 @@ import type {
   AccountRecoveryHooksOptions,
   LoginResult,
   LoginState,
-  VerifyAndSignTransactionResult,
+  SignTransactionResult,
   ActionResult,
   GetRecentLoginsResult,
   SignTransactionHooksOptions,
